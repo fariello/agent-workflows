@@ -1,0 +1,87 @@
+# Release Review Runbook
+
+Treat this file as the controlling instruction for this repository review. Keep working until you have completed the required run artifacts, committed appropriate local changes, performed final validation, assessed whether to restart the review, made a push/no-push decision, and produced the final response in the required table-first format.
+
+This runbook is intended for OpenCode or another modern coding agent operating inside a repository. It is designed for serious pre-release or pre-major-run review and hardening.
+
+## Invocation
+
+From the repository root, execute:
+
+```text
+Read and execute release-review/README.md
+```
+
+Do not require the user to run each section manually. Execute the full sequence autonomously unless a safety blocker prevents progress.
+
+## Primary objective
+
+Perform a robust repository and code review that improves release readiness while minimizing the risk of unintended damage.
+
+Maximize correctness, security, privacy, tests, documentation accuracy, compatibility, packaging, CI readiness, maintainability, clear traceability, and clear final reporting.
+
+Minimize speculative changes, formatting churn, broad refactors, public contract breakage, unjustified deletion, remote side effects, secret exposure, and instruction drift.
+
+## Required execution order
+
+Read and follow `00-run-protocol.md` first. Then execute the section files in order:
+
+1. `01-current-state.md`
+2. `02-quality-security-edge-cases.md`
+3. `03-tests-regression.md`
+4. `04-docs-specs-examples.md`
+5. `05-feature-usability-maintainability.md`
+6. `06-compatibility-packaging-release.md`
+7. `07-implementation.md`
+8. `08-final-ship-review.md`
+
+Do not begin Section 7 implementation before completing Sections 1 through 6 and creating `repository-review/<RUN_ID>/09-implementation-plan.md`.
+
+## Run setup
+
+At the start:
+
+1. Confirm you are operating from the repository root.
+2. Determine whether the repository uses Git.
+3. Record the initial branch, head commit, remotes, and working tree status.
+4. Create a run ID using local time in this format: `YYYYMMDD-HHMMSS`.
+5. Create `repository-review/<RUN_ID>/`.
+6. Add `repository-review/` to `.gitignore` if it is not already ignored.
+7. Create the required run artifacts defined in `00-run-protocol.md`.
+8. Create `repository-review/<RUN_ID>/02-execution-plan.md` after enough initial inspection to understand the project type.
+9. Use TodoWrite if running in OpenCode and the tool is available.
+
+If the repository is not a Git repository, continue the review and record local commit and push steps as not applicable.
+
+## TodoWrite use
+
+If TodoWrite is available, use it for live progress visibility. Create todos for run setup, each review section, implementation planning, each coherent implementation batch, final validation, and the final report.
+
+Do not create a TodoWrite item for every file inspected or every tiny edit. The authoritative record is always `repository-review/<RUN_ID>/`, not TodoWrite.
+
+## Local commits and remote pushes
+
+Use local commits for meaningful tracked repository changes when safe and possible. Commit only files changed by this run. Do not accidentally include unrelated pre-existing user changes. Do not commit `repository-review/` artifacts unless the user explicitly asks.
+
+Remote pushes are prohibited until the final stage and only allowed if the user has explicitly permitted pushing. If permission is absent, produce a push/no-push recommendation in `repository-review/<RUN_ID>/11-push-plan.md` and in the final report.
+
+## Final response requirement
+
+The final response must be saved to:
+
+```text
+repository-review/<RUN_ID>/12-final-response.md
+```
+
+Then present the same content to the user.
+
+The final response must begin with:
+
+1. A table of completed actions.
+2. A table of identified but not addressed items.
+
+The second table must include audit findings that were identified but intentionally not implemented, not only attempted actions that were left incomplete.
+
+## Completion standard
+
+The run is not complete until all eight sections have been completed or explicitly marked not applicable with rationale, findings and actions have unique run-specific IDs, completed and unaddressed items are reconciled, validation results are recorded, local commits are recorded or explained, CI and deprecated-code assessments are recorded, push/no-push and restart decisions are recorded, and the final response is saved and presented.
