@@ -20,7 +20,7 @@ This is the primary change-making section. It should favor useful release harden
 
 ## Required inputs
 
-Read the findings register, action register, all section summaries from Sections 1 through 6, `deprecation-candidates.md`, `ci-assessment.md`, decisions, validation results, and current Git status.
+Read the findings register, action register, all section summaries from Sections 1 through 6, `deprecation-candidates.md`, `ci-assessment.md`, `schema-validation.md`, decisions, validation results, and current Git status.
 
 ## Required implementation plan
 

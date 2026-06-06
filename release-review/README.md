@@ -36,7 +36,7 @@ Do not require the user to run each section manually. Execute the full sequence 
 
 Perform a robust repository and code review that improves release readiness while minimizing the risk of unintended damage.
 
-Maximize correctness, security, privacy, tests, documentation accuracy, compatibility, packaging, CI readiness, maintainability, clear traceability, and clear final reporting.
+Maximize correctness, security, privacy, tests, documentation accuracy, schema validation, compatibility, packaging, CI readiness, maintainability, clear traceability, and clear final reporting.
 
 Minimize speculative changes, formatting churn, broad refactors, public contract breakage, unjustified deletion, remote side effects, secret exposure, and instruction drift.
 

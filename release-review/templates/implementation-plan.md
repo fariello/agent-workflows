@@ -39,6 +39,12 @@ List changes that should not be made in this run.
 | Candidate ID | Decision | Evidence | Action |
 |---|---|---|---|
 
+## Schema validation decisions
+
+| Schema ID | Decision | Rationale | Action |
+|---|---|---|---|
+|  |  |  |  |
+
 ## CI decisions
 
 | CI ID | Decision | Rationale | Action |

@@ -6,6 +6,21 @@ The zip also includes optional OpenCode command wrappers under `.opencode/comman
 
 ## How to use
 
+If using OpenCode after expanding the zip into the repository root, run:
+
+```text
+/release-review
+```
+
+For audit and implementation planning only, run:
+
+```text
+/release-review-plan
+```
+
+These commands are convenience wrappers. The controlling file remains `release-review/README.md`.
+
+
 From the repository root, tell the agent:
 
 ```text
@@ -37,10 +52,10 @@ Read and execute release-review/README.md
 | `08-final-ship-review.md` | Final release readiness assessment, final bug/security sanity audit, validation reconciliation, final report, push/no-push decision, and restart assessment. |
 | `templates/execution-plan.md` | Template for the early run execution plan. |
 | `templates/implementation-plan.md` | Template for the implementation plan created after audit sections and before fixes. |
-| `templates/section-summary.md` | Generic template for per-section summaries saved under `repository-review/<RUN_ID>/section-summaries/`. |
 | `templates/audit-lane-report.md` | Template for optional controlled parallel read-only audit lanes used after the Section 1 baseline. |
-| `templates/schema-validation.md` | Template for discovered schemas, schema validation commands, example validation, compatibility concerns, and schema drift. |
+| `templates/schema-validation.md` | Template for recording discovered schemas, schema validation commands, example validation, compatibility concerns, and schema drift. |
 | `templates/final-bug-security-audit.md` | Template for the final post-implementation bug/security sanity audit. |
+| `templates/section-summary.md` | Generic template for per-section summaries saved under `repository-review/<RUN_ID>/section-summaries/`. |
 | `templates/final-response.md` | Template for the saved final report and table-first final answer. |
 | `templates/finding-register.csv` | CSV header template for durable finding tracking. |
 | `templates/action-register.csv` | CSV header template for durable action tracking. |
@@ -66,15 +81,6 @@ repository-review/<RUN_ID>/
   12-final-response.md
   deprecation-candidates.md
   ci-assessment.md
-  section-summaries/
-    01-current-state.md
-    02-quality-security-edge-cases.md
-    03-tests-regression.md
-    04-docs-specs-examples.md
-    05-feature-usability-maintainability.md
-    06-compatibility-packaging-release.md
-    07-implementation.md
-    08-final-ship-review.md
 ```
 
 `repository-review/` should be ignored by Git. The review artifacts are for local accountability and should not be committed unless the user explicitly asks.

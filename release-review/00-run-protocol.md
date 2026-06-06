@@ -160,6 +160,7 @@ Rules for parallel audit lanes:
 
 If parallel lanes are not used, record that decision in `05-decisions.md` and continue serially.
 
+
 ## Command logging
 
 For every meaningful command, append to `06-commands.md` the command, purpose, working directory, relevant assumptions, result, short output summary, and follow-up action if any.
@@ -168,7 +169,7 @@ Do not paste secrets or excessive logs. Summarize long outputs and save only rel
 
 ## Commit policy
 
-Use local commits for meaningful tracked repository changes when safe.
+Use local commits for meaningful tracked repository changes when safe. Do not commit `repository-review/` artifacts unless the user explicitly asks for them to be committed.
 
 Before any commit, run `git status --short`, confirm the files to commit were changed by this run, avoid committing unrelated pre-existing changes, and run appropriate validation first or state why validation could not be run.
 
@@ -263,7 +264,7 @@ The final report must begin with two tables:
 
 The second table must include audit findings that were identified but not implemented, not only actions that were started and left incomplete.
 
-After the two tables, include summary of changes, validations run, CI assessment summary, deprecated-code summary, documentation and artifact updates, remaining risks, push/no-push decision, GO/CONDITIONAL GO/NO-GO recommendation, and restart recommendation.
+After the two tables, include summary of changes, validations run, CI assessment summary, schema validation summary, deprecated-code summary, final bug/security sanity audit summary, documentation and artifact updates, remaining risks, push/no-push decision, GO/CONDITIONAL GO/NO-GO recommendation, and restart recommendation.
 
 ## Restart assessment
 

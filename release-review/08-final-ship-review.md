@@ -20,7 +20,7 @@ Be practical but conservative. The goal is not to claim perfection. The goal is 
 
 ## Required inputs
 
-Read all run artifacts, current Git status, local commits made during the run, validation results, CI assessment, deprecation candidates, findings and action registers, implementation plan, and Section 7 results.
+Read all run artifacts, current Git status, local commits made during the run, validation results, CI assessment, schema validation assessment, deprecation candidates, findings and action registers, implementation plan, and Section 7 results.
 
 ## Allowed actions
 
@@ -101,6 +101,8 @@ Decide whether a new review run should be started. Recommend restart only when i
 ## Final report
 
 Save the final report to `repository-review/<RUN_ID>/12-final-response.md`, then present the same content to the user.
+
+Create or update `section-summaries/08-final-ship-review.md` with the Section 8 final ship review summary.
 
 The final response must begin with these two tables.
 
