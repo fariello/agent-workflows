@@ -1,0 +1,16 @@
+# Windows download artifacts
+*:Zone.Identifier
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# Environment / secrets
+.env
+.env.*
