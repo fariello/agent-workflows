@@ -1,0 +1,65 @@
+Created /mnt/data/release-review.zip
+Files included: 22
+
+Final checks passed:
+- exists:release-review/MANIFEST.md: PASS
+- exists:release-review/README.md: PASS
+- exists:release-review/00-run-protocol.md: PASS
+- exists:release-review/01-current-state.md: PASS
+- exists:release-review/02-quality-security-edge-cases.md: PASS
+- exists:release-review/03-tests-regression.md: PASS
+- exists:release-review/04-docs-specs-examples.md: PASS
+- exists:release-review/05-feature-usability-maintainability.md: PASS
+- exists:release-review/06-compatibility-packaging-release.md: PASS
+- exists:release-review/07-implementation.md: PASS
+- exists:release-review/08-final-ship-review.md: PASS
+- exists:release-review/templates/action-register.csv: PASS
+- exists:release-review/templates/audit-lane-report.md: PASS
+- exists:release-review/templates/execution-plan.md: PASS
+- exists:release-review/templates/final-bug-security-audit.md: PASS
+- exists:release-review/templates/final-response.md: PASS
+- exists:release-review/templates/finding-register.csv: PASS
+- exists:release-review/templates/implementation-plan.md: PASS
+- exists:release-review/templates/schema-validation.md: PASS
+- exists:release-review/templates/section-summary.md: PASS
+- exists:.opencode/commands/release-review.md: PASS
+- exists:.opencode/commands/release-review-plan.md: PASS
+- phrase:controlled parallel read-only audit lanes: PASS
+- phrase:remains the controlling instruction: PASS
+- phrase:Section 7 implementation remains serial: PASS
+- phrase:Section 8 final review remains serial: PASS
+- phrase:do not push unless explicitly permitted: PASS
+- phrase:schema-validation.md: PASS
+- phrase:final-bug-security-audit.md: PASS
+- phrase:TodoWrite: PASS
+- phrase:repository-review/<RUN_ID>/12-final-response.md: PASS
+- phrase:SCH: PASS
+- frontmatter:release-review.md: PASS
+- frontmatter:release-review-plan.md: PASS
+- no_em_dash_in_markdown: PASS
+- finding_csv_has_id_status: PASS
+- action_csv_has_id_status: PASS
+
+Zip contents:
+- .opencode/commands/release-review-plan.md
+- .opencode/commands/release-review.md
+- release-review/00-run-protocol.md
+- release-review/01-current-state.md
+- release-review/02-quality-security-edge-cases.md
+- release-review/03-tests-regression.md
+- release-review/04-docs-specs-examples.md
+- release-review/05-feature-usability-maintainability.md
+- release-review/06-compatibility-packaging-release.md
+- release-review/07-implementation.md
+- release-review/08-final-ship-review.md
+- release-review/MANIFEST.md
+- release-review/README.md
+- release-review/templates/action-register.csv
+- release-review/templates/audit-lane-report.md
+- release-review/templates/execution-plan.md
+- release-review/templates/final-bug-security-audit.md
+- release-review/templates/final-response.md
+- release-review/templates/finding-register.csv
+- release-review/templates/implementation-plan.md
+- release-review/templates/schema-validation.md
+- release-review/templates/section-summary.md

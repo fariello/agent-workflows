@@ -38,6 +38,16 @@ Record constraints, dirty working tree concerns, unavailable commands, unsupport
 
 Record work that should not be done during this run.
 
+## Parallel audit lane plan
+
+State whether controlled parallel read-only audit lanes will be used.
+
+| Lane | Scope | Report path | Status |
+|---|---|---|---|
+|  |  |  |  |
+
+If lanes are not used, explain why.
+
 ## Validation approach
 
 List likely validation commands and when they should be run.

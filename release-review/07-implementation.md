@@ -60,6 +60,17 @@ If pre-existing user changes cannot be separated, do not commit. Record the bloc
 
 If adding GitHub Actions or CI, keep workflows minimal, use repository-native commands, avoid publish/deploy/release/upload/secrets, avoid broad matrices unless justified, document rationale in `ci-assessment.md`, and validate syntax where practical.
 
+## Schema validation actions
+
+For each schema-related action selected for implementation:
+
+1. Confirm the schema or data contract is actually part of the project contract or internal validation path.
+2. Validate syntax and representative examples when practical.
+3. Keep schemas, implementation, tests, docs, examples, generated artifacts, changelog, and release notes synchronized.
+4. Preserve backward compatibility for public schemas and serialized outputs unless a breaking change is clearly justified and documented.
+5. Add or update schema validation tests or CI checks only when low risk and repository-native commands are clear.
+6. Record results in `schema-validation.md` and `10-validation-results.md`.
+
 ## Deprecated-code actions
 
 For each selected deprecation candidate, confirm evidence, check references/exports/docs/tests/package metadata/CLI exposure/build scripts/workflows/changelog history, choose the safest action, prefer staged deprecation when public contract risk exists, and update docs/tests/release notes if behavior or public surface changes.

@@ -32,9 +32,53 @@ Not allowed unless explicitly permitted: remote push, publish/deploy/release/upl
 
 Review project purpose/scope, feature completeness, correctness, stability, security/privacy, edge cases, performance, test coverage, regression protection, docs/specs/examples, API/CLI/UI/config/schema/storage/integration consistency, packaging/build, deployment/operations, installation/first-run, versioning/changelog/release notes, backward compatibility/migration, developer and operator experience, user-facing rough edges, documented limitations, deprecation candidates, CI readiness, and release blockers.
 
+## Final bug/security sanity audit
+
+Before writing the final report, create or update:
+
+```text
+repository-review/<RUN_ID>/final-bug-security-audit.md
+```
+
+This is not a full repeat of Section 2. It is a final post-implementation sanity audit focused on whether changes made during the run introduced or left unresolved material issues.
+
+Review:
+
+1. New or modified code paths.
+2. New or modified tests.
+3. New or modified configuration, CI, packaging, scripts, schemas, examples, and documentation.
+4. Changed file handling, path handling, subprocess use, network behavior, serialization, deserialization, authentication, authorization, logging, error handling, and secret handling.
+5. Any unresolved HIGH or CRITICAL findings.
+6. Whether final validation failures indicate latent bugs or release blockers.
+7. Whether any implemented change created a new compatibility, security, privacy, or reliability risk.
+
+Record:
+
+1. New findings, if any, with run-specific IDs.
+2. Previously identified issues still unresolved.
+3. Issues confirmed resolved.
+4. Residual risk.
+5. Whether the final release recommendation changes.
+
+If a new material issue is found, update the finding and action registers and decide whether it must be fixed before final completion. Do not hide or minimize late-discovered issues.
+
 ## Final validation
 
 Run the most appropriate repository-native validation commands available and safe. Record all results in `10-validation-results.md`. If validation cannot be run, explain why and assess release risk.
+
+## Final schema validation check
+
+Before the final report, update `schema-validation.md` with final status.
+
+Confirm, where applicable:
+
+1. Schemas and data contracts were discovered and assessed.
+2. Repository-native schema validation commands were run, or inability to run them was explained.
+3. Representative examples, fixtures, golden files, sample configs, documented payloads, imports, exports, migrations, or serialized outputs were validated when practical.
+4. Schema, implementation, documentation, tests, examples, and generated artifacts are synchronized or remaining drift is recorded.
+5. Public schema or serialized-output compatibility risks are identified and reflected in the final recommendation.
+
+Use `SCH` IDs for unresolved schema issues.
 
 ## Final finding categories
 

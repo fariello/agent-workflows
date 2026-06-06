@@ -4,6 +4,24 @@ Treat this file as the controlling instruction for this repository review. Keep 
 
 This runbook is intended for OpenCode or another modern coding agent operating inside a repository. It is designed for serious pre-release or pre-major-run review and hardening.
 
+## OpenCode project commands
+
+If this zip is expanded into the repository root, OpenCode can invoke the included command wrappers:
+
+```text
+/release-review
+```
+
+Runs the full workflow, including audit, implementation, validation, final report, and push/no-push decision.
+
+```text
+/release-review-plan
+```
+
+Runs the audit and planning phases only. It completes Sections 1 through 6, creates the consolidated implementation plan, and stops before Section 7 implementation.
+
+The command wrappers are convenience entry points. `release-review/README.md` remains the controlling instruction.
+
 ## Invocation
 
 From the repository root, execute:
@@ -21,6 +39,22 @@ Perform a robust repository and code review that improves release readiness whil
 Maximize correctness, security, privacy, tests, documentation accuracy, compatibility, packaging, CI readiness, maintainability, clear traceability, and clear final reporting.
 
 Minimize speculative changes, formatting churn, broad refactors, public contract breakage, unjustified deletion, remote side effects, secret exposure, and instruction drift.
+
+## Optional controlled parallel audit mode
+
+After Section 1 establishes the repository baseline, the agent may use controlled parallel read-only audit lanes for parts of Sections 2 through 6 when the repository is large, unfamiliar, or has multiple independent surfaces such as code, tests, docs, schemas, packaging, and CI.
+
+Parallelism is optional. Use it only when it improves review quality.
+
+Rules:
+
+1. Section 1 remains serial and is performed by the main agent.
+2. Parallel audit lanes are read-only.
+3. Parallel audit lanes must not edit tracked files, update official registers directly, commit, push, or make final release decisions.
+4. Each lane should produce an audit-lane report using `templates/audit-lane-report.md`.
+5. The main agent owns synthesis, deduplication, severity decisions, official run-specific IDs, finding/action registers, implementation planning, local commits, validation, final report, and push/no-push decision.
+6. Section 7 implementation remains serial.
+7. Section 8 final review remains serial.
 
 ## Required execution order
 

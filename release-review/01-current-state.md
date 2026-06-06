@@ -54,6 +54,22 @@ Do not label something deprecated just because it is old. Record it as a candida
 
 If the repository lacks a given artifact type, record that fact. Do not force a finding unless the absence creates meaningful release risk.
 
+## Parallel audit handoff
+
+After Section 1 is complete, decide whether controlled parallel audit lanes would improve review quality.
+
+Use parallel lanes when the repository is large, unfamiliar, or has clearly separable areas such as code, tests, docs, schemas, packaging, and CI.
+
+If using parallel lanes:
+
+1. Create `repository-review/<RUN_ID>/audit-lanes/`.
+2. Define lane scopes.
+3. Instruct lanes to remain read-only.
+4. Require each lane to use `templates/audit-lane-report.md`.
+5. Preserve main-agent ownership of synthesis, official IDs, registers, implementation planning, commits, validation, final report, and push/no-push decision.
+
+If not using parallel lanes, record the reason in `05-decisions.md`.
+
 ## Exit criteria
 
 Before moving to Section 2, run metadata is complete, repository inventory is complete enough to guide later review, execution plan exists, registers are initialized and updated, deprecation candidates file exists, and the section checkpoint is recorded.

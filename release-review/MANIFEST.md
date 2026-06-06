@@ -2,6 +2,8 @@
 
 This directory contains a modular, executable repository review runbook for use with OpenCode or another modern coding agent.
 
+The zip also includes optional OpenCode command wrappers under `.opencode/commands/` so the review can be invoked as a project command when using OpenCode.
+
 ## How to use
 
 From the repository root, tell the agent:
@@ -11,6 +13,13 @@ Read and execute release-review/README.md
 ```
 
 `README.md` is the controlling instruction. The agent should read `00-run-protocol.md`, then execute sections `01` through `08` in order.
+
+## OpenCode commands
+
+| File | Purpose |
+|---|---|
+| `.opencode/commands/release-review.md` | OpenCode project command wrapper for the full audit, implementation, validation, final report, and push/no-push decision. |
+| `.opencode/commands/release-review-plan.md` | OpenCode project command wrapper for audit and implementation planning only, stopping before Section 7 implementation. |
 
 ## Files
 
@@ -25,10 +34,13 @@ Read and execute release-review/README.md
 | `05-feature-usability-maintainability.md` | Feature completeness, usability, developer experience, operator experience, maintainability, and stale-code impact. |
 | `06-compatibility-packaging-release.md` | Compatibility, packaging, build, CI, deployment, versioning, changelog, migration, and release artifacts. |
 | `07-implementation.md` | Consolidated implementation plan and safe, significant-value fixes. |
-| `08-final-ship-review.md` | Final release readiness assessment, validation reconciliation, final report, push/no-push decision, and restart assessment. |
+| `08-final-ship-review.md` | Final release readiness assessment, final bug/security sanity audit, validation reconciliation, final report, push/no-push decision, and restart assessment. |
 | `templates/execution-plan.md` | Template for the early run execution plan. |
 | `templates/implementation-plan.md` | Template for the implementation plan created after audit sections and before fixes. |
 | `templates/section-summary.md` | Generic template for per-section summaries saved under `repository-review/<RUN_ID>/section-summaries/`. |
+| `templates/audit-lane-report.md` | Template for optional controlled parallel read-only audit lanes used after the Section 1 baseline. |
+| `templates/schema-validation.md` | Template for discovered schemas, schema validation commands, example validation, compatibility concerns, and schema drift. |
+| `templates/final-bug-security-audit.md` | Template for the final post-implementation bug/security sanity audit. |
 | `templates/final-response.md` | Template for the saved final report and table-first final answer. |
 | `templates/finding-register.csv` | CSV header template for durable finding tracking. |
 | `templates/action-register.csv` | CSV header template for durable action tracking. |

@@ -26,9 +26,17 @@ Summarize the most important changes made.
 
 Summarize CI findings, changes made, recommendations, or reasons no CI changes were made.
 
+## Schema validation summary
+
+Summarize discovered schemas, validation performed, unresolved schema/data-contract risks, and CI/test coverage for schema validation.
+
 ## Deprecated-code assessment summary
 
 Summarize deprecated, obsolete, stale, unused, or superseded candidates and what was done with them.
+
+## Final bug/security sanity audit summary
+
+Summarize the final post-implementation bug, correctness, security, privacy, and unsafe-change audit results.
 
 ## Documentation and artifact updates
 

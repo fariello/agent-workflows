@@ -34,6 +34,10 @@ List decisions or assumptions made in this section.
 
 List commands run or explain why none were run.
 
+## Schema notes
+
+List schema or data contract validation findings, or state not applicable.
+
 ## Handoff to next section
 
 Summarize what the next section should know.

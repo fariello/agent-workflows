@@ -34,6 +34,24 @@ Not allowed: editing packaging files, adding or changing CI, publishing, deployi
 
 Review public API behavior, CLI commands/flags/outputs/exit behavior, UI if relevant, configuration, environment variables, defaults and precedence, schemas, serialized outputs, messages/file formats, logging, error handling, existing callers/scripts/integrations/workflows, platform compatibility, dependency assumptions, database/storage/migration compatibility, build files, packaging metadata, deployment configuration, installation/first-run behavior, version metadata, changelog/release notes, migration guidance, documentation accuracy after recent changes, tests needing updates, CI or GitHub Actions needing updates, and deprecated or obsolete entry points, package exports, workflows, scripts, examples, or release artifacts.
 
+## Schema validation and compatibility assessment
+
+Create or update `schema-validation.md`.
+
+Identify schemas and data contracts, including explicit schema files and implicit public serialized formats. Validate them when repository-native commands or practical sample validation paths exist.
+
+Assess:
+
+1. Syntax validity for schema files.
+2. Whether examples, fixtures, golden files, sample configs, documented payloads, imports, exports, and generated artifacts conform to schemas.
+3. Drift among implementation, schemas, docs, tests, and examples.
+4. Backward compatibility risks.
+5. Versioning or migration concerns.
+6. Missing validation for external or user-provided data.
+7. CI opportunities for schema validation.
+
+Record schema issues using `SCH` IDs.
+
 ## CI and GitHub Actions assessment
 
 Create or update `ci-assessment.md`. Assess whether CI should include linting, formatting checks, unit tests, type checks, build checks, packaging checks, security/dependency checks, documentation checks, or matrix testing.
