@@ -256,3 +256,29 @@ both execute the (large) set well.
 - **Trade-off:** prune-by-default deletes files, which is more aggressive; mitigated
   by the strict namespace scope, backups, `--dry-run`, git staging (reviewable before
   commit), and `--no-prune`.
+
+### D16. Generic pre-execution plan reviewer (`plan-review`)
+
+- **Origin:** `a-consuming-repo/.agents/prompts/reusable/prompt_ipd_reviewer.md` was a
+  strong but RhodyPACT-specific reviewer that checks a proposed Implementation Plan
+  Document *before code is written* and revises it in place. Notably, its fix/defer
+  gate was an independent re-derivation of our Fix Bar, which is good evidence the
+  policy is sound.
+- **Decision:** Generalize it into `release-review/plan-review.md` plus a
+  `/plan-review` command wrapper - the plan-time sibling of release-review (plan
+  review before building; release review before shipping).
+- **Reuse over duplication:** the generic version references
+  `fix-decision-policy.md` (the Fix Bar) and the eight personas in
+  `00-run-protocol.md` instead of inlining its own copy, keeping single-source-of-
+  truth. It falls back to applying the rules from memory if those files are absent.
+- **Discover, don't hardcode:** a Step 0 discovers the project's guiding principles,
+  contributor contract, plan location/format, production stack, and domain
+  invariants, replacing RhodyPACT's hardcoded `GP-1..9`, `.agents/plans/` lifecycle,
+  procurement edge cases, and Postgres specifics. The generic A-I rubric (data
+  integrity, security, scalability, anti-regression, observability, testing, KISS,
+  principles, domain invariants) is kept as a checkable baseline.
+- **Safety property preserved:** it edits planning documents only, never code.
+- **Form factor:** a single prompt, not a modular multi-phase framework, because plan
+  review is a lighter job (KISS; the complexity axis of the Fix Bar applied to our own
+  tooling). It ships with the framework and is installed/pruned like the other command
+  wrappers (added to the installer's `COMMAND_FILES`).

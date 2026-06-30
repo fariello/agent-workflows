@@ -37,6 +37,7 @@ The review is conducted through eight expert personas (QA/QC, testing/regression
 |---|---|
 | `.opencode/commands/release-review.md` | OpenCode project command wrapper for the full audit, implementation, validation, final report, and push/no-push decision. |
 | `.opencode/commands/release-review-plan.md` | OpenCode project command wrapper for audit and implementation planning only, stopping before Section 7 implementation. |
+| `.opencode/commands/plan-review.md` | OpenCode project command wrapper for the pre-execution plan reviewer (reviews and revises a proposed plan before any code is written). |
 
 ## Files
 
@@ -46,6 +47,7 @@ The review is conducted through eight expert personas (QA/QC, testing/regression
 | `00-run-protocol.md` | Global operating protocol, safety rules, ID rules, the Fix Bar, artifacts, TodoWrite use, commit and push policy, and final reporting requirements. |
 | `fix-decision-policy.md` | Canonical fix-decision policy: fix by default; defer only when the Remediation Risk of the fix itself is Medium-High or higher. |
 | `reference.md` | On-demand look-up material kept out of the always-read core: ID type codes, ID examples, schema/data-contract types, CI checks, register statuses. |
+| `plan-review.md` | Standalone pre-execution plan/IPD reviewer (plan-time sibling of the release review): reviews and revises a proposed plan before any code is written, using the shared Fix Bar and personas. Invoked on its own via `/plan-review`, not part of the release-review section sequence. |
 | `01-current-state.md` | Repository inventory, current-state assessment, public contract discovery, drift analysis, and early deprecation signals. |
 | `02-quality-security-edge-cases.md` | Bugs, correctness, security, privacy, error handling, resource handling, reliability, and edge-case audit. |
 | `03-tests-regression.md` | Test coverage, regression protection, fixtures, CI test behavior, and missing critical tests. |

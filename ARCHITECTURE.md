@@ -20,7 +20,8 @@ ai-coding/
   GUIDING_PRINCIPLES.md     Values guiding the work
   prompts/                  Reusable prompts (e.g. fix-bar.md, the Fix Bar source)
   release-review/           The framework (canonical source of truth) + its installer
-  .opencode/commands/       OpenCode slash-command wrappers (/release-review[-plan])
+    plan-review.md          Pre-execution plan reviewer (plan-time sibling)
+  .opencode/commands/       OpenCode slash-command wrappers (/release-review[-plan], /plan-review)
 ```
 
 ## The release-review framework
@@ -118,8 +119,22 @@ user reviews and commits. `--no-prune` reverts to additive-only. The installer d
 not modify `.gitignore`; it only warns if the target repo ignores
 `repository-review/`, since run artifacts are committed deliverables.
 
-## Two ways to invoke
+### Plan review (plan-time sibling)
+
+`release-review/plan-review.md` is a standalone, single-file reviewer for the other
+end of the lifecycle: it reviews and improves a proposed implementation plan *before*
+any code is written, then `release-review` reviews the finished code before shipping.
+Catching a flaw on paper is far cheaper than catching it in code. It deliberately
+reuses the shared policy (the Fix Bar in `fix-decision-policy.md` and the eight
+personas in `00-run-protocol.md`) rather than redefining them, discovers the project's
+own principles/contributor-contract/plan-format/stack/domain-invariants instead of
+hardcoding any, and edits planning documents only (never code). It is intentionally a
+single prompt, not a modular framework, because plan review is a lighter job (KISS).
+It ships with the framework and installs as `/plan-review`.
+
+## Three ways to invoke
 
 1. **OpenCode:** `/release-review` (full) or `/release-review-plan` (audit + plan,
-   stop before implementation).
-2. **Any agent:** "Read and execute release-review/README.md" from the repo root.
+   stop before implementation); `/plan-review` (review a plan before building).
+2. **Any agent:** "Read and execute release-review/README.md" (release review) or
+   "Read and execute release-review/plan-review.md" (plan review) from the repo root.

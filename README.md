@@ -35,6 +35,12 @@ With OpenCode, run `/release-review` (full review) or `/release-review-plan` (au
 and plan only). See `release-review/README.md` for the controlling instructions and
 `release-review/MANIFEST.md` for the file map.
 
+There is also a **plan-time** sibling reviewer: `/plan-review` (or "read and execute
+`release-review/plan-review.md`") reviews and improves a proposed implementation plan
+*before any code is written*. It uses the same Fix Bar and personas, discovers the
+project's own conventions, and edits planning documents only. Use `plan-review`
+before building and `release-review` before shipping.
+
 ## Understanding this project (start here for context)
 
 This repository practices the durable-knowledge discipline its own framework

@@ -95,6 +95,7 @@ FRAMEWORK_DIR = "release-review"
 COMMAND_FILES: tuple[str, ...] = (
     ".opencode/commands/release-review.md",
     ".opencode/commands/release-review-plan.md",
+    ".opencode/commands/plan-review.md",
 )
 
 REPOSITORY_REVIEW_DIR = "repository-review/"
