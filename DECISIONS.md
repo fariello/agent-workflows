@@ -195,3 +195,23 @@ both execute the (large) set well.
   implementation plan moved out of the `09` slot, the numbered set became
   `00-08, 10-12` with the plan unnumbered. The gap is intentional and signals the
   move.
+
+### D14. Review scope excludes the framework's own directories
+
+- **Problem:** With `repository-review/` no longer git-ignored (D5) and
+  `release-review/` living inside the target repo, a run could review its own
+  runbook and its own prior run records - wasting effort, generating findings/`KD`
+  docs about the framework, and tempting the agent to edit the very instructions it
+  is executing.
+- **Decision:** Add a global "Review scope exclusions" rule: `release-review/` and
+  `repository-review/` are out of *review* scope (no findings, not counted in
+  project size/structure/tests/docs/cold-start), with a self-modification guard
+  (never edit `release-review/` during a run; raise runbook concerns as a `DEC`
+  note instead). It is an exclusion from *review*, not from *action* - the run still
+  creates, writes, and commits `repository-review/<RUN_ID>/` and may read prior run
+  records as input.
+- **Exception:** if the user explicitly makes the framework itself the subject of
+  the review (e.g. the repo that maintains `release-review/`), the exclusion on
+  `release-review/` is lifted; `repository-review/` run records stay excluded.
+- **Note:** these directories are not git-ignored (they are committed deliverables),
+  so the exclusion is an instruction-level rule, not a `.gitignore` effect.

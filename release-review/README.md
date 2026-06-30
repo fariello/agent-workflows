@@ -36,6 +36,8 @@ Do not require the user to run each section manually. Execute the full sequence 
 
 Perform a robust repository and code review that improves release readiness while minimizing the risk of unintended damage.
 
+The subject is the **target project**, not this framework. Exclude `release-review/` (the runbook) and `repository-review/` (run records) from the review scope, and never modify `release-review/` during a run; see the review scope exclusions in `00-run-protocol.md`. (You still create and commit `repository-review/<RUN_ID>/` as the run's output.)
+
 Maximize correctness, security, privacy, memory/resource safety, tests, documentation accuracy, schema validation, compatibility, packaging, CI readiness, maintainability, clear traceability, and clear final reporting. A central goal is to make the released project as **intuitive and self-documenting** as reasonably possible, so users can learn it as they go without reading a manual or taking a course.
 
 A further central goal is **durable project knowledge for cold-start handoff**: a competent engineer or an LLM with zero prior context should be able to pick up the project and understand its intent, goals, philosophy, architecture, approach, and the rationale behind significant decisions - from the project's own tracked documentation. This review establishes and maintains that knowledge (creating missing intent/architecture/decision docs by default under the Fix Bar), mining the current conversation for intent as a guarded secondary source. See `00-run-protocol.md` ("Durable project knowledge and LLM cold-start orientation").
@@ -77,7 +79,7 @@ Parallelism is optional. Use it only when it improves review quality.
 Rules:
 
 1. Section 1 remains serial and is performed by the main agent.
-2. Parallel audit lanes are read-only.
+2. Parallel audit lanes are read-only and honor the review scope exclusions in `00-run-protocol.md` (do not audit `release-review/` or `repository-review/`).
 3. Parallel audit lanes must not edit tracked files, update official registers directly, commit, push, or make final release decisions.
 4. Each lane should produce an audit-lane report using `templates/audit-lane-report.md`.
 5. The main agent owns synthesis, deduplication, severity decisions, official run-specific IDs, finding/action registers, implementation planning, local commits, validation, final report, and push/no-push decision.

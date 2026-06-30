@@ -46,6 +46,8 @@ Not allowed: product code changes, test changes, documentation changes except ru
 
 Determine what the project currently does, likely project type and scope, likely public contract, existing tests and validation commands, documentation and specifications, build/packaging/deployment/CI/release artifacts, recent changes, obvious drift among artifacts, stale or obsolete candidates, and major ambiguities that affect later sections.
 
+Apply the review scope exclusions from `00-run-protocol.md`: do not inventory or characterize `release-review/` (the runbook) or `repository-review/` (run records) as part of the project. Exclude them from project type, size, structure, test, and documentation assessments. Record in `01-repository-inventory.md` that these directories are present but out of scope (unless the user has explicitly made the framework itself the subject of the review).
+
 ## Required outputs
 
 Update or create `00-run-metadata.md`, `01-repository-inventory.md`, `02-execution-plan.md`, `03-findings-register.csv`, `04-action-register.csv`, `05-decisions.md`, `06-commands.md`, `08-checkpoints.md`, and `deprecation-candidates.md`.
