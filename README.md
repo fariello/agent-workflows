@@ -51,6 +51,25 @@ Run records are written to `workflow-artifacts/<workflow>/<run-id>/` at the repo
 (committed deliverables); assessment IPDs go to the project's pending-plans directory
 (default `.agents/plans/pending/`).
 
+### Upgrading a repo that has an older install
+
+If a target repo was set up with an earlier layout (the framework at a root
+`release-review/` directory, and/or run records in `repository-review/`), just run the
+installer again. It migrates the repo in place and stages (does not commit) the
+changes:
+
+- removes the old root `release-review/` directory (the current framework installs
+  under `.agents/workflows/`);
+- moves old `repository-review/<run-id>/` run records to
+  `workflow-artifacts/release-review/<run-id>/` via `git mv`, preserving history;
+- regenerates the command shims and refreshes the `AGENTS.md` pointer.
+
+It prints exactly what it migrated. Review the staged changes and commit them (one
+commit per repo, e.g. `git commit -m "chore: migrate to .agents/workflows layout"`).
+Use `--dry-run` first to preview. The migration only triggers when a legacy layout is
+actually present, and never touches your own code; backups are written under
+`.agent-workflows-installer-backups/` unless `--no-backup`.
+
 Then run a workflow:
 
 - **OpenCode / Claude Code:** `/release-review` (full), `/release-review-plan` (audit +
