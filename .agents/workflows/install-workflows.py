@@ -92,6 +92,7 @@ class Workflow:
     command: str
     body: str
     description: str
+    lens: str = ""  # optional: a lens file applied on top of a shared body
 
 
 @dataclass(frozen=True)
@@ -195,12 +196,21 @@ def parse_manifest(source_root: Path) -> list[Workflow]:
         if not line.startswith("|"):
             continue
         cells = [c.strip() for c in line.strip("|").split("|")]
-        if len(cells) != 3:
+        # Support both 3-column (command|body|description) and 4-column
+        # (command|body|lens|description) manifest rows.
+        if len(cells) == 4:
+            command, body, lens, description = cells
+        elif len(cells) == 3:
+            command, body, description = cells
+            lens = "-"
+        else:
             continue
-        command, body, description = cells
         if command in ("command", "") or set(command) <= {"-"}:
             continue  # header or separator row
-        workflows.append(Workflow(command=command, body=body, description=description))
+        lens = "" if lens.strip() in ("", "-") else lens.strip()
+        workflows.append(
+            Workflow(command=command, body=body, description=description, lens=lens)
+        )
 
     if not workflows:
         raise SystemExit("No workflows found in the index.md manifest.")
@@ -243,12 +253,22 @@ def shim_body(command: str, workflow: Workflow, tool: str) -> str:
     if command == "release-review-plan":
         planning_note = " Run in planning-only mode: complete the audit and the consolidated implementation plan, and stop before implementation."
 
+    lens_note = ""
+    if workflow.lens:
+        lens_note = (
+            f"\nApply the concern lens @{workflow.lens} on top of that harness: it "
+            "selects the concern, its lead personas, and its rubric. Assess that single "
+            "concern deeply and write an IPD into the project's pending-plans directory; "
+            "do not change code and do not execute the plan.\n"
+        )
+
     return (
         "---\n"
         f"description: {workflow.description}\n"
         "agent: build\n"
         "---\n\n"
-        f"Read and execute @{workflow.body}.{planning_note}\n\n"
+        f"Read and execute @{workflow.body}.{planning_note}\n"
+        f"{lens_note}\n"
         "If the user provided arguments, treat them as the target path(s) and/or flags "
         "for this workflow: $ARGUMENTS\n\n"
         "Treat the referenced file as the controlling instruction and follow it fully.\n"

@@ -42,6 +42,13 @@ just says "read and execute" the workflow body and accepts optional `$ARGUMENTS`
 | `/release-review-plan` | `release-review/README.md` (planning-only) | Audit and consolidated implementation plan, stopping before implementation. |
 | `/plan-review` | `plan-review/plan-review.md` | Pre-execution plan reviewer (reviews and revises a proposed plan before any code is written). |
 
+The sibling `assess/` workflow adds a family of single-concern commands
+(`/assess-performance`, `/assess-security`, `/assess-accessibility`, `/assess-testing`,
+`/assess-guiding-principles`, `/assess-compliance`, and more) that each assess one
+concern deeply and write an IPD into the project's pending-plans directory for human
+approval (they do not auto-execute). See `.agents/workflows/index.md` for the full,
+authoritative command list.
+
 ## Files
 
 | File | Purpose |

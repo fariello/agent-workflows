@@ -13,8 +13,15 @@ a durable, auditable record of what it did and why. Its plan-time sibling
 ## Contents
 
 - `.agents/workflows/` - the reusable agent workflows (canonical source of truth):
-  - `release-review/` - the full pre-release review framework.
-  - `plan-review/` - the pre-execution plan reviewer.
+  - `release-review/` - the full, all-concerns pre-release review framework (fixes in
+    place).
+  - `plan-review/` - the pre-execution plan reviewer (reviews/improves a plan).
+  - `assess/` - a family of single-concern assessment workflows that each produce an
+    IPD for human approval (performance, security, accessibility, ui-ux,
+    self-documentation, documentation, functionality, use-cases, edge-cases, bugs,
+    reliability, testing, architecture, api-design, compatibility, supply-chain,
+    guiding-principles, compliance, memory-resources). A shared harness +
+    per-concern lens files.
   - `index.md` - the workflow manifest (the installer reads it to generate shims).
   - `install-workflows.py` / `.sh` - the installer.
 - `prompts/` - reusable prompts for AI-assisted development (e.g. `fix-bar.md`, the
@@ -46,8 +53,20 @@ Then run a workflow:
   `.agents/workflows/release-review/README.md`" (or `plan-review/plan-review.md`), as
   listed in `.agents/workflows/index.md`.
 
-Use `plan-review` before building and `release-review` before shipping. See
-`.agents/workflows/release-review/README.md` for the controlling instructions and
+For a deep, single-concern pass that proposes a plan instead of fixing in place, use
+an `/assess-<concern>` command (e.g. `/assess-security`, `/assess-performance`,
+`/assess-accessibility`, `/assess-testing`). Each writes a dated IPD into the
+project's pending-plans directory (default `.agents/plans/pending/`) and stops for
+human review and approval; it does not auto-execute. The intended pipeline is:
+
+```
+assess-<concern>  ->  IPD in pending/  ->  plan-review (optional)  ->  approval  ->  execution
+```
+
+Use `assess-<concern>` to investigate one concern and propose a plan, `release-review`
+for a broad all-concerns review that fixes in place, `plan-review` before building,
+and `release-review` before shipping. See `.agents/workflows/index.md` for the full
+command list, `.agents/workflows/release-review/README.md` for the runbook, and its
 `MANIFEST.md` for the file map.
 
 ## Understanding this project (start here for context)

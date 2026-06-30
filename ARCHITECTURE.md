@@ -24,8 +24,12 @@ ai-coding/
   .agents/workflows/        Reusable agent workflows (canonical source of truth)
     index.md                Workflow manifest (installer reads it to generate shims)
     install-workflows.py    Installer (copy + generate shims + AGENTS.md pointer)
-    release-review/         The full pre-release review framework
+    release-review/         The full, all-concerns pre-release review framework
     plan-review/            Pre-execution plan reviewer (plan-time sibling)
+    assess/                 Single-concern assessment harness + per-concern lenses
+      assess.md             Shared harness (assess one concern -> IPD, no auto-execute)
+      lenses/               One lens per concern (performance, security, ...)
+      templates/ipd.md      IPD template the harness writes
   .opencode/commands/       Generated OpenCode shims (/release-review[-plan], /plan-review)
   .claude/commands/         Generated Claude Code shims (same set)
 ```
@@ -154,6 +158,30 @@ project's own principles/contributor-contract/plan-format/stack/domain-invariant
 instead of hardcoding any, and edits planning documents only (never code). It is
 intentionally a single prompt, not a modular framework, because plan review is a
 lighter job (KISS). It installs as `/plan-review`.
+
+### Assessment workflows (single-concern, IPD-producing)
+
+`.agents/workflows/assess/` is a family of focused reviewers that sit between
+`plan-review` and `release-review` in the pipeline: each assesses ONE concern deeply
+and writes a dated Implementation Plan Document (IPD) into the project's pending-plans
+directory for human approval, rather than fixing in place or auto-executing:
+
+```
+assess-<concern>  ->  IPD in pending/  ->  plan-review (optional)  ->  approval  ->  execution
+```
+
+It is built as a **shared harness plus thin per-concern lens files**, not 20 separate
+prompts: `assess.md` defines the common protocol (discover conventions, eight personas,
+Fix Bar applied as "what to propose", write an IPD, never execute), and each
+`lenses/<concern>.md` supplies the concern's focus, lead personas, and rubric. This
+keeps the protocol single-sourced and makes adding a concern cheap: a new lens file
+plus a manifest row. The manifest's optional `lens` column lets many commands
+(`/assess-performance`, `/assess-security`, ...) share the one harness body; the
+installer passes the lens into each generated shim. `compliance` is a single
+parameterized lens that discovers/takes the regime, rather than one workflow per
+regulation. The harness reuses the Fix Bar and personas from `../release-review/` as a
+sibling. Choose `assess-<concern>` to investigate one concern and propose a plan;
+`release-review` for a broad review that fixes in place.
 
 ## Three ways to invoke
 

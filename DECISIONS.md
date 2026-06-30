@@ -323,3 +323,42 @@ both execute the (large) set well.
   (superseded by MANIFEST/index and direct installer testing); the scope-exclusion
   rule (D14) now refers to "the framework's own directory wherever installed" instead
   of a hardcoded `release-review/`.
+
+### D18. Single-concern assessment workflows (the `assess-*` family)
+
+- **Goal:** a set of focused workflows that each review/assess/improve ONE concern
+  (performance, security, accessibility, UI/UX, self-documentation, documentation,
+  functionality, use-cases, edge-cases, bugs, reliability, testing, architecture,
+  API design, compatibility, supply-chain, guiding-principles, compliance,
+  memory/resources) using the same approaches as release-review, but producing an IPD
+  for human approval rather than fixing in place or auto-executing.
+- **Where they sit:** between `plan-review` and `release-review` in a pipeline -
+  `assess-<concern> -> IPD in pending/ -> plan-review (optional) -> approval ->
+  execution`. `release-review` remains the broad, all-concerns, fix-in-place review;
+  the assess family is the deep, single-concern, propose-a-plan front end.
+- **Architecture - shared harness + lenses (not N standalone prompts):** one
+  `assess/assess.md` defines the common protocol (Step 0 discovery, eight personas,
+  Fix Bar applied as "what to propose", write a dated IPD into the project's
+  pending-plans dir, never execute, report format). Each concern is a thin
+  `assess/lenses/<concern>.md` (focus, lead personas, rubric). This avoids duplicating
+  the persona/Fix-Bar/IPD preamble across 20 files (the drift trap) and makes adding a
+  concern cheap: one lens + one manifest row.
+- **Manifest carries the lens:** `index.md` gained an optional `lens` column so many
+  commands can share the harness body; the installer (back-compatible with 3-column
+  rows) passes the lens into each generated shim ("read and execute the harness,
+  applying lens X"). The list we built: the very-high + strong-high tier from the
+  exhaustive concern table, 20 lenses total.
+- **Compliance is parameterized, not per-regime:** a single `assess-compliance` lens
+  discovers (or takes via `$ARGUMENTS`) the applicable regimes (GDPR/CCPA, HIPAA, PCI,
+  SOC2/ISO, accessibility law, responsible-AI, ...) rather than many near-empty
+  regime-specific workflows. WCAG stays its own `assess-accessibility` lens because it
+  is broad (any UI) and deep. The compliance lens is explicit that it assesses
+  technical conformance signals, not legal advice, and separates "repo can fix" from
+  "org-level control".
+- **Never auto-execute:** every assessment writes an IPD with an explicit approval +
+  execution gate and stops. Output location is discovered (the project's plan
+  convention) or defaults to `.agents/plans/pending/`. `repository-review/` run output
+  is unaffected.
+- **Rejected:** composite "do 8+9 together" convenience workflows (the pipeline lets a
+  user just run two), and a single `/assess <concern>` argument-only command (loses
+  discrete discoverable `/assess-security` etc. slash commands).
