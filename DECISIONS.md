@@ -429,3 +429,25 @@ both execute the (large) set well.
   total now. They reuse the Fix Bar/personas and emit IPDs for human approval, never
   auto-executing, and consistently route infrastructure/organizational controls to the
   operator as out-of-repo notes.
+
+### D21. Installer updates an existing AGENTS file safely, in place
+
+- **Problem:** the installer wrote the pointer to a root `AGENTS.md`, but a target may
+  keep its agent instructions elsewhere (a-consuming-repo uses `.agents/AGENTS.md`). Writing
+  root would create a second, ignored file. Also raised: is modifying a user-owned
+  AGENTS file safe, or is it the `echo >> .bashrc` antipattern?
+- **Decision - update the existing file, with a disciplined contract:**
+  - **Discovery:** prefer an existing candidate (`AGENTS.md`, then `.agents/AGENTS.md`)
+    and update that one; create root `AGENTS.md` only if none exists.
+  - **Marker-delimited, idempotent:** the installer owns ONLY the region between
+    `<!-- AGENT-WORKFLOWS:BEGIN -->` / `END`. A well-formed pair is replaced in place,
+    so re-runs never stack blocks (the key difference from append-to-config installers).
+  - **Touches only its region:** never reflows or edits the user's own prose.
+  - **Fail-safe on malformed markers:** if exactly one well-formed BEGIN..END pair is
+    not present (partial/hand-edited), it appends a fresh block rather than risk a
+    destructive regex over user text.
+  - **Backup first:** backs up the existing file before the first modification (unless
+    --no-backup), and stages (never commits).
+- **Verified** across four cases: existing `.agents/AGENTS.md` updated (no duplicate
+  root file, prose intact); idempotent re-run (one block); malformed marker -> safe
+  append with prose preserved; no AGENTS -> root created.

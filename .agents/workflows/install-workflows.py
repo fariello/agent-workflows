@@ -4,7 +4,10 @@ Install the agent workflows (release-review, plan-review, ...) into a repository
 
 This copies the workflow bodies from this directory tree into a target repository
 under `.agents/workflows/`, generates per-tool slash-command shims from the manifest
-in `index.md`, and adds a one-line pointer to the target's `AGENTS.md`. There is no
+in `index.md`, and adds a one-line pointer to the target's agent-instructions file
+(it updates an EXISTING `AGENTS.md` or `.agents/AGENTS.md` in place rather than
+creating a duplicate; edits only its own marker-delimited block, idempotently; backs
+up the file before the first edit; and fails safe on malformed markers). There is no
 zip; it copies directly from the source tree.
 
 Layout it installs into a target repo:
@@ -78,7 +81,10 @@ COMMAND_SHIM_DIRS: tuple[str, ...] = (
     ".claude/commands",
 )
 
-AGENTS_FILE = "AGENTS.md"
+# Candidate locations for the agent-instructions file, in preference order. The
+# installer updates an EXISTING one (so it does not create a second, ignored file);
+# it creates the first candidate only if none exists.
+AGENTS_FILE_CANDIDATES: tuple[str, ...] = ("AGENTS.md", ".agents/AGENTS.md")
 AGENTS_BEGIN = "<!-- AGENT-WORKFLOWS:BEGIN -->"
 AGENTS_END = "<!-- AGENT-WORKFLOWS:END -->"
 
@@ -501,37 +507,89 @@ def prune_stale(
     return pruned
 
 
-def update_agents_pointer(plan: InstallPlan, use_git: bool) -> str:
-    """Add or refresh the managed pointer block in the target's AGENTS.md."""
+def resolve_agents_file(repo_root: Path) -> str:
+    """Choose which agent-instructions file to update.
 
-    agents_path = plan.repo_root / AGENTS_FILE
+    Prefer an EXISTING candidate (so the pointer lands in the file the project's tools
+    already read, not a new ignored one). If none exists, use the first candidate.
+
+    Args:
+        repo_root: Target repository root.
+
+    Returns:
+        Repo-relative path of the AGENTS file to manage.
+    """
+
+    for candidate in AGENTS_FILE_CANDIDATES:
+        if (repo_root / candidate).is_file():
+            return candidate
+    return AGENTS_FILE_CANDIDATES[0]
+
+
+def update_agents_pointer(plan: InstallPlan, use_git: bool, timestamp: str) -> str:
+    """Add or refresh the managed pointer block in the target's AGENTS file.
+
+    Safety contract (deliberately stricter than an append-to-config installer):
+    - Updates an existing AGENTS file in place rather than creating a duplicate.
+    - Edits ONLY the marked region; never reflows or touches the user's own prose.
+    - Idempotent: a well-formed BEGIN..END pair is replaced, so re-runs do not stack
+      blocks.
+    - Fail-safe on malformed markers: if exactly one well-formed pair is not present,
+      it appends a fresh block instead of risking a destructive regex over user text.
+    - Backs up the existing file before the first modification (unless --no-backup).
+    """
+
+    rel = resolve_agents_file(plan.repo_root)
+    agents_path = plan.repo_root / rel
     block = agents_pointer_block()
     existing = agents_path.read_text(encoding="utf-8") if agents_path.exists() else ""
 
-    if AGENTS_BEGIN in existing and AGENTS_END in existing:
+    # Only treat the file as having a managed block when there is exactly one
+    # well-formed BEGIN..END pair, in order. Otherwise fail safe (append).
+    begins = existing.count(AGENTS_BEGIN)
+    ends = existing.count(AGENTS_END)
+    well_formed = (
+        begins == 1
+        and ends == 1
+        and existing.find(AGENTS_BEGIN) < existing.find(AGENTS_END)
+    )
+
+    if well_formed:
         new_text = re.sub(
             re.escape(AGENTS_BEGIN) + r".*?" + re.escape(AGENTS_END),
-            block.strip(),
+            lambda _m: block.strip(),  # lambda avoids backref interpretation in block
             existing,
+            count=1,
             flags=re.DOTALL,
         )
-        verb = "refreshed"
+        verb = f"refreshed pointer in {rel}"
+    elif (begins or ends):
+        # Malformed/partial markers present: do not risk mangling. Append a clean block.
+        new_text = existing.rstrip("\n") + "\n\n" + block
+        verb = f"appended pointer to {rel} (left existing malformed marker untouched)"
     elif existing:
         new_text = existing.rstrip("\n") + "\n\n" + block
-        verb = "appended pointer to existing"
+        verb = f"appended pointer to existing {rel}"
     else:
         new_text = "# AGENTS\n\n" + block
-        verb = "created with pointer"
+        verb = f"created {rel} with pointer"
 
     if new_text == existing:
-        return "AGENTS.md pointer already current"
+        return f"{rel} pointer already current"
     if plan.dry_run:
-        return f"AGENTS.md would be {verb} [dry-run]"
+        return f"{rel} would be updated ({verb}) [dry-run]"
 
+    # Back up an existing file before the first modification.
+    if existing and plan.backup:
+        backup = create_backup_path(plan.repo_root, Path(rel), timestamp)
+        backup.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(agents_path, backup)
+
+    agents_path.parent.mkdir(parents=True, exist_ok=True)
     agents_path.write_text(new_text, encoding="utf-8")
     if use_git:
-        git_run(plan.repo_root, ["add", "--", AGENTS_FILE])
-    return f"AGENTS.md {verb}"
+        git_run(plan.repo_root, ["add", "--", rel])
+    return verb
 
 
 def _git_mv(repo_root: Path, src: str, dst: str) -> None:
@@ -718,10 +776,11 @@ def main() -> int:
     body_members = collect_source_members(plan.source_root)
     shim_members = generate_shim_members(workflows)
 
+    run_timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     migrated = migrate_legacy_layout(plan, use_git)
     installed, skipped, _ = install_all(plan, body_members, shim_members, use_git)
     pruned = prune_stale(plan, body_members, shim_members, use_git)
-    agents_status = update_agents_pointer(plan, use_git)
+    agents_status = update_agents_pointer(plan, use_git, run_timestamp)
     gitignore_status = check_gitignore(plan)
 
     print_summary(
