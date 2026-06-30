@@ -20,10 +20,12 @@ a durable, auditable record of what it did and why.
 ## Using the release-review framework
 
 In another repository, install it by running
-`release-review/install-release-review-to-opencode.py` (it copies the
+`release-review/install-release-review-to-opencode.py` (it clean-syncs the
 `release-review/` directory and the `.opencode/commands/` wrappers from this repo
-into the target), or simply copy the `release-review/` directory in yourself, then
-tell your agent:
+into the target: it copies current files, prunes stale framework files from a prior
+version, stages the changes with git but does not commit, and leaves
+`repository-review/` and your own code untouched), or simply copy the
+`release-review/` directory in yourself, then tell your agent:
 
 ```
 Read and execute release-review/README.md

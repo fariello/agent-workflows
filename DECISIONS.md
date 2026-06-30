@@ -229,3 +229,30 @@ both execute the (large) set well.
   `release-review/` is lifted; `repository-review/` run records stay excluded.
 - **Note:** these directories are not git-ignored (they are committed deliverables),
   so the exclusion is an instruction-level rule, not a `.gitignore` effect.
+
+### D15. Installer performs a clean, git-aware sync (prunes stale framework files)
+
+- **Problem:** After D12 the installer copied from the source directory but was
+  additive-only: it added/overwrote files and never removed any. A target that had
+  an older version of the framework would keep orphaned files when the framework
+  renamed or dropped one (e.g. an old section file), so the agent could read stale
+  instructions. There was no "clean install".
+- **Decision:** Make the installer a clean sync by default. It computes the desired
+  file set and prunes framework files in the target that are no longer in the source.
+  Pruning is strictly scoped to the framework namespace (`release-review/` and the two
+  `.opencode/commands/` wrappers) with defense-in-depth checks; it never touches
+  `repository-review/`, user code, or anything outside that namespace, and never
+  prunes the authoring/installer files.
+- **Git handling:** the installer is git-aware but NEVER commits. Installed files are
+  staged with `git add`; pruned tracked files are removed with `git rm` (staged);
+  untracked files are written/removed on disk. The user reviews and commits with their
+  own message. In a non-Git target it just writes/removes files. Pruned and
+  overwritten files are backed up first (timestamped) unless `--no-backup`.
+- **Alternatives considered:** (a) prune only with an explicit `--prune` flag -
+  rejected because the default would still leave stale instruction files, defeating
+  the goal; (b) auto-commit the sync - rejected as too surprising to do inside a
+  user's repo; printing a suggested commit and leaving changes staged is the right
+  boundary. `--no-prune` remains as an additive-only escape hatch.
+- **Trade-off:** prune-by-default deletes files, which is more aggressive; mitigated
+  by the strict namespace scope, backups, `--dry-run`, git staging (reviewable before
+  commit), and `--no-prune`.

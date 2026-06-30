@@ -105,8 +105,18 @@ copying the live `release-review/` directory and the `.opencode/commands/` wrapp
 directly from this repo, conservatively (required-files check, safe in-tree paths,
 backups, dry-run). There is no committed archive: installing from the source
 directory avoids a redundant binary blob and the drift it caused (see `DECISIONS.md`
-D12). The installer does not modify `.gitignore`; it only warns if the target repo
-ignores `repository-review/`, since run artifacts are committed deliverables.
+D12).
+
+It performs a **clean sync** by default: framework files present in the target but no
+longer in the source (renamed or removed) are pruned, so the target never accumulates
+stale instruction files. Pruning is strictly scoped to the framework namespace
+(`release-review/` and the two command wrappers) and never touches
+`repository-review/` run records, user code, or anything else. The installer is
+git-aware but never commits: installed files are staged with `git add`, pruned
+tracked files with `git rm`, untracked files are written/removed on disk, and the
+user reviews and commits. `--no-prune` reverts to additive-only. The installer does
+not modify `.gitignore`; it only warns if the target repo ignores
+`repository-review/`, since run artifacts are committed deliverables.
 
 ## Two ways to invoke
 

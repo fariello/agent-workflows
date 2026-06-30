@@ -4,11 +4,13 @@
 # This shell wrapper looks for install-release-review-to-opencode.py next to
 # itself and passes all arguments through to it.
 #
-# Usage (copies the framework from this directory into the target repo):
+# Usage (clean-syncs the framework from this directory into the target repo;
+# stale framework files are pruned, tracked ones via `git rm`, nothing committed):
 #
 #   ./install-release-review-to-opencode.sh --repo /path/to/target-repo
 #   ./install-release-review-to-opencode.sh --dry-run
 #   ./install-release-review-to-opencode.sh --force
+#   ./install-release-review-to-opencode.sh --no-prune   # additive only
 
 set -eu
 
