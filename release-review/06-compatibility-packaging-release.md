@@ -1,5 +1,11 @@
 # 06 Compatibility, Packaging, CI, Deployment, and Release Artifacts
 
+## Context contract
+
+- **Read:** `00-run-protocol.md`, `fix-decision-policy.md`, this file, Sections 1-5 findings, packaging/CI/release files. `reference.md` (schema/CI lists) on demand. Lead personas: operator, stakeholder, software engineer.
+- **Produce:** `R`/`P`/`O`/`CI`/`SCH`/`DEP` findings (with Remediation Risk); `ci-assessment.md`, `schema-validation.md` updates; register/`persona-review.md` updates; per-phase report `section-summaries/06-compatibility-packaging-release.md`.
+- **Done when:** the Exit gate at the bottom of this file is satisfied. Sections 1-6 complete enough to build `implementation-plan.md`.
+
 ## Purpose
 
 Review compatibility, packaging, build, deployment, CI, versioning, changelog, migration, and release artifact readiness.
@@ -80,6 +86,14 @@ Do not add CI just because CI is absent. Add or recommend CI only when clear val
 
 If the repository has no packaging, deployment, release process, or CI, mark those areas not applicable unless their absence materially affects release readiness.
 
-## Exit criteria
+## Exit gate
 
-Before moving to Section 7, compatibility/release risks are recorded, packaging/build/deployment/versioning/changelog concerns are recorded, install/first-run clarity is assessed, CI assessment exists, candidate actions are recorded, deprecation candidates are updated, the per-phase report is written, the checkpoint is recorded, and Sections 1 through 6 are complete enough to create the implementation plan.
+Do not proceed to Section 7 until all are true (MUST):
+
+- [ ] Compatibility/regression, packaging/build, deployment/operational, and versioning/changelog/migration risks recorded with Remediation Risk.
+- [ ] Install/first-run clarity assessed (operator persona).
+- [ ] `ci-assessment.md` and `schema-validation.md` updated (or marked not applicable).
+- [ ] Deprecation candidates updated; breaking changes flagged for release notes.
+- [ ] One observation per lead persona appended to `persona-review.md`.
+- [ ] Per-phase report written; checkpoint recorded and committed.
+- [ ] Sections 1-6 are complete enough to create `implementation-plan.md`.

@@ -1,5 +1,11 @@
 # 05 Feature Completeness, Usability, and Maintainability
 
+## Context contract
+
+- **Read:** `00-run-protocol.md`, `fix-decision-policy.md`, this file, Sections 1-4 findings, the registers, `guiding-principles-assessment.md`, `cold-start-orientation.md`. Personas: all eight (led by novice, power user, UI/UX, architect, stakeholder).
+- **Produce:** `F`/`U`/`M`/`GP`/`KD`/`TODO` findings (with Remediation Risk); guiding-principles adherence and cold-start orientation assessments; updates to registers, `persona-review.md`, `guiding-principles-assessment.md`, `cold-start-orientation.md`, `todo-reconciliation.md`; per-phase report `section-summaries/05-feature-usability-maintainability.md`.
+- **Done when:** the Exit gate at the bottom of this file is satisfied.
+
 ## Purpose
 
 Review the project for feature completeness, usability, developer experience, operator experience, maintainability, onboarding quality, and practical future improvements.
@@ -86,6 +92,14 @@ Do not invent features. A missing capability is a release issue only if implied 
 
 If the repository is a small library, script, documentation set, or internal tool, scale expectations accordingly.
 
-## Exit criteria
+## Exit gate
 
-Before moving to Section 6, feature completeness and usability are assessed for the intended scope through all eight personas, the self-documenting / learn-as-you-go bar is applied, guiding-principles adherence is assessed (and establishment of a missing principles doc is queued), the cold-start orientation assessment is recorded with `KD` findings for any gaps, backlog/TODO items are triaged, maintainability and architecture risks are recorded, candidate actions are recorded, deprecation candidates are updated, the per-phase report is written, and the checkpoint is recorded.
+Do not proceed to Section 6 until all are true (MUST):
+
+- [ ] Feature completeness and usability assessed for the intended scope through all eight personas (notes in `persona-review.md`).
+- [ ] Self-documenting / learn-as-you-go bar applied from the behavior side.
+- [ ] Guiding-principles adherence assessed in `guiding-principles-assessment.md`; a missing principles doc is queued for creation.
+- [ ] Cold-start orientation assessed in `cold-start-orientation.md`; `KD` findings filed for gaps.
+- [ ] Backlog/TODO items triaged (feature view) in `todo-reconciliation.md`.
+- [ ] Maintainability and architecture risks recorded with Remediation Risk; deprecation candidates updated.
+- [ ] Per-phase report written; checkpoint recorded and committed.

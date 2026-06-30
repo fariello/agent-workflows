@@ -165,9 +165,18 @@ both execute the (large) set well.
 - **Progress (2026-06-29):** Step (a) done - `reference.md` created and the
   type-code table, ID examples, and schema/CI lists removed from
   `00-run-protocol.md` (460 to 389 lines), leaving single sources of truth.
-  Remaining D11 work in progress: MUST/SHOULD tiering, the context-ordering rule,
-  per-section context contracts and exit-gate checklists, model-tier expectations,
-  the phase-isolated mode, and the Section 7 re-open-the-evidence grounding rule.
+- **Completed (2026-06-29):** D11 fully implemented. Added to `00-run-protocol.md`
+  an "Execution model" section defining MUST vs SHOULD tiers (with a small fixed
+  global MUST set), the context-assembly ordering rule (front = MUST set + Fix Bar
+  + section contract; middle = `reference.md` + prior registers; end = active
+  section + exit gate), the model-capability expectation (MUST always required,
+  SHOULD depth best-effort and honestly scaled on fast/small models), and an
+  optional phase-isolated execution mode (fresh context per audit phase, run
+  directory carries state, Sections 7-8 kept continuous). Each section file
+  (01-09) now opens with a context contract and ends with an exit-gate checklist.
+  Section 7 now MUST re-open the actual source files cited by High/`LIVE`/`MEM`
+  findings before fixing (grounding mitigation), since a re-loaded register is a
+  summary, not the lived reading of the code. README points at all of this.
 
 ### D12. The checked-in `release-review.zip`
 

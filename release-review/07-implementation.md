@@ -1,5 +1,12 @@
 # 07 Implementation of Safe, Valuable Fixes
 
+## Context contract
+
+- **Read:** `00-run-protocol.md`, `fix-decision-policy.md`, this file, all section summaries and registers from Sections 1-6, `deprecation-candidates.md`, `ci-assessment.md`, `schema-validation.md`. MUST re-open the actual source files cited by High/`LIVE`/`MEM` findings.
+- **Produce:** `implementation-plan.md`, the actual fixes (code/tests/docs/`KD` docs), updated `TODO.md`, register/commit/validation updates; per-phase report `section-summaries/07-implementation.md`.
+- **Done when:** the Exit gate at the bottom of this file is satisfied.
+- **Continuity:** keep this section continuous with Section 8; do not run it in an isolated fresh context that discards the implementation evidence.
+
 ## Purpose
 
 Create a consolidated implementation plan from Sections 1 through 6, then implement safe, meaningful, significant-value fixes.
@@ -21,6 +28,10 @@ This is the primary change-making section. It should favor useful release harden
 ## Required inputs
 
 Read the findings register, action register, all section summaries from Sections 1 through 6, `deprecation-candidates.md`, `ci-assessment.md`, `schema-validation.md`, decisions, validation results, and current Git status.
+
+### Re-ground in the evidence before fixing (MUST for High/`LIVE`/`MEM`)
+
+A register entry is a summary the audit wrote, not the lived reading of the code. Before implementing a fix for any High, `LIVE`, or `MEM` finding, **re-open the actual source files cited by that finding** and confirm the problem and the intended fix against the real code, not against the register text. This is mandatory whether the run is continuous or phase-isolated; in a phase-isolated run (fresh context) it is the only thing that restores real grounding, and in a continuous run it guards against drift across a long transcript. Record in `06-commands.md` (or the per-phase report) which files you re-opened. For lower-severity findings, re-open the source when the register lacks enough detail to fix safely.
 
 ## Required implementation plan
 
@@ -129,6 +140,16 @@ Fix by default; the diff size is not the metric. Apply the Fix Bar: address ever
 
 If no safe implementation work is found, do not fabricate changes. Record the rationale and proceed to final review.
 
-## Exit criteria
+## Exit gate
 
-Before moving to Section 8, implementation plan is complete, the Fix Bar has been applied so every finding is fixed unless its Remediation Risk is Medium-High or higher (each deferral naming the axis), all `LIVE`/High data-integrity findings are fixed or explicitly escalated (never silently TODO'd), Medium/Low severity findings are fixed by default, self-documenting and guiding-principles fixes are applied, durable-knowledge / cold-start orientation docs (`KD`) are created or improved by default with intent verified or clearly marked inferred, `TODO.md` is updated to stay honest, relevant artifacts are synchronized, validation is run and recorded where possible, local commits (including run artifacts) are made or explained, actions and Remediation Risk are reconciled, the per-phase report is written, and the checkpoint is recorded.
+Do not proceed to Section 8 until all are true (MUST):
+
+- [ ] `implementation-plan.md` complete; source files for High/`LIVE`/`MEM` findings were re-opened before fixing.
+- [ ] Fix Bar applied: every finding fixed unless its Remediation Risk is Medium-High+ (each deferral names the axis); no finding silently dropped.
+- [ ] Every `LIVE`/High data-integrity finding fixed or explicitly escalated to the user (never silently TODO'd).
+- [ ] Medium/Low severity findings fixed by default; self-documenting and `GP` fixes applied.
+- [ ] Durable-knowledge / cold-start `KD` docs created or improved by default; intent verified or clearly marked "inferred, needs confirmation".
+- [ ] `TODO.md` updated to stay honest; `todo-reconciliation.md` finalized for this run.
+- [ ] Validation run and recorded where possible; relevant artifacts synchronized.
+- [ ] Local commits (including run artifacts) made or explained; actions + Remediation Risk reconciled.
+- [ ] Per-phase report written; checkpoint recorded and committed.

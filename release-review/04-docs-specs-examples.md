@@ -1,5 +1,11 @@
 # 04 Documentation, Specifications, and Examples
 
+## Context contract
+
+- **Read:** `00-run-protocol.md`, `fix-decision-policy.md`, this file, `01-repository-inventory.md`, Sections 1-3 findings, the project's docs/README/help. Lead personas: complete novice, UI/UX.
+- **Produce:** `D`/`A`/`U`/`KD`/`TODO` findings (with Remediation Risk); durable-knowledge assessment; updates to registers, `persona-review.md`, `todo-reconciliation.md`; per-phase report `section-summaries/04-docs-specs-examples.md`.
+- **Done when:** the Exit gate at the bottom of this file is satisfied.
+
 ## Purpose
 
 Review documentation, specifications, examples, README content, help text, and navigation for accuracy, completeness, consistency, and usefulness. Documentation and specifications must reflect actual current behavior, not hoped-for or planned behavior.
@@ -83,6 +89,13 @@ Favor accuracy over polish. A short accurate README is better than a long aspira
 
 If there are few or no docs, record that fact and assess whether the absence matters for the repository type and release intent.
 
-## Exit criteria
+## Exit gate
 
-Before moving to Section 5, documentation/spec/example accuracy has been assessed, the self-documenting / learn-as-you-go bar has been applied, material gaps and inconsistencies are recorded, doc-vs-backlog discrepancies are reconciled, candidate documentation actions are added, stale docs/examples are reflected in deprecation candidates if relevant, the per-phase report is written, and the checkpoint is recorded.
+Do not proceed to Section 5 until all are true (MUST):
+
+- [ ] Documentation/spec/example accuracy assessed; material gaps and inconsistencies recorded with Remediation Risk.
+- [ ] Self-documenting / learn-as-you-go bar applied; `U` findings filed for manual-required tasks.
+- [ ] Durable-knowledge (`KD`) assessment done for intent/architecture/decision-rationale docs (respecting existing convention); gaps filed.
+- [ ] Doc-vs-backlog discrepancies reconciled into `todo-reconciliation.md`.
+- [ ] One observation per lead persona appended to `persona-review.md`.
+- [ ] Per-phase report written; checkpoint recorded and committed.

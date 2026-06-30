@@ -1,5 +1,11 @@
 # 01 Current State and Repository Inventory
 
+## Context contract
+
+- **Read:** `00-run-protocol.md`, `fix-decision-policy.md`, this file. `reference.md` on demand.
+- **Produce:** `00-run-metadata.md`, `01-repository-inventory.md`, `02-execution-plan.md`, initialized registers and `05`/`06`/`08`, `deprecation-candidates.md`, and the seeds of `todo-reconciliation.md`, `guiding-principles-assessment.md`, `persona-review.md`; per-phase report `section-summaries/01-current-state.md`.
+- **Done when:** the Exit gate at the bottom of this file is satisfied.
+
 ## Purpose
 
 Understand the repository as it exists now before recommending or making changes. Reconcile actual implementation, tests, documentation, build files, packaging, release artifacts, and recent changes.
@@ -80,6 +86,14 @@ If using parallel lanes:
 
 If not using parallel lanes, record the reason in `05-decisions.md`.
 
-## Exit criteria
+## Exit gate
 
-Before moving to Section 2, run metadata is complete, repository inventory is complete enough to guide later review, execution plan exists, registers are initialized and updated, deprecation candidates file exists, and the section checkpoint is recorded.
+Do not proceed to Section 2 until all are true (MUST):
+
+- [ ] `00-run-metadata.md` and `01-repository-inventory.md` are complete enough to guide later review.
+- [ ] `02-execution-plan.md` exists; registers are initialized.
+- [ ] Guiding-principles doc, backlog/TODO sources, and durable-knowledge doc locations are discovered and recorded (or noted absent).
+- [ ] `deprecation-candidates.md`, `todo-reconciliation.md`, `guiding-principles-assessment.md`, `persona-review.md` are initialized.
+- [ ] Parallel-audit decision recorded in `05-decisions.md`.
+- [ ] Per-phase report `section-summaries/01-current-state.md` written.
+- [ ] Checkpoint recorded in `08-checkpoints.md` and committed.

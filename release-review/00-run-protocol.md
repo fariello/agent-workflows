@@ -13,6 +13,54 @@ This file defines the global rules for the release review. These rules apply to 
 
 If a section file appears to conflict with this protocol, follow this protocol and record the conflict in `05-decisions.md`.
 
+## Execution model (read this before starting)
+
+This runbook is large. The following rules keep it executable reliably on any modern coding agent, including faster or smaller models that tend to silently drop low-salience instructions on long runs.
+
+### Obligation tiers: MUST vs SHOULD
+
+Every obligation in this framework is one of two tiers:
+
+- **MUST** - mandatory. Skipping a MUST is a defect in the run. If you cannot complete a MUST, stop and record a blocker; do not proceed past it silently.
+- **SHOULD** - expected, and done by default, but it carries *depth* rather than *existence*. Under time, capability, or scope pressure, a SHOULD may be done more briefly, but it must still be attempted and the reduction noted.
+
+When a section uses the words MUST or SHOULD (or "mandatory"), read them in this sense. The MUST set is small on purpose so it is never dropped; the global MUSTs are:
+
+1. Create and maintain the `repository-review/<RUN_ID>/` artifacts (registers, decisions, the per-phase report for each section).
+2. Apply the Fix Bar to every finding and record Remediation Risk; never silently drop a finding.
+3. Fix or explicitly escalate every `LIVE`/High data-integrity finding (never silently defer to `TODO.md`).
+4. Write the per-section exit-gate items before leaving a section.
+5. Produce the final report per `templates/final-response.md`, and never push/publish/deploy without explicit permission.
+
+Everything else (persona depth, the richness of cold-start `KD` docs, optional CI additions, nice-to-have fixes) is SHOULD: do it well by default, scale depth honestly under pressure, and record what was scaled back.
+
+### Context-assembly ordering (use the model's attention deliberately)
+
+Models attend most to the end of the context window, next-most to the beginning, and least to the middle. Assemble each phase's working context to exploit that:
+
+- **Front (highest attention):** the small MUST set above, the Fix Bar one-line rule, and the current section's context contract (its "read these / produce these / done when").
+- **Middle (tolerated decay):** bulky look-up material (`reference.md`) and the prior registers/artifacts you are consulting. These are reference data; they need to be present, not maximally salient.
+- **End (highest attention):** the current section file and its exit-gate checklist - the thing you must execute right now.
+
+In practice: when you start a section, (re-)read its section file and exit gate last, so they are freshest, after you have loaded the rules at the front and any reference/registers in between.
+
+### Model-capability expectation
+
+On a high-capability model, perform the full depth of every SHOULD (rich persona reasoning, deep cold-start `KD` docs, thorough architecture rationale). On a fast or small model, the MUST set is still fully required; SHOULD depth is best-effort - do as much as the model can do well, and record in the per-phase report where depth was reduced and why, so a later higher-capability run (or a human) can deepen it. Do not fake depth; an honest "assessed briefly, needs deeper pass" is better than a hollow analysis.
+
+### Phase-isolated execution mode (optional)
+
+Because `repository-review/<RUN_ID>/` is the authoritative state, each audit phase can run with its own fresh context instead of one long continuous transcript. This is optional and useful on fast/small models or very large repositories, where a long transcript degrades.
+
+If running phase-isolated:
+
+1. Each phase reads `00-run-protocol.md`, `fix-decision-policy.md`, its own section file, and the prior registers/artifacts it needs from the run directory; it does its work, writes its artifacts and per-phase report, commits, and ends.
+2. The run directory carries all state between phases. Do not rely on conversational memory of a prior phase.
+3. **Keep Sections 7 and 8 continuous with each other.** Implementation and final review share the same evidence (the changes just made); splitting them loses grounding that registers cannot restore.
+4. Because a re-loaded register is a summary, not the lived reading of the code, Section 7 MUST re-open the actual source files cited by High/`LIVE`/`MEM` findings rather than trusting the register text (see `07-implementation.md`).
+
+If running as one continuous pass (the default for "read and execute README.md"), the same ordering and re-grounding rules still apply; you simply keep all phases in one transcript.
+
 ## Review mindset: the eight reviewer personas
 
 This review is not a checklist pass. Every audit section (Sections 1 through 6) and the final review (Section 8) must be conducted while deliberately adopting, in turn, each of the following eight expert personas. The goal is breadth of perspective: a finding obvious to one persona is often invisible to another. Do not merely name the personas; actually reason from each viewpoint and let each surface findings the others would miss.

@@ -1,5 +1,11 @@
 # 03 Tests and Regression Protection
 
+## Context contract
+
+- **Read:** `00-run-protocol.md`, `fix-decision-policy.md`, this file, `01-repository-inventory.md`, Section 2 findings, the registers. Lead personas: testing/regression expert, QA/QC.
+- **Produce:** test-gap and regression findings (with Remediation Risk); register/`persona-review.md`/validation updates; per-phase report `section-summaries/03-tests-regression.md`.
+- **Done when:** the Exit gate at the bottom of this file is satisfied.
+
 ## Purpose
 
 Review the project's tests and identify gaps that create risk for bugs, regressions, unsupported future changes, or unsafe release behavior.
@@ -58,6 +64,13 @@ If the repository lacks tests, record the absence and identify the smallest high
 
 If the project is documentation-only or otherwise has no executable behavior, mark executable tests as not applicable and consider documentation checks or link checks if relevant.
 
-## Exit criteria
+## Exit gate
 
-Before moving to Section 4, existing tests and validation commands are understood, test gaps and regression risks are recorded, regression coverage for High/`LIVE`/`MEM` findings is planned, validation results are recorded if commands were run, candidate test actions are added, the per-phase report is written, and the checkpoint is recorded.
+Do not proceed to Section 4 until all are true (MUST):
+
+- [ ] Existing tests and repository-native validation commands are understood.
+- [ ] Test gaps and regression risks recorded with Remediation Risk.
+- [ ] Regression coverage for each High/`LIVE`/`MEM` finding is planned (testable seam noted where needed).
+- [ ] Validation results recorded if commands were run.
+- [ ] One observation per lead persona appended to `persona-review.md`.
+- [ ] Per-phase report written; checkpoint recorded and committed.

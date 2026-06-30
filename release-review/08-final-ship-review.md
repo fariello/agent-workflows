@@ -1,5 +1,12 @@
 # 08 Final Ship Review
 
+## Context contract
+
+- **Read:** `00-run-protocol.md`, `fix-decision-policy.md`, this file, all run artifacts, the Section 7 changes/diffs, registers, validation results. Personas: all eight (produce the sign-off). `templates/final-response.md` defines the report shape.
+- **Produce:** `final-bug-security-audit.md`, finalized `persona-review.md`/`todo-reconciliation.md`/`guiding-principles-assessment.md`/`cold-start-orientation.md`, `10-validation-results.md`, `11-push-plan.md`, `12-final-response.md`; per-phase report `section-summaries/08-final-ship-review.md`.
+- **Done when:** the Exit gate at the bottom of this file is satisfied.
+- **Continuity:** runs continuous with Section 7 (shares the implementation evidence).
+
 ## Purpose
 
 Assess whether the current project is ready to ship as a robust, well-written, well-documented, stable, secure, maintainable, feature-complete project for its intended scope.
@@ -142,6 +149,14 @@ If release concepts do not apply to the repository, provide a readiness assessme
 
 If the recommendation is GO or CONDITIONAL GO and the user explicitly approves performing the release, proceed to `09-release-execution.md`. Do not begin release execution automatically or without that approval. If the recommendation is NO-GO, do not proceed to Section 9.
 
-## Exit criteria
+## Exit gate
 
-The run is complete only when final validation, the eight-persona sign-off, the TODO/backlog reconciliation, the guiding-principles assessment, the self-documenting assessment, push/no-push plan, restart assessment, release recommendation, completed and unaddressed tables, final response file, and user-facing final response are complete.
+The run is complete only when all are true (MUST):
+
+- [ ] `final-bug-security-audit.md` written; final validation run and recorded in `10-validation-results.md`.
+- [ ] Eight-persona sign-off completed in `persona-review.md` and the report.
+- [ ] TODO/backlog reconciliation, guiding-principles assessment, self-documenting assessment, and cold-start orientation verdict finalized.
+- [ ] Live-surface / data-integrity gate applied to the GO/CONDITIONAL GO/NO-GO recommendation.
+- [ ] `11-push-plan.md` and restart assessment (with loop guard) recorded.
+- [ ] `12-final-response.md` saved per `templates/final-response.md` (both tables + all sections) and presented to the user.
+- [ ] Per-phase report written; checkpoint recorded and committed.

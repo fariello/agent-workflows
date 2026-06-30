@@ -1,5 +1,12 @@
 # 09 Release Execution (Post-Go)
 
+## Context contract
+
+- **Read:** `00-run-protocol.md`, this file, `08-final-ship-review.md` result, `11-push-plan.md`. Derive concrete commands from the repo (README/CONTRIBUTING/release docs, manifests, CI).
+- **Preconditions (MUST):** GO/CONDITIONAL GO from Section 8, explicit user approval to release, all CONDITIONAL prerequisites met, no unaddressed `LIVE`/High finding, working tree contains only intended release changes.
+- **Produce:** `release-execution-log.md` and per-phase report `section-summaries/09-release-execution.md`.
+- **Done when:** the Exit criteria at the bottom of this file are satisfied.
+
 ## Purpose
 
 Execute the actual release - pushing, CI verification, version tagging, building release artifacts, publishing, and/or deploying - **only after** Section 8 produced a GO or CONDITIONAL GO and the user has **explicitly approved** performing the release.

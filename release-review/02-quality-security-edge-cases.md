@@ -1,5 +1,11 @@
 # 02 Quality, Security, and Edge Cases
 
+## Context contract
+
+- **Read:** `00-run-protocol.md`, `fix-decision-policy.md`, this file, `01-repository-inventory.md`, the registers. `reference.md` on demand. Lead personas: QA/QC, software engineer, security-minded architect.
+- **Produce:** findings (with Remediation Risk) incl. `MEM`/`LIVE`; updates to registers, `05`/`06`/`08`, `deprecation-candidates.md`, `persona-review.md`, `todo-reconciliation.md`; per-phase report `section-summaries/02-quality-security-edge-cases.md`.
+- **Done when:** the Exit gate at the bottom of this file is satisfied.
+
 ## Purpose
 
 Review the current project for bugs, correctness issues, security concerns, privacy risks, edge cases, reliability risks, maintainability risks, and resource handling problems.
@@ -90,6 +96,14 @@ Favor evidence-based findings. If suspicious but unconfirmed, record uncertainty
 
 If the repository has no server code, authentication, network behavior, file handling, or serialization, mark those checks not applicable where appropriate.
 
-## Exit criteria
+## Exit gate
 
-Before moving to Section 3, quality/security/privacy/edge/reliability findings are recorded, memory/resource (`MEM`) and live-interaction-surface (`LIVE`) surfaces have been traced or marked not applicable, security-sensitive findings avoid exposing secrets, in-code TODO/FIXME items are triaged into `todo-reconciliation.md`, candidate actions are recorded, deprecation candidates are updated if relevant, the per-phase report is written, and the checkpoint is recorded.
+Do not proceed to Section 3 until all are true (MUST):
+
+- [ ] Quality/security/privacy/edge/reliability findings recorded with severity AND Remediation Risk.
+- [ ] `MEM` and `LIVE` surfaces traced by reading code (not inferred from tests) or marked not applicable; any data-integrity `LIVE`/High finding tagged.
+- [ ] Security-sensitive findings recorded without exposing secrets.
+- [ ] In-code TODO/FIXME items triaged into `todo-reconciliation.md`.
+- [ ] One observation per lead persona appended to `persona-review.md` (or "no new finding from persona X").
+- [ ] Deprecation candidates updated if relevant.
+- [ ] Per-phase report written; checkpoint recorded in `08-checkpoints.md` and committed.

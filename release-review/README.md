@@ -118,6 +118,8 @@ This is a long, multi-step run. Do not work from memory of a section file you re
 
 Do not batch multiple sections before writing reports or committing. If you discover you skipped a step for a prior section, stop and complete it before continuing.
 
+Each section file opens with a **context contract** (read these / produce these / done when) and ends with an **exit gate** (a checklist of MUST items). Treat the exit gate as the definition of "done" for that section. `00-run-protocol.md` defines the MUST vs SHOULD tiers, the context-assembly ordering (front = rules + contract; middle = reference + registers; end = active section + exit gate), the model-capability expectation, and an optional phase-isolated execution mode for fast/small models or very large repositories (Sections 7 and 8 stay continuous).
+
 ## Run setup
 
 At the start:
