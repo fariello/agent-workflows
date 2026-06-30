@@ -45,6 +45,7 @@ The review is conducted through eight expert personas (QA/QC, testing/regression
 | `README.md` | Main orchestrator and single entry point for the full review. |
 | `00-run-protocol.md` | Global operating protocol, safety rules, ID rules, the Fix Bar, artifacts, TodoWrite use, commit and push policy, and final reporting requirements. |
 | `fix-decision-policy.md` | Canonical fix-decision policy: fix by default; defer only when the Remediation Risk of the fix itself is Medium-High or higher. |
+| `reference.md` | On-demand look-up material kept out of the always-read core: ID type codes, ID examples, schema/data-contract types, CI checks, register statuses. |
 | `01-current-state.md` | Repository inventory, current-state assessment, public contract discovery, drift analysis, and early deprecation signals. |
 | `02-quality-security-edge-cases.md` | Bugs, correctness, security, privacy, error handling, resource handling, reliability, and edge-case audit. |
 | `03-tests-regression.md` | Test coverage, regression protection, fixtures, CI test behavior, and missing critical tests. |

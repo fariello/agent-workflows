@@ -7,6 +7,7 @@ This file defines the global rules for the release review. These rules apply to 
 1. `README.md` is the controlling instruction.
 2. This file defines shared rules.
 3. Section files `01` through `09` define phase-specific tasks (`09` runs only after a GO/CONDITIONAL GO and explicit user approval to release).
+3a. `fix-decision-policy.md` is the authoritative fix policy. `reference.md` holds on-demand look-up tables (type codes, ID examples, schema/CI lists) and is not part of the always-read core.
 4. `repository-review/<RUN_ID>/` is the authoritative run record.
 5. TodoWrite, if available, is live progress tracking only.
 
@@ -228,54 +229,7 @@ Use this pattern:
 <RUN_ID>-S<section>-<TYPE><number>
 ```
 
-Examples:
-
-```text
-20260606-142233-S1-A1
-20260606-142233-S2-B1
-20260606-142233-S2-S1
-20260606-142233-S2-MEM1
-20260606-142233-S2-TODO1
-20260606-142233-S3-T1
-20260606-142233-S4-D1
-20260606-142233-S4-KD1
-20260606-142233-S5-GP1
-20260606-142233-S5-M1
-20260606-142233-S6-CI1
-20260606-142233-S7-X1
-20260606-142233-S8-REL1
-20260606-142233-S9-O1
-```
-
-`RR` is a field (Remediation Risk: Low / Medium / Medium-High / High) recorded on every finding and action, not a finding type. Do not use it as a type code in an ID.
-
-Recommended type codes:
-
-| Type | Meaning |
-|---|---|
-| `A` | General action or artifact concern |
-| `B` | Bug or correctness issue |
-| `S` | Security or privacy issue |
-| `E` | Edge case, error handling, cleanup, recovery, or resource issue |
-| `T` | Test gap or test concern |
-| `D` | Documentation, specification, example, or help-text issue |
-| `F` | Feature completeness issue |
-| `U` | Usability, developer experience, or operator experience issue |
-| `M` | Maintainability issue |
-| `R` | Regression, compatibility, migration, or public contract risk |
-| `P` | Packaging, build, release artifact, or versioning issue |
-| `O` | Operations or deployment issue |
-| `CI` | CI or GitHub Actions issue or recommendation |
-| `SCH` | Schema, data contract, serialized format, migration, payload, or config validation issue |
-| `DEP` | Deprecated, obsolete, stale, or unused code/artifact candidate |
-| `TODO` | Item discovered in `TODO.md`/backlog/roadmap or a `TODO`/`FIXME` code marker that bears on this release |
-| `GP` | Guiding-principles violation (against the repo's principles doc or the universal fallback principles) |
-| `KD` | Knowledge/handoff-documentation gap: missing or inadequate intent, goals, philosophy, architecture, or design-decision rationale needed for cold-start orientation |
-| `MEM` | Memory, resource, lifetime, leak, unbounded-growth, or concurrency/state-safety issue |
-| `X` | Concrete implemented change |
-| `REL` | Final release decision, blocker, or release readiness finding |
-| `Q` | Question or ambiguity |
-| `DEC` | Decision or judgment call |
+The full type-code table and worked ID examples are in `reference.md` (consult on demand). `RR` is a field (Remediation Risk: Low / Medium / Medium-High / High) recorded on every finding and action, not a finding type; do not use it as a type code in an ID.
 
 Restarts are new runs with new IDs. A restarted run may reference earlier run IDs but must not reuse them.
 
@@ -389,40 +343,15 @@ Do not delete or deprecate something solely because it is old or not immediately
 
 Assess whether CI should be added or updated. Record findings in `ci-assessment.md`.
 
-You may add or update CI only when validation commands are clear, the workflow is low risk, it does not publish, deploy, release, upload artifacts, or change remote state, it does not require unknown secrets, it aligns with the repository language and package manager, and it materially improves release readiness.
-
-Consider linting, formatting checks, unit tests, type checks, build checks, security or dependency checks, documentation checks, and matrix testing for supported versions. If CI is not added, explain why.
+You may add or update CI only when validation commands are clear, the workflow is low risk, it does not publish, deploy, release, upload artifacts, or change remote state, it does not require unknown secrets, it aligns with the repository language and package manager, and it materially improves release readiness. The list of CI checks to consider is in `reference.md`. If CI is not added, explain why.
 
 ## Schema validation
 
-Throughout the review, identify and validate schemas and data contracts when applicable.
-
-Schemas may include:
-
-1. JSON Schema.
-2. OpenAPI or Swagger specifications.
-3. GraphQL schemas.
-4. XML Schema.
-5. Database schemas or migrations.
-6. Protocol buffers.
-7. Avro, Parquet, or other data serialization contracts.
-8. Configuration schemas.
-9. Custom file format schemas.
-10. Message, event, API payload, import, export, or serialized output contracts.
+Throughout the review, identify and validate schemas and data contracts when applicable. The list of schema/data-contract types and the specific things to check for are in `reference.md` (consult on demand).
 
 Record schema findings in `schema-validation.md` and the finding/action registers.
 
 When repository-native validation commands exist, use them. When examples, fixtures, golden files, sample configs, documented payloads, or test data exist, validate representative samples against the relevant schemas when practical and safe.
-
-Check for:
-
-1. Schema syntax validity.
-2. Drift between schemas, implementation, docs, examples, tests, and generated artifacts.
-3. Backward compatibility risks for public schemas and serialized outputs.
-4. Missing validation for user-provided or external data.
-5. Migration or versioning concerns.
-6. Generated schema artifacts that are stale or not reproducible.
-7. CI opportunities for schema validation.
 
 Do not introduce new schema tooling unless it is low risk, aligned with the repository, and clearly justified. If validation is not possible, explain why and record the residual risk.
 

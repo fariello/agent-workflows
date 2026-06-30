@@ -17,6 +17,7 @@ PASS. The package includes OpenCode installation and activation instructions in 
 - PASS: Required file exists: release-review/README.md
 - PASS: Required file exists: release-review/00-run-protocol.md
 - PASS: Required file exists: release-review/fix-decision-policy.md
+- PASS: Required file exists: release-review/reference.md
 - PASS: Required file exists: release-review/01-current-state.md
 - PASS: Required file exists: release-review/02-quality-security-edge-cases.md
 - PASS: Required file exists: release-review/03-tests-regression.md
@@ -64,6 +65,7 @@ PASS. The package includes OpenCode installation and activation instructions in 
 - `.opencode/commands/release-review.md`
 - `release-review/00-run-protocol.md`
 - `release-review/fix-decision-policy.md`
+- `release-review/reference.md`
 - `release-review/01-current-state.md`
 - `release-review/02-quality-security-edge-cases.md`
 - `release-review/03-tests-regression.md`

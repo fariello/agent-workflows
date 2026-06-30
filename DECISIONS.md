@@ -162,6 +162,12 @@ both execute the (large) set well.
   than trust summaries.
 - **Single instruction set, not a fork:** One set tiered by MUST/SHOULD, rather than
   a separate "lite" variant, to avoid drift between two copies.
+- **Progress (2026-06-29):** Step (a) done - `reference.md` created and the
+  type-code table, ID examples, and schema/CI lists removed from
+  `00-run-protocol.md` (460 to 389 lines), leaving single sources of truth.
+  Remaining D11 work in progress: MUST/SHOULD tiering, the context-ordering rule,
+  per-section context contracts and exit-gate checklists, model-tier expectations,
+  the phase-isolated mode, and the Section 7 re-open-the-evidence grounding rule.
 
 ### D12. The checked-in `release-review.zip`
 

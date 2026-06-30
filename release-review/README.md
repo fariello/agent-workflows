@@ -87,7 +87,7 @@ Rules:
 
 ## Required execution order
 
-Read and follow `00-run-protocol.md` first (and `fix-decision-policy.md`, the fix-decision policy it references). Then execute the section files in order:
+Read and follow `00-run-protocol.md` first (and `fix-decision-policy.md`, the fix-decision policy it references; `reference.md` holds look-up tables you consult on demand, not up front). Then execute the section files in order:
 
 1. `01-current-state.md`
 2. `02-quality-security-edge-cases.md`
