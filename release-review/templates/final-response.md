@@ -9,12 +9,23 @@
 ## Identified but not addressed
 
 Include audit findings identified but not implemented, not only actions left
-incomplete. Any `LIVE`/High data-integrity finding that was not fixed MUST appear
-here, flagged `LIVE - needs user decision` (never silently moved to `TODO.md`).
+incomplete. Under the Fix Bar, anything not fixed was deferred because the
+Remediation Risk of the fix is Medium-High or higher; the Reason must name the axis
+(complexity / usability / security / functionality), not effort/time/cost. Any
+`LIVE`/High data-integrity finding that was not fixed MUST appear here, flagged
+`LIVE - needs user decision` (never silently moved to `TODO.md`).
 
-| Unique ID | Description of what was not done | Reason | Recommended next step |
-|---|---|---|---|
-|  |  |  |  |
+| Unique ID | Description of what was not done | Remediation Risk + axis | Reason | Recommended next step |
+|---|---|---|---|---|
+|  |  |  |  |  |
+
+## Fix Bar summary
+
+State that the Fix Bar was applied (fix by default; defer only at Medium-High+
+Remediation Risk). Give counts: findings fixed vs. deferred, and for deferrals, the
+breakdown by Remediation-Risk axis (complexity / usability / security /
+functionality). Confirm no finding was silently dropped and no fix was skipped
+merely for effort/time/cost.
 
 ## Summary of changes
 

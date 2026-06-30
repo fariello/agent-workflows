@@ -30,13 +30,21 @@ The implementation plan must include scope summary, non-goals, change batches, u
 
 Do not start implementation until the plan exists.
 
-## Selection criteria
+## Selection criteria: apply the Fix Bar
 
-Implement findings when they are safe, well scoped, evidence-supported, likely to improve release readiness, validatable, and unlikely to break public behavior unless clearly justified.
+Selection is governed by the Fix Bar defined in `00-run-protocol.md`. **Fix every finding by default.** Do not skip a fix because it is small, low-severity, or because it costs effort, time, or tokens. The only question is whether there is a strong enough reason NOT to fix it.
 
-Do not limit implementation to only high-priority items. Include lower-severity changes when they add significant value and are safe.
+> FIX the finding unless the *Remediation Risk* of fixing it is Medium-High or higher (risk that the fix itself harms complexity, usability, security, or functionality, now or in the future). When unsure, prefer to fix and note the uncertainty.
 
-Defer or mark wont-do when a change is speculative, requires product judgment, needs unavailable credentials, risks public contract breakage without evidence, requires large refactoring, creates release/deployment side effects, cannot be validated, is cosmetic churn, or involves deprecation/removal without enough evidence.
+For every finding, record its Remediation Risk (Low / Medium / Medium-High / High) on the action in the register:
+
+- **Low or Medium Remediation Risk: implement now.** This includes bugs, nits, wording/polish, missing-but-required capabilities, usability/self-documenting gaps, and guiding-principles fixes.
+- **Medium-High or High Remediation Risk: defer or mark wont-do**, but only with an explicit recorded justification naming which axis (complexity, usability, security, functionality) and why. Where possible, do the safe part now and defer only the risky remainder. Never silently drop a finding.
+- **Over-scope findings:** the "fix" is to recommend removing or deferring the over-scoped feature/abstraction/dependency. This is usually low Remediation Risk, so do it.
+
+Severity (Blocker / High / Medium / Low) is recorded for reporting only; it does not decide whether to fix. A Low/cosmetic finding is fixed by default; a High finding is deferred only if its *cure* clears the Medium-High Remediation-Risk bar (the `LIVE`/High data-integrity class below is never silently deferred regardless).
+
+Legitimate high-Remediation-Risk reasons to defer include: the fix would add disproportionate architectural complexity (KISS/over-engineering), would degrade usability, would weaken security, would risk breaking current or planned behavior without enough evidence, requires product judgment or unavailable credentials, or requires a large refactor whose breakage risk is real. "It is hard to test" is not by itself a deferral reason; refactor for testability instead.
 
 ### Non-deferral threshold for `LIVE`/High data-integrity findings (mandatory)
 
@@ -46,9 +54,9 @@ A finding tagged `LIVE` or rated **High** by the Section 2 live-interaction-surf
 2. If a fix is genuinely out of scope for the run, surface it to the user in the Section 7 per-phase report AND the final report's "identified but not addressed" table as an explicit **High/`LIVE`, not fixed** item requiring a decision - never only as a `TODO.md` entry.
 3. Add a regression test for the fixed behavior.
 
-#### Low-effort / low-risk Medium and Low findings: fix them too
+#### Medium and Low severity findings: fix them too
 
-A Medium- or Low-severity live-surface, memory, usability/self-documenting, or guiding-principles finding that is **low effort AND low risk** should also be fixed in this run, not deferred - this is exactly the class of cheap, safe correctness/usability fixes that tends to get dropped. Guardrails so this does not become scope-creep: apply only when ALL hold (low implementation effort, low risk, clear value, validatable); record a one-line effort+risk estimate on the finding (do not merely assert "low"); and if a fix turns out non-trivial, risky, or needs product judgment mid-way, stop and defer it normally with a reason rather than expanding scope.
+Under the Fix Bar, Medium- and Low-severity findings (live-surface, memory, usability/self-documenting, guiding-principles, polish, and nits alike) are fixed by default, not deferred. Low severity is not a deferral reason; only Medium-High-or-higher Remediation Risk is. This closes the recurring loophole where cheap, safe correctness/usability fixes were dropped as "not important enough". The active discipline here is the Complexity axis: do not let "it is cheap to add" turn into gold-plating or scope creep. If a fix would add disproportionate complexity, degrade usability, weaken security, or risk breaking behavior, defer it and name the axis; otherwise fix it now. Where a fix turns risky mid-way, stop, do the safe portion, and defer the risky remainder with a recorded reason.
 
 ### Self-documenting and guiding-principles fixes
 
@@ -99,7 +107,9 @@ For each selected deprecation candidate, confirm evidence, check references/expo
 
 Update the implementation plan, registers, decisions, commands, commits, checkpoints, validation results, deprecation candidates, CI assessment, `todo-reconciliation.md`, and `guiding-principles-assessment.md`.
 
-Create the per-phase report `section-summaries/07-implementation.md` (what was done, why, what was considered but not done) covering implemented scope, intentionally unimplemented scope (including any `LIVE`/High finding escalated rather than fixed), change batches, source finding IDs addressed, self-documenting/usability and guiding-principles fixes made, `TODO.md` items completed or re-classified, tests and validations, artifacts updated, local commits, remaining risks, and follow-up work.
+Record the Remediation Risk (Low / Medium / Medium-High / High) for every finding acted on or deferred. Every deferred finding must name the Remediation-Risk axis (complexity, usability, security, or functionality) that justifies the deferral.
+
+Create the per-phase report `section-summaries/07-implementation.md` (what was done, why, what was considered but not done) covering implemented scope, intentionally unimplemented scope with its Remediation-Risk justification (including any `LIVE`/High finding escalated rather than fixed), change batches, source finding IDs addressed, self-documenting/usability and guiding-principles fixes made, `TODO.md` items completed or re-classified, tests and validations, artifacts updated, local commits, remaining risks, and follow-up work.
 
 ## TodoWrite guidance
 
@@ -107,7 +117,7 @@ If TodoWrite is available, create todos for each implementation batch, mark each
 
 ## Judgment guidance
 
-Do the work that improves release readiness, not the work that merely increases diff size. Small precise fixes are preferred.
+Fix by default; the diff size is not the metric. Apply the Fix Bar: address every finding unless its Remediation Risk is Medium-High or higher. Small precise fixes are preferred, and small does not mean skippable. Guard the Complexity axis so fix-by-default does not become over-engineering or scope creep.
 
 ## Non-applicable guidance
 
@@ -115,4 +125,4 @@ If no safe implementation work is found, do not fabricate changes. Record the ra
 
 ## Exit criteria
 
-Before moving to Section 8, implementation plan is complete, safe selected fixes are implemented or explicitly deferred/blocked/wont-do, all `LIVE`/High data-integrity findings are fixed or explicitly escalated (never silently TODO'd), low-effort/low-risk Medium/Low fixes are made, self-documenting and guiding-principles fixes are applied where safe, `TODO.md` is updated to stay honest, relevant artifacts are synchronized, validation is run and recorded where possible, local commits are made or explained, actions are reconciled, the per-phase report is written, and the checkpoint is recorded.
+Before moving to Section 8, implementation plan is complete, the Fix Bar has been applied so every finding is fixed unless its Remediation Risk is Medium-High or higher (each deferral naming the axis), all `LIVE`/High data-integrity findings are fixed or explicitly escalated (never silently TODO'd), Medium/Low severity findings are fixed by default, self-documenting and guiding-principles fixes are applied, `TODO.md` is updated to stay honest, relevant artifacts are synchronized, validation is run and recorded where possible, local commits (including run artifacts) are made or explained, actions and Remediation Risk are reconciled, the per-phase report is written, and the checkpoint is recorded.

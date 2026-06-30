@@ -66,7 +66,7 @@ Use `B` for bugs, `S` for security/privacy, `E` for edge/error/resource issues, 
 
 **Severity floor for live-interaction-surface defects.** A finding from the live-interaction-surface review that can (a) overwrite or destroy completed/verified/paid-for output or user data, (b) spend real money/quota on skippable work, (c) make an automated decision on incompletely-retrieved or truncated input, (d) signal/stop/coordinate the wrong process, or (e) prevent forward progress through a backlog, is at least **High** severity and is tagged `LIVE` in the finding title. Difficulty of automated testing does NOT lower its severity.
 
-**Medium/Low live-surface and memory findings: estimate effort + risk.** For such findings genuinely below the High floor, record a one-line effort+risk estimate alongside the finding. Section 7 fixes the low-effort AND low-risk ones in-run rather than deferring them. Make the basis of the estimate explicit rather than asserting "low".
+**Remediation Risk for every finding (Fix Bar input).** For each finding, record its Remediation Risk (Low / Medium / Medium-High / High) per the Fix Bar in `00-run-protocol.md`: the risk that the fix itself would harm complexity, usability, security, or functionality. Effort/time/cost are explicitly excluded. Under the Fix Bar, Section 7 fixes everything by default and defers only when Remediation Risk is Medium-High or higher, so Medium/Low live-surface and memory findings are fixed in-run by default. Make the basis of the Remediation-Risk rating explicit rather than asserting "low".
 
 ## In-code TODO/FIXME triage
 

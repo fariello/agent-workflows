@@ -56,6 +56,7 @@ from typing import Iterable
 REQUIRED_ZIP_MEMBERS: tuple[str, ...] = (
     "release-review/README.md",
     "release-review/00-run-protocol.md",
+    "release-review/fix-decision-policy.md",
     ".opencode/commands/release-review.md",
     ".opencode/commands/release-review-plan.md",
 )

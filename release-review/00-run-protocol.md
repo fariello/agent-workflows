@@ -84,7 +84,7 @@ These reports are part of the deliverable. They give the user a readable, audita
 In addition to committing meaningful tracked product changes (see Commit policy below), commit at every section boundary so the run is recoverable and the per-phase narrative is preserved:
 
 1. After completing each section, commit that section's tracked product changes (if any) as a coherent unit referencing the section's action IDs.
-2. If the user has asked for run artifacts to be committed (or `repository-review/` is intentionally tracked for this project), commit the section's per-phase report and updated registers at the boundary too. Otherwise keep them local per the artifact policy.
+2. Commit the section's per-phase report and updated registers at the boundary too, since run artifacts are committed deliverables by default. Keep them local only if the user explicitly requested local-only artifacts for this run.
 3. Never bundle changes from two different sections into one commit unless they are genuinely one logical change.
 4. Record each commit in `07-commits.md` and at the section checkpoint in `08-checkpoints.md`.
 
@@ -112,7 +112,7 @@ Use a timestamp run ID:
 YYYYMMDD-HHMMSS
 ```
 
-Add `repository-review/` to `.gitignore` if not already ignored.
+The `repository-review/<RUN_ID>/` artifacts are committed deliverables of the review, not throwaway local notes. Do NOT add `repository-review/` to `.gitignore`. If a prior run or a stale package added `repository-review/` to `.gitignore`, remove that ignore line so the artifacts can be tracked, and record the change. Only keep run artifacts local if the user explicitly asks for that on a given run.
 
 Required artifacts:
 
@@ -200,9 +200,11 @@ Restarts are new runs with new IDs. A restarted run may reference earlier run ID
 
 Maintain `03-findings-register.csv` and `04-action-register.csv` throughout the run. Use these statuses: `identified`, `planned`, `completed`, `deferred`, `blocked`, `not_applicable`, `superseded`, and `wont_do`.
 
-Findings must include ID, section, type, severity, title, status, affected area, evidence, impact, recommended action, public behavior change, required artifact updates, source files, validation, and next step.
+Findings must include ID, section, type, severity (impact if left alone), Remediation Risk (Low / Medium / Medium-High / High, per the Fix Bar), title, status, affected area, evidence, impact, recommended action, public behavior change, required artifact updates, source files, validation, and next step.
 
-Actions must include ID, source finding IDs, section, status, description, files changed, commit, validation, reason not done, and recommended next step.
+Actions must include ID, source finding IDs, section, status, description, Remediation Risk, files changed, commit, validation, reason not done (which Remediation-Risk axis, if deferred), and recommended next step.
+
+Under the Fix Bar, severity is for reporting and Remediation Risk is for deciding. Any deferred finding must name the Remediation-Risk axis (complexity, usability, security, or functionality) that justifies deferral.
 
 ## TodoWrite protocol
 
@@ -266,11 +268,11 @@ Do not paste secrets or excessive logs. Summarize long outputs and save only rel
 
 ## Commit policy
 
-Use local commits for meaningful tracked repository changes when safe. Do not commit `repository-review/` artifacts unless the user explicitly asks for them to be committed.
+Use local commits for meaningful tracked repository changes when safe. The `repository-review/<RUN_ID>/` run artifacts are committed deliverables by default: commit them alongside the run so the per-phase reports, registers, plans, and final report become part of the project history. Keep them out of commits only if the user explicitly requests local-only artifacts for that run.
 
 Before any commit, run `git status --short`, confirm the files to commit were changed by this run, avoid committing unrelated pre-existing changes, and run appropriate validation first or state why validation could not be run.
 
-Commit at logical checkpoints: after adding `repository-review/` to `.gitignore`, after coherent implementation batches, after test/docs/CI updates when they form a reviewable unit, and after final validation cleanup if tracked files changed.
+Commit at logical checkpoints: after run setup (including the initialized `repository-review/<RUN_ID>/` artifacts), at each section boundary (per-phase report plus that section's product changes), after coherent implementation batches, after test/docs/CI updates when they form a reviewable unit, and after final validation cleanup. Keep run-artifact commits separate from product-code commits when practical so history stays readable.
 
 Use commit messages that reference action IDs. If changes cannot be separated from pre-existing user changes, do not commit. Record the blocker.
 
@@ -278,13 +280,48 @@ Use commit messages that reference action IDs. If changes cannot be separated fr
 
 Do not push to a remote during the review. At the end, create `11-push-plan.md` with branch, local commits, permission status, push recommendation, risks, suggested command if permitted, and no-push rationale if permission is absent. Only push if explicitly permitted by the user.
 
-## Implementation philosophy
+## The Fix Bar (decision policy for what to address)
 
-Favor meaningful, safe improvements. Do not restrict fixes to only high-priority issues. Implement lower-severity changes when they add significant release value and are safe, well scoped, and validated.
+This is the central policy for deciding what gets fixed during this review. The full statement is in `fix-decision-policy.md`; the operative rules are summarized here. It governs Section 7 selection and overrides any older "favor high-priority only" or "minimize changes" framing.
 
-Good changes include bug fixes, security hardening, correctness fixes, edge-case handling, cleanup fixes, important tests, accurate docs, packaging fixes, low-risk CI checks, clear deprecation markers, and small maintainability improvements that reduce real risk.
+**Core principle: fix by default. Deferral is the exception that must be justified.**
 
-Avoid cosmetic churn, broad refactors, style-only rewrites, speculative features, file reorganization without clear value, public behavior changes without compatibility analysis, unnecessary dependencies, and workflows that publish, deploy, release, or upload artifacts without explicit permission.
+The executing agent is fast and cheap, so the time, effort, or token cost of a fix is NOT a reason to skip it. Flip the usual question. Do not ask "is this important enough to fix?" Ask: "is there a strong enough reason NOT to fix this?"
+
+### The decision rule
+
+> FIX the finding unless the *Remediation Risk* of fixing it is Medium-High or higher. When unsure whether it reaches that bar, prefer to fix and note the uncertainty (fail-safe).
+
+Everything gets addressed by default: bugs, nits, wording/polish, missing-but-required capabilities, usability and self-documenting gaps, guiding-principles violations, and over-scoped/gold-plated features (for those, the "fix" is to recommend removing or deferring them).
+
+### Remediation Risk is the only thing that justifies NOT fixing
+
+Remediation Risk is the risk that *applying the fix itself* harms one or more of these axes, now or in the future:
+
+- **Complexity** - the fix adds disproportionate architectural complexity or maintenance burden. This is the main counterweight: do not let "it is cheap to add" become an excuse for gold-plating or over-engineering. Unjustified complexity is a valid reason to defer.
+- **Usability** - the fix degrades the user experience or makes things less intuitive.
+- **Security** - the fix opens, weakens, or complicates the security posture.
+- **Functionality** - the fix risks breaking current or planned/future behavior.
+
+Rate Remediation Risk Low / Medium / Medium-High / High and record it on the finding/action (`RR` field):
+
+- **Low or Medium: fix now.**
+- **Medium-High or High: defer**, but only with an explicit, recorded justification naming which axis and why. Where possible, do the safe part now and defer only the risky remainder. Never silently drop a finding.
+
+Effort, time, and token/compute cost are explicitly excluded from Remediation Risk. The only question is whether the change makes the system more complex, less usable, less secure, or less correct.
+
+### Severity is for reporting, not for deciding
+
+Findings are still labeled by impact-if-left-alone (Blocker / High / Medium / Low) for reporting, but severity does not decide whether to fix; the Remediation-Risk gate does. A Low/cosmetic finding still gets fixed by default; a High finding is only deferred if its *cure* clears the Medium-High risk bar. (The `LIVE`/High data-integrity non-deferral rule still applies: those must be fixed or explicitly escalated regardless.)
+
+### Scope is checked separately (two directions)
+
+- **Over-scope:** a feature, abstraction, or dependency not traceable to a stated requirement or the project's purpose. Flag it; the default action is remove/defer (usually low Remediation Risk, so do it).
+- **Under-scope:** a required capability that is missing. Add it by default.
+
+### Practical caveat
+
+This bar makes "do everything" the default, so the active discipline becomes guarding against scope creep. The Complexity axis is what keeps a cheap-to-add fix from quietly violating KISS; that is the one judgment to exercise most carefully. Still avoid cosmetic churn for its own sake, broad style-only rewrites, public behavior changes without compatibility analysis, unnecessary dependencies, and any publish/deploy/upload without explicit permission - in each case because the Remediation Risk (complexity, functionality, or security) is real, not because the fix is "too small to bother with".
 
 ## Deprecated-code analysis
 

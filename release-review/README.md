@@ -84,7 +84,7 @@ Rules:
 
 ## Required execution order
 
-Read and follow `00-run-protocol.md` first. Then execute the section files in order:
+Read and follow `00-run-protocol.md` first (and `fix-decision-policy.md`, the fix-decision policy it references). Then execute the section files in order:
 
 1. `01-current-state.md`
 2. `02-quality-security-edge-cases.md`
@@ -109,7 +109,7 @@ At the start:
 3. Record the initial branch, head commit, remotes, and working tree status.
 4. Create a run ID using local time in this format: `YYYYMMDD-HHMMSS`.
 5. Create `repository-review/<RUN_ID>/`.
-6. Add `repository-review/` to `.gitignore` if it is not already ignored.
+6. Ensure `repository-review/` is NOT git-ignored; remove any stale `repository-review/` ignore line so the run artifacts can be tracked as committed deliverables.
 7. Create the required run artifacts defined in `00-run-protocol.md`.
 8. Create `repository-review/<RUN_ID>/02-execution-plan.md` after enough initial inspection to understand the project type.
 9. Use TodoWrite if running in OpenCode and the tool is available.
@@ -124,7 +124,9 @@ Do not create a TodoWrite item for every file inspected or every tiny edit. The 
 
 ## Local commits and remote pushes
 
-Use local commits for meaningful tracked repository changes when safe and possible. Commit only files changed by this run. Do not accidentally include unrelated pre-existing user changes. Do not commit `repository-review/` artifacts unless the user explicitly asks.
+Use local commits for meaningful tracked repository changes when safe and possible. Commit only files changed by this run. Do not accidentally include unrelated pre-existing user changes. The `repository-review/<RUN_ID>/` artifacts are committed deliverables by default; commit them with the run (keep them local only if the user explicitly asks for local-only artifacts).
+
+Apply the Fix Bar (see `00-run-protocol.md`): fix findings by default and defer only when the Remediation Risk of the fix itself is Medium-High or higher; severity is for reporting, not for deciding; never silently drop a finding.
 
 Remote pushes are prohibited until the final stage and only allowed if the user has explicitly permitted pushing. If permission is absent, produce a push/no-push recommendation in `repository-review/<RUN_ID>/11-push-plan.md` and in the final report.
 

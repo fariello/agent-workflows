@@ -4,7 +4,7 @@
 
 Understand the repository as it exists now before recommending or making changes. Reconcile actual implementation, tests, documentation, build files, packaging, release artifacts, and recent changes.
 
-This is primarily a review and discovery section. Do not modify tracked project files except for required run setup such as `.gitignore`.
+This is primarily a review and discovery section. Do not modify tracked project files except for required run setup, such as removing a stale `repository-review/` line from `.gitignore` so the run artifacts can be tracked.
 
 ## Standing constraints for this section
 
@@ -32,7 +32,7 @@ Also discover, in this section:
 
 ## Allowed actions
 
-Allowed: inspect files, run non-destructive discovery commands, create and update run artifacts, add `repository-review/` to `.gitignore` if required, and make a local commit for `.gitignore` only if changed and safe.
+Allowed: inspect files, run non-destructive discovery commands, create and update run artifacts, remove a stale `repository-review/` line from `.gitignore` if present (run artifacts are committed deliverables), and make a local setup commit of the initialized run artifacts (and any `.gitignore` change) when safe.
 
 Not allowed: product code changes, test changes, documentation changes except run artifacts, deleting files, or moving files.
 

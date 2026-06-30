@@ -93,9 +93,9 @@ Use `SCH` IDs for unresolved schema issues.
 
 ## Final finding categories
 
-Categorize remaining findings as must fix before release, should fix before release if time allows, acceptable known limitation if documented, or nice to have after release.
+By the time Section 8 runs, the Fix Bar should already have driven every finding to fixed or explicitly deferred-with-justification. For any finding still open, do not categorize by "if time allows" (effort is not a Fix-Bar reason). Categorize remaining findings as: must fix before release (release blocker), deferred because the fix carries Medium-High or higher Remediation Risk (name the axis), acceptable known limitation if documented, or nice to have after release.
 
-For each final finding, include ID, title, severity, affected area, why it matters, recommended fix, affected audiences, public behavior change assessment, required artifact updates, and whether it blocks release.
+For each final finding, include ID, title, severity (impact if left alone), Remediation Risk and the at-risk axis if deferred, affected area, why it matters, recommended fix, affected audiences, public behavior change assessment, required artifact updates, and whether it blocks release.
 
 Use `REL` IDs for final release decisions and blockers. Preserve earlier IDs when referring to unresolved items.
 

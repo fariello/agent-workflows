@@ -43,7 +43,8 @@ The review is conducted through eight expert personas (QA/QC, testing/regression
 | File | Purpose |
 |---|---|
 | `README.md` | Main orchestrator and single entry point for the full review. |
-| `00-run-protocol.md` | Global operating protocol, safety rules, ID rules, artifacts, TodoWrite use, commit and push policy, and final reporting requirements. |
+| `00-run-protocol.md` | Global operating protocol, safety rules, ID rules, the Fix Bar, artifacts, TodoWrite use, commit and push policy, and final reporting requirements. |
+| `fix-decision-policy.md` | Canonical fix-decision policy: fix by default; defer only when the Remediation Risk of the fix itself is Medium-High or higher. |
 | `01-current-state.md` | Repository inventory, current-state assessment, public contract discovery, drift analysis, and early deprecation signals. |
 | `02-quality-security-edge-cases.md` | Bugs, correctness, security, privacy, error handling, resource handling, reliability, and edge-case audit. |
 | `03-tests-regression.md` | Test coverage, regression protection, fixtures, CI test behavior, and missing critical tests. |
@@ -98,4 +99,6 @@ repository-review/<RUN_ID>/
   audit-lanes/               (optional parallel read-only audit lane reports)
 ```
 
-`repository-review/` should be ignored by Git. The review artifacts are for local accountability and should not be committed unless the user explicitly asks.
+The `repository-review/<RUN_ID>/` artifacts are committed deliverables of the review by default: the per-phase reports, registers, plans, and final report should be tracked and committed with the run so the project keeps a durable, auditable record. Do not git-ignore `repository-review/`. Keep artifacts local only if the user explicitly asks for local-only artifacts on a given run.
+
+The review applies the Fix Bar (see `00-run-protocol.md`): findings are fixed by default and deferred only when the Remediation Risk of the fix itself is Medium-High or higher (complexity, usability, security, or functionality). Severity is for reporting; Remediation Risk is for deciding.

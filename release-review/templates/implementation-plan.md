@@ -14,9 +14,16 @@ Describe the implementation scope selected from the audit findings.
 
 List changes that should not be made in this run.
 
+## Fix Bar
+
+This plan applies the Fix Bar (`fix-decision-policy.md`): fix every finding by
+default; defer only when the Remediation Risk of the fix itself is Medium-High or
+higher (complexity / usability / security / functionality). Severity is for
+reporting, not for deciding.
+
 ## Change batches
 
-| Batch ID | Source finding IDs | Description | Files likely to change | Risk | Public behavior change | Required validation | Commit plan | Status |
+| Batch ID | Source finding IDs | Description | Files likely to change | Remediation Risk | Public behavior change | Required validation | Commit plan | Status |
 |---|---|---|---|---|---|---|---|---|
 
 ## Mandatory `LIVE`/High data-integrity findings
@@ -42,8 +49,11 @@ explicitly escalated to the user - never silently deferred to `TODO.md`.
 
 ## Deferred findings
 
-| Finding ID | Reason deferred | Recommended next step |
-|---|---|---|
+Deferral requires Medium-High or higher Remediation Risk; name the axis. Effort,
+time, and cost are not valid reasons.
+
+| Finding ID | Remediation Risk | Axis at risk (complexity/usability/security/functionality) | Reason deferred | Safe partial fix done? | Recommended next step |
+|---|---|---|---|---|---|
 
 ## Blocked findings
 

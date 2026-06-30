@@ -36,13 +36,26 @@ work that was done.
 
 ## Key findings
 
-| ID | Type | Severity | Title | Status | Next step |
-|---|---|---|---|---|---|
-|  |  |  |  |  |  |
+Severity is impact-if-left-alone (reporting); Remediation Risk is the Fix-Bar gate
+that decides whether to fix.
+
+| ID | Type | Severity | Remediation Risk | Title | Status | Next step |
+|---|---|---|---|---|---|---|
+|  |  |  |  |  |  |  |
 
 ## Actions created or updated
 
-| ID | Source IDs | Description | Status | Next step |
+| ID | Source IDs | Description | Remediation Risk | Status | Next step |
+|---|---|---|---|---|---|
+|  |  |  |  |  |  |
+
+## Deferrals (Fix Bar)
+
+Anything NOT fixed must be deferred only because the Remediation Risk of the fix is
+Medium-High or higher. Name the axis (complexity / usability / security /
+functionality).
+
+| Finding ID | Remediation Risk | Axis at risk | Why deferring (not effort/cost) | Safe partial fix done? |
 |---|---|---|---|---|
 |  |  |  |  |  |
 
