@@ -10,7 +10,7 @@
 
 Understand the repository as it exists now before recommending or making changes. Reconcile actual implementation, tests, documentation, build files, packaging, release artifacts, and recent changes.
 
-This is primarily a review and discovery section. Do not modify tracked project files except for required run setup, such as removing a stale `repository-review/` line from `.gitignore` so the run artifacts can be tracked.
+This is primarily a review and discovery section. Do not modify tracked project files except for required run setup, such as removing a stale `workflow-artifacts/` line from `.gitignore` so the run artifacts can be tracked.
 
 ## Standing constraints for this section
 
@@ -19,7 +19,7 @@ This is primarily a review and discovery section. Do not modify tracked project 
 - Do not create broad refactors or formatting churn.
 - Use run-specific unique IDs for every finding and action.
 - Update the finding and action registers before leaving this section.
-- Use TodoWrite if available, but treat `repository-review/<RUN_ID>/` as authoritative.
+- Use TodoWrite if available, but treat `workflow-artifacts/release-review/<RUN_ID>/` as authoritative.
 - Mark non-applicable checks explicitly rather than forcing findings.
 - Prefer meaningful fixes, not checklist compliance.
 
@@ -38,7 +38,7 @@ Also discover, in this section:
 
 ## Allowed actions
 
-Allowed: inspect files, run non-destructive discovery commands, create and update run artifacts, remove a stale `repository-review/` line from `.gitignore` if present (run artifacts are committed deliverables), and make a local setup commit of the initialized run artifacts (and any `.gitignore` change) when safe.
+Allowed: inspect files, run non-destructive discovery commands, create and update run artifacts, remove a stale `workflow-artifacts/` line from `.gitignore` if present (run artifacts are committed deliverables), and make a local setup commit of the initialized run artifacts (and any `.gitignore` change) when safe.
 
 Not allowed: product code changes, test changes, documentation changes except run artifacts, deleting files, or moving files.
 
@@ -46,7 +46,7 @@ Not allowed: product code changes, test changes, documentation changes except ru
 
 Determine what the project currently does, likely project type and scope, likely public contract, existing tests and validation commands, documentation and specifications, build/packaging/deployment/CI/release artifacts, recent changes, obvious drift among artifacts, stale or obsolete candidates, and major ambiguities that affect later sections.
 
-Apply the review scope exclusions from `00-run-protocol.md`: do not inventory or characterize `release-review/` (the runbook) or `repository-review/` (run records) as part of the project. Exclude them from project type, size, structure, test, and documentation assessments. Record in `01-repository-inventory.md` that these directories are present but out of scope (unless the user has explicitly made the framework itself the subject of the review).
+Apply the review scope exclusions from `00-run-protocol.md`: do not inventory or characterize `release-review/` (the runbook) or `workflow-artifacts/` (run records) as part of the project. Exclude them from project type, size, structure, test, and documentation assessments. Record in `01-repository-inventory.md` that these directories are present but out of scope (unless the user has explicitly made the framework itself the subject of the review).
 
 ## Required outputs
 
@@ -80,7 +80,7 @@ Use parallel lanes when the repository is large, unfamiliar, or has clearly sepa
 
 If using parallel lanes:
 
-1. Create `repository-review/<RUN_ID>/audit-lanes/`.
+1. Create `workflow-artifacts/release-review/<RUN_ID>/audit-lanes/`.
 2. Define lane scopes.
 3. Instruct lanes to remain read-only.
 4. Require each lane to use `templates/audit-lane-report.md`.

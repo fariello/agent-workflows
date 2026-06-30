@@ -20,7 +20,7 @@ This is the primary change-making section. It should favor useful release harden
 - Do not create broad refactors or formatting churn.
 - Use run-specific unique IDs for every finding and action.
 - Update the finding and action registers before leaving this section.
-- Use TodoWrite if available, but treat `repository-review/<RUN_ID>/` as authoritative.
+- Use TodoWrite if available, but treat `workflow-artifacts/release-review/<RUN_ID>/` as authoritative.
 - Mark non-applicable checks explicitly rather than forcing findings.
 - Prefer meaningful fixes, not checklist compliance.
 
@@ -35,7 +35,7 @@ A register entry is a summary the audit wrote, not the lived reading of the code
 
 ## Required implementation plan
 
-Before editing tracked project files, create `repository-review/<RUN_ID>/implementation-plan.md` (this is the consolidated plan; do not confuse it with `02-execution-plan.md`, the lightweight early plan, or with Section 9 release execution).
+Before editing tracked project files, create `workflow-artifacts/release-review/<RUN_ID>/implementation-plan.md` (this is the consolidated plan; do not confuse it with `02-execution-plan.md`, the lightweight early plan, or with Section 9 release execution).
 
 The implementation plan must include scope summary, non-goals, change batches, unique implementation action IDs, source finding IDs, files likely to change, risk level, public behavior change assessment, required tests, required artifact updates, validation method, local commit grouping, deferred findings, blocked findings, deprecated-code decisions, and CI decisions.
 

@@ -8,7 +8,7 @@ This file defines the global rules for the release review. These rules apply to 
 2. This file defines shared rules.
 3. Section files `01` through `09` define phase-specific tasks (`09` runs only after a GO/CONDITIONAL GO and explicit user approval to release).
 3a. `fix-decision-policy.md` is the authoritative fix policy. `reference.md` holds on-demand look-up tables (type codes, ID examples, schema/CI lists) and is not part of the always-read core.
-4. `repository-review/<RUN_ID>/` is the authoritative run record.
+4. `workflow-artifacts/release-review/<RUN_ID>/` is the authoritative run record.
 5. TodoWrite, if available, is live progress tracking only.
 
 If a section file appears to conflict with this protocol, follow this protocol and record the conflict in `05-decisions.md`.
@@ -18,16 +18,16 @@ If a section file appears to conflict with this protocol, follow this protocol a
 The review operates on the **target project**. The framework's own files and its run records are NOT part of the project under review. Unless the user explicitly states that the framework itself is the subject of this review, exclude the following from the audit scope of every section (and every parallel audit lane):
 
 - **This framework's own directory** (wherever it is installed - e.g. `.agents/workflows/release-review/` and the sibling `plan-review/`, or a `release-review/` directory at the repo root) and any agent-tooling wrappers it ships (`.opencode/commands/`, `.claude/commands/`, `.agents/workflows/index.md`). Do not file findings about the runbook, do not assess it for quality/docs/usability, and do not modify it as part of fixing the target project. You are *executing* these instructions, not reviewing or editing them.
-- **`repository-review/`** - the authoritative run records (this run and any prior runs). Do not audit them as if they were project code or docs.
+- **`workflow-artifacts/`** - the authoritative run records (this run and any prior runs). Do not audit them as if they were project code or docs.
 
 This is an exclusion from *review scope*, not from all action:
 
-1. You still **create, write, and commit** `repository-review/<RUN_ID>/` - that is the run's own output, not a review target.
-2. You **may read** prior `repository-review/<RUN_ID>/` records as input (e.g. to see what an earlier run did), but do not generate findings about them.
+1. You still **create, write, and commit** `workflow-artifacts/release-review/<RUN_ID>/` - that is the run's own output, not a review target.
+2. You **may read** prior `workflow-artifacts/release-review/<RUN_ID>/` records as input (e.g. to see what an earlier run did), but do not generate findings about them.
 3. Do not count these directories when assessing project size, structure, test coverage, documentation, or cold-start orientation. A project's `README`, `ARCHITECTURE`, tests, etc. are the project's own, not the framework's.
 4. **Self-modification guard:** never edit the framework's own files during a run. If the runbook itself seems wrong, record it as a `Q`/`DEC` note in `05-decisions.md` for the user; do not change the instructions mid-run.
 
-**Explicit-subject exception:** if the user explicitly asks to review the framework itself (for example, when the target repository *is* the project that maintains this runbook), then the framework directory is in scope as ordinary project code and these exclusions are lifted for it - but `repository-review/` run records remain excluded regardless.
+**Explicit-subject exception:** if the user explicitly asks to review the framework itself (for example, when the target repository *is* the project that maintains this runbook), then the framework directory is in scope as ordinary project code and these exclusions are lifted for it - but `workflow-artifacts/` run records remain excluded regardless.
 
 When in doubt, treat both directories as out of scope and note the assumption in `05-decisions.md`.
 
@@ -44,7 +44,7 @@ Every obligation in this framework is one of two tiers:
 
 When a section uses the words MUST or SHOULD (or "mandatory"), read them in this sense. The MUST set is small on purpose so it is never dropped; the global MUSTs are:
 
-1. Create and maintain the `repository-review/<RUN_ID>/` artifacts (registers, decisions, the per-phase report for each section).
+1. Create and maintain the `workflow-artifacts/release-review/<RUN_ID>/` artifacts (registers, decisions, the per-phase report for each section).
 2. Apply the Fix Bar to every finding and record Remediation Risk; never silently drop a finding.
 3. Fix or explicitly escalate every `LIVE`/High data-integrity finding (never silently defer to `TODO.md`).
 4. Write the per-section exit-gate items before leaving a section.
@@ -68,7 +68,7 @@ On a high-capability model, perform the full depth of every SHOULD (rich persona
 
 ### Phase-isolated execution mode (optional)
 
-Because `repository-review/<RUN_ID>/` is the authoritative state, each audit phase can run with its own fresh context instead of one long continuous transcript. This is optional and useful on fast/small models or very large repositories, where a long transcript degrades.
+Because `workflow-artifacts/release-review/<RUN_ID>/` is the authoritative state, each audit phase can run with its own fresh context instead of one long continuous transcript. This is optional and useful on fast/small models or very large repositories, where a long transcript degrades.
 
 If running phase-isolated:
 
@@ -203,7 +203,7 @@ If a concern is genuinely not applicable, the owner section records that once; d
 Each section (Sections 1 through 9) must produce a per-phase report saved under:
 
 ```text
-repository-review/<RUN_ID>/section-summaries/<NN>-<short-name>.md
+workflow-artifacts/release-review/<RUN_ID>/section-summaries/<NN>-<short-name>.md
 ```
 
 Use `templates/per-phase-report.md`. Every per-phase report must explicitly cover three things:
@@ -244,16 +244,19 @@ Execute one section at a time using the per-section execution loop defined in `R
 Create:
 
 ```text
-repository-review/<RUN_ID>/
+workflow-artifacts/release-review/<RUN_ID>/
 ```
 
-Use a timestamp run ID:
+Run records live under `workflow-artifacts/<workflow-name>/<RUN_ID>/` - one
+timestamped directory per run, namespaced by the workflow that produced it (this
+runbook uses `release-review`). The run ID already encodes the timestamp, so there is
+no separate date level. Use a timestamp run ID:
 
 ```text
 YYYYMMDD-HHMMSS
 ```
 
-The `repository-review/<RUN_ID>/` artifacts are committed deliverables of the review, not throwaway local notes. Do NOT add `repository-review/` to `.gitignore`. If a prior run or a stale package added `repository-review/` to `.gitignore`, remove that ignore line so the artifacts can be tracked, and record the change. Only keep run artifacts local if the user explicitly asks for that on a given run.
+The `workflow-artifacts/release-review/<RUN_ID>/` artifacts are committed deliverables of the review, not throwaway local notes. Do NOT add `workflow-artifacts/` to `.gitignore`. If a prior run or a stale package added `workflow-artifacts/` to `.gitignore`, remove that ignore line so the artifacts can be tracked, and record the change. Only keep run artifacts local if the user explicitly asks for that on a given run.
 
 Required artifacts:
 
@@ -341,7 +344,7 @@ Rules for parallel audit lanes:
 7. Lanes must not make final release decisions.
 8. Lanes must not assign official run-specific IDs.
 9. Lanes should use temporary candidate IDs only.
-10. Lanes must produce compact reports under `repository-review/<RUN_ID>/audit-lanes/` using `templates/audit-lane-report.md`.
+10. Lanes must produce compact reports under `workflow-artifacts/release-review/<RUN_ID>/audit-lanes/` using `templates/audit-lane-report.md`.
 11. The main agent must synthesize all lane reports before creating `implementation-plan.md`.
 12. The main agent must deduplicate findings, assign official IDs, decide severity, update registers, and record decisions.
 13. Section 7 implementation must remain serial.
@@ -371,11 +374,11 @@ Do not paste secrets or excessive logs. Summarize long outputs and save only rel
 
 ## Commit policy
 
-Use local commits for meaningful tracked repository changes when safe. The `repository-review/<RUN_ID>/` run artifacts are committed deliverables by default: commit them alongside the run so the per-phase reports, registers, plans, and final report become part of the project history. Keep them out of commits only if the user explicitly requests local-only artifacts for that run.
+Use local commits for meaningful tracked repository changes when safe. The `workflow-artifacts/release-review/<RUN_ID>/` run artifacts are committed deliverables by default: commit them alongside the run so the per-phase reports, registers, plans, and final report become part of the project history. Keep them out of commits only if the user explicitly requests local-only artifacts for that run.
 
 Before any commit, run `git status --short`, confirm the files to commit were changed by this run, avoid committing unrelated pre-existing changes, and run appropriate validation first or state why validation could not be run.
 
-Commit at logical checkpoints: after run setup (including the initialized `repository-review/<RUN_ID>/` artifacts), at each section boundary (per-phase report plus that section's product changes), after coherent implementation batches, after test/docs/CI updates when they form a reviewable unit, and after final validation cleanup. Keep run-artifact commits separate from product-code commits when practical so history stays readable.
+Commit at logical checkpoints: after run setup (including the initialized `workflow-artifacts/release-review/<RUN_ID>/` artifacts), at each section boundary (per-phase report plus that section's product changes), after coherent implementation batches, after test/docs/CI updates when they form a reviewable unit, and after final validation cleanup. Keep run-artifact commits separate from product-code commits when practical so history stays readable.
 
 Use commit messages that reference action IDs. If changes cannot be separated from pre-existing user changes, do not commit. Record the blocker.
 
@@ -431,7 +434,7 @@ Some repositories will not have APIs, CLIs, UIs, packaging, deployment, docs, te
 
 ## Final report requirements
 
-Save the final report to `repository-review/<RUN_ID>/12-final-response.md`, then present the same content to the user.
+Save the final report to `workflow-artifacts/release-review/<RUN_ID>/12-final-response.md`, then present the same content to the user.
 
 The final report must follow the exact structure in `templates/final-response.md`, which is the single canonical definition of the report (column shapes included). Do not invent different table columns; use the template's.
 

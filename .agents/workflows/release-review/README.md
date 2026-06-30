@@ -36,7 +36,7 @@ Do not require the user to run each section manually. Execute the full sequence 
 
 Perform a robust repository and code review that improves release readiness while minimizing the risk of unintended damage.
 
-The subject is the **target project**, not this framework. Exclude `release-review/` (the runbook) and `repository-review/` (run records) from the review scope, and never modify `release-review/` during a run; see the review scope exclusions in `00-run-protocol.md`. (You still create and commit `repository-review/<RUN_ID>/` as the run's output.)
+The subject is the **target project**, not this framework. Exclude `release-review/` (the runbook) and `workflow-artifacts/` (run records) from the review scope, and never modify `release-review/` during a run; see the review scope exclusions in `00-run-protocol.md`. (You still create and commit `workflow-artifacts/release-review/<RUN_ID>/` as the run's output.)
 
 Maximize correctness, security, privacy, memory/resource safety, tests, documentation accuracy, schema validation, compatibility, packaging, CI readiness, maintainability, clear traceability, and clear final reporting. A central goal is to make the released project as **intuitive and self-documenting** as reasonably possible, so users can learn it as they go without reading a manual or taking a course.
 
@@ -79,7 +79,7 @@ Parallelism is optional. Use it only when it improves review quality.
 Rules:
 
 1. Section 1 remains serial and is performed by the main agent.
-2. Parallel audit lanes are read-only and honor the review scope exclusions in `00-run-protocol.md` (do not audit `release-review/` or `repository-review/`).
+2. Parallel audit lanes are read-only and honor the review scope exclusions in `00-run-protocol.md` (do not audit `release-review/` or `workflow-artifacts/`).
 3. Parallel audit lanes must not edit tracked files, update official registers directly, commit, push, or make final release decisions.
 4. Each lane should produce an audit-lane report using `templates/audit-lane-report.md`.
 5. The main agent owns synthesis, deduplication, severity decisions, official run-specific IDs, finding/action registers, implementation planning, local commits, validation, final report, and push/no-push decision.
@@ -101,7 +101,7 @@ Read and follow `00-run-protocol.md` first (and `fix-decision-policy.md`, the fi
 8. `08-final-ship-review.md`
 9. `09-release-execution.md` (only after a GO/CONDITIONAL GO and explicit user approval to release)
 
-Do not begin Section 7 implementation before completing Sections 1 through 6 and creating `repository-review/<RUN_ID>/implementation-plan.md`.
+Do not begin Section 7 implementation before completing Sections 1 through 6 and creating `workflow-artifacts/release-review/<RUN_ID>/implementation-plan.md`.
 
 Do not begin Section 9 release execution until Section 8 produces a GO or CONDITIONAL GO and the user has explicitly approved performing the release.
 
@@ -130,10 +130,10 @@ At the start:
 2. Determine whether the repository uses Git.
 3. Record the initial branch, head commit, remotes, and working tree status.
 4. Create a run ID using local time in this format: `YYYYMMDD-HHMMSS`.
-5. Create `repository-review/<RUN_ID>/`.
-6. Ensure `repository-review/` is NOT git-ignored; remove any stale `repository-review/` ignore line so the run artifacts can be tracked as committed deliverables.
+5. Create `workflow-artifacts/release-review/<RUN_ID>/`.
+6. Ensure `workflow-artifacts/` is NOT git-ignored; remove any stale `workflow-artifacts/` ignore line so the run artifacts can be tracked as committed deliverables.
 7. Create the required run artifacts defined in `00-run-protocol.md`.
-8. Create `repository-review/<RUN_ID>/02-execution-plan.md` after enough initial inspection to understand the project type.
+8. Create `workflow-artifacts/release-review/<RUN_ID>/02-execution-plan.md` after enough initial inspection to understand the project type.
 9. Use TodoWrite if running in OpenCode and the tool is available.
 
 If the repository is not a Git repository, continue the review and record local commit and push steps as not applicable.
@@ -142,22 +142,22 @@ If the repository is not a Git repository, continue the review and record local 
 
 If TodoWrite is available, use it for live progress visibility. Create todos for run setup, each review section, implementation planning, each coherent implementation batch, final validation, and the final report.
 
-Do not create a TodoWrite item for every file inspected or every tiny edit. The authoritative record is always `repository-review/<RUN_ID>/`, not TodoWrite.
+Do not create a TodoWrite item for every file inspected or every tiny edit. The authoritative record is always `workflow-artifacts/release-review/<RUN_ID>/`, not TodoWrite.
 
 ## Local commits and remote pushes
 
-Use local commits for meaningful tracked repository changes when safe and possible. Commit only files changed by this run. Do not accidentally include unrelated pre-existing user changes. The `repository-review/<RUN_ID>/` artifacts are committed deliverables by default; commit them with the run (keep them local only if the user explicitly asks for local-only artifacts).
+Use local commits for meaningful tracked repository changes when safe and possible. Commit only files changed by this run. Do not accidentally include unrelated pre-existing user changes. The `workflow-artifacts/release-review/<RUN_ID>/` artifacts are committed deliverables by default; commit them with the run (keep them local only if the user explicitly asks for local-only artifacts).
 
 Apply the Fix Bar (see `00-run-protocol.md`): fix findings by default and defer only when the Remediation Risk of the fix itself is Medium-High or higher; severity is for reporting, not for deciding; never silently drop a finding.
 
-Remote pushes are prohibited until the final stage and only allowed if the user has explicitly permitted pushing. If permission is absent, produce a push/no-push recommendation in `repository-review/<RUN_ID>/11-push-plan.md` and in the final report.
+Remote pushes are prohibited until the final stage and only allowed if the user has explicitly permitted pushing. If permission is absent, produce a push/no-push recommendation in `workflow-artifacts/release-review/<RUN_ID>/11-push-plan.md` and in the final report.
 
 ## Final response requirement
 
 The final response must be saved to:
 
 ```text
-repository-review/<RUN_ID>/12-final-response.md
+workflow-artifacts/release-review/<RUN_ID>/12-final-response.md
 ```
 
 Then present the same content to the user.

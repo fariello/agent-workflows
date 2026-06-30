@@ -78,7 +78,8 @@ execution mode (see below).
 
 ### State: the authoritative run directory
 
-Every run creates `repository-review/<RUN_ID>/` (timestamped). This directory - not
+Every run creates `workflow-artifacts/<workflow-name>/<RUN_ID>/` (timestamped;
+`release-review` for the runbook). This directory - not
 the chat transcript or TodoWrite - is the authoritative record: metadata, inventory,
 finding/action registers (CSV), decisions, commands, commits, checkpoints, the
 implementation plan, validation results, push plan, the final report, plus
@@ -131,12 +132,19 @@ It performs a **clean sync** by default: framework files present in the target b
 longer in the source (renamed or removed) are pruned, so the target never accumulates
 stale instruction files. Pruning is strictly scoped to the framework namespace
 (`.agents/workflows/` plus the generated shim files) and never touches
-`repository-review/` run records, user code, or anything else. The installer is
+`workflow-artifacts/` run records, user code, or anything else. The installer is
 git-aware but never commits: installed files are staged with `git add`, pruned
 tracked files with `git rm`, untracked files are written/removed on disk, and the
 user reviews and commits. `--no-prune` reverts to additive-only. The installer does
 not modify `.gitignore`; it only warns if the target repo ignores
-`repository-review/`, since run artifacts are committed deliverables.
+`workflow-artifacts/`, since run artifacts are committed deliverables.
+
+It also **migrates pre-restructure repos** on install (staged, never committed): it
+removes the old root `release-review/` framework directory (the new copy is installed
+under `.agents/workflows/`) and `git mv`s old `repository-review/<RUN_ID>/` run records
+into `workflow-artifacts/release-review/` so their committed history moves rather than
+being lost. The migration is guarded so it never fires on the framework's own repo or
+a repo already on the new layout, and reports exactly what it moved/removed.
 
 It also **generates the per-tool slash-command shims** from the `index.md` manifest
 (into `.opencode/commands/` and `.claude/commands/`) and adds a one-line **pointer

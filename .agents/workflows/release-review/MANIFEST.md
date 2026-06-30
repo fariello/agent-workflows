@@ -87,7 +87,7 @@ authoritative command list.
 The agent should create and maintain:
 
 ```text
-repository-review/<RUN_ID>/
+workflow-artifacts/release-review/<RUN_ID>/
   00-run-metadata.md
   01-repository-inventory.md
   02-execution-plan.md
@@ -114,6 +114,6 @@ repository-review/<RUN_ID>/
   audit-lanes/               (optional parallel read-only audit lane reports)
 ```
 
-The `repository-review/<RUN_ID>/` artifacts are committed deliverables of the review by default: the per-phase reports, registers, plans, and final report should be tracked and committed with the run so the project keeps a durable, auditable record. Do not git-ignore `repository-review/`. Keep artifacts local only if the user explicitly asks for local-only artifacts on a given run.
+The `workflow-artifacts/release-review/<RUN_ID>/` artifacts are committed deliverables of the review by default: the per-phase reports, registers, plans, and final report should be tracked and committed with the run so the project keeps a durable, auditable record. Do not git-ignore `workflow-artifacts/`. Keep artifacts local only if the user explicitly asks for local-only artifacts on a given run.
 
 The review applies the Fix Bar (see `00-run-protocol.md`): findings are fixed by default and deferred only when the Remediation Risk of the fix itself is Medium-High or higher (complexity, usability, security, or functionality). Severity is for reporting; Remediation Risk is for deciding.

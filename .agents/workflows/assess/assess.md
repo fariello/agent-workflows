@@ -61,7 +61,7 @@ memory: fix-by-default gated by Remediation Risk, and multi-perspective review.
 4. **Contributor contract** - `AGENTS.md`/`CONTRIBUTING.md` for plan/spec-sync rules.
 5. **Apply the review scope exclusions** from `../release-review/00-run-protocol.md`:
    do not assess the framework's own directory (`.agents/workflows/`) or
-   `repository-review/` run records as if they were the project.
+   `workflow-artifacts/` run records as if they were the project.
 
 Then read the selected lens file and adopt its focus, lead personas, and rubric.
 

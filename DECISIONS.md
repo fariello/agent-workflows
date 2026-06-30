@@ -362,3 +362,35 @@ both execute the (large) set well.
 - **Rejected:** composite "do 8+9 together" convenience workflows (the pipeline lets a
   user just run two), and a single `/assess <concern>` argument-only command (loses
   discrete discoverable `/assess-security` etc. slash commands).
+
+### D19. Unified artifact location `workflow-artifacts/<workflow>/<run-id>/`, with installer migration
+
+- **Problem:** `repository-review/<RUN_ID>/` was named when release-review was the only
+  workflow. With a family of workflows (release-review, assess-*), a single
+  release-review-centric output directory is misleading.
+- **Decision:** Run records go to `workflow-artifacts/<workflow-name>/<RUN_ID>/` at the
+  repo root - one timestamped directory per run, namespaced by the workflow that
+  produced it. The run ID already encodes `YYYYMMDD-HHMMSS`, so there is no separate
+  date level (rejected the deeper `.../<workflow>/YYYYMMDD/<run-id>/` form as redundant).
+- **At the root, not under `.agents/`:** `.agents/` is agent *tooling/configuration*;
+  run *outputs* are review evidence about the project. Keeping outputs at the root
+  preserves a clean boundary (`.agents/` = tooling, `workflow-artifacts/` = outputs,
+  your code = the rest) and keeps the scope-exclusion rule simple (exclude
+  `.agents/workflows/` and `workflow-artifacts/`). IPDs are the middle case and stay in
+  `.agents/plans/pending/` (a living, team-owned, lifecycle'd plan, established
+  convention), not in `workflow-artifacts/`.
+- **Volume:** deferred retention. One subdir per run is harmless (dozens/year);
+  add retention/archival only if real volume appears (avoid premature complexity).
+- **Migration of legacy repos (the install-time story):** the installer now detects a
+  pre-restructure layout and migrates it, staged and reviewable, never committed:
+  - Pre-D17: removes the old root `release-review/` framework dir (the new copy is
+    installed under `.agents/workflows/`), backed up first.
+  - Pre-D19: `git mv`s old `repository-review/<RUN_ID>/` run records into
+    `workflow-artifacts/release-review/` so committed history moves (renames) rather
+    than being lost. We chose to migrate historical artifacts (not just leave them) for
+    a consistent end state; git rename detection preserves history.
+  - Guarded so it never fires on the framework's own repo (`is_self`) or a repo already
+    on the new layout; reports exactly what it moved/removed; honors `--dry-run`.
+- **Verified** on a simulated legacy repo: artifacts moved as git renames, old root
+  framework staged for deletion, user code and new install intact; and confirmed no
+  false migration on ai-coding itself or a fresh new-layout repo.

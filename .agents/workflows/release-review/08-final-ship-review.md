@@ -20,7 +20,7 @@ Be practical but conservative. The goal is not to claim perfection. The goal is 
 - Do not create broad refactors or formatting churn.
 - Use run-specific unique IDs for every finding and action.
 - Update the finding and action registers before leaving this section.
-- Use TodoWrite if available, but treat `repository-review/<RUN_ID>/` as authoritative.
+- Use TodoWrite if available, but treat `workflow-artifacts/release-review/<RUN_ID>/` as authoritative.
 - Mark non-applicable checks explicitly rather than forcing findings.
 - Prefer meaningful fixes, not checklist compliance.
 
@@ -56,7 +56,7 @@ Before writing the final report:
 Before writing the final report, create or update:
 
 ```text
-repository-review/<RUN_ID>/final-bug-security-audit.md
+workflow-artifacts/release-review/<RUN_ID>/final-bug-security-audit.md
 ```
 
 This is not a full repeat of Section 2. It is a final post-implementation sanity audit focused on whether changes made during the run introduced or left unresolved material issues.
@@ -109,7 +109,7 @@ Use `REL` IDs for final release decisions and blockers. Preserve earlier IDs whe
 
 ## Push/no-push plan
 
-Create or update `repository-review/<RUN_ID>/11-push-plan.md` with current branch, local commits, Git status, whether the user explicitly permitted pushing, push recommendation, risks, suggested command if permitted, and no-push rationale if permission is absent.
+Create or update `workflow-artifacts/release-review/<RUN_ID>/11-push-plan.md` with current branch, local commits, Git status, whether the user explicitly permitted pushing, push recommendation, risks, suggested command if permitted, and no-push rationale if permission is absent.
 
 Do not push unless explicitly permitted.
 
@@ -119,7 +119,7 @@ Decide whether a new review run should be started. Recommend restart only when i
 
 ## Final report
 
-Save the final report to `repository-review/<RUN_ID>/12-final-response.md`, then present the same content to the user.
+Save the final report to `workflow-artifacts/release-review/<RUN_ID>/12-final-response.md`, then present the same content to the user.
 
 Create or update `section-summaries/08-final-ship-review.md` with the Section 8 final ship review summary.
 

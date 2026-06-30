@@ -19,7 +19,7 @@ This section is an audit pass. Do not add or change tests yet. Test implementati
 - Do not create broad refactors or formatting churn.
 - Use run-specific unique IDs for every finding and action.
 - Update the finding and action registers before leaving this section.
-- Use TodoWrite if available, but treat `repository-review/<RUN_ID>/` as authoritative.
+- Use TodoWrite if available, but treat `workflow-artifacts/release-review/<RUN_ID>/` as authoritative.
 - Mark non-applicable checks explicitly rather than forcing findings.
 - Prefer meaningful fixes, not checklist compliance.
 

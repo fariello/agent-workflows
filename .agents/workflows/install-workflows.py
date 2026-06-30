@@ -26,11 +26,14 @@ Design (see ai-coding DECISIONS.md D12, D15, D16, D17):
 - Clean sync by default: framework files in the target that are no longer in the
   source are pruned. Pruning is strictly scoped to the framework namespace
   (`.agents/workflows/`, the generated shim files, and the AGENTS.md pointer block);
-  it never touches `repository-review/` run records, user code, or anything else.
+  it never touches `workflow-artifacts/` run records, user code, or anything else.
 - Git-aware but never commits: tracked changes are staged (`git add`/`git rm`),
   untracked changes are written/removed on disk; the user reviews and commits.
-- Does NOT git-ignore anything. Run artifacts in `repository-review/` are committed
+- Does NOT git-ignore anything. Run artifacts in `workflow-artifacts/` are committed
   deliverables (D5/D14); the installer only warns if the target ignores them.
+- Migrates a pre-restructure repo on install (staged, never committed): removes the
+  old root `release-review/` framework dir and `git mv`s old `repository-review/` run
+  records into `workflow-artifacts/release-review/` (see D17/D19).
 
 Typical usage from the target repository root:
 
@@ -79,7 +82,9 @@ AGENTS_FILE = "AGENTS.md"
 AGENTS_BEGIN = "<!-- AGENT-WORKFLOWS:BEGIN -->"
 AGENTS_END = "<!-- AGENT-WORKFLOWS:END -->"
 
-REPOSITORY_REVIEW_DIR = "repository-review/"
+ARTIFACTS_DIR = "workflow-artifacts/"
+LEGACY_ARTIFACTS_DIR = "repository-review/"  # pre-D19 name; migrated on install
+LEGACY_FRAMEWORK_DIR = "release-review"      # pre-D17 root location; migrated on install
 
 MANIFEST_BEGIN = "<!-- WORKFLOWS-MANIFEST:BEGIN -->"
 MANIFEST_END = "<!-- WORKFLOWS-MANIFEST:END -->"
@@ -529,22 +534,127 @@ def update_agents_pointer(plan: InstallPlan, use_git: bool) -> str:
     return f"AGENTS.md {verb}"
 
 
+def _git_mv(repo_root: Path, src: str, dst: str) -> None:
+    """git mv with parent creation; falls back to filesystem move if needed."""
+
+    (repo_root / dst).parent.mkdir(parents=True, exist_ok=True)
+    result = subprocess.run(
+        ["git", "-C", str(repo_root), "mv", "--", src, dst],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        # untracked or partially-tracked: fall back to filesystem move + stage
+        shutil.move(str(repo_root / src), str(repo_root / dst))
+
+
+def _remove_path(repo_root: Path, rel: str, use_git: bool, backup_root: Path | None) -> None:
+    """Remove a file or directory, git rm if tracked, else filesystem; back up first."""
+
+    target = repo_root / rel
+    if backup_root is not None:
+        dest = backup_root / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if target.is_dir():
+            shutil.copytree(target, dest, dirs_exist_ok=True)
+        else:
+            shutil.copy2(target, dest)
+    tracked = use_git and git_is_tracked(repo_root, rel)
+    if tracked:
+        git_run(repo_root, ["rm", "-r", "--quiet", "--", rel])
+    elif target.is_dir():
+        shutil.rmtree(target)
+    else:
+        target.unlink()
+
+
+def migrate_legacy_layout(plan: InstallPlan, use_git: bool) -> list[str]:
+    """Migrate a repo that has the pre-restructure layout.
+
+    Handles two legacy forms (see DECISIONS D17 / D19):
+    - Pre-D17: the framework lived at the repo-root `release-review/` (now
+      `.agents/workflows/release-review/`). The old root directory is removed (the
+      new content is installed under .agents/workflows/), backed up first.
+    - Pre-D19: run records lived in `repository-review/` (now
+      `workflow-artifacts/release-review/`). These are migrated with `git mv` so the
+      committed history moves rather than being lost.
+
+    All changes are staged (never committed) and reported. Honors --dry-run.
+
+    Returns:
+        Human-readable descriptions of the migrations performed (or that would be).
+    """
+
+    actions: list[str] = []
+    repo = plan.repo_root
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup_root = None if (plan.dry_run or not plan.backup) else create_backup_path(
+        repo, Path("legacy-migration"), timestamp
+    )
+
+    # 1) Pre-D19: migrate run records repository-review/ -> workflow-artifacts/release-review/
+    legacy_artifacts = repo / LEGACY_ARTIFACTS_DIR
+    if legacy_artifacts.is_dir():
+        for run_dir in sorted(p for p in legacy_artifacts.iterdir() if p.is_dir()):
+            rel_src = f"{LEGACY_ARTIFACTS_DIR}{run_dir.name}"
+            rel_dst = f"{ARTIFACTS_DIR}release-review/{run_dir.name}"
+            if (repo / rel_dst).exists():
+                actions.append(f"{rel_src} -> {rel_dst} [skip: destination exists]")
+                continue
+            if plan.dry_run:
+                actions.append(f"{rel_src} -> {rel_dst} [git mv, dry-run]")
+                continue
+            _git_mv(repo, rel_src, rel_dst)
+            if use_git:
+                git_run(repo, ["add", "--", rel_dst])
+            actions.append(f"{rel_src} -> {rel_dst} [migrated]")
+        # remove the now-empty legacy dir if anything remains (e.g. stray files)
+        remaining = list(legacy_artifacts.rglob("*")) if legacy_artifacts.exists() else []
+        if not any(p.is_file() for p in remaining) and not plan.dry_run and legacy_artifacts.exists():
+            try:
+                shutil.rmtree(legacy_artifacts)
+            except OSError:
+                pass
+
+    # 2) Pre-D17: remove the old root release-review/ framework directory.
+    # Only treat it as legacy if it is NOT the source we are installing from (i.e.
+    # the target is a different repo than this framework's own checkout).
+    legacy_framework = repo / LEGACY_FRAMEWORK_DIR
+    new_framework = repo / WORKFLOWS_DIR / "release-review"
+    is_self = legacy_framework.resolve() == (plan.source_root / "release-review").resolve() \
+        if legacy_framework.exists() else False
+    if legacy_framework.is_dir() and not is_self and new_framework != legacy_framework:
+        rel = LEGACY_FRAMEWORK_DIR
+        if plan.dry_run:
+            actions.append(f"{rel}/ [remove legacy root framework dir, dry-run]")
+        else:
+            _remove_path(repo, rel, use_git, backup_root)
+            actions.append(f"{rel}/ [removed legacy root framework dir; new copy under .agents/workflows/]")
+
+    return actions
+
+
 def check_gitignore(plan: InstallPlan) -> str:
     gitignore_path = plan.repo_root / ".gitignore"
     if not gitignore_path.exists():
-        return "no .gitignore present; repository-review/ will be tracked (correct)"
+        return "no .gitignore present; workflow-artifacts/ will be tracked (correct)"
     lines = [line.strip() for line in gitignore_path.read_text(encoding="utf-8").splitlines()]
-    if any(line in (REPOSITORY_REVIEW_DIR, REPOSITORY_REVIEW_DIR.rstrip("/")) for line in lines):
+    ignored = []
+    for d in (ARTIFACTS_DIR, LEGACY_ARTIFACTS_DIR):
+        if any(line in (d, d.rstrip("/")) for line in lines):
+            ignored.append(d)
+    if ignored:
         return (
-            "WARNING: .gitignore ignores repository-review/. Run artifacts are committed "
+            f"WARNING: .gitignore ignores {', '.join(ignored)}. Run artifacts are committed "
             "deliverables; remove that ignore line so the run record can be tracked."
         )
-    return "repository-review/ is not ignored (correct)"
+    return "workflow-artifacts/ is not ignored (correct)"
 
 
 def print_summary(
     plan: InstallPlan,
     workflows: list[Workflow],
+    migrated: list[str],
     installed: list[str],
     skipped: list[str],
     pruned: list[str],
@@ -558,6 +668,12 @@ def print_summary(
     print(f"Source: {plan.source_root}")
     print(f"Git: {'staging changes (no commit)' if use_git else 'not a git repo; filesystem only'}")
     print()
+
+    if migrated:
+        print("Legacy layout migrated (pre-restructure repo):")
+        for item in migrated:
+            print(f"  - {item}")
+        print()
 
     print("Installed or updated:")
     for item in installed or ["None"]:
@@ -602,6 +718,7 @@ def main() -> int:
     body_members = collect_source_members(plan.source_root)
     shim_members = generate_shim_members(workflows)
 
+    migrated = migrate_legacy_layout(plan, use_git)
     installed, skipped, _ = install_all(plan, body_members, shim_members, use_git)
     pruned = prune_stale(plan, body_members, shim_members, use_git)
     agents_status = update_agents_pointer(plan, use_git)
@@ -610,6 +727,7 @@ def main() -> int:
     print_summary(
         plan=plan,
         workflows=workflows,
+        migrated=migrated,
         installed=installed,
         skipped=skipped,
         pruned=pruned,
