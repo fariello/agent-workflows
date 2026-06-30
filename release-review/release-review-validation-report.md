@@ -33,6 +33,7 @@ PASS. The package includes OpenCode installation and activation instructions in 
 - PASS: Required file exists: release-review/templates/final-response.md
 - PASS: Required file exists: release-review/templates/finding-register.csv
 - PASS: Required file exists: release-review/templates/guiding-principles-assessment.md
+- PASS: Required file exists: release-review/templates/cold-start-orientation.md
 - PASS: Required file exists: release-review/templates/implementation-plan.md
 - PASS: Required file exists: release-review/templates/per-phase-report.md
 - PASS: Required file exists: release-review/templates/persona-review.md
@@ -81,6 +82,7 @@ PASS. The package includes OpenCode installation and activation instructions in 
 - `release-review/templates/final-response.md`
 - `release-review/templates/finding-register.csv`
 - `release-review/templates/guiding-principles-assessment.md`
+- `release-review/templates/cold-start-orientation.md`
 - `release-review/templates/implementation-plan.md`
 - `release-review/templates/per-phase-report.md`
 - `release-review/templates/persona-review.md`

@@ -62,6 +62,12 @@ Under the Fix Bar, Medium- and Low-severity findings (live-surface, memory, usab
 
 Prefer fixes that make the product teach the user as they go - clearer command/flag/field names, better `--help`/usage output, helpful first-run guidance, actionable error messages, sensible defaults, inline hints - over adding documentation to compensate for an opaque interface. Implement `GP` (guiding-principles) fixes that move the project toward its stated principles; never implement a change that violates them.
 
+### Durable knowledge / cold-start orientation docs (`KD`)
+
+Implement the `KD` findings from Sections 4 and 5 by creating or improving the project's own orientation docs: intent/overview, guiding principles (create if absent), architecture/approach, and the design-decision rationale / decisions log. Under the Fix Bar, creating a missing orientation doc is normally low Remediation Risk and is done by default, not deferred. Respect the project's existing convention (extend an ADR directory or `docs/` tree rather than adding competing files); do not duplicate rationale across files - link instead.
+
+When writing the "why" (intent, goals, rationale, alternatives, trade-offs), recover it from the current conversation as a guarded secondary source per `00-run-protocol.md`: code/tests are authoritative for behavior; verify material claims with the user or mark passages "inferred, needs confirmation" and log the assumption in `05-decisions.md`. Do not commit sensitive or ephemeral transcript content - capture durable conclusions only. If intent is missing and unrecoverable, ask the user a small set of high-value questions (the bounded exception in `00-run-protocol.md`) before finalizing, and if unanswered, commit a clearly-labeled inferred draft and list the open questions in the final report.
+
 ### TODO.md update policy
 
 As items from `TODO.md`/backlog are completed, become obsolete, or change status during this run, update `TODO.md` (and related backlog files) so they stay honest. Record the final disposition of every triaged item in `todo-reconciliation.md`. Do not use `TODO.md` as a place to silently park findings this review should have fixed or escalated.
@@ -109,7 +115,7 @@ Update the implementation plan, registers, decisions, commands, commits, checkpo
 
 Record the Remediation Risk (Low / Medium / Medium-High / High) for every finding acted on or deferred. Every deferred finding must name the Remediation-Risk axis (complexity, usability, security, or functionality) that justifies the deferral.
 
-Create the per-phase report `section-summaries/07-implementation.md` (what was done, why, what was considered but not done) covering implemented scope, intentionally unimplemented scope with its Remediation-Risk justification (including any `LIVE`/High finding escalated rather than fixed), change batches, source finding IDs addressed, self-documenting/usability and guiding-principles fixes made, `TODO.md` items completed or re-classified, tests and validations, artifacts updated, local commits, remaining risks, and follow-up work.
+Create the per-phase report `section-summaries/07-implementation.md` (what was done, why, what was considered but not done) covering implemented scope, intentionally unimplemented scope with its Remediation-Risk justification (including any `LIVE`/High finding escalated rather than fixed), change batches, source finding IDs addressed, self-documenting/usability and guiding-principles fixes made, durable-knowledge / cold-start orientation docs created or improved (`KD`) and any intent passages marked "inferred, needs confirmation", `TODO.md` items completed or re-classified, tests and validations, artifacts updated, local commits, remaining risks, and follow-up work.
 
 ## TodoWrite guidance
 
@@ -125,4 +131,4 @@ If no safe implementation work is found, do not fabricate changes. Record the ra
 
 ## Exit criteria
 
-Before moving to Section 8, implementation plan is complete, the Fix Bar has been applied so every finding is fixed unless its Remediation Risk is Medium-High or higher (each deferral naming the axis), all `LIVE`/High data-integrity findings are fixed or explicitly escalated (never silently TODO'd), Medium/Low severity findings are fixed by default, self-documenting and guiding-principles fixes are applied, `TODO.md` is updated to stay honest, relevant artifacts are synchronized, validation is run and recorded where possible, local commits (including run artifacts) are made or explained, actions and Remediation Risk are reconciled, the per-phase report is written, and the checkpoint is recorded.
+Before moving to Section 8, implementation plan is complete, the Fix Bar has been applied so every finding is fixed unless its Remediation Risk is Medium-High or higher (each deferral naming the axis), all `LIVE`/High data-integrity findings are fixed or explicitly escalated (never silently TODO'd), Medium/Low severity findings are fixed by default, self-documenting and guiding-principles fixes are applied, durable-knowledge / cold-start orientation docs (`KD`) are created or improved by default with intent verified or clearly marked inferred, `TODO.md` is updated to stay honest, relevant artifacts are synchronized, validation is run and recorded where possible, local commits (including run artifacts) are made or explained, actions and Remediation Risk are reconciled, the per-phase report is written, and the checkpoint is recorded.

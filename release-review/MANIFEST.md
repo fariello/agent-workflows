@@ -48,8 +48,8 @@ The review is conducted through eight expert personas (QA/QC, testing/regression
 | `01-current-state.md` | Repository inventory, current-state assessment, public contract discovery, drift analysis, and early deprecation signals. |
 | `02-quality-security-edge-cases.md` | Bugs, correctness, security, privacy, error handling, resource handling, reliability, and edge-case audit. |
 | `03-tests-regression.md` | Test coverage, regression protection, fixtures, CI test behavior, and missing critical tests. |
-| `04-docs-specs-examples.md` | Documentation, specification, examples, README, help text, and behavior-documentation alignment. |
-| `05-feature-usability-maintainability.md` | Feature completeness, usability, developer experience, operator experience, maintainability, and stale-code impact. |
+| `04-docs-specs-examples.md` | Documentation, specification, examples, README, help text, behavior-documentation alignment, and durable cold-start knowledge (intent, architecture, decision rationale). |
+| `05-feature-usability-maintainability.md` | Feature completeness, usability, developer/operator experience, maintainability, guiding-principles adherence, cold-start orientation, and stale-code impact. |
 | `06-compatibility-packaging-release.md` | Compatibility, packaging, build, CI, deployment, versioning, changelog, migration, and release artifacts. |
 | `07-implementation.md` | Consolidated implementation plan and safe, significant-value fixes, including mandatory handling of `LIVE`/High data-integrity findings and `TODO.md` updates. |
 | `08-final-ship-review.md` | Final release readiness assessment, final bug/security/memory sanity audit, eight-persona sign-off, TODO/backlog and guiding-principles reconciliation, validation reconciliation, final report, push/no-push decision, and restart assessment. |
@@ -63,6 +63,7 @@ The review is conducted through eight expert personas (QA/QC, testing/regression
 | `templates/per-phase-report.md` | Mandatory per-phase report template: what was done, why, and what was considered but not done. |
 | `templates/todo-reconciliation.md` | Template for triaging every `TODO.md`/backlog/roadmap and in-code `TODO`/`FIXME` item against the release. |
 | `templates/guiding-principles-assessment.md` | Template for per-principle adherence assessment against the repo's principles doc or the universal fallback. |
+| `templates/cold-start-orientation.md` | Template for the cold-start orientation assessment: can a no-context engineer/LLM understand the project's intent, philosophy, architecture, and decision rationale from its own docs. |
 | `templates/persona-review.md` | Template for the eight-persona review notes and final sign-off. |
 | `templates/final-response.md` | Template for the saved final report and table-first final answer. |
 | `templates/finding-register.csv` | CSV header template for durable finding tracking. |
@@ -93,6 +94,7 @@ repository-review/<RUN_ID>/
   final-bug-security-audit.md
   todo-reconciliation.md
   guiding-principles-assessment.md
+  cold-start-orientation.md
   persona-review.md
   release-execution-log.md   (only if Section 9 is performed)
   section-summaries/         (mandatory per-phase reports for Sections 1-9)

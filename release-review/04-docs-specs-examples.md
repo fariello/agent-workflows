@@ -50,9 +50,18 @@ Distinguish fixes that belong in the product itself (better help text, clearer e
 
 Reconcile `TODO.md`/`BACKLOG.md`/`ROADMAP.md`/`KNOWN_ISSUES.md` against the documentation: are documented features actually implemented, are known limitations documented, and do TODO items contradict what the docs claim? Feed discrepancies into `todo-reconciliation.md` and file `D`/`TODO` findings.
 
-### Decisions and methods reconciliation (when applicable)
+### Durable project knowledge and cold-start orientation (mandatory; type `KD`)
 
-If the repository maintains a decisions log (`DECISIONS.md`, ADRs, a `METHODS/` directory, or equivalent), confirm that recent changes to behavior, parameters, tooling, data formats, or methodology have corresponding dated entries and that reader-facing docs reflect them. File `D`/`A` findings for gaps. If the repository has no such convention, mark this not applicable.
+Per the durable-knowledge objective in `00-run-protocol.md`, assess whether a no-context engineer or LLM could orient from the project's own tracked docs. Cover the four knowledge areas and, where one is missing or inadequate, file a `KD` finding to establish or improve it (creating the doc is normally low Remediation Risk, so it is done by default in Section 7; respect the project's existing convention rather than imposing new filenames):
+
+1. **Intent, goals, objectives, audience, scope/non-goals** - usually the top of `README.md` or an `OVERVIEW.md`.
+2. **Philosophy / guiding principles** - `GUIDING_PRINCIPLES.md` or equivalent (establishment owned by Section 5).
+3. **Architecture and approach** - `ARCHITECTURE.md`/`DESIGN.md`/`docs/architecture/`: components, how they fit, the approach and why that shape.
+4. **Design / architectural decision rationale** - a decisions log (`DECISIONS.md`, an ADR directory, `METHODS/`, or equivalent): significant decisions, the *why*, alternatives considered, and trade-offs.
+
+When authoring or improving these, recover intent from the current conversation as a **guarded secondary source** per `00-run-protocol.md`: code/tests/existing-docs are authoritative for behavior; conversation is evidence for intent and rationale only; verify material claims with the user or record them as assumptions in `05-decisions.md` and mark passages "inferred, needs confirmation"; degrade gracefully if no history exists. This is an audit pass - record `KD` findings here and make the actual edits in Section 7.
+
+If the repository already maintains a decisions log, also confirm that recent changes to behavior, parameters, tooling, data formats, or methodology have corresponding dated entries and that reader-facing docs reflect them; file `D`/`A` findings for gaps.
 
 ## Required outputs
 

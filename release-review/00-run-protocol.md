@@ -64,6 +64,42 @@ If no such document exists, fall back to these universal release principles and 
 
 A core release goal of this review is that the released project is **as intuitive and self-documenting as reasonably possible**, so users can learn it as they go. Throughout the review, actively hunt for and record (type `U`) anything that forces a user to read external documentation, attend training, or already possess domain knowledge in order to accomplish a basic task: unclear command/flag/field names, silent or cryptic errors, missing `--help`/usage output, missing first-run guidance, undefined jargon in the UI or CLI, non-obvious required steps, and confusing defaults. Where the fix is safe and in scope, implement it in Section 7 (clearer help text, better error messages, sensible defaults, inline hints), not merely document it.
 
+## Durable project knowledge and LLM cold-start orientation
+
+A first-class goal of this review is that **a competent engineer or an LLM with zero prior context can pick up the project and understand it from the project's own tracked documentation** - not from this review's run record. They should be able to learn the project's intent, goals, objectives, philosophy/principles, architecture and approach, and the rationale behind significant design and architectural decisions (including alternatives considered and trade-offs made).
+
+This is distinct from the self-documenting / learn-as-you-go bar: that bar is about *using* the software (help text, errors, defaults). This is about *understanding* the project (why it exists, how it is built, why it is built that way) for maintenance, extension, and handoff.
+
+Treat this as a constructive objective, not merely an audit. Under the Fix Bar, **creating a missing orientation document is normally a low-Remediation-Risk action and is therefore done by default**, not deferred. Use ID type `KD` for knowledge/handoff-documentation findings.
+
+The target knowledge set (adapt names to the project's existing convention):
+
+| Knowledge | Typical home | What it must convey |
+|---|---|---|
+| Intent, goals, objectives, audience | `README.md` top section or `docs/OVERVIEW.md` | Why the project exists, who it serves, what success looks like, scope and non-goals. |
+| Philosophy / guiding principles | `GUIDING_PRINCIPLES.md` (or equivalent) | The values and design philosophy the project commits to. Establish this if absent (see Section 5). |
+| Architecture and approach | `ARCHITECTURE.md` / `DESIGN.md` / `docs/architecture/` | How the system is structured, the main components and how they fit, the approach taken and why that shape. |
+| Design / architectural decision rationale | `DECISIONS.md`, an ADR directory (`docs/adr/`, `.agents/decisions/`), or equivalent | Significant decisions, the *why*, alternatives considered, and trade-offs. Append-only and dated where practical. |
+
+**Respect the project's existing convention.** If the project already keeps this knowledge somewhere (ADRs, a `docs/` tree, a wiki pointer, a `METHODS/` directory, design docs), detect it and extend/correct that rather than imposing new files. Only introduce a new file when the knowledge has no existing home. Do not duplicate the same rationale in multiple places; link instead.
+
+Discovery happens in Section 1, the substantive assessment and any establishment of missing docs in Sections 4 and 5, creation/updates in Section 7, and the cold-start orientation verdict in Section 8.
+
+### Recovering intent: use the conversation, but as a guarded secondary source
+
+The richest source of a project's *intent and "why"* is often not in the repository at all - it is in the current conversation, where the user explained goals, constraints, the philosophy, and what was tried and rejected. When authoring or improving orientation docs (intent, goals, rationale, alternatives considered, trade-offs), mine the current chat/session history for that intent, especially when these docs are being created for the first time.
+
+Guardrails (these are not optional):
+
+1. **Code, tests, and existing docs are authoritative for behavior.** Conversation is evidence for *intent and rationale only*. If the conversation conflicts with what the code does, the code wins for behavior, and the discrepancy becomes a finding (the chat may describe a goal the code does not yet meet).
+2. **Verify material claims before committing them as durable documentation.** Confirm with the user, or record them as explicit assumptions in `05-decisions.md` and mark the doc passage as "inferred, needs confirmation".
+3. **Degrade gracefully.** History may be absent (first message, a fresh session, or a non-interactive runner such as another IDE). Do not assume it exists. If there is no usable history, proceed from the repository and the user, and record in `05-decisions.md` that conversation context was unavailable.
+4. **Do not commit sensitive or ephemeral content.** Capture durable conclusions (intent, decisions, rationale), never raw transcript, credentials, or off-topic discussion.
+
+### Asking for missing intent (bounded exception to autonomous operation)
+
+If intent or decision rationale is genuinely missing and cannot be recovered from the repo or the conversation, this is one of the few times it is right to pause and ask the user. Capturing the true "why" is high-value and usually irreplaceable later. Ask a small number (roughly 3 to 7) of high-value, specific questions about intent, goals, audience, and the reasoning behind major decisions; record the answers in `05-decisions.md` and reflect them in the orientation docs. If the user does not answer (or the run is non-interactive), do not block the run: write a best-effort draft clearly labeled "inferred, needs confirmation", list the open questions in the final report, and continue. This is the only documentation task for which a brief, bounded pause to ask is preferred over silent inference.
+
 ## TODO.md and tracked-backlog reconciliation
 
 Many repositories carry a `TODO.md` (or equivalent: `TODO`, `TODOS.md`, `BACKLOG.md`, `ROADMAP.md`, `KNOWN_ISSUES.md`, `.agents/TODO.md`, issue-tracker exports, or `TODO`/`FIXME`/`HACK`/`XXX` markers in code). These often contain items that should - or might need to - be addressed before a release. This review must not ignore them.
@@ -87,6 +123,7 @@ Several concerns span the whole review. To avoid both omission and pointless rep
 | Guiding principles | Section 1 (locate + summarize) | Section 5 (per-principle adherence) | Section 7 (fix toward), Section 8 (final verdict) |
 | TODO.md / backlog triage | Section 1 (inventory sources) | Section 5 (full triage in `todo-reconciliation.md`), with in-code `TODO`/`FIXME` captured in Section 2 | Section 7 (fix + update `TODO.md`), Section 8 (confirm) |
 | Self-documenting / learn-as-you-go | - | Sections 4 (docs side) and 5 (behavior side) | Section 7 (fix in-product), Section 8 (assess) |
+| Durable project knowledge / cold-start orientation (`KD`) | Section 1 (locate existing convention) | Sections 4 (intent/architecture/decision docs) and 5 (principles, orientation) | Section 7 (create/update by default), Section 8 (cold-start verdict) |
 | Eight personas | - | Sections 2-6 lead-persona notes; Section 5 all eight | Section 8 (full sign-off) |
 | Memory / live-interaction surface | - | Section 2 | Section 3 (tests), Section 7 (fix), Section 8 (gate) |
 | Schema validation | Section 1 (locate) | Section 6 | Section 7 (fix), Section 8 (final check) |
@@ -174,6 +211,7 @@ Required artifacts:
 | `final-bug-security-audit.md` | Final post-implementation bug, correctness, security, privacy, and unsafe-change sanity audit before completion. |
 | `todo-reconciliation.md` | Triage of every discovered `TODO.md`/backlog/`TODO`-marker item against this release, with per-item classification and disposition. |
 | `guiding-principles-assessment.md` | Per-principle adherence assessment against the repository's guiding-principles document, or the universal fallback principles if none exists. |
+| `cold-start-orientation.md` | Assessment of whether a no-context engineer or LLM can orient from the project's own docs (intent, philosophy, architecture, decision rationale), intent recovered from conversation, open questions, and the cold-start verdict. |
 | `persona-review.md` | Per-persona notes capturing what each of the eight reviewer personas surfaced, including the novice and stakeholder views. |
 | `section-summaries/` | Mandatory per-phase reports for Sections 1 through 9, each covering what was done, why, and what was considered but not done. |
 | `audit-lanes/` | Optional reports from controlled parallel read-only audit lanes used after Section 1. |
@@ -200,6 +238,7 @@ Examples:
 20260606-142233-S2-TODO1
 20260606-142233-S3-T1
 20260606-142233-S4-D1
+20260606-142233-S4-KD1
 20260606-142233-S5-GP1
 20260606-142233-S5-M1
 20260606-142233-S6-CI1
@@ -231,6 +270,7 @@ Recommended type codes:
 | `DEP` | Deprecated, obsolete, stale, or unused code/artifact candidate |
 | `TODO` | Item discovered in `TODO.md`/backlog/roadmap or a `TODO`/`FIXME` code marker that bears on this release |
 | `GP` | Guiding-principles violation (against the repo's principles doc or the universal fallback principles) |
+| `KD` | Knowledge/handoff-documentation gap: missing or inadequate intent, goals, philosophy, architecture, or design-decision rationale needed for cold-start orientation |
 | `MEM` | Memory, resource, lifetime, leak, unbounded-growth, or concurrency/state-safety issue |
 | `X` | Concrete implemented change |
 | `REL` | Final release decision, blocker, or release readiness finding |

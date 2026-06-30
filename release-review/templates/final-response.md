@@ -78,6 +78,19 @@ State whether a novice could learn the project as they go without a manual or
 course, what was improved to make the product more self-explanatory, and any
 remaining `U` blockers.
 
+## Cold-start orientation verdict
+
+State whether a no-context engineer or LLM could orient from the project's own
+tracked docs. Score each knowledge area and list remaining `KD` gaps and any
+"inferred, needs confirmation" passages the user should verify.
+
+| Knowledge area | Adequate / thin / missing | Doc / location | Action this run | Remaining `KD` IDs |
+|---|---|---|---|---|
+| Intent, goals, audience, scope |  |  |  |  |
+| Philosophy / guiding principles |  |  |  |  |
+| Architecture and approach |  |  |  |  |
+| Design-decision rationale |  |  |  |  |
+
 ## Documentation and artifact updates
 
 Summarize documentation, examples, specs, schemas, packaging, release notes, changelog, CI, or deployment artifacts updated or intentionally left unchanged.

@@ -42,6 +42,7 @@ Before writing the final report:
 2. **TODO/backlog reconciliation.** Finalize `todo-reconciliation.md`: confirm every `must-before-release` item is fixed or escalated as a release blocker, every `should-` item is fixed or consciously deferred, stale items are removed/marked, and `TODO.md` itself is honest. Summarize in the report.
 3. **Guiding-principles adherence.** Finalize `guiding-principles-assessment.md` with a per-principle verdict and any unresolved `GP` findings.
 4. **Self-documenting / learn-as-you-go.** State whether a novice could learn the project as they go without a manual or course, and list any remaining `U` blockers.
+5. **Cold-start orientation verdict (`KD`).** Judge whether a competent engineer or an LLM with zero prior context could, from the project's own tracked docs alone, understand its intent, goals, philosophy, architecture/approach, and the rationale behind major decisions. Score each of the four knowledge areas (intent/overview, principles, architecture, decision rationale) as adequate / thin / missing, and list remaining `KD` findings. Note any orientation-doc passages still marked "inferred, needs confirmation" so the user can verify them. This is a scored assessment, not a hard release blocker: gaps are findings (fixed under the Fix Bar); only an egregious absence of orientation knowledge should weigh on the GO/CONDITIONAL-GO recommendation, and then as a documented condition, not an automatic NO-GO.
 
 ## Final bug/security sanity audit
 

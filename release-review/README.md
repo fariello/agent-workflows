@@ -38,6 +38,8 @@ Perform a robust repository and code review that improves release readiness whil
 
 Maximize correctness, security, privacy, memory/resource safety, tests, documentation accuracy, schema validation, compatibility, packaging, CI readiness, maintainability, clear traceability, and clear final reporting. A central goal is to make the released project as **intuitive and self-documenting** as reasonably possible, so users can learn it as they go without reading a manual or taking a course.
 
+A further central goal is **durable project knowledge for cold-start handoff**: a competent engineer or an LLM with zero prior context should be able to pick up the project and understand its intent, goals, philosophy, architecture, approach, and the rationale behind significant decisions - from the project's own tracked documentation. This review establishes and maintains that knowledge (creating missing intent/architecture/decision docs by default under the Fix Bar), mining the current conversation for intent as a guarded secondary source. See `00-run-protocol.md` ("Durable project knowledge and LLM cold-start orientation").
+
 Minimize speculative changes, formatting churn, broad refactors, public contract breakage, unjustified deletion, remote side effects, secret exposure, and instruction drift.
 
 ## Review through eight expert personas
@@ -62,6 +64,7 @@ This review must also, on every run:
 - **Reconcile any `TODO.md`/backlog/roadmap and `TODO`/`FIXME` code markers** against the release: triage each item, fix or escalate the ones that should not ship, update `TODO.md` to stay honest, and record the triage in `todo-reconciliation.md`.
 - **Honor the repository's guiding principles** (`GUIDING_PRINCIPLES.md` or equivalent) as a binding contract, or apply the universal fallback principles in `00-run-protocol.md`; record per-principle adherence in `guiding-principles-assessment.md`.
 - **Hold the self-documenting / learn-as-you-go bar**: file and, where safe, fix anything that forces a user to read the manual to do a basic task.
+- **Ensure durable cold-start knowledge exists**: establish/maintain intent, philosophy, architecture, and design-decision rationale in the project's own docs (respecting its existing convention), so a no-context LLM or engineer can orient. Recover intent from the current conversation as a guarded secondary source; verify material claims with the user or mark them as assumptions.
 - **Treat memory/resource and live-interaction-surface correctness as first-class** per `00-run-protocol.md`.
 - **Produce a mandatory per-phase report** for each section covering what was done, why, and what was considered but deliberately not done.
 

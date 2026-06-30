@@ -50,6 +50,12 @@ Continue the self-documenting bar from Section 4, now from the behavior/feature 
 
 Using the guiding-principles document discovered in Section 1 (or the universal fallback principles in `00-run-protocol.md`), evaluate the project against each stated principle. File a `GP` finding for each violation, referencing the specific principle. Record a per-principle assessment in `guiding-principles-assessment.md`. Common principle dimensions to check, when the project's principles include them: intuitive/self-documenting, accessibility, solve-for-the-general-case, configurable-over-hardcoded, KISS, API-first/integrable, and documentation/handoff readiness. Do not invent principles the project has not adopted; assess against what it actually states (or the fallback).
 
+**Establish the principles document if absent.** If the project has no guiding-principles document, file a `KD`/`GP` finding to create one in Section 7. Do not fabricate principles: recover the project's actual philosophy from the conversation (guarded secondary source per `00-run-protocol.md`), existing docs, and observable design choices, confirm material points with the user or mark them "inferred, needs confirmation", then record the agreed principles. A short, honest principles document the team actually holds is better than an aspirational invented one.
+
+### Cold-start orientation assessment (mandatory; type `KD`)
+
+From the complete-novice (persona 7) and stakeholder (persona 8) viewpoints, judge whether someone with no prior context - human or LLM - could read the project's own tracked docs and come away understanding its intent, goals, philosophy, architecture/approach, and the rationale behind major decisions. Concretely: could a fresh LLM, given only the repo, explain what this project is for, how it is built, and why the key decisions were made? For each area that fails this test, file a `KD` finding to establish or improve the relevant doc (intent/overview, principles, architecture, decisions log) in Section 7, respecting the project's existing convention. Recover the "why" from the conversation as a guarded secondary source and verify material claims per `00-run-protocol.md`. Record the assessment so Section 8 can issue the cold-start verdict.
+
 ### TODO.md / backlog reconciliation (feature view)
 
 Triage remaining `TODO.md`/backlog/roadmap items from a feature-completeness and usability standpoint: which are release blockers, which are safe to do now, which are legitimately out of scope, and which are stale. Update `todo-reconciliation.md` and file `TODO`/`F`/`U` findings accordingly.
@@ -60,13 +66,13 @@ Categorize each finding as required for release, strongly recommended soon, nice
 
 For each item, record ID, title, affected area, why it matters, recommended action, whether public behavior changes, and required artifact updates.
 
-Use `F` for feature gaps, `U` for usability/developer/operator experience and self-documenting gaps, `M` for maintainability, `GP` for guiding-principles violations, `TODO` for backlog items bearing on release, and `DEP` for deprecation candidates.
+Use `F` for feature gaps, `U` for usability/developer/operator experience and self-documenting gaps, `M` for maintainability, `GP` for guiding-principles violations, `KD` for knowledge/handoff-documentation and cold-start orientation gaps, `TODO` for backlog items bearing on release, and `DEP` for deprecation candidates.
 
 ## Required outputs
 
 Update the registers, decisions, commands, checkpoints, deprecation candidates, `persona-review.md`, `guiding-principles-assessment.md`, and `todo-reconciliation.md`.
 
-Create the per-phase report `section-summaries/05-feature-usability-maintainability.md` (what was done, why, what was considered but not done) covering feature completeness, usability and self-documenting assessment, developer experience, operator experience, maintainability, architecture/extensibility observations, guiding-principles adherence, onboarding concerns, required-for-release items, recommended-soon items, nice-to-have items, out-of-scope items, deprecated/obsolete/stale/confusing candidates, and recommended next actions.
+Create the per-phase report `section-summaries/05-feature-usability-maintainability.md` (what was done, why, what was considered but not done) covering feature completeness, usability and self-documenting assessment, developer experience, operator experience, maintainability, architecture/extensibility observations, guiding-principles adherence, cold-start orientation assessment (`KD`), onboarding concerns, required-for-release items, recommended-soon items, nice-to-have items, out-of-scope items, deprecated/obsolete/stale/confusing candidates, and recommended next actions.
 
 ## TodoWrite guidance
 
@@ -82,4 +88,4 @@ If the repository is a small library, script, documentation set, or internal too
 
 ## Exit criteria
 
-Before moving to Section 6, feature completeness and usability are assessed for the intended scope through all eight personas, the self-documenting / learn-as-you-go bar is applied, guiding-principles adherence is assessed, backlog/TODO items are triaged, maintainability and architecture risks are recorded, candidate actions are recorded, deprecation candidates are updated, the per-phase report is written, and the checkpoint is recorded.
+Before moving to Section 6, feature completeness and usability are assessed for the intended scope through all eight personas, the self-documenting / learn-as-you-go bar is applied, guiding-principles adherence is assessed (and establishment of a missing principles doc is queued), the cold-start orientation assessment is recorded with `KD` findings for any gaps, backlog/TODO items are triaged, maintainability and architecture risks are recorded, candidate actions are recorded, deprecation candidates are updated, the per-phase report is written, and the checkpoint is recorded.
