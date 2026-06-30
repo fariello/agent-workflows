@@ -19,8 +19,7 @@ ai-coding/
   DECISIONS.md              Dated decision log (the "why")
   GUIDING_PRINCIPLES.md     Values guiding the work
   prompts/                  Reusable prompts (e.g. fix-bar.md, the Fix Bar source)
-  release-review/           The framework (canonical source of truth)
-  release-review.zip        Distributable bundle of the framework + installer payload
+  release-review/           The framework (canonical source of truth) + its installer
   .opencode/commands/       OpenCode slash-command wrappers (/release-review[-plan])
 ```
 
@@ -101,10 +100,13 @@ from silently dropping rules, the design uses:
 
 ### Distribution
 
-`release-review.zip` bundles the framework and the OpenCode command wrappers;
-`install-release-review-to-opencode.py` installs it into a target repo conservatively
-(safe-path checks, backups, dry-run, gitignore handling). The zip is rebuilt and
-verified by installer dry-run whenever the source changes.
+`install-release-review-to-opencode.py` installs the framework into a target repo by
+copying the live `release-review/` directory and the `.opencode/commands/` wrappers
+directly from this repo, conservatively (required-files check, safe in-tree paths,
+backups, dry-run). There is no committed archive: installing from the source
+directory avoids a redundant binary blob and the drift it caused (see `DECISIONS.md`
+D12). The installer does not modify `.gitignore`; it only warns if the target repo
+ignores `repository-review/`, since run artifacts are committed deliverables.
 
 ## Two ways to invoke
 

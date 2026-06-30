@@ -2,11 +2,11 @@
 
 This directory contains a modular, executable repository review runbook for use with OpenCode or another modern coding agent.
 
-The zip also includes optional OpenCode command wrappers under `.opencode/commands/` so the review can be invoked as a project command when using OpenCode.
+The installer also places optional OpenCode command wrappers under `.opencode/commands/` so the review can be invoked as a project command when using OpenCode.
 
 ## How to use
 
-If using OpenCode after expanding the zip into the repository root, run:
+If using OpenCode after installing the framework into the repository root (via `install-release-review-to-opencode.py`, which copies it from the source directory), run:
 
 ```text
 /release-review

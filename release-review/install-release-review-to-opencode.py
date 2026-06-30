@@ -2,29 +2,35 @@
 """
 Install the modular release-review runbook and OpenCode command wrappers.
 
-This installer copies the contents of release-review.zip into a repository root,
-including:
+This installer copies the framework from its live source directory (next to this
+script) into a target repository root:
 
     release-review/
     .opencode/commands/release-review.md
     .opencode/commands/release-review-plan.md
+
+It copies directly from the source tree; there is no zip step. The source of truth
+is the checked-out `release-review/` directory plus the `.opencode/commands/`
+wrappers. (See DECISIONS.md D12: a committed zip was dropped in favor of
+install-from-directory to avoid drift and a redundant binary blob.)
 
 It is intentionally conservative:
 
 1. It refuses to overwrite changed existing files unless --force is provided.
 2. It creates timestamped backups by default before overwriting.
 3. It supports --dry-run.
-4. It validates the zip structure before installing.
-5. It protects against unsafe zip paths.
-6. It can add repository-review/ to .gitignore so run artifacts remain local.
+4. It validates that required framework files are present before installing.
+5. It copies only safe, in-tree relative paths.
+6. It does NOT modify .gitignore: run artifacts in repository-review/ are committed
+   deliverables (DECISIONS.md D5/D14). It warns if repository-review/ is ignored.
 
-Typical usage from a repository root:
+Typical usage from the target repository root:
 
-    python3 install-release-review-to-opencode.py --zip release-review.zip
+    python3 /path/to/ai-coding/release-review/install-release-review-to-opencode.py
 
-Or, if the zip is next to this installer:
+Install into a specific repository:
 
-    python3 install-release-review-to-opencode.py
+    python3 install-release-review-to-opencode.py --repo /path/to/target-repo
 
 Dry run:
 
@@ -37,23 +43,24 @@ Force overwrite with backups:
 Force overwrite without backups:
 
     python3 install-release-review-to-opencode.py --force --no-backup
+
+Override where the framework is copied from (rarely needed):
+
+    python3 install-release-review-to-opencode.py --source /path/to/ai-coding
 """
 
 from __future__ import annotations
 
 import argparse
-import filecmp
 import shutil
 import sys
-import tempfile
-import zipfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable
 
 
-REQUIRED_ZIP_MEMBERS: tuple[str, ...] = (
+# Files that must exist in the source for an install to be valid.
+REQUIRED_SOURCE_FILES: tuple[str, ...] = (
     "release-review/README.md",
     "release-review/00-run-protocol.md",
     "release-review/fix-decision-policy.md",
@@ -61,19 +68,28 @@ REQUIRED_ZIP_MEMBERS: tuple[str, ...] = (
     ".opencode/commands/release-review-plan.md",
 )
 
-DEFAULT_GITIGNORE_LINE = "repository-review/"
+# Files inside release-review/ that are authoring/installer artifacts and are NOT
+# part of what gets installed into a target repository.
+SOURCE_EXCLUDED_NAMES: frozenset[str] = frozenset(
+    {
+        "install-release-review-to-opencode.py",
+        "install-release-review-to-opencode.sh",
+        "release-review-validation-report.md",
+    }
+)
+
+REPOSITORY_REVIEW_DIR = "repository-review/"
 
 
 @dataclass(frozen=True)
 class InstallPlan:
     """Represents the resolved installer inputs and behavior."""
 
-    zip_path: Path
+    source_root: Path
     repo_root: Path
     dry_run: bool
     force: bool
     backup: bool
-    update_gitignore: bool
 
 
 def parse_args() -> argparse.Namespace:
@@ -81,20 +97,20 @@ def parse_args() -> argparse.Namespace:
 
     Returns:
         The parsed argument namespace.
-
-    Example:
-        args = parse_args()
     """
 
     parser = argparse.ArgumentParser(
-        description="Install release-review runbook and OpenCode commands into a repository.",
+        description="Install the release-review runbook and OpenCode commands into a repository.",
     )
     parser.add_argument(
-        "--zip",
-        dest="zip_path",
+        "--source",
+        dest="source_root",
         type=Path,
         default=None,
-        help="Path to release-review.zip. Defaults to ./release-review.zip or a zip next to this installer.",
+        help=(
+            "Root that contains release-review/ and .opencode/commands/. "
+            "Defaults to the parent of this script's release-review/ directory."
+        ),
     )
     parser.add_argument(
         "--repo",
@@ -118,46 +134,40 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Do not create backups when --force overwrites files.",
     )
-    parser.add_argument(
-        "--no-gitignore",
-        action="store_true",
-        help="Do not add repository-review/ to .gitignore.",
-    )
 
     return parser.parse_args()
 
 
-def resolve_zip_path(provided_zip_path: Path | None) -> Path:
-    """Resolve the zip path from arguments or common defaults.
+def resolve_source_root(provided_source_root: Path | None) -> Path:
+    """Resolve the framework source root.
 
     Args:
-        provided_zip_path: User-provided zip path, if any.
+        provided_source_root: User-provided source root, if any.
 
     Returns:
-        An existing zip path.
+        A directory that contains release-review/ and .opencode/commands/.
 
     Raises:
-        SystemExit: If no zip file can be found.
+        SystemExit: If no valid source root can be found.
     """
 
-    if provided_zip_path is not None:
-        zip_path = provided_zip_path.expanduser().resolve()
-        if zip_path.exists():
-            return zip_path
-        raise SystemExit(f"Zip file not found: {zip_path}")
+    if provided_source_root is not None:
+        source_root = provided_source_root.expanduser().resolve()
+    else:
+        # This script lives at <root>/release-review/install-...py, so the source
+        # root that contains both release-review/ and .opencode/ is its grandparent.
+        source_root = Path(__file__).resolve().parent.parent
 
-    candidates = (
-        Path.cwd() / "release-review.zip",
-        Path(__file__).resolve().parent / "release-review.zip",
-    )
+    missing = [name for name in REQUIRED_SOURCE_FILES if not (source_root / name).is_file()]
+    if missing:
+        raise SystemExit(
+            f"Source root does not look like the framework source: {source_root}\n"
+            + "Missing required files:\n"
+            + "\n".join(f"  - {name}" for name in missing)
+            + "\nProvide the correct location with --source /path/to/ai-coding.",
+        )
 
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate.resolve()
-
-    raise SystemExit(
-        "Could not find release-review.zip. Provide it with --zip /path/to/release-review.zip.",
-    )
+    return source_root
 
 
 def build_install_plan(args: argparse.Namespace) -> InstallPlan:
@@ -170,16 +180,12 @@ def build_install_plan(args: argparse.Namespace) -> InstallPlan:
         The resolved install plan.
     """
 
-    zip_path = resolve_zip_path(args.zip_path)
-    repo_root = args.repo_root.expanduser().resolve()
-
     return InstallPlan(
-        zip_path=zip_path,
-        repo_root=repo_root,
+        source_root=resolve_source_root(args.source_root),
+        repo_root=args.repo_root.expanduser().resolve(),
         dry_run=args.dry_run,
         force=args.force,
         backup=not args.no_backup,
-        update_gitignore=not args.no_gitignore,
     )
 
 
@@ -203,81 +209,43 @@ def ensure_repo_root(path: Path) -> None:
         print("Warning: target directory does not contain .git. Continuing anyway.", file=sys.stderr)
 
 
-def is_safe_zip_member(name: str) -> bool:
-    """Return whether a zip member path is safe to extract manually.
+def collect_source_members(source_root: Path) -> list[str]:
+    """Collect the relative paths to install from the source tree.
+
+    Includes every file under release-review/ (except authoring/installer files)
+    and the two .opencode/commands wrappers.
 
     Args:
-        name: Zip member name.
+        source_root: Validated framework source root.
 
     Returns:
-        True when the path is relative and does not contain parent traversal.
-    """
-
-    path = Path(name)
-
-    if path.is_absolute():
-        return False
-
-    if any(part == ".." for part in path.parts):
-        return False
-
-    if name.startswith("/") or name.startswith("\\"):
-        return False
-
-    return True
-
-
-def validate_zip(zip_path: Path) -> list[str]:
-    """Validate zip safety and required contents.
-
-    Args:
-        zip_path: Path to the zip archive.
-
-    Returns:
-        Sorted list of file members to install.
+        Sorted list of repo-relative paths to install.
 
     Raises:
-        SystemExit: If the zip file is invalid or missing required files.
+        SystemExit: If the source layout is unexpectedly empty.
     """
 
-    try:
-        with zipfile.ZipFile(zip_path, "r") as archive:
-            names = archive.namelist()
-            unsafe = [name for name in names if not is_safe_zip_member(name)]
-            if unsafe:
-                raise SystemExit(
-                    "Unsafe zip paths detected:\n" + "\n".join(f"  - {name}" for name in unsafe),
-                )
+    members: list[str] = []
 
-            missing = [name for name in REQUIRED_ZIP_MEMBERS if name not in names]
-            if missing:
-                raise SystemExit(
-                    "Zip file is missing required members:\n" + "\n".join(f"  - {name}" for name in missing),
-                )
+    release_review_dir = source_root / "release-review"
+    for path in sorted(release_review_dir.rglob("*")):
+        if not path.is_file():
+            continue
+        if path.name in SOURCE_EXCLUDED_NAMES:
+            continue
+        if path.name.endswith(":Zone.Identifier"):
+            continue
+        members.append(path.relative_to(source_root).as_posix())
 
-            file_names = sorted(
-                name for name in names
-                if name and not name.endswith("/")
-            )
-            return file_names
+    for wrapper in ("release-review.md", "release-review-plan.md"):
+        members.append(f".opencode/commands/{wrapper}")
 
-    except zipfile.BadZipFile as exc:
-        raise SystemExit(f"Invalid zip file: {zip_path}") from exc
+    members = sorted(set(members))
 
+    if not members:
+        raise SystemExit(f"No installable files found under {release_review_dir}.")
 
-def read_zip_bytes(zip_path: Path, member_name: str) -> bytes:
-    """Read bytes for a member from a zip file.
-
-    Args:
-        zip_path: Path to the zip archive.
-        member_name: Member path inside the archive.
-
-    Returns:
-        Raw member bytes.
-    """
-
-    with zipfile.ZipFile(zip_path, "r") as archive:
-        return archive.read(member_name)
+    return members
 
 
 def same_bytes(path: Path, data: bytes) -> bool:
@@ -312,12 +280,12 @@ def create_backup_path(repo_root: Path, relative_path: Path, timestamp: str) -> 
     return repo_root / ".release-review-installer-backups" / timestamp / relative_path
 
 
-def install_files(plan: InstallPlan, members: Iterable[str]) -> tuple[list[str], list[str], list[str]]:
-    """Install zip members into the repository root.
+def install_files(plan: InstallPlan, members: list[str]) -> tuple[list[str], list[str], list[str]]:
+    """Install source members into the repository root.
 
     Args:
         plan: Install plan.
-        members: Zip member paths to install.
+        members: Repo-relative paths to install (also relative to the source root).
 
     Returns:
         A tuple of installed, skipped, and conflicted relative paths.
@@ -332,7 +300,7 @@ def install_files(plan: InstallPlan, members: Iterable[str]) -> tuple[list[str],
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
 
     for member_name in members:
-        data = read_zip_bytes(plan.zip_path, member_name)
+        data = (plan.source_root / member_name).read_bytes()
         relative_path = Path(member_name)
         destination = plan.repo_root / relative_path
 
@@ -369,7 +337,7 @@ def install_files(plan: InstallPlan, members: Iterable[str]) -> tuple[list[str],
 
     if conflicted and not plan.force:
         message = [
-            "Conflicting files already exist and differ from the zip contents.",
+            "Conflicting files already exist and differ from the source contents.",
             "No files were overwritten.",
             "",
             "Conflicts:",
@@ -387,8 +355,12 @@ def install_files(plan: InstallPlan, members: Iterable[str]) -> tuple[list[str],
     return installed, skipped, conflicted
 
 
-def update_gitignore(plan: InstallPlan) -> str:
-    """Add repository-review/ to .gitignore if requested and needed.
+def check_gitignore(plan: InstallPlan) -> str:
+    """Check that repository-review/ is not git-ignored, and warn if it is.
+
+    Run artifacts in repository-review/ are committed deliverables (DECISIONS.md
+    D5/D14). The installer must not add an ignore line; it only warns if the target
+    repo already ignores the directory, since that would suppress the run record.
 
     Args:
         plan: Install plan.
@@ -397,35 +369,22 @@ def update_gitignore(plan: InstallPlan) -> str:
         A short status message.
     """
 
-    if not plan.update_gitignore:
-        return ".gitignore update skipped by --no-gitignore"
-
     gitignore_path = plan.repo_root / ".gitignore"
+    if not gitignore_path.exists():
+        return "no .gitignore present; repository-review/ will be tracked (correct)"
 
-    existing = ""
-    if gitignore_path.exists():
-        existing = gitignore_path.read_text(encoding="utf-8")
-
-    lines = [line.strip() for line in existing.splitlines()]
-    if DEFAULT_GITIGNORE_LINE in lines:
-        return ".gitignore already contains repository-review/"
-
-    if plan.dry_run:
-        return ".gitignore would be updated with repository-review/ [dry-run]"
-
-    if gitignore_path.exists() and plan.force and plan.backup:
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        backup_path = create_backup_path(plan.repo_root, Path(".gitignore"), timestamp)
-        backup_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(gitignore_path, backup_path)
-
-    suffix = "" if existing.endswith("\n") or not existing else "\n"
-    gitignore_path.write_text(
-        existing + suffix + DEFAULT_GITIGNORE_LINE + "\n",
-        encoding="utf-8",
+    lines = [line.strip() for line in gitignore_path.read_text(encoding="utf-8").splitlines()]
+    ignored = any(
+        line == REPOSITORY_REVIEW_DIR or line == REPOSITORY_REVIEW_DIR.rstrip("/")
+        for line in lines
     )
+    if ignored:
+        return (
+            "WARNING: .gitignore ignores repository-review/. Run artifacts are committed "
+            "deliverables; remove that ignore line so the run record can be tracked."
+        )
 
-    return ".gitignore updated with repository-review/"
+    return "repository-review/ is not ignored (correct; run artifacts are committed deliverables)"
 
 
 def print_summary(
@@ -447,7 +406,7 @@ def print_summary(
 
     print(f"Release review installer: {mode}")
     print(f"Repository root: {plan.repo_root}")
-    print(f"Zip file: {plan.zip_path}")
+    print(f"Source: {plan.source_root}")
     print()
 
     print("Installed or updated:")
@@ -494,10 +453,10 @@ def main() -> int:
     plan = build_install_plan(args)
 
     ensure_repo_root(plan.repo_root)
-    members = validate_zip(plan.zip_path)
+    members = collect_source_members(plan.source_root)
 
     installed, skipped, _ = install_files(plan, members)
-    gitignore_status = update_gitignore(plan)
+    gitignore_status = check_gitignore(plan)
 
     print_summary(
         plan=plan,

@@ -10,9 +10,8 @@ a durable, auditable record of what it did and why.
 
 ## Contents
 
-- `release-review/` - the release-review framework (canonical source of truth).
-- `release-review.zip` - distributable bundle of the framework plus its installer
-  payload, for dropping into another repository.
+- `release-review/` - the release-review framework (canonical source of truth),
+  including its installer (`install-release-review-to-opencode.py`).
 - `prompts/` - reusable prompts for AI-assisted development (e.g. `fix-bar.md`, the
   source of the framework's Fix Bar policy).
 - `.opencode/commands/` - OpenCode slash-command wrappers (`/release-review`,
@@ -20,9 +19,11 @@ a durable, auditable record of what it did and why.
 
 ## Using the release-review framework
 
-In another repository, either install it from `release-review.zip` with
-`release-review/install-release-review-to-opencode.py`, or copy the `release-review/`
-directory in and tell your agent:
+In another repository, install it by running
+`release-review/install-release-review-to-opencode.py` (it copies the
+`release-review/` directory and the `.opencode/commands/` wrappers from this repo
+into the target), or simply copy the `release-review/` directory in yourself, then
+tell your agent:
 
 ```
 Read and execute release-review/README.md

@@ -59,7 +59,7 @@ PASS. The package includes OpenCode installation and activation instructions in 
 - PASS: README includes troubleshooting
 - PASS: MANIFEST includes install paths
 
-## Zip contents
+## Installed files (copied from the source directory)
 
 - `.opencode/commands/release-review-plan.md`
 - `.opencode/commands/release-review.md`

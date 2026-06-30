@@ -6,7 +6,7 @@ This runbook is intended for OpenCode or another modern coding agent operating i
 
 ## OpenCode project commands
 
-If this zip is expanded into the repository root, OpenCode can invoke the included command wrappers:
+If the framework is installed into the repository root (see `install-release-review-to-opencode.py`, which copies it from the source directory), OpenCode can invoke the included command wrappers:
 
 ```text
 /release-review

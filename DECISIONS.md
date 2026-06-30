@@ -186,6 +186,20 @@ both execute the (large) set well.
 - **Trade-off:** The zip is redundant with the unzipped source and can drift if not
   rebuilt; we accept that for one-step distribution into other repos. (Open future
   option: build it on demand instead of checking it in.)
+- **Superseded (2026-06-29):** Reversed. The committed `release-review.zip` was
+  removed (`git rm`, not git-ignored) and the installer now copies directly from the
+  live `release-review/` + `.opencode/commands/` directories. Reasons: the zip was a
+  redundant binary blob that bloated diffs and could not be reviewed, and it had to
+  be rebuilt and re-verified after every source change - exactly the drift the
+  trade-off warned about. Install-from-directory is correct by construction (no
+  drift) and simpler. The "one-step distribution" benefit was illusory: the normal
+  path is a git checkout, from which the files are already present. If a detached
+  single-file artifact is ever needed, build a zip on demand at release time (e.g. a
+  CI/release-tag asset) rather than committing it. While rewriting the installer we
+  also fixed a stale bug: it had been adding `repository-review/` to `.gitignore`,
+  which contradicts D5/D14 (run artifacts are committed deliverables). The installer
+  no longer touches `.gitignore`; it only warns if the target repo ignores
+  `repository-review/`.
 
 ### D13. Style conventions
 
