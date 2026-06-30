@@ -282,3 +282,44 @@ both execute the (large) set well.
   review is a lighter job (KISS; the complexity axis of the Fix Bar applied to our own
   tooling). It ships with the framework and is installed/pruned like the other command
   wrappers (added to the installer's `COMMAND_FILES`).
+
+### D17. Restructure into `.agents/workflows/<capability>/` with generated shims and an AGENTS.md pointer
+
+- **Problem:** Two questions converged: (a) "do we keep adding top-level directories
+  as we add capabilities (release-review, plan-review, ...)?" and (b) "how do we make
+  these runnable across OpenCode, Claude Code, Codex, Antigravity, and plain VSCode
+  agents without polluting the repo or duplicating instructions?"
+- **Key distinction:** a capability has a tool-agnostic *body* (the runbook/prompt)
+  and a per-tool *invocation shim* (the `/command` file). Conflating them is what
+  created the "keep adding directories" worry. There is no cross-tool command
+  standard; native `/commands` are inherently per-tool. But "read and execute <body>"
+  works everywhere and is the universal fallback.
+- **Decision:**
+  1. Bodies live under `.agents/workflows/<capability>/` - each capability its own
+     subdir (even single-file ones), so growth is "new subdir + manifest row", never a
+     new top-level dir. Repo root stays clean. (Moved `release-review/` and
+     `plan-review/` here from the repo root.)
+  2. `.agents/workflows/index.md` is the manifest (a `command | body | description`
+     table between markers). It is the single source of the capability list.
+  3. The installer (`install-workflows.py`, moved up from inside release-review and
+     renamed) reads the manifest and *generates* per-tool shims into
+     `.opencode/commands/` and `.claude/commands/`; shims are never hand-maintained.
+     Shims accept OpenCode `$ARGUMENTS` (e.g. `/plan-review <plan-path>`).
+  4. `AGENTS.md` gets a one-line *pointer* block to the index - never the payload, so
+     always-loaded context stays tiny (consistent with keeping reference material out
+     of the always-read core).
+- **Naming pushback applied:** the parent is `workflows/`, not `commands/` - the
+  bodies are workflows; "command" is the per-tool invocation, which lives in each
+  tool's own dir. Naming the body dir `commands/` would re-conflate the two.
+- **Rejected:** putting the framework (or pointers to all of it) directly into
+  `AGENTS.md`/`CLAUDE.md` - those are always-loaded context and would bloat every
+  unrelated prompt with tens of thousands of tokens of occasionally-used instructions.
+- **Cross-sibling dependency:** `plan-review` references `release-review`'s shared
+  policy via `../release-review/...` (relative across siblings), preserving
+  single-source-of-truth at the cost of a slightly longer path.
+- **Run output unchanged:** `repository-review/<RUN_ID>/` stays at the target repo
+  root (it is the project's review record, not agent tooling).
+- **Also folded in:** removed the stale one-time `release-review-validation-report.md`
+  (superseded by MANIFEST/index and direct installer testing); the scope-exclusion
+  rule (D14) now refers to "the framework's own directory wherever installed" instead
+  of a hardcoded `release-review/`.

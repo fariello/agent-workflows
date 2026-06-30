@@ -2,11 +2,11 @@
 
 This directory contains a modular, executable repository review runbook for use with OpenCode or another modern coding agent.
 
-The installer also places optional OpenCode command wrappers under `.opencode/commands/` so the review can be invoked as a project command when using OpenCode.
+The framework is installed under `.agents/workflows/release-review/` (alongside the sibling `plan-review/`). The installer (`.agents/workflows/install-workflows.py`) also generates per-tool slash-command shims under `.opencode/commands/` and `.claude/commands/`, and adds a one-line pointer to `AGENTS.md`. See `.agents/workflows/index.md` for the workflow manifest.
 
 ## How to use
 
-If using OpenCode after installing the framework into the repository root (via `install-release-review-to-opencode.py`, which copies it from the source directory), run:
+With OpenCode or Claude Code after installing, run:
 
 ```text
 /release-review
@@ -18,26 +18,29 @@ For audit and implementation planning only, run:
 /release-review-plan
 ```
 
-These commands are convenience wrappers. The controlling file remains `release-review/README.md`.
+These commands are convenience shims. The controlling file remains this directory's `README.md`.
 
-
-From the repository root, tell the agent:
+From the repository root, in any agent, tell it:
 
 ```text
-Read and execute release-review/README.md
+Read and execute .agents/workflows/release-review/README.md
 ```
 
 `README.md` is the controlling instruction. The agent should read `00-run-protocol.md`, then execute sections `01` through `08` in order. Section `09` (release execution) runs only after a GO/CONDITIONAL GO and explicit user approval.
 
 The review is conducted through eight expert personas (QA/QC, testing/regression, UI/UX, architect, software engineer, power user, novice, stakeholder) and, on every run, reconciles any `TODO.md`/backlog against the release, honors the repository's guiding principles, holds a self-documenting / learn-as-you-go bar, treats memory/resource and live-interaction-surface correctness as first-class, and produces a mandatory per-phase report for each section.
 
-## OpenCode commands
+## Slash commands (generated shims)
 
-| File | Purpose |
-|---|---|
-| `.opencode/commands/release-review.md` | OpenCode project command wrapper for the full audit, implementation, validation, final report, and push/no-push decision. |
-| `.opencode/commands/release-review-plan.md` | OpenCode project command wrapper for audit and implementation planning only, stopping before Section 7 implementation. |
-| `.opencode/commands/plan-review.md` | OpenCode project command wrapper for the pre-execution plan reviewer (reviews and revises a proposed plan before any code is written). |
+The installer generates these from the `.agents/workflows/index.md` manifest, into
+both `.opencode/commands/` (OpenCode) and `.claude/commands/` (Claude Code). Each shim
+just says "read and execute" the workflow body and accepts optional `$ARGUMENTS`.
+
+| Command | Invokes | Purpose |
+|---|---|---|
+| `/release-review` | `release-review/README.md` | Full audit, implementation, validation, final report, and push/release decision. |
+| `/release-review-plan` | `release-review/README.md` (planning-only) | Audit and consolidated implementation plan, stopping before implementation. |
+| `/plan-review` | `plan-review/plan-review.md` | Pre-execution plan reviewer (reviews and revises a proposed plan before any code is written). |
 
 ## Files
 

@@ -17,7 +17,7 @@ If a section file appears to conflict with this protocol, follow this protocol a
 
 The review operates on the **target project**. The framework's own files and its run records are NOT part of the project under review. Unless the user explicitly states that the framework itself is the subject of this review, exclude the following from the audit scope of every section (and every parallel audit lane):
 
-- **`release-review/`** - this runbook and its templates. Do not file findings about it, do not assess it for quality/docs/usability, and do not modify it as part of fixing the target project. You are *executing* these instructions, not reviewing or editing them.
+- **This framework's own directory** (wherever it is installed - e.g. `.agents/workflows/release-review/` and the sibling `plan-review/`, or a `release-review/` directory at the repo root) and any agent-tooling wrappers it ships (`.opencode/commands/`, `.claude/commands/`, `.agents/workflows/index.md`). Do not file findings about the runbook, do not assess it for quality/docs/usability, and do not modify it as part of fixing the target project. You are *executing* these instructions, not reviewing or editing them.
 - **`repository-review/`** - the authoritative run records (this run and any prior runs). Do not audit them as if they were project code or docs.
 
 This is an exclusion from *review scope*, not from all action:
@@ -25,9 +25,9 @@ This is an exclusion from *review scope*, not from all action:
 1. You still **create, write, and commit** `repository-review/<RUN_ID>/` - that is the run's own output, not a review target.
 2. You **may read** prior `repository-review/<RUN_ID>/` records as input (e.g. to see what an earlier run did), but do not generate findings about them.
 3. Do not count these directories when assessing project size, structure, test coverage, documentation, or cold-start orientation. A project's `README`, `ARCHITECTURE`, tests, etc. are the project's own, not the framework's.
-4. **Self-modification guard:** never edit `release-review/` files during a run. If the runbook itself seems wrong, record it as a `Q`/`DEC` note in `05-decisions.md` for the user; do not change the instructions mid-run.
+4. **Self-modification guard:** never edit the framework's own files during a run. If the runbook itself seems wrong, record it as a `Q`/`DEC` note in `05-decisions.md` for the user; do not change the instructions mid-run.
 
-**Explicit-subject exception:** if the user explicitly asks to review the framework itself (for example, when the target repository *is* the project that maintains `release-review/`), then `release-review/` is in scope as ordinary project code and these exclusions are lifted for it - but `repository-review/` run records remain excluded regardless.
+**Explicit-subject exception:** if the user explicitly asks to review the framework itself (for example, when the target repository *is* the project that maintains this runbook), then the framework directory is in scope as ordinary project code and these exclusions are lifted for it - but `repository-review/` run records remain excluded regardless.
 
 When in doubt, treat both directories as out of scope and note the assumption in `05-decisions.md`.
 

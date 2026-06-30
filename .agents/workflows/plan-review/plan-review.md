@@ -5,24 +5,26 @@ before any code is written**, and then **improving that plan in place** so it is
 materially safer and more likely to produce a reliable, usable, secure, intuitive,
 and principle-aligned outcome.
 
-This is the plan-time sibling of `release-review/`. Where `release-review` reviews
+This is the plan-time sibling of the release review. Where the release review reviews
 finished code before shipping, this reviews a written implementation plan before
 building. Catching a missing transaction boundary, an authorization gap, or an
 over-scoped feature on paper is far cheaper than catching it in code.
 
-It shares this repository's policies rather than redefining them:
+It shares this framework's policies rather than redefining them (the release-review
+runbook is its sibling directory):
 
-- **Fix decisions are governed by `fix-decision-policy.md`** (the Fix Bar): fix by
-  default; defer only when the *Remediation Risk* of the fix itself is Medium-High or
-  higher (complexity / usability / security / functionality). Severity is for
-  reporting, not for deciding. Effort/time/token cost are never a reason to defer.
-- **Review through the eight personas** defined in `00-run-protocol.md` (QA/QC,
-  testing/regression, UI/UX, architect, software engineer, power user, novice,
-  stakeholder), led here by the architect, software-engineer, security, and
-  stakeholder views.
+- **Fix decisions are governed by `../release-review/fix-decision-policy.md`** (the
+  Fix Bar): fix by default; defer only when the *Remediation Risk* of the fix itself
+  is Medium-High or higher (complexity / usability / security / functionality).
+  Severity is for reporting, not for deciding. Effort/time/token cost are never a
+  reason to defer.
+- **Review through the eight personas** defined in
+  `../release-review/00-run-protocol.md` (QA/QC, testing/regression, UI/UX, architect,
+  software engineer, power user, novice, stakeholder), led here by the architect,
+  software-engineer, security, and stakeholder views.
 
-If `fix-decision-policy.md` and `00-run-protocol.md` are not present alongside this
-file, apply the same rules from memory: fix-by-default gated by Remediation Risk, and
+If those files are not present (for example this prompt was copied on its own), apply
+the same rules from memory: fix-by-default gated by Remediation Risk, and
 multi-perspective review.
 
 ---
@@ -43,8 +45,8 @@ particular filenames or stack:
 1. **Guiding principles:** `GUIDING_PRINCIPLES.md`, `PRINCIPLES.md`, a "Principles"
    section in `README.md`/`CONTRIBUTING.md`, or whatever `AGENTS.md` names. The plan
    must conform to these. If none exist, use the universal fallback principles in
-   `00-run-protocol.md` (intuitive/self-documenting, general-case/configurable, KISS,
-   honest docs) and record that you did so.
+   `../release-review/00-run-protocol.md` (intuitive/self-documenting,
+   general-case/configurable, KISS, honest docs) and record that you did so.
 2. **Agent/contributor contract:** `AGENTS.md`, `CONTRIBUTING.md`, or equivalent, for
    required plan sections, spec-sync obligations, and lifecycle rules.
 3. **Plan location and format:** where plans live (e.g. `.agents/plans/`, `docs/rfcs/`,

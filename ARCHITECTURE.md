@@ -8,9 +8,10 @@ work, see `GUIDING_PRINCIPLES.md`.
 ## What this repository is
 
 `ai-coding` is a collection of resources for AI-assisted software development. Its
-centerpiece is `release-review/`, an executable runbook that an AI coding agent
-follows to perform a deep pre-release review of *another* repository and leave it
-materially better, with a durable, auditable record of what it did and why.
+centerpiece is a set of reusable **agent workflows** under `.agents/workflows/`. The
+flagship, `release-review`, is an executable runbook that an AI coding agent follows
+to perform a deep pre-release review of *another* repository and leave it materially
+better, with a durable, auditable record of what it did and why.
 
 ```
 ai-coding/
@@ -18,11 +19,26 @@ ai-coding/
   ARCHITECTURE.md           This file
   DECISIONS.md              Dated decision log (the "why")
   GUIDING_PRINCIPLES.md     Values guiding the work
+  AGENTS.md                 One-line pointer to the workflow index (not the payload)
   prompts/                  Reusable prompts (e.g. fix-bar.md, the Fix Bar source)
-  release-review/           The framework (canonical source of truth) + its installer
-    plan-review.md          Pre-execution plan reviewer (plan-time sibling)
-  .opencode/commands/       OpenCode slash-command wrappers (/release-review[-plan], /plan-review)
+  .agents/workflows/        Reusable agent workflows (canonical source of truth)
+    index.md                Workflow manifest (installer reads it to generate shims)
+    install-workflows.py    Installer (copy + generate shims + AGENTS.md pointer)
+    release-review/         The full pre-release review framework
+    plan-review/            Pre-execution plan reviewer (plan-time sibling)
+  .opencode/commands/       Generated OpenCode shims (/release-review[-plan], /plan-review)
+  .claude/commands/         Generated Claude Code shims (same set)
 ```
+
+### Capability layout (open-ended)
+
+Each workflow is a capability with its own subdirectory under `.agents/workflows/`,
+even single-file ones, so adding a capability is always "a new subdir plus a row in
+`index.md`", never a new top-level directory. The per-tool slash-command shims are
+*generated* from the manifest, not hand-maintained. Bodies are tool-agnostic; the
+shims and the `AGENTS.md` pointer are the only tool-specific surface. `plan-review`
+references `release-review`'s shared policy files (`fix-decision-policy.md`,
+`00-run-protocol.md`) as a sibling via `../release-review/`.
 
 ## The release-review framework
 
@@ -101,17 +117,16 @@ from silently dropping rules, the design uses:
 
 ### Distribution
 
-`install-release-review-to-opencode.py` installs the framework into a target repo by
-copying the live `release-review/` directory and the `.opencode/commands/` wrappers
-directly from this repo, conservatively (required-files check, safe in-tree paths,
-backups, dry-run). There is no committed archive: installing from the source
-directory avoids a redundant binary blob and the drift it caused (see `DECISIONS.md`
-D12).
+`.agents/workflows/install-workflows.py` installs the workflows into a target repo by
+copying the live `.agents/workflows/` tree directly from this repo, conservatively
+(manifest-driven, safe in-tree paths, backups, dry-run). There is no committed
+archive: installing from the source directory avoids a redundant binary blob and the
+drift it caused (see `DECISIONS.md` D12).
 
 It performs a **clean sync** by default: framework files present in the target but no
 longer in the source (renamed or removed) are pruned, so the target never accumulates
 stale instruction files. Pruning is strictly scoped to the framework namespace
-(`release-review/` and the two command wrappers) and never touches
+(`.agents/workflows/` plus the generated shim files) and never touches
 `repository-review/` run records, user code, or anything else. The installer is
 git-aware but never commits: installed files are staged with `git add`, pruned
 tracked files with `git rm`, untracked files are written/removed on disk, and the
@@ -119,22 +134,33 @@ user reviews and commits. `--no-prune` reverts to additive-only. The installer d
 not modify `.gitignore`; it only warns if the target repo ignores
 `repository-review/`, since run artifacts are committed deliverables.
 
+It also **generates the per-tool slash-command shims** from the `index.md` manifest
+(into `.opencode/commands/` and `.claude/commands/`) and adds a one-line **pointer
+block** to the target's `AGENTS.md`. The shims and the pointer are the only
+tool-specific surface; the workflow bodies are tool-agnostic. Tools without native
+slash commands use the universal fallback: read `.agents/workflows/index.md` and
+"read and execute" the workflow body.
+
 ### Plan review (plan-time sibling)
 
-`release-review/plan-review.md` is a standalone, single-file reviewer for the other
-end of the lifecycle: it reviews and improves a proposed implementation plan *before*
-any code is written, then `release-review` reviews the finished code before shipping.
-Catching a flaw on paper is far cheaper than catching it in code. It deliberately
-reuses the shared policy (the Fix Bar in `fix-decision-policy.md` and the eight
-personas in `00-run-protocol.md`) rather than redefining them, discovers the project's
-own principles/contributor-contract/plan-format/stack/domain-invariants instead of
-hardcoding any, and edits planning documents only (never code). It is intentionally a
-single prompt, not a modular framework, because plan review is a lighter job (KISS).
-It ships with the framework and installs as `/plan-review`.
+`.agents/workflows/plan-review/plan-review.md` is a standalone, single-file reviewer
+for the other end of the lifecycle: it reviews and improves a proposed implementation
+plan *before* any code is written, then `release-review` reviews the finished code
+before shipping. Catching a flaw on paper is far cheaper than catching it in code. It
+deliberately reuses the shared policy (the Fix Bar in
+`../release-review/fix-decision-policy.md` and the eight personas in
+`../release-review/00-run-protocol.md`) rather than redefining them, discovers the
+project's own principles/contributor-contract/plan-format/stack/domain-invariants
+instead of hardcoding any, and edits planning documents only (never code). It is
+intentionally a single prompt, not a modular framework, because plan review is a
+lighter job (KISS). It installs as `/plan-review`.
 
 ## Three ways to invoke
 
-1. **OpenCode:** `/release-review` (full) or `/release-review-plan` (audit + plan,
-   stop before implementation); `/plan-review` (review a plan before building).
-2. **Any agent:** "Read and execute release-review/README.md" (release review) or
-   "Read and execute release-review/plan-review.md" (plan review) from the repo root.
+1. **OpenCode / Claude Code:** `/release-review` (full) or `/release-review-plan`
+   (audit + plan, stop before implementation); `/plan-review <plan>` (review a plan
+   before building).
+2. **Any agent:** "Read and execute `.agents/workflows/release-review/README.md`"
+   (release review) or "`.agents/workflows/plan-review/plan-review.md`" (plan review).
+3. **Discoverable everywhere:** the `AGENTS.md` pointer leads to
+   `.agents/workflows/index.md`, which lists every workflow and how to run it.
