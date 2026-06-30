@@ -27,7 +27,9 @@ From the repository root, tell the agent:
 Read and execute release-review/README.md
 ```
 
-`README.md` is the controlling instruction. The agent should read `00-run-protocol.md`, then execute sections `01` through `08` in order.
+`README.md` is the controlling instruction. The agent should read `00-run-protocol.md`, then execute sections `01` through `08` in order. Section `09` (release execution) runs only after a GO/CONDITIONAL GO and explicit user approval.
+
+The review is conducted through eight expert personas (QA/QC, testing/regression, UI/UX, architect, software engineer, power user, novice, stakeholder) and, on every run, reconciles any `TODO.md`/backlog against the release, honors the repository's guiding principles, holds a self-documenting / learn-as-you-go bar, treats memory/resource and live-interaction-surface correctness as first-class, and produces a mandatory per-phase report for each section.
 
 ## OpenCode commands
 
@@ -48,14 +50,19 @@ Read and execute release-review/README.md
 | `04-docs-specs-examples.md` | Documentation, specification, examples, README, help text, and behavior-documentation alignment. |
 | `05-feature-usability-maintainability.md` | Feature completeness, usability, developer experience, operator experience, maintainability, and stale-code impact. |
 | `06-compatibility-packaging-release.md` | Compatibility, packaging, build, CI, deployment, versioning, changelog, migration, and release artifacts. |
-| `07-implementation.md` | Consolidated implementation plan and safe, significant-value fixes. |
-| `08-final-ship-review.md` | Final release readiness assessment, final bug/security sanity audit, validation reconciliation, final report, push/no-push decision, and restart assessment. |
+| `07-implementation.md` | Consolidated implementation plan and safe, significant-value fixes, including mandatory handling of `LIVE`/High data-integrity findings and `TODO.md` updates. |
+| `08-final-ship-review.md` | Final release readiness assessment, final bug/security/memory sanity audit, eight-persona sign-off, TODO/backlog and guiding-principles reconciliation, validation reconciliation, final report, push/no-push decision, and restart assessment. |
+| `09-release-execution.md` | Project-agnostic post-GO release execution: push, CI verification, artifact build, annotated tagging, publish/deploy (credential-gated), and post-release smoke test. Runs only after a GO/CONDITIONAL GO and explicit user approval. |
 | `templates/execution-plan.md` | Template for the early run execution plan. |
 | `templates/implementation-plan.md` | Template for the implementation plan created after audit sections and before fixes. |
 | `templates/audit-lane-report.md` | Template for optional controlled parallel read-only audit lanes used after the Section 1 baseline. |
 | `templates/schema-validation.md` | Template for recording discovered schemas, schema validation commands, example validation, compatibility concerns, and schema drift. |
-| `templates/final-bug-security-audit.md` | Template for the final post-implementation bug/security sanity audit. |
-| `templates/section-summary.md` | Generic template for per-section summaries saved under `repository-review/<RUN_ID>/section-summaries/`. |
+| `templates/final-bug-security-audit.md` | Template for the final post-implementation bug/security/memory sanity audit. |
+| `templates/section-summary.md` | Legacy generic per-section summary template (superseded by `per-phase-report.md`). |
+| `templates/per-phase-report.md` | Mandatory per-phase report template: what was done, why, and what was considered but not done. |
+| `templates/todo-reconciliation.md` | Template for triaging every `TODO.md`/backlog/roadmap and in-code `TODO`/`FIXME` item against the release. |
+| `templates/guiding-principles-assessment.md` | Template for per-principle adherence assessment against the repo's principles doc or the universal fallback. |
+| `templates/persona-review.md` | Template for the eight-persona review notes and final sign-off. |
 | `templates/final-response.md` | Template for the saved final report and table-first final answer. |
 | `templates/finding-register.csv` | CSV header template for durable finding tracking. |
 | `templates/action-register.csv` | CSV header template for durable action tracking. |
@@ -81,6 +88,14 @@ repository-review/<RUN_ID>/
   12-final-response.md
   deprecation-candidates.md
   ci-assessment.md
+  schema-validation.md
+  final-bug-security-audit.md
+  todo-reconciliation.md
+  guiding-principles-assessment.md
+  persona-review.md
+  release-execution-log.md   (only if Section 9 is performed)
+  section-summaries/         (mandatory per-phase reports for Sections 1-9)
+  audit-lanes/               (optional parallel read-only audit lane reports)
 ```
 
 `repository-review/` should be ignored by Git. The review artifacts are for local accountability and should not be committed unless the user explicitly asks.

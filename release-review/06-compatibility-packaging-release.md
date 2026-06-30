@@ -60,9 +60,11 @@ Only recommend CI changes when repository-native commands are clear, the workflo
 
 ## Required outputs
 
-Update the registers, decisions, commands, checkpoints, validation results if checks are run, `ci-assessment.md`, and deprecation candidates.
+Update the registers, decisions, commands, checkpoints, validation results if checks are run, `ci-assessment.md`, `persona-review.md`, and deprecation candidates.
 
-Create or append a Section 6 summary covering confirmed regressions, plausible risks, backward compatibility risks, packaging/build risks, deployment/operational risks, missing regression tests, versioning/changelog/migration concerns, CI recommendations, deprecated/obsolete release artifacts, recommended mitigations, and breaking changes needing release notes.
+Lead this section with the operator and stakeholder personas (`00-run-protocol.md`): a first-time installer/operator should be able to install, configure, and run the release guided by the artifacts themselves; file `U`/`O` findings where they cannot.
+
+Create the per-phase report `section-summaries/06-compatibility-packaging-release.md` (what was done, why, what was considered but not done) covering confirmed regressions, plausible risks, backward compatibility risks, packaging/build risks, deployment/operational risks, install/first-run clarity, missing regression tests, versioning/changelog/migration concerns, CI recommendations, deprecated/obsolete release artifacts, recommended mitigations, and breaking changes needing release notes.
 
 Use `R`, `P`, `O`, `CI`, and `DEP` IDs as appropriate.
 
@@ -80,4 +82,4 @@ If the repository has no packaging, deployment, release process, or CI, mark tho
 
 ## Exit criteria
 
-Before moving to Section 7, compatibility/release risks are recorded, packaging/build/deployment/versioning/changelog concerns are recorded, CI assessment exists, candidate actions are recorded, deprecation candidates are updated, checkpoint is recorded, and Sections 1 through 6 are complete enough to create the implementation plan.
+Before moving to Section 7, compatibility/release risks are recorded, packaging/build/deployment/versioning/changelog concerns are recorded, install/first-run clarity is assessed, CI assessment exists, candidate actions are recorded, deprecation candidates are updated, the per-phase report is written, the checkpoint is recorded, and Sections 1 through 6 are complete enough to create the implementation plan.

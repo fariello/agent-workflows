@@ -19,6 +19,27 @@ List changes that should not be made in this run.
 | Batch ID | Source finding IDs | Description | Files likely to change | Risk | Public behavior change | Required validation | Commit plan | Status |
 |---|---|---|---|---|---|---|---|---|
 
+## Mandatory `LIVE`/High data-integrity findings
+
+Every `LIVE` or High live-surface/memory finding MUST be fixed in this run or
+explicitly escalated to the user - never silently deferred to `TODO.md`.
+
+| Finding ID | Title | Fix-in-run / escalate | Testable seam added | Regression test |
+|---|---|---|---|---|
+|  |  |  |  |  |
+
+## Self-documenting and guiding-principles fixes
+
+| Action ID | Source finding IDs | `U`/`GP` | Description (prefer in-product over docs) | Risk | Status |
+|---|---|---|---|---|---|
+|  |  |  |  |  |  |
+
+## TODO / backlog dispositions in this run
+
+| TODO ID | Item | Classification | Action this run (fix / reclassify / escalate) |
+|---|---|---|---|
+|  |  |  |  |
+
 ## Deferred findings
 
 | Finding ID | Reason deferred | Recommended next step |

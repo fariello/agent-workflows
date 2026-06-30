@@ -34,13 +34,33 @@ Review README, user guides, API docs, CLI docs, architecture docs, configuration
 
 Check for outdated claims, missing setup or usage steps, broken examples, terminology inconsistencies, missing limitations or assumptions, missing configuration/security/privacy/operational notes, implementation/docs/spec mismatches, confusing onboarding areas, undocumented implemented behavior, documented unimplemented behavior, partially implemented behavior not labeled clearly, and docs/examples referencing deprecated or obsolete artifacts.
 
+### Self-documenting / learn-as-you-go bar (mandatory)
+
+Lead this section with the complete-novice persona and the UI/UX persona (`00-run-protocol.md`). The release goal is that a user can learn the project as they go without reading a manual or taking a course. File `U`-type findings (and, where the project should teach the user in-product rather than in a separate doc, note it for Section 7) for:
+
+- Commands, flags, fields, or options whose names do not reveal their purpose.
+- Missing or unhelpful `--help`/usage output, missing first-run guidance, or no obvious "what do I do next".
+- Errors that are silent, cryptic, or do not tell the user how to recover.
+- Undefined jargon or assumed domain knowledge in the UI, CLI, prompts, or error text.
+- Non-obvious required steps and confusing defaults.
+
+Distinguish fixes that belong in the product itself (better help text, clearer errors, better defaults, inline hints - handled in Section 7) from fixes that belong in documentation. Prefer making the product self-explanatory over adding more documentation to compensate for it.
+
+### TODO.md and backlog reconciliation in docs
+
+Reconcile `TODO.md`/`BACKLOG.md`/`ROADMAP.md`/`KNOWN_ISSUES.md` against the documentation: are documented features actually implemented, are known limitations documented, and do TODO items contradict what the docs claim? Feed discrepancies into `todo-reconciliation.md` and file `D`/`TODO` findings.
+
+### Decisions and methods reconciliation (when applicable)
+
+If the repository maintains a decisions log (`DECISIONS.md`, ADRs, a `METHODS/` directory, or equivalent), confirm that recent changes to behavior, parameters, tooling, data formats, or methodology have corresponding dated entries and that reader-facing docs reflect them. File `D`/`A` findings for gaps. If the repository has no such convention, mark this not applicable.
+
 ## Required outputs
 
-Update the registers, decisions, commands, checkpoints, and deprecation candidates if stale docs/examples reveal obsolete artifacts.
+Update the registers, decisions, commands, checkpoints, `persona-review.md`, `todo-reconciliation.md`, and deprecation candidates if stale docs/examples reveal obsolete artifacts.
 
-Create or append a Section 4 summary covering documentation health, specification health, major inaccuracies, missing or weak docs, examples needing correction, accurate docs, required pre-release updates, stale or misleading docs/examples, and recommended updates grouped by priority.
+Create the per-phase report `section-summaries/04-docs-specs-examples.md` (what was done, why, what was considered but not done) covering documentation health, specification health, self-documenting / learn-as-you-go assessment, major inaccuracies, missing or weak docs, examples needing correction, accurate docs, required pre-release updates, stale or misleading docs/examples, and recommended updates grouped by priority.
 
-Use `D` for documentation/examples, `A` for artifact sync issues, and `DEP` for stale/deprecated docs or example candidates.
+Use `D` for documentation/examples, `A` for artifact sync issues, `U` for self-documenting/learn-as-you-go gaps, `TODO` for backlog/doc discrepancies, and `DEP` for stale/deprecated docs or example candidates.
 
 ## TodoWrite guidance
 
@@ -56,4 +76,4 @@ If there are few or no docs, record that fact and assess whether the absence mat
 
 ## Exit criteria
 
-Before moving to Section 5, documentation/spec/example accuracy has been assessed, material gaps and inconsistencies are recorded, candidate documentation actions are added, stale docs/examples are reflected in deprecation candidates if relevant, and the checkpoint is recorded.
+Before moving to Section 5, documentation/spec/example accuracy has been assessed, the self-documenting / learn-as-you-go bar has been applied, material gaps and inconsistencies are recorded, doc-vs-backlog discrepancies are reconciled, candidate documentation actions are added, stale docs/examples are reflected in deprecation candidates if relevant, the per-phase report is written, and the checkpoint is recorded.

@@ -34,19 +34,39 @@ Not allowed: feature implementation, refactoring, file reorganization, or removi
 
 Assess project intent, implemented workflows, incomplete workflows, documented features missing or partial, implemented features undocumented, implied user/operator/developer needs, API ergonomics, naming clarity, CLI/UI/workflow usability, defaults, help text, error messages, installation/setup/build/packaging clarity, onboarding, configuration clarity, user/operator-facing error handling, contributor maintainability, technically correct but awkward behavior, refinements required before robust release, useful non-blocking features, and code/artifacts that appear unused, obsolete, duplicated, confusing, or harmful to onboarding.
 
+This is the section where all eight personas matter most. Reason explicitly from each (`00-run-protocol.md`) and append findings to `persona-review.md`:
+
+- **Novice (persona 7):** Sit down as someone with no domain knowledge. Can you install it, run the first useful thing, and understand what happened, guided only by what the product tells you? Every place you had to guess, ask, or look up is a `U` finding.
+- **Sophisticated power user (persona 6):** Are advanced flows, automation/scripting, escape hatches, and scale ergonomics present? File `F`/`U` findings for friction that would frustrate an expert.
+- **UI/UX engineer (persona 3):** Flow clarity, consistency, feedback on actions, accessibility, contrast, keyboard operability where a UI exists.
+- **Architect (persona 4):** Is the design solving the general case or hardcoding special cases? Is it extensible and configurable without speculative bloat? Are abstractions earning their keep (KISS)? File `M`/`F` findings, and propose elegant simplifications only when they are safe and clearly net-positive.
+- **Stakeholder (persona 8):** Does the project actually deliver its intended outcome for its audience? File `F` findings where the stated goal is not met.
+
+### Self-documenting / learn-as-you-go bar (mandatory)
+
+Continue the self-documenting bar from Section 4, now from the behavior/feature side: the released project should be intuitive enough that users learn it as they go. File `U` findings (and feed safe, in-scope ones to Section 7) for confusing flows, poor defaults, missing inline guidance, unclear error recovery, and anything that effectively requires reading a manual or taking a course to perform a basic task. Prefer in-product self-explanation (clear naming, helpful defaults, good error messages, inline hints, discoverable help) over compensating documentation.
+
+### Guiding-principles adherence (mandatory; type `GP`)
+
+Using the guiding-principles document discovered in Section 1 (or the universal fallback principles in `00-run-protocol.md`), evaluate the project against each stated principle. File a `GP` finding for each violation, referencing the specific principle. Record a per-principle assessment in `guiding-principles-assessment.md`. Common principle dimensions to check, when the project's principles include them: intuitive/self-documenting, accessibility, solve-for-the-general-case, configurable-over-hardcoded, KISS, API-first/integrable, and documentation/handoff readiness. Do not invent principles the project has not adopted; assess against what it actually states (or the fallback).
+
+### TODO.md / backlog reconciliation (feature view)
+
+Triage remaining `TODO.md`/backlog/roadmap items from a feature-completeness and usability standpoint: which are release blockers, which are safe to do now, which are legitimately out of scope, and which are stale. Update `todo-reconciliation.md` and file `TODO`/`F`/`U` findings accordingly.
+
 ## Finding categories
 
 Categorize each finding as required for release, strongly recommended soon, nice to have later, or should be explicitly out of scope.
 
 For each item, record ID, title, affected area, why it matters, recommended action, whether public behavior changes, and required artifact updates.
 
-Use `F` for feature gaps, `U` for usability/developer/operator experience, `M` for maintainability, and `DEP` for deprecation candidates.
+Use `F` for feature gaps, `U` for usability/developer/operator experience and self-documenting gaps, `M` for maintainability, `GP` for guiding-principles violations, `TODO` for backlog items bearing on release, and `DEP` for deprecation candidates.
 
 ## Required outputs
 
-Update the registers, decisions, commands, checkpoints, and deprecation candidates.
+Update the registers, decisions, commands, checkpoints, deprecation candidates, `persona-review.md`, `guiding-principles-assessment.md`, and `todo-reconciliation.md`.
 
-Create or append a Section 5 summary covering feature completeness, usability, developer experience, operator experience, maintainability, onboarding concerns, required-for-release items, recommended-soon items, nice-to-have items, out-of-scope items, deprecated/obsolete/stale/confusing candidates, and recommended next actions.
+Create the per-phase report `section-summaries/05-feature-usability-maintainability.md` (what was done, why, what was considered but not done) covering feature completeness, usability and self-documenting assessment, developer experience, operator experience, maintainability, architecture/extensibility observations, guiding-principles adherence, onboarding concerns, required-for-release items, recommended-soon items, nice-to-have items, out-of-scope items, deprecated/obsolete/stale/confusing candidates, and recommended next actions.
 
 ## TodoWrite guidance
 
@@ -62,4 +82,4 @@ If the repository is a small library, script, documentation set, or internal too
 
 ## Exit criteria
 
-Before moving to Section 6, feature completeness and usability are assessed for the intended scope, maintainability risks are recorded, candidate actions are recorded, deprecation candidates are updated, and the checkpoint is recorded.
+Before moving to Section 6, feature completeness and usability are assessed for the intended scope through all eight personas, the self-documenting / learn-as-you-go bar is applied, guiding-principles adherence is assessed, backlog/TODO items are triaged, maintainability and architecture risks are recorded, candidate actions are recorded, deprecation candidates are updated, the per-phase report is written, and the checkpoint is recorded.

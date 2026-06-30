@@ -24,15 +24,20 @@ PASS. The package includes OpenCode installation and activation instructions in 
 - PASS: Required file exists: release-review/06-compatibility-packaging-release.md
 - PASS: Required file exists: release-review/07-implementation.md
 - PASS: Required file exists: release-review/08-final-ship-review.md
+- PASS: Required file exists: release-review/09-release-execution.md
 - PASS: Required file exists: release-review/templates/action-register.csv
 - PASS: Required file exists: release-review/templates/audit-lane-report.md
 - PASS: Required file exists: release-review/templates/execution-plan.md
 - PASS: Required file exists: release-review/templates/final-bug-security-audit.md
 - PASS: Required file exists: release-review/templates/final-response.md
 - PASS: Required file exists: release-review/templates/finding-register.csv
+- PASS: Required file exists: release-review/templates/guiding-principles-assessment.md
 - PASS: Required file exists: release-review/templates/implementation-plan.md
+- PASS: Required file exists: release-review/templates/per-phase-report.md
+- PASS: Required file exists: release-review/templates/persona-review.md
 - PASS: Required file exists: release-review/templates/schema-validation.md
 - PASS: Required file exists: release-review/templates/section-summary.md
+- PASS: Required file exists: release-review/templates/todo-reconciliation.md
 - PASS: Key phrase present: Installing or activating OpenCode commands
 - PASS: Key phrase present: .opencode/commands/release-review.md
 - PASS: Key phrase present: /release-review
@@ -64,6 +69,7 @@ PASS. The package includes OpenCode installation and activation instructions in 
 - `release-review/06-compatibility-packaging-release.md`
 - `release-review/07-implementation.md`
 - `release-review/08-final-ship-review.md`
+- `release-review/09-release-execution.md`
 - `release-review/MANIFEST.md`
 - `release-review/README.md`
 - `release-review/templates/action-register.csv`
@@ -72,6 +78,10 @@ PASS. The package includes OpenCode installation and activation instructions in 
 - `release-review/templates/final-bug-security-audit.md`
 - `release-review/templates/final-response.md`
 - `release-review/templates/finding-register.csv`
+- `release-review/templates/guiding-principles-assessment.md`
 - `release-review/templates/implementation-plan.md`
+- `release-review/templates/per-phase-report.md`
+- `release-review/templates/persona-review.md`
 - `release-review/templates/schema-validation.md`
 - `release-review/templates/section-summary.md`
+- `release-review/templates/todo-reconciliation.md`

@@ -29,6 +29,7 @@ Describe how the review will proceed through Sections 1 through 8.
 | 6 Compatibility/packaging/CI/release |  |  |  | not_started |
 | 7 Implementation |  |  |  | not_started |
 | 8 Final ship review |  |  |  | not_started |
+| 9 Release execution (only if GO + approved) |  |  |  | not_started |
 
 ## Known constraints
 

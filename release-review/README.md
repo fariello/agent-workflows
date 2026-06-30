@@ -36,9 +36,34 @@ Do not require the user to run each section manually. Execute the full sequence 
 
 Perform a robust repository and code review that improves release readiness while minimizing the risk of unintended damage.
 
-Maximize correctness, security, privacy, tests, documentation accuracy, schema validation, compatibility, packaging, CI readiness, maintainability, clear traceability, and clear final reporting.
+Maximize correctness, security, privacy, memory/resource safety, tests, documentation accuracy, schema validation, compatibility, packaging, CI readiness, maintainability, clear traceability, and clear final reporting. A central goal is to make the released project as **intuitive and self-documenting** as reasonably possible, so users can learn it as they go without reading a manual or taking a course.
 
 Minimize speculative changes, formatting churn, broad refactors, public contract breakage, unjustified deletion, remote side effects, secret exposure, and instruction drift.
+
+## Review through eight expert personas
+
+Conduct every audit section and the final review while deliberately reasoning from each of these perspectives in turn (defined in detail in `00-run-protocol.md`):
+
+1. QA/QC engineer.
+2. Testing and regression-testing expert.
+3. UI/UX expert engineer.
+4. Systems and software architect (abstraction, extensibility, simplification, elegant design, future-proofing without bloat).
+5. Software engineer.
+6. Sophisticated power user.
+7. Complete novice with no domain knowledge.
+8. Stakeholder in the project's goals and outcomes.
+
+A finding obvious to one persona is often invisible to another. Hunt long and hard, from every angle, for bugs, memory/resource issues, security issues, usability issues, documentation issues, and anything that would make the released project harder to learn, trust, or maintain.
+
+## Cross-cutting requirements
+
+This review must also, on every run:
+
+- **Reconcile any `TODO.md`/backlog/roadmap and `TODO`/`FIXME` code markers** against the release: triage each item, fix or escalate the ones that should not ship, update `TODO.md` to stay honest, and record the triage in `todo-reconciliation.md`.
+- **Honor the repository's guiding principles** (`GUIDING_PRINCIPLES.md` or equivalent) as a binding contract, or apply the universal fallback principles in `00-run-protocol.md`; record per-principle adherence in `guiding-principles-assessment.md`.
+- **Hold the self-documenting / learn-as-you-go bar**: file and, where safe, fix anything that forces a user to read the manual to do a basic task.
+- **Treat memory/resource and live-interaction-surface correctness as first-class** per `00-run-protocol.md`.
+- **Produce a mandatory per-phase report** for each section covering what was done, why, and what was considered but deliberately not done.
 
 ## Optional controlled parallel audit mode
 
@@ -55,6 +80,7 @@ Rules:
 5. The main agent owns synthesis, deduplication, severity decisions, official run-specific IDs, finding/action registers, implementation planning, local commits, validation, final report, and push/no-push decision.
 6. Section 7 implementation remains serial.
 7. Section 8 final review remains serial.
+8. Section 9 release execution remains serial.
 
 ## Required execution order
 
@@ -68,8 +94,11 @@ Read and follow `00-run-protocol.md` first. Then execute the section files in or
 6. `06-compatibility-packaging-release.md`
 7. `07-implementation.md`
 8. `08-final-ship-review.md`
+9. `09-release-execution.md` (only after a GO/CONDITIONAL GO and explicit user approval to release)
 
 Do not begin Section 7 implementation before completing Sections 1 through 6 and creating `repository-review/<RUN_ID>/09-implementation-plan.md`.
+
+Do not begin Section 9 release execution until Section 8 produces a GO or CONDITIONAL GO and the user has explicitly approved performing the release.
 
 ## Run setup
 
@@ -118,4 +147,4 @@ The second table must include audit findings that were identified but intentiona
 
 ## Completion standard
 
-The run is not complete until all eight sections have been completed or explicitly marked not applicable with rationale, findings and actions have unique run-specific IDs, completed and unaddressed items are reconciled, validation results are recorded, local commits are recorded or explained, CI and deprecated-code assessments are recorded, push/no-push and restart decisions are recorded, and the final response is saved and presented.
+The run is not complete until Sections 1 through 8 have been completed or explicitly marked not applicable with rationale, every section has a per-phase report, findings and actions have unique run-specific IDs, the `TODO.md`/backlog reconciliation and guiding-principles adherence assessment are recorded, the eight-persona review is reflected in findings, completed and unaddressed items are reconciled, validation results are recorded, local commits are recorded or explained, CI and deprecated-code assessments are recorded, push/no-push and restart decisions are recorded, and the final response is saved and presented. Section 9 is completed only if release execution was explicitly approved and performed.

@@ -38,6 +38,26 @@ Do not limit implementation to only high-priority items. Include lower-severity 
 
 Defer or mark wont-do when a change is speculative, requires product judgment, needs unavailable credentials, risks public contract breakage without evidence, requires large refactoring, creates release/deployment side effects, cannot be validated, is cosmetic churn, or involves deprecation/removal without enough evidence.
 
+### Non-deferral threshold for `LIVE`/High data-integrity findings (mandatory)
+
+A finding tagged `LIVE` or rated **High** by the Section 2 live-interaction-surface or memory/resource review (can overwrite/destroy completed/verified/paid-for output or user data; spend real money/quota on skippable work; decide on incompletely-retrieved or truncated input; signal/stop/coordinate the wrong process; block forward progress through a backlog; or exhaust memory/handles in production) **must be fixed in this run, or explicitly escalated to the user - it may NOT be silently deferred to `TODO.md`.** The defer reasons "cannot be validated (hard to test)" and "requires large refactoring" do NOT apply to this class. For each such finding:
+
+1. Implement the fix; extract a testable helper if needed so it CAN be validated ("hard to test" is a prompt to refactor for testability, not to defer).
+2. If a fix is genuinely out of scope for the run, surface it to the user in the Section 7 per-phase report AND the final report's "identified but not addressed" table as an explicit **High/`LIVE`, not fixed** item requiring a decision - never only as a `TODO.md` entry.
+3. Add a regression test for the fixed behavior.
+
+#### Low-effort / low-risk Medium and Low findings: fix them too
+
+A Medium- or Low-severity live-surface, memory, usability/self-documenting, or guiding-principles finding that is **low effort AND low risk** should also be fixed in this run, not deferred - this is exactly the class of cheap, safe correctness/usability fixes that tends to get dropped. Guardrails so this does not become scope-creep: apply only when ALL hold (low implementation effort, low risk, clear value, validatable); record a one-line effort+risk estimate on the finding (do not merely assert "low"); and if a fix turns out non-trivial, risky, or needs product judgment mid-way, stop and defer it normally with a reason rather than expanding scope.
+
+### Self-documenting and guiding-principles fixes
+
+Prefer fixes that make the product teach the user as they go - clearer command/flag/field names, better `--help`/usage output, helpful first-run guidance, actionable error messages, sensible defaults, inline hints - over adding documentation to compensate for an opaque interface. Implement `GP` (guiding-principles) fixes that move the project toward its stated principles; never implement a change that violates them.
+
+### TODO.md update policy
+
+As items from `TODO.md`/backlog are completed, become obsolete, or change status during this run, update `TODO.md` (and related backlog files) so they stay honest. Record the final disposition of every triaged item in `todo-reconciliation.md`. Do not use `TODO.md` as a place to silently park findings this review should have fixed or escalated.
+
 ## Allowed actions
 
 Allowed: edit code, add/update tests, update docs/examples/specs/schemas/changelog/release notes, update packaging/build metadata when safe, add/update low-risk CI workflows when justified, mark code/docs deprecated when evidence is strong, remove obsolete code only when evidence is strong and risk is low, and create local commits.
@@ -46,7 +66,7 @@ Not allowed without explicit user permission: remote push, publish/deploy/releas
 
 ## Implementation order
 
-Prefer safety/correctness fixes, tests protecting those fixes, edge-case/reliability fixes, docs/spec/example corrections, packaging/build/release metadata fixes, low-risk CI additions, deprecation markers, then small maintainability fixes that reduce real risk.
+Prefer safety/correctness fixes, `LIVE`/memory data-integrity fixes, tests protecting those fixes, edge-case/reliability fixes, self-documenting/usability and guiding-principles fixes, docs/spec/example corrections, packaging/build/release metadata fixes, low-risk CI additions, deprecation markers, then small maintainability fixes that reduce real risk.
 
 Keep related code, tests, and docs synchronized in the same batch when practical.
 
@@ -77,9 +97,9 @@ For each selected deprecation candidate, confirm evidence, check references/expo
 
 ## Required outputs
 
-Update the implementation plan, registers, decisions, commands, commits, checkpoints, validation results, deprecation candidates, and CI assessment.
+Update the implementation plan, registers, decisions, commands, commits, checkpoints, validation results, deprecation candidates, CI assessment, `todo-reconciliation.md`, and `guiding-principles-assessment.md`.
 
-Create or append a Section 7 summary covering implemented scope, intentionally unimplemented scope, change batches, source finding IDs addressed, tests and validations, artifacts updated, local commits, remaining risks, and follow-up work.
+Create the per-phase report `section-summaries/07-implementation.md` (what was done, why, what was considered but not done) covering implemented scope, intentionally unimplemented scope (including any `LIVE`/High finding escalated rather than fixed), change batches, source finding IDs addressed, self-documenting/usability and guiding-principles fixes made, `TODO.md` items completed or re-classified, tests and validations, artifacts updated, local commits, remaining risks, and follow-up work.
 
 ## TodoWrite guidance
 
@@ -95,4 +115,4 @@ If no safe implementation work is found, do not fabricate changes. Record the ra
 
 ## Exit criteria
 
-Before moving to Section 8, implementation plan is complete, safe selected fixes are implemented or explicitly deferred/blocked/wont-do, relevant artifacts are synchronized, validation is run and recorded where possible, local commits are made or explained, actions are reconciled, and the checkpoint is recorded.
+Before moving to Section 8, implementation plan is complete, safe selected fixes are implemented or explicitly deferred/blocked/wont-do, all `LIVE`/High data-integrity findings are fixed or explicitly escalated (never silently TODO'd), low-effort/low-risk Medium/Low fixes are made, self-documenting and guiding-principles fixes are applied where safe, `TODO.md` is updated to stay honest, relevant artifacts are synchronized, validation is run and recorded where possible, local commits are made or explained, actions are reconciled, the per-phase report is written, and the checkpoint is recorded.

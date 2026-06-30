@@ -32,13 +32,15 @@ Not allowed: adding tests, rewriting tests, adding test dependencies, or changin
 
 Examine test structure, unit tests, regression tests, contract tests, integration tests, end-to-end tests, fixtures, golden files, helpers, and CI automation.
 
-Assess coverage for normal behavior, invalid inputs, edge cases, exceptions, configuration, CLI behavior, API contracts, serialization/file outputs, database/storage behavior, important workflows, backward compatibility, recent changes, security-relevant behavior, failure/recovery, and deprecated or legacy behavior that must remain stable until removed.
+Assess coverage for normal behavior, invalid inputs, edge cases, exceptions, configuration, CLI behavior, API contracts, serialization/file outputs, database/storage behavior, important workflows, backward compatibility, recent changes, security-relevant behavior, memory/resource and live-interaction-surface behavior (the `MEM`/`LIVE` findings from Section 2), failure/recovery, and deprecated or legacy behavior that must remain stable until removed.
+
+Lead this section with the testing/regression-expert and QA/QC personas (`00-run-protocol.md`). For each High or `LIVE` finding from Section 2, note whether a regression test exists or must be added in Section 7; "hard to test" is a prompt to design a testable seam, not to skip coverage. Append persona observations to `persona-review.md`.
 
 ## Required outputs
 
-Update the registers, decisions, commands, checkpoints, and validation results if tests are run.
+Update the registers, decisions, commands, checkpoints, `persona-review.md`, and validation results if tests are run.
 
-Create or append a Section 3 summary covering current test health, critical behavior well covered, critical behavior not well covered, missing regression tests, brittle/low-value/misleading tests, highest-value tests to add next, release-blocking test gaps, and test implications for deprecated-code candidates.
+Create the per-phase report `section-summaries/03-tests-regression.md` (what was done, why, what was considered but not done) covering current test health, critical behavior well covered, critical behavior not well covered, missing regression tests (especially for `LIVE`/`MEM` findings), brittle/low-value/misleading tests, highest-value tests to add next, release-blocking test gaps, and test implications for deprecated-code candidates.
 
 Use `T` for test gaps and `R` for regression or compatibility concerns.
 
@@ -58,4 +60,4 @@ If the project is documentation-only or otherwise has no executable behavior, ma
 
 ## Exit criteria
 
-Before moving to Section 4, existing tests and validation commands are understood, test gaps and regression risks are recorded, validation results are recorded if commands were run, candidate test actions are added, and the checkpoint is recorded.
+Before moving to Section 4, existing tests and validation commands are understood, test gaps and regression risks are recorded, regression coverage for High/`LIVE`/`MEM` findings is planned, validation results are recorded if commands were run, candidate test actions are added, the per-phase report is written, and the checkpoint is recorded.

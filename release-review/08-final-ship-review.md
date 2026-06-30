@@ -30,7 +30,18 @@ Not allowed unless explicitly permitted: remote push, publish/deploy/release/upl
 
 ## Final review checks
 
-Review project purpose/scope, feature completeness, correctness, stability, security/privacy, edge cases, performance, test coverage, regression protection, docs/specs/examples, API/CLI/UI/config/schema/storage/integration consistency, packaging/build, deployment/operations, installation/first-run, versioning/changelog/release notes, backward compatibility/migration, developer and operator experience, user-facing rough edges, documented limitations, deprecation candidates, CI readiness, and release blockers.
+Review project purpose/scope, feature completeness, correctness, stability, security/privacy, memory/resource safety, edge cases, performance, test coverage, regression protection, docs/specs/examples, API/CLI/UI/config/schema/storage/integration consistency, packaging/build, deployment/operations, installation/first-run, versioning/changelog/release notes, backward compatibility/migration, developer and operator experience, user-facing rough edges, documented limitations, deprecation candidates, CI readiness, and release blockers.
+
+Conduct the final review through all eight personas (`00-run-protocol.md`) and produce an eight-persona sign-off (one line per persona, including the novice and stakeholder views) in the final report and in `persona-review.md`.
+
+## Eight-persona sign-off, TODO, principles, and self-documenting reconciliation (mandatory)
+
+Before writing the final report:
+
+1. **Persona sign-off.** For each of the eight personas, state whether the project is acceptable from that viewpoint and list any blocking concerns with IDs.
+2. **TODO/backlog reconciliation.** Finalize `todo-reconciliation.md`: confirm every `must-before-release` item is fixed or escalated as a release blocker, every `should-` item is fixed or consciously deferred, stale items are removed/marked, and `TODO.md` itself is honest. Summarize in the report.
+3. **Guiding-principles adherence.** Finalize `guiding-principles-assessment.md` with a per-principle verdict and any unresolved `GP` findings.
+4. **Self-documenting / learn-as-you-go.** State whether a novice could learn the project as they go without a manual or course, and list any remaining `U` blockers.
 
 ## Final bug/security sanity audit
 
@@ -116,9 +127,11 @@ The final response must begin with these two tables.
 | Unique ID | Description of what was not done | Reason | Recommended next step |
 |---|---|---|---|
 
-The second table must include audit findings identified but not implemented, not only actions that were attempted and left incomplete.
+The second table must include audit findings identified but not implemented, not only actions that were attempted and left incomplete. Any `LIVE`/High data-integrity finding that was not fixed MUST appear here, flagged `LIVE - needs user decision`, never silently moved to `TODO.md`.
 
-After the tables, include summary of changes, tests and validations run, CI assessment summary, deprecated-code assessment summary, documentation and artifact updates, remaining risks, push/no-push decision, final GO/CONDITIONAL GO/NO-GO recommendation, and restart recommendation.
+After the tables, include summary of changes, tests and validations run, CI assessment summary, schema validation summary, deprecated-code assessment summary, final bug/security/memory sanity audit summary, TODO.md/backlog reconciliation summary, guiding-principles adherence summary, eight-persona sign-off, self-documenting / learn-as-you-go assessment, documentation and artifact updates, remaining risks, push/no-push decision, final GO/CONDITIONAL GO/NO-GO recommendation, restart recommendation, and (if applicable) readiness to proceed to Section 9 release execution upon explicit user approval.
+
+**Live-surface / data-integrity gate.** If any `LIVE`/High data-integrity finding (Section 2) is unaddressed, the recommendation may not be a clean GO: it is at most CONDITIONAL GO with that finding listed as an explicit prerequisite, or NO-GO if it can overwrite/destroy verified data, spend uncontrolled money, corrupt shared state, or exhaust production resources. Hermetic tests passing does not satisfy this gate.
 
 ## TodoWrite guidance
 
@@ -134,6 +147,10 @@ A CONDITIONAL GO is appropriate when the project is mostly ready but has limited
 
 If release concepts do not apply to the repository, provide a readiness assessment for the nearest equivalent, such as major run readiness, internal adoption readiness, or handoff readiness.
 
+## Section 9 handoff
+
+If the recommendation is GO or CONDITIONAL GO and the user explicitly approves performing the release, proceed to `09-release-execution.md`. Do not begin release execution automatically or without that approval. If the recommendation is NO-GO, do not proceed to Section 9.
+
 ## Exit criteria
 
-The run is complete only when final validation, push/no-push plan, restart assessment, release recommendation, completed and unaddressed tables, final response file, and user-facing final response are complete.
+The run is complete only when final validation, the eight-persona sign-off, the TODO/backlog reconciliation, the guiding-principles assessment, the self-documenting assessment, push/no-push plan, restart assessment, release recommendation, completed and unaddressed tables, final response file, and user-facing final response are complete.

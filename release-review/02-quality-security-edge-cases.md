@@ -32,17 +32,51 @@ Not allowed: product code fixes, dependency changes, security tool installation,
 
 Review for bugs, correctness issues, security issues, privacy risks, unsafe file/path handling, unsafe serialization/deserialization, unsafe subprocess/shell/network behavior, authentication/authorization gaps, secret management issues, dependency/supply-chain concerns, input validation gaps, edge cases, error handling, recovery gaps, resource leaks, concurrency/state/caching/race/idempotency risks, performance improvements that preserve behavior, observability gaps, missing tests for important behavior, and code paths that appear obsolete, unreachable, or superseded.
 
+Conduct this review through the eight reviewer personas (`00-run-protocol.md`), with the QA/QC engineer, software engineer, and architect personas leading here, but explicitly letting the security-minded and stakeholder views surface risk the others miss. Append persona-specific observations to `persona-review.md`.
+
+## Memory, resource, and lifetime review (mandatory; type `MEM`)
+
+Per the shared memory/resource rule in `00-run-protocol.md`, hunt deliberately for:
+
+- Leaks and unbounded growth: caches/maps/lists/queues/log or history buffers that never evict or cap; accumulation across a long-running process or loop.
+- Unclosed or unreleased resources: files, sockets, handles, DB connections/cursors, locks, temp files, subprocesses - including on error/exception paths.
+- Lifetime hazards: use-after-free/close, double-free/close, dangling references, retaining large buffers longer than needed, holding references that defeat GC.
+- Concurrency/state hazards: races, missing synchronization, TOCTOU, non-idempotent retries, shared mutable state without protection.
+
+Apply this to whatever the language exposes (manual memory, GC retention, RAII/ownership, context managers, `defer`/`finally`, connection pools). A confirmed leak or unbounded-growth path affecting long-running or production use is at least Medium, and High if it can exhaust memory/handles or destabilize a live system.
+
+## Live-interaction-surface review (mandatory; do not skip because hermetic tests pass)
+
+Per the shared live-interaction-surface rule in `00-run-protocol.md`: many incidents come from surfaces unit tests do not exercise. Green tests are NOT evidence these are correct. For surfaces that apply to this repository, trace the actual runtime behavior by reading the code paths:
+
+- **Resume / skip / idempotency:** what exactly marks work "already done"? Does the skip key match every way the artifact can have been written? Can a re-run silently re-do and overwrite completed, paid-for, or human-verified output?
+- **Multi-process / multi-run coordination:** start guards, pidfiles, stop/signal targeting, shared status/ledger writers. With two runs live at once, does each control/observe the right process?
+- **Work selection / limits / pagination:** does selection advance through the backlog, or can it re-select the same already-complete items?
+- **Spend / cap / budget accounting:** can a run spend real money or quota on work it should have skipped? Are caps cumulative vs per-run as documented?
+- **Fetch / external-IO completeness:** does the fetch actually retrieve the relied-on content, and can an incomplete fetch drive a negative/exclusionary decision?
+- **Input truncation/sampling reaching a model, a stored artifact, or an automated decision** without being recorded.
+
+A defect found here is a correctness/data-integrity finding (`B`/`LIVE`), not a maintainability nicety, regardless of how hard it is to unit-test.
+
 ## Finding requirements
 
 For each issue, record ID, title, severity, affected area, evidence, explanation, impact, recommended fix, release-safety classification, public behavior change risk, and required artifact updates.
 
-Use `B` for bugs, `S` for security/privacy, `E` for edge/error/resource issues, `M` for maintainability, and `DEP` for deprecation candidates.
+Use `B` for bugs, `S` for security/privacy, `E` for edge/error/resource issues, `MEM` for memory/resource/lifetime/concurrency issues, `M` for maintainability, `GP` for guiding-principles violations, `TODO` for relevant backlog/`FIXME` items found in code, and `DEP` for deprecation candidates.
+
+**Severity floor for live-interaction-surface defects.** A finding from the live-interaction-surface review that can (a) overwrite or destroy completed/verified/paid-for output or user data, (b) spend real money/quota on skippable work, (c) make an automated decision on incompletely-retrieved or truncated input, (d) signal/stop/coordinate the wrong process, or (e) prevent forward progress through a backlog, is at least **High** severity and is tagged `LIVE` in the finding title. Difficulty of automated testing does NOT lower its severity.
+
+**Medium/Low live-surface and memory findings: estimate effort + risk.** For such findings genuinely below the High floor, record a one-line effort+risk estimate alongside the finding. Section 7 fixes the low-effort AND low-risk ones in-run rather than deferring them. Make the basis of the estimate explicit rather than asserting "low".
+
+## In-code TODO/FIXME triage
+
+While reading code, record `TODO`/`FIXME`/`HACK`/`XXX` markers that indicate a known defect, security gap, or unfinished critical path. File them as `TODO`-type findings (cross-referencing `B`/`S`/`MEM` as appropriate) and add them to `todo-reconciliation.md`.
 
 ## Required outputs
 
-Update `03-findings-register.csv`, `04-action-register.csv`, `05-decisions.md`, `06-commands.md`, `08-checkpoints.md`, and `deprecation-candidates.md`.
+Update `03-findings-register.csv`, `04-action-register.csv`, `05-decisions.md`, `06-commands.md`, `08-checkpoints.md`, `deprecation-candidates.md`, `persona-review.md`, and `todo-reconciliation.md` (for any in-code TODO/FIXME items found).
 
-Create or append a Section 2 summary covering highest-priority fixes, security concerns, edge cases needing tests, reliability/maintainability concerns, deprecated or obsolete candidates, and recommended next actions, all using IDs.
+Create the per-phase report `section-summaries/02-quality-security-edge-cases.md` (what was done, why, what was considered but not done) covering highest-priority fixes, security concerns, memory/resource and live-interaction-surface findings, edge cases needing tests, reliability/maintainability concerns, deprecated or obsolete candidates, and recommended next actions, all using IDs.
 
 ## TodoWrite guidance
 
@@ -58,4 +92,4 @@ If the repository has no server code, authentication, network behavior, file han
 
 ## Exit criteria
 
-Before moving to Section 3, quality/security/privacy/edge/reliability findings are recorded, security-sensitive findings avoid exposing secrets, candidate actions are recorded, deprecation candidates are updated if relevant, and the checkpoint is recorded.
+Before moving to Section 3, quality/security/privacy/edge/reliability findings are recorded, memory/resource (`MEM`) and live-interaction-surface (`LIVE`) surfaces have been traced or marked not applicable, security-sensitive findings avoid exposing secrets, in-code TODO/FIXME items are triaged into `todo-reconciliation.md`, candidate actions are recorded, deprecation candidates are updated if relevant, the per-phase report is written, and the checkpoint is recorded.

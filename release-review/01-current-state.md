@@ -24,6 +24,12 @@ Read `release-review/README.md`, `release-review/00-run-protocol.md`, existing r
 
 Recommended inspection targets include `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `LICENSE`, package/build files, source directories, test directories, docs directories, CI workflows, release notes, schemas, API definitions, CLI entry points, config files, and examples.
 
+Also discover, in this section:
+
+- **Guiding-principles document(s):** `GUIDING_PRINCIPLES.md`, `PRINCIPLES.md`, `.agents/GUIDING_PRINCIPLES.md`, a "Principles" section in `README.md`/`CONTRIBUTING.md`, or any equivalent referenced by `AGENTS.md`. Record its location and a concise summary of each principle. If none exists, record that the universal fallback principles in `00-run-protocol.md` apply.
+- **Backlog / TODO sources:** `TODO.md`, `TODO`, `TODOS.md`, `BACKLOG.md`, `ROADMAP.md`, `KNOWN_ISSUES.md`, `.agents/TODO.md`, issue-tracker exports, and in-code `TODO`/`FIXME`/`HACK`/`XXX` markers. Inventory each source and roughly how many open items it holds. Do not triage them yet beyond noting obvious release blockers; full triage happens across Sections 2 through 7 and is consolidated in `todo-reconciliation.md`.
+- **Project intent and stakeholders:** what outcome/goal the project exists to serve, and who its users, operators, and stakeholders are. This grounds the eight-persona review.
+
 ## Allowed actions
 
 Allowed: inspect files, run non-destructive discovery commands, create and update run artifacts, add `repository-review/` to `.gitignore` if required, and make a local commit for `.gitignore` only if changed and safe.
@@ -38,7 +44,11 @@ Determine what the project currently does, likely project type and scope, likely
 
 Update or create `00-run-metadata.md`, `01-repository-inventory.md`, `02-execution-plan.md`, `03-findings-register.csv`, `04-action-register.csv`, `05-decisions.md`, `06-commands.md`, `08-checkpoints.md`, and `deprecation-candidates.md`.
 
-In `01-repository-inventory.md`, include current project state summary, project type and scope, public contract summary, artifact summary, test and validation inventory, documentation inventory, build/packaging/CI/deployment/release inventory, recent changes, drift or inconsistencies with IDs, key ambiguities with IDs, visible release-quality concerns with IDs, deprecation candidates with IDs, and recommended next actions with IDs.
+In `01-repository-inventory.md`, include current project state summary, project type and scope, intended outcome/goal and audience (users, operators, stakeholders), guiding-principles document location and summary (or fallback note), backlog/TODO source inventory, public contract summary, artifact summary, test and validation inventory, documentation inventory, build/packaging/CI/deployment/release inventory, recent changes, drift or inconsistencies with IDs, key ambiguities with IDs, visible release-quality concerns with IDs, deprecation candidates with IDs, and recommended next actions with IDs.
+
+Initialize `todo-reconciliation.md`, `guiding-principles-assessment.md`, and `persona-review.md` in this section so later sections can append to them.
+
+Create the per-phase report `section-summaries/01-current-state.md` (what was done, why, what was considered but not done) per `00-run-protocol.md`.
 
 ## TodoWrite guidance
 
