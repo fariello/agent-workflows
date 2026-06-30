@@ -191,6 +191,16 @@ regulation. The harness reuses the Fix Bar and personas from `../release-review/
 sibling. Choose `assess-<concern>` to investigate one concern and propose a plan;
 `release-review` for a broad review that fixes in place.
 
+The family includes cybersecurity lenses (`data-exfiltration`, `intrusion-detection`,
+`ransomware-resilience`, `threat-model`, `logging-audit`) and a
+`compliance-readiness` lens parameterized by regime (FIPS, NIST 800-171, CMMC L2).
+Because those regimes are mostly organizational rather than code, the
+compliance-readiness lens is deliberately constrained: it assesses only the
+repo-visible technical slice, classifies every control as repo-verifiable vs.
+org-level-out-of-scope, never emits an overall "compliant" verdict, and states it is
+not a certification or a substitute for a qualified assessor. This honest repo-vs-org
+split is a design requirement, not a limitation to paper over (DECISIONS D20).
+
 ## Three ways to invoke
 
 1. **OpenCode / Claude Code:** `/release-review` (full) or `/release-review-plan`

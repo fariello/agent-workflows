@@ -17,11 +17,14 @@ a durable, auditable record of what it did and why. Its plan-time sibling
     place).
   - `plan-review/` - the pre-execution plan reviewer (reviews/improves a plan).
   - `assess/` - a family of single-concern assessment workflows that each produce an
-    IPD for human approval (performance, security, accessibility, ui-ux,
-    self-documentation, documentation, functionality, use-cases, edge-cases, bugs,
-    reliability, testing, architecture, api-design, compatibility, supply-chain,
-    guiding-principles, compliance, memory-resources). A shared harness +
-    per-concern lens files.
+    IPD for human approval. Engineering/UX/docs/verification concerns (performance,
+    security, accessibility, ui-ux, self-documentation, documentation, functionality,
+    use-cases, edge-cases, bugs, reliability, testing, architecture, api-design,
+    compatibility, supply-chain, guiding-principles, compliance, memory-resources),
+    cybersecurity (data-exfiltration, intrusion-detection, ransomware-resilience,
+    threat-model, logging-audit), and a parameterized compliance-readiness lens
+    (FIPS / NIST 800-171 / CMMC L2 - repo-slice only, not a certification). A shared
+    harness + per-concern lens files.
   - `index.md` - the workflow manifest (the installer reads it to generate shims).
   - `install-workflows.py` / `.sh` - the installer.
 - `prompts/` - reusable prompts for AI-assisted development (e.g. `fix-bar.md`, the

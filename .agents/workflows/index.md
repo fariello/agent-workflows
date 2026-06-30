@@ -41,6 +41,12 @@ focusing on different concerns; leave it `-` when not used.
 | assess-guiding-principles | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/guiding-principles.md | Assess conformance to the project's guiding principles and propose an IPD. |
 | assess-compliance | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/compliance.md | Assess compliance against applicable regimes (parameterized) and propose an IPD. |
 | assess-memory-resources | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/memory-resources.md | Assess memory/resource/lifetime/concurrency safety and propose an IPD. |
+| assess-data-exfiltration | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/data-exfiltration.md | Assess data-exfiltration resistance (egress paths, leakage, DLP-relevant patterns) and propose an IPD. |
+| assess-intrusion-detection | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/intrusion-detection.md | Assess intrusion-detection readiness (security signals, audit-trail detectability) and propose an IPD. |
+| assess-ransomware-resilience | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/ransomware-resilience.md | Assess ransomware resilience (immutable/tested backups, blast radius, integrity) and propose an IPD. |
+| assess-threat-model | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/threat-model.md | Assess overall threat model and defense-in-depth hardening and propose an IPD. |
+| assess-logging-audit | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/logging-audit.md | Assess logging and audit-trail quality/integrity/safety and propose an IPD. |
+| assess-compliance-readiness | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/compliance-readiness.md | Assess readiness for a formal regime (FIPS / NIST 800-171 / CMMC L2, parameterized) - repo-slice only, not a certification - and propose an IPD. |
 <!-- WORKFLOWS-MANIFEST:END -->
 
 ## Running a workflow
@@ -68,6 +74,18 @@ assess-<concern>  ->  IPD in pending/  ->  plan-review (optional)  ->  human app
 Use `release-review` for a broad, all-concerns review that fixes in place; use an
 `assess-<concern>` when you want a deep, single-concern pass that proposes a plan for
 human approval first.
+
+The family includes engineering, UX, docs, and verification concerns, plus
+**cybersecurity** lenses (`assess-data-exfiltration`, `assess-intrusion-detection`,
+`assess-ransomware-resilience`, `assess-threat-model`, `assess-logging-audit`) and a
+**`assess-compliance-readiness`** lens parameterized by regime (e.g.
+`/assess-compliance-readiness nist-800-171`).
+
+> Honesty note on `assess-compliance-readiness`: regimes like FIPS, NIST 800-171, and
+> CMMC L2 are mostly organizational/operational, not code. This workflow assesses only
+> the technical slice visible in the repository, explicitly classifies each control as
+> repo-verifiable vs. org-level-out-of-scope, and is NOT a certification or a
+> substitute for a qualified assessor. It never reports an overall "compliant" verdict.
 
 ## Notes
 

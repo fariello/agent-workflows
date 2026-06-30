@@ -394,3 +394,38 @@ both execute the (large) set well.
 - **Verified** on a simulated legacy repo: artifacts moved as git renames, old root
   framework staged for deletion, user code and new install intact; and confirmed no
   false migration on ai-coding itself or a fresh new-layout repo.
+
+### D20. Cybersecurity assessment lenses + an honest compliance-readiness lens
+
+- **Request:** workflows for ransomware mitigation, intrusion detection, data
+  exfiltration, broader cybersecurity, and readiness assessment for FIPS /
+  NIST 800-171 / CMMC L2 federal regimes.
+- **Key distinction (drove the design):** these split into two groups with very
+  different feasibility for a repo-scoped, static, agent-driven assessment.
+  1. **Security engineering practices** are partly repo-assessable - a codebase
+     contains the building blocks (egress paths, security logging, backup/immutability,
+     least privilege, integrity checks). Built as five new `assess-*` lenses:
+     `data-exfiltration`, `intrusion-detection`, `ransomware-resilience`,
+     `threat-model` (broad defense-in-depth, complementing the focused `security`
+     lens), and `logging-audit` (foundational, cross-referenced by the others).
+  2. **Formal compliance regimes (FIPS, NIST 800-171's 110 controls, CMMC L2)** are
+     *mostly organizational/operational* - policies, training, physical security, IR
+     processes, assessor evidence - none of which live in a repo. A repo agent can see
+     only a thin technical slice.
+- **Decision on Group 2 - build it, but as an HONEST readiness assessor, never a
+  "compliance checker":** one parameterized `assess-compliance-readiness` lens with
+  per-regime control catalogues. Non-negotiable honesty constraints baked into the
+  lens: it states it is NOT a certification/audit/assessor-substitute; classifies every
+  control as repo-verifiable / repo-partial / org-level-out-of-scope / N/A with
+  evidence; **never emits an overall "compliant"/"ready" verdict**; and recommends a
+  qualified human assessment (e.g. C3PAO for CMMC). In a federal/CUI context, a
+  repo-scan that printed "CMMC L2 ready" would be actively harmful; under-claiming is
+  the safe default.
+- **Why not separate per-regime workflows:** one parameterized lens (regime via
+  `$ARGUMENTS`) with internal FIPS / 800-171 / CMMC-L2 catalogues, consistent with the
+  existing parameterized `compliance` lens; avoids many near-duplicate workflows.
+- **Architecture:** all six are thin lenses on the existing `assess` harness + manifest
+  rows (the cheap-to-extend path D18 was designed for); no new machinery. 29 commands
+  total now. They reuse the Fix Bar/personas and emit IPDs for human approval, never
+  auto-executing, and consistently route infrastructure/organizational controls to the
+  operator as out-of-repo notes.
