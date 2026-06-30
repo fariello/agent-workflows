@@ -83,10 +83,10 @@ repository-review/<RUN_ID>/
   06-commands.md
   07-commits.md
   08-checkpoints.md
-  09-implementation-plan.md
   10-validation-results.md
   11-push-plan.md
   12-final-response.md
+  implementation-plan.md     (consolidated plan, created after Sections 1-6; not Section 9)
   deprecation-candidates.md
   ci-assessment.md
   schema-validation.md

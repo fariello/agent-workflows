@@ -32,7 +32,7 @@ Not allowed: product code fixes, dependency changes, security tool installation,
 
 Review for bugs, correctness issues, security issues, privacy risks, unsafe file/path handling, unsafe serialization/deserialization, unsafe subprocess/shell/network behavior, authentication/authorization gaps, secret management issues, dependency/supply-chain concerns, input validation gaps, edge cases, error handling, recovery gaps, resource leaks, concurrency/state/caching/race/idempotency risks, performance improvements that preserve behavior, observability gaps, missing tests for important behavior, and code paths that appear obsolete, unreachable, or superseded.
 
-Conduct this review through the eight reviewer personas (`00-run-protocol.md`), with the QA/QC engineer, software engineer, and architect personas leading here, but explicitly letting the security-minded and stakeholder views surface risk the others miss. Append persona-specific observations to `persona-review.md`.
+Conduct this review with the lead personas for this section (QA/QC engineer, software engineer, and the security-minded architect lens; see the persona-to-section map in `00-run-protocol.md`), letting the other personas surface risk the leads miss. Forcing function: append at least one concrete observation per lead persona to `persona-review.md`, or explicitly note "no new finding from persona X in this section".
 
 ## Memory, resource, and lifetime review (mandatory; type `MEM`)
 

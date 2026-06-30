@@ -62,7 +62,7 @@ Only recommend CI changes when repository-native commands are clear, the workflo
 
 Update the registers, decisions, commands, checkpoints, validation results if checks are run, `ci-assessment.md`, `persona-review.md`, and deprecation candidates.
 
-Lead this section with the operator and stakeholder personas (`00-run-protocol.md`): a first-time installer/operator should be able to install, configure, and run the release guided by the artifacts themselves; file `U`/`O` findings where they cannot.
+Lead this section with the operator and stakeholder personas (see the persona-to-section map in `00-run-protocol.md`): a first-time installer/operator should be able to install, configure, and run the release guided by the artifacts themselves; file `U`/`O` findings where they cannot. Append at least one observation per lead persona to `persona-review.md`, or note "no new finding from persona X".
 
 Create the per-phase report `section-summaries/06-compatibility-packaging-release.md` (what was done, why, what was considered but not done) covering confirmed regressions, plausible risks, backward compatibility risks, packaging/build risks, deployment/operational risks, install/first-run clarity, missing regression tests, versioning/changelog/migration concerns, CI recommendations, deprecated/obsolete release artifacts, recommended mitigations, and breaking changes needing release notes.
 

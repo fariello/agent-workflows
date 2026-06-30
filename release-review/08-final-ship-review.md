@@ -107,7 +107,7 @@ Do not push unless explicitly permitted.
 
 ## Restart assessment
 
-Decide whether a new review run should be started. Recommend restart only when implementation changed enough that earlier audit results may be stale, substantial architecture or behavior was discovered late, validation exposed issues requiring another broad pass, or major CI/packaging/public contract/security changes were made. Do not restart merely because minor fixes were made. Do not start a new run automatically.
+Decide whether a new review run should be started. Recommend restart only when implementation changed enough that earlier audit results may be stale, substantial architecture or behavior was discovered late, validation exposed issues requiring another broad pass, or major CI/packaging/public contract/security changes were made. Do not restart merely because minor fixes were made. Do not start a new run automatically. Apply the loop guard in `00-run-protocol.md`: recommend at most one restart, with an enumerated list of what the next run must re-examine; if this run is itself a recommended follow-up, do not recommend a third broad pass.
 
 ## Final report
 
@@ -115,21 +115,11 @@ Save the final report to `repository-review/<RUN_ID>/12-final-response.md`, then
 
 Create or update `section-summaries/08-final-ship-review.md` with the Section 8 final ship review summary.
 
-The final response must begin with these two tables.
+Follow the exact structure in `templates/final-response.md`; it is the single canonical definition of the report (including the table columns). Do not redefine the columns here.
 
-### Completed actions
+The report begins with the two tables from the template: **Completed actions** and **Identified but not addressed**. The second table must include audit findings identified but not implemented, not only actions that were attempted and left incomplete, and must carry the Remediation Risk + axis for each unaddressed item. Any `LIVE`/High data-integrity finding that was not fixed MUST appear here, flagged `LIVE - needs user decision`, never silently moved to `TODO.md`.
 
-| Unique ID | Description of what was done | Files changed | Commit | Validation |
-|---|---|---|---|---|
-
-### Identified but not addressed
-
-| Unique ID | Description of what was not done | Reason | Recommended next step |
-|---|---|---|---|
-
-The second table must include audit findings identified but not implemented, not only actions that were attempted and left incomplete. Any `LIVE`/High data-integrity finding that was not fixed MUST appear here, flagged `LIVE - needs user decision`, never silently moved to `TODO.md`.
-
-After the tables, include summary of changes, tests and validations run, CI assessment summary, schema validation summary, deprecated-code assessment summary, final bug/security/memory sanity audit summary, TODO.md/backlog reconciliation summary, guiding-principles adherence summary, eight-persona sign-off, self-documenting / learn-as-you-go assessment, documentation and artifact updates, remaining risks, push/no-push decision, final GO/CONDITIONAL GO/NO-GO recommendation, restart recommendation, and (if applicable) readiness to proceed to Section 9 release execution upon explicit user approval.
+After the tables, include every remaining section the template lists (summary of changes, Fix Bar summary, tests/validations, CI, schema validation, deprecated-code, final bug/security/memory sanity audit, TODO/backlog reconciliation, guiding-principles adherence, eight-persona sign-off, self-documenting / learn-as-you-go assessment, documentation/artifact updates, remaining risks, push/no-push decision, GO/CONDITIONAL GO/NO-GO recommendation, restart recommendation, and Section 9 readiness).
 
 **Live-surface / data-integrity gate.** If any `LIVE`/High data-integrity finding (Section 2) is unaddressed, the recommendation may not be a clean GO: it is at most CONDITIONAL GO with that finding listed as an explicit prerequisite, or NO-GO if it can overwrite/destroy verified data, spend uncontrolled money, corrupt shared state, or exhaust production resources. Hermetic tests passing does not satisfy this gate.
 

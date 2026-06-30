@@ -24,7 +24,7 @@ Read the findings register, action register, all section summaries from Sections
 
 ## Required implementation plan
 
-Before editing tracked project files, create `repository-review/<RUN_ID>/09-implementation-plan.md`.
+Before editing tracked project files, create `repository-review/<RUN_ID>/implementation-plan.md` (this is the consolidated plan; do not confuse it with `02-execution-plan.md`, the lightweight early plan, or with Section 9 release execution).
 
 The implementation plan must include scope summary, non-goals, change batches, unique implementation action IDs, source finding IDs, files likely to change, risk level, public behavior change assessment, required tests, required artifact updates, validation method, local commit grouping, deferred findings, blocked findings, deprecated-code decisions, and CI decisions.
 

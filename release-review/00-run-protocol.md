@@ -29,6 +29,21 @@ This review is not a checklist pass. Every audit section (Sections 1 through 6) 
 
 When recording a finding, note which persona(s) surfaced it when it adds clarity. A finding raised by the novice or stakeholder persona is as legitimate as one from the QA or security perspective.
 
+### How personas map to sections (so the pass is real, not a token gesture)
+
+You do not have to write eight separate persona analyses in every section. Instead, each section has 2-3 **lead personas** that own it; reason primarily from those, and let the others contribute only when they surface something the leads miss. This concentrates the work where each viewpoint pays off and makes it verifiable.
+
+| Section | Lead personas |
+|---|---|
+| 2 Quality/security/edge cases | QA/QC (1), software engineer (5), and the security-minded lens within architect (4) |
+| 3 Tests/regression | Testing & regression expert (2), QA/QC (1) |
+| 4 Docs/specs/examples | Complete novice (7), UI/UX (3) |
+| 5 Feature/usability/maintainability | All eight, led by novice (7), power user (6), UI/UX (3), architect (4), stakeholder (8) |
+| 6 Compatibility/packaging/release | Operator/stakeholder view (8), software engineer (5) |
+| 8 Final ship review | All eight; produce the explicit per-persona sign-off |
+
+**Forcing function:** in each of Sections 2 through 6, append at least one concrete observation per lead persona to `persona-review.md` (or explicitly note "no new finding from persona X in this section"). Section 5 exercises all eight at least briefly. Section 8 produces the full eight-persona sign-off. This makes the persona pass checkable without requiring eight redundant analyses in every section.
+
 ## Guiding principles adherence
 
 If the repository contains a guiding-principles document (`GUIDING_PRINCIPLES.md`, `PRINCIPLES.md`, `.agents/GUIDING_PRINCIPLES.md`, a "Principles" section in `README.md`/`CONTRIBUTING.md`, or an equivalent named in `AGENTS.md`), treat it as a binding contract for this review:
@@ -63,6 +78,22 @@ Many repositories carry a `TODO.md` (or equivalent: `TODO`, `TODOS.md`, `BACKLOG
 4. **Update `TODO.md` itself** in Section 7 when items are completed, become obsolete, or change status - keep it honest. Do **not** use `TODO.md` as a dumping ground to silently defer High-severity findings discovered in this review (see Section 7 non-deferral rule).
 5. Record the full triage in `todo-reconciliation.md` and summarize it in the Section 8 report.
 
+## Where cross-cutting concerns are performed (ownership map)
+
+Several concerns span the whole review. To avoid both omission and pointless repetition, each has a defined owner section for the substantive work; other sections only contribute incremental findings. Do the substantive work once, in the owner section, and reference it elsewhere.
+
+| Cross-cutting concern | Discover | Substantive pass (owner) | Apply / finalize |
+|---|---|---|---|
+| Guiding principles | Section 1 (locate + summarize) | Section 5 (per-principle adherence) | Section 7 (fix toward), Section 8 (final verdict) |
+| TODO.md / backlog triage | Section 1 (inventory sources) | Section 5 (full triage in `todo-reconciliation.md`), with in-code `TODO`/`FIXME` captured in Section 2 | Section 7 (fix + update `TODO.md`), Section 8 (confirm) |
+| Self-documenting / learn-as-you-go | - | Sections 4 (docs side) and 5 (behavior side) | Section 7 (fix in-product), Section 8 (assess) |
+| Eight personas | - | Sections 2-6 lead-persona notes; Section 5 all eight | Section 8 (full sign-off) |
+| Memory / live-interaction surface | - | Section 2 | Section 3 (tests), Section 7 (fix), Section 8 (gate) |
+| Schema validation | Section 1 (locate) | Section 6 | Section 7 (fix), Section 8 (final check) |
+| Deprecated-code | ongoing | recorded in `deprecation-candidates.md` as found | Section 7 (act) |
+
+If a concern is genuinely not applicable, the owner section records that once; downstream sections do not re-litigate it.
+
 ## Mandatory per-phase reports
 
 Each section (Sections 1 through 9) must produce a per-phase report saved under:
@@ -90,13 +121,19 @@ In addition to committing meaningful tracked product changes (see Commit policy 
 
 ## Core behavior
 
-Proceed autonomously through the full review unless invoked through a planning-only command. In planning-only mode, complete Sections 1 through 6, create `09-implementation-plan.md`, and stop before Section 7 implementation.
+Proceed autonomously through the full review unless invoked through a planning-only command. In planning-only mode, complete Sections 1 through 6, create `implementation-plan.md`, and stop before Section 7 implementation.
 
 Section 9 (release execution: pushing, tagging, publishing, deploying) is performed only after Section 8 produces a GO or CONDITIONAL GO and the user has explicitly approved release execution. Do not run Section 9 automatically.
+
+There are two distinct plan artifacts; do not conflate them. `02-execution-plan.md` is the lightweight plan of *how the review itself will run*, created early in Section 1. `implementation-plan.md` is the consolidated plan of *what fixes to make*, created after Sections 1 through 6 and before Section 7.
+
+In planning-only mode, the agent still completes Sections 1 through 6 in full, including each section's per-phase report, register updates, checkpoints, and commits (run artifacts are committed deliverables). It creates `implementation-plan.md`, then stops before Section 7 implementation and presents the plan. Planning-only mode makes no product-code changes and no Section 7 commits.
 
 Proceed autonomously through the full review. Use judgment. Do not stop for minor uncertainty. Record assumptions and proceed conservatively.
 
 Stop or pause only for a true safety blocker, such as risk of deleting user data, exposing or committing secrets, running ambiguous destructive commands, needing unavailable credentials, being unable to separate this run's changes from pre-existing user changes, or needing to alter public behavior without enough evidence or validation.
+
+Execute one section at a time using the per-section execution loop defined in `README.md`: open and read the full section file at the start of that section (do not rely on memory of a section read earlier), do the work, update registers and artifacts, write the per-phase report, record the checkpoint, commit, then proceed. Do not batch multiple sections before reporting and committing.
 
 ## Required run directory
 
@@ -127,7 +164,7 @@ Required artifacts:
 | `06-commands.md` | Commands run, purpose, result summary, and whether output was clean or had errors. |
 | `07-commits.md` | Local commits made, files included, source action IDs, and validation. |
 | `08-checkpoints.md` | Section boundary checkpoints and reconciliation notes. |
-| `09-implementation-plan.md` | Consolidated implementation plan created after Sections 1 through 6 and before Section 7. |
+| `implementation-plan.md` | Consolidated implementation plan created after Sections 1 through 6 and before Section 7 (unnumbered to avoid confusion with Section 9 release execution). |
 | `10-validation-results.md` | Tests, builds, linters, type checks, security checks, documentation checks, and manual validation. |
 | `11-push-plan.md` | Push/no-push decision, rationale, branch/remotes, and recommended next action. |
 | `12-final-response.md` | Final saved report matching the user-facing final response. |
@@ -159,13 +196,19 @@ Examples:
 20260606-142233-S1-A1
 20260606-142233-S2-B1
 20260606-142233-S2-S1
+20260606-142233-S2-MEM1
+20260606-142233-S2-TODO1
 20260606-142233-S3-T1
 20260606-142233-S4-D1
+20260606-142233-S5-GP1
 20260606-142233-S5-M1
 20260606-142233-S6-CI1
 20260606-142233-S7-X1
 20260606-142233-S8-REL1
+20260606-142233-S9-O1
 ```
+
+`RR` is a field (Remediation Risk: Low / Medium / Medium-High / High) recorded on every finding and action, not a finding type. Do not use it as a type code in an ID.
 
 Recommended type codes:
 
@@ -239,7 +282,7 @@ Rules for parallel audit lanes:
 8. Lanes must not assign official run-specific IDs.
 9. Lanes should use temporary candidate IDs only.
 10. Lanes must produce compact reports under `repository-review/<RUN_ID>/audit-lanes/` using `templates/audit-lane-report.md`.
-11. The main agent must synthesize all lane reports before creating `09-implementation-plan.md`.
+11. The main agent must synthesize all lane reports before creating `implementation-plan.md`.
 12. The main agent must deduplicate findings, assign official IDs, decide severity, update registers, and record decisions.
 13. Section 7 implementation must remain serial.
 14. Section 8 final review must remain serial.
@@ -282,46 +325,17 @@ Do not push to a remote during the review. At the end, create `11-push-plan.md` 
 
 ## The Fix Bar (decision policy for what to address)
 
-This is the central policy for deciding what gets fixed during this review. The full statement is in `fix-decision-policy.md`; the operative rules are summarized here. It governs Section 7 selection and overrides any older "favor high-priority only" or "minimize changes" framing.
+`fix-decision-policy.md` is the authoritative, full statement of this policy. Read it. It governs Section 7 selection and overrides any older "favor high-priority only" or "minimize changes" framing. The operative rule, restated here so it is not missed:
 
-**Core principle: fix by default. Deferral is the exception that must be justified.**
+> **Fix by default.** FIX the finding unless the *Remediation Risk* of fixing it is Medium-High or higher (the risk that the fix itself harms **complexity, usability, security, or functionality**, now or in the future). When unsure, prefer to fix and note the uncertainty.
 
-The executing agent is fast and cheap, so the time, effort, or token cost of a fix is NOT a reason to skip it. Flip the usual question. Do not ask "is this important enough to fix?" Ask: "is there a strong enough reason NOT to fix this?"
+Key consequences (full rationale and edge cases in `fix-decision-policy.md`):
 
-### The decision rule
-
-> FIX the finding unless the *Remediation Risk* of fixing it is Medium-High or higher. When unsure whether it reaches that bar, prefer to fix and note the uncertainty (fail-safe).
-
-Everything gets addressed by default: bugs, nits, wording/polish, missing-but-required capabilities, usability and self-documenting gaps, guiding-principles violations, and over-scoped/gold-plated features (for those, the "fix" is to recommend removing or deferring them).
-
-### Remediation Risk is the only thing that justifies NOT fixing
-
-Remediation Risk is the risk that *applying the fix itself* harms one or more of these axes, now or in the future:
-
-- **Complexity** - the fix adds disproportionate architectural complexity or maintenance burden. This is the main counterweight: do not let "it is cheap to add" become an excuse for gold-plating or over-engineering. Unjustified complexity is a valid reason to defer.
-- **Usability** - the fix degrades the user experience or makes things less intuitive.
-- **Security** - the fix opens, weakens, or complicates the security posture.
-- **Functionality** - the fix risks breaking current or planned/future behavior.
-
-Rate Remediation Risk Low / Medium / Medium-High / High and record it on the finding/action (`RR` field):
-
-- **Low or Medium: fix now.**
-- **Medium-High or High: defer**, but only with an explicit, recorded justification naming which axis and why. Where possible, do the safe part now and defer only the risky remainder. Never silently drop a finding.
-
-Effort, time, and token/compute cost are explicitly excluded from Remediation Risk. The only question is whether the change makes the system more complex, less usable, less secure, or less correct.
-
-### Severity is for reporting, not for deciding
-
-Findings are still labeled by impact-if-left-alone (Blocker / High / Medium / Low) for reporting, but severity does not decide whether to fix; the Remediation-Risk gate does. A Low/cosmetic finding still gets fixed by default; a High finding is only deferred if its *cure* clears the Medium-High risk bar. (The `LIVE`/High data-integrity non-deferral rule still applies: those must be fixed or explicitly escalated regardless.)
-
-### Scope is checked separately (two directions)
-
-- **Over-scope:** a feature, abstraction, or dependency not traceable to a stated requirement or the project's purpose. Flag it; the default action is remove/defer (usually low Remediation Risk, so do it).
-- **Under-scope:** a required capability that is missing. Add it by default.
-
-### Practical caveat
-
-This bar makes "do everything" the default, so the active discipline becomes guarding against scope creep. The Complexity axis is what keeps a cheap-to-add fix from quietly violating KISS; that is the one judgment to exercise most carefully. Still avoid cosmetic churn for its own sake, broad style-only rewrites, public behavior changes without compatibility analysis, unnecessary dependencies, and any publish/deploy/upload without explicit permission - in each case because the Remediation Risk (complexity, functionality, or security) is real, not because the fix is "too small to bother with".
+- Effort, time, and token/compute cost are NOT reasons to skip a fix.
+- **Severity is for reporting; Remediation Risk is for deciding.** A Low/cosmetic finding is fixed by default; a High finding is deferred only if its cure clears the Medium-High risk bar.
+- Rate Remediation Risk Low / Medium / Medium-High / High and record it on every finding/action. Any deferral must name the at-risk axis. Never silently drop a finding.
+- The `LIVE`/High data-integrity non-deferral rule (Sections 2 and 7) applies regardless.
+- The Complexity axis is the guard against scope creep: do not let "it is cheap to add" become gold-plating. Over-scope items are flagged and removed/deferred; under-scope (missing required capability) is added by default.
 
 ## Deprecated-code analysis
 
@@ -384,27 +398,22 @@ Some repositories will not have APIs, CLIs, UIs, packaging, deployment, docs, te
 
 Save the final report to `repository-review/<RUN_ID>/12-final-response.md`, then present the same content to the user.
 
-The final report must begin with two tables:
+The final report must follow the exact structure in `templates/final-response.md`, which is the single canonical definition of the report (column shapes included). Do not invent different table columns; use the template's.
 
-### Completed actions
+It begins with two tables defined in the template:
 
-| Unique ID | Description of what was done | Files changed | Commit | Validation |
-|---|---|---|---|---|
+1. **Completed actions** (columns: Unique ID, Description of what was done, Files changed, Commit, Validation).
+2. **Identified but not addressed** (columns: Unique ID, Description of what was not done, Remediation Risk + axis, Reason, Recommended next step).
 
-### Identified but not addressed
+The second table must include audit findings that were identified but not implemented, not only actions that were started and left incomplete. It must include any `LIVE`/High live-interaction-surface finding that was not fixed, flagged `LIVE - needs user decision`; such a finding must never be silently moved into `TODO.md` in place of being reported here. Under the Fix Bar, any unaddressed item was deferred because the fix's Remediation Risk is Medium-High or higher; the Reason must name the axis, not effort/cost.
 
-| Unique ID | Description of what was not done | Reason | Recommended next step |
-|---|---|---|---|
-
-The second table must include audit findings that were identified but not implemented, not only actions that were started and left incomplete.
-
-After the two tables, include summary of changes, validations run, CI assessment summary, schema validation summary, deprecated-code summary, final bug/security/memory sanity audit summary, TODO.md/backlog reconciliation summary, guiding-principles adherence summary, eight-persona sign-off (one line per persona, including the novice and stakeholder views), self-documenting/learn-as-you-go assessment, documentation and artifact updates, remaining risks, push/no-push decision, GO/CONDITIONAL GO/NO-GO recommendation, and restart recommendation.
-
-The "identified but not addressed" table must include any `LIVE`/High live-interaction-surface finding that was not fixed, flagged `LIVE - needs user decision`. Such a finding must never be silently moved into `TODO.md` in place of being reported here.
+After the two tables, include every remaining section listed in `templates/final-response.md` (summary of changes, Fix Bar summary, validations run, CI assessment, schema validation, deprecated-code, final bug/security/memory sanity audit, TODO/backlog reconciliation, guiding-principles adherence, eight-persona sign-off, self-documenting/learn-as-you-go assessment, documentation/artifact updates, remaining risks, push/no-push decision, GO/CONDITIONAL GO/NO-GO recommendation, restart recommendation, and Section 9 readiness).
 
 ## Restart assessment
 
 At the end, decide whether a new review run should be started. Recommend a restart only when implementation changed enough that earlier audit results may be stale, substantial architecture or behavior was discovered late, validation exposed issues requiring another broad pass, or major CI, packaging, public contract, or security changes were made. Do not restart merely because minor fixes were made.
+
+**Loop guard.** This is a recommendation, not an automatic action: never start a new run yourself. Recommend at most one restart per run, and only with a concrete, enumerated list of what the next run must re-examine and why. If a previous run already recommended a restart and this is that follow-up run, do not recommend a third broad pass; instead enumerate any specific residual items as targeted follow-ups for the user to decide on. The goal is convergence, not perpetual review.
 
 ## Safety rules
 

@@ -34,7 +34,7 @@ Examine test structure, unit tests, regression tests, contract tests, integratio
 
 Assess coverage for normal behavior, invalid inputs, edge cases, exceptions, configuration, CLI behavior, API contracts, serialization/file outputs, database/storage behavior, important workflows, backward compatibility, recent changes, security-relevant behavior, memory/resource and live-interaction-surface behavior (the `MEM`/`LIVE` findings from Section 2), failure/recovery, and deprecated or legacy behavior that must remain stable until removed.
 
-Lead this section with the testing/regression-expert and QA/QC personas (`00-run-protocol.md`). For each High or `LIVE` finding from Section 2, note whether a regression test exists or must be added in Section 7; "hard to test" is a prompt to design a testable seam, not to skip coverage. Append persona observations to `persona-review.md`.
+Lead this section with the testing/regression-expert and QA/QC personas (see the persona-to-section map in `00-run-protocol.md`). For each High or `LIVE` finding from Section 2, note whether a regression test exists or must be added in Section 7; "hard to test" is a prompt to design a testable seam, not to skip coverage. Forcing function: append at least one observation per lead persona to `persona-review.md`, or note "no new finding from persona X in this section".
 
 ## Required outputs
 

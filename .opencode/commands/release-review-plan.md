@@ -11,7 +11,7 @@ Planning-only mode means:
 2. Complete Section 1 serially.
 3. Complete Sections 2 through 6, using controlled parallel read-only audit lanes when useful.
 4. Create or update all required run artifacts for Sections 1 through 6.
-5. Create `repository-review/<RUN_ID>/09-implementation-plan.md`.
+5. Create `repository-review/<RUN_ID>/implementation-plan.md`.
 6. Do not perform Section 7 implementation.
 7. Do not edit tracked project files except to remove a stale `repository-review/` line from `.gitignore` so the run artifacts can be tracked.
 8. Run artifacts (`repository-review/<RUN_ID>/`) are committed deliverables; commit the planning-phase artifacts. Do not make product-code commits in planning-only mode.

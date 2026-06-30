@@ -36,7 +36,7 @@ Check for outdated claims, missing setup or usage steps, broken examples, termin
 
 ### Self-documenting / learn-as-you-go bar (mandatory)
 
-Lead this section with the complete-novice persona and the UI/UX persona (`00-run-protocol.md`). The release goal is that a user can learn the project as they go without reading a manual or taking a course. File `U`-type findings (and, where the project should teach the user in-product rather than in a separate doc, note it for Section 7) for:
+Lead this section with the complete-novice persona and the UI/UX persona (see the persona-to-section map in `00-run-protocol.md`); append at least one observation per lead persona to `persona-review.md`, or note "no new finding from persona X". The release goal is that a user can learn the project as they go without reading a manual or taking a course. File `U`-type findings (and, where the project should teach the user in-product rather than in a separate doc, note it for Section 7) for:
 
 - Commands, flags, fields, or options whose names do not reveal their purpose.
 - Missing or unhelpful `--help`/usage output, missing first-run guidance, or no obvious "what do I do next".

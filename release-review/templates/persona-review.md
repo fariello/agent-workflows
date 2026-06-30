@@ -42,6 +42,16 @@ anything requiring a manual or course.
 Whether the project achieves its intended goals/outcomes, fitness for purpose,
 mission/compliance/business risk, value delivered vs. promised.
 
+## Per-section persona observations (append as you go, Sections 2-6)
+
+For each audit section, record at least one concrete observation per lead persona
+(or "no new finding from persona X in this section"). Lead personas per section are
+defined in `00-run-protocol.md`.
+
+| Section | Persona | Observation / finding ID | New finding? |
+|---|---|---|---|
+|  |  |  |  |
+
 ## Final sign-off (complete in Section 8)
 
 | Persona | Acceptable? (yes / conditional / no) | Blocking concerns (IDs) |

@@ -96,9 +96,24 @@ Read and follow `00-run-protocol.md` first (and `fix-decision-policy.md`, the fi
 8. `08-final-ship-review.md`
 9. `09-release-execution.md` (only after a GO/CONDITIONAL GO and explicit user approval to release)
 
-Do not begin Section 7 implementation before completing Sections 1 through 6 and creating `repository-review/<RUN_ID>/09-implementation-plan.md`.
+Do not begin Section 7 implementation before completing Sections 1 through 6 and creating `repository-review/<RUN_ID>/implementation-plan.md`.
 
 Do not begin Section 9 release execution until Section 8 produces a GO or CONDITIONAL GO and the user has explicitly approved performing the release.
+
+## Per-section execution loop (mandatory)
+
+This is a long, multi-step run. Do not work from memory of a section file you read earlier. For each section in order, run this exact loop:
+
+1. **Open and read the full section file** (`0N-*.md`) at the start of that section. Re-read it even if you think you remember it; the section file is the authority for that phase, not your recollection.
+2. **Set the section's TodoWrite item to in_progress** (if TodoWrite is available).
+3. **Do the section's work**, applying the shared rules in `00-run-protocol.md` (personas, Fix Bar, memory/live-surface, self-documenting bar, TODO triage) as that section directs.
+4. **Update the registers and artifacts** named in the section's "Required outputs".
+5. **Write the section's per-phase report** to `section-summaries/<NN>-<short-name>.md` using `templates/per-phase-report.md` (what was done, why, what was considered but not done).
+6. **Record the section checkpoint** in `08-checkpoints.md` and reconcile it against the registers.
+7. **Commit** the section's tracked changes and run artifacts (see commit policy), then mark the TodoWrite item complete.
+8. **Only then proceed** to the next section.
+
+Do not batch multiple sections before writing reports or committing. If you discover you skipped a step for a prior section, stop and complete it before continuing.
 
 ## Run setup
 
