@@ -47,6 +47,7 @@ focusing on different concerns; leave it `-` when not used.
 | assess-threat-model | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/threat-model.md | Assess overall threat model and defense-in-depth hardening and propose an IPD. |
 | assess-logging-audit | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/logging-audit.md | Assess logging and audit-trail quality/integrity/safety and propose an IPD. |
 | assess-compliance-readiness | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/compliance-readiness.md | Assess readiness for a formal regime (FIPS / NIST 800-171 / CMMC L2, parameterized) - repo-slice only, not a certification - and propose an IPD. |
+| assess-generalization | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/generalization.md | Assess generalization/extensibility/configurability (productization for reuse across orgs/tenants/deployments) and propose an IPD. |
 <!-- WORKFLOWS-MANIFEST:END -->
 
 ## Running a workflow
@@ -80,6 +81,13 @@ The family includes engineering, UX, docs, and verification concerns, plus
 `assess-ransomware-resilience`, `assess-threat-model`, `assess-logging-audit`) and a
 **`assess-compliance-readiness`** lens parameterized by regime (e.g.
 `/assess-compliance-readiness nist-800-171`).
+
+`assess-generalization` covers **productization**: how ready the project is to be
+reused, deployed, administered, and maintained by others across organizations, tenants,
+and environments (de-hardcoding org-specific assumptions, configuration architecture,
+admin/operability, and abstraction seams). It is the reuse-focused sibling of
+`assess-architecture` (which centers on structural soundness), and defers to
+`assess-security` for authorization and secrets.
 
 > Honesty note on `assess-compliance-readiness`: regimes like FIPS, NIST 800-171, and
 > CMMC L2 are mostly organizational/operational, not code. This workflow assesses only

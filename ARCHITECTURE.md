@@ -202,6 +202,12 @@ org-level-out-of-scope, never emits an overall "compliant" verdict, and states i
 not a certification or a substitute for a qualified assessor. This honest repo-vs-org
 split is a design requirement, not a limitation to paper over (DECISIONS D20).
 
+The family also includes `generalization` (productization): reuse across
+organizations, tenants, and deployments; configuration architecture; admin/operability;
+and de-hardcoding org-specific assumptions. It is the reuse-focused sibling of the
+`architecture` lens (structural soundness) and defers to `security` for authz/secrets
+(DECISIONS D22).
+
 ## Three ways to invoke
 
 1. **OpenCode / Claude Code:** `/release-review` (full) or `/release-review-plan`

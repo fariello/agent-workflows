@@ -451,3 +451,28 @@ both execute the (large) set well.
 - **Verified** across four cases: existing `.agents/AGENTS.md` updated (no duplicate
   root file, prose intact); idempotent re-run (one block); malformed marker -> safe
   append with prose preserved; no AGENTS -> root created.
+
+### D22. Generalization/productization review adopted as a lens, not a standalone workflow
+
+- **Origin:** an external, detailed review prompt for making a repository more generic,
+  extensible, configurable, and administrable (reuse across organizations, tenants, and
+  deployments) was proposed for inclusion. It was a strong statement of the concern but
+  ~700 lines of prose with its own personas, method, output format, and constraints.
+- **Decision:** adopt its substance as a single lens,
+  `assess/lenses/generalization.md`, on the shared `assess` harness, wired via one
+  `index.md` manifest row and the generated `/assess-generalization` shims. Do not
+  import it as a standalone workflow.
+- **Why:** the harness already owns the personas, the Fix Bar, the IPD template, and the
+  output format. Importing the full prompt would duplicate all of that (violating P8,
+  single source of truth) and add bloat (violating P6, KISS). The prompt's unique value
+  is its concern framing and rubric, which distill to a peer-sized (~45-line) lens. This
+  is exactly the "a new lens file plus a manifest row" extension path the family was
+  designed for (P7, solve the general case).
+- **Boundary:** `generalization` is the reuse/productization sibling of the
+  `architecture` lens (structural soundness); it cross-references and defers to
+  `security` for authorization and secrets. Stated in the lens and docs so users know
+  which to run.
+- **Trade-off:** the concern overlaps `architecture` at the edges (configurability,
+  extensibility). Accepted, because the center of gravity (de-hardcoding org-specific
+  assumptions, config architecture, admin/operability, clean handoff) is distinct and
+  was previously unserved; the boundary note manages the overlap.

@@ -20,7 +20,8 @@ a durable, auditable record of what it did and why. Its plan-time sibling
     IPD for human approval. Engineering/UX/docs/verification concerns (performance,
     security, accessibility, ui-ux, self-documentation, documentation, functionality,
     use-cases, edge-cases, bugs, reliability, testing, architecture, api-design,
-    compatibility, supply-chain, guiding-principles, compliance, memory-resources),
+    compatibility, supply-chain, guiding-principles, compliance, memory-resources,
+    generalization),
     cybersecurity (data-exfiltration, intrusion-detection, ransomware-resilience,
     threat-model, logging-audit), and a parameterized compliance-readiness lens
     (FIPS / NIST 800-171 / CMMC L2 - repo-slice only, not a certification). A shared
