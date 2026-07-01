@@ -129,9 +129,14 @@ copying the live `.agents/workflows/` tree directly from this repo, conservative
 archive: installing from the source directory avoids a redundant binary blob and the
 drift it caused (see `DECISIONS.md` D12).
 
-It performs a **clean sync** by default: framework files present in the target but no
-longer in the source (renamed or removed) are pruned, so the target never accumulates
-stale instruction files. Pruning is strictly scoped to the framework namespace
+It performs a **clean sync** by default: framework files present in the target that
+differ from the source are updated in place (backed up first unless `--no-backup`), and
+framework files no longer in the source (renamed or removed) are pruned, so the target
+never accumulates stale instruction files and updating is just a re-run (no `--force`;
+there is no such flag). This overwrite-by-default posture is the companion to
+prune-by-default: if deleting a stale framework file by default is safe with backups,
+git staging, and `--dry-run`, overwriting one is strictly safer (see `DECISIONS.md`
+D23). Pruning is strictly scoped to the framework namespace
 (`.agents/workflows/` plus the generated shim files) and never touches
 `workflow-artifacts/` run records, user code, or anything else. The installer is
 git-aware but never commits: installed files are staged with `git add`, pruned

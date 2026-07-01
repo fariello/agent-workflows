@@ -55,8 +55,12 @@ Code, adds a one-line pointer to the target's `AGENTS.md`, prunes stale framewor
 files from a prior version, migrates a pre-restructure repo (removes the old root
 `release-review/` and moves old `repository-review/` run records into
 `workflow-artifacts/release-review/`), stages changes with git but does not commit,
-and leaves `workflow-artifacts/` and your own code untouched. (`--dry-run`, `--force`,
-`--no-prune`, `--repo` are available.)
+and leaves `workflow-artifacts/` and your own code untouched. (`--dry-run`,
+`--no-prune`, `--no-backup`, `--repo`, `--source` are available.)
+
+To **update** an existing install, just re-run the installer: framework files are
+updated in place (a timestamped backup is written unless `--no-backup`) and staged with
+git, never committed. No flag is required.
 
 Run records are written to `workflow-artifacts/<workflow>/<run-id>/` at the repo root
 (committed deliverables); assessment IPDs go to the project's pending-plans directory

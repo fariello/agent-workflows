@@ -476,3 +476,30 @@ both execute the (large) set well.
   extensibility). Accepted, because the center of gravity (de-hardcoding org-specific
   assumptions, config architecture, admin/operability, clean handoff) is distinct and
   was previously unserved; the boundary note manages the overlap.
+
+### D23. Installer updates framework files by default; `--force` removed
+
+- **Problem:** the installer refused to overwrite any framework file that differed from
+  the source unless `--force` was passed, aborting the whole sync. But "the target file
+  differs" is the normal case for an *update* (e.g. `index.md` after a new lens ships
+  upstream), so the ordinary update path required `--force`. That trained users to pass
+  `--force` reflexively, and it was internally inconsistent with D15, which already
+  *prunes* (deletes) stale framework files by default.
+- **Decision:** framework-namespace files are updated in place by default. A differing
+  file is overwritten (backed up first unless `--no-backup`) rather than treated as a
+  conflict, and `--force` is **removed entirely**. The only remaining hard error is a
+  directory where a file must go, which still aborts with a clear message.
+- **Why it is safe (same mitigations as D15's prune-by-default):** strict framework
+  namespace scope, timestamped backups on by default, `--dry-run` to preview, and git
+  staging (never commit) so the user reviews before committing. Overwriting a stale
+  framework file is strictly safer than deleting one, which D15 already does by default.
+- **Backup-gate fix:** the backup previously fired only when `--force` was set. With
+  overwrite-by-default, the backup condition was changed to run on every overwrite
+  unless `--no-backup`, so the default path is never a silent, un-backed-up overwrite.
+- **User-owned surface unaffected:** the `AGENTS.md` prose region keeps its careful,
+  marker-delimited, idempotent handling (D21). Only framework-owned files (everything
+  under `.agents/workflows/` plus the generated shims) update by default.
+- **Trade-off:** removing `--force` is a (tiny) CLI breaking change; a script passing
+  it will error. Accepted: it had no remaining purpose once framework files update by
+  default, and leaving a no-op flag would mislead. `--no-prune` and `--no-backup` are
+  unchanged.

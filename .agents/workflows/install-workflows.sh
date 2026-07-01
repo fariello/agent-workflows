@@ -6,11 +6,13 @@
 # generates per-tool slash-command shims, and adds a one-line pointer to AGENTS.md.
 # Stale framework files are pruned (tracked ones via `git rm`); nothing is committed.
 #
+# To update an existing install, just re-run this; framework files are updated in place
+# (backed up unless --no-backup) and staged with git, never committed.
+#
 # Usage:
 #
 #   ./install-workflows.sh --repo /path/to/target-repo
 #   ./install-workflows.sh --dry-run
-#   ./install-workflows.sh --force
 #   ./install-workflows.sh --no-prune   # additive only
 
 set -eu

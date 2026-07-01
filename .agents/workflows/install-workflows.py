@@ -42,10 +42,13 @@ Typical usage from the target repository root:
 
     python3 /path/to/ai-coding/.agents/workflows/install-workflows.py
 
-Dry run / force / no-prune / specific repo / custom source:
+Updating an existing install: just re-run the installer. Framework files are updated in
+place (a timestamped backup is written unless --no-backup) and staged with git; nothing
+is committed.
+
+Dry run / no-prune / specific repo / custom source:
 
     python3 install-workflows.py --dry-run
-    python3 install-workflows.py --force
     python3 install-workflows.py --no-prune
     python3 install-workflows.py --repo /path/to/target-repo
     python3 install-workflows.py --source /path/to/ai-coding/.agents/workflows
@@ -113,7 +116,6 @@ class InstallPlan:
     source_root: Path
     repo_root: Path
     dry_run: bool
-    force: bool
     backup: bool
     prune: bool
 
@@ -137,11 +139,6 @@ def parse_args() -> argparse.Namespace:
         help="Repository root to install into. Defaults to the current directory.",
     )
     parser.add_argument("--dry-run", action="store_true", help="Show actions without writing.")
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Overwrite locally-modified framework files. Backed up unless --no-backup.",
-    )
     parser.add_argument("--no-backup", action="store_true", help="Do not back up before overwrite/prune.")
     parser.add_argument("--no-prune", action="store_true", help="Do not remove stale framework files.")
     return parser.parse_args()
@@ -169,7 +166,6 @@ def build_install_plan(args: argparse.Namespace) -> InstallPlan:
         source_root=resolve_source_root(args.source_root),
         repo_root=args.repo_root.expanduser().resolve(),
         dry_run=args.dry_run,
-        force=args.force,
         backup=not args.no_backup,
         prune=not args.no_prune,
     )
@@ -370,7 +366,15 @@ def write_file(
     skipped: list[str],
     conflicted: list[str],
 ) -> None:
-    """Install one file with the conservative overwrite/backup/conflict policy."""
+    """Install one file.
+
+    Framework-namespace files are updated in place by default (this is how an update
+    works); a stale/differing file is overwritten, not treated as a conflict. Every
+    overwrite is backed up first unless --no-backup. The only genuine conflict is a
+    directory where a file must go. This mirrors the installer's prune-by-default
+    posture (DECISIONS D15): if deleting a stale framework file by default is safe with
+    backups + git staging + dry-run, overwriting one is strictly safer.
+    """
 
     destination = plan.repo_root / relative_posix
     if destination.exists():
@@ -380,17 +384,14 @@ def write_file(
         if same_bytes(destination, data):
             skipped.append(relative_posix + " [already current]")
             return
-        if not plan.force:
-            conflicted.append(relative_posix)
-            return
 
-    action = "overwrite" if destination.exists() and plan.force else "install"
+    action = "overwrite" if destination.exists() else "install"
     if plan.dry_run:
         installed.append(f"{relative_posix} [{action}, dry-run]")
         return
 
     destination.parent.mkdir(parents=True, exist_ok=True)
-    if destination.exists() and plan.force and plan.backup:
+    if destination.exists() and plan.backup:
         backup = create_backup_path(plan.repo_root, Path(relative_posix), timestamp)
         backup.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(destination, backup)
@@ -423,16 +424,13 @@ def install_all(
     for rel, content in sorted(shim_members.items()):
         write_file(plan, rel, content.encode("utf-8"), use_git, timestamp, installed, skipped, conflicted)
 
-    if conflicted and not plan.force:
+    if conflicted:
         message = [
-            "Conflicting files already exist and differ from the source contents.",
-            "No files were installed or pruned.",
+            "Cannot install: a target path that must hold a framework file is a directory.",
+            "No files were installed or pruned. Resolve these paths and re-run:",
             "",
-            "Conflicts:",
         ]
         message.extend(f"  - {item}" for item in conflicted)
-        message.append("")
-        message.append("Run again with --force to overwrite them (backups are created by default).")
         raise SystemExit("\n".join(message))
 
     return installed, skipped, conflicted
