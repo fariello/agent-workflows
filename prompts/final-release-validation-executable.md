@@ -1,5 +1,10 @@
 # Autonomous Final Repository Review and Release Hardening Runbook
 
+> Note: this is a standalone reusable prompt. The `repository-review/<RUN_ID>/` run-artifact
+> paths below are illustrative of this prompt and are not the shipped framework's convention;
+> the framework under `.agents/workflows/` writes run records to `workflow-artifacts/`
+> (see `DECISIONS.md` D19).
+
 Use this file by telling an autonomous coding agent, such as opencode with a strong reasoning model, the following:
 
 > Read and execute this file from top to bottom. Treat it as the controlling instruction for this repository review. Keep working until you have produced the required final report.

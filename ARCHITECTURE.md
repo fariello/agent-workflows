@@ -20,7 +20,8 @@ ai-coding/
   DECISIONS.md              Dated decision log (the "why")
   GUIDING_PRINCIPLES.md     Values guiding the work
   AGENTS.md                 One-line pointer to the workflow index (not the payload)
-  prompts/                  Reusable prompts (e.g. fix-bar.md, the Fix Bar source)
+  prompts/                  Reusable prompt library (independent of the workflows;
+                            e.g. fix-bar.md, an origin note for the Fix Bar)
   .agents/workflows/        Reusable agent workflows (canonical source of truth)
     index.md                Workflow manifest (installer reads it to generate shims)
     install-workflows.py    Installer (copy + generate shims + AGENTS.md pointer)

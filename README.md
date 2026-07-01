@@ -27,13 +27,20 @@ a durable, auditable record of what it did and why. Its plan-time sibling
     harness + per-concern lens files.
   - `index.md` - the workflow manifest (the installer reads it to generate shims).
   - `install-workflows.py` / `.sh` - the installer.
-- `prompts/` - reusable prompts for AI-assisted development (e.g. `fix-bar.md`, the
-  source of the framework's Fix Bar policy).
+- `prompts/` - a reusable prompt library for AI-assisted development, used across the
+  maintainer's coding environments and as a home for generated/reusable prompts;
+  independent of this repo's workflows (they do not consume it). Includes `fix-bar.md`,
+  an origin/source note for the Fix Bar (see `DECISIONS.md` D4); the canonical, enforced
+  policy is `.agents/workflows/release-review/fix-decision-policy.md`.
 - `.opencode/commands/`, `.claude/commands/` - generated slash-command shims
   (`/release-review`, `/release-review-plan`, `/plan-review`).
 - `AGENTS.md` - a one-line pointer to the workflow index (not the payload).
 
 ## Using the workflows in another repository
+
+Prerequisites: Python 3.7 or newer, and a git repository as the target. The installer
+stages its changes with git but never commits, so review the staged changes and commit
+them yourself afterward.
 
 Run the installer from the target repo root:
 
