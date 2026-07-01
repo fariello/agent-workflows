@@ -93,6 +93,30 @@ AGENTS_END = "<!-- AGENT-WORKFLOWS:END -->"
 
 ARTIFACTS_DIR = "workflow-artifacts/"
 LEGACY_ARTIFACTS_DIR = "repository-review/"  # pre-D19 name; migrated on install
+
+# The installer's own local backup scratch dir in the target. Auto-ignored in the
+# target's .gitignore (the one narrow exception to "the installer does not touch
+# .gitignore"); it is local scratch, not a committed deliverable.
+BACKUPS_DIR = ".agent-workflows-installer-backups"
+
+
+def is_ignored_source_path(path: Path) -> bool:
+    """Return True for paths that must never be installed or pruned.
+
+    Excludes the installer's own authoring files, Windows Zone.Identifier streams, and
+    Python build cruft (``__pycache__`` dirs and ``.pyc``/``.pyo`` files) so a stray
+    compiled artifact in the source tree is never copied into a target, and a compiled
+    artifact in a target is never treated as a framework file to prune. Applied at both
+    filesystem-walk sites so the install set and the prune set cannot diverge.
+    """
+
+    if path.name in SOURCE_EXCLUDED_NAMES or path.name.endswith(":Zone.Identifier"):
+        return True
+    if path.suffix in (".pyc", ".pyo"):
+        return True
+    if "__pycache__" in path.parts:
+        return True
+    return False
 LEGACY_FRAMEWORK_DIR = "release-review"      # pre-D17 root location; migrated on install
 
 MANIFEST_BEGIN = "<!-- WORKFLOWS-MANIFEST:BEGIN -->"
@@ -234,7 +258,7 @@ def collect_source_members(source_root: Path) -> list[str]:
     for path in sorted(source_root.rglob("*")):
         if not path.is_file():
             continue
-        if path.name in SOURCE_EXCLUDED_NAMES or path.name.endswith(":Zone.Identifier"):
+        if is_ignored_source_path(path):
             continue
         rel = path.relative_to(source_root).as_posix()
         members.append(f"{WORKFLOWS_DIR}/{rel}")
@@ -313,7 +337,7 @@ def same_bytes(path: Path, data: bytes) -> bool:
 
 
 def create_backup_path(repo_root: Path, relative_path: Path, timestamp: str) -> Path:
-    return repo_root / ".agent-workflows-installer-backups" / timestamp / relative_path
+    return repo_root / BACKUPS_DIR / timestamp / relative_path
 
 
 def git_available(repo_root: Path) -> bool:
@@ -450,7 +474,7 @@ def collect_target_framework_files(repo_root: Path) -> set[str]:
         for path in workflows_dir.rglob("*"):
             if not path.is_file():
                 continue
-            if path.name in SOURCE_EXCLUDED_NAMES:
+            if is_ignored_source_path(path):
                 continue
             present.add(path.relative_to(repo_root).as_posix())
 
@@ -707,6 +731,41 @@ def check_gitignore(plan: InstallPlan) -> str:
     return "workflow-artifacts/ is not ignored (correct)"
 
 
+def ensure_backups_gitignored(plan: InstallPlan, use_git: bool) -> str:
+    """Ensure the target's .gitignore ignores the installer's own backups dir.
+
+    This is the one narrow, deliberate exception to "the installer does not modify
+    .gitignore": it manages ONLY its own local backup scratch dir (BACKUPS_DIR), never
+    user or artifact ignores. Idempotent (a plain "line already present?" check; no
+    marker block needed for a single entry). Honors --dry-run. Creates .gitignore if
+    absent. Returns a short status for the summary.
+    """
+
+    pattern = BACKUPS_DIR + "/"
+    gitignore_path = plan.repo_root / ".gitignore"
+
+    existing = ""
+    if gitignore_path.exists():
+        existing = gitignore_path.read_text(encoding="utf-8")
+        if any(line.strip() in (pattern, BACKUPS_DIR) for line in existing.splitlines()):
+            return f"{pattern} already ignored (correct)"
+
+    if plan.dry_run:
+        return f"would add {pattern} to .gitignore [dry-run]"
+
+    block = "# agent-workflows installer local backups\n" + pattern + "\n"
+    if existing and not existing.endswith("\n"):
+        block = "\n" + block
+    elif existing:
+        block = "\n" + block
+    with gitignore_path.open("a", encoding="utf-8") as handle:
+        handle.write(block)
+
+    if use_git:
+        git_run(plan.repo_root, ["add", "--", ".gitignore"])
+    return f"added {pattern} to .gitignore"
+
+
 def print_summary(
     plan: InstallPlan,
     workflows: list[Workflow],
@@ -716,6 +775,7 @@ def print_summary(
     pruned: list[str],
     agents_status: str,
     gitignore_status: str,
+    backups_ignore_status: str,
     use_git: bool,
 ) -> None:
     mode = "DRY RUN" if plan.dry_run else "COMPLETE"
@@ -747,9 +807,10 @@ def print_summary(
         print("Pruned: disabled by --no-prune")
     print()
     print(f"AGENTS.md: {agents_status}")
-    print(f"Gitignore: {gitignore_status}")
+    print(f"Gitignore (workflow-artifacts): {gitignore_status}")
+    print(f"Gitignore (installer backups): {backups_ignore_status}")
 
-    if use_git and not plan.dry_run and (installed or pruned):
+    if use_git and not plan.dry_run and (installed or pruned or backups_ignore_status.startswith("added")):
         print()
         print("Changes are STAGED but NOT committed. Review and commit, e.g.:")
         print('  git commit -m "agent-workflows: sync via installer"')
@@ -780,6 +841,7 @@ def main() -> int:
     pruned = prune_stale(plan, body_members, shim_members, use_git)
     agents_status = update_agents_pointer(plan, use_git, run_timestamp)
     gitignore_status = check_gitignore(plan)
+    backups_ignore_status = ensure_backups_gitignored(plan, use_git)
 
     print_summary(
         plan=plan,
@@ -790,6 +852,7 @@ def main() -> int:
         pruned=pruned,
         agents_status=agents_status,
         gitignore_status=gitignore_status,
+        backups_ignore_status=backups_ignore_status,
         use_git=use_git,
     )
     return 0

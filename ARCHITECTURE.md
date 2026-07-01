@@ -141,9 +141,13 @@ D23). Pruning is strictly scoped to the framework namespace
 `workflow-artifacts/` run records, user code, or anything else. The installer is
 git-aware but never commits: installed files are staged with `git add`, pruned
 tracked files with `git rm`, untracked files are written/removed on disk, and the
-user reviews and commits. `--no-prune` reverts to additive-only. The installer does
-not modify `.gitignore`; it only warns if the target repo ignores
-`workflow-artifacts/`, since run artifacts are committed deliverables.
+user reviews and commits. `--no-prune` reverts to additive-only. The installer makes
+one narrow `.gitignore` change: it adds its own local backup dir
+(`.agent-workflows-installer-backups/`) so that scratch is never committed. Otherwise
+it does not manage `.gitignore`; in particular it only *warns* if the target ignores
+`workflow-artifacts/`, since run artifacts are committed deliverables (see
+`DECISIONS.md` D24). It also never copies Python build cruft (`__pycache__`, `.pyc`)
+into a target.
 
 It also **migrates pre-restructure repos** on install (staged, never committed): it
 removes the old root `release-review/` framework directory (the new copy is installed

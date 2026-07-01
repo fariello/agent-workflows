@@ -503,3 +503,29 @@ both execute the (large) set well.
   it will error. Accepted: it had no remaining purpose once framework files update by
   default, and leaving a no-op flag would mislead. `--no-prune` and `--no-backup` are
   unchanged.
+
+### D24. Installer skips Python build cruft and ignores its own backups dir
+
+- **Problem (found while updating a target repo):** the installer copies every file
+  under the source `.agents/workflows/` via `rglob`, so a stray `__pycache__/*.pyc`
+  (e.g. from running `python3 -m py_compile` on the installer) would be installed into
+  every target. Separately, the installer's own backup dir
+  (`.agent-workflows-installer-backups/`) was left untracked in the target and could be
+  committed accidentally by `git add -A`.
+- **Decision (two hygiene fixes):**
+  - **Skip build cruft:** a single shared `is_ignored_source_path` helper excludes
+    `__pycache__` components and `.pyc`/`.pyo` files (alongside the installer's own
+    files and `:Zone.Identifier`). It is applied at BOTH filesystem-walk sites (the
+    source-collect walk and the prune walk) so the install set and the prune set cannot
+    diverge. Applying it to the prune walk matters: otherwise a stray target `.pyc`
+    would be seen as a stale framework file and deleted.
+  - **Ignore the backups dir:** the installer adds `.agent-workflows-installer-backups/`
+    to the target's `.gitignore` (idempotently; creating the file if absent). This is a
+    deliberate, narrow exception to the installer's "does not modify `.gitignore`"
+    posture: it manages only its own local scratch, never user or artifact ignores.
+- **Contrast with `workflow-artifacts/`:** run artifacts are committed deliverables, so
+  the installer still only *warns* if a target ignores them (D5); it never auto-ignores
+  them. Only the local backup scratch is auto-ignored. The two are opposite on purpose.
+- **Trade-off:** modifying `.gitignore` at all is a small departure from the previous
+  absolute policy; scoped to one self-owned line, idempotent, staged-not-committed, and
+  documented, so the risk is negligible.
