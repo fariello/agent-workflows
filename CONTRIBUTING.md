@@ -22,6 +22,20 @@ format). Do not restate those here; follow them, and use this as the step list:
    existing dated entries to match a later layout; the log is history (see
    `GUIDING_PRINCIPLES.md` P4).
 
+## Secret scanning
+
+Committed secrets and PII/PHI must never enter this repo, including its git history.
+
+- **CI enforces it:** `.github/workflows/secret-scan.yml` runs `gitleaks` (full history)
+  on every push and pull request.
+- **Scan locally before pushing:** run `gitleaks detect --source . --no-banner`, or the
+  built-in `python3 .agents/workflows/assess/tools/scan_secrets.py --repo .` (a
+  dependency-free safety net that also auto-uses gitleaks/detect-secrets if installed).
+- **False positives:** add the finding's fingerprint (printed by gitleaks) to the
+  `.gitleaksignore` baseline at the repo root. Do not suppress a real secret - rotate
+  it at the provider first, then purge it from history (`git filter-repo`/BFG).
+- For a deeper pass, run the `/assess-secrets` workflow.
+
 ## Authoring conventions
 
 - Match what the software does today; do not document aspirations

@@ -39,3 +39,18 @@
 - Binary/asset extensions skipped by the scanner; files over 2 MB skipped (default cap).
 - Only the built-in scanner ran; no mature scanner (gitleaks/trufflehog/detect-secrets)
   was available to cross-check. The IPD recommends installing one.
+
+## Execution follow-up (2026-07-03, plan executed)
+
+- Independent cross-check with the mature scanner: `gitleaks detect --source . --no-banner`
+  scanned all 31 commits and reported **no leaks found** - corroborating the built-in
+  scanner's "no committed secrets" conclusion with an authoritative tool.
+- Baseline: `.gitleaksignore` is intentionally EMPTY (gitleaks reports zero findings);
+  it documents the fingerprint format for future false positives.
+- Prevention added (IPD Steps 1-3): `.gitignore` extended with credential-file patterns
+  (`*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.jks`, `*.keystore`, `.netrc`, `.npmrc`,
+  `.pypirc`, `service-account*.json`, `credentials*.json`; `.env`/`.env.*` already
+  present); `.github/workflows/secret-scan.yml` runs gitleaks on push/PR (full history);
+  `CONTRIBUTING.md` documents local scanning + baseline handling.
+- Clean-state baseline for future diffs: gitleaks = 0 findings across history as of
+  this date.

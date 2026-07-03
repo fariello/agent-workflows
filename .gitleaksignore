@@ -1,0 +1,13 @@
+# gitleaks false-positive baseline.
+#
+# gitleaks ignores findings by FINGERPRINT (not by pattern). A fingerprint looks like:
+#   <commit-sha>:<file-path>:<rule-id>:<line-number>
+# It is printed in gitleaks' report/output for each finding.
+#
+# As of 2026-07-03, `gitleaks detect` over the full history reports NO leaks, so this
+# baseline is intentionally empty. When a confirmed false positive appears (e.g. a test
+# fixture or example value), paste its fingerprint on its own line below to suppress it.
+# Do NOT suppress a real secret - rotate it, then purge it from history instead.
+#
+# Example (commented out):
+# 0a1b2c3d4e5f6a7b8c9d:tests/fixtures/sample.env:generic-api-key:12

@@ -18,6 +18,18 @@ __pycache__/
 # Environment / secrets
 .env
 .env.*
+# Credential / key files (should never be committed)
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+.netrc
+.npmrc
+.pypirc
+service-account*.json
+credentials*.json
 
 # Local scratch / working files
 tmp/
