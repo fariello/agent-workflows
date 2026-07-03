@@ -16,6 +16,10 @@ a durable, auditable record of what it did and why. Its plan-time sibling
   - `release-review/` - the full, all-concerns pre-release review framework (fixes in
     place).
   - `plan-review/` - the pre-execution plan reviewer (reviews/improves a plan).
+  - `setup-repo/` - a guided, wizard-style setup for best practices and security
+    (installs tools, adds secret-scanning/CI/hooks/hygiene files; ask-before-each-change).
+  - `scaffold/` - a guided, wizard-style creator for new assess lenses / workflows /
+    commands (generates from the pattern, wires the manifest, regenerates shims).
   - `assess/` - a family of single-concern assessment workflows that each produce an
     IPD for human approval. Engineering/UX/docs/verification concerns (performance,
     security, accessibility, ui-ux, self-documentation, documentation, functionality,
@@ -108,6 +112,13 @@ for a broad all-concerns review that fixes in place, `plan-review` before buildi
 and `release-review` before shipping. See `.agents/workflows/index.md` for the full
 command list, `.agents/workflows/release-review/README.md` for the runbook, and its
 `MANIFEST.md` for the file map.
+
+Two guided, wizard-style meta-workflows differ from the reviewers (they are interactive
+and MAY change files, with per-step confirmation): **`/setup-repo`** walks you through
+best-practices/security setup (installing tools, adding secret scanning, CI, hooks, and
+hygiene files, idempotently); **`/scaffold`** walks you through adding a new assess
+lens, workflow, or command and wiring it in. A good first step in a new repo is
+`/setup-repo`.
 
 ## Understanding this project (start here for context)
 

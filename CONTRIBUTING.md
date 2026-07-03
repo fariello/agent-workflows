@@ -3,6 +3,14 @@
 This repo's value is disciplined, honest documentation, so the one rule that matters
 most is: keep the docs in sync with what the framework actually does.
 
+## Adding a workflow: the guided way
+
+The fastest path is the `/scaffold` wizard (`.agents/workflows/scaffold/scaffold.md`):
+it asks what to create (an `assess-*` lens, a standalone workflow, or a command),
+generates it from the existing pattern, wires the manifest, and regenerates the shims.
+The manual checklist below is what `/scaffold` automates - follow it if you prefer to do
+it by hand.
+
 ## Doc-sync checklist: when you add or rename a workflow
 
 The authoritative rules for how workflows are structured live in `ARCHITECTURE.md`

@@ -584,3 +584,36 @@ both execute the (large) set well.
   new manifest row; and a **mandatory committed-secrets scan step + exit-gate item in
   release-review Section 02**. Installer preserves the executable bit for tools/scripts.
 - Target repos already installed need a re-install to get the tool, lens, and shims.
+
+### D24. Guided wizard workflows: setup-repo and scaffold (interactive, may change files)
+
+- **Request:** (1) a `setup-repo` "command" that walks the user through best-practices
+  and security setup wizard-style, including installing useful tools; (2) a wizard-style
+  way for repo owners to add custom assessments/workflows/commands with easy-to-edit
+  files.
+- **Key design tension resolved:** our workflows are agent-executed instruction files,
+  not TUIs. "Wizard" therefore means an **agent-driven conversational wizard** (a `.md`
+  that instructs the agent to ask step-by-step and act), not a standalone terminal TUI.
+  This fits every agent, needs no new runtime, and - crucially - lets the wizard *reason
+  about this specific repo* (stack, what is missing), which a dumb script cannot. For
+  the purely mechanical tool installs, a small deterministic helper script does the work
+  the wizard orchestrates.
+- **setup-repo:** `setup-repo/setup-repo.md` (wizard) + `setup-repo/tools/setup_tools.py`
+  (detect/report/install helper). Covers: install the framework, secret scanning (CI +
+  local hook + baseline), `.gitignore` hygiene, hygiene files (README/CONTRIBUTING/
+  LICENSE/.editorconfig), a stack CI baseline, a pre-commit multi-hook config, dependency
+  hygiene, and branch-protection ADVICE (out-of-repo, cannot set from a repo).
+  Principles baked in: **ask before each change, idempotent, respect existing, stage
+  do-not-commit, never push**; tool installs go through the helper only after
+  confirmation and use the platform package manager (no curl-pipe-to-shell).
+- **scaffold:** `scaffold/scaffold.md` (wizard) to create a new `assess-*` lens,
+  standalone workflow, or command, generate from the existing pattern, add the manifest
+  row, and re-run the installer to regenerate shims - the guided form of the D18
+  "new subdir + manifest row" extension path. Authoring/meta; edits framework files only.
+- **These two are a new KIND:** interactive and file-changing (with consent), unlike the
+  `assess-*` reviewers (propose-only) and `release-review` (broad fix-in-place). The
+  index/README/ARCHITECTURE call this out so the distinction is clear.
+- **Helper install script safety:** read-only detect by default; installs only with an
+  explicit `--install NAME` (which the wizard runs only after the user confirms); tries
+  the platform's known package managers in order; never downloads-and-pipes to a shell.
+- 33 commands total now; dogfooded onto ai-coding.

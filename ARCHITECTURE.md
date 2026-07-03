@@ -223,6 +223,23 @@ and de-hardcoding org-specific assumptions. It is the reuse-focused sibling of t
 `architecture` lens (structural soundness) and defers to `security` for authz/secrets
 (DECISIONS D22).
 
+### Meta / authoring workflows (`setup-repo`, `scaffold`)
+
+Two guided, wizard-style workflows differ in kind from the reviewers: they are
+interactive and MAY change files (with per-step confirmation), rather than only
+proposing (DECISIONS D24). `setup-repo` walks a repo owner through best-practices and
+security setup - detecting state, then ask-before-each-change to install tools (via the
+deterministic helper `setup-repo/tools/setup_tools.py`, which detects and, only on
+request, installs gitleaks/pre-commit/detect-secrets via the platform's own package
+manager) and to add secret-scanning CI + a local hook, `.gitignore` hygiene, hygiene
+files, a stack CI baseline, a pre-commit config, dependency hygiene, and (advisory-only)
+branch-protection guidance. It is idempotent and stages changes without committing.
+`scaffold` walks the owner through adding a new `assess-*` lens, standalone workflow, or
+command, then wires the manifest and regenerates shims - the guided version of the
+"add a subdir + a manifest row" extension path. Both are agent-driven conversational
+wizards (fitting the agent-executed model), not standalone TUIs; the only scripted piece
+is the mechanical tool-install helper the setup wizard calls.
+
 ## Three ways to invoke
 
 1. **OpenCode / Claude Code:** `/release-review` (full) or `/release-review-plan`
