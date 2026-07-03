@@ -21,7 +21,7 @@ focusing on different concerns; leave it `-` when not used.
 | release-review | .agents/workflows/release-review/README.md | - | Full pre-release repository review and hardening: deep audit through eight personas, the Fix Bar, fix/validate/report, push and release decisions. |
 | release-review-plan | .agents/workflows/release-review/README.md | - | Release review in planning-only mode: audit and consolidated implementation plan, stopping before implementation. |
 | plan-review | .agents/workflows/plan-review/plan-review.md | - | Pre-execution plan reviewer: review and improve a proposed implementation plan before any code is written (edits planning documents only). |
-| setup-repo | .agents/workflows/setup-repo/setup-repo.md | - | Guided, wizard-style repo setup for best practices and security: detect state, then ask-before-each-change to install tools and add secret-scanning, .gitignore/CI/pre-commit/hygiene files. Idempotent; stages changes. |
+| setup-repo | .agents/workflows/setup-repo/setup-repo.md | - | Guided, idempotent, drift-aware repo setup AND conformance check: detect state, classify each area (conformant/partial/missing/outdated), then ask-before-each-change to install tools and add secret-scanning, the plan/IPD lifecycle (dirs + documented contract), .gitignore/CI/pre-commit/hygiene files. Safe to re-run after updates; stages changes. |
 | scaffold | .agents/workflows/scaffold/scaffold.md | - | Guided, wizard-style creation of a new assess-* lens, standalone workflow, or command: generate from the existing patterns, wire the manifest, and regenerate shims. Authoring/meta workflow. |
 | assess-performance | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/performance.md | Assess runtime/resource performance and propose an IPD. |
 | assess-security | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/security.md | Assess security posture and propose an IPD. |
@@ -77,9 +77,13 @@ proposing.
 - **`/setup-repo`** walks the repo owner through best-practices and security setup -
   installing tools (via `setup-repo/tools/setup_tools.py`, which detects and, on
   confirmation, installs gitleaks/pre-commit/detect-secrets), adding secret-scanning CI
-  and a local hook, `.gitignore` hygiene, hygiene files, a stack CI baseline, a
-  pre-commit config, dependency hygiene, and branch-protection advice. Ask-before-each-
-  change, idempotent, stages (does not commit).
+  and a local hook, the **plan/IPD lifecycle** (`.agents/plans/pending/` +
+  `executed/` plus a documented contract in `AGENTS.md`/`CONTRIBUTING` so coding agents
+  follow it), `.gitignore` hygiene, hygiene files, a stack CI baseline, a pre-commit
+  config, dependency hygiene, and branch-protection advice. Ask-before-each-change,
+  stages (does not commit). It is **idempotent and drift-aware**: the same command is a
+  fresh setup, a quiet re-run, or a post-update **conformance check** that classifies
+  each area (conformant/partial/missing/outdated) and only proposes the gaps.
 - **`/scaffold`** walks the owner through adding a new `assess-*` lens, standalone
   workflow, or command: generate from the existing pattern, wire the manifest, and
   regenerate shims. Authoring/meta; edits framework files only.

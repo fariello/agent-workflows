@@ -58,10 +58,14 @@ directory) and a run record (the evidence and report of this assessment, under
    context and to ground the personas.
 2. **Guiding principles** - `GUIDING_PRINCIPLES.md` or equivalent; or the universal
    fallback in `../release-review/00-run-protocol.md`.
-3. **Pending-plans / IPD location and format** - where plans live and any required
-   structure. Discover the project's convention (e.g. `.agents/plans/pending/`,
-   `docs/rfcs/`, an ADR dir). If none exists, create and use
-   `.agents/plans/pending/`. Record which you chose.
+3. **Plan/IPD lifecycle location and format** - where plans live and any required
+   structure. Discover the project's existing convention and USE it (do not impose a
+   different one): a pending dir (e.g. `.agents/plans/pending/`, `docs/rfcs/`, an ADR
+   dir) and a terminal dir for completed plans (accept whatever exists - `executed/`
+   or `done/`). If none exists, create and use `.agents/plans/pending/` for new IPDs
+   and treat `.agents/plans/executed/` as the terminal dir (the canonical default;
+   `done/` is an accepted alias if the repo already uses it). Record which you chose.
+   The `setup-repo` workflow can establish and document this lifecycle for a repo.
 4. **Contributor contract** - `AGENTS.md`/`CONTRIBUTING.md` for plan/spec-sync rules.
 5. **Apply the review scope exclusions** from `../release-review/00-run-protocol.md`:
    do not assess the framework's own directory (`.agents/workflows/`) or

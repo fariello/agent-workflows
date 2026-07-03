@@ -852,15 +852,22 @@ def print_summary(
     print("  Read and execute .agents/workflows/index.md, then the workflow body.")
 
     # Recommended next step: run the setup-repo wizard, phrased for both tool families.
+    # It is idempotent and drift-aware, so it doubles as a post-update conformance check.
     setup = next((w for w in workflows if w.command == "setup-repo"), None)
     if setup is not None:
+        updated = any("[install]" in i or "[overwrite]" in i or "migrated" in i.lower()
+                      for i in (installed + pruned + migrated))
         print()
-        print("NEXT STEP - set up this repo for best practices and security:")
+        if updated:
+            print("NEXT STEP - the framework changed; re-run setup-repo to re-check")
+            print("best-practice CONFORMANCE (it detects drift and only proposes gaps):")
+        else:
+            print("NEXT STEP - set up this repo for best practices and security:")
         print("  - OpenCode or Claude Code: run  /setup-repo")
         print("  - Cursor / Codex / Antigravity / VS Code agents / any other agent:")
         print(f"    tell the agent:  Read and execute {setup.body}")
-        print("  (It is a guided wizard: it asks before each change, is safe to re-run,")
-        print("   and stages changes without committing.)")
+        print("  (Guided + idempotent: it asks before each change, is safe to re-run as a")
+        print("   conformance check, and stages changes without committing.)")
 
 
 def main() -> int:

@@ -650,3 +650,30 @@ both execute the (large) set well.
   `.claude/skills/` generator. The commands form works and is supported; a second
   generation path is complexity we do not yet need. Revisit if Claude Code deprecates
   `.claude/commands/`.
+
+### D26. setup-repo establishes the plan/IPD lifecycle and is a drift-aware conformance check
+
+- **Gaps found:** (1) `setup-repo` did not establish or document the plan/IPD lifecycle,
+  even though the `assess-*`/`plan-review` workflows depend on it - and the convention
+  was documented nowhere an agent would pick it up (not in AGENTS.md/CONTRIBUTING). (2)
+  `setup-repo` was framed as first-time setup; its behavior on re-run / after a framework
+  update was only a vague "idempotent" claim, not an explicit conformance check.
+- **Decisions:**
+  1. **Plan/IPD lifecycle is a setup step (1b).** setup-repo offers to create
+     `.agents/plans/pending/` and a terminal dir (with `.gitkeep`) AND to write a short
+     marker-delimited "Plan/IPD lifecycle" contract into `AGENTS.md`/`CONTRIBUTING` so
+     ANY coding agent in the repo follows it, not just our workflows. Respects an
+     existing convention; never renames.
+  2. **Canonical terminal dir = `.agents/plans/executed/`** (matches the original IPD
+     "executed" semantics), with `done/` accepted as an alias when a repo already uses
+     it (discover-and-respect, do not forcibly rename - so ai-coding keeps its `done/`).
+     Updated the assess harness Step 0 and the IPD template to say so.
+  3. **setup-repo is explicitly idempotent + drift-aware = a conformance check.** One
+     command for fresh setup, re-run, and post-update: it classifies each area
+     conformant/partial/missing/outdated against the current baseline, reports the drift
+     up front, and only proposes the gaps. If all conformant, it says so and stops.
+  4. **Installer nudges conformance after updates:** the end-message detects whether the
+     run actually changed/migrated anything and, if so, recommends re-running setup-repo
+     as a conformance re-check (not just first-time setup).
+- **Deliberately NOT done:** did not rename ai-coding's existing `.agents/plans/done/`
+  to `executed/` - the "respect existing" rule applies to our own repo too.

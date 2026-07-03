@@ -10,6 +10,16 @@ Unlike the `assess-*` workflows (which only propose an IPD), this workflow MAY c
 files and install tools - but ONLY with per-step user confirmation. It is idempotent
 (safe to re-run) and respects whatever the repo already has.
 
+**One command for three situations - it is a conformance check, not just first-time
+setup.** Run it on a fresh repo (sets things up), on an already-set-up repo (a re-run:
+finds nothing to do and says so), or after updating the framework (finds what the new
+version now expects and offers to close the gap). For each area you MUST classify the
+current state as **conformant** (matches the current baseline, skip), **partial** (some
+of it present - offer to complete), **missing** (offer to add), or **outdated** (present
+but behind the current baseline, e.g. an old generated file or tool version - offer to
+refresh). Report the classification per area up front so the user sees the drift, then
+only propose changes for the non-conformant items.
+
 ## Operating principles (MUST)
 
 - **Ask before each change.** Present each proposed change, explain why, and wait for
@@ -37,26 +47,55 @@ Before proposing anything, determine and briefly report:
    it and offer to proceed carefully, changing only setup files.)
 2. Project type / stack (languages, package manager, frameworks, whether it has an app /
    library / CLI / UI / just docs). This tailors the .gitignore, CI, and hygiene steps.
-3. What is already present: `.agents/workflows/`, `.github/workflows/`,
+3. What is already present: `.agents/workflows/`, `.agents/plans/` (and its
+   `pending/` + terminal `executed/` or `done/` subdirs), `.github/workflows/`,
    `.pre-commit-config.yaml`, `.gitignore`, `.gitleaksignore`, `README`, `CONTRIBUTING`,
-   `LICENSE`, `.editorconfig`, lockfiles, `GUIDING_PRINCIPLES.md`.
+   `AGENTS.md` (and whether it documents the plan lifecycle), `LICENSE`, `.editorconfig`,
+   lockfiles, `GUIDING_PRINCIPLES.md`.
 4. Tool availability: run the helper in detect mode
    (`setup_tools.py`) and report which of gitleaks / pre-commit / detect-secrets exist.
+5. Drift check (for re-runs / post-update): is `.agents/workflows/` present but behind
+   the source you were invoked from (renamed/removed files, missing new lenses)? If so,
+   the framework-install step (1) is "outdated", not "conformant".
 
-Then present a short **setup checklist** (the steps below that apply to this repo) and
-tell the user you will go through them one at a time. Let them reorder or skip any.
+Then present a short **conformance report + checklist**: for each applicable step, its
+classification (conformant / partial / missing / outdated / not applicable) and the
+proposed action. Tell the user you will go through the non-conformant ones a step at a
+time. Let them reorder or skip any. If everything is conformant, say so plainly and stop.
 
 ## The setup steps (go through each; ask before applying)
 
-For each step: state current status (done / partial / missing / not applicable), what
-you propose, and why. Apply only on confirmation. Mark clearly when a step is
-already-satisfied.
+For each step: state its **conformance classification** (conformant / partial / missing /
+outdated / not applicable), what you propose (nothing, if conformant), and why. Apply
+only on confirmation. Mark clearly when a step is already-satisfied so re-runs are quiet.
 
-### 1. Agent-workflows framework installed
+### 1. Agent-workflows framework installed (and up to date)
 
-If `.agents/workflows/` is absent or stale, offer to run the installer
-(`install-workflows.py`) so `/release-review`, `/assess-*`, etc. are available. This is
-the natural first step (setup-repo may itself have been run from an installed copy).
+If `.agents/workflows/` is absent, offer to run the installer (`install-workflows.py`)
+so `/release-review`, `/assess-*`, etc. are available. If it is present but **outdated**
+(the drift check in Step 0 found renamed/removed/missing files vs. the source), offer to
+re-run the installer to update it (it clean-syncs and regenerates shims). This is the
+natural first step (setup-repo may itself have been run from an installed copy).
+
+### 1b. Plan / IPD lifecycle (so coding agents pick it up)
+
+The `assess-*` and `plan-review` workflows use an Implementation-Plan-Document (IPD)
+lifecycle. Establish it so any coding agent working in the repo follows it, not just
+these workflows:
+
+- **Directories:** discover the existing convention and respect it; otherwise offer to
+  create `.agents/plans/pending/` (new/awaiting-approval IPDs) and
+  `.agents/plans/executed/` (completed IPDs) - each with a committed `.gitkeep` so the
+  empty dirs are tracked. If the repo already uses a terminal dir named `done/` (or
+  another), keep it - do not rename; just record which is canonical for this repo.
+- **Documented contract (this is the part that makes agents pick it up):** offer to add
+  a short, marker-delimited "Plan/IPD lifecycle" note to `AGENTS.md` (and/or
+  `CONTRIBUTING.md`) stating: proposals are dated IPDs in `.agents/plans/pending/`; they
+  are reviewed (optionally via `plan-review`), approved by a human, executed, then moved
+  to the terminal dir. Marker-delimited so re-running updates it in place without
+  duplicating (same discipline as the AGENTS workflow pointer).
+- **Conformance:** if the dirs exist but the contract is undocumented, that is
+  "partial" - offer to add the doc. If both exist, "conformant" - skip.
 
 ### 2. Secret scanning (CI + local hook)
 

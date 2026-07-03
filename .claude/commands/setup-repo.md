@@ -1,5 +1,5 @@
 ---
-description: Guided, wizard-style repo setup for best practices and security: detect state, then ask-before-each-change to install tools and add secret-scanning, .gitignore/CI/pre-commit/hygiene files. Idempotent; stages changes.
+description: Guided, idempotent, drift-aware repo setup AND conformance check: detect state, classify each area (conformant/partial/missing/outdated), then ask-before-each-change to install tools and add secret-scanning, the plan/IPD lifecycle (dirs + documented contract), .gitignore/CI/pre-commit/hygiene files. Safe to re-run after updates; stages changes.
 argument-hint: "[optional target path or flags]"
 ---
 
