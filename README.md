@@ -1,140 +1,166 @@
 # agent-workflows
 
-A collection of resources for coding with AI: prompts, workflows, and tooling for
-AI-assisted software development.
+Reusable, installable **agent workflows** for AI coding assistants (OpenCode, Claude
+Code, Codex, Cursor, Antigravity, and others). Drop them into any repo and your AI
+agent can run a deep pre-release review, review a plan before you build it, set the repo
+up with security best practices, or assess one specific concern (security, performance,
+accessibility, tests, secrets, ...) and propose a plan.
 
-The centerpiece is a set of reusable **agent workflows** under `.agents/workflows/`.
-The flagship is **`release-review`**, an executable, modular runbook that an AI coding
-agent (OpenCode, Claude Code, Antigravity, or another modern agent) follows to perform
-a deep pre-release review of *another* repository and leave it materially better, with
-a durable, auditable record of what it did and why. Its plan-time sibling
-**`plan-review`** reviews a proposed implementation plan before any code is written.
+The workflows are plain instruction files plus two small Python helpers, so the
+substance works in **any** agent; tools that support native slash commands (OpenCode,
+Claude Code) also get `/release-review`, `/assess-security`, etc. for free.
 
-## Contents
+---
 
-- `.agents/workflows/` - the reusable agent workflows (canonical source of truth):
-  - `release-review/` - the full, all-concerns pre-release review framework (fixes in
-    place).
-  - `plan-review/` - the pre-execution plan reviewer (reviews/improves a plan).
-  - `setup-repo/` - a guided, wizard-style setup for best practices and security
-    (installs tools, adds secret-scanning/CI/hooks/hygiene files; ask-before-each-change).
-  - `scaffold/` - a guided, wizard-style creator for new assess lenses / workflows /
-    commands (generates from the pattern, wires the manifest, regenerates shims).
-  - `assess/` - a family of single-concern assessment workflows that each produce an
-    IPD for human approval. Engineering/UX/docs/verification concerns (performance,
-    security, accessibility, ui-ux, self-documentation, documentation, functionality,
-    use-cases, edge-cases, bugs, reliability, testing, architecture, api-design,
-    compatibility, supply-chain, guiding-principles, compliance, memory-resources,
-    generalization),
-    cybersecurity (data-exfiltration, intrusion-detection, ransomware-resilience,
-    threat-model, logging-audit), and a parameterized compliance-readiness lens
-    (FIPS / NIST 800-171 / CMMC L2 - repo-slice only, not a certification). A shared
-    harness + per-concern lens files.
-  - `index.md` - the workflow manifest (the installer reads it to generate shims).
-  - `install-workflows.py` / `.sh` - the installer.
-- `prompts/` - a reusable prompt library for AI-assisted development, used across the
-  maintainer's coding environments and as a home for generated/reusable prompts;
-  independent of this repo's workflows (they do not consume it). Includes `fix-bar.md`,
-  an origin/source note for the Fix Bar (see `DECISIONS.md` D4); the canonical, enforced
-  policy is `.agents/workflows/release-review/fix-decision-policy.md`.
-- `.opencode/commands/`, `.claude/commands/` - generated slash-command shims
-  (`/release-review`, `/release-review-plan`, `/plan-review`).
-- `AGENTS.md` - a one-line pointer to the workflow index (not the payload).
+## Quick start
 
-## Using the workflows in another repository
-
-Prerequisites: Python 3.7 or newer, and a git repository as the target. The installer
-stages its changes with git but never commits, so review the staged changes and commit
-them yourself afterward.
-
-Run the installer from the target repo root:
+**1. Install into your repo.** Requires Python 3.7+ and a git repo. From your target
+repo's root:
 
 ```
 python3 /path/to/agent-workflows/.agents/workflows/install-workflows.py
 ```
 
-It clean-syncs the workflows into the target's `.agents/workflows/`, generates the
-slash-command shims (including every `/assess-<concern>`) for OpenCode and Claude
-Code, adds a one-line pointer to the target's `AGENTS.md`, prunes stale framework
-files from a prior version, migrates a pre-restructure repo (removes the old root
-`release-review/` and moves old `repository-review/` run records into
-`workflow-artifacts/release-review/`), stages changes with git but does not commit,
-and leaves `workflow-artifacts/` and your own code untouched. (`--dry-run`,
-`--no-prune`, `--no-backup`, `--repo`, `--source` are available.)
-
-To **update** an existing install, just re-run the installer: framework files are
-updated in place (a timestamped backup is written unless `--no-backup`) and staged with
-git, never committed. No flag is required.
-
-Run records are written to `workflow-artifacts/<workflow>/<run-id>/` at the repo root
-(committed deliverables); assessment IPDs go to the project's pending-plans directory
-(default `.agents/plans/pending/`).
-
-### Upgrading a repo that has an older install
-
-If a target repo was set up with an earlier layout (the framework at a root
-`release-review/` directory, and/or run records in `repository-review/`), just run the
-installer again. It migrates the repo in place and stages (does not commit) the
-changes:
-
-- removes the old root `release-review/` directory (the current framework installs
-  under `.agents/workflows/`);
-- moves old `repository-review/<run-id>/` run records to
-  `workflow-artifacts/release-review/<run-id>/` via `git mv`, preserving history;
-- regenerates the command shims and refreshes the `AGENTS.md` pointer.
-
-It prints exactly what it migrated. Review the staged changes and commit them (one
-commit per repo, e.g. `git commit -m "chore: migrate to .agents/workflows layout"`).
-Use `--dry-run` first to preview. The migration only triggers when a legacy layout is
-actually present, and never touches your own code; backups are written under
-`.agent-workflows-installer-backups/` unless `--no-backup`.
-
-Then run a workflow. How you invoke it depends on your tool (the *substance* works in
-any agent; only the native `/command` convenience is tool-specific):
-
-- **OpenCode** (native `/command`, from `.opencode/commands/`): e.g. `/release-review`,
-  `/release-review-plan`, `/plan-review <plan-path>`, `/assess-security`, `/setup-repo`.
-- **Claude Code** (native `/command`, from `.claude/commands/`): same commands, e.g.
-  `/assess-security`. Arguments are supported.
-- **Cursor, Codex, Antigravity, VS Code Copilot, or any other agent** (no repo-file
-  slash-command mechanism): use the **universal fallback** - tell the agent to *read and
-  execute* the workflow body, e.g. "Read and execute
-  `.agents/workflows/release-review/README.md`" or "Read and execute
-  `.agents/workflows/setup-repo/setup-repo.md`". `.agents/workflows/index.md` lists every
-  workflow and its body path, and the root `AGENTS.md` points there for discovery.
-
-See `.agents/workflows/index.md` ("Running a workflow (by tool)") for the full per-tool
-table.
-
-For a deep, single-concern pass that proposes a plan instead of fixing in place, use
-an `/assess-<concern>` command (e.g. `/assess-security`, `/assess-performance`,
-`/assess-accessibility`, `/assess-testing`). Each writes a dated IPD into the
-project's pending-plans directory (default `.agents/plans/pending/`) and stops for
-human review and approval; it does not auto-execute. The intended pipeline is:
+This copies the workflows into `.agents/workflows/`, generates slash-command shims for
+OpenCode and Claude Code, and adds a pointer to your `AGENTS.md`. It **stages** changes
+with git but never commits and never touches your code, so review and commit yourself:
 
 ```
-assess-<concern>  ->  IPD in pending/  ->  plan-review (optional)  ->  approval  ->  execution
+git status && git commit -m "chore: add agent-workflows"
 ```
 
-Use `assess-<concern>` to investigate one concern and propose a plan, `release-review`
-for a broad all-concerns review that fixes in place, `plan-review` before building,
-and `release-review` before shipping. See `.agents/workflows/index.md` for the full
-command list, `.agents/workflows/release-review/README.md` for the runbook, and its
-`MANIFEST.md` for the file map.
+(Prefer to preview first? Add `--dry-run`. Re-run any time to update; it is idempotent.)
 
-Two guided, wizard-style meta-workflows differ from the reviewers (they are interactive
-and MAY change files, with per-step confirmation): **`/setup-repo`** walks you through
-best-practices/security setup (installing tools, adding secret scanning, CI, hooks, and
-hygiene files, idempotently); **`/scaffold`** walks you through adding a new assess
-lens, workflow, or command and wiring it in. A good first step in a new repo is
-`/setup-repo`.
+**2. Set the repo up (recommended first run).** In your agent, run the guided setup:
 
-## Understanding this project (start here for context)
+| Your tool | How to run it |
+|---|---|
+| **OpenCode** or **Claude Code** | type `/setup-repo` |
+| **Codex, Cursor, Antigravity, VS Code Copilot, any other agent** | tell the agent: `Read and execute .agents/workflows/setup-repo/setup-repo.md` |
 
-This repository practices the durable-knowledge discipline its own framework
-prescribes. For a no-context orientation:
+`setup-repo` walks you through best practices (secret scanning, `.gitignore`, CI,
+pre-commit hooks, the plan/IPD lifecycle, hygiene files) - asking before each change,
+safe to re-run.
+
+**3. Run any workflow the same way** - a native `/command` (OpenCode / Claude Code) or
+"Read and execute `<body path>`" (any other agent). For example, to check for committed
+secrets:
+
+```
+/assess-secrets                         # OpenCode / Claude Code
+Read and execute .agents/workflows/assess/assess.md, applying the lens
+  .agents/workflows/assess/lenses/secrets.md      # any other agent
+```
+
+Most commands accept an optional target/scope argument, e.g. `/assess-performance src/`
+or `/assess-compliance-readiness nist-800-171`.
+
+---
+
+## What you can run
+
+Five core workflows plus a family of single-concern `assess-*` workflows. For any tool
+without native slash commands, run the body file shown in the manifest
+(`.agents/workflows/index.md`) via "Read and execute ...".
+
+### Core workflows
+
+| Command | What it does | Changes code? |
+|---|---|---|
+| `/setup-repo` | Guided, idempotent setup + conformance check: security scanning, `.gitignore`, CI, pre-commit, plan lifecycle, hygiene files. | Yes, with per-step confirmation |
+| `/release-review` | Deep, all-concerns pre-release review of the repo; finds and fixes issues, produces an auditable run record and a GO / NO-GO recommendation. | Yes (the fix-in-place review) |
+| `/release-review-plan` | The release review in planning-only mode: audit + a consolidated implementation plan, stopping before changes. | No |
+| `/plan-review` | Review and improve a proposed implementation plan (IPD) **before** any code is written. | No (edits the plan doc) |
+| `/scaffold` | Guided creation of a new assessment lens, workflow, or command, wired into the manifest. | Framework files only |
+
+### Assessments (`/assess-<concern>`)
+
+Each assesses **one** concern deeply and writes a dated Implementation Plan Document
+(IPD) into `.agents/plans/pending/` for your review - it does **not** change code and
+does **not** auto-execute.
+
+| Area | Commands |
+|---|---|
+| Correctness & reliability | `/assess-bugs` `/assess-edge-cases` `/assess-reliability` `/assess-memory-resources` |
+| Security & privacy | `/assess-security` `/assess-secrets` `/assess-privacy` `/assess-data-exfiltration` `/assess-intrusion-detection` `/assess-ransomware-resilience` `/assess-threat-model` `/assess-logging-audit` |
+| Compliance | `/assess-compliance` `/assess-compliance-readiness` (FIPS / NIST 800-171 / CMMC L2 - repo-slice only, not a certification) |
+| UX & docs | `/assess-ui-ux` `/assess-accessibility` (WCAG 2.1 AA) `/assess-self-documentation` `/assess-documentation` |
+| Product & design | `/assess-functionality` `/assess-use-cases` `/assess-architecture` `/assess-api-design` `/assess-generalization` |
+| Delivery & quality | `/assess-testing` `/assess-performance` `/assess-compatibility` `/assess-supply-chain` `/assess-guiding-principles` |
+
+The intended pipeline:
+
+```
+assess-<concern>  ->  IPD in .agents/plans/pending/  ->  plan-review (optional)  ->  you approve  ->  execute
+```
+
+Rule of thumb: use `assess-<concern>` to investigate one thing and propose a plan;
+`release-review` for a broad review that fixes in place; `plan-review` before you build;
+`release-review` again before you ship.
+
+---
+
+## Running workflows by tool
+
+The workflow *bodies* are tool-agnostic; only the native `/command` convenience is
+tool-specific.
+
+| Tool | How to run a workflow |
+|---|---|
+| **OpenCode** | Native `/command` from `.opencode/commands/`. E.g. `/release-review`, `/assess-security`, `/setup-repo`. |
+| **Claude Code** | Native `/command` from `.claude/commands/`. Same commands; arguments supported. |
+| **Codex, Cursor, Antigravity, VS Code Copilot, any other agent** | No repo-file slash-command mechanism. Use the universal fallback: tell the agent "Read and execute `.agents/workflows/<body path>`". `.agents/workflows/index.md` lists every workflow and its body path; `AGENTS.md` points there so tools that read it can discover them. |
+
+See `.agents/workflows/index.md` ("Running a workflow (by tool)") for the full table and
+each workflow's body path.
+
+---
+
+## Install details
+
+- **Prerequisites:** Python 3.7+; a git repo target. The installer stages changes but
+  never commits, and never modifies your own code.
+- **Options:** `--dry-run` (preview), `--repo <path>` (target another repo),
+  `--source <path>` (framework source), `--no-prune` (do not remove stale framework
+  files), `--no-backup`.
+- **Updating:** just re-run the installer. It is idempotent, clean-syncs the framework,
+  regenerates shims, and (if it changed anything) reminds you to re-run `/setup-repo` as
+  a conformance check.
+- **Outputs:** run records go to `workflow-artifacts/<workflow>/<run-id>/` at the repo
+  root (committed deliverables); assessment IPDs go to `.agents/plans/pending/`.
+
+### Upgrading a repo set up with an older layout
+
+If a repo used an earlier layout (framework at a root `release-review/`, run records in
+`repository-review/`), just run the installer again. It migrates in place and stages the
+changes: removes the old root `release-review/`, `git mv`s old `repository-review/<run-id>/`
+records into `workflow-artifacts/release-review/` (preserving history), and regenerates
+shims + the `AGENTS.md` pointer. It prints exactly what it migrated; review and commit.
+Use `--dry-run` first. It only triggers when a legacy layout is present and never touches
+your code.
+
+---
+
+## What's in this repo
+
+- `.agents/workflows/` - the workflows (canonical source):
+  - `release-review/` - the full pre-release review runbook (its `README.md` is the
+    controlling instruction; `MANIFEST.md` maps its files).
+  - `plan-review/`, `setup-repo/`, `scaffold/` - the plan reviewer and the two guided
+    wizards.
+  - `assess/` - the single-concern assessment harness (`assess.md`) + one lens per
+    concern under `lenses/`, plus `tools/scan_secrets.py`.
+  - `index.md` - the workflow manifest (source of truth; the installer reads it).
+  - `install-workflows.py` / `.sh` - the installer.
+- `.opencode/commands/`, `.claude/commands/` - generated slash-command shims.
+- `AGENTS.md` - a one-line pointer to the workflow index.
+- `prompts/` - a reusable prompt library (independent of the workflows).
+
+## Understanding this project
+
+This repo practices the durable-knowledge discipline its own framework prescribes:
 
 - `GUIDING_PRINCIPLES.md` - the values guiding the work.
-- `ARCHITECTURE.md` - how the framework is structured and why that shape.
-- `DECISIONS.md` - the dated log of significant decisions, with alternatives and
-  trade-offs (the "why").
+- `ARCHITECTURE.md` - how the framework is structured and why.
+- `DECISIONS.md` - the dated, append-only log of significant decisions and their
+  rationale (this is also the project's changelog).
