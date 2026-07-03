@@ -1,6 +1,6 @@
 ---
 description: Assess ransomware resilience (immutable/tested backups, blast radius, integrity) and propose an IPD.
-agent: build
+argument-hint: "[optional target path or flags]"
 ---
 
 Read and execute @.agents/workflows/assess/assess.md.

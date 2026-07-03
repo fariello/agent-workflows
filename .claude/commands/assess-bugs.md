@@ -1,6 +1,6 @@
 ---
 description: Assess for bugs/correctness defects and propose an IPD.
-agent: build
+argument-hint: "[optional target path or flags]"
 ---
 
 Read and execute @.agents/workflows/assess/assess.md.

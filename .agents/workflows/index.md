@@ -53,15 +53,20 @@ focusing on different concerns; leave it `-` when not used.
 | assess-secrets | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/secrets.md | Scan the working tree and git history for committed secrets/keys/PII/PHI (via tools/scan_secrets.py, read-only, redacted) and propose a rotate-first remediation IPD. |
 <!-- WORKFLOWS-MANIFEST:END -->
 
-## Running a workflow
+## Running a workflow (by tool)
 
-- **OpenCode / Claude Code (native):** type the slash command, e.g.
-  `/release-review`, `/plan-review`, or any `/assess-<concern>`. Pass an optional
-  target scope or flags as arguments, e.g. `/assess-performance src/server` or
-  `/assess-compliance gdpr`.
-- **Any other agent (universal fallback):** tell it to "read and execute" the body
-  path, e.g. "Read and execute .agents/workflows/assess/assess.md, applying the lens
-  .agents/workflows/assess/lenses/security.md".
+Every workflow is just an instruction file plus (for some tools) a generated slash-
+command shim that says "read and execute" it. The **substance works in any agent**; only
+the convenience of a native `/command` is tool-specific.
+
+| Tool | How to run a workflow |
+|---|---|
+| **OpenCode** | Native `/command`: type e.g. `/release-review`, `/assess-security`, `/setup-repo`. Shims live in `.opencode/commands/`. Arguments: `/assess-performance src/server`. |
+| **Claude Code** | Native `/command` via `.claude/commands/` (works; the repo also has these). Type e.g. `/assess-security`. Arguments supported (`$ARGUMENTS`). |
+| **Cursor, Codex, Antigravity, VS Code Copilot, or any other agent** | **No repo-file slash-command mechanism** - use the universal fallback: tell the agent to *read and execute* the workflow body, e.g. "Read and execute `.agents/workflows/assess/assess.md`, applying the lens `.agents/workflows/assess/lenses/security.md`" (or for a non-lens workflow, just its body path, e.g. "Read and execute `.agents/workflows/setup-repo/setup-repo.md`"). The body paths are listed in the manifest above. |
+
+`AGENTS.md` at the repo root points here, so any tool that reads `AGENTS.md` can discover
+the workflow list without being told the paths.
 
 ## Meta / authoring workflows (`setup-repo`, `scaffold`)
 

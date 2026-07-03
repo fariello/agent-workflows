@@ -89,13 +89,22 @@ Use `--dry-run` first to preview. The migration only triggers when a legacy layo
 actually present, and never touches your own code; backups are written under
 `.agent-workflows-installer-backups/` unless `--no-backup`.
 
-Then run a workflow:
+Then run a workflow. How you invoke it depends on your tool (the *substance* works in
+any agent; only the native `/command` convenience is tool-specific):
 
-- **OpenCode / Claude Code:** `/release-review` (full), `/release-review-plan` (audit +
-  plan only), or `/plan-review <plan-path>` (review a plan before building).
-- **Any other agent (universal fallback):** "Read and execute
-  `.agents/workflows/release-review/README.md`" (or `plan-review/plan-review.md`), as
-  listed in `.agents/workflows/index.md`.
+- **OpenCode** (native `/command`, from `.opencode/commands/`): e.g. `/release-review`,
+  `/release-review-plan`, `/plan-review <plan-path>`, `/assess-security`, `/setup-repo`.
+- **Claude Code** (native `/command`, from `.claude/commands/`): same commands, e.g.
+  `/assess-security`. Arguments are supported.
+- **Cursor, Codex, Antigravity, VS Code Copilot, or any other agent** (no repo-file
+  slash-command mechanism): use the **universal fallback** - tell the agent to *read and
+  execute* the workflow body, e.g. "Read and execute
+  `.agents/workflows/release-review/README.md`" or "Read and execute
+  `.agents/workflows/setup-repo/setup-repo.md`". `.agents/workflows/index.md` lists every
+  workflow and its body path, and the root `AGENTS.md` points there for discovery.
+
+See `.agents/workflows/index.md` ("Running a workflow (by tool)") for the full per-tool
+table.
 
 For a deep, single-concern pass that proposes a plan instead of fixing in place, use
 an `/assess-<concern>` command (e.g. `/assess-security`, `/assess-performance`,

@@ -1,6 +1,6 @@
 ---
 description: Assess overall threat model and defense-in-depth hardening and propose an IPD.
-agent: build
+argument-hint: "[optional target path or flags]"
 ---
 
 Read and execute @.agents/workflows/assess/assess.md.

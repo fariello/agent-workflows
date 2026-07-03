@@ -1,6 +1,6 @@
 ---
 description: Assess generalization/extensibility/configurability (productization for reuse across orgs/tenants/deployments) and propose an IPD.
-agent: build
+argument-hint: "[optional target path or flags]"
 ---
 
 Read and execute @.agents/workflows/assess/assess.md.

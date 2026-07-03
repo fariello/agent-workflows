@@ -240,12 +240,25 @@ command, then wires the manifest and regenerates shims - the guided version of t
 wizards (fitting the agent-executed model), not standalone TUIs; the only scripted piece
 is the mechanical tool-install helper the setup wizard calls.
 
-## Three ways to invoke
+## Invocation, by tool
 
-1. **OpenCode / Claude Code:** `/release-review` (full) or `/release-review-plan`
-   (audit + plan, stop before implementation); `/plan-review <plan>` (review a plan
-   before building).
-2. **Any agent:** "Read and execute `.agents/workflows/release-review/README.md`"
-   (release review) or "`.agents/workflows/plan-review/plan-review.md`" (plan review).
-3. **Discoverable everywhere:** the `AGENTS.md` pointer leads to
-   `.agents/workflows/index.md`, which lists every workflow and how to run it.
+The workflow *bodies* are tool-agnostic; only the native `/command` convenience is
+tool-specific, and support varies (verified against current docs):
+
+1. **OpenCode:** native `/command` from `.opencode/commands/*.md` (frontmatter uses
+   `agent:`). E.g. `/release-review`, `/assess-security`, `/setup-repo`.
+2. **Claude Code:** native `/command` from `.claude/commands/*.md` (still supported;
+   its frontmatter uses `description`/`argument-hint`, not `agent:`, so the installer
+   generates a tailored variant there). Claude Code's newer *skills* form
+   (`.claude/skills/<name>/SKILL.md`) is recommended by Anthropic but we ship the
+   still-supported commands form.
+3. **Cursor, Codex, Antigravity, VS Code Copilot, and any other agent:** there is **no
+   repo-file slash-command mechanism**, so these use the **universal fallback** - "Read
+   and execute `.agents/workflows/<...>`". This is the lowest-common-denominator path
+   and works everywhere.
+4. **Discoverable everywhere:** the `AGENTS.md` pointer leads to
+   `.agents/workflows/index.md`, whose "Running a workflow (by tool)" table is the
+   canonical per-tool guide.
+
+The installer generates the per-tool shims from the manifest, tailoring frontmatter to
+each tool (DECISIONS D25).

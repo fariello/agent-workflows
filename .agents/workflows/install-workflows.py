@@ -293,11 +293,29 @@ def shim_body(command: str, workflow: Workflow, tool: str) -> str:
             "do not change code and do not execute the plan.\n"
         )
 
+    # Tool-specific frontmatter. Both OpenCode and Claude Code read a markdown command
+    # file with YAML frontmatter, but their supported fields differ:
+    #   - OpenCode uses `agent:` to pick the executing agent.
+    #   - Claude Code (.claude/commands, which still works) does NOT use `agent:`; it
+    #     uses fields like `argument-hint`. Emitting OpenCode's `agent:` there is
+    #     meaningless, so we tailor the frontmatter per tool.
+    if tool == "claude":
+        frontmatter = (
+            "---\n"
+            f"description: {workflow.description}\n"
+            "argument-hint: \"[optional target path or flags]\"\n"
+            "---\n"
+        )
+    else:  # opencode
+        frontmatter = (
+            "---\n"
+            f"description: {workflow.description}\n"
+            "agent: build\n"
+            "---\n"
+        )
+
     return (
-        "---\n"
-        f"description: {workflow.description}\n"
-        "agent: build\n"
-        "---\n\n"
+        f"{frontmatter}\n"
         f"Read and execute @{workflow.body}.{planning_note}\n"
         f"{lens_note}\n"
         "If the user provided arguments, treat them as the target path(s) and/or flags "
@@ -832,6 +850,17 @@ def print_summary(
     print()
     print("Universal fallback (any agent):")
     print("  Read and execute .agents/workflows/index.md, then the workflow body.")
+
+    # Recommended next step: run the setup-repo wizard, phrased for both tool families.
+    setup = next((w for w in workflows if w.command == "setup-repo"), None)
+    if setup is not None:
+        print()
+        print("NEXT STEP - set up this repo for best practices and security:")
+        print("  - OpenCode or Claude Code: run  /setup-repo")
+        print("  - Cursor / Codex / Antigravity / VS Code agents / any other agent:")
+        print(f"    tell the agent:  Read and execute {setup.body}")
+        print("  (It is a guided wizard: it asks before each change, is safe to re-run,")
+        print("   and stages changes without committing.)")
 
 
 def main() -> int:

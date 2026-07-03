@@ -617,3 +617,36 @@ both execute the (large) set well.
   explicit `--install NAME` (which the wizard runs only after the user confirms); tries
   the platform's known package managers in order; never downloads-and-pipes to a shell.
 - 33 commands total now; dogfooded onto ai-coding.
+
+### D25. Cross-tool support: honest per-tool docs + tailored shim frontmatter; installer end-message
+
+- **Trigger:** two asks - (a) have the installer tell the user to run `/setup-repo` (or
+  the equivalent read-and-execute in other tools) at the end; (b) verify this all works
+  in Codex/Antigravity/etc. and is documented.
+- **Verified reality (against current docs), not assumed:**
+  - OpenCode: native `/command` from `.opencode/commands/*.md` (frontmatter uses
+    `agent:`). Confirmed.
+  - Claude Code: `.claude/commands/*.md` still works, but its frontmatter fields differ
+    (`description`, `argument-hint`, `allowed-tools`, ...; NO `agent:`). Commands have
+    also been merged into "skills" (`.claude/skills/<name>/SKILL.md`), which Anthropic
+    now recommends; the commands form remains supported.
+  - Cursor, Codex, Antigravity, VS Code Copilot: **no repo-file slash-command
+    mechanism**. They can only use the universal "read and execute <path>" fallback.
+  - The universal fallback works in ALL of them, because the bodies are plain Markdown +
+    stdlib Python invoked via `python3`. The *substance* is portable by construction;
+    only the `/command` convenience is tool-specific.
+- **Decisions:**
+  1. Installer end-message now recommends the next step in tool-aware form: "OpenCode/
+     Claude Code: run /setup-repo" and "other agents: Read and execute
+     .agents/workflows/setup-repo/setup-repo.md".
+  2. Shim generator tailors frontmatter per tool: `.opencode` keeps `agent: build`;
+     `.claude` drops it and adds `argument-hint` (matching Claude Code's documented
+     fields). Both remain valid command files.
+  3. Documented the truth: added a per-tool "Running a workflow (by tool)" table to
+     `index.md` and README, explicitly stating that Cursor/Codex/Antigravity/Copilot use
+     the read-and-execute fallback (no native commands), and that AGENTS.md aids
+     discovery. ARCHITECTURE's invocation section rewritten to match.
+- **Deliberately NOT done (Fix Bar complexity axis):** did not build a Claude Code
+  `.claude/skills/` generator. The commands form works and is supported; a second
+  generation path is complexity we do not yet need. Revisit if Claude Code deprecates
+  `.claude/commands/`.

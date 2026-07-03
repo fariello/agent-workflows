@@ -1,6 +1,6 @@
 ---
 description: Assess logging and audit-trail quality/integrity/safety and propose an IPD.
-agent: build
+argument-hint: "[optional target path or flags]"
 ---
 
 Read and execute @.agents/workflows/assess/assess.md.

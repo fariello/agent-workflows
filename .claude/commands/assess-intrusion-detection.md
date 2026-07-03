@@ -1,6 +1,6 @@
 ---
 description: Assess intrusion-detection readiness (security signals, audit-trail detectability) and propose an IPD.
-agent: build
+argument-hint: "[optional target path or flags]"
 ---
 
 Read and execute @.agents/workflows/assess/assess.md.

@@ -1,6 +1,6 @@
 ---
 description: Guided, wizard-style repo setup for best practices and security: detect state, then ask-before-each-change to install tools and add secret-scanning, .gitignore/CI/pre-commit/hygiene files. Idempotent; stages changes.
-agent: build
+argument-hint: "[optional target path or flags]"
 ---
 
 Read and execute @.agents/workflows/setup-repo/setup-repo.md.
