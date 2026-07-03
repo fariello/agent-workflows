@@ -17,7 +17,7 @@ Layout it installs into a target repo:
     .claude/commands/<command>.md       Claude Code slash-command shims
     AGENTS.md                           one-line pointer to .agents/workflows/index.md
 
-Design (see ai-coding DECISIONS.md D12, D15, D16, D17):
+Design (see the repo's DECISIONS.md D12, D15, D16, D17):
 
 - Workflow bodies are tool-agnostic and live together, namespaced by capability,
   under `.agents/workflows/<capability>/`. Adding a capability is a new subdir plus a
@@ -40,7 +40,7 @@ Design (see ai-coding DECISIONS.md D12, D15, D16, D17):
 
 Typical usage from the target repository root:
 
-    python3 /path/to/ai-coding/.agents/workflows/install-workflows.py
+    python3 /path/to/agent-workflows/.agents/workflows/install-workflows.py
 
 Updating an existing install: just re-run the installer. Framework files are updated in
 place (a timestamped backup is written unless --no-backup) and staged with git; nothing
@@ -51,7 +51,7 @@ Dry run / no-prune / specific repo / custom source:
     python3 install-workflows.py --dry-run
     python3 install-workflows.py --no-prune
     python3 install-workflows.py --repo /path/to/target-repo
-    python3 install-workflows.py --source /path/to/ai-coding/.agents/workflows
+    python3 install-workflows.py --source /path/to/agent-workflows/.agents/workflows
 """
 
 from __future__ import annotations
@@ -180,7 +180,7 @@ def resolve_source_root(provided: Path | None) -> Path:
     if not index.is_file() or source_root.name != "workflows":
         raise SystemExit(
             f"Source does not look like an .agents/workflows directory: {source_root}\n"
-            "Provide it with --source /path/to/ai-coding/.agents/workflows.",
+            "Provide it with --source /path/to/agent-workflows/.agents/workflows.",
         )
     return source_root
 

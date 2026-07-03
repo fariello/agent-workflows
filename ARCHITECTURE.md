@@ -7,14 +7,14 @@ work, see `GUIDING_PRINCIPLES.md`.
 
 ## What this repository is
 
-`ai-coding` is a collection of resources for AI-assisted software development. Its
+`agent-workflows` is a collection of resources for AI-assisted software development. Its
 centerpiece is a set of reusable **agent workflows** under `.agents/workflows/`. The
 flagship, `release-review`, is an executable runbook that an AI coding agent follows
 to perform a deep pre-release review of *another* repository and leave it materially
 better, with a durable, auditable record of what it did and why.
 
 ```
-ai-coding/
+agent-workflows/
   README.md                 Overview and entry point
   ARCHITECTURE.md           This file
   DECISIONS.md              Dated decision log (the "why")

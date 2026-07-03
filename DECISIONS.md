@@ -1,7 +1,8 @@
 # Decisions Log
 
-Append-only, dated record of significant decisions for the `ai-coding` repository,
-with the reasoning, alternatives considered, and trade-offs. Newest entries at the
+Append-only, dated record of significant decisions for the `agent-workflows` repository
+(formerly named `ai-coding`; see D27), with the reasoning, alternatives considered, and
+trade-offs. Newest entries at the
 bottom of each dated section. This log exists so a future maintainer or an LLM with
 no prior context can understand not just *what* the project is, but *why* it is the
 way it is.
@@ -677,3 +678,26 @@ both execute the (large) set well.
      as a conformance re-check (not just first-time setup).
 - **Deliberately NOT done:** did not rename ai-coding's existing `.agents/plans/done/`
   to `executed/` - the "respect existing" rule applies to our own repo too.
+
+### D27. Repository renamed ai-coding -> agent-workflows
+
+- **Decision:** Renamed the GitHub repository (and its conceptual name) from
+  `ai-coding` to `agent-workflows`.
+- **Why:** the repo's center of gravity became a coherent, installable framework of
+  agent workflows (`release-review`, `plan-review`, the `assess-*` family,
+  `setup-repo`, `scaffold`) under `.agents/workflows/`, not a broad grab-bag of
+  AI-coding resources. `agent-workflows` names literally what it is, which aligns with
+  the honest-naming/precise-description discipline the project itself preaches
+  (GUIDING_PRINCIPLES P2). `ai-coding` was too broad and `-toolkit` implied a loose
+  collection of tools rather than a workflow system.
+- **Scope of the change:** updated the git remote to
+  `git@github.com:fariello/agent-workflows.git`; updated forward-looking references in
+  README, ARCHITECTURE, and the installer usage/messages. The framework's INTERNAL
+  paths (`.agents/workflows/`) are unaffected, so repos that already installed it are
+  NOT broken by the rename.
+- **History preserved:** earlier DECISIONS entries still say `ai-coding` because that
+  was the true name when those decisions were made; per the append-only rule
+  (GUIDING_PRINCIPLES P4) they are NOT rewritten. This entry records the rename instead.
+- **Local working directory** left as `ai-coding/` deliberately (the local dir name
+  is independent of the repo/remote name; renaming it would disrupt paths for no
+  functional benefit).

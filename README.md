@@ -1,4 +1,4 @@
-# ai-coding
+# agent-workflows
 
 A collection of resources for coding with AI: prompts, workflows, and tooling for
 AI-assisted software development.
@@ -50,7 +50,7 @@ them yourself afterward.
 Run the installer from the target repo root:
 
 ```
-python3 /path/to/ai-coding/.agents/workflows/install-workflows.py
+python3 /path/to/agent-workflows/.agents/workflows/install-workflows.py
 ```
 
 It clean-syncs the workflows into the target's `.agents/workflows/`, generates the
