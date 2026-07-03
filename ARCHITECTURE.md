@@ -202,8 +202,14 @@ sibling. Choose `assess-<concern>` to investigate one concern and propose a plan
 `release-review` for a broad review that fixes in place.
 
 The family includes cybersecurity lenses (`data-exfiltration`, `intrusion-detection`,
-`ransomware-resilience`, `threat-model`, `logging-audit`) and a
+`ransomware-resilience`, `threat-model`, `logging-audit`, `secrets`) and a
 `compliance-readiness` lens parameterized by regime (FIPS, NIST 800-171, CMMC L2).
+The `secrets` lens (and a mandatory step in `release-review`) runs a deterministic,
+read-only, redacting scanner - `assess/tools/scan_secrets.py` - over the working tree
+AND git history to find committed secrets/keys and PII/PHI without relying on the LLM
+to crawl millions of lines; it recommends installing a mature scanner
+(gitleaks/trufflehog/detect-secrets) and merges their results if present, and the
+proposed remediation is rotate-first, then purge-history, then prevent (DECISIONS D23).
 Because those regimes are mostly organizational rather than code, the
 compliance-readiness lens is deliberately constrained: it assesses only the
 repo-visible technical slice, classifies every control as repo-verifiable vs.

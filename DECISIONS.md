@@ -552,3 +552,35 @@ both execute the (large) set well.
   release-review.
 - Target repos that already installed the assess workflows must re-run the installer
   to pick up the updated harness and the two new templates.
+
+### D23. Committed-secrets/PII scanning: a deterministic tool + a lens + a release-review step
+
+- **Gap found:** the workflows treated secrets as a *design habit* ("don't hardcode
+  secrets", in the `security` lens) and outward *leakage* (`data-exfiltration`), but
+  nothing systematically hunted for secrets/keys/PII/PHI actually **committed** to the
+  repo - and crucially nothing scanned **git history**, where a secret removed from HEAD
+  still lives and remains compromised.
+- **Decision - deterministic tool + LLM judgment, not LLM-crawls-everything:** add
+  `assess/tools/scan_secrets.py`, a dependency-free (stdlib), strictly read-only,
+  redacting scanner of the working tree AND git history. It detects secrets
+  (API/cloud/SaaS keys, PEM private keys, JWTs, tokens, passwords, connection strings,
+  high-entropy strings, sensitive filenames) and PII/PHI (SSN, Luhn-checked cards,
+  email, phone, IBAN). The tool does the exhaustive crawl; the LLM triages false
+  positives and severity. Findings are CANDIDATES, never verdicts.
+- **Safety properties (a scanner is itself a data hazard):** read-only (never rotates/
+  purges/writes to the repo), no network, redacts every match to a masked preview so
+  the report/artifact never becomes a new leak, bounded (size caps, binary skip,
+  `--max-commits`/`--since`).
+- **Prefer mature tools; recommend installing them:** if `gitleaks`/`trufflehog`/
+  `detect-secrets` are present the tool runs and merges them; if absent it prints
+  install guidance and the lens/report recommend installing one and adding it to CI.
+  The built-in is a dependency-free safety net, explicitly not a replacement.
+- **Remediation order is rotate-first:** any confirmed committed secret is assumed
+  compromised, so the proposed plan is (1) rotate/revoke at the provider, (2) purge
+  from history (`git filter-repo`/BFG - operator action, rewrites history), (3) prevent
+  (secret manager, `.gitignore`, pre-commit hook, CI scan). Never surface a raw secret
+  value in any artifact/finding/chat.
+- **Wiring:** new `assess-secrets` lens (uses the shared harness -> IPD + run record);
+  new manifest row; and a **mandatory committed-secrets scan step + exit-gate item in
+  release-review Section 02**. Installer preserves the executable bit for tools/scripts.
+- Target repos already installed need a re-install to get the tool, lens, and shims.

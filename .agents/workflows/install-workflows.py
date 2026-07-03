@@ -442,8 +442,18 @@ def install_all(
     for member in body_members:
         # member is e.g. ".agents/workflows/release-review/README.md"; map to source.
         source_relative = member[len(prefix):] if member.startswith(prefix) else member
-        data = (plan.source_root / source_relative).read_bytes()
+        source_path = plan.source_root / source_relative
+        data = source_path.read_bytes()
         write_file(plan, member, data, use_git, timestamp, installed, skipped, conflicted)
+        # Preserve the executable bit for scripts/tools (e.g. tools/*.py, *.sh).
+        if not plan.dry_run:
+            dest = plan.repo_root / member
+            try:
+                src_exec = source_path.stat().st_mode & 0o111
+                if src_exec and dest.is_file():
+                    dest.chmod(dest.stat().st_mode | 0o111)
+            except OSError:
+                pass
 
     for rel, content in sorted(shim_members.items()):
         write_file(plan, rel, content.encode("utf-8"), use_git, timestamp, installed, skipped, conflicted)

@@ -48,6 +48,7 @@ focusing on different concerns; leave it `-` when not used.
 | assess-logging-audit | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/logging-audit.md | Assess logging and audit-trail quality/integrity/safety and propose an IPD. |
 | assess-compliance-readiness | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/compliance-readiness.md | Assess readiness for a formal regime (FIPS / NIST 800-171 / CMMC L2, parameterized) - repo-slice only, not a certification - and propose an IPD. |
 | assess-generalization | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/generalization.md | Assess generalization/extensibility/configurability (productization for reuse across orgs/tenants/deployments) and propose an IPD. |
+| assess-secrets | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/secrets.md | Scan the working tree and git history for committed secrets/keys/PII/PHI (via tools/scan_secrets.py, read-only, redacted) and propose a rotate-first remediation IPD. |
 <!-- WORKFLOWS-MANIFEST:END -->
 
 ## Running a workflow
