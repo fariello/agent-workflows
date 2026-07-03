@@ -529,3 +529,26 @@ both execute the (large) set well.
 - **Trade-off:** modifying `.gitignore` at all is a small departure from the previous
   absolute policy; scoped to one self-owned line, idempotent, staged-not-committed, and
   documented, so the risk is negligible.
+
+### D22. assess-* workflows persist a run record to workflow-artifacts/
+
+- **Gap found:** the `assess-*` workflows produced only the IPD (in the pending-plans
+  dir); their report and evidence trail were shown in chat and then lost. This was
+  inconsistent with `release-review`, which persists a durable run record, and it meant
+  the reasoning behind an assessment was not auditable after the session.
+- **Decision:** the assess harness now also writes a lightweight run record to
+  `workflow-artifacts/assess-<concern>/<RUN_ID>/` - `report.md` (the full report),
+  `findings.csv` (all findings, not just the top ones), `decisions.md` (decisions,
+  assumptions, what was intentionally not proposed and why), `evidence.md` (what was
+  inspected, for reproducibility), and `ipd-link.md` (cross-link to the IPD). Added
+  `templates/run-report.md` and `templates/findings.csv`.
+- **Committed by default**, consistent with release-review's artifact policy (D5), and
+  out of review scope like other `workflow-artifacts/`.
+- **Two outputs, distinct roles:** the IPD (pending-plans dir) is the living proposal
+  in the approval/execution lifecycle; the run record (workflow-artifacts) is the
+  durable evidence/report of the assessment run. The IPD location is unchanged.
+- **Answer to "were they supposed to already?":** no - by original design (D18) the
+  IPD was their only durable output; this decision adds the run record to match
+  release-review.
+- Target repos that already installed the assess workflows must re-run the installer
+  to pick up the updated harness and the two new templates.

@@ -63,10 +63,12 @@ focusing on different concerns; leave it `-` when not used.
 ## The `assess-*` family (single-concern, IPD-producing)
 
 The `assess-<concern>` workflows all share one body, the `assess/` harness, focused by
-a per-concern **lens** file. Each one assesses a single concern deeply and writes a
-dated Implementation Plan Document (IPD) into the project's pending-plans directory
-(default `.agents/plans/pending/`); it does NOT change code and does NOT auto-execute.
-The intended pipeline is:
+a per-concern **lens** file. Each one assesses a single concern deeply and writes two
+durable outputs: a dated Implementation Plan Document (IPD) into the project's
+pending-plans directory (default `.agents/plans/pending/`), and a run record (report +
+full findings + decisions/evidence) under `workflow-artifacts/assess-<concern>/<RUN_ID>/`
+- mirroring release-review's durability. It does NOT change code and does NOT
+auto-execute. The intended pipeline is:
 
 ```
 assess-<concern>  ->  IPD in pending/  ->  plan-review (optional)  ->  human approval  ->  execution

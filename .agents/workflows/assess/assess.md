@@ -42,9 +42,13 @@ memory: fix-by-default gated by Remediation Risk, and multi-perspective review.
 ## What this workflow does NOT do
 
 - It does not modify application code, tests, configuration, or docs. It produces a
-  plan only. (Editing the IPD it writes is not "changing the project".)
+  plan only. (Writing the IPD and its own run record is not "changing the project".)
 - It does not execute the plan, and it does not move the IPD out of `pending/`.
 - It does not push, deploy, or change remote state.
+
+It **does** write two durable outputs: the IPD (the proposal, in the pending-plans
+directory) and a run record (the evidence and report of this assessment, under
+`workflow-artifacts/`). See below.
 
 ---
 
@@ -86,8 +90,14 @@ Then read the selected lens file and adopt its focus, lead personas, and rubric.
 5. **Write the IPD** to the pending-plans directory using `templates/ipd.md`, named
    with a date and the concern, e.g.
    `<plans-pending>/YYYY-MM-DD-assess-<concern>.md`.
-6. **Report and stop.** Summarize the verdict and the IPD path, and ask the user to
-   review and approve (optionally via `plan-review`) before execution. Do not execute.
+6. **Write the run record** to `workflow-artifacts/assess-<concern>/<RUN_ID>/` (see the
+   next section) so the report and evidence are durable, not just shown in chat.
+7. **Commit** the IPD and the run record (they are committed deliverables by default,
+   the same policy as release-review; keep local only if the user asks). Do not commit
+   unrelated changes; run `git status --short` first.
+8. **Report and stop.** Present the report (below) to the user with the IPD and run-
+   record paths, and ask them to review and approve (optionally via `plan-review`)
+   before execution. Do not execute.
 
 ---
 
@@ -103,6 +113,36 @@ execution and is not auto-run.
 
 Keep the IPD honest and self-contained enough that a different agent or engineer could
 execute it later with no other context (the cold-start standard).
+
+---
+
+## The run record you produce
+
+Persist the assessment's report and evidence so it is durable and auditable, mirroring
+release-review's run record but scaled to this lighter workflow. Create:
+
+```text
+workflow-artifacts/assess-<concern>/<RUN_ID>/
+```
+
+Use a timestamp run ID (`YYYYMMDD-HHMMSS`); the workflow name is the concern
+(e.g. `workflow-artifacts/assess-security/20260630-101500/`). Write:
+
+| File | Contents |
+|---|---|
+| `report.md` | The full report from the format below, saved (not just shown in chat). Use `templates/run-report.md`. |
+| `findings.csv` | Every finding (not just the top ones). Use `templates/findings.csv` (id, severity, remediation risk + axis, persona, area, finding, evidence, proposed action, disposition). |
+| `decisions.md` | Key decisions and assumptions, the concern/scope assessed, project conventions discovered, what was intentionally NOT proposed and why (Remediation-Risk axis), and any open questions for the user. |
+| `evidence.md` | What was inspected (files/paths/commands run) so the assessment is reproducible; note any content that was truncated/sampled. |
+| `ipd-link.md` | The path to the IPD this run wrote, and a one-line summary, so the run record and the plan cross-reference each other. |
+
+The `workflow-artifacts/` directory is a committed deliverable and is out of review
+scope (never assess it as if it were the project). Do not git-ignore it. Keep the run
+record local only if the user explicitly asks for local-only artifacts.
+
+Distinction: the **IPD** (in the pending-plans dir) is the living proposal that moves
+through the approval/execution lifecycle; the **run record** (in `workflow-artifacts/`)
+is the durable evidence and report of *this assessment run*.
 
 ---
 
