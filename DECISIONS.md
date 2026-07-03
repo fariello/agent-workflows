@@ -733,3 +733,30 @@ both execute the (large) set well.
 - **Overlap acknowledged:** partly overlaps this repo's own no-em-dash / honest-docs
   principles and `assess-guiding-principles`, but is far more comprehensive and
   generally applicable, which justifies its own lens.
+
+### D29. Local working directory renamed to match the repo (reverses D27's "keep the dir")
+
+- **Reversal:** D27 renamed the GitHub repo to `agent-workflows` but deliberately left
+  the local working directory as `ai-coding/`, arguing the local dir name is
+  independent of the repo name. This decision reverses that: the local directory is now
+  `<repo-root>/`, matching the repo and remote.
+- **Why the reversal:** the name mismatch was a standing footgun. In practice it caused
+  a real error - an agent reasoned "the repo is `agent-workflows`, so its files are
+  under `<repo-root>/`" and wrote files to a stray path outside the repo. Any
+  human or agent is prone to the same slip whenever the dir name and repo name disagree.
+  Making dir == repo == remote removes the exception-to-remember and the whole class of
+  wrong-path mistakes.
+- **Hard rename, no compatibility symlink (deliberate):** a symlink at the old path
+  would let stale `ai-coding` references keep working locally, masking exactly the
+  forgotten references we want to surface - and it would not help anyone who clones the
+  repo fresh (they only get `agent-workflows`). A clean rename surfaces every stale
+  reference immediately so it can be fixed.
+- **Safe by construction:** a git repo does not depend on its parent directory's name;
+  remote, history, and `.git` are path-independent. Verified after the rename: remote,
+  HEAD, and working tree intact.
+- **Reference cleanup:** forward-looking path references were already `agent-workflows`
+  (README install examples, installer, ARCHITECTURE). The only in-repo occurrences of
+  `ai-coding` that remain are in DECISIONS.md dated entries and executed plan records,
+  which are history and are NOT rewritten (append-only, GUIDING_PRINCIPLES P4). This
+  entry supersedes the now-stale "local dir left as ai-coding" statement in D27
+  rather than editing D27.
