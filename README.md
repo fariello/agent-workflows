@@ -84,7 +84,7 @@ does **not** auto-execute.
 | Correctness & reliability | `/assess-bugs` `/assess-edge-cases` `/assess-reliability` `/assess-memory-resources` |
 | Security & privacy | `/assess-security` `/assess-secrets` `/assess-privacy` `/assess-data-exfiltration` `/assess-intrusion-detection` `/assess-ransomware-resilience` `/assess-threat-model` `/assess-logging-audit` |
 | Compliance | `/assess-compliance` `/assess-compliance-readiness` (FIPS / NIST 800-171 / CMMC L2 - repo-slice only, not a certification) |
-| UX & docs | `/assess-ui-ux` `/assess-accessibility` (WCAG 2.1 AA) `/assess-self-documentation` `/assess-documentation` |
+| UX & docs | `/assess-ui-ux` `/assess-accessibility` (WCAG 2.1 AA) `/assess-self-documentation` `/assess-documentation` `/assess-prose` (writing style across all prose) |
 | Product & design | `/assess-functionality` `/assess-use-cases` `/assess-architecture` `/assess-api-design` `/assess-generalization` |
 | Delivery & quality | `/assess-testing` `/assess-performance` `/assess-compatibility` `/assess-supply-chain` `/assess-guiding-principles` |
 

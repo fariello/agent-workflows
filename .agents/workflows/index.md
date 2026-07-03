@@ -51,6 +51,7 @@ focusing on different concerns; leave it `-` when not used.
 | assess-compliance-readiness | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/compliance-readiness.md | Assess readiness for a formal regime (FIPS / NIST 800-171 / CMMC L2, parameterized) - repo-slice only, not a certification - and propose an IPD. |
 | assess-generalization | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/generalization.md | Assess generalization/extensibility/configurability (productization for reuse across orgs/tenants/deployments) and propose an IPD. |
 | assess-secrets | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/secrets.md | Scan the working tree and git history for committed secrets/keys/PII/PHI (via tools/scan_secrets.py, read-only, redacted) and propose a rotate-first remediation IPD. |
+| assess-prose | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/prose.md | Assess prose quality/style across ALL prose (docs, comments/docstrings, UI strings, error/help/CLI text, commit messages) against the distilled nonfiction style guide - quiet force, no mechanical fingerprints, modifier restraint, no em dashes. IPD by default; supports an optional author-in-the-loop interactive mode. |
 <!-- WORKFLOWS-MANIFEST:END -->
 
 ## Running a workflow (by tool)

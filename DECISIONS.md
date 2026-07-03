@@ -701,3 +701,35 @@ both execute the (large) set well.
 - **Local working directory** left as `ai-coding/` deliberately (the local dir name
   is independent of the repo/remote name; renaming it would disrupt paths for no
   functional benefit).
+
+### D28. assess-prose: a writing-style assessment for all prose
+
+- **Request:** incorporate the maintainer's nonfiction-prose style guides
+  (`a-private-repo/Prompts/nonfiction_prose_prompt_toolkit_{revised,updated}.md`) into an
+  assessment covering all prose (docs, comments, prose in code, UIs, etc.).
+- **Decision - a NEW `assess-prose` lens, separate from `assess-documentation`:** the
+  documentation lens checks doc *accuracy/completeness*; this checks *how the words
+  read* - style/quality - across every prose surface. Different concern, rubric, lead
+  personas (an editor's eye), and a far broader target than "the docs". Reusable across
+  repos, so a workflow, not a one-off IPD.
+- **Source of truth:** distilled the toolkit's operative rules into a framework-owned
+  `assess/references/prose-style.md` (mechanical-fingerprint avoidance: openings,
+  transitions, sentence structures, prestige/filler words, rhythm/conclusion habits;
+  modifier + rhetorical restraint; honest evidence; quiet-force positive model; no em
+  dashes), attributed to the origin toolkit. The lens references it rather than
+  duplicating the long banned-lists. The executive/board-specific *prompts* were left
+  out (task-specific, not universal).
+- **Surface-adapted intensity:** the toolkit targets executive/long-form documents, so
+  the lens applies the universal rules everywhere but the full quiet-force bar only to
+  long-form; it explicitly does NOT impose memo cadence on a code comment or a one-line
+  UI string.
+- **Two modes (author chooses; default = assess):** assess mode produces an IPD/run
+  record leading with systemic patterns (not hundreds of line nits); an opt-in
+  interactive mode walks the author through edits and MAY apply accepted changes in
+  place. Prose edits are subjective and voice-bearing, so an author-in-the-loop option
+  suits it; the lens makes voice preservation a hard constraint ("sanding off character
+  is a defect, not an improvement"), echoing the toolkit's own warnings. This is the
+  only assess lens that can edit prose in place, and only by explicit per-item consent.
+- **Overlap acknowledged:** partly overlaps this repo's own no-em-dash / honest-docs
+  principles and `assess-guiding-principles`, but is far more comprehensive and
+  generally applicable, which justifies its own lens.

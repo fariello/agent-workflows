@@ -223,6 +223,15 @@ and de-hardcoding org-specific assumptions. It is the reuse-focused sibling of t
 `architecture` lens (structural soundness) and defers to `security` for authz/secrets
 (DECISIONS D22).
 
+`prose` assesses the *writing style* of all prose in the repo (docs, comments/
+docstrings, UI strings, error/help text, commit messages) against a framework-owned,
+distilled nonfiction style guide (`assess/references/prose-style.md`, adapted from the
+maintainer's nonfiction-prose toolkit): quiet force, no mechanical fingerprints,
+modifier restraint, no em dashes, applied at surface-appropriate intensity. It is the
+style sibling of `documentation` (accuracy/completeness) and `self-documentation`
+(in-product learnability), and is the one assess lens with an optional author-in-the-
+loop interactive edit mode, because prose edits are voice-bearing (DECISIONS D28).
+
 ### Meta / authoring workflows (`setup-repo`, `scaffold`)
 
 Two guided, wizard-style workflows differ in kind from the reviewers: they are
