@@ -72,8 +72,8 @@ eight-persona definitions.
 
 ## Dependencies / sequencing
 
-- Enables the `/advise <persona>` half of the command-surface redesign (IPD 1).
-- The spec-editor persona overlaps the spec/requirements lifecycle workflow (IPD 5);
+- Enables the `/advise <persona>` half of the command-surface redesign (the command-surface-redesign IPD).
+- The spec-editor persona overlaps the spec/requirements lifecycle workflow (the lifecycle-workflows IPD);
   decide the division of labor (advise = interactive coaching; spec workflow = produce
   the artifact).
 
@@ -87,8 +87,9 @@ eight-persona definitions.
 ## Open questions
 
 1. Command word: `/advise` vs `/consult` vs `/coach`. (Avoid clashing with any tool's
-   built-in; `/grill-me` specifically is a Gemini built-in, so do NOT reuse that name -
-   the skeptic persona covers that role under a neutral command.)
+   built-in. Note: `/grill-me` is BELIEVED to be a Gemini built-in - unverified here,
+   confirm before relying on it - so do NOT reuse that name regardless; the skeptic
+   persona covers that role under a neutral command.)
 2. Should advise ever write to the artifact directly (with consent), like prose
    interactive mode, or only produce a summary of recommended changes?
 3. Roster: build the full seven now, or start with skeptic + spec-editor + architect and

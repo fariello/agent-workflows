@@ -15,7 +15,7 @@ Add automated tests for the framework's own executable code (`install-workflows.
 relying solely on manual dogfooding.
 
 ### Why
-The toolkit preaches `assess-testing` and a verification/evidence layer (IPD 3), yet its
+The toolkit preaches `assess-testing` and a verification/evidence layer (the verification-evidence-layer IPD), yet its
 own tools have zero automated tests - a credibility gap. Every installer change so far
 has been validated by hand. This is the framework failing its own bar.
 
@@ -25,7 +25,7 @@ has been validated by hand. This is the framework failing its own bar.
   preservation, dry-run makes no changes); scanner (detects a planted secret in tree AND
   history, redacts output, respects bounds, PII rules). Use the stdlib (`unittest`) to
   keep zero dependencies, consistent with the tools themselves.
-- A minimal test runner command documented in CONTRIBUTING, and (composing with IPD 3)
+- A minimal test runner command documented in CONTRIBUTING, and (composing with the verification-evidence-layer IPD)
   the framework's own `verify` should run these.
 - Scope guard: test the mechanical tools, not the instruction prose (prose is reviewed
   by the assess/prose lenses, not unit-tested).
@@ -65,8 +65,8 @@ a real release decision, and a natural companion to `release-review`.
 
 ## Dependencies / sequencing
 
-- Part A composes with IPD 3 (verify runs the self-tests) and IPD 2 (version).
-- Part B benefits from IPD 1 (parameterized assess) and IPD 3 (so the rollup can include
+- Part A composes with the verification-evidence-layer IPD (verify runs the self-tests) and the toolkit-discovery IPD (version).
+- Part B benefits from the command-surface-redesign IPD (parameterized assess) and the verification-evidence-layer IPD (so the rollup can include
   verification evidence). Lower priority than the trust/usability IPDs.
 
 ## Required validation

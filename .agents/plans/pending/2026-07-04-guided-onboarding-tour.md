@@ -36,22 +36,22 @@ An `onboarding` / `tour` / `getting-started` workflow that:
    release-review; "add a workflow" -> scaffold. Offers to run the chosen one.
 4. **Shows how to run things in THIS tool:** native `/command` (OpenCode/Claude Code) vs.
    read-and-execute (Codex/Cursor/Antigravity/others), using the per-tool guidance.
-5. **Points to the catalog** (`/list`, IPD 2) and the README/DECISIONS for depth.
+5. **Points to the catalog** (`/list`, the toolkit-discovery IPD) and the README/DECISIONS for depth.
 6. Read-only/explanatory by default; only runs another workflow with the user's say-so.
    Safe to run any time.
 
 ## Scope check
 
 - Over-scope: do not duplicate the README or the `/list` catalog - the tour ORCHESTRATES
-  and ROUTES; it references the catalog (IPD 2) for the full list rather than
+  and ROUTES; it references the catalog (the toolkit-discovery IPD) for the full list rather than
   re-enumerating it. Keep it a guide, not a second source of truth.
 - Under-scope: it must actually adapt to context and goal, not just recite the README;
   otherwise it adds nothing over reading the README.
 
 ## Dependencies / sequencing
 
-- Best after IPD 2 (`/list` catalog) so the tour can point at a live catalog, and after
-  IPD 1 (parameterized commands) so it teaches the final command surface. Could be built
+- Best after the toolkit-discovery IPD (`/list` catalog) so the tour can point at a live catalog, and after
+  the command-surface-redesign IPD (parameterized commands) so it teaches the final command surface. Could be built
   earlier and updated, but the content depends on the command surface being settled.
 
 ## Required validation
@@ -64,12 +64,12 @@ An `onboarding` / `tour` / `getting-started` workflow that:
 
 1. Command name: `onboarding`, `tour`, `getting-started`, or `start`? (`start` is short
    and inviting; `tour` is clear.)
-2. Build it before or after the command surface settles (IPD 1/2)? Content depends on
-   the final surface, so likely after - or build now and revise when IPD 1/2 land.
+2. Build it before or after the command surface settles (the command-surface-redesign IPD/2)? Content depends on
+   the final surface, so likely after - or build now and revise when the command-surface-redesign IPD/2 land.
 3. Overlap with setup-repo: the tour ROUTES to setup-repo; keep them distinct (tour =
    orient + route; setup-repo = do the setup).
 
 ## Approval and execution gate
 
-Proposal only. Best sequenced after the command surface (IPD 1) and catalog (IPD 2) are
+Proposal only. Best sequenced after the command surface (the command-surface-redesign IPD) and catalog (the toolkit-discovery IPD) are
 settled, since it teaches them. Approve/reorder before execution.

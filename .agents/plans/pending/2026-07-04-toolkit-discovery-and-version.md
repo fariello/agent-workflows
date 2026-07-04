@@ -10,12 +10,12 @@
 
 Let a user (or agent) answer, in-agent, "what can this toolkit do, and which version is
 installed here?" without reading `index.md` by hand. This is the companion to the
-parameterized `/assess <thing>` (IPD 1): it is how you discover the `<thing>` values.
+parameterized `/assess <thing>` (the command-surface-redesign IPD): it is how you discover the `<thing>` values.
 
 ## Why
 
 - There is no in-agent capability listing today; discovery means manually reading the
-  manifest. This gets worse once concerns collapse behind `/assess <thing>` (IPD 1),
+  manifest. This gets worse once concerns collapse behind `/assess <thing>` (the command-surface-redesign IPD),
   because per-concern menu autocomplete goes away.
 - Installed copies carry no version, so neither a user nor `setup-repo`'s conformance
   check can say "this repo has framework vX; the source is vY, you are behind."
@@ -44,7 +44,7 @@ parameterized `/assess <thing>` (IPD 1): it is how you discover the `<thing>` va
 
 ## Dependencies / sequencing
 
-- Should ship with or before **IPD 1** (it restores the discoverability IPD 1 removes).
+- Should ship with or before **the command-surface-redesign IPD** (it restores the discoverability the command-surface-redesign IPD removes).
 - Version stamping composes with `setup-repo`'s conformance check (D26) - version-aware
   drift detection is a natural follow-on.
 

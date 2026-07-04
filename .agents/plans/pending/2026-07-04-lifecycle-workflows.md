@@ -17,7 +17,7 @@ discovery -> build -> review -> ship -> operate, not just assess/review.
 ### 1. `spec` / `draft-spec` (front of funnel)
 Turn a fuzzy request into a reviewable specification / requirements document: goals,
 non-goals, users, acceptance criteria, constraints, open questions. Feeds `plan-review`
-and then implementation. Division of labor with IPD 4's `spec-editor` persona: the
+and then implementation. Division of labor with the advise-workflow IPD's `spec-editor` persona: the
 `spec` workflow PRODUCES the artifact; `/advise spec-editor` interactively interrogates
 and improves it. Guided/interactive (like setup-repo), writes the spec to the project's
 docs/plan location.
@@ -60,8 +60,8 @@ model. Anything more speculative is deferred (Fix Bar complexity axis).
 
 ## Dependencies / sequencing
 
-- `spec` pairs with IPD 4's `spec-editor` persona (produce vs. interrogate).
-- `release-notes` composes with the version stamping in IPD 2 and with prose (assess-prose).
+- `spec` pairs with the advise-workflow IPD's `spec-editor` persona (produce vs. interrogate).
+- `release-notes` composes with the version stamping in the toolkit-discovery IPD and with prose (assess-prose).
 - `migrate` reuses the assess harness/IPD pipeline; likely the last of the four.
 - Each is independently buildable; recommend `spec` first, then `incident`,
   `release-notes`, `migrate` - or split into separate execution IPDs.

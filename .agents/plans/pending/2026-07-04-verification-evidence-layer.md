@@ -10,10 +10,12 @@
 ## Goal
 
 Convert the toolkit from "the agent says the tests pass / it is secure" to "here is
-machine-checkable evidence." Today only `scan_secrets.py` provides a deterministic
-backstop; everything else (tests, coverage, lint, build, type-check, accessibility)
-rests on the LLM's self-report. For enterprise trust, claims that can be checked
-deterministically should be.
+machine-checkable evidence." Today the only deterministic tools are `scan_secrets.py`
+(a real evidence-producing backstop for the secrets concern) and `setup-repo`'s
+`setup_tools.py` (which detects/installs dev tools, i.e. it supports setup rather than
+producing review evidence). Every review/assess claim about tests, coverage, lint,
+build, type-check, or accessibility rests on the LLM's self-report. For enterprise
+trust, claims that can be checked deterministically should be.
 
 ## Why this is the priority
 
@@ -62,7 +64,7 @@ toolkit credible.
 
 - Prioritized first among the roadmap IPDs (trust-critical).
 - Composes with the framework self-tests IPD (dogfood: the toolkit should verify itself).
-- `assess-all` (IPD 6) rollup should incorporate verify evidence.
+- `assess-all` (the self-tests/assess-all IPD) rollup should incorporate verify evidence.
 
 ## Required validation
 

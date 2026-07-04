@@ -9,8 +9,8 @@
 ## Goal
 
 Cap the top-level command surface as concerns and personas grow, without losing
-capability. Collapse the 28 `/assess-<concern>` commands into a single parameterized
-`/assess <thing>`, and (paired with the future `advise` workflow, IPD 4) `/advise
+capability. Collapse the 29 `/assess-<concern>` commands into a single parameterized
+`/assess <thing>`, and (paired with the future `advise` workflow, the advise-workflow IPD) `/advise
 <persona>`. Keep genuinely distinct workflows (release-review, plan-review, setup-repo,
 scaffold, and future verify/list/etc.) as their own commands.
 
@@ -41,30 +41,30 @@ scaffold, and future verify/list/etc.) as their own commands.
    over a set" (the assess concerns), so the installer generates ONE `/assess` shim
    plus the catalog data, rather than one shim per concern. Concern lenses remain
    individually listed (they are the source of truth for the picker/catalog and for
-   IPD 2's `/list`).
+   the toolkit-discovery IPD's `/list`).
 5. **Cross-tool behavior:** OpenCode/Claude Code get the native `/assess <thing>`;
    other agents use "read and execute the assess harness with lens `<thing>`". The
-   `AGENTS.md` pointer and the catalog (IPD 2) preserve discoverability.
+   `AGENTS.md` pointer and the catalog (the toolkit-discovery IPD) preserve discoverability.
 
 ## The trade-off this accepts (and how it is mitigated)
 
 Collapsing to one command **loses per-concern autocomplete** (typing `/assess-` no
-longer enumerates 28 concerns in the menu). Mitigation: the bare-invocation picker
-(step 2) and the `/list` catalog (IPD 2) restore discoverability better than a
-28-entry menu did. This is the deliberate reason IPD 2 (discovery) should ship with or
+longer enumerates the ~29 concerns in the menu). Mitigation: the bare-invocation picker
+(step 2) and the `/list` catalog (the discovery IPD) restore discoverability better than
+a per-concern menu did. This is the deliberate reason the discovery IPD should ship with or
 before this one.
 
 ## Scope check
 
 - Over-scope: do not redesign the core workflows' invocation or rename them; only the
-  assess (and, via IPD 4, advise) families collapse.
-- Under-scope: discoverability must not regress - hence the dependency on IPD 2.
+  assess (and, via the advise-workflow IPD, advise) families collapse.
+- Under-scope: discoverability must not regress - hence the dependency on the toolkit-discovery IPD.
 
 ## Dependencies / sequencing
 
-- Pairs with **IPD 2 (discovery/`list`)** - ship together or IPD 2 first, so users can
+- Pairs with **the toolkit-discovery IPD** - ship together or discovery first, so users can
   find the `<thing>` values.
-- The `/advise <persona>` half depends on **IPD 4** (the advise workflow) existing.
+- The `/advise <persona>` half depends on **the advise-workflow IPD** (the advise workflow) existing.
 - Requires an installer change (shim generation + manifest parsing). Backward
   compatibility: decide whether to KEEP the old `/assess-<concern>` shims for one
   transition period or remove them on install (open question).
@@ -89,4 +89,4 @@ before this one.
 ## Approval and execution gate
 
 Proposal only. Approve/reorder before execution. It changes the command surface and the
-installer, so it should be plan-reviewed and ideally sequenced with IPD 2.
+installer, so it should be plan-reviewed and ideally sequenced with the toolkit-discovery IPD.
