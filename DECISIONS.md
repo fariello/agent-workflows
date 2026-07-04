@@ -1104,3 +1104,28 @@ both execute the (large) set well.
   decision makes the installer do it correctly on its own going forward. (`reddit-data`
   separately un-gitignores `.opencode/` at the user's request so its OpenCode shims are
   tracked like the other repos.)
+
+### D39. Release-review loudly warns about pending agent plans and staged prompts
+
+- **Context:** a repository driven by agent workflows accumulates prepared-but-unexecuted
+  work - IPDs in `.agents/plans/pending/`, plans whose `Status:` line still says pending,
+  and staged prompt files queued for a later run. `release-review` already reconciled
+  `TODO.md`/backlog and in-code `TODO`/`FIXME`, but it had NO awareness of these pending
+  plans/prompts. Shipping while an approved-but-unexecuted plan sits in `pending/` is a
+  common, easy-to-miss way to release with known planned work silently skipped.
+- **Change:** pending agent plans and staged prompts are now a first-class cross-cutting
+  concern. Section 1 discovers and inventories them (path + status), classifies each
+  against the release, and never executes them. Section 8 applies a **pending-plans /
+  staged-prompts gate**: any in-scope pending plan/prompt (or a status/location mismatch,
+  e.g. a `done/` plan still marked pending) forces a loud, bold `WARNING` in the Go/No-Go
+  and the summary and blocks a clean GO (at most CONDITIONAL GO, with each item named as a
+  prerequisite/decision). Added a dedicated "Pending plans / staged prompts" section (with
+  a table) to `templates/final-response.md`, a new ownership-map row and protocol section
+  in `00-run-protocol.md`, and matching exit-gate checkboxes in Sections 1 and 8. Docs
+  (`README.md`, `MANIFEST.md`) updated to list it among the on-every-run guarantees.
+- **Why loud, not silent:** these items are concrete, often-already-approved units of work,
+  distinct from open-ended backlog. Burying them in a table would defeat the purpose; the
+  user explicitly wants a prominent warning at the Go/No-Go so the release decision is made
+  with eyes open. The review still never auto-executes a plan - it surfaces for a human.
+- **Scope:** instruction-only change to the `release-review` workflow bodies and templates;
+  no code/tool change. VERSION bumped 20260704-01 -> 20260704-02.
