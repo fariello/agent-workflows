@@ -1002,3 +1002,47 @@ both execute the (large) set well.
   `release-notes`, `migrate`) and copies the four bodies. Dogfooded on this repo.
 - **Docs updated:** README (four core-table rows + count 7->11 core), `index.md`
   (lifecycle prose), release-review Section 9 (references `release-notes`).
+
+### D36. Framework self-tests + `assess-all` rollup
+
+- **Change:** executes the self-tests-and-assess-all IPD (2026-07-04), both parts. Part A:
+  automated tests (`tests/`) for the framework's own Python tools. Part B: an `assess-all`
+  cross-concern rollup workflow.
+- **Why (A):** the toolkit preaches assess-testing and the verification/evidence layer
+  (D33), yet its own tools had zero automated tests - a credibility gap; every installer
+  change had been validated by hand. The framework was failing its own bar. **Why (B):**
+  running each assess concern separately yields many IPDs with overlapping/conflicting
+  findings and no cross-concern prioritization; a rollup gives a single prioritized view.
+- **Scope (open Q1, resolved):** build both parts now (dependencies - parameterized assess
+  D31, verify D33 - are done).
+- **Test framework (open Q3, resolved):** stdlib `unittest`, zero dependencies, consistent
+  with the tools (the framework eats its own zero-dependency dog food); not pytest.
+- **Part A coverage:** installer (fresh install, idempotent re-run, prune of stale/legacy
+  `assess-<concern>` shims, `--no-prune`, legacy-layout migration, dry-run makes no
+  changes, catalog-row collapse + the `assess-all` exception, `--version`, installer not
+  copied into target); scanner (planted secret in the working tree AND git history,
+  redaction never leaks the raw value, clean-repo zero, `--version`); run_checks
+  (classification, denylist blocks dangerous, denylisted never runs even under `--yes`,
+  honest pass/fail exit codes, no-checks honesty, metric-scrape cleanliness, `--version`).
+  E2E tests run the tools as subprocesses against throwaway git repos; unit tests import
+  the pure functions. 25 tests. Scope guard: mechanical tools only, not the instruction
+  prose (prose is reviewed by `/assess prose`, not unit-tested).
+- **Part B design:** `assess-all` reuses the assess harness per lens and adds the value
+  layer - de-dupe overlapping findings, cross-concern priority (a Blocker security finding
+  outranks a Low prose nit; uses the Fix Bar), surface conflicts - then emits ONE
+  consolidated IPD plus a rollup run record. The lenses stay the single source of truth
+  (open Q surface, resolved): `assess-all` is its own command that ORCHESTRATES them, never
+  a second place that defines concerns.
+- **assess-all default (open Q2, resolved):** confirm scope and cost FIRST - present the
+  concern groups, note that a full run is expensive, default to a sensible set, and let the
+  user pick all/group/subset. Never silently run all concerns.
+- **Installer generalization:** added `CATALOG_PREFIX_EXCEPTIONS = {"assess-all"}` so
+  `assess-all` gets its own shim despite the `assess-` prefix (it is a standalone command,
+  not an assess concern). Covered by a self-test.
+- **Verified:** all 25 self-tests pass; confirmed they FAIL when a tool is deliberately
+  broken (temporarily neutered the denylist -> the denylist test failed; restored -> green)
+  - proving they are real, not vacuous. Fresh install generates 14 shims/tool (adds
+  `assess-all`), which the installer test asserts. Dogfooded on this repo.
+- **Docs updated:** README (assess-all in the Assessments section), `index.md` (assess-all
+  prose), CONTRIBUTING (a Self-tests section with the runner command; also fixed a stale
+  `/assess-secrets` -> `/assess secrets`).

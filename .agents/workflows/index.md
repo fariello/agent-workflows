@@ -35,6 +35,7 @@ focusing on different concerns; leave it `-` when not used.
 | setup-repo | .agents/workflows/setup-repo/setup-repo.md | - | Guided, idempotent, drift-aware repo setup AND conformance check: detect state, classify each area (conformant/partial/missing/outdated), then ask-before-each-change to install tools and add secret-scanning, the plan/IPD lifecycle (dirs + documented contract), .gitignore/CI/pre-commit/hygiene files. Safe to re-run after updates; stages changes. |
 | scaffold | .agents/workflows/scaffold/scaffold.md | - | Guided, wizard-style creation of a new assess-* lens, standalone workflow, or command: generate from the existing patterns, wire the manifest, and regenerate shims. Authoring/meta workflow. |
 | assess | .agents/workflows/assess/assess.md | - | Assess ONE concern deeply and propose an IPD. `/assess <concern> [scope]` (e.g. `/assess security`, `/assess prose src/`); bare `/assess` lists concerns and asks. The `assess-<concern>` rows below are the concern catalog (they define the lenses), not separate commands. |
+| assess-all | .agents/workflows/assess-all/assess-all.md | - | Cross-concern rollup: run the assess family (all, a group, or a subset - confirms scope and cost first) and synthesize ONE prioritized, de-duplicated, cross-concern IPD plus a rollup record, instead of many separate IPDs. The broad propose-a-plan review (release-review is the broad fix-in-place review). Reuses the lenses as the single source of truth. |
 | assess-performance | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/performance.md | Assess runtime/resource performance and propose an IPD. |
 | assess-security | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/security.md | Assess security posture and propose an IPD. |
 | assess-privacy | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/privacy.md | Assess privacy/data-protection handling and propose an IPD. |
@@ -127,6 +128,14 @@ Use `release-review` for a broad, all-concerns review that fixes in place; use
 `/assess <concern>` when you want a deep, single-concern pass that proposes a plan for
 human approval first. The concern is the command's first argument; a bare `/assess`
 lists the concerns and asks which to run.
+
+**`assess-all`** is the cross-concern rollup: it runs the family (all, a group, or a
+subset - confirming scope and cost first) and synthesizes ONE prioritized, de-duplicated
+IPD plus a rollup record, rather than N disconnected IPDs. It orchestrates the existing
+lenses (which remain the single source of truth for concerns) and adds the
+synthesis/cross-prioritization layer. It is the broad propose-a-plan review, the companion
+to `release-review`'s broad fix-in-place review. Its command gets its own shim despite the
+`assess-` prefix (a documented exception in the installer).
 
 The family includes engineering, UX, docs, and verification concerns, plus
 **cybersecurity** lenses (`data-exfiltration`, `intrusion-detection`,

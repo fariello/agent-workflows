@@ -407,6 +407,11 @@ def shim_body(command: str, workflow: Workflow, tool: str) -> str:
 # for the picker and for `/list-workflows`, but generate no shim of their own.
 CATALOG_ROW_PREFIXES: tuple[str, ...] = ("assess-", "advise-")
 
+# Real commands that happen to share a catalog prefix and must STILL get their own shim
+# (they are standalone workflows, not catalog entries). `assess-all` is the rollup
+# orchestration command, not an assess concern.
+CATALOG_PREFIX_EXCEPTIONS: frozenset[str] = frozenset({"assess-all"})
+
 
 def is_concern_catalog_row(workflow: Workflow) -> bool:
     """Whether a manifest row is a catalog entry (assess concern / advise persona).
@@ -414,8 +419,11 @@ def is_concern_catalog_row(workflow: Workflow) -> bool:
     Catalog rows are the source of truth for a parameterized command's set (the assess
     lenses, the advise personas) and feed its picker and `/list-workflows`. They do NOT
     each generate their own shim; the single parameterized row (`assess`, `advise`) does.
+    Commands in CATALOG_PREFIX_EXCEPTIONS are standalone workflows despite the prefix.
     """
 
+    if workflow.command in CATALOG_PREFIX_EXCEPTIONS:
+        return False
     return workflow.command.startswith(CATALOG_ROW_PREFIXES)
 
 

@@ -102,6 +102,11 @@ be asked which to run; concern names are matched case-insensitively with common 
 | Product & design | `functionality` `use-cases` `architecture` `api-design` `generalization` |
 | Delivery & quality | `testing` `performance` `compatibility` `supply-chain` `guiding-principles` |
 
+Want the whole picture at once? **`/assess-all`** runs the family (all, a group, or a
+subset - it confirms the scope and cost first) and synthesizes ONE prioritized,
+de-duplicated, cross-concern plan instead of many separate IPDs. It is the broad
+propose-a-plan review; `/release-review` is the broad fix-in-place review.
+
 The intended pipeline:
 
 ```

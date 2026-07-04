@@ -42,7 +42,26 @@ Committed secrets and PII/PHI must never enter this repo, including its git hist
 - **False positives:** add the finding's fingerprint (printed by gitleaks) to the
   `.gitleaksignore` baseline at the repo root. Do not suppress a real secret - rotate
   it at the provider first, then purge it from history (`git filter-repo`/BFG).
-- For a deeper pass, run the `/assess-secrets` workflow.
+- For a deeper pass, run `/assess secrets`.
+
+## Self-tests (run before pushing tool changes)
+
+The framework's Python tools have automated tests (stdlib `unittest`, zero dependencies -
+consistent with the tools themselves). If you change `install-workflows.py`,
+`scan_secrets.py`, or `run_checks.py`, run them:
+
+```
+python3 -m unittest discover -s tests -t .
+```
+
+They cover the installer (fresh install, idempotent re-run, prune of stale/legacy shims,
+legacy-layout migration, dry-run makes no changes, the catalog-row collapse and the
+`assess-all` prefix exception, `--version`), the secret scanner (planted secret in the
+working tree AND in git history, redaction, clean-repo zero), and the check runner
+(classification, the safety denylist never running under `--yes`, honest pass/fail exit
+codes, no-checks honesty). The framework's own `verify` workflow discovers and runs them.
+Test only the mechanical tools, not the instruction prose (prose is reviewed by
+`/assess prose`, not unit-tested).
 
 ## Authoring conventions
 

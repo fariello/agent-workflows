@@ -5,7 +5,7 @@
   cross-concern orchestration (avoid producing N disconnected IPDs).
 - Scope: two related additions - automated tests for the framework's own Python tools,
   and an `assess-all` orchestration workflow.
-- Status: PENDING (proposal for human approval; not executed)
+- Status: EXECUTED 2026-07-04 (both parts A and B). See DECISIONS.md D36.
 
 ## Part A: Framework self-tests
 
@@ -88,3 +88,22 @@ a real release decision, and a natural companion to `release-review`.
 Proposal only. Part A (self-tests) is low-risk meta-hardening and a good early build;
 Part B (assess-all) is a larger feature best done after the parameterized-assess and
 verification IPDs. Approve/reorder before execution.
+
+## Execution record (2026-07-04)
+
+Open questions resolved by the human:
+- Q1 (scope): build both parts now.
+- Q3 (framework): stdlib unittest, zero dependencies.
+- Q2 (assess-all default): confirm scope + cost first; default a sensible set; user picks
+  all/group/subset; never silently run everything.
+- Surface: assess-all is its own command reusing the lenses as the single source of truth.
+
+Changes (A): `tests/` (support.py + test_installer.py + test_scan_secrets.py +
+test_run_checks.py), 25 stdlib-unittest tests covering installer/scanner/run_checks;
+CONTRIBUTING Self-tests section. Changes (B): `assess-all/assess-all.md` orchestration;
+`assess-all` manifest row; installer `CATALOG_PREFIX_EXCEPTIONS = {"assess-all"}` so it
+gets a shim despite the assess- prefix (with a self-test); README + index.md prose;
+DECISIONS D36. Verified: all 25 tests pass and FAIL when a tool is deliberately broken
+(neutered denylist -> denylist test failed; restored -> green); fresh install -> 14
+shims/tool (adds assess-all). Dogfooded on this repo. Scope held (test mechanical tools
+not prose; assess-all orchestrates, never redefines concerns).
