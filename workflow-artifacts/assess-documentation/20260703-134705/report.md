@@ -10,7 +10,7 @@
 
 | ID | Severity | Remediation Risk | Persona | Finding |
 |----|----------|------------------|---------|---------|
-| D1 | Medium | Low | software-engineer | `release-review/MANIFEST.md` Files table lists `plan-review.md` (not in `release-review/`; it is in the `plan-review/` sibling dir) and omits `MANIFEST.md` + `templates/` (both present). |
+| D1 | Medium | Low | software-engineer | `release-review/MANIFEST.md` Files table lists `plan-review.md` (not in `release-review/`; it is in the `plan-review/` sibling dir) and omits `MANIFEST.md` itself. (`templates/` is NOT omitted - all 14 template files are listed and exist; corrected during plan-review.) |
 | D2 | Low | Low | software-engineer | MANIFEST hand-enumerates assess commands ("...and more") - drift-prone; `index.md` is authoritative. |
 | D3 | Medium | resolved | complete-novice | Plan/IPD lifecycle not in top-level docs - RESOLVED by the README rewrite (pipeline diagram added). |
 | D4 | Low | resolved | software-engineer | DECISIONS-as-changelog not stated - RESOLVED by the README rewrite. |
@@ -32,7 +32,7 @@ Two fixes remain, both in `release-review/MANIFEST.md` (low Remediation Risk):
 This assessment was drafted earlier the same day, then re-verified against the current
 repo before finalizing (the correct discipline: verify the plan's claims against reality,
 do not trust the draft). The re-check found D3, D4, and D5 already fixed by an intervening
-README rewrite, and sharpened D1 (the MANIFEST also omits `MANIFEST.md` and `templates/`,
+README rewrite, and sharpened D1 (the MANIFEST also omits `MANIFEST.md`,
 not just wrongly lists `plan-review.md`). The IPD was updated to reflect this.
 
 ## Next step
