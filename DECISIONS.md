@@ -822,3 +822,43 @@ both execute the (large) set well.
 - **Docs updated:** README (quick-start example, assessments section, by-tool table),
   `index.md` (pipeline, cybersecurity/compliance examples, a manifest note documenting the
   `assess`/`assess-<concern>` command/catalog split).
+
+### D32. Toolkit discovery (`/list-workflows`) and framework version stamping
+
+- **Change:** executes the toolkit-discovery-and-version IPD (2026-07-04). Adds (a) a
+  `/list-workflows` read-only discovery workflow, (b) a framework `VERSION`, and (c) a
+  `--version` flag on `install-workflows.py` and `scan_secrets.py`. Completes the
+  discoverability story that D31's command collapse leaned on.
+- **Why:** there was no in-agent way to answer "what can this toolkit do, and which
+  version is installed here?" - discovery meant reading `index.md` by hand, and that got
+  worse once per-concern menu autocomplete went away under `/assess <concern>` (D31).
+  Installed copies also carried no version, so neither a user nor `setup-repo`'s
+  conformance check could say "you are behind."
+- **`/list-workflows` (open Q1, resolved):** named `/list-workflows` (not `/list` or
+  `/toolkit`) to avoid colliding with any existing `/list` command in a host tool. It
+  READS the manifest (single source of truth) and reports grouped, run-ready output:
+  core workflows, the `/assess` concerns (the `assess-<concern>` catalog rows, never as
+  separate commands), and personas once they exist; plus the installed version. Optional
+  filter argument (`/list-workflows security`, `/list-workflows assess`). Generated from
+  the manifest so it cannot drift; read-only (no IPD, no file changes, runs nothing).
+- **Version scheme (open Q2, resolved):** date-based `YYYYMMDD-NN` (calendar date plus a
+  same-day sequence, e.g. `20260704-01`). Chosen over semver: this is a continuously
+  evolving instruction set, not a library with a compatibility contract, so semver would
+  overpromise. `NN` disambiguates multiple releases on one day.
+- **Version location (open Q3, resolved):** BOTH a `.agents/workflows/VERSION` file (the
+  machine source of truth the tools read) AND a `<!-- WORKFLOWS-VERSION: ... -->` header
+  line in `index.md` (human/agent-visible when reading the manifest).
+- **Installed-version stamping:** the `VERSION` file is copied into each target as part
+  of the normal file install (it is not an installer authoring file, so
+  `collect_source_members` picks it up automatically). The installed `VERSION` file IS
+  the record - no separate state file - so source-vs-installed drift is just comparing
+  two `VERSION` files. `read_version()` returns "unknown" when the file is absent (older
+  install), and the tools/`/list-workflows` report that honestly.
+- **Scope held:** no package registry, no auto-update, no telemetry - just listing plus a
+  version string, exactly as the IPD scoped.
+- **Verified:** both tools compile; `--version` prints `20260704-01` from source and from
+  an installed copy; a fresh install generates 7 shims per tool (adds `list-workflows`),
+  copies `VERSION` into the target, and prints the version in the summary. Dogfooded on
+  this repo.
+- **Docs updated:** README (core-workflows table, discovery hint, versioning bullet +
+  `--version` option), `index.md` (version header line), manifest (`list-workflows` row).

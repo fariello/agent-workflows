@@ -4,7 +4,7 @@
 - Concern: usability / discoverability (of both capabilities and installed state)
 - Scope: a new discovery workflow generated from the manifest; a framework version
   marker; a `--version` on the tools. No change to existing workflow behavior.
-- Status: PENDING (proposal for human approval; not executed)
+- Status: EXECUTED 2026-07-04. See DECISIONS.md D32.
 
 ## Goal
 
@@ -69,3 +69,21 @@ parameterized `/assess <thing>` (the command-surface-redesign IPD): it is how yo
 
 Proposal only. Low risk, high usability value; a good early build. Approve/reorder
 before execution.
+
+## Execution record (2026-07-04)
+
+Open questions resolved by the human:
+- Q1 (command name): `/list-workflows` (avoids colliding with any host-tool `/list`).
+- Q2 (version scheme): date-based `YYYYMMDD-NN` (e.g. `20260704-01`); NN = same-day seq.
+- Q3 (version location): BOTH a `.agents/workflows/VERSION` file (tooling) AND a
+  `<!-- WORKFLOWS-VERSION: ... -->` header line in `index.md` (humans/agents).
+- Stamping: `VERSION` is copied into targets by the normal file install; the installed
+  file IS the record (no separate state file).
+
+Changes: new `list-workflows/list-workflows.md` (read-only, manifest-driven, grouped,
+per-tool run instructions, optional filter); `VERSION` (`20260704-01`); `index.md`
+version header + `list-workflows` manifest row; `install-workflows.py` (`read_version`,
+`--version`, version in summary); `scan_secrets.py` (`_framework_version`, `--version`);
+README + DECISIONS D32. Verified: both tools compile; `--version` prints from source and
+from an installed copy; fresh install -> 7 shims/tool, `VERSION` copied, version in
+summary. Dogfooded on this repo. Scope held (no registry/auto-update/telemetry).

@@ -1,5 +1,10 @@
 # Agent Workflows
 
+<!-- WORKFLOWS-VERSION: 20260704-01 -->
+Version: `20260704-01` (source of truth: `.agents/workflows/VERSION`). Scheme:
+`YYYYMMDD-NN` (calendar date plus a same-day sequence). The installer stamps this into
+each target so `/list-workflows` and `setup-repo` can report the installed version.
+
 Reusable, tool-agnostic agent workflows for this repository. Each workflow is a
 capability with its own subdirectory here. To run one, read and execute its body
 file (the path below), or use the matching slash command in a tool that supports them
@@ -21,6 +26,7 @@ focusing on different concerns; leave it `-` when not used.
 | release-review | .agents/workflows/release-review/README.md | - | Full pre-release repository review and hardening: deep audit through eight personas, the Fix Bar, fix/validate/report, push and release decisions. |
 | release-review-plan | .agents/workflows/release-review/README.md | - | Release review in planning-only mode: audit and consolidated implementation plan, stopping before implementation. |
 | plan-review | .agents/workflows/plan-review/plan-review.md | - | Pre-execution plan reviewer: review and improve a proposed implementation plan before any code is written (edits planning documents only). |
+| list-workflows | .agents/workflows/list-workflows/list-workflows.md | - | Toolkit discovery: list what this toolkit can do (core workflows, the `/assess` concerns, any personas) and the installed framework version, read from the manifest. Optional filter argument (`/list-workflows security`, `/list-workflows assess`). Read-only. |
 | setup-repo | .agents/workflows/setup-repo/setup-repo.md | - | Guided, idempotent, drift-aware repo setup AND conformance check: detect state, classify each area (conformant/partial/missing/outdated), then ask-before-each-change to install tools and add secret-scanning, the plan/IPD lifecycle (dirs + documented contract), .gitignore/CI/pre-commit/hygiene files. Safe to re-run after updates; stages changes. |
 | scaffold | .agents/workflows/scaffold/scaffold.md | - | Guided, wizard-style creation of a new assess-* lens, standalone workflow, or command: generate from the existing patterns, wire the manifest, and regenerate shims. Authoring/meta workflow. |
 | assess | .agents/workflows/assess/assess.md | - | Assess ONE concern deeply and propose an IPD. `/assess <concern> [scope]` (e.g. `/assess security`, `/assess prose src/`); bare `/assess` lists concerns and asks. The `assess-<concern>` rows below are the concern catalog (they define the lenses), not separate commands. |

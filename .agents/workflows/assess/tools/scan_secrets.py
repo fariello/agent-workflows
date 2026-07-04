@@ -414,8 +414,29 @@ def emit(findings: list[Finding], fmt: str, out, avail: dict[str, bool]) -> None
         print("\n".join(msg), file=sys.stderr)
 
 
+def _framework_version() -> str:
+    """Return the agent-workflows framework version this tool ships with.
+
+    The VERSION file lives at the framework root (.agents/workflows/VERSION); this script
+    is at .agents/workflows/assess/tools/scan_secrets.py, so it is two directories up.
+    Returns "unknown" if the file is absent (e.g. run standalone outside the framework).
+    """
+
+    version_path = Path(__file__).resolve().parent.parent.parent / "VERSION"
+    try:
+        value = version_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return "unknown"
+    return value or "unknown"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Read-only secrets/PII scanner (tree + git history).")
+    ap.add_argument(
+        "--version",
+        action="store_true",
+        help="Print the agent-workflows framework version and exit.",
+    )
     ap.add_argument("--repo", type=Path, default=Path.cwd())
     ap.add_argument("--format", choices=["json", "csv", "text"], default="text")
     ap.add_argument("--working-tree-only", action="store_true")
@@ -428,6 +449,10 @@ def main() -> int:
     ap.add_argument("--no-external", action="store_true")
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
+
+    if args.version:
+        print(_framework_version())
+        return 0
 
     root = args.repo.expanduser().resolve()
     if not root.is_dir():

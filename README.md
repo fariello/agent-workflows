@@ -59,9 +59,10 @@ Read and execute .agents/workflows/assess/assess.md for the concern "secrets"  #
 
 ## What you can run
 
-Five core workflows plus one parameterized `/assess <concern>` command covering a family
-of single-concern assessments. For any tool without native slash commands, run the body
-file shown in the manifest (`.agents/workflows/index.md`) via "Read and execute ...".
+Six core workflows plus one parameterized `/assess <concern>` command covering a family
+of single-concern assessments. Not sure what is available or which version is installed?
+Run `/list-workflows`. For any tool without native slash commands, run the body file
+shown in the manifest (`.agents/workflows/index.md`) via "Read and execute ...".
 
 ### Core workflows
 
@@ -72,6 +73,7 @@ file shown in the manifest (`.agents/workflows/index.md`) via "Read and execute 
 | `/release-review-plan` | The release review in planning-only mode: audit + a consolidated implementation plan, stopping before changes. | No |
 | `/plan-review` | Review and improve a proposed implementation plan (IPD) **before** any code is written. | No (edits the plan doc) |
 | `/scaffold` | Guided creation of a new assessment lens, workflow, or command, wired into the manifest. | Framework files only |
+| `/list-workflows` | Toolkit discovery: lists what this toolkit can do (core workflows, the `/assess` concerns, personas) and the installed framework version, read from the manifest. Optional filter, e.g. `/list-workflows security`. | No (read-only) |
 
 ### Assessments (`/assess <concern>`)
 
@@ -124,7 +126,11 @@ each workflow's body path.
   never commits, and never modifies your own code.
 - **Options:** `--dry-run` (preview), `--repo <path>` (target another repo),
   `--source <path>` (framework source), `--no-prune` (do not remove stale framework
-  files), `--no-backup`.
+  files), `--no-backup`, `--version` (print the framework version and exit).
+- **Versioning:** the framework carries a version (scheme `YYYYMMDD-NN`) in
+  `.agents/workflows/VERSION`. The installer stamps it into each target (copied with the
+  files) and prints it in the summary; `/list-workflows` reports the installed version.
+  `install-workflows.py --version` and `scan_secrets.py --version` print it too.
 - **Updating:** just re-run the installer. It is idempotent, clean-syncs the framework,
   regenerates shims, and (if it changed anything) reminds you to re-run `/setup-repo` as
   a conformance check.

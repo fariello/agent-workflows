@@ -127,6 +127,27 @@ LEGACY_FRAMEWORK_DIR = "release-review"      # pre-D17 root location; migrated o
 MANIFEST_BEGIN = "<!-- WORKFLOWS-MANIFEST:BEGIN -->"
 MANIFEST_END = "<!-- WORKFLOWS-MANIFEST:END -->"
 
+VERSION_FILE = "VERSION"  # under the source .agents/workflows/; stamped into targets
+
+
+def read_version(source_root: Path) -> str:
+    """Return the framework version string from the source VERSION file.
+
+    The VERSION file (scheme YYYYMMDD-NN) is the single machine-readable source of truth;
+    it is copied verbatim into each target as part of the normal file install, so the
+    installed copy carries its own version marker.
+
+    Returns:
+        The trimmed version string, or "unknown" if the file is absent/empty.
+    """
+
+    path = source_root / VERSION_FILE
+    try:
+        value = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return "unknown"
+    return value or "unknown"
+
 
 @dataclass(frozen=True)
 class Workflow:
@@ -170,6 +191,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dry-run", action="store_true", help="Show actions without writing.")
     parser.add_argument("--no-backup", action="store_true", help="Do not back up before overwrite/prune.")
     parser.add_argument("--no-prune", action="store_true", help="Do not remove stale framework files.")
+    parser.add_argument(
+        "--version",
+        action="store_true",
+        help="Print the framework version (from the source VERSION file) and exit.",
+    )
     return parser.parse_args()
 
 
@@ -856,6 +882,7 @@ def print_summary(
 ) -> None:
     mode = "DRY RUN" if plan.dry_run else "COMPLETE"
     print(f"Agent workflows installer: {mode}")
+    print(f"Version: {read_version(plan.source_root)}")
     print(f"Repository root: {plan.repo_root}")
     print(f"Source: {plan.source_root}")
     print(f"Git: {'staging changes (no commit)' if use_git else 'not a git repo; filesystem only'}")
@@ -920,6 +947,12 @@ def print_summary(
 
 def main() -> int:
     args = parse_args()
+
+    if args.version:
+        # Report the framework version and exit; do not touch any repo.
+        print(read_version(resolve_source_root(args.source_root)))
+        return 0
+
     plan = build_install_plan(args)
 
     ensure_repo_root(plan.repo_root)
