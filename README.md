@@ -59,7 +59,7 @@ Read and execute .agents/workflows/assess/assess.md for the concern "secrets"  #
 
 ## What you can run
 
-Six core workflows plus one parameterized `/assess <concern>` command covering a family
+Seven core workflows plus one parameterized `/assess <concern>` command covering a family
 of single-concern assessments. Not sure what is available or which version is installed?
 Run `/list-workflows`. For any tool without native slash commands, run the body file
 shown in the manifest (`.agents/workflows/index.md`) via "Read and execute ...".
@@ -74,6 +74,7 @@ shown in the manifest (`.agents/workflows/index.md`) via "Read and execute ...".
 | `/plan-review` | Review and improve a proposed implementation plan (IPD) **before** any code is written. | No (edits the plan doc) |
 | `/scaffold` | Guided creation of a new assessment lens, workflow, or command, wired into the manifest. | Framework files only |
 | `/list-workflows` | Toolkit discovery: lists what this toolkit can do (core workflows, the `/assess` concerns, personas) and the installed framework version, read from the manifest. Optional filter, e.g. `/list-workflows security`. | No (read-only) |
+| `/verify` | Proof, not prose: discovers the repo's own test/lint/build/type-check commands, runs the approved ones (confirm-per-check by default; hard denylist for network/deploy/publish/install), and captures real exit codes, metrics, and logs as committed evidence. `release-review` and `assess` cite it. | Runs repo checks; writes only an evidence record |
 
 ### Assessments (`/assess <concern>`)
 

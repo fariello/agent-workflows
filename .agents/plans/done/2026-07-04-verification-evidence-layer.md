@@ -5,7 +5,7 @@
 - Scope: a new `verify` workflow + a helper that runs repo-native checks and captures
   real results; wiring so `release-review` and relevant `assess` lenses CITE that
   evidence instead of relying on LLM self-report.
-- Status: PENDING (proposal for human approval; not executed)
+- Status: EXECUTED 2026-07-04. See DECISIONS.md D33.
 
 ## Goal
 
@@ -89,3 +89,25 @@ toolkit credible.
 
 Proposal only, and the design has real safety surface (running repo commands) - it
 should be plan-reviewed carefully before execution. Approve/reorder first.
+
+## Execution record (2026-07-04)
+
+Open questions resolved by the human:
+- Q3 (shape): its own `/verify` command + reusable `verify/tools/run_checks.py`.
+- Q1 (interactivity): confirm-before-each-check by default, plus a `--yes` "yes to all"
+  batch mode; interactive default declines on no input.
+- Q2 (discovery): auto-discover from package.json/Makefile/pyproject/tox/justfile/CI,
+  propose, then confirm; `--add`/`--only` to override.
+- Safety: allowlist (test/lint/build/typecheck) + hard denylist (network/deploy/publish/
+  install/push/...) never run even under `--yes`; unclassified never auto-run; bounded.
+- Deps: stdlib-only, matching scan_secrets.py.
+
+Changes: `verify/tools/run_checks.py` (discovery, classify/deny, consent, bounded run,
+metrics scrape, json/csv/text, `--version`/`--list`); `verify/verify.md` (protocol,
+safety, run record, honesty); `index.md` `verify` row; release-review Section 03 and 08
+(evidence-not-self-report + evidence gate on GO); assess testing lens (evidence, not
+self-report); README + DECISIONS D33. Verified: discovery/denylist/pass/fail/no-checks/
+interactive-decline all behave correctly; metric scraping hardened against banner false
+positives; fresh install -> 8 shims/tool + `run_checks.py` copied; `--version` from the
+installed copy. Dogfooded on this repo. Scope held (not a CI/test runner; no deploy; does
+not write tests).

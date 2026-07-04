@@ -862,3 +862,54 @@ both execute the (large) set well.
   this repo.
 - **Docs updated:** README (core-workflows table, discovery hint, versioning bullet +
   `--version` option), `index.md` (version header line), manifest (`list-workflows` row).
+
+### D33. Verification / evidence layer: `/verify` + `run_checks.py` (proof, not prose)
+
+- **Change:** executes the verification-evidence-layer IPD (2026-07-04, the trust-critical
+  top priority). Adds a `/verify` workflow and a deterministic helper
+  `verify/tools/run_checks.py` that discovers the repo's OWN test/lint/build/type-check
+  commands, runs the approved ones, and captures real exit codes/metrics/logs as committed
+  evidence. Wires `release-review` and `assess-testing` to CITE that evidence instead of
+  self-reporting.
+- **Why:** every review/assess claim about tests/lint/build/type-check previously rested on
+  the LLM's self-report. An enterprise reviewer will not accept "the agent looked and it is
+  fine"; the GO recommendation is only as strong as its evidence. This is what makes the
+  rest of the toolkit credible.
+- **Command shape (open Q3, resolved):** its own `/verify` command + a reusable
+  `run_checks.py`, so `release-review`, `assess`, and CI all share one evidence engine
+  (rather than a mode of release-review).
+- **Interactivity (open Q1, resolved):** confirm-before-each-check by default, with a
+  `--yes` batch mode (CI / trusted). The interactive default DECLINES on no input (never
+  runs without an explicit yes).
+- **Discovery (open Q2, resolved):** auto-discover from `package.json` scripts, `Makefile`,
+  `pyproject.toml`/`tox.ini`, `justfile`, and `.github/workflows/*` - PROPOSE, human
+  disposes. `--add` adds a missed command; `--only` narrows categories. CI `run:` steps are
+  surfaced as context-only (never auto-run; they often need services/credentials).
+- **Safety posture:** allowlist of categories (`test`/`lint`/`build`/`typecheck`) PLUS a
+  hard denylist (network/deploy/publish/release/install/push/docker-push/infra-apply/
+  destructive) that is NEVER run, even under `--yes`. Unclassified commands are never
+  auto-run (need explicit interactive yes; skipped under `--yes`). Each check is
+  time-bounded (`--timeout`, default 600s); output captured, not acted upon; no network by
+  the tool itself.
+- **Stdlib-only,** matching `scan_secrets.py`; `--version`, `--format json|csv|text`,
+  `--out`, `--list` (discovery-only).
+- **Honesty (non-negotiable):** the result reports `discovered`/`ran`/`passed`/`failed`/
+  `timed_out`/`skipped` separately; `all_ran_passed` is true only when at least one check
+  ran and every check that ran passed. Skipped/denied/unclassified are NOT passes. Exit
+  code: 0 = completed and everything that ran passed (or nothing ran); 1 = a run check
+  failed/timed out; 2 = usage error. The exit code reflects only checks actually run.
+- **Wiring:** release-review Section 03 (evidence-not-self-report block) and Section 08
+  (final validation cites `verify-results.json`; an evidence gate downgrades GO to
+  CONDITIONAL GO when relevant checks are unverified); the `assess` testing lens (establish
+  pass/fail with evidence; UNVERIFIED with reason otherwise).
+- **Scope held:** not a CI system, not its own test runner, no deployment; it runs the
+  repo's own checks and records results. Does not write or fix tests.
+- **Verified:** helper compiles; on a `package.json` fixture it discovers test/lint/build
+  and DENIES deploy/release (even under `--yes`); a passing suite -> exit 0
+  `all_ran_passed: true`; a broken test -> `failed: 1`, exit 1, `all_ran_passed: false`; a
+  no-checks repo reports honestly with no implied success; interactive default with no
+  input declines and runs nothing; metric scraping tightened to avoid false positives from
+  version banners (validated against pytest/jest-style output). Fresh install generates 8
+  shims/tool (adds `verify`) and copies `run_checks.py`; `--version` works from the
+  installed copy. Dogfooded on this repo.
+- **Docs updated:** README (core-workflows table, count 6->7), `index.md` (`verify` row).
