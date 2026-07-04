@@ -913,3 +913,49 @@ both execute the (large) set well.
   shims/tool (adds `verify`) and copies `run_checks.py`; `--version` works from the
   installed copy. Dogfooded on this repo.
 - **Docs updated:** README (core-workflows table, count 6->7), `index.md` (`verify` row).
+
+### D34. `advise` workflow + expert-persona library (interrogate and coach)
+
+- **Change:** executes the advise-workflow-and-personas IPD (2026-07-04). Adds a new
+  capability MODE - interactive interrogation and mentoring - as one parameterized
+  `/advise <persona>` command (harness + a `personas/` library), mirroring the proven
+  assess (harness + lenses) pattern. Activates the `/advise <persona>` half deferred in
+  D31 and the personas slot in `/list-workflows` (D32).
+- **Why:** the requested "grill me" interrogator and the "spec tutors/experts" are the same
+  shape (an expert examines something, asks questions, coaches). A command per expert would
+  blow past 100 commands (the sprawl KISS worry); one harness parameterized by a persona
+  caps the surface at one while allowing unlimited experts (add a persona file + a manifest
+  row). This is a different mode from the eight REVIEW personas: those FIND faults and emit
+  a register; advise personas INTERROGATE and MENTOR interactively.
+- **Command name (open Q1, resolved):** `/advise` (matches the D31 command-surface design
+  and the README; neutral, no known built-in clash). The skeptic persona covers the
+  "grill me" role under this neutral name; `/grill-me` is deliberately not used (believed
+  to be a Gemini built-in, unverified - avoided regardless).
+- **Roster (open Q3, resolved):** all seven built now - `skeptic`, `spec-editor`,
+  `architect`, `red-teamer`, `staff-engineer` (mentor), `domain-expert`, `naive-user`.
+  Each charter states its questioning style, what "good" looks like from its viewpoint, and
+  an explicit "do NOT" guardrail (skeptic not merely contrarian; mentor does not
+  rubber-stamp; red-teamer gives no exploit how-tos; etc.) so the voices are genuinely
+  distinct. More can be added via `scaffold`.
+- **Write behavior (open Q2, resolved):** coaches interactively; MAY edit a planning/prose
+  artifact only with per-change consent (editing a plan is allowed, like prose interactive
+  mode); defaults to recommending changes; NEVER executes code. Matches the toolkit's
+  ask-before-each-change discipline.
+- **Run record:** on by default - a `session-summary.md` under
+  `workflow-artifacts/advise-<persona>/<RUN_ID>/` (persona, artifact, key questions and
+  answers, gaps/risks surfaced, improvements agreed, follow-ups). Consistent with assess/
+  verify durability; it is a session record, not an IPD, and gates nothing.
+- **Installer generalization:** `is_concern_catalog_row` now matches a `CATALOG_ROW_PREFIXES`
+  tuple (`assess-`, `advise-`), so `advise-<persona>` rows are catalog entries (persona
+  charters), not commands; a single `advise` row generates the one shim with persona-
+  resolution text (aliases: grill/grill-me->skeptic, mentor->staff-engineer,
+  red-team/adversary->red-teamer, naive/novice->naive-user, etc.). `/list-workflows` updated
+  to surface personas as a real group.
+- **Scope held:** no command per persona; personas do not duplicate the review personas'
+  fault-finding-register role; roster kept focused and genuinely distinct.
+- **Verified:** installer compiles; fresh install generates 9 shims/tool (adds one
+  `advise`, no `advise-*`/`assess-*`), copies all 7 persona files, and the `advise` shim
+  carries the persona-resolution/picker/alias text. Dogfooded on this repo.
+- **Docs updated:** README (core table `/advise` row + a Coaching section + count/prose),
+  `index.md` (advise family prose + generalized catalog-collapse note), `/list-workflows`
+  persona language.

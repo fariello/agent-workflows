@@ -7,7 +7,7 @@
 - Scope: one parameterized `advise` workflow (harness) + a library of expert-persona
   files (like assess = harness + lenses). Absorbs the "grill-me"-style interrogator and
   the "spec tutors/experts" idea without adding many commands.
-- Status: PENDING (proposal for human approval; not executed)
+- Status: EXECUTED 2026-07-04. See DECISIONS.md D34.
 
 ## Goal
 
@@ -99,3 +99,23 @@ eight-persona definitions.
 
 Proposal only. Approve/reorder before execution. Naming (avoid built-in clashes) and
 the persona charters should be settled before building.
+
+## Execution record (2026-07-04)
+
+Open questions resolved by the human:
+- Q1 (name): `/advise` (matches D31; neutral; avoids the believed-Gemini `/grill-me`).
+- Q3 (roster): all seven now - skeptic, spec-editor, architect, red-teamer,
+  staff-engineer, domain-expert, naive-user.
+- Q2 (writes): coach interactively; edit planning/prose only with per-change consent;
+  never execute code.
+- Run record: yes, a session summary under workflow-artifacts/advise-<persona>/<RUN_ID>/.
+
+Changes: `advise/advise.md` harness (persona resolution + picker + aliases, interaction
+model, consent-to-edit, run record, honesty); 7 `advise/personas/*.md` charters;
+`install-workflows.py` (`CATALOG_ROW_PREFIXES` generalizing catalog rows to include
+`advise-`; `advise` shim branch); manifest (`advise` row + 7 `advise-<persona>` catalog
+rows); `/list-workflows` persona language; README (core table + Coaching section) and
+`index.md` prose + catalog-collapse note; DECISIONS D34. Verified: fresh install -> 9
+shims/tool (one `advise`, no `advise-*`), 7 personas copied, resolution text present.
+Dogfooded on this repo. Scope held (one command; personas distinct; no fault-register
+duplication).

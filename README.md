@@ -59,10 +59,11 @@ Read and execute .agents/workflows/assess/assess.md for the concern "secrets"  #
 
 ## What you can run
 
-Seven core workflows plus one parameterized `/assess <concern>` command covering a family
-of single-concern assessments. Not sure what is available or which version is installed?
-Run `/list-workflows`. For any tool without native slash commands, run the body file
-shown in the manifest (`.agents/workflows/index.md`) via "Read and execute ...".
+Seven core workflows plus two parameterized commands - `/assess <concern>` (single-concern
+assessments) and `/advise <persona>` (expert interrogation and coaching). Not sure what is
+available or which version is installed? Run `/list-workflows`. For any tool without native
+slash commands, run the body file shown in the manifest (`.agents/workflows/index.md`) via
+"Read and execute ...".
 
 ### Core workflows
 
@@ -75,6 +76,7 @@ shown in the manifest (`.agents/workflows/index.md`) via "Read and execute ...".
 | `/scaffold` | Guided creation of a new assessment lens, workflow, or command, wired into the manifest. | Framework files only |
 | `/list-workflows` | Toolkit discovery: lists what this toolkit can do (core workflows, the `/assess` concerns, personas) and the installed framework version, read from the manifest. Optional filter, e.g. `/list-workflows security`. | No (read-only) |
 | `/verify` | Proof, not prose: discovers the repo's own test/lint/build/type-check commands, runs the approved ones (confirm-per-check by default; hard denylist for network/deploy/publish/install), and captures real exit codes, metrics, and logs as committed evidence. `release-review` and `assess` cite it. | Runs repo checks; writes only an evidence record |
+| `/advise <persona>` | Interrogate and coach: an expert persona (`skeptic`, `spec-editor`, `architect`, `red-teamer`, `staff-engineer`, `domain-expert`, `naive-user`) examines the current context or a named artifact, asks probing questions, and helps you improve it. Bare `/advise` lists personas and asks. | Interactive; edits planning/prose only with consent; never runs code |
 
 ### Assessments (`/assess <concern>`)
 
@@ -102,6 +104,26 @@ The intended pipeline:
 Rule of thumb: use `/assess <concern>` to investigate one thing and propose a plan;
 `release-review` for a broad review that fixes in place; `plan-review` before you build;
 `release-review` again before you ship.
+
+### Coaching (`/advise <persona>`)
+
+Where assess/review find faults and report, `/advise <persona>` is a conversation: an
+expert persona examines your artifact (a spec, plan, design, or decision), asks probing
+questions, and coaches you to a stronger result. Run bare `/advise` to list personas and
+be asked which to use.
+
+| Persona | Voice |
+|---|---|
+| `skeptic` | The "grill me": assumes it is flawed; interrogates assumptions and unstated risks. |
+| `spec-editor` | Turns fuzzy intent into testable, unambiguous requirements. |
+| `architect` | Interrogates design trade-offs, coupling, extensibility vs. over-engineering. |
+| `red-teamer` | Security/abuse/misuse interrogation from an attacker's viewpoint. |
+| `staff-engineer` | Mentors toward the simplest maintainable approach (KISS/YAGNI). |
+| `domain-expert` | Stakeholder proxy: would a real user/buyer want this; what is missing. |
+| `naive-user` | The uninitiated newcomer: surfaces unclear intent, jargon, and hidden prerequisites. |
+
+It is interactive, edits planning/prose artifacts only with your per-change consent, and
+never runs code. Add personas with `/scaffold`.
 
 ---
 

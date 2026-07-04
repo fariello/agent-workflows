@@ -41,8 +41,10 @@ This keeps the listing from drifting as the toolkit grows.
    `assess` command, grouped by area (correctness, security/privacy, compliance, UX/docs,
    product/design, delivery/quality) if you can infer the area from the description;
    otherwise list them alphabetically. Never present them as their own slash commands.
-3. **`advise-<persona>` rows (if any exist yet)** are persona values for a future
-   `/advise <persona>` command; treat them analogously. (None may exist yet.)
+3. **`advise-<persona>` rows are the persona CATALOG for `/advise <persona>`**, not
+   separate commands. They define the valid `<persona>` values. List them as personas
+   under the `advise` command, each with its one-line charter. Never present them as their
+   own slash commands.
 4. **Every other row is its own standalone command** (e.g. `release-review`,
    `release-review-plan`, `plan-review`, `setup-repo`, `scaffold`, `list-workflows`).
 
@@ -58,8 +60,9 @@ Then, unless a filter narrowed it:
    description and whether they change code.
 2. **Assessments** - `/assess <concern>`; then the concern catalog grouped by area, each
    with its one-line focus. Note that a bare `/assess` lists concerns and asks.
-3. **Advise personas** - only if `advise-*` rows exist; otherwise omit or note "not yet
-   available".
+3. **Advise personas** - `/advise <persona>`; then the persona catalog (the
+   `advise-<persona>` rows), each with its one-line charter. Note that a bare `/advise`
+   lists personas and asks. If no `advise-*` rows exist, omit this group.
 
 For each command, show how to run it PER TOOL, concisely:
 

@@ -60,6 +60,14 @@ focusing on different concerns; leave it `-` when not used.
 | assess-generalization | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/generalization.md | Assess generalization/extensibility/configurability (productization for reuse across orgs/tenants/deployments) and propose an IPD. |
 | assess-secrets | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/secrets.md | Scan the working tree and git history for committed secrets/keys/PII/PHI (via tools/scan_secrets.py, read-only, redacted) and propose a rotate-first remediation IPD. |
 | assess-prose | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/prose.md | Assess prose quality/style across ALL prose (docs, comments/docstrings, UI strings, error/help/CLI text, commit messages) against the distilled nonfiction style guide - quiet force, no mechanical fingerprints, modifier restraint, no em dashes. IPD by default; supports an optional author-in-the-loop interactive mode. |
+| advise | .agents/workflows/advise/advise.md | - | Interrogate and coach: an expert persona examines the current context or a named artifact (spec/plan/design/decision), asks probing questions, surfaces gaps and assumptions, and coaches the author. `/advise <persona> [artifact]` (e.g. `/advise skeptic`, `/advise spec-editor plan.md`); bare `/advise` lists personas and asks. Interactive; edits planning/prose only with per-change consent; never runs code. The `advise-<persona>` rows below are the persona catalog, not separate commands. |
+| advise-skeptic | .agents/workflows/advise/advise.md | .agents/workflows/advise/personas/skeptic.md | The "grill me": assume the artifact is flawed; interrogate assumptions, missing cases, and unstated risks. |
+| advise-spec-editor | .agents/workflows/advise/advise.md | .agents/workflows/advise/personas/spec-editor.md | Requirements analyst: turn fuzzy intent into testable, unambiguous requirements; hunt ambiguity and missing acceptance criteria. |
+| advise-architect | .agents/workflows/advise/advise.md | .agents/workflows/advise/personas/architect.md | Interrogate design trade-offs, coupling, boundaries, and extensibility vs. over-engineering. |
+| advise-red-teamer | .agents/workflows/advise/advise.md | .agents/workflows/advise/personas/red-teamer.md | Adversary: interrogate security, abuse, and misuse paths from an attacker's viewpoint. |
+| advise-staff-engineer | .agents/workflows/advise/advise.md | .agents/workflows/advise/personas/staff-engineer.md | Mentor: coach toward the simplest maintainable approach (KISS/YAGNI); cut accidental complexity. |
+| advise-domain-expert | .agents/workflows/advise/advise.md | .agents/workflows/advise/personas/domain-expert.md | Stakeholder proxy: would a real user/buyer want this; does it serve the actual goal; what is missing. |
+| advise-naive-user | .agents/workflows/advise/advise.md | .agents/workflows/advise/personas/naive-user.md | The uninitiated newcomer: surface unclear intent, undefined jargon, and unstated prerequisites. |
 <!-- WORKFLOWS-MANIFEST:END -->
 
 ## Running a workflow (by tool)
@@ -135,6 +143,16 @@ admin/operability, and abstraction seams). It is the reuse-focused sibling of
 > repo-verifiable vs. org-level-out-of-scope, and is NOT a certification or a
 > substitute for a qualified assessor. It never reports an overall "compliant" verdict.
 
+The **`advise`** family mirrors the assess architecture (one harness + a library of
+persona charters) but is a different MODE: where assess/review find faults and report,
+`/advise <persona>` is an interactive session in which an expert persona examines an
+artifact (spec/plan/design/decision), asks probing questions, and coaches the author.
+Personas: `skeptic` (the "grill me"), `spec-editor`, `architect`, `red-teamer`,
+`staff-engineer` (mentor), `domain-expert`, `naive-user`. Bare `/advise` lists personas
+and asks. It is interactive, edits planning/prose artifacts only with per-change consent,
+and never runs code. Add personas with `scaffold`. The `advise-<persona>` manifest rows
+are the persona catalog, not separate commands (same collapse as `assess-<concern>`).
+
 ## Notes
 
 - `release-review-plan` shares the `release-review` body; it runs that runbook in
@@ -146,10 +164,12 @@ admin/operability, and abstraction seams). It is the reuse-focused sibling of
   per-tool command shims from this manifest (passing the `lens` to shared-body
   commands), and adds a one-line pointer to `AGENTS.md`. See
   `install-workflows.py`.
-- **Assess command surface:** the single `assess` row generates the one parameterized
-  `/assess <concern>` command. The `assess-<concern>` rows are the **concern catalog**
-  (the source of truth for each concern's lens); the installer does NOT generate a shim
-  per concern row (`is_concern_catalog_row` in `install-workflows.py`). Re-running the
-  installer on an older install prunes the retired per-concern `/assess-<concern>` shims
-  automatically. The run-record directory convention remains
-  `workflow-artifacts/assess-<concern>/<RUN_ID>/`.
+- **Parameterized command surface (assess and advise):** the single `assess` and `advise`
+  rows each generate one parameterized command (`/assess <concern>`, `/advise <persona>`).
+  The `assess-<concern>` and `advise-<persona>` rows are the **catalog** (the source of
+  truth for each concern's lens / each persona's charter); the installer does NOT generate
+  a shim per catalog row (`is_concern_catalog_row` / `CATALOG_ROW_PREFIXES` in
+  `install-workflows.py`). Re-running the installer on an older install prunes retired
+  per-item shims automatically. The run-record directory conventions remain
+  `workflow-artifacts/assess-<concern>/<RUN_ID>/` and
+  `workflow-artifacts/advise-<persona>/<RUN_ID>/`.

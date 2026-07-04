@@ -342,6 +342,25 @@ def shim_body(command: str, workflow: Workflow, tool: str) -> str:
             "available concerns (the `assess/lenses/*.md` files) and ask the user which to "
             "run.\n"
         )
+    elif command == "advise":
+        # The parameterized advise command: the argument names the expert PERSONA; the
+        # harness resolves it to a persona charter or, if empty, lists personas and asks.
+        # Personas are cataloged as the `advise-<persona>` manifest rows.
+        lens_note = (
+            "\nThe first argument names the expert PERSONA (e.g. `skeptic`, `spec-editor`, "
+            "`architect`, `red-teamer`, `staff-engineer`, `domain-expert`, `naive-user`); "
+            "any further arguments name the artifact to examine (a spec, plan, design, or "
+            "decision doc) - otherwise the persona examines the current context. Resolve "
+            "the persona to its charter `.agents/workflows/advise/personas/<persona>.md` "
+            "and adopt it: conduct a genuine question-driven session, surface gaps and "
+            "assumptions, and coach the author. It may edit a planning/prose artifact only "
+            "with per-change consent; it never executes code. Accept case-insensitive "
+            "aliases (e.g. `skeptic`/`grill`/`grill-me` -> skeptic, `mentor` -> "
+            "staff-engineer, `red-team`/`adversary` -> red-teamer, `naive`/`novice` -> "
+            "naive-user); on an unknown persona, show the closest matches. If NO persona "
+            "was given, list the available personas (the `advise/personas/*.md` files) and "
+            "ask the user which to use.\n"
+        )
     elif workflow.lens:
         lens_note = (
             f"\nApply the concern lens @{workflow.lens} on top of that harness: it "
@@ -381,15 +400,23 @@ def shim_body(command: str, workflow: Workflow, tool: str) -> str:
     )
 
 
-def is_concern_catalog_row(workflow: Workflow) -> bool:
-    """Whether a manifest row is an assess CONCERN catalog entry, not its own command.
+# Manifest rows with these command prefixes are CATALOG entries for a parameterized
+# command, not commands in their own right. `assess-<concern>` rows catalog the assess
+# lenses; `advise-<persona>` rows catalog the advise personas. Each family collapses to a
+# single parameterized shim (`assess`, `advise`); the catalog rows are the source of truth
+# for the picker and for `/list-workflows`, but generate no shim of their own.
+CATALOG_ROW_PREFIXES: tuple[str, ...] = ("assess-", "advise-")
 
-    The `assess-<concern>` rows are the source of truth for the concern -> lens mapping
-    (used by the parameterized `/assess <thing>` command's picker and by the discovery
-    catalog). They do NOT each generate their own shim; the single `assess` row does.
+
+def is_concern_catalog_row(workflow: Workflow) -> bool:
+    """Whether a manifest row is a catalog entry (assess concern / advise persona).
+
+    Catalog rows are the source of truth for a parameterized command's set (the assess
+    lenses, the advise personas) and feed its picker and `/list-workflows`. They do NOT
+    each generate their own shim; the single parameterized row (`assess`, `advise`) does.
     """
 
-    return workflow.command.startswith("assess-")
+    return workflow.command.startswith(CATALOG_ROW_PREFIXES)
 
 
 def generate_shim_members(workflows: list[Workflow]) -> dict[str, str]:
