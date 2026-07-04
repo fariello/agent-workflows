@@ -785,3 +785,40 @@ both execute the (large) set well.
 - **Docs updated:** README (install command + Contents), ARCHITECTURE (tree + prose),
   and the workflow bodies that reference the installer now point to the repo-root
   location and note it is not present inside an installed target repo.
+
+### D31. Command-surface redesign: collapse `/assess-<concern>` into one `/assess <concern>`
+
+- **Change:** replaced the 29 per-concern `/assess-<concern>` commands with a single
+  parameterized `/assess <concern> [scope]` command. Executes the command-surface
+  redesign IPD (2026-07-04), the `/assess` half only; the `/advise <persona>` half is
+  deferred until the advise workflow exists.
+- **Why:** 34 commands and growing well past 100 as concerns and personas multiply is an
+  unusable slash-command menu and violates KISS. The assess family already shares one
+  harness body selected by a lens, so a parameterized command matches the architecture
+  exactly. Distinct workflows (release-review, plan-review, setup-repo, scaffold) keep
+  their own commands.
+- **Mechanism:** the manifest gains a single `assess` row that generates the one command;
+  the `assess-<concern>` rows remain as the **concern catalog** (source of truth for each
+  concern's lens) but no longer each generate a shim (`is_concern_catalog_row` in
+  `install-workflows.py`). The `assess` shim body tells the harness to resolve the first
+  argument to a lens (case-insensitive, with curated aliases `a11y`->accessibility,
+  `perf`->performance, `deps`/`supply`->supply-chain, and closest-match fallback), and to
+  list the concerns and ask when invoked bare.
+- **Transition (open Q2, resolved):** the retired per-concern shims are REMOVED on the
+  next install, not kept for a deprecation period. The installer's existing prune handles
+  this automatically (they are no longer in the generated set); no special-casing needed.
+- **Discoverability (sequencing, resolved):** the bare-invocation picker is built into the
+  harness NOW so discoverability does not regress while the standalone `/list` catalog
+  (the toolkit-discovery IPD) is still pending. The concern table in the README/index
+  enumerates the valid `<concern>` values.
+- **Aliases (open Q3, resolved):** a small curated alias map PLUS case-insensitive
+  fuzzy/closest-match, expressed as harness instructions (LLM-resolved), not code.
+- **Unchanged:** no workflow's behavior/content changes; the run-record directory
+  convention stays `workflow-artifacts/assess-<concern>/<RUN_ID>/`.
+- **Verified:** installer compiles; a fresh install generates exactly 6 shims per tool
+  (5 core + `assess`) with the concern-resolution text in the `assess` shim; re-running on
+  a legacy install prunes all 29 `/assess-<concern>` shims (`git rm`); the 29 concern
+  lenses remain installed as the catalog. Dogfooded on this repo (34 -> 6 shims).
+- **Docs updated:** README (quick-start example, assessments section, by-tool table),
+  `index.md` (pipeline, cybersecurity/compliance examples, a manifest note documenting the
+  `assess`/`assess-<concern>` command/catalog split).

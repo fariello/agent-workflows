@@ -300,7 +300,23 @@ def shim_body(command: str, workflow: Workflow, tool: str) -> str:
         planning_note = " Run in planning-only mode: complete the audit and the consolidated implementation plan, and stop before implementation."
 
     lens_note = ""
-    if workflow.lens:
+    if command == "assess":
+        # The parameterized assess command: the argument names the concern; the harness
+        # resolves it to a lens (with aliases/fuzzy match) or, if empty, lists concerns
+        # and asks. Concerns are cataloged as the `assess-<concern>` manifest rows.
+        lens_note = (
+            "\nThe first argument names the CONCERN to assess (e.g. `security`, `prose`, "
+            "`compliance-readiness`); any further arguments narrow the scope (a path/module) "
+            "or carry options. Resolve the concern to its lens `.agents/workflows/assess/"
+            "lenses/<concern>.md` and apply it on top of the harness (assess that single "
+            "concern deeply and write an IPD; do not change code or execute the plan). "
+            "Accept case-insensitive aliases and common short forms (e.g. `a11y` -> "
+            "accessibility, `perf` -> performance, `deps`/`supply` -> supply-chain); on an "
+            "unknown concern, show the closest matches. If NO concern was given, list the "
+            "available concerns (the `assess/lenses/*.md` files) and ask the user which to "
+            "run.\n"
+        )
+    elif workflow.lens:
         lens_note = (
             f"\nApply the concern lens @{workflow.lens} on top of that harness: it "
             "selects the concern, its lead personas, and its rubric. Assess that single "
@@ -339,13 +355,30 @@ def shim_body(command: str, workflow: Workflow, tool: str) -> str:
     )
 
 
+def is_concern_catalog_row(workflow: Workflow) -> bool:
+    """Whether a manifest row is an assess CONCERN catalog entry, not its own command.
+
+    The `assess-<concern>` rows are the source of truth for the concern -> lens mapping
+    (used by the parameterized `/assess <thing>` command's picker and by the discovery
+    catalog). They do NOT each generate their own shim; the single `assess` row does.
+    """
+
+    return workflow.command.startswith("assess-")
+
+
 def generate_shim_members(workflows: list[Workflow]) -> dict[str, str]:
-    """Build the map of shim repo-relative path -> file content for all tools."""
+    """Build the map of shim repo-relative path -> file content for all tools.
+
+    One shim per command row, EXCEPT `assess-<concern>` catalog rows, which are folded
+    into the single parameterized `/assess` command.
+    """
 
     shims: dict[str, str] = {}
     for shim_dir in COMMAND_SHIM_DIRS:
         tool = "claude" if shim_dir.startswith(".claude") else "opencode"
         for workflow in workflows:
+            if is_concern_catalog_row(workflow):
+                continue  # catalog entry, not its own command
             rel = f"{shim_dir}/{workflow.command}.md"
             shims[rel] = shim_body(workflow.command, workflow, tool)
     return shims

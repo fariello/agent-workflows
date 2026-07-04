@@ -8,7 +8,7 @@ accessibility, tests, secrets, ...) and propose a plan.
 
 The workflows are plain instruction files plus two small Python helpers, so the
 substance works in **any** agent; tools that support native slash commands (OpenCode,
-Claude Code) also get `/release-review`, `/assess-security`, etc. for free.
+Claude Code) also get `/release-review`, `/assess security`, etc. for free.
 
 ---
 
@@ -47,21 +47,21 @@ safe to re-run.
 secrets:
 
 ```
-/assess-secrets                         # OpenCode / Claude Code
-Read and execute .agents/workflows/assess/assess.md, applying the lens
-  .agents/workflows/assess/lenses/secrets.md      # any other agent
+/assess secrets                         # OpenCode / Claude Code
+Read and execute .agents/workflows/assess/assess.md for the concern "secrets"  # any other agent
 ```
 
-Most commands accept an optional target/scope argument, e.g. `/assess-performance src/`
-or `/assess-compliance-readiness nist-800-171`.
+`/assess` takes the concern as its first argument; add a scope after it, e.g.
+`/assess performance src/` or `/assess compliance-readiness nist-800-171`. Run bare
+`/assess` to list the concerns and be asked which to run.
 
 ---
 
 ## What you can run
 
-Five core workflows plus a family of single-concern `assess-*` workflows. For any tool
-without native slash commands, run the body file shown in the manifest
-(`.agents/workflows/index.md`) via "Read and execute ...".
+Five core workflows plus one parameterized `/assess <concern>` command covering a family
+of single-concern assessments. For any tool without native slash commands, run the body
+file shown in the manifest (`.agents/workflows/index.md`) via "Read and execute ...".
 
 ### Core workflows
 
@@ -73,28 +73,30 @@ without native slash commands, run the body file shown in the manifest
 | `/plan-review` | Review and improve a proposed implementation plan (IPD) **before** any code is written. | No (edits the plan doc) |
 | `/scaffold` | Guided creation of a new assessment lens, workflow, or command, wired into the manifest. | Framework files only |
 
-### Assessments (`/assess-<concern>`)
+### Assessments (`/assess <concern>`)
 
-Each assesses **one** concern deeply and writes a dated Implementation Plan Document
-(IPD) into `.agents/plans/pending/` for your review - it does **not** change code and
-does **not** auto-execute.
+`/assess <concern>` assesses **one** concern deeply and writes a dated Implementation
+Plan Document (IPD) into `.agents/plans/pending/` for your review - it does **not**
+change code and does **not** auto-execute. Run bare `/assess` to list the concerns and
+be asked which to run; concern names are matched case-insensitively with common aliases
+(`a11y`->accessibility, `perf`->performance, `deps`/`supply`->supply-chain).
 
-| Area | Commands |
+| Area | Concerns (the `<concern>` value) |
 |---|---|
-| Correctness & reliability | `/assess-bugs` `/assess-edge-cases` `/assess-reliability` `/assess-memory-resources` |
-| Security & privacy | `/assess-security` `/assess-secrets` `/assess-privacy` `/assess-data-exfiltration` `/assess-intrusion-detection` `/assess-ransomware-resilience` `/assess-threat-model` `/assess-logging-audit` |
-| Compliance | `/assess-compliance` `/assess-compliance-readiness` (FIPS / NIST 800-171 / CMMC L2 - repo-slice only, not a certification) |
-| UX & docs | `/assess-ui-ux` `/assess-accessibility` (WCAG 2.1 AA) `/assess-self-documentation` `/assess-documentation` `/assess-prose` (writing style across all prose) |
-| Product & design | `/assess-functionality` `/assess-use-cases` `/assess-architecture` `/assess-api-design` `/assess-generalization` |
-| Delivery & quality | `/assess-testing` `/assess-performance` `/assess-compatibility` `/assess-supply-chain` `/assess-guiding-principles` |
+| Correctness & reliability | `bugs` `edge-cases` `reliability` `memory-resources` |
+| Security & privacy | `security` `secrets` `privacy` `data-exfiltration` `intrusion-detection` `ransomware-resilience` `threat-model` `logging-audit` |
+| Compliance | `compliance` `compliance-readiness` (FIPS / NIST 800-171 / CMMC L2 - repo-slice only, not a certification) |
+| UX & docs | `ui-ux` `accessibility` (WCAG 2.1 AA) `self-documentation` `documentation` `prose` (writing style across all prose) |
+| Product & design | `functionality` `use-cases` `architecture` `api-design` `generalization` |
+| Delivery & quality | `testing` `performance` `compatibility` `supply-chain` `guiding-principles` |
 
 The intended pipeline:
 
 ```
-assess-<concern>  ->  IPD in .agents/plans/pending/  ->  plan-review (optional)  ->  you approve  ->  execute
+/assess <concern>  ->  IPD in .agents/plans/pending/  ->  plan-review (optional)  ->  you approve  ->  execute
 ```
 
-Rule of thumb: use `assess-<concern>` to investigate one thing and propose a plan;
+Rule of thumb: use `/assess <concern>` to investigate one thing and propose a plan;
 `release-review` for a broad review that fixes in place; `plan-review` before you build;
 `release-review` again before you ship.
 
@@ -107,7 +109,7 @@ tool-specific.
 
 | Tool | How to run a workflow |
 |---|---|
-| **OpenCode** | Native `/command` from `.opencode/commands/`. E.g. `/release-review`, `/assess-security`, `/setup-repo`. |
+| **OpenCode** | Native `/command` from `.opencode/commands/`. E.g. `/release-review`, `/assess security`, `/setup-repo`. |
 | **Claude Code** | Native `/command` from `.claude/commands/`. Same commands; arguments supported. |
 | **Codex, Cursor, Antigravity, VS Code Copilot, any other agent** | No repo-file slash-command mechanism. Use the universal fallback: tell the agent "Read and execute `.agents/workflows/<body path>`". `.agents/workflows/index.md` lists every workflow and its body path; `AGENTS.md` points there so tools that read it can discover them. |
 

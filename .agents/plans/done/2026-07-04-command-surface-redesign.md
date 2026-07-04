@@ -4,7 +4,7 @@
 - Concern: usability / command sprawl (the toolkit has 34 commands and is growing)
 - Scope: how workflows are exposed as commands; the installer's shim generation; the
   manifest format. Does NOT change any workflow's behavior/content.
-- Status: PENDING (proposal for human approval; not executed)
+- Status: EXECUTED 2026-07-04 (the `/assess` half; `/advise` half deferred to the advise workflow). See DECISIONS.md D31.
 
 ## Goal
 
@@ -90,3 +90,18 @@ before this one.
 
 Proposal only. Approve/reorder before execution. It changes the command surface and the
 installer, so it should be plan-reviewed and ideally sequenced with the toolkit-discovery IPD.
+
+## Execution record (2026-07-04)
+
+Executed the `/assess <concern>` half. Open questions resolved by the human:
+- Q2 (transition): REMOVE the legacy per-concern shims on install (prune handles it).
+- Q3 (aliases): curated alias map + case-insensitive fuzzy/closest-match.
+- Sequencing: build the bare-invocation picker into the harness now (no discoverability
+  regression) rather than waiting for the standalone `/list` catalog.
+- Scope: `/advise <persona>` deferred until the advise workflow exists.
+
+Changes: `install-workflows.py` (`is_concern_catalog_row`; skip per-concern shims; `assess`
+shim body with concern-resolution + aliases + picker); `index.md` (single `assess` row,
+`assess-<concern>` rows kept as the concern catalog, manifest note); `assess.md` harness
+(concern-selection section); README + DECISIONS D31. Verified: 34 -> 6 shims per tool;
+legacy shims pruned on re-run; lenses retained. Nothing else built or executed.

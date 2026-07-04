@@ -23,6 +23,7 @@ focusing on different concerns; leave it `-` when not used.
 | plan-review | .agents/workflows/plan-review/plan-review.md | - | Pre-execution plan reviewer: review and improve a proposed implementation plan before any code is written (edits planning documents only). |
 | setup-repo | .agents/workflows/setup-repo/setup-repo.md | - | Guided, idempotent, drift-aware repo setup AND conformance check: detect state, classify each area (conformant/partial/missing/outdated), then ask-before-each-change to install tools and add secret-scanning, the plan/IPD lifecycle (dirs + documented contract), .gitignore/CI/pre-commit/hygiene files. Safe to re-run after updates; stages changes. |
 | scaffold | .agents/workflows/scaffold/scaffold.md | - | Guided, wizard-style creation of a new assess-* lens, standalone workflow, or command: generate from the existing patterns, wire the manifest, and regenerate shims. Authoring/meta workflow. |
+| assess | .agents/workflows/assess/assess.md | - | Assess ONE concern deeply and propose an IPD. `/assess <concern> [scope]` (e.g. `/assess security`, `/assess prose src/`); bare `/assess` lists concerns and asks. The `assess-<concern>` rows below are the concern catalog (they define the lenses), not separate commands. |
 | assess-performance | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/performance.md | Assess runtime/resource performance and propose an IPD. |
 | assess-security | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/security.md | Assess security posture and propose an IPD. |
 | assess-privacy | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/privacy.md | Assess privacy/data-protection handling and propose an IPD. |
@@ -100,18 +101,19 @@ full findings + decisions/evidence) under `workflow-artifacts/assess-<concern>/<
 auto-execute. The intended pipeline is:
 
 ```
-assess-<concern>  ->  IPD in pending/  ->  plan-review (optional)  ->  human approval  ->  execution
+/assess <concern>  ->  IPD in pending/  ->  plan-review (optional)  ->  human approval  ->  execution
 ```
 
-Use `release-review` for a broad, all-concerns review that fixes in place; use an
-`assess-<concern>` when you want a deep, single-concern pass that proposes a plan for
-human approval first.
+Use `release-review` for a broad, all-concerns review that fixes in place; use
+`/assess <concern>` when you want a deep, single-concern pass that proposes a plan for
+human approval first. The concern is the command's first argument; a bare `/assess`
+lists the concerns and asks which to run.
 
 The family includes engineering, UX, docs, and verification concerns, plus
-**cybersecurity** lenses (`assess-data-exfiltration`, `assess-intrusion-detection`,
-`assess-ransomware-resilience`, `assess-threat-model`, `assess-logging-audit`) and a
-**`assess-compliance-readiness`** lens parameterized by regime (e.g.
-`/assess-compliance-readiness nist-800-171`).
+**cybersecurity** lenses (`data-exfiltration`, `intrusion-detection`,
+`ransomware-resilience`, `threat-model`, `logging-audit`) and a
+**`compliance-readiness`** lens parameterized by regime (e.g.
+`/assess compliance-readiness nist-800-171`).
 
 `assess-generalization` covers **productization**: how ready the project is to be
 reused, deployed, administered, and maintained by others across organizations, tenants,
@@ -137,3 +139,10 @@ admin/operability, and abstraction seams). It is the reuse-focused sibling of
   per-tool command shims from this manifest (passing the `lens` to shared-body
   commands), and adds a one-line pointer to `AGENTS.md`. See
   `install-workflows.py`.
+- **Assess command surface:** the single `assess` row generates the one parameterized
+  `/assess <concern>` command. The `assess-<concern>` rows are the **concern catalog**
+  (the source of truth for each concern's lens); the installer does NOT generate a shim
+  per concern row (`is_concern_catalog_row` in `install-workflows.py`). Re-running the
+  installer on an older install prunes the retired per-concern `/assess-<concern>` shims
+  automatically. The run-record directory convention remains
+  `workflow-artifacts/assess-<concern>/<RUN_ID>/`.
