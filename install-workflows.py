@@ -499,12 +499,42 @@ def git_run(repo_root: Path, args: list[str]) -> None:
         raise SystemExit(f"git {' '.join(args)} failed:\n{result.stderr.strip()}")
 
 
+def git_add_optional(repo_root: Path, relative_posix: str) -> bool:
+    """Stage a path, tolerating the case where it is ignored by .gitignore.
+
+    Command shims live under .opencode/ or .claude/, which a repo may legitimately
+    gitignore. In that case the file is still written to disk (it works locally) but
+    cannot be tracked; we warn once and continue rather than aborting the whole install.
+    Any OTHER git failure is a real error and is raised.
+
+    Returns:
+        True if the path was staged; False if it was skipped because it is ignored.
+    """
+
+    result = subprocess.run(
+        ["git", "-C", str(repo_root), "add", "--", relative_posix],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return True
+    if "ignored by" in result.stderr:
+        return False
+    raise SystemExit(f"git add -- {relative_posix} failed:\n{result.stderr.strip()}")
+
+
 def in_framework_namespace(relative_posix: str) -> bool:
     """Whether a path is one the installer is allowed to add or remove."""
 
     if relative_posix.startswith(WORKFLOWS_DIR + "/"):
         return True
     return any(relative_posix.startswith(shim_dir + "/") for shim_dir in COMMAND_SHIM_DIRS)
+
+
+def _wants_executable(mode: int) -> bool:
+    """Whether a filesystem mode has any executable bit set."""
+
+    return bool(mode & 0o111)
 
 
 def write_file(
@@ -516,6 +546,7 @@ def write_file(
     installed: list[str],
     skipped: list[str],
     conflicted: list[str],
+    executable: bool = False,
 ) -> None:
     """Install one file.
 
@@ -525,31 +556,89 @@ def write_file(
     directory where a file must go. This mirrors the installer's prune-by-default
     posture (DECISIONS D15): if deleting a stale framework file by default is safe with
     backups + git staging + dry-run, overwriting one is strictly safer.
+
+    The source file's executable bit is synced to the destination (tool scripts must stay
+    executable). A file whose CONTENT is already current but whose MODE differs is still
+    fixed and re-staged, so a mode-only change is not silently left unstaged.
     """
 
     destination = plan.repo_root / relative_posix
+    content_current = False
     if destination.exists():
         if destination.is_dir():
             conflicted.append(relative_posix + " [destination is directory]")
             return
-        if same_bytes(destination, data):
+        content_current = same_bytes(destination, data)
+
+    # Detect a mode-only difference on an otherwise-current file.
+    mode_differs = False
+    if content_current:
+        current_exec = _wants_executable(destination.stat().st_mode)
+        mode_differs = current_exec != executable
+        if not mode_differs:
             skipped.append(relative_posix + " [already current]")
             return
 
     action = "overwrite" if destination.exists() else "install"
+    if content_current and mode_differs:
+        action = "chmod"
     if plan.dry_run:
         installed.append(f"{relative_posix} [{action}, dry-run]")
         return
 
     destination.parent.mkdir(parents=True, exist_ok=True)
-    if destination.exists() and plan.backup:
+    if destination.exists() and plan.backup and not content_current:
         backup = create_backup_path(plan.repo_root, Path(relative_posix), timestamp)
         backup.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(destination, backup)
-    destination.write_bytes(data)
+    if not content_current:
+        destination.write_bytes(data)
+    _apply_executable_bit(destination, executable)
     if use_git:
-        git_run(plan.repo_root, ["add", "--", relative_posix])
+        _stage_installed_file(plan.repo_root, relative_posix)
     installed.append(f"{relative_posix} [{action}]")
+
+
+def _apply_executable_bit(path: Path, executable: bool) -> None:
+    """Set or clear the user/group/other execute bits to match the source."""
+
+    mode = path.stat().st_mode
+    if executable:
+        path.chmod(mode | 0o111)
+    else:
+        path.chmod(mode & ~0o111)
+
+
+def _stage_installed_file(repo_root: Path, relative_posix: str) -> None:
+    """Stage an installed file. Shim dirs (.opencode/.claude) may be gitignored; if so,
+    warn and continue. Framework-namespace files must stage, so a failure there is real.
+    """
+
+    if in_framework_namespace(relative_posix) and not (
+        relative_posix.startswith(".opencode/") or relative_posix.startswith(".claude/")
+    ):
+        git_run(repo_root, ["add", "--", relative_posix])
+        return
+    staged = git_add_optional(repo_root, relative_posix)
+    if not staged:
+        _warn_ignored_shim(relative_posix)
+
+
+_IGNORED_SHIM_WARNED: set[str] = set()
+
+
+def _warn_ignored_shim(relative_posix: str) -> None:
+    """Warn once per shim directory that files are written but not tracked (gitignored)."""
+
+    top = relative_posix.split("/", 1)[0]
+    if top in _IGNORED_SHIM_WARNED:
+        return
+    _IGNORED_SHIM_WARNED.add(top)
+    print(
+        f"note: {top}/ is ignored by .gitignore; its command shims are written to disk "
+        f"(they work locally) but are not tracked in git.",
+        file=sys.stderr,
+    )
 
 
 def install_all(
@@ -571,19 +660,16 @@ def install_all(
         source_relative = member[len(prefix):] if member.startswith(prefix) else member
         source_path = plan.source_root / source_relative
         data = source_path.read_bytes()
-        write_file(plan, member, data, use_git, timestamp, installed, skipped, conflicted)
-        # Preserve the executable bit for scripts/tools (e.g. tools/*.py, *.sh).
-        if not plan.dry_run:
-            dest = plan.repo_root / member
-            try:
-                src_exec = source_path.stat().st_mode & 0o111
-                if src_exec and dest.is_file():
-                    dest.chmod(dest.stat().st_mode | 0o111)
-            except OSError:
-                pass
+        # Sync the source's executable bit (tool scripts stay executable); write_file
+        # applies it and re-stages even on a mode-only change.
+        executable = _wants_executable(source_path.stat().st_mode)
+        write_file(plan, member, data, use_git, timestamp, installed, skipped, conflicted,
+                   executable=executable)
 
     for rel, content in sorted(shim_members.items()):
-        write_file(plan, rel, content.encode("utf-8"), use_git, timestamp, installed, skipped, conflicted)
+        # Generated shims are plain markdown, never executable.
+        write_file(plan, rel, content.encode("utf-8"), use_git, timestamp, installed, skipped,
+                   conflicted, executable=False)
 
     if conflicted:
         message = [

@@ -144,6 +144,40 @@ class InstallerEndToEndTests(unittest.TestCase):
         expected = (REPO_ROOT / ".agents/workflows/VERSION").read_text(encoding="utf-8").strip()
         self.assertEqual(proc.stdout.strip(), expected)
 
+    def test_tool_scripts_are_executable_and_staged(self):
+        from tests.support import git
+        run_installer(self.repo)
+        tool = self.repo / ".agents/workflows/assess/tools/scan_secrets.py"
+        self.assertTrue(tool.stat().st_mode & 0o111, "tool script is not executable")
+        # Git records the executable mode (100755), and a re-run leaves nothing unstaged
+        # (no mode-only leftover).
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "init")
+        proc = run_installer(self.repo)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        leftover = git(self.repo, "status", "--porcelain").stdout.strip()
+        self.assertEqual(leftover, "", f"re-run left files unstaged:\n{leftover}")
+        indexed = git(self.repo, "ls-files", "-s",
+                      ".agents/workflows/assess/tools/scan_secrets.py").stdout
+        self.assertTrue(indexed.startswith("100755"), f"exec bit not in index: {indexed!r}")
+
+    def test_gitignored_opencode_does_not_abort(self):
+        from tests.support import git
+        (self.repo / ".gitignore").write_text(".opencode/\n", encoding="utf-8")
+        git(self.repo, "add", ".gitignore")
+        git(self.repo, "commit", "-q", "-m", "ignore opencode")
+        proc = run_installer(self.repo)
+        # Install completes despite the gitignored shim dir.
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("ignored by .gitignore", proc.stderr)
+        # Shims are still written to disk (they work locally).
+        self.assertTrue((self.repo / ".opencode/commands/assess.md").is_file())
+        # But .opencode is not staged; .claude and .agents are.
+        staged = git(self.repo, "diff", "--cached", "--name-only").stdout
+        self.assertNotIn(".opencode/", staged)
+        self.assertIn(".claude/commands/assess.md", staged)
+        self.assertIn(".agents/workflows/index.md", staged)
+
 
 if __name__ == "__main__":
     unittest.main()

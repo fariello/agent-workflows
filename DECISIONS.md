@@ -1075,3 +1075,32 @@ both execute the (large) set well.
   11->12 core), `index.md` (getting-started prose).
 - **Milestone:** with this, all seven 2026-07-04 roadmap IPDs (D31-D37) are executed. Next
   is the batched rollout of the whole set into the other `a local checkout dir/*` repos (exclude a-consuming-repo).
+
+### D38. Installer fixes surfaced by the batched rollout: mode-bit staging + gitignored shim dirs
+
+- **Context:** rolling D31-D37 into 26 `a local checkout dir/*` repos exposed two installer defects (both
+  fixed here, with self-tests).
+- **Fix 1 - executable-bit staging.** The tool scripts (`scan_secrets.py`, `setup_tools.py`,
+  `run_checks.py`) are executable in the source, but `write_file` (a) returned early when
+  content was already current, never syncing the mode, and (b) applied the exec bit AFTER
+  staging (in `install_all`) without re-staging - so every target repo showed a mode-only
+  change (100644 -> 100755) left UNSTAGED, missing the commit. `write_file` now takes an
+  `executable` flag, syncs the bit itself, treats a mode-only difference as a real change
+  (a `chmod` action) that is applied and staged, and skips only when both content and mode
+  match. Result: a re-run leaves nothing unstaged; the index records 100755.
+- **Fix 2 - gitignored shim directories.** A repo may legitimately gitignore `.opencode/`
+  (or `.claude/`). The installer's hard `git add` on those shims raised `SystemExit`,
+  ABORTING the whole install partway (hit in `reddit-data`). Added `git_add_optional`: for
+  shim paths, an "ignored by .gitignore" failure warns once and continues (the shim is
+  still written to disk and works locally, just untracked); any other git failure still
+  raises. Framework-namespace body files under `.agents/workflows/` still hard-fail if they
+  cannot be staged (that is the core and must be tracked).
+- **Self-tests:** `test_tool_scripts_are_executable_and_staged` (exec bit present, indexed
+  as 100755, re-run leaves nothing unstaged) and `test_gitignored_opencode_does_not_abort`
+  (install completes, warns, writes shims to disk, stages `.claude`/`.agents` but not
+  `.opencode`). Suite now 27 tests, all passing.
+- **Rollout note:** the 26-repo rollout was completed before this fix using manual
+  follow-up commits for the mode bits and a manual completion for `reddit-data`; this
+  decision makes the installer do it correctly on its own going forward. (`reddit-data`
+  separately un-gitignores `.opencode/` at the user's request so its OpenCode shims are
+  tracked like the other repos.)
