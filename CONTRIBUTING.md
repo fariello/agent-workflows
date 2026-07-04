@@ -20,8 +20,11 @@ format). Do not restate those here; follow them, and use this as the step list:
 1. Add or rename the workflow subdirectory under `.agents/workflows/<capability>/`.
 2. Update the manifest row(s) in `.agents/workflows/index.md` (keep the
    `command | body | lens | description` columns stable).
-3. For an `assess-*` concern, add the lens file under
-   `.agents/workflows/assess/lenses/` and reference it in the manifest `lens` column.
+3. For an `assess-<concern>` concern, add the lens file under
+   `.agents/workflows/assess/lenses/`; for an `advise-<persona>` persona, add the charter
+   under `.agents/workflows/advise/personas/`. Add the catalog row and reference the file
+   in the manifest `lens` column. These catalog rows collapse into the single `/assess`
+   and `/advise` commands (they do not each get their own shim).
  4. Regenerate the per-tool slash-command shims by running the installer
     (`install-workflows.py`, at the repo root); do not hand-edit the generated shims in
     `.opencode/commands/` or `.claude/commands/`.

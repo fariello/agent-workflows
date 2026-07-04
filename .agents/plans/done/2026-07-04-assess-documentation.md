@@ -4,7 +4,7 @@
 - Concern: documentation
 - Scope: whole repository documentation (root docs + the manifest/prose that documents
   usage). Emphasis fell on ARCHITECTURE.md, which drifted most.
-- Status: PENDING (awaiting human approval; not executed)
+- Status: EXECUTED 2026-07-04 (approved after plan-review). All 7 steps applied and validated.
 - Author: assess/documentation harness
 
 ## Goal

@@ -175,6 +175,9 @@ each workflow's body path.
 - **Updating:** just re-run the installer. It is idempotent, clean-syncs the framework,
   regenerates shims, and (if it changed anything) reminds you to re-run `/setup-repo` as
   a conformance check.
+- **What changed between versions:** `DECISIONS.md` is the dated, append-only log of
+  significant changes and their rationale; it doubles as the changelog. Read its most
+  recent entries to see what a version added.
 - **Outputs:** run records go to `workflow-artifacts/<workflow>/<run-id>/` at the repo
   root (committed deliverables); assessment IPDs go to `.agents/plans/pending/`.
 
@@ -195,11 +198,16 @@ your code.
 - `.agents/workflows/` - the workflows (canonical source):
   - `release-review/` - the full pre-release review runbook (its `README.md` is the
     controlling instruction; `MANIFEST.md` maps its files).
-  - `plan-review/`, `setup-repo/`, `scaffold/` - the plan reviewer and the two guided
-    wizards.
+  - `plan-review/`, `setup-repo/`, `scaffold/`, `getting-started/`, `list-workflows/` -
+    the plan reviewer, the two guided wizards, the newcomer tour, and toolkit discovery.
   - `assess/` - the single-concern assessment harness (`assess.md`) + one lens per
-    concern under `lenses/`, plus `tools/scan_secrets.py`.
-  - `index.md` - the workflow manifest (source of truth; the installer reads it).
+    concern under `lenses/`, plus `tools/scan_secrets.py`; `assess-all/` is the
+    cross-concern rollup.
+  - `advise/` - the interrogate-and-coach harness + persona charters under `personas/`.
+  - `verify/` - the evidence layer (`tools/run_checks.py`).
+  - `spec/`, `incident/`, `release-notes/`, `migrate/` - the lifecycle workflows.
+  - `VERSION` - the framework version; `index.md` - the workflow manifest (source of
+    truth; the installer reads it).
 - `install-workflows.py` / `.sh` - the installer (at the repo root; it is a human-run
   bootstrap tool, distinct from the agent-executed workflows, and installs the framework
   from `.agents/workflows/`).

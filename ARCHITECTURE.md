@@ -21,17 +21,35 @@ agent-workflows/
   GUIDING_PRINCIPLES.md     Values guiding the work
   AGENTS.md                 One-line pointer to the workflow index (not the payload)
   install-workflows.py/.sh  Installer (human-run bootstrap; at the root, not a workflow)
+  tests/                    Stdlib-unittest self-tests for the Python tools
   prompts/                  Reusable prompt library (independent of the workflows;
                             e.g. fix-bar.md, an origin note for the Fix Bar)
   .agents/workflows/        Reusable agent workflows (canonical source of truth)
+    VERSION                 Framework version (YYYYMMDD-NN); stamped into targets
     index.md                Workflow manifest (installer reads it to generate shims)
     release-review/         The full, all-concerns pre-release review framework
     plan-review/            Pre-execution plan reviewer (plan-time sibling)
     assess/                 Single-concern assessment harness + per-concern lenses
       assess.md             Shared harness (assess one concern -> IPD, no auto-execute)
       lenses/               One lens per concern (performance, security, ...)
-      templates/ipd.md      IPD template the harness writes
-  .opencode/commands/       Generated OpenCode shims (/release-review[-plan], /plan-review)
+      references/           Shared references (e.g. prose-style.md)
+      templates/            IPD, run-report, and findings-CSV templates
+      tools/scan_secrets.py Read-only secret/PII scanner (tree + history)
+    assess-all/             Cross-concern rollup orchestration
+    advise/                 Interrogate-and-coach harness + persona charters
+      personas/             One charter per expert persona (skeptic, architect, ...)
+    verify/                 Evidence layer (proof, not self-report)
+      tools/run_checks.py   Discovers and runs the repo's own checks; captures evidence
+    setup-repo/             Guided setup + conformance wizard
+      tools/setup_tools.py  Deterministic tool-install helper
+    scaffold/               Guided authoring of a new lens/persona/workflow/command
+    spec/                   Draft a reviewable specification (front of funnel)
+    incident/               Blameless post-mortem (reactive operations)
+    release-notes/          Version bump + changelog/notes (release discipline)
+    migrate/                Assess-and-plan a high-risk migration
+    list-workflows/         Toolkit discovery (capabilities + installed version)
+    getting-started/        Guided in-agent tour and router for newcomers
+  .opencode/commands/       Generated OpenCode shims (one per command, 15)
   .claude/commands/         Generated Claude Code shims (same set)
 ```
 
@@ -178,6 +196,11 @@ instead of hardcoding any, and edits planning documents only (never code). It is
 intentionally a single prompt, not a modular framework, because plan review is a
 lighter job (KISS). It installs as `/plan-review`.
 
+The release-review runbook also ships a **planning-only variant, `release-review-plan`**:
+it shares the same body but runs it in planning-only mode - completing the audit and a
+consolidated implementation plan, then stopping before implementation. It installs as
+`/release-review-plan`.
+
 ### Assessment workflows (single-concern, IPD-producing)
 
 `.agents/workflows/assess/` is a family of focused reviewers that sit between
@@ -186,7 +209,7 @@ and writes a dated Implementation Plan Document (IPD) into the project's pending
 directory for human approval, rather than fixing in place or auto-executing:
 
 ```
-assess-<concern>  ->  IPD in pending/  ->  plan-review (optional)  ->  approval  ->  execution
+/assess <concern>  ->  IPD in pending/  ->  plan-review (optional)  ->  approval  ->  execution
 ```
 
 It is built as a **shared harness plus thin per-concern lens files**, not 20 separate
@@ -194,13 +217,17 @@ prompts: `assess.md` defines the common protocol (discover conventions, eight pe
 Fix Bar applied as "what to propose", write an IPD, never execute), and each
 `lenses/<concern>.md` supplies the concern's focus, lead personas, and rubric. This
 keeps the protocol single-sourced and makes adding a concern cheap: a new lens file
-plus a manifest row. The manifest's optional `lens` column lets many commands
-(`/assess-performance`, `/assess-security`, ...) share the one harness body; the
-installer passes the lens into each generated shim. `compliance` is a single
-parameterized lens that discovers/takes the regime, rather than one workflow per
+plus a manifest row. The whole family is exposed as ONE parameterized command,
+`/assess <concern>` (e.g. `/assess security`, `/assess prose`), not one command per
+concern: the `assess-<concern>` manifest rows are the concern CATALOG (the source of
+truth for each concern's lens and for the picker) and do not each generate a shim; the
+single `assess` row generates the command, which resolves its first argument to a lens
+(DECISIONS D31). A bare `/assess` lists the concerns and asks. `compliance-readiness` is
+a single parameterized lens that takes the regime, rather than one workflow per
 regulation. The harness reuses the Fix Bar and personas from `../release-review/` as a
-sibling. Choose `assess-<concern>` to investigate one concern and propose a plan;
-`release-review` for a broad review that fixes in place.
+sibling. Choose `/assess <concern>` to investigate one concern and propose a plan;
+`release-review` for a broad review that fixes in place; `assess-all` (below) to run the
+family and get one prioritized, cross-concern plan.
 
 The family includes cybersecurity lenses (`data-exfiltration`, `intrusion-detection`,
 `ransomware-resilience`, `threat-model`, `logging-audit`, `secrets`) and a
@@ -233,6 +260,79 @@ style sibling of `documentation` (accuracy/completeness) and `self-documentation
 (in-product learnability), and is the one assess lens with an optional author-in-the-
 loop interactive edit mode, because prose edits are voice-bearing (DECISIONS D28).
 
+`assess-all` is the cross-concern rollup: it runs the family (all, a group, or a
+subset - confirming scope and cost first), then synthesizes ONE prioritized,
+de-duplicated IPD plus a rollup record, rather than N disconnected IPDs. It orchestrates
+the existing lenses (which stay the single source of truth) and adds the synthesis and
+cross-prioritization layer; it is the broad propose-a-plan review, the companion to
+`release-review`'s broad fix-in-place review. Its command gets its own shim despite the
+`assess-` prefix, via a documented installer exception (DECISIONS D36).
+
+### The verification / evidence layer (`verify`)
+
+`verify` converts "the agent says the tests pass" into machine-checkable evidence. Its
+deterministic helper `verify/tools/run_checks.py` (stdlib-only, like `scan_secrets.py`)
+DISCOVERS the repo's own test/lint/build/type-check commands (from `package.json`,
+`Makefile`, `pyproject`/`tox`, `justfile`, CI files), runs the ones the user approves
+(confirm-per-check by default, `--yes` for batch), and records real exit codes, metrics,
+and log excerpts as committed evidence. A hard denylist blocks network/deploy/publish/
+install commands even under `--yes`, and it is honest about what it could not run (a
+partial run never reads as a full green). `release-review` and the `assess` testing lens
+cite this evidence instead of self-reporting (DECISIONS D33).
+
+### The advise persona family (`advise`)
+
+`advise` is a different MODE from review/assess: an interactive interrogate-and-coach
+session. It mirrors the assess architecture (one harness + a library of persona
+charters under `advise/personas/`), exposed as one parameterized command
+`/advise <persona>` (skeptic, spec-editor, architect, red-teamer, staff-engineer,
+domain-expert, naive-user). The `advise-<persona>` manifest rows are the persona catalog
+(same collapse as `assess-<concern>`); a bare `/advise` lists personas and asks. It
+coaches and may edit planning/prose artifacts with per-change consent, but never runs
+code (DECISIONS D34).
+
+### Lifecycle workflows (`spec`, `incident`, `release-notes`, `migrate`)
+
+These fill the delivery stages beyond assess/review - discover, ship, operate, and
+high-risk change - as distinct guided workflows (DECISIONS D35):
+
+- `spec` turns a fuzzy request into a reviewable specification (goals, non-goals, users,
+  testable acceptance criteria); it produces the artifact that `/advise spec-editor`
+  interrogates and `plan-review` reviews.
+- `incident` runs a blameless, repo-scoped post-mortem and emits follow-up action IPDs;
+  it is honest that the operator holds the real monitoring/on-call data.
+- `release-notes` decides the version bump from the actual changes and drafts the
+  changelog and human notes; it prepares a release but never publishes, tags, or pushes
+  (`release-review` Section 9 references it).
+- `migrate` assess-and-plans a high-risk migration (framework/DB/dependency/layout) as a
+  staged, reversible plan with characterization tests and per-stage rollback + `verify`
+  checks, emitted as an IPD.
+
+### Discovery and onboarding (`list-workflows`, `getting-started`)
+
+`list-workflows` is toolkit discovery: it reads the manifest (single source of truth)
+and reports the capabilities - core workflows, the `/assess` concerns, the `/advise`
+personas - plus the installed framework version, grouped and with per-tool run
+instructions (DECISIONS D32). `getting-started` is the newcomer's guided entry point: it
+detects repo/toolkit context, explains the mental model briefly, asks the user's goal,
+and routes to the right workflow (offering to run it, with consent) with the exact
+invocation for their tool. It orients and routes - read-only by default - and references
+`list-workflows` for the full catalog rather than duplicating it (DECISIONS D37).
+
+### Versioning and self-tests
+
+The framework carries a version in `.agents/workflows/VERSION` (scheme `YYYYMMDD-NN`,
+e.g. `20260704-01`), surfaced in `index.md` and reported by `install-workflows.py
+--version` and the tools' `--version`. The installer stamps it into every target (the
+copied `VERSION` file IS the installed-version record), so `list-workflows` and
+`setup-repo` can report which version a repo has (DECISIONS D32). The three Python tools
+(`scan_secrets.py`, `setup_tools.py`, `run_checks.py`) have stdlib-`unittest` self-tests
+under `tests/`, run with `python3 -m unittest discover -s tests -t .`, covering the
+installer (fresh install, idempotent re-run, prune, legacy migration, dry-run, the
+catalog-row collapse), the scanner (planted secret in tree and history, redaction), and
+the check runner (classification, the safety denylist, honest pass/fail). This is the
+framework holding itself to its own testing/verification bar (DECISIONS D36).
+
 ### Meta / authoring workflows (`setup-repo`, `scaffold`)
 
 Two guided, wizard-style workflows differ in kind from the reviewers: they are
@@ -244,8 +344,9 @@ request, installs gitleaks/pre-commit/detect-secrets via the platform's own pack
 manager) and to add secret-scanning CI + a local hook, `.gitignore` hygiene, hygiene
 files, a stack CI baseline, a pre-commit config, dependency hygiene, and (advisory-only)
 branch-protection guidance. It is idempotent and stages changes without committing.
-`scaffold` walks the owner through adding a new `assess-*` lens, standalone workflow, or
-command, then wires the manifest and regenerates shims - the guided version of the
+`scaffold` walks the owner through adding a new `assess-<concern>` lens, `advise-<persona>`
+charter, standalone workflow, or command, then wires the manifest and regenerates shims -
+the guided version of the
 "add a subdir + a manifest row" extension path. Both are agent-driven conversational
 wizards (fitting the agent-executed model), not standalone TUIs; the only scripted piece
 is the mechanical tool-install helper the setup wizard calls.
@@ -256,7 +357,7 @@ The workflow *bodies* are tool-agnostic; only the native `/command` convenience 
 tool-specific, and support varies (verified against current docs):
 
 1. **OpenCode:** native `/command` from `.opencode/commands/*.md` (frontmatter uses
-   `agent:`). E.g. `/release-review`, `/assess-security`, `/setup-repo`.
+   `agent:`). E.g. `/release-review`, `/assess security`, `/setup-repo`.
 2. **Claude Code:** native `/command` from `.claude/commands/*.md` (still supported;
    its frontmatter uses `description`/`argument-hint`, not `agent:`, so the installer
    generates a tailored variant there). Claude Code's newer *skills* form
