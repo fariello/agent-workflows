@@ -213,7 +213,8 @@ your code.
   from `.agents/workflows/`).
 - `.opencode/commands/`, `.claude/commands/` - generated slash-command shims.
 - `AGENTS.md` - a one-line pointer to the workflow index.
-- `prompts/` - a reusable prompt library (independent of the workflows).
+- `prompts/` - a reusable prompt library (independent of the workflows; historical/origin
+  material, see `prompts/README.md`).
 
 ## Understanding this project
 

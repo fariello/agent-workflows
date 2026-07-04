@@ -23,7 +23,8 @@ agent-workflows/
   install-workflows.py/.sh  Installer (human-run bootstrap; at the root, not a workflow)
   tests/                    Stdlib-unittest self-tests for the Python tools
   prompts/                  Reusable prompt library (independent of the workflows;
-                            e.g. fix-bar.md, an origin note for the Fix Bar)
+                            historical/origin material, e.g. fix-bar.md, an origin
+                            note for the Fix Bar; see prompts/README.md)
   .agents/workflows/        Reusable agent workflows (canonical source of truth)
     VERSION                 Framework version (YYYYMMDD-NN); stamped into targets
     index.md                Workflow manifest (installer reads it to generate shims)

@@ -3,7 +3,7 @@
 - Date: 2026-07-04
 - Concern: documentation
 - Scope: whole project (repo-level user-facing docs: README, ARCHITECTURE, CONTRIBUTING, AGENTS, GUIDING_PRINCIPLES, the workflow manifest `index.md`, and `prompts/`). The workflow *bodies* are treated as product, their READMEs/manifest as documentation.
-- Status: PENDING (awaiting human approval; not executed)
+- Status: EXECUTED 2026-07-04 (approved after plan-review). All 3 steps applied and validated.
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Run record: `workflow-artifacts/assess-documentation/20260704-180630/`
 
