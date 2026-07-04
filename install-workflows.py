@@ -38,9 +38,12 @@ Design (see the repo's DECISIONS.md D12, D15, D16, D17):
   old root `release-review/` framework dir and `git mv`s old `repository-review/` run
   records into `workflow-artifacts/release-review/` (see D17/D19).
 
+This script lives at the agent-workflows repo root; it installs the framework from its
+`.agents/workflows/` subdirectory.
+
 Typical usage from the target repository root:
 
-    python3 /path/to/agent-workflows/.agents/workflows/install-workflows.py
+    python3 /path/to/agent-workflows/install-workflows.py
 
 Updating an existing install: just re-run the installer. Framework files are updated in
 place (a timestamped backup is written unless --no-backup) and staged with git; nothing
@@ -51,7 +54,7 @@ Dry run / no-prune / specific repo / custom source:
     python3 install-workflows.py --dry-run
     python3 install-workflows.py --no-prune
     python3 install-workflows.py --repo /path/to/target-repo
-    python3 install-workflows.py --source /path/to/agent-workflows/.agents/workflows
+    python3 install-workflows.py --source /path/to/agent-workflows
 """
 
 from __future__ import annotations
@@ -69,8 +72,10 @@ from pathlib import Path
 WORKFLOWS_DIR = ".agents/workflows"
 INDEX_FILE = f"{WORKFLOWS_DIR}/index.md"
 
-# Files in the source workflows tree that are authoring/installer artifacts: never
-# installed into a target, never pruned from one.
+# Filenames that, if found under the source `.agents/workflows/` tree, are never
+# installed into a target nor pruned from one. The installer scripts now live at the
+# repo root (outside the source tree), so these are defensive guards in case a copy is
+# ever placed under .agents/workflows/.
 SOURCE_EXCLUDED_NAMES: frozenset[str] = frozenset(
     {
         "install-workflows.py",
@@ -169,18 +174,28 @@ def parse_args() -> argparse.Namespace:
 
 
 def resolve_source_root(provided: Path | None) -> Path:
-    """Resolve the source .agents/workflows directory and validate it."""
+    """Resolve the source `.agents/workflows` directory and validate it.
+
+    This installer lives at the repo root, so the default source is
+    `<script dir>/.agents/workflows/`. `--source` may point at either that directory
+    directly, or at a repo root that contains it (we resolve the `.agents/workflows`
+    subdirectory in that case).
+    """
 
     if provided is not None:
-        source_root = provided.expanduser().resolve()
+        candidate = provided.expanduser().resolve()
+        # Accept either the workflows dir itself or a repo root containing it.
+        if candidate.name != "workflows" and (candidate / ".agents" / "workflows").is_dir():
+            candidate = candidate / ".agents" / "workflows"
+        source_root = candidate
     else:
-        source_root = Path(__file__).resolve().parent
+        source_root = Path(__file__).resolve().parent / ".agents" / "workflows"
 
     index = source_root / "index.md"
     if not index.is_file() or source_root.name != "workflows":
         raise SystemExit(
             f"Source does not look like an .agents/workflows directory: {source_root}\n"
-            "Provide it with --source /path/to/agent-workflows/.agents/workflows.",
+            "Provide it with --source /path/to/agent-workflows (or .../.agents/workflows).",
         )
     return source_root
 

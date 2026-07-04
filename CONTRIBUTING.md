@@ -22,9 +22,9 @@ format). Do not restate those here; follow them, and use this as the step list:
    `command | body | lens | description` columns stable).
 3. For an `assess-*` concern, add the lens file under
    `.agents/workflows/assess/lenses/` and reference it in the manifest `lens` column.
-4. Regenerate the per-tool slash-command shims by running the installer
-   (`.agents/workflows/install-workflows.py`); do not hand-edit the generated shims in
-   `.opencode/commands/` or `.claude/commands/`.
+ 4. Regenerate the per-tool slash-command shims by running the installer
+    (`install-workflows.py`, at the repo root); do not hand-edit the generated shims in
+    `.opencode/commands/` or `.claude/commands/`.
 5. Confirm `README.md` and `ARCHITECTURE.md` still describe the current set accurately.
 6. If a decision changed the design, add a dated entry to `DECISIONS.md`. Never rewrite
    existing dated entries to match a later layout; the log is history (see

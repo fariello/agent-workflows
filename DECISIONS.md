@@ -760,3 +760,28 @@ both execute the (large) set well.
   which are history and are NOT rewritten (append-only, GUIDING_PRINCIPLES P4). This
   entry supersedes the now-stale "local dir left as ai-coding" statement in D27
   rather than editing D27.
+
+### D30. Installer moved to the repo root
+
+- **Change:** moved `install-workflows.py` and `install-workflows.sh` from
+  `.agents/workflows/` to the repo root (`<repo-root>/install-workflows.py`).
+- **Why:** the installer is a human-run BOOTSTRAP tool, a different kind of thing from
+  everything else in `.agents/workflows/`, which is agent-executed workflow instructions.
+  Co-locating them muddied the directory's meaning, and burying the primary entry point
+  three levels deep made the main invocation awkward
+  (`.../.agents/workflows/install-workflows.py`). An installer is conventionally the
+  top-level entry point. It also cleanly separates "things an agent runs" from "the tool
+  a human runs to set things up".
+- **Code change (not just a move):** `resolve_source_root` previously assumed the script
+  sat inside `.agents/workflows/` (source = its own parent). It now derives source =
+  `<script dir>/.agents/workflows/`, and `--source` accepts either a repo root
+  (resolving the `.agents/workflows` subdir) or that directory directly.
+- **Side benefit:** the installer no longer lives under the source tree, so it is
+  naturally not part of what gets synced into targets (the old `SOURCE_EXCLUDED_NAMES`
+  guard for it is now moot, kept only defensively).
+- **Verified:** compiles; default source resolution, `--source <root>`, and
+  `--source .../.agents/workflows` all resolve correctly; a full install into a fresh
+  temp repo installs the framework + 34 shims and does not copy the installer in.
+- **Docs updated:** README (install command + Contents), ARCHITECTURE (tree + prose),
+  and the workflow bodies that reference the installer now point to the repo-root
+  location and note it is not present inside an installed target repo.

@@ -18,7 +18,7 @@ Claude Code) also get `/release-review`, `/assess-security`, etc. for free.
 repo's root:
 
 ```
-python3 /path/to/agent-workflows/.agents/workflows/install-workflows.py
+python3 /path/to/agent-workflows/install-workflows.py
 ```
 
 This copies the workflows into `.agents/workflows/`, generates slash-command shims for
@@ -151,7 +151,9 @@ your code.
   - `assess/` - the single-concern assessment harness (`assess.md`) + one lens per
     concern under `lenses/`, plus `tools/scan_secrets.py`.
   - `index.md` - the workflow manifest (source of truth; the installer reads it).
-  - `install-workflows.py` / `.sh` - the installer.
+- `install-workflows.py` / `.sh` - the installer (at the repo root; it is a human-run
+  bootstrap tool, distinct from the agent-executed workflows, and installs the framework
+  from `.agents/workflows/`).
 - `.opencode/commands/`, `.claude/commands/` - generated slash-command shims.
 - `AGENTS.md` - a one-line pointer to the workflow index.
 - `prompts/` - a reusable prompt library (independent of the workflows).

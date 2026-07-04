@@ -71,7 +71,8 @@ only on confirmation. Mark clearly when a step is already-satisfied so re-runs a
 
 ### 1. Agent-workflows framework installed (and up to date)
 
-If `.agents/workflows/` is absent, offer to run the installer (`install-workflows.py`)
+If `.agents/workflows/` is absent, offer to run the installer (`install-workflows.py`, at
+the agent-workflows repo root; not present inside an installed target)
 so `/release-review`, `/assess-*`, etc. are available. If it is present but **outdated**
 (the drift check in Step 0 found renamed/removed/missing files vs. the source), offer to
 re-run the installer to update it (it clean-syncs and regenerates shims). This is the

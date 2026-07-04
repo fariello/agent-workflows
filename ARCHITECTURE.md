@@ -20,11 +20,11 @@ agent-workflows/
   DECISIONS.md              Dated decision log (the "why")
   GUIDING_PRINCIPLES.md     Values guiding the work
   AGENTS.md                 One-line pointer to the workflow index (not the payload)
+  install-workflows.py/.sh  Installer (human-run bootstrap; at the root, not a workflow)
   prompts/                  Reusable prompt library (independent of the workflows;
                             e.g. fix-bar.md, an origin note for the Fix Bar)
   .agents/workflows/        Reusable agent workflows (canonical source of truth)
     index.md                Workflow manifest (installer reads it to generate shims)
-    install-workflows.py    Installer (copy + generate shims + AGENTS.md pointer)
     release-review/         The full, all-concerns pre-release review framework
     plan-review/            Pre-execution plan reviewer (plan-time sibling)
     assess/                 Single-concern assessment harness + per-concern lenses
@@ -123,7 +123,8 @@ from silently dropping rules, the design uses:
 
 ### Distribution
 
-`.agents/workflows/install-workflows.py` installs the workflows into a target repo by
+`install-workflows.py` (at the repo root; a human-run bootstrap tool, distinct from the
+agent-executed workflows) installs the workflows into a target repo by
 copying the live `.agents/workflows/` tree directly from this repo, conservatively
 (manifest-driven, safe in-tree paths, backups, dry-run). There is no committed
 archive: installing from the source directory avoids a redundant binary blob and the

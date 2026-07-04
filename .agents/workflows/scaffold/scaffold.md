@@ -35,7 +35,9 @@ Read to match current reality:
   shape (focus, lead personas, rubric, IPD emphasis).
 - `.agents/workflows/CONTRIBUTING`-style rules if present, and `ARCHITECTURE.md`'s
   "Capability layout" section (in the repo that authors the framework).
-- Confirm where the installer is (`install-workflows.py`) so you can regenerate shims.
+- Confirm where the installer is (`install-workflows.py`, at the agent-workflows repo
+  root - not inside `.agents/workflows/`, and not copied into installed target repos) so
+  you can regenerate shims.
 
 ## Step 1: Ask what to create
 
@@ -82,8 +84,8 @@ Run the installer so the per-tool slash-command shims are generated from the upd
 manifest (do NOT hand-write shims):
 
 ```
-python3 .agents/workflows/install-workflows.py --dry-run   # preview
-python3 .agents/workflows/install-workflows.py             # apply (stages changes)
+python3 /path/to/agent-workflows/install-workflows.py --dry-run --repo .   # preview
+python3 /path/to/agent-workflows/install-workflows.py --repo .             # apply (stages changes)
 ```
 
 Confirm the new `/<command>` shims appear under `.opencode/commands/` and

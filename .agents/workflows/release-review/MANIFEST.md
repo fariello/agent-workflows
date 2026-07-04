@@ -2,7 +2,7 @@
 
 This directory contains a modular, executable repository review runbook for use with OpenCode or another modern coding agent.
 
-The framework is installed under `.agents/workflows/release-review/` (alongside the sibling `plan-review/`). The installer (`.agents/workflows/install-workflows.py`) also generates per-tool slash-command shims under `.opencode/commands/` and `.claude/commands/`, and adds a one-line pointer to `AGENTS.md`. See `.agents/workflows/index.md` for the workflow manifest.
+The framework is installed under `.agents/workflows/release-review/` (alongside the sibling `plan-review/`). The installer (`install-workflows.py`, at the agent-workflows repo root) also generates per-tool slash-command shims under `.opencode/commands/` and `.claude/commands/`, and adds a one-line pointer to `AGENTS.md`. See `.agents/workflows/index.md` for the workflow manifest.
 
 ## How to use
 
