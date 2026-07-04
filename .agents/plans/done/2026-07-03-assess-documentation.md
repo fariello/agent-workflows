@@ -5,7 +5,7 @@
   CONTRIBUTING, AGENTS, index.md, release-review MANIFEST/README)
 - Scope: whole repository's written documentation (not the workflow instruction bodies
   themselves, which are the framework's "product")
-- Status: PENDING (awaiting human approval; not executed)
+- Status: EXECUTED 2026-07-03 (approved by user; reviewed via plan-review). Steps 1-2 applied to release-review/MANIFEST.md and validated (every Files-table row exists; MANIFEST.md now listed; plan-review.md row removed; drift-prone assess enumeration replaced with a pointer to index.md). D3-D5 were already resolved by the README rewrite.
 - Author: assess-documentation workflow (agent)
 
 ## Goal
