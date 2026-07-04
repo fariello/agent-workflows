@@ -45,7 +45,7 @@ reviewer perspective that surfaced it.
 | D-05 | Medium | Low | software-engineer | accuracy | No mention of framework versioning (VERSION, `YYYYMMDD-NN`, stamping, `--version`, D32) or the self-tests (`tests/`, D36). | ARCHITECTURE.md (absent) |
 | D-06 | Medium | Low | operator | accuracy | `run_checks.py` (the verify evidence engine, D33) is missing from the tools description. | ARCHITECTURE.md:209,242 |
 | D-07 | Low | Low | software-engineer | completeness | CONTRIBUTING doc-sync step 3 covers `assess-*` lenses but not the parallel `advise-<persona>` catalog rows. | CONTRIBUTING.md:23-24 |
-| D-08 | Low | Low | operator | consistency | Stray Windows `:Zone.Identifier` metadata file in `prompts/`. | prompts/modular-...md:Zone.Identifier |
+| D-08 | Low | Low | operator | consistency | Stray Windows `:Zone.Identifier` metadata file in `prompts/`. It is UNTRACKED, and the root `.gitignore` already guards `*:Zone.Identifier` (line 2), so only deletion is needed (a plain `rm`, not `git rm`; no `.gitignore` change). | prompts/modular-...md:Zone.Identifier; .gitignore:2 |
 | D-09 | Low | Low | novice | completeness | No user-facing CHANGELOG despite a versioned framework; DECISIONS is rationale, not a changelog. | repo root; VERSION=20260704-01 |
 | D-10 | (positive) | - | software-engineer | accuracy | README/ARCHITECTURE pointer to index.md's "Running a workflow (by tool)" section is correct. | index.md:79 |
 
@@ -54,11 +54,11 @@ reviewer perspective that surfaced it.
 | Step | Source finding IDs | Change | Files | Remediation Risk | Validation |
 |------|--------------------|--------|-------|------------------|------------|
 | 1 | D-01, D-02 | Rewrite the assess description to the single parameterized `/assess <concern>` + `assess-<concern>` catalog model; replace all `/assess-<concern>` command examples with `/assess <concern>`. | ARCHITECTURE.md | Low | grep ARCHITECTURE for `assess-` command syntax returns none except catalog/dir references; wording matches README/index.md. |
-| 2 | D-03 | Add concise sections for the missing workflows: verify (evidence layer), advise (+personas), assess-all (rollup), the lifecycle four (spec/incident/release-notes/migrate), list-workflows, getting-started. | ARCHITECTURE.md | Low | Every workflow in `index.md` appears in ARCHITECTURE; count reconciles (15 commands). |
+| 2 | D-03 | Add concise sections for the missing workflows: verify (evidence layer), advise (+personas), assess-all (rollup), the lifecycle four (spec/incident/release-notes/migrate), list-workflows, getting-started. Keep each to a short paragraph (anti-bloat, per the Scope check); do not turn ARCHITECTURE into a tutorial. | ARCHITECTURE.md | Low | Every non-catalog command row in `index.md` (15) is named in ARCHITECTURE: for each, `grep -c` in ARCHITECTURE is >= 1. |
 | 3 | D-04 | Update the file tree to the current `.agents/workflows/` layout, plus `VERSION`, `tests/`, and the three `tools/*.py`. | ARCHITECTURE.md | Low | Tree entries exist on disk; `ls` cross-check. |
 | 4 | D-05, D-06 | Add short subsections on versioning/stamping (D32) and self-tests (D36); add `run_checks.py` to the tools description. | ARCHITECTURE.md | Low | Mentions VERSION scheme, `--version`, `tests/`, and all three tools. |
 | 5 | D-07 | Generalize CONTRIBUTING doc-sync step 3 to cover both `assess-<concern>` lenses and `advise-<persona>` personas. | CONTRIBUTING.md | Low | Step names both catalog families. |
-| 6 | D-08 | Remove the stray `:Zone.Identifier` file; confirm `.gitignore` guards the pattern. | prompts/, .gitignore | Low | `find . -name '*Zone.Identifier'` (outside .git) returns nothing; pattern in .gitignore. |
+| 6 | D-08 | Delete the stray untracked `:Zone.Identifier` file with `rm` (it is untracked, so not `git rm`). No `.gitignore` change: `*:Zone.Identifier` is already guarded at `.gitignore:2`. | prompts/ | Low | `find . -name '*Zone.Identifier'` (outside .git) returns nothing. |
 | 7 | D-09 | Either add a `CHANGELOG.md` seeded from DECISIONS D31-D38, or add a README line stating DECISIONS.md is the change history and linking it. (Recommend the README pointer; lighter.) | README.md (or new CHANGELOG.md) | Low | README points a user to where to see what changed per version. |
 
 ## Deferred / out of scope (with reason)
