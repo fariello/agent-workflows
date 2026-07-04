@@ -1129,3 +1129,27 @@ both execute the (large) set well.
   with eyes open. The review still never auto-executes a plan - it surfaces for a human.
 - **Scope:** instruction-only change to the `release-review` workflow bodies and templates;
   no code/tool change. VERSION bumped 20260704-01 -> 20260704-02.
+
+### D40. Secret scanner: stop nagging to install a mature scanner when one is present
+
+- **Context:** `scan_secrets.py` printed "RECOMMENDED - install a mature scanner for stronger
+  assurance" (and a matching JSON `note`) whenever ANY of the three known external tools
+  (gitleaks, trufflehog, detect-secrets) was missing - so it nagged even when gitleaks (a
+  mature scanner) was installed and had already been run, just because the other two were
+  absent. The recommendation is only meaningful when NO mature scanner is available.
+- **Change:** `emit` now branches on whether a mature scanner is actually present/used:
+  (a) present -> no nag; any still-missing tools are listed only as "optional - additional
+  scanners for broader coverage"; the JSON note says a mature scanner was run alongside the
+  built-in one. (b) none present -> keep the "RECOMMENDED - install" nag (the original,
+  correct behavior for that case). (c) `--no-external` -> say external scanning was skipped
+  this pass rather than implying none are installed (previously it hit case (b) and nagged,
+  which was misleading). A `skipped_external` flag is threaded from the caller so the
+  all-False `avail` under `--no-external` is not confused with "nothing installed".
+- **Why:** the nag existed to push users toward a real scanner; once one is present, the
+  push is noise and undermines the tool's credibility. Honest, state-appropriate messaging
+  over a blanket recommendation (P2).
+- **Self-tests:** three added to `test_scan_secrets.py` calling `emit` directly with a fake
+  `avail` (deterministic, independent of what is installed on the test host): no-nag when a
+  mature scanner is present, nag when none is present, and skipped-message under
+  `--no-external`. Suite now 30 tests, all passing.
+- **Scope:** tool + tests only; no workflow-body change. VERSION 20260704-02 -> 20260704-03.

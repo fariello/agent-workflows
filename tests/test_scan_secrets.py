@@ -4,9 +4,11 @@ and honesty. Stdlib unittest only.
 
 from __future__ import annotations
 
+import io
 import json
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 
 from tests.support import SCANNER, REPO_ROOT, init_repo, git, run_tool, load_module
@@ -79,6 +81,50 @@ class ScannerEndToEndTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         data = json.loads(proc.stdout)
         self.assertEqual(data["summary"]["total"], 0)
+
+
+class ScannerRecommendationTests(unittest.TestCase):
+    """The 'RECOMMENDED - install a mature scanner' nag must only appear when NO mature
+    scanner is present. When one is installed (and run), do not nag; when external
+    scanning was skipped, say so instead."""
+
+    def _emit_text(self, avail, skipped_external=False):
+        buf = io.StringIO()
+        err = io.StringIO()
+        with redirect_stderr(err):
+            SS.emit([], "text", buf, avail, skipped_external=skipped_external)
+        return err.getvalue()
+
+    def _emit_json(self, avail, skipped_external=False):
+        buf = io.StringIO()
+        with redirect_stderr(io.StringIO()):
+            SS.emit([], "json", buf, avail, skipped_external=skipped_external)
+        return json.loads(buf.getvalue())
+
+    def test_no_nag_when_mature_scanner_present(self):
+        # gitleaks present, others missing: must NOT print the install RECOMMENDED nag.
+        avail = {"gitleaks": True, "trufflehog": False, "detect-secrets": False}
+        stderr = self._emit_text(avail)
+        self.assertNotIn("RECOMMENDED", stderr)
+        self.assertIn("gitleaks", stderr)  # still reported as used
+        data = self._emit_json(avail)
+        self.assertNotIn("install and run a mature", data["note"])
+        self.assertIn("gitleaks", data["external_tools"]["available"])
+
+    def test_nag_when_no_mature_scanner_present(self):
+        avail = {"gitleaks": False, "trufflehog": False, "detect-secrets": False}
+        stderr = self._emit_text(avail)
+        self.assertIn("RECOMMENDED", stderr)
+        data = self._emit_json(avail)
+        self.assertIn("install and run a mature", data["note"])
+
+    def test_skipped_external_does_not_nag(self):
+        avail = {"gitleaks": False, "trufflehog": False, "detect-secrets": False}
+        stderr = self._emit_text(avail, skipped_external=True)
+        self.assertNotIn("RECOMMENDED", stderr)
+        self.assertIn("skipped", stderr)
+        data = self._emit_json(avail, skipped_external=True)
+        self.assertIn("skipped", data["note"])
 
 
 if __name__ == "__main__":
