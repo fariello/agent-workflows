@@ -59,11 +59,14 @@ Read and execute .agents/workflows/assess/assess.md for the concern "secrets"  #
 
 ## What you can run
 
-Seven core workflows plus two parameterized commands - `/assess <concern>` (single-concern
-assessments) and `/advise <persona>` (expert interrogation and coaching). Not sure what is
-available or which version is installed? Run `/list-workflows`. For any tool without native
-slash commands, run the body file shown in the manifest (`.agents/workflows/index.md`) via
-"Read and execute ...".
+Eleven core workflows - spanning discovery (`/spec`), build/review (`/release-review`,
+`/plan-review`, `/verify`), ship (`/release-notes`), operate (`/incident`), high-risk
+change (`/migrate`), setup (`/setup-repo`, `/scaffold`), and discovery of the toolkit
+itself (`/list-workflows`) - plus two parameterized commands, `/assess <concern>`
+(single-concern assessments) and `/advise <persona>` (expert interrogation and coaching).
+Not sure what is available or which version is installed? Run `/list-workflows`. For any
+tool without native slash commands, run the body file shown in the manifest
+(`.agents/workflows/index.md`) via "Read and execute ...".
 
 ### Core workflows
 
@@ -77,6 +80,10 @@ slash commands, run the body file shown in the manifest (`.agents/workflows/inde
 | `/list-workflows` | Toolkit discovery: lists what this toolkit can do (core workflows, the `/assess` concerns, personas) and the installed framework version, read from the manifest. Optional filter, e.g. `/list-workflows security`. | No (read-only) |
 | `/verify` | Proof, not prose: discovers the repo's own test/lint/build/type-check commands, runs the approved ones (confirm-per-check by default; hard denylist for network/deploy/publish/install), and captures real exit codes, metrics, and logs as committed evidence. `release-review` and `assess` cite it. | Runs repo checks; writes only an evidence record |
 | `/advise <persona>` | Interrogate and coach: an expert persona (`skeptic`, `spec-editor`, `architect`, `red-teamer`, `staff-engineer`, `domain-expert`, `naive-user`) examines the current context or a named artifact, asks probing questions, and helps you improve it. Bare `/advise` lists personas and asks. | Interactive; edits planning/prose only with consent; never runs code |
+| `/spec` | Front of funnel: turns a fuzzy request into a reviewable specification (goals, non-goals, users, testable acceptance criteria, constraints, open questions). Feeds `/advise spec-editor` and `/plan-review`. | Guided; writes a spec doc |
+| `/incident` | Blameless post-mortem: timeline, impact, systemic contributing factors, and follow-up actions emitted as IPDs. Repo-scoped (the operator holds the real monitoring/on-call data). | Guided; writes a post-mortem + action IPDs |
+| `/release-notes` | Decides the version bump from the actual changes and drafts the changelog + human release notes (breaking changes prominent). Never publishes, tags, pushes, or deploys. | Guided; updates changelog/version files |
+| `/migrate` | Plans a high-risk migration (framework/DB/dependency-major/layout): blast radius, invariants that must survive, and a staged, reversible plan with per-stage rollback and verify checks. Emits an IPD. | No (emits a plan) |
 
 ### Assessments (`/assess <concern>`)
 

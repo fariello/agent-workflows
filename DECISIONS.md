@@ -959,3 +959,46 @@ both execute the (large) set well.
 - **Docs updated:** README (core table `/advise` row + a Coaching section + count/prose),
   `index.md` (advise family prose + generalized catalog-collapse note), `/list-workflows`
   persona language.
+
+### D35. Lifecycle workflows: `spec`, `incident`, `release-notes`, `migrate`
+
+- **Change:** executes the lifecycle-workflows IPD (2026-07-04). Adds four distinct
+  standalone workflows that fill the enterprise-delivery stages the toolkit under-served,
+  so it spans discover -> build -> review -> ship -> operate, not just assess/review.
+- **Why:** the toolkit was strong on assess/review but thin at the front of the funnel
+  (requirements) and the back (incident, release, migration). These are genuinely distinct
+  ACTIVITIES (not concerns or personas), so each warrants its own workflow rather than
+  folding into the assess/advise families.
+- **Scope (open Q1, resolved):** build all four now (each is a bounded, guided workflow on
+  established patterns), rather than shipping only `spec` first.
+- **Names (open Q2, resolved):** `spec`, `incident`, `release-notes`, `migrate` (short,
+  consistent with `assess`/`verify`/`advise`), not the wordier `draft-spec`/`post-mortem`/
+  `changelog`/`migration-plan`.
+- **release-notes placement (open Q3, resolved):** its own `/release-notes` command (a
+  reusable notes/versioning step), NOT folded into release-review Section 9 - which now
+  REFERENCES it in its "Finalize, version, and commit" step.
+- **Behavior:** guided/ask-first writes to the repo's conventional location.
+  - `spec`: produces a reviewable specification (goals/non-goals/users/requirements/
+    testable acceptance criteria/constraints/open questions); the PRODUCE half opposite
+    `/advise spec-editor`'s INTERROGATE half; feeds plan-review.
+  - `incident`: a blameless post-mortem (timeline/impact/systemic factors/what went right-
+    wrong), emitting follow-up action IPDs into pending/. Explicitly REPO-SCOPED and honest
+    that the operator holds the real monitoring/SIEM/on-call data; must not fabricate a
+    timeline or root cause.
+  - `release-notes`: decides the version bump from the actual changes (detects the repo's
+    scheme), drafts the changelog + human notes (assess-prose style, breaking changes
+    prominent), updates CHANGELOG/version files with confirmation. NEVER publishes, tags,
+    pushes, or deploys.
+  - `migrate`: assess-and-plan a high-risk migration - blast radius (evidence-based, cites
+    files), invariants that must survive, a staged/reversible plan with characterization
+    tests first and per-stage rollback + `verify` checks. Emits an IPD via the assess
+    pipeline; does not execute. (The installer's own legacy-layout migration, D17/D19, is
+    the archetype.)
+  - `incident`+`migrate` emit follow-up IPDs into `.agents/plans/pending/`.
+- **Scope held:** not project management, ticketing, roadmapping, or actual CI/CD/deploy
+  execution. `release-notes` drafts + bumps but does not publish; `incident` structures a
+  post-mortem but does not monitor; `migrate` plans but does not execute.
+- **Verified:** fresh install generates 13 shims/tool (adds `spec`, `incident`,
+  `release-notes`, `migrate`) and copies the four bodies. Dogfooded on this repo.
+- **Docs updated:** README (four core-table rows + count 7->11 core), `index.md`
+  (lifecycle prose), release-review Section 9 (references `release-notes`).

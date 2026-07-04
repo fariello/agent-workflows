@@ -5,7 +5,7 @@
   front of the funnel (requirements) and the back (incident, release, migration).
 - Scope: up to four new distinct workflows. This IPD proposes the set; each may become
   its own execution IPD when built.
-- Status: PENDING (proposal for human approval; not executed)
+- Status: EXECUTED 2026-07-04 (all four built). See DECISIONS.md D35.
 
 ## Goal
 
@@ -85,3 +85,19 @@ model. Anything more speculative is deferred (Fix Bar complexity axis).
 
 Proposal only. Likely best split into per-workflow execution IPDs. Approve/reorder and
 decide which to build first.
+
+## Execution record (2026-07-04)
+
+Open questions resolved by the human:
+- Q1 (scope): build all four now.
+- Q2 (names): spec, incident, release-notes, migrate.
+- Q3 (release-notes): its own command; release-review Section 9 references it.
+- Behavior: guided/ask-first writes; incident + migrate emit follow-up IPDs into pending/;
+  release-notes bumps version files but never publishes.
+
+Changes: four workflow bodies (`spec/spec.md`, `incident/incident.md`,
+`release-notes/release-notes.md`, `migrate/migrate.md`); four manifest rows; a reference
+to `release-notes` from release-review Section 9; README (four core rows + count 7->11)
+and `index.md` lifecycle prose; DECISIONS D35. Verified: fresh install -> 13 shims/tool,
+four bodies copied. Dogfooded on this repo. Scope held (no PM/ticketing/CI-CD;
+release-notes does not publish; incident does not monitor; migrate does not execute).

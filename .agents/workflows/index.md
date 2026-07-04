@@ -28,6 +28,10 @@ focusing on different concerns; leave it `-` when not used.
 | plan-review | .agents/workflows/plan-review/plan-review.md | - | Pre-execution plan reviewer: review and improve a proposed implementation plan before any code is written (edits planning documents only). |
 | list-workflows | .agents/workflows/list-workflows/list-workflows.md | - | Toolkit discovery: list what this toolkit can do (core workflows, the `/assess` concerns, any personas) and the installed framework version, read from the manifest. Optional filter argument (`/list-workflows security`, `/list-workflows assess`). Read-only. |
 | verify | .agents/workflows/verify/verify.md | - | Proof, not prose: discover the repo's own test/lint/build/type-check commands (`run_checks.py`), run the approved ones (confirm-per-check by default, `--yes` for batch; hard denylist for network/deploy/publish/install), and capture real exit codes/metrics/logs as committed evidence. Honest about what could not be verified. Reused by release-review and assess. |
+| spec | .agents/workflows/spec/spec.md | - | Front of funnel: turn a fuzzy request into a reviewable specification (goals, non-goals, users, requirements, testable acceptance criteria, constraints, open questions). Guided/interactive; writes the spec to the repo's convention. Produces the artifact that `/advise spec-editor` interrogates and `plan-review` reviews. |
+| incident | .agents/workflows/incident/incident.md | - | Blameless post-mortem for a production incident: timeline, impact, systemic contributing factors, what went right/wrong, and follow-up actions emitted as IPDs into pending/. Reactive complement to the reliability/logging-audit/intrusion-detection lenses. Repo-scoped and honest about it (operator holds the real monitoring/on-call data). |
+| release-notes | .agents/workflows/release-notes/release-notes.md | - | Release discipline: decide the version bump from the actual changes, draft the changelog and human release notes (prose-style guide; breaking changes prominent), and update CHANGELOG/version files with confirmation. Never publishes, tags, pushes, or deploys. Distinct from release-review Section 9 (which executes a release). |
+| migrate | .agents/workflows/migrate/migrate.md | - | Assess-and-plan a high-risk migration (framework/DB/dependency-major/layout): inventory the blast radius, name the invariants that must survive, and propose a staged, reversible plan with characterization tests first and per-stage rollback + verify checks. Emits an IPD; does not execute. |
 | setup-repo | .agents/workflows/setup-repo/setup-repo.md | - | Guided, idempotent, drift-aware repo setup AND conformance check: detect state, classify each area (conformant/partial/missing/outdated), then ask-before-each-change to install tools and add secret-scanning, the plan/IPD lifecycle (dirs + documented contract), .gitignore/CI/pre-commit/hygiene files. Safe to re-run after updates; stages changes. |
 | scaffold | .agents/workflows/scaffold/scaffold.md | - | Guided, wizard-style creation of a new assess-* lens, standalone workflow, or command: generate from the existing patterns, wire the manifest, and regenerate shims. Authoring/meta workflow. |
 | assess | .agents/workflows/assess/assess.md | - | Assess ONE concern deeply and propose an IPD. `/assess <concern> [scope]` (e.g. `/assess security`, `/assess prose src/`); bare `/assess` lists concerns and asks. The `assess-<concern>` rows below are the concern catalog (they define the lenses), not separate commands. |
@@ -152,6 +156,17 @@ Personas: `skeptic` (the "grill me"), `spec-editor`, `architect`, `red-teamer`,
 and asks. It is interactive, edits planning/prose artifacts only with per-change consent,
 and never runs code. Add personas with `scaffold`. The `advise-<persona>` manifest rows
 are the persona catalog, not separate commands (same collapse as `assess-<concern>`).
+
+The **lifecycle** workflows fill the delivery stages beyond assess/review, spanning
+discover -> build -> review -> ship -> operate: **`spec`** (turn a fuzzy request into a
+reviewable specification; produces the artifact that `/advise spec-editor` interrogates and
+`plan-review` reviews), **`incident`** (a blameless, repo-scoped post-mortem that emits
+follow-up action IPDs; the operator holds the real monitoring/on-call data), **`release-notes`**
+(decide the version bump from the actual changes and draft the changelog + notes - it
+prepares a release but never publishes/tags/pushes; `release-review` Section 9 references
+it), and **`migrate`** (assess-and-plan a high-risk migration as a staged, reversible plan
+with characterization tests and per-stage rollback/verify, emitted as an IPD). They are
+distinct ACTIVITIES, so each is its own workflow rather than a concern or persona.
 
 ## Notes
 
