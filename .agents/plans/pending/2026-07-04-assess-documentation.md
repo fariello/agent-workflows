@@ -36,9 +36,9 @@ Fix by default; each item is safe, well-scoped, and verifiable.
 
 | Step | Source finding IDs | Change | Files | Remediation Risk | Validation |
 |------|--------------------|--------|-------|------------------|------------|
-| 1 | DOC-01 | In the "Running a workflow (by tool)" table, change the OpenCode row example from `/assess-security` and `/assess-performance src/server` to `/assess security` and `/assess performance src/server`; change the Claude Code row example from `/assess-security` to `/assess security`. Leave `/assess-all` untouched (it is a real shim). Optionally add a half-sentence noting the concern is the first argument, matching README:54. | `.agents/workflows/index.md` (lines ~87-88) | Low | `grep -nE "/(assess\|advise)-[a-z]" .agents/workflows/index.md` returns only the `assess-all` command and the manifest catalog rows (which are row IDs, not command examples); no `/assess-<concern>` or `/advise-<persona>` *command* example remains. Manual read of the by-tool table shows `/assess security`. |
-| 2 | DOC-02 | Add `prompts/README.md`: a short index with one line per file (what it is; current vs. historical/reference; relationship to the maintained `.agents/workflows/` workflows), plus a lead sentence stating the canonical, maintained versions of these ideas ship under `.agents/workflows/` and these prompts are kept as origin/reference material. Note that `fix-bar.md` predates and inspired `release-review/fix-decision-policy.md`. | `prompts/README.md` (new) | Low | File exists; each of the four `prompts/*.md` files is named with a one-line description; no em dashes (`grep -c "\u2014" prompts/README.md` = 0). |
-| 3 | DOC-02 | Point the two prose references at the new index: README:216 and ARCHITECTURE:25-26 gain "(see `prompts/README.md`)". | `README.md`, `ARCHITECTURE.md` | Low | Both references mention `prompts/README.md`; still em-dash-free. |
+| 1 | DOC-01 | In the "Running a workflow (by tool)" table, change the OpenCode row example from `/assess-security` and `/assess-performance src/server` to `/assess security` and `/assess performance src/server`; change the Claude Code row example from `/assess-security` to `/assess security`. Leave `/assess-all` untouched (it is a real shim). Optionally add a half-sentence noting the concern is the first argument, matching README:54. | `.agents/workflows/index.md` (lines ~87-88) | Low | Run `grep -nE "/(assess\|advise)-[a-z]" .agents/workflows/index.md`. This pattern requires a leading slash, so it never matches the `\| assess-... \|` catalog *rows*; the only legitimate remaining match is the `/assess-all` mention on the `assess-all` manifest row (line ~39). Expected after the fix: exactly that one `assess-all` line, and NO `/assess-<concern>` or `/advise-<persona>` command example in the by-tool table (lines 87-88). Also read the by-tool table and confirm it shows `/assess security`. |
+| 2 | DOC-02 | Add `prompts/README.md`: a short index with one line per file (what it is; current vs. historical/reference; relationship to the maintained `.agents/workflows/` workflows), plus a lead sentence stating the canonical, maintained versions of these ideas ship under `.agents/workflows/` and these prompts are kept as origin/reference material. Note that `fix-bar.md` predates and inspired `release-review/fix-decision-policy.md`. | `prompts/README.md` (new) | Low | File exists; each of the four `prompts/*.md` files is named with a one-line description; no em dashes: grep for a literal em-dash character (U+2014) in `prompts/README.md` and expect 0, e.g. `grep -c $'\u2014' prompts/README.md` (Bash `$'...'` expands the escape) or paste the literal character. Do NOT write the pattern as a plain double-quoted `"\u2014"`: `grep` does not expand that escape, so it matches the literal text `u2014` and would falsely report 0. |
+| 3 | DOC-02 | Point the two prose references at the new index. README:216 gains "(see `prompts/README.md`)". ARCHITECTURE:25-26 already carries a parenthetical ("e.g. fix-bar.md, an origin note for the Fix Bar"); extend or replace that same parenthetical to add "see `prompts/README.md`" rather than appending a second, separate mention. | `README.md`, `ARCHITECTURE.md` | Low | Both references mention `prompts/README.md`; ARCHITECTURE has a single combined parenthetical (no duplicate prompts note); both files still em-dash-free (a literal-U+2014 grep returns 0 on each). |
 
 ## Deferred / out of scope (with reason)
 
@@ -53,8 +53,8 @@ None. Both findings are Low Remediation Risk and are proposed for fixing. Nothin
 
 Docs-only; no code or behavior change, so no automated tests are required. Validation is the per-step checks above plus:
 
-- `grep -rnE "/(assess|advise)-[a-z]" README.md ARCHITECTURE.md .agents/workflows/index.md` shows no per-concern/per-persona *command* examples (only `assess-all` and manifest catalog row IDs).
-- Em-dash sweep over changed files returns 0.
+- `grep -rnE "/(assess|advise)-[a-z]" README.md ARCHITECTURE.md .agents/workflows/index.md` shows no per-concern/per-persona *command* examples. Note the leading slash in the pattern: it does NOT match the `| assess-<concern> |` manifest catalog rows (those have no slash), so the only legitimate matches are the real `/assess-all` command mentions (README and the `assess-all` manifest row). Any `/assess-security`-style hit is a leftover to fix.
+- Em-dash sweep over changed files returns 0, matching a literal em-dash character (U+2014), e.g. `grep -c $'\u2014' <file>` in Bash (which expands the escape) or by pasting the literal character. Do NOT write the pattern as a plain double-quoted `"\u2014"`: shell `grep` does not expand that escape, so it matches the literal string `u2014` and returns 0 even when em dashes are present (a false pass).
 - Optional: `python3 -m unittest discover -s tests -t .` still passes (should be unaffected; documents only).
 
 ## Spec / documentation sync
@@ -64,7 +64,27 @@ This plan *is* the documentation sync. No user-visible product behavior changes.
 ## Open questions
 
 1. For `prompts/README.md`, should each historical prompt be labeled explicitly "superseded by <workflow>" where a successor exists (e.g. `modular-release-review-instruction-set-generation-prompt.md` -> `release-review/`, `fix-bar.md` -> `release-review/fix-decision-policy.md`), or kept as a neutral "reference material" note? Assumption for execution: label the clear successors and mark the two general QA/validation prompts as reference material.
-2. Confirm the terminal dir choice: this repo uses `.agents/plans/done/` (not `executed/`). Assumption: keep `done/` (accepted alias; existing repo convention).
+2. Confirm the terminal dir choice: this repo uses `.agents/plans/done/` (not `executed/`). Assumption: keep `done/` (accepted alias; existing repo convention). (Also stated in the conventions and the approval gate below; recorded here only for the executor's convenience.)
+
+## Plan-review revisions applied (2026-07-04)
+
+This IPD was hardened by `plan-review` before approval. Fixes applied in place:
+
+- PR-01 (High, validation false-negative): Steps 2 and 3 originally specified the em-dash
+  check as a plain double-quoted `"\u2014"`, which shell `grep` treats as the literal text
+  `u2014` and reports 0 even when em dashes are present - it would falsely pass a doc that
+  violates the house rule. Rewritten to grep for a literal em-dash character (U+2014), e.g.
+  via Bash `$'\u2014'` or the pasted character.
+- PR-02 (Medium, misdescribed validation): Step 1's expected grep result claimed the pattern
+  matches the manifest catalog rows. It does not (the pattern needs a leading slash); the
+  only legitimate match is the `/assess-all` mention. Corrected so the check is accurate and
+  actionable.
+- PR-03 (Low, consistency): Step 3 now integrates the `prompts/README.md` pointer into
+  ARCHITECTURE's existing "fix-bar.md, an origin note" parenthetical (ARCHITECTURE:25-26)
+  rather than appending a second, separate prompts note.
+
+No scope, findings, or approach changed; the review only corrected the validation and edit
+instructions so execution can be verified honestly.
 
 ## Approval and execution gate
 
