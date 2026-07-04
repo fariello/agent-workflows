@@ -5,7 +5,7 @@
   introduction to the toolkit, not just a README to read.
 - Scope: one new guided workflow (wizard style, like setup-repo). No change to existing
   workflow behavior.
-- Status: PENDING (proposal for human approval; not executed)
+- Status: EXECUTED 2026-07-04. See DECISIONS.md D37.
 
 ## Goal
 
@@ -73,3 +73,19 @@ An `onboarding` / `tour` / `getting-started` workflow that:
 
 Proposal only. Best sequenced after the command surface (the command-surface-redesign IPD) and catalog (the toolkit-discovery IPD) are
 settled, since it teaches them. Approve/reorder before execution.
+
+## Execution record (2026-07-04)
+
+Built LAST, so it teaches the final command surface (D31-D36 settled first). Open
+questions resolved by the human:
+- Q1 (name): `getting-started`.
+- Q2 (sequencing): moot - built after the surface settled.
+- Q3 (scope): orient + route only; reference `/list-workflows` for the full catalog;
+  offer to run the chosen workflow with consent; do not duplicate the README.
+
+Changes: `getting-started/getting-started.md` (context detection, brief mental model,
+goal->route table, per-tool run instructions, consent-to-run, read-only); manifest row;
+README (quick-start pointer, core row, count 11->12) and `index.md` prose; DECISIONS D37.
+Verified: fresh install -> 15 shims/tool (adds getting-started); the 25 self-tests still
+pass. Dogfooded on this repo. This completes all seven 2026-07-04 roadmap IPDs
+(D31-D37).

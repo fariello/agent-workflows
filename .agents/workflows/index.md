@@ -26,6 +26,7 @@ focusing on different concerns; leave it `-` when not used.
 | release-review | .agents/workflows/release-review/README.md | - | Full pre-release repository review and hardening: deep audit through eight personas, the Fix Bar, fix/validate/report, push and release decisions. |
 | release-review-plan | .agents/workflows/release-review/README.md | - | Release review in planning-only mode: audit and consolidated implementation plan, stopping before implementation. |
 | plan-review | .agents/workflows/plan-review/plan-review.md | - | Pre-execution plan reviewer: review and improve a proposed implementation plan before any code is written (edits planning documents only). |
+| getting-started | .agents/workflows/getting-started/getting-started.md | - | Guided in-agent tour and router for newcomers: detect repo/toolkit context, explain the mental model briefly, ask the user's goal, and route to the right workflow (offering to run it with consent) with the exact invocation for their tool. Orients and routes; references `/list-workflows` for the full catalog. Read-only by default. |
 | list-workflows | .agents/workflows/list-workflows/list-workflows.md | - | Toolkit discovery: list what this toolkit can do (core workflows, the `/assess` concerns, any personas) and the installed framework version, read from the manifest. Optional filter argument (`/list-workflows security`, `/list-workflows assess`). Read-only. |
 | verify | .agents/workflows/verify/verify.md | - | Proof, not prose: discover the repo's own test/lint/build/type-check commands (`run_checks.py`), run the approved ones (confirm-per-check by default, `--yes` for batch; hard denylist for network/deploy/publish/install), and capture real exit codes/metrics/logs as committed evidence. Honest about what could not be verified. Reused by release-review and assess. |
 | spec | .agents/workflows/spec/spec.md | - | Front of funnel: turn a fuzzy request into a reviewable specification (goals, non-goals, users, requirements, testable acceptance criteria, constraints, open questions). Guided/interactive; writes the spec to the repo's convention. Produces the artifact that `/advise spec-editor` interrogates and `plan-review` reviews. |
@@ -176,6 +177,12 @@ prepares a release but never publishes/tags/pushes; `release-review` Section 9 r
 it), and **`migrate`** (assess-and-plan a high-risk migration as a staged, reversible plan
 with characterization tests and per-stage rollback/verify, emitted as an IPD). They are
 distinct ACTIVITIES, so each is its own workflow rather than a concern or persona.
+
+**`getting-started`** is the newcomer's entry point: a guided in-agent tour that detects
+repo/toolkit context, explains the mental model briefly, asks the user's goal, and routes
+to the right workflow (offering to run it, with consent) with the exact invocation for
+their tool. It ORIENTS and ROUTES - read-only by default - and references `/list-workflows`
+for the full catalog rather than duplicating it or the README.
 
 ## Notes
 

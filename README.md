@@ -55,18 +55,23 @@ Read and execute .agents/workflows/assess/assess.md for the concern "secrets"  #
 `/assess performance src/` or `/assess compliance-readiness nist-800-171`. Run bare
 `/assess` to list the concerns and be asked which to run.
 
+New here? Run **`/getting-started`** for a guided, in-agent tour: it detects your repo's
+state, asks what you are trying to do, and routes you to the right workflow with the exact
+command for your tool. `/list-workflows` shows the full catalog.
+
 ---
 
 ## What you can run
 
-Eleven core workflows - spanning discovery (`/spec`), build/review (`/release-review`,
-`/plan-review`, `/verify`), ship (`/release-notes`), operate (`/incident`), high-risk
-change (`/migrate`), setup (`/setup-repo`, `/scaffold`), and discovery of the toolkit
-itself (`/list-workflows`) - plus two parameterized commands, `/assess <concern>`
-(single-concern assessments) and `/advise <persona>` (expert interrogation and coaching).
-Not sure what is available or which version is installed? Run `/list-workflows`. For any
-tool without native slash commands, run the body file shown in the manifest
-(`.agents/workflows/index.md`) via "Read and execute ...".
+Twelve core workflows - spanning onboarding (`/getting-started`), discovery (`/spec`),
+build/review (`/release-review`, `/plan-review`, `/verify`), ship (`/release-notes`),
+operate (`/incident`), high-risk change (`/migrate`), setup (`/setup-repo`, `/scaffold`),
+and discovery of the toolkit itself (`/list-workflows`) - plus two parameterized commands,
+`/assess <concern>` (single-concern assessments) and `/advise <persona>` (expert
+interrogation and coaching). New here? Start with `/getting-started`. Not sure what is
+available or which version is installed? Run `/list-workflows`. For any tool without native
+slash commands, run the body file shown in the manifest (`.agents/workflows/index.md`) via
+"Read and execute ...".
 
 ### Core workflows
 
@@ -77,6 +82,7 @@ tool without native slash commands, run the body file shown in the manifest
 | `/release-review-plan` | The release review in planning-only mode: audit + a consolidated implementation plan, stopping before changes. | No |
 | `/plan-review` | Review and improve a proposed implementation plan (IPD) **before** any code is written. | No (edits the plan doc) |
 | `/scaffold` | Guided creation of a new assessment lens, workflow, or command, wired into the manifest. | Framework files only |
+| `/getting-started` | Guided in-agent tour for newcomers: detects your repo/toolkit state, explains the mental model, asks your goal, and routes you to the right workflow with the exact command for your tool. Orients and routes; runs nothing without your say-so. | No (read-only) |
 | `/list-workflows` | Toolkit discovery: lists what this toolkit can do (core workflows, the `/assess` concerns, personas) and the installed framework version, read from the manifest. Optional filter, e.g. `/list-workflows security`. | No (read-only) |
 | `/verify` | Proof, not prose: discovers the repo's own test/lint/build/type-check commands, runs the approved ones (confirm-per-check by default; hard denylist for network/deploy/publish/install), and captures real exit codes, metrics, and logs as committed evidence. `release-review` and `assess` cite it. | Runs repo checks; writes only an evidence record |
 | `/advise <persona>` | Interrogate and coach: an expert persona (`skeptic`, `spec-editor`, `architect`, `red-teamer`, `staff-engineer`, `domain-expert`, `naive-user`) examines the current context or a named artifact, asks probing questions, and helps you improve it. Bare `/advise` lists personas and asks. | Interactive; edits planning/prose only with consent; never runs code |

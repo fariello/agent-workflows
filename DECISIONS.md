@@ -1046,3 +1046,32 @@ both execute the (large) set well.
 - **Docs updated:** README (assess-all in the Assessments section), `index.md` (assess-all
   prose), CONTRIBUTING (a Self-tests section with the runner command; also fixed a stale
   `/assess-secrets` -> `/assess secrets`).
+
+### D37. Guided onboarding: the `getting-started` tour/router
+
+- **Change:** executes the guided-onboarding-tour IPD (2026-07-04), the last of the seven
+  roadmap IPDs. Adds a `getting-started` workflow: a guided in-agent tour that orients a
+  newcomer and routes them to the right workflow. In-agent complement to the README.
+- **Why:** the README is a good written on-ramp, but a first-timer in an agent still has to
+  read it and map it to their situation. A guided tour meets them where they are ("what are
+  you trying to do?" -> route + run with consent), lowering the adoption friction that
+  decides whether a toolkit gets used or installed-and-forgotten. Fits the guided-wizard
+  pattern (setup-repo, scaffold).
+- **Sequencing:** built LAST, deliberately, so it teaches the FINAL command surface - after
+  the parameterized commands (D31), catalog (D32), verification (D33), advise (D34),
+  lifecycle (D35), and assess-all (D36) were all settled. (The IPD's open Q2 about
+  before/after the surface is thus moot.)
+- **Name (open Q1, resolved):** `getting-started` (descriptive and unambiguous), over
+  `start`/`tour`/`onboarding`.
+- **Scope discipline (open Q3, resolved):** it ORIENTS and ROUTES only - detect context,
+  explain the mental model briefly, ask the goal, route (offer to run, with consent), and
+  give the exact per-tool invocation. It references `/list-workflows` for the full catalog
+  rather than re-enumerating it, and does not restate the README - a guide, not a second
+  source of truth. Read-only by default; runs another workflow only with explicit consent;
+  must adapt to the detected context/goal rather than recite a fixed script.
+- **Verified:** fresh install generates 15 shims/tool (adds `getting-started`) and copies
+  the body. Dogfooded on this repo.
+- **Docs updated:** README (quick-start "New here?" pointer, core-workflows table row, count
+  11->12 core), `index.md` (getting-started prose).
+- **Milestone:** with this, all seven 2026-07-04 roadmap IPDs (D31-D37) are executed. Next
+  is the batched rollout of the whole set into the other `a local checkout dir/*` repos (exclude a-consuming-repo).
