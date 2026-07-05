@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "agent-workflows"
+abstract: >-
+  Reusable, on-demand agent workflows (assess, plan-review, release-review, and more) for AI coding agents such as OpenCode and Claude Code.
+type: software
+authors:
+  - family-names: "Fariello"
+    given-names: "Gabriele G. R."
+    email: "gfariello@fariel.com"
+repository-code: "https://github.com/fariello/agent-workflows"
+url: "https://github.com/fariello/agent-workflows"
+license: Apache-2.0
+date-released: "2026-07-05"

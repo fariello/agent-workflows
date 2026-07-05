@@ -224,3 +224,27 @@ This repo practices the durable-knowledge discipline its own framework prescribe
 - `ARCHITECTURE.md` - how the framework is structured and why.
 - `DECISIONS.md` - the dated, append-only log of significant decisions and their
   rationale (this is also the project's changelog).
+
+
+---
+
+## License, Attribution & Citation
+
+`agent-workflows` is licensed under the **Apache License 2.0** (see `LICENSE` and `NOTICE`).
+
+**Attribution (required).** Under Apache-2.0 §4(d), any distribution of this software or a
+derivative work must retain the `NOTICE` file and display its attribution reasonably
+prominently. Concretely, derived/redistributed works must include the following, visibly,
+in the project README (or equivalent top-level documentation) and in any "About"/credits
+screen the software presents:
+
+> Based on the original agent-workflows by Gabriele G. R. Fariello (https://github.com/fariello/agent-workflows).
+
+**Citation.** If you use `agent-workflows` in academic or scholarly work, please cite it. GitHub's
+"Cite this repository" button (backed by `CITATION.cff`) provides ready-to-use formats. A
+suggested citation:
+
+> Fariello, Gabriele G. R. *agent-workflows*. 2026. https://github.com/fariello/agent-workflows
+
+The attribution and citation requests impose no warranty or liability on the author; the
+software is provided "AS IS" per the LICENSE.
