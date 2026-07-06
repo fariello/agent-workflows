@@ -19,3 +19,7 @@
 | 15 | run_checks.py --repo . --list | verify discovery | 0 checks discovered (S3-T2) |
 | 16 | run_checks.py --add "python3 -m unittest discover -s tests -t ." --yes --out verify-results.json | capture real test evidence | ran 1, passed 1, exit 0, 8.9s |
 | 17 | grep counts across README/ARCHITECTURE/getting-started | doc accuracy vs framework | found S4-D1/D2/D3 (stale from D41) |
+| 18 | edit scan_secrets/setup_tools + tests | S7 batch1 | 52 tests pass; scanner 518->289 |
+| 19 | make test | dogfood verify discovery | 52 tests pass |
+| 20 | run_checks.py --list (after Makefile) | S3-T2 dogfood | discovers 3 checks (was 0) |
+| 21 | install-workflows.py --dry-run | drift check post-edits | no framework drift |

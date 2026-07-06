@@ -38,3 +38,8 @@
 - S6-P1 (3.7+ claim untested, Low/Med functionality) tied to a CI matrix / claim-softening.
 - Schema validation: N/A (no data schemas). Shims: correct per tool. Install/first-run: clear.
 - Sections 1-6 complete; ready to build implementation-plan.md.
+
+## Section 7 checkpoint
+- 4 batches applied. 9 of 10 findings fixed (all Low RR). S5-F1 deferred (Medium RR functionality
+  -> user validation action). Suite 46 -> 52 pass. Scanner 518 -> 289. verify discovers 3 checks
+  (was 0). VERSION -> 20260704-06, D43 logged. No drift. Ready for Section 8.
