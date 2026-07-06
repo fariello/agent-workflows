@@ -12,3 +12,7 @@
 | 8 | install-workflows.py --repo . --dry-run | drift check on source | NO drift (manifest == shims) |
 | 9 | grep python version claims; grep runtime modern-syntax | 3.7+ compat check | annotations stringized; no runtime 3.8+ feature found |
 | 10 | grep shell=True/os.system/eval/exec | injection surface | none found |
+| 11 | scan_secrets.py --repo . --format json --out secrets-scan.json | mandatory secrets scan | 518 candidates, all FP (saved) |
+| 12 | gitleaks detect --source . --no-banner | authoritative history scan | 0 leaks, 65 commits |
+| 13 | python triage of scan.json | classify candidates | 508 entropy FP, 8 intentional emails, 91 in workflow-artifacts, 49 lockfile |
+| 14 | read setup_tools.py / run_checks.py / scan_secrets.py | tool correctness/safety | clean; S2-B1/M1/M2 noted |
