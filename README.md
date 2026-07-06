@@ -63,10 +63,11 @@ command for your tool. `/list-workflows` shows the full catalog.
 
 ## What you can run
 
-Twelve core workflows - spanning onboarding (`/getting-started`), discovery (`/spec`),
-build/review (`/release-review`, `/plan-review`, `/verify`), ship (`/release-notes`),
-operate (`/incident`), high-risk change (`/migrate`), setup (`/setup-repo`, `/scaffold`),
-and discovery of the toolkit itself (`/list-workflows`) - plus two parameterized commands,
+Thirteen core workflows - spanning onboarding (`/getting-started`), discovery (`/spec`),
+build/review (`/release-review`, `/plan-review`, `/verify`), performance (`/benchmark`),
+ship (`/release-notes`), operate (`/incident`), high-risk change (`/migrate`), setup
+(`/setup-repo`, `/scaffold`), and discovery of the toolkit itself (`/list-workflows`) -
+plus two parameterized commands,
 `/assess <concern>` (single-concern assessments) and `/advise <persona>` (expert
 interrogation and coaching). New here? Start with `/getting-started`. Not sure what is
 available or which version is installed? Run `/list-workflows`. For any tool without native
@@ -85,6 +86,7 @@ slash commands, run the body file shown in the manifest (`.agents/workflows/inde
 | `/getting-started` | Guided in-agent tour for newcomers: detects your repo/toolkit state, explains the mental model, asks your goal, and routes you to the right workflow with the exact command for your tool. Orients and routes; runs nothing without your say-so. | No (read-only) |
 | `/list-workflows` | Toolkit discovery: lists what this toolkit can do (core workflows, the `/assess` concerns, personas) and the installed framework version, read from the manifest. Optional filter, e.g. `/list-workflows security`. | No (read-only) |
 | `/verify` | Proof, not prose: discovers the repo's own test/lint/build/type-check commands, runs the approved ones (confirm-per-check by default; hard denylist for network/deploy/publish/install), and captures real exit codes, metrics, and logs as committed evidence. `release-review` and `assess` cite it. | Runs repo checks; writes only an evidence record |
+| `/benchmark` | Guided performance benchmarking (informational, not a regression gate): authors an isolated `benchmarks/` suite (inert when unused), deeply captures and diagnoses the machine/environment (`bench_env.py`: CPU/RAM/GPU/load/filesystem; flags NFS working sets, powersave governor, swapping, busy or login-node hosts, with suggested remedies), runs with warm-up and at least two iterations, detects HPC schedulers and (on explicit per-submission consent) generates and submits a job script, and produces a shareable, anonymizable results bundle. Read-only on system state; never publishes. | Guided; authors `benchmarks/`, runs it with consent, writes an evidence record |
 | `/advise <persona>` | Interrogate and coach: an expert persona (`skeptic`, `spec-editor`, `architect`, `red-teamer`, `staff-engineer`, `domain-expert`, `naive-user`) examines the current context or a named artifact, asks probing questions, and helps you improve it. Bare `/advise` lists personas and asks. | Interactive; edits planning/prose only with consent; never runs code |
 | `/spec` | Front of funnel: turns a fuzzy request into a reviewable specification (goals, non-goals, users, testable acceptance criteria, constraints, open questions). Feeds `/advise spec-editor` and `/plan-review`. | Guided; writes a spec doc |
 | `/incident` | Blameless post-mortem: timeline, impact, systemic contributing factors, and follow-up actions emitted as IPDs. Repo-scoped (the operator holds the real monitoring/on-call data). | Guided; writes a post-mortem + action IPDs |
@@ -205,6 +207,8 @@ your code.
     cross-concern rollup.
   - `advise/` - the interrogate-and-coach harness + persona charters under `personas/`.
   - `verify/` - the evidence layer (`tools/run_checks.py`).
+  - `benchmark/` - guided performance benchmarking + the environment-capture tool
+    (`tools/bench_env.py`).
   - `spec/`, `incident/`, `release-notes/`, `migrate/` - the lifecycle workflows.
   - `VERSION` - the framework version; `index.md` - the workflow manifest (source of
     truth; the installer reads it).

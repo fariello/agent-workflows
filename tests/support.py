@@ -12,6 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 INSTALLER = REPO_ROOT / "install-workflows.py"
 SCANNER = REPO_ROOT / ".agents" / "workflows" / "assess" / "tools" / "scan_secrets.py"
 RUN_CHECKS = REPO_ROOT / ".agents" / "workflows" / "verify" / "tools" / "run_checks.py"
+BENCH_ENV = REPO_ROOT / ".agents" / "workflows" / "benchmark" / "tools" / "bench_env.py"
 
 
 def load_module(name: str, path: Path):

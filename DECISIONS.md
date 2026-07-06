@@ -1153,3 +1153,52 @@ both execute the (large) set well.
   mature scanner is present, nag when none is present, and skipped-message under
   `--no-external`. Suite now 30 tests, all passing.
 - **Scope:** tool + tests only; no workflow-body change. VERSION 20260704-02 -> 20260704-03.
+
+### D41. `benchmark` workflow: informational performance benchmarking, isolated by design
+
+- **Context:** the toolkit covered correctness, security, docs, and release discipline but
+  had no way to gather PERFORMANCE information about a repo, and doing this well is
+  environment-sensitive (a number is meaningless without the machine it was measured on).
+  Requested with concrete requirements: easy reproducible runs, deep environment capture,
+  flag known good/bad configs with remedies, warm-up over >=2 iterations, HPC awareness
+  (detect Slurm and offer to submit), a share-back mechanism, and zero impact on the
+  project's own performance from including the benchmarks.
+- **Shape:** a guided wizard body (`benchmark/benchmark.md`) plus a stdlib-only,
+  read-only helper (`benchmark/tools/bench_env.py`), mirroring the verify/setup-repo split
+  (judgment in the body, deterministic mechanics in the tool). The helper does deep host
+  capture, config diagnosis with copy-pasteable remedies, HPC scheduler detection, a
+  bounded disk probe, and a cache warm-up; it emits json/csv/text, supports `--scrub` for
+  shareable output, and `--version`. Self-tests: `tests/test_bench_env.py` (16 tests:
+  each diagnosis fires on its pitfall and stays quiet on a clean env, scrub redacts identity
+  but keeps fs type/size, the probe is bounded and cleans up, warm-up reads files, the JSON
+  carries all required context fields, bad-path is a usage error, `--version`). Suite 30 ->
+  46, all pass.
+- **Key decisions and their "why":**
+  - *Informational, not a regression gate, by default.* Perf is noisy and environment-bound;
+    failing a build on it by default would be dishonest (P2). An opt-in baseline-comparison
+    mode (Step 7) exists for users who explicitly want a guardrail, kept out of CI unless
+    they wire it in.
+  - *"0% impact" means inclusion, not measurement.* The benchmark suite lives in an isolated
+    `benchmarks/` dir in the TARGET repo (not this framework) that ships no import into the
+    product and adds no runtime cost when unused; timing is out-of-process. We explicitly do
+    NOT claim zero measurement overhead - no harness can. Being honest about this beats a
+    false absolute (P2).
+  - *Cases live in the target repo.* The framework ships only the env tool + the wizard; the
+    suite is versioned with the project it benchmarks, so any user can clone and run it. This
+    also serves the isolation and reproducibility requirements.
+  - *Read-only on system state; suggest, do not apply.* The tool reads proc/sys and read-only
+    CLIs and prints remedies (e.g. copy an NFS working set to node-local scratch, set the
+    performance governor) rather than changing governors/mounts/swap itself (P10 safety).
+  - *HPC submit only on explicit per-submission consent*, never under a batch/`--yes` flag,
+    with "generate the script for you to run" as the conservative default - matching verify's
+    denylist posture toward actions that affect shared/remote resources (P10).
+  - *Offline sharing.* The tool makes no network calls; it produces a bundle and can `--scrub`
+    identity. Any actual sharing is the user's explicit action.
+- **Alternatives considered:** (a) generic auto-timing of existing entry points with no
+  authored suite - rejected as the default for weaker reproducibility and isolation, though
+  the wizard can still time an existing harness where one exists; (b) in-process
+  instrumentation - rejected because it couples the harness to the product and undermines
+  the isolation guarantee; (c) auto-submitting HPC jobs - rejected as unsafe by default.
+- **Scope:** new workflow (body + tool + tests + manifest row + shims) and doc-sync
+  (README count 12 -> 13 core, ARCHITECTURE tree + a new section). VERSION 20260704-03 ->
+  20260704-04.

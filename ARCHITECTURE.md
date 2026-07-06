@@ -41,6 +41,8 @@ agent-workflows/
       personas/             One charter per expert persona (skeptic, architect, ...)
     verify/                 Evidence layer (proof, not self-report)
       tools/run_checks.py   Discovers and runs the repo's own checks; captures evidence
+    benchmark/              Guided performance benchmarking (informational)
+      tools/bench_env.py    Read-only machine/environment capture + diagnosis + HPC detect
     setup-repo/             Guided setup + conformance wizard
       tools/setup_tools.py  Deterministic tool-install helper
     scaffold/               Guided authoring of a new lens/persona/workflow/command
@@ -280,6 +282,49 @@ and log excerpts as committed evidence. A hard denylist blocks network/deploy/pu
 install commands even under `--yes`, and it is honest about what it could not run (a
 partial run never reads as a full green). `release-review` and the `assess` testing lens
 cite this evidence instead of self-reporting (DECISIONS D33).
+
+### The benchmarking workflow (`benchmark`)
+
+`benchmark` helps a repo gather performance information. It is deliberately
+**informational, not a regression gate** (perf numbers are noisy and environment-bound;
+gating a build on them by default would be dishonest), with an opt-in baseline-comparison
+mode for users who explicitly want a guardrail (DECISIONS D41). Like `verify` and
+`setup-repo`, it is a body + a deterministic stdlib helper:
+
+- `benchmark/benchmark.md` is the guided wizard: it authors an ISOLATED benchmark suite in
+  the TARGET repo's `benchmarks/` dir, captures and diagnoses the environment, runs the
+  suite with warm-up, optionally submits to an HPC scheduler, and produces a shareable
+  results bundle - all with per-step consent, staging not committing, never publishing.
+- `benchmark/tools/bench_env.py` (stdlib-only, read-only w.r.t. system state, like
+  `scan_secrets.py`/`run_checks.py`) does the mechanical parts: DEEP host capture (hostname,
+  OS/kernel/arch, CPU model/cores/governor/NUMA/SIMD flags, RAM total/free/available/
+  cached/used + swap, load, GPU via nvidia-smi/rocm-smi, per-path filesystem type + free
+  space, container/VM hints), CONFIG DIAGNOSIS with copy-pasteable remedies (working set on
+  NFS/Lustre/GPFS, powersave governor, swapping, busy host, login-node HPC use,
+  virtualization), HPC SCHEDULER detection (Slurm/PBS/SGE/LSF), a bounded disk-speed probe,
+  and a cache warm-up pass. It captures rich detail on Linux and degrades honestly
+  elsewhere (unknown fields reported, never fabricated).
+
+Four design constraints shape it:
+
+- **Isolation over instrumentation (the "0% impact on the project" requirement).** The
+  benchmark suite lives in a separate `benchmarks/` dir that ships no import into the
+  product and adds no runtime cost when unused, so *including* it is inert. Timing is done
+  out of process (invoke the CLI / entry point) rather than instrumenting the product
+  in-process. The docs are honest that *observation* still has some cost; the 0% guarantee
+  is about inclusion, not measurement.
+- **Read-only on system state.** The tool reads `/proc`, `/sys`, and read-only CLIs and
+  only SUGGESTS system changes (governor, mounts) as text; it never applies them.
+- **Warm-up and repeatability.** Benchmarks run at least two full iterations so the cold
+  first iteration (file-system cache, NFS automount/fetch, JIT/import startup) can be seen
+  and excluded from the summary statistic; the tool's `--warm` pre-reads inputs and the
+  diagnosis steers NFS working sets to node-local scratch.
+- **HPC safety.** Detecting a scheduler leads to generating a submission script and, only on
+  explicit PER-SUBMISSION consent, running `sbatch`/`qsub`/`bsub`. Never auto-submitted
+  under a batch flag (the same safety posture as `verify`'s denylist).
+
+Sharing is offline by design: the tool makes no network calls and can `--scrub`
+hostname/user/paths so a results bundle can be shared without leaking identity.
 
 ### The advise persona family (`advise`)
 
