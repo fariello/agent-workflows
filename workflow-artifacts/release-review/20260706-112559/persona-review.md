@@ -69,3 +69,9 @@
 - Software engineer (5): the tests are the quality gate but CI does not run them (S6-CI1) - the one
   real packaging/release gap. secret-scan CI is well-formed. The 3.7+ claim is asserted not tested
   (S6-P1). No schema contracts to validate.
+
+## Section 8 - eight-persona final sign-off
+1 QA/QC: ACCEPTABLE. 2 Testing/regression: ACCEPTABLE (tests now CI-enforced). 3 UI/UX: ACCEPTABLE.
+4 Architect: ACCEPTABLE. 5 Software engineer: ACCEPTABLE. 6 Power user: ACCEPTABLE.
+7 Novice: ACCEPTABLE. 8 Stakeholder: ACCEPTABLE with note (S5-F1 benchmark unproven live).
+No blocking concern from any persona.

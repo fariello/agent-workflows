@@ -43,3 +43,8 @@
 - 4 batches applied. 9 of 10 findings fixed (all Low RR). S5-F1 deferred (Medium RR functionality
   -> user validation action). Suite 46 -> 52 pass. Scanner 518 -> 289. verify discovers 3 checks
   (was 0). VERSION -> 20260704-06, D43 logged. No drift. Ready for Section 8.
+
+## Section 8 checkpoint (final)
+- Final validation green: 52 tests, gitleaks 0/65, no drift, version consistent, tree clean.
+- Pending-plans gate: CLEAN (none). Eight-persona sign-off: all ACCEPTABLE.
+- Verdict: GO with one non-blocking follow-up (S5-F1). No restart. Push held for user approval.
