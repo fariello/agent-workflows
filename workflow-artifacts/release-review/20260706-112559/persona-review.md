@@ -61,3 +61,11 @@
   (a) F1 - the benchmark workflow has NOT yet been exercised end-to-end on a real repo (authored
   this session), so its guided flow is validated only by the tool's unit tests, not a live run;
   (b) downstream repos are one+ version behind by deliberate user choice (not a defect).
+
+## Section 6 (compatibility/packaging/release) lead-persona notes
+- Operator (8): install path is clear (python3 install-workflows.py; stages-not-commits; --dry-run;
+  --version). Cross-tool shims are correctly tailored (opencode agent:, claude description/
+  argument-hint). First-run guidance present. No install/first-run blocker.
+- Software engineer (5): the tests are the quality gate but CI does not run them (S6-CI1) - the one
+  real packaging/release gap. secret-scan CI is well-formed. The 3.7+ claim is asserted not tested
+  (S6-P1). No schema contracts to validate.

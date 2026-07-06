@@ -32,3 +32,9 @@
 - 1 new finding: S5-F1 (benchmark not yet run on a real repo; Low sev, Medium RR functionality
   -> validation action, not a S7 code fix).
 - TODO/backlog: nothing to triage (confirmed). KISS/scope: watch, no over-scope finding.
+
+## Section 6 checkpoint
+- CI: secret-scan good; S6-CI1 (no test CI, Medium/Low) is the key gap -> add tests.yml in S7.
+- S6-P1 (3.7+ claim untested, Low/Med functionality) tied to a CI matrix / claim-softening.
+- Schema validation: N/A (no data schemas). Shims: correct per tool. Install/first-run: clear.
+- Sections 1-6 complete; ready to build implementation-plan.md.
