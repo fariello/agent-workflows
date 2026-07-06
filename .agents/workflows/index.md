@@ -1,7 +1,7 @@
 # Agent Workflows
 
-<!-- WORKFLOWS-VERSION: 20260704-05 -->
-Version: `20260704-05` (source of truth: `.agents/workflows/VERSION`). Scheme:
+<!-- WORKFLOWS-VERSION: 20260704-06 -->
+Version: `20260704-06` (source of truth: `.agents/workflows/VERSION`). Scheme:
 `YYYYMMDD-NN` (calendar date plus a same-day sequence). The installer stamps this into
 each target so `/list-workflows` and `setup-repo` can report the installed version.
 

@@ -1,0 +1,38 @@
+name: tests
+
+# Run the framework's stdlib-unittest self-tests on push and PR. These tests gate every
+# change to the Python tools and the installer (see CONTRIBUTING). Zero dependencies, so
+# no install step is needed. This workflow only runs tests: it never publishes, deploys,
+# uploads, or touches remote state, and needs no secrets.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unittest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Currently-supported Python minors. This also verifies the README compatibility
+        # floor: the lowest version here is the version we actually CI-verify. 3.7/3.8 are
+        # end-of-life and not provisioned; the tools use `from __future__ import annotations`
+        # and no runtime 3.9+-only feature, so older interpreters are expected to work but
+        # are not verified here.
+        python-version: ["3.9", "3.11", "3.13"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Run self-tests
+        run: python3 -m unittest discover -s tests -t .

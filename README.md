@@ -14,7 +14,7 @@ Claude Code) also get `/release-review`, `/assess security`, etc. for free.
 
 ## Quick start
 
-**1. Install into your repo.** Requires Python 3.7+ and a git repo. From your target
+**1. Install into your repo.** Requires Python 3.9+ (CI-verified floor; older 3.x likely works but is untested) and a git repo. From your target
 repo's root:
 
 ```
@@ -165,7 +165,9 @@ each workflow's body path.
 
 ## Install details
 
-- **Prerequisites:** Python 3.7+; a git repo target. The installer stages changes but
+- **Prerequisites:** Python 3.9+ (the versions CI verifies; the tools use only
+  stdlib and `from __future__ import annotations`, so older 3.x is expected to work but is
+  not tested); a git repo target. The installer stages changes but
   never commits, and never modifies your own code.
 - **Options:** `--dry-run` (preview), `--repo <path>` (target another repo),
   `--source <path>` (framework source), `--no-prune` (do not remove stale framework

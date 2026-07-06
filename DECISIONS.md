@@ -1242,3 +1242,39 @@ both execute the (large) set well.
 - **Scope:** lens + manifest description + README concern-table note; no code/tool change, so
   self-tests are unaffected (still 46, and prose lenses are not unit-tested per CONTRIBUTING).
   VERSION 20260704-04 -> 20260704-05.
+
+### D43. Self-review release-review pass (run 20260706-112559): tool/doc/CI hardening
+
+- **Context:** ran the full `release-review` runbook against this repository itself (explicit-
+  subject exception; user-confirmed). The run record is `workflow-artifacts/release-review/
+  20260706-112559/`. It found no blockers; the repo was already in good shape (secrets scan
+  clean via gitleaks 0/65 commits, 46 tests passing, no manifest/shim/version drift, exemplary
+  cold-start docs). It surfaced ten mostly-Low findings, and under the Fix Bar all Low-RR ones
+  were fixed in-run.
+- **Fixes applied (Section 7):**
+  - S2-B1: `scan_secrets.py` now skips `workflow-artifacts/` and generated lockfiles via a shared
+    `is_skipped_path()` used by both the working-tree and history scans, so the scanner no longer
+    re-flags run records (including a prior scan's own output) or lockfile hash-soup. Candidate
+    count on this repo dropped 518 -> 289 (all remaining are low-confidence entropy FPs).
+  - S2-M1: `setup_tools.py` gained `--version`/`_framework_version()`, matching the other three
+    tools (consistency).
+  - S2-M2: `scan_secrets.py` computes `shannon_entropy` once per token, not twice.
+  - S3-T1: added a `capture_hpc()` parse test; S2-B1/S2-M1 also got regression tests. New
+    `tests/test_setup_tools.py`. Suite 46 -> 52.
+  - S4-D1/D2/D3: doc-accuracy fixes introduced by D41's incomplete sync - ARCHITECTURE shim count
+    15 -> 16 and "three Python tools" -> four (bench_env added), and the getting-started router
+    gained a benchmark/performance route.
+  - S6-CI1 + S3-T2: added `.github/workflows/tests.yml` (runs the unittest suite on push+PR,
+    Python 3.9/3.11/3.13 matrix; no secrets/publish) and a root `Makefile` with a `test` target so
+    the framework's own `verify` workflow now DISCOVERS its tests (dogfooding: `run_checks --list`
+    finds 3 checks where it previously found 0).
+  - S6-P1: softened the README "Python 3.7+" claim to "3.9+" (the CI-verified floor), honestly
+    noting older 3.x is expected to work but untested (P2). 3.7/3.8 are EOL and not provisionable
+    on current runners.
+- **Deferred (not a code fix):** S5-F1 - the `benchmark` workflow (D41) has not been exercised
+  end-to-end on a real repo yet; its deterministic tool is unit-tested but the guided flow is
+  unproven live. Rated Medium Remediation Risk on the functionality axis: forcing a redesign
+  without a live run's evidence is the risk, so the right action is VALIDATION (run `/benchmark`
+  on a real target), surfaced to the user, not an in-run change.
+- **Scope:** 2 tools, 3 docs, 1 CI workflow, 1 Makefile, 6 new tests. VERSION 20260704-05 ->
+  20260704-06. All Low-RR findings fixed; no blocker; downstream rollout still user-gated.
