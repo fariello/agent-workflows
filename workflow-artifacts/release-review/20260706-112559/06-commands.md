@@ -16,3 +16,5 @@
 | 12 | gitleaks detect --source . --no-banner | authoritative history scan | 0 leaks, 65 commits |
 | 13 | python triage of scan.json | classify candidates | 508 entropy FP, 8 intentional emails, 91 in workflow-artifacts, 49 lockfile |
 | 14 | read setup_tools.py / run_checks.py / scan_secrets.py | tool correctness/safety | clean; S2-B1/M1/M2 noted |
+| 15 | run_checks.py --repo . --list | verify discovery | 0 checks discovered (S3-T2) |
+| 16 | run_checks.py --add "python3 -m unittest discover -s tests -t ." --yes --out verify-results.json | capture real test evidence | ran 1, passed 1, exit 0, 8.9s |

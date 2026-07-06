@@ -21,3 +21,13 @@
   check-runner with a hard denylist + consent; no resume/spend/coordination/overwrite surface.
   The installer writes files but stages-not-commits, backs up, and is idempotent (its own tests
   cover fresh/re-run/prune/dry-run).
+
+## Section 3 (tests/regression) lead-persona notes
+- Testing/regression expert (2): 46 tests cover all 4 tools and the SAFETY-critical paths well
+  (run_checks denylist-never-runs-under-yes, scan_secrets redaction+history, installer
+  prune/migration/exec-bit, bench_env each-diagnosis-fires). Gaps are minor (S3-T1, S3-T2).
+  The S2-B1 fix must ship with a regression test (planned in Section 7).
+- QA/QC (1): the framework does not dogfood its own `verify` (S3-T2) - run_checks finds 0 checks
+  here because the test command is only in CONTRIBUTING prose. Worth fixing for dogfooding.
+- Evidence: verify-results.json (VID 20260706-113000) records the real run: discovered 1, ran 1,
+  passed 1, exit 0, ~8.9s. all_ran_passed=true. Not self-reported.

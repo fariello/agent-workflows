@@ -12,3 +12,8 @@
   --version, Low/Low), S2-M2 (double entropy calc, Low/Low). Zero High/LIVE/MEM findings.
 - All fixable findings are Low RR -> Section 7 fixes by default.
 - Registers + persona-review + commands updated.
+
+## Section 3 checkpoint
+- Real test evidence captured (verify-results.json): 46 tests pass, exit 0. Not self-reported.
+- 2 minor gaps: S3-T1 (capture_hpc parse test), S3-T2 (verify can't discover own test cmd).
+- Regression test for S2-B1 planned in Section 7. Both gaps Low/Low.
