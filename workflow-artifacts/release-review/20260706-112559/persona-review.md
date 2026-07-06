@@ -31,3 +31,12 @@
   here because the test command is only in CONTRIBUTING prose. Worth fixing for dogfooding.
 - Evidence: verify-results.json (VID 20260706-113000) records the real run: discovered 1, ran 1,
   passed 1, exit 0, ~8.9s. all_ran_passed=true. Not self-reported.
+
+## Section 4 (docs/specs/examples) lead-persona notes
+- Complete novice (7): README quick-start, command table, and the /benchmark row are clear and
+  accurate. But the getting-started TOUR omits a performance goal (S4-D3) - a newcomer asking
+  "how do I check performance?" is not routed to the new workflow.
+- UI/UX (3): docs are internally consistent EXCEPT two stale counts in ARCHITECTURE introduced by
+  the benchmark addition (S4-D1 shims 15->16; S4-D2 "three tools"->four). Both are exactly the
+  P2 honest-docs axis this repo holds itself to. Recent D42 (accessibility terminal rubric) and
+  README benchmark coverage are accurate and complete.

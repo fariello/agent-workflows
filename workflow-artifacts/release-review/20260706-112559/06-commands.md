@@ -18,3 +18,4 @@
 | 14 | read setup_tools.py / run_checks.py / scan_secrets.py | tool correctness/safety | clean; S2-B1/M1/M2 noted |
 | 15 | run_checks.py --repo . --list | verify discovery | 0 checks discovered (S3-T2) |
 | 16 | run_checks.py --add "python3 -m unittest discover -s tests -t ." --yes --out verify-results.json | capture real test evidence | ran 1, passed 1, exit 0, 8.9s |
+| 17 | grep counts across README/ARCHITECTURE/getting-started | doc accuracy vs framework | found S4-D1/D2/D3 (stale from D41) |

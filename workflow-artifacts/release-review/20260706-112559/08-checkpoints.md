@@ -17,3 +17,10 @@
 - Real test evidence captured (verify-results.json): 46 tests pass, exit 0. Not self-reported.
 - 2 minor gaps: S3-T1 (capture_hpc parse test), S3-T2 (verify can't discover own test cmd).
 - Regression test for S2-B1 planned in Section 7. Both gaps Low/Low.
+
+## Section 4 checkpoint
+- Doc accuracy audited vs. actual framework. 3 findings, all from D41 benchmark's incomplete
+  count/enumeration sync: S4-D1 (shims 15->16, Med/Low), S4-D2 ("three tools"->four, Med/Low),
+  S4-D3 (getting-started missing benchmark route, Low/Low). All Low RR -> fix in Section 7.
+- README, index.md, CONTRIBUTING, DECISIONS, GUIDING_PRINCIPLES, and the ARCHITECTURE benchmark
+  SECTION are accurate. D42 accessibility doc-sync is correct.
