@@ -24,3 +24,11 @@
   S4-D3 (getting-started missing benchmark route, Low/Low). All Low RR -> fix in Section 7.
 - README, index.md, CONTRIBUTING, DECISIONS, GUIDING_PRINCIPLES, and the ARCHITECTURE benchmark
   SECTION are accurate. D42 accessibility doc-sync is correct.
+
+## Section 5 checkpoint
+- All 8 personas exercised (persona-review.md). Per-principle assessment done: all 10 adhere,
+  with P2/P3 slips already captured as S4-D1/D2/D3 (no new standalone GP finding).
+- Cold-start orientation: STRONG (exemplary DECISIONS log). No new KD docs needed.
+- 1 new finding: S5-F1 (benchmark not yet run on a real repo; Low sev, Medium RR functionality
+  -> validation action, not a S7 code fix).
+- TODO/backlog: nothing to triage (confirmed). KISS/scope: watch, no over-scope finding.

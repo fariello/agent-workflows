@@ -40,3 +40,24 @@
   the benchmark addition (S4-D1 shims 15->16; S4-D2 "three tools"->four). Both are exactly the
   P2 honest-docs axis this repo holds itself to. Recent D42 (accessibility terminal rubric) and
   README benchmark coverage are accurate and complete.
+
+## Section 5 (all eight personas)
+- QA/QC (1): internal consistency is high (no manifest/shim/version drift; 46 tests pass). Only
+  the S4 doc-count slips and S2 scanner-scope noise stand out.
+- Testing/regression (2): coverage strong; S3-T2 (verify cannot discover own tests) is the one
+  dogfooding gap.
+- UI/UX (3): command surface is consistent (`/assess <concern>`, `/advise <persona>` parameterized;
+  by-tool table); getting-started tour is the front door but omits benchmark (S4-D3).
+- Architect (4): body+tool split is clean and repeated consistently (verify/setup-repo/benchmark);
+  shared harness + catalog rows keep the large surface single-sourced. No accidental complexity
+  found. benchmark isolation design (out-of-process, separate suite) is architecturally sound.
+- Software engineer (5): tools clean (Section 2). Maintainability good; stdlib-only lowers dep risk.
+- Power user (6): rich surface (assess-all, verify --only/--add, bench_env --scrub/--disk-probe,
+  HPC submission). Escape hatches present. No friction finding.
+- Novice (7): README + getting-started are a good on-ramp; S4-D3 is the one novice gap (can't be
+  routed to benchmark). No other first-run blocker for a docs/instruction toolkit.
+- Stakeholder (8): the toolkit delivers its stated outcome (disciplined, honest, reusable agent
+  workflows with auditable records). Fitness-for-purpose is high. Two notes, not blockers:
+  (a) F1 - the benchmark workflow has NOT yet been exercised end-to-end on a real repo (authored
+  this session), so its guided flow is validated only by the tool's unit tests, not a live run;
+  (b) downstream repos are one+ version behind by deliberate user choice (not a defect).
