@@ -83,6 +83,34 @@ class ScannerEndToEndTests(unittest.TestCase):
         self.assertEqual(data["summary"]["total"], 0)
 
 
+class ScannerScopeTests(unittest.TestCase):
+    """workflow-artifacts/ (run records, incl. prior scan output) and generated lockfiles
+    are skipped so the scanner does not re-flag its own noise (S2-B1)."""
+
+    def test_is_skipped_path_covers_workflow_artifacts_and_lockfiles(self):
+        self.assertTrue(SS.is_skipped_path("workflow-artifacts/benchmark/x/results.json"))
+        self.assertTrue(SS.is_skipped_path("package-lock.json"))
+        self.assertTrue(SS.is_skipped_path("sub/dir/package-lock.json"))
+        self.assertTrue(SS.is_skipped_path("poetry.lock"))
+        self.assertFalse(SS.is_skipped_path("src/app.py"))
+        self.assertFalse(SS.is_skipped_path("README.md"))
+
+    def test_working_tree_scan_skips_workflow_artifacts(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "workflow-artifacts").mkdir()
+            (root / "workflow-artifacts" / "scan.json").write_text(
+                f"leak={FAKE_AWS_KEY}\n", encoding="utf-8")
+            (root / "package-lock.json").write_text(
+                f"hash={FAKE_AWS_KEY}\n", encoding="utf-8")
+            findings = SS.scan_working_tree(root, max_bytes=1_000_000,
+                                            use_entropy=True, use_pii=True)
+            # the planted key lives ONLY in skipped paths, so nothing should be found
+            self.assertEqual(
+                [f for f in findings if FAKE_AWS_KEY[:4] in f.preview or f.rule == "aws-access-key-id"],
+                [], "scanner flagged a secret inside a skipped path")
+
+
 class ScannerRecommendationTests(unittest.TestCase):
     """The 'RECOMMENDED - install a mature scanner' nag must only appear when NO mature
     scanner is present. When one is installed (and run), do not nag; when external

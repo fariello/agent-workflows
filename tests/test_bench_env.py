@@ -6,6 +6,7 @@ formats parse. Stdlib unittest only.
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -84,6 +85,39 @@ class DiagnosisUnitTests(unittest.TestCase):
                       "free_gb": 500.0, "total_gb": 900.0}]
         BE.diagnose(rep)
         self.assertEqual(rep.diagnostics, [])
+
+
+class HpcDetectionTests(unittest.TestCase):
+    """capture_hpc() maps scheduler binaries + job-id env vars to the report (S3-T1)."""
+
+    def test_detects_slurm_and_inside_allocation(self):
+        orig_which = BE._which
+        orig_run = BE._run
+        BE._which = lambda n: n in {"sbatch", "squeue", "sinfo"}
+        BE._run = lambda argv, timeout=15: ""  # sinfo partitions -> empty, fine
+        os.environ["SLURM_JOB_ID"] = "12345"
+        try:
+            rep = BE.EnvReport()
+            BE.capture_hpc(rep)
+        finally:
+            BE._which = orig_which
+            BE._run = orig_run
+            os.environ.pop("SLURM_JOB_ID", None)
+        self.assertTrue(rep.hpc["scheduler_detected"])
+        self.assertIn("slurm", rep.hpc["schedulers"])
+        self.assertEqual(rep.hpc["primary"], "slurm")
+        self.assertTrue(rep.hpc["inside_allocation"])
+
+    def test_no_scheduler_when_none_present(self):
+        orig_which = BE._which
+        BE._which = lambda n: False
+        try:
+            rep = BE.EnvReport()
+            BE.capture_hpc(rep)
+        finally:
+            BE._which = orig_which
+        self.assertFalse(rep.hpc["scheduler_detected"])
+        self.assertEqual(rep.hpc["primary"], "")
 
 
 class ScrubTests(unittest.TestCase):
