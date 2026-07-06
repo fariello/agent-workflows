@@ -1202,3 +1202,43 @@ both execute the (large) set well.
 - **Scope:** new workflow (body + tool + tests + manifest row + shims) and doc-sync
   (README count 12 -> 13 core, ARCHITECTURE tree + a new section). VERSION 20260704-03 ->
   20260704-04.
+
+### D42. Accessibility lens covers terminal / text UIs, not just WCAG 2.1 AA
+
+- **Context:** the `accessibility` lens targeted WCAG 2.1 AA, which is written for web/GUI
+  and is largely silent on terminals. In practice coding agents therefore skipped
+  terminal/ANSI accessibility entirely (color-only status signals, load-bearing dim text,
+  ignoring `NO_COLOR`/non-TTY), even though ANSI-styled CLI output is exactly where a lot of
+  developer tooling lives and where colorblind/low-vision/screen-reader users are underserved.
+- **Change:** the lens gains a distinct, clearly-labeled "Terminal / text UI (WCAG-inspired,
+  not literal WCAG)" rubric that translates POUR to text interfaces with CONCRETE, checkable
+  items: color/style never the sole signal (require a word/symbol/prefix); no load-bearing
+  `SGR 2` dim or `SGR 5` blink; honor `NO_COLOR`/`FORCE_COLOR`/`TERM`/`isatty()` and degrade
+  through 256/16/none; no hardcoded fg that assumes a bg; motion only on a TTY with a plain
+  mode; screen-reader/braille-friendly linear alternative to box-drawing/progress redraws;
+  structure not conveyed by alignment/color alone. Verification: read the styling code (grep
+  `\x1b[`, dim/blink, colorama/chalk/rich/termcolor/tput) and RUN the tool three ways
+  (TTY / piped / `NO_COLOR=1`) - identical raw escapes in all three is a finding. The lens
+  title and scope now explicitly cover "whichever surfaces the project has" (a repo can have
+  both a web UI and a CLI).
+- **Preserve the polish (user's key ask).** Accessibility here is NOT "remove color/spinners/
+  boxes". The prescribed remedy order is: (1) add the redundant cue (keeps the full
+  experience, low risk, propose by default); (2) auto-degrade on signal (full styling on a
+  color TTY, plain when NO_COLOR/piped/dumb) so the polished path stays the default; (3) only
+  when an accessible variant would MATERIALLY change look/feel, propose a toggle (env var
+  `NO_COLOR`/`ACCESSIBLE=1` and/or a `--no-color`/`--plain`/`--accessible` flag) rather than
+  forcing a downgrade on everyone.
+- **Interactive consult, IPD-only.** The harness already produces an IPD and never executes;
+  this lens adds that for any fix which would noticeably change the tool's visual character,
+  it must ASK the user interactively (keep-as-default-with-degrade? gate behind a toggle?
+  which flag name?) and record the answers/trade-offs in the IPD, rather than baking a
+  redesign in silently. Small non-visual fixes (add `ERROR:` prefix, honor `NO_COLOR`, drop
+  blink) need no consult. Non-interactive runs propose the least-disruptive option and list
+  look/feel-changing alternatives as open questions.
+- **Framing decision:** kept WCAG 2.1 AA as the standard for graphical UIs and labeled the
+  terminal rubric "WCAG-inspired," honestly NOT claiming formal WCAG conformance for a
+  terminal (P2 honest-not-aspirational). Alternative (folding terminal checks inline into the
+  POUR bullets) was rejected because it would blur that honesty line.
+- **Scope:** lens + manifest description + README concern-table note; no code/tool change, so
+  self-tests are unaffected (still 46, and prose lenses are not unit-tested per CONTRIBUTING).
+  VERSION 20260704-04 -> 20260704-05.

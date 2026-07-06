@@ -106,7 +106,7 @@ be asked which to run; concern names are matched case-insensitively with common 
 | Correctness & reliability | `bugs` `edge-cases` `reliability` `memory-resources` |
 | Security & privacy | `security` `secrets` `privacy` `data-exfiltration` `intrusion-detection` `ransomware-resilience` `threat-model` `logging-audit` |
 | Compliance | `compliance` `compliance-readiness` (FIPS / NIST 800-171 / CMMC L2 - repo-slice only, not a certification) |
-| UX & docs | `ui-ux` `accessibility` (WCAG 2.1 AA) `self-documentation` `documentation` `prose` (writing style across all prose) |
+| UX & docs | `ui-ux` `accessibility` (WCAG 2.1 AA for GUIs + a WCAG-inspired rubric for terminal/CLI/ANSI output) `self-documentation` `documentation` `prose` (writing style across all prose) |
 | Product & design | `functionality` `use-cases` `architecture` `api-design` `generalization` |
 | Delivery & quality | `testing` `performance` `compatibility` `supply-chain` `guiding-principles` |
 

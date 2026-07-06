@@ -1,7 +1,7 @@
 # Agent Workflows
 
-<!-- WORKFLOWS-VERSION: 20260704-04 -->
-Version: `20260704-04` (source of truth: `.agents/workflows/VERSION`). Scheme:
+<!-- WORKFLOWS-VERSION: 20260704-05 -->
+Version: `20260704-05` (source of truth: `.agents/workflows/VERSION`). Scheme:
 `YYYYMMDD-NN` (calendar date plus a same-day sequence). The installer stamps this into
 each target so `/list-workflows` and `setup-repo` can report the installed version.
 
@@ -41,7 +41,7 @@ focusing on different concerns; leave it `-` when not used.
 | assess-performance | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/performance.md | Assess runtime/resource performance and propose an IPD. |
 | assess-security | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/security.md | Assess security posture and propose an IPD. |
 | assess-privacy | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/privacy.md | Assess privacy/data-protection handling and propose an IPD. |
-| assess-accessibility | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/accessibility.md | Assess accessibility (WCAG 2.1 AA) and propose an IPD. |
+| assess-accessibility | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/accessibility.md | Assess accessibility and propose an IPD: WCAG 2.1 AA for graphical UIs, plus a WCAG-inspired rubric for terminal/CLI/TUI output (color never the sole signal, no load-bearing dim/blink, honor NO_COLOR/FORCE_COLOR/TERM/non-TTY, screen-reader-friendly plain mode). Preserves polish via graceful degradation + an opt-out toggle rather than stripping color/spinners; consults interactively before proposing look/feel changes. |
 | assess-ui-ux | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/ui-ux.md | Assess UI/UX usability and intuitiveness and propose an IPD. |
 | assess-self-documentation | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/self-documentation.md | Assess in-product learn-as-you-go clarity and propose an IPD. |
 | assess-documentation | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/documentation.md | Assess repository documentation and propose an IPD. |
