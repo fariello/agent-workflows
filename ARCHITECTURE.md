@@ -26,7 +26,7 @@ agent-workflows/
                             historical/origin material, e.g. fix-bar.md, an origin
                             note for the Fix Bar; see prompts/README.md)
   .agents/workflows/        Reusable agent workflows (canonical source of truth)
-    VERSION                 Framework version (YYYYMMDD-NN); stamped into targets
+    VERSION                 Framework version (semver, tag-derived); stamped into targets
     index.md                Workflow manifest (installer reads it to generate shims)
     release-review/         The full, all-concerns pre-release review framework
     plan-review/            Pre-execution plan reviewer (plan-time sibling)
@@ -367,11 +367,19 @@ invocation for their tool. It orients and routes - read-only by default - and re
 
 ### Versioning and self-tests
 
-The framework carries a version in `.agents/workflows/VERSION` (scheme `YYYYMMDD-NN`,
-e.g. `20260704-01`), surfaced in `index.md` and reported by `install-workflows.py
---version` and the tools' `--version`. The installer stamps it into every target (the
-copied `VERSION` file IS the installed-version record), so `list-workflows` and
-`setup-repo` can report which version a repo has (DECISIONS D32). The four Python tools
+The framework uses git-tag-driven semantic versioning (baseline `v1.0.0`; DECISIONS
+D44). The version is DERIVED from the git tag by the resolver in `versioning.py` and
+baked into `.agents/workflows/VERSION` (a generated artifact - regenerate with
+`make version-file`, do not hand-edit). A clean tagged checkout resolves to a plain
+semver (e.g. `1.0.0`); an ahead-of-release or dirty tree resolves to a PEP 440
+`1.0.1.devN+g<sha>[.dYYYYMMDD]` local version, so a checkout that differs from a release
+can never silently report a clean version. The tools stay "dumb" - once copied into a
+target they have no git, so they read the neighboring `VERSION` file (three directories
+up from each tool); only the resolver knows about git. The value is surfaced in
+`index.md` and reported by `install-workflows.py --version` and the tools' `--version`.
+The installer stamps `VERSION` into every target (the copied `VERSION` file IS the
+installed-version record), so `list-workflows` and `setup-repo` can report which version
+a repo has (DECISIONS D32). The four Python tools
 (`scan_secrets.py`, `setup_tools.py`, `run_checks.py`, `bench_env.py`) plus the installer
 have stdlib-`unittest` self-tests under `tests/`, run with `python3 -m unittest discover -s
 tests -t .`, covering the installer (fresh install, idempotent re-run, prune, legacy

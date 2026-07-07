@@ -1278,3 +1278,48 @@ both execute the (large) set well.
   on a real target), surfaced to the user, not an in-run change.
 - **Scope:** 2 tools, 3 docs, 1 CI workflow, 1 Makefile, 6 new tests. VERSION 20260704-05 ->
   20260704-06. All Low-RR findings fixed; no blocker; downstream rollout still user-gated.
+
+### D44. Version scheme: git-tag-driven semver (baseline v1.0.0), replacing YYYYMMDD-NN
+
+- **Context:** the hand-maintained `YYYYMMDD-NN` string (see the D32 / open-Q2 decision) had
+  three problems for the upcoming pip distribution work (IPD-2): it can be forgotten or go stale,
+  it is not PEP 440 valid (so it cannot be a wheel version), and it cannot express "this checkout
+  DIFFERS from a release" (the observed clone-bug where a stale hand-string masked
+  uncommitted/ahead changes). This is IPD-1, the prerequisite for IPD-2. Executed from
+  `.agents/plans/done/2026-07-06-versioning-git-tag-semver.md` after two `/plan-review` passes
+  (findings V-1..V-9, all Low Remediation Risk, fixed in the plan before build).
+- **Decision:** adopt git-tag-driven semantic versioning with baseline `v1.0.0` (the toolkit has
+  been in production across 27+ repos, well past 0.x). The version is DERIVED from `git describe`
+  and baked into the tracked-but-generated `.agents/workflows/VERSION`; it is no longer
+  hand-edited.
+- **Design (tools stay dumb; intelligence in one resolver):** once copied into a user repo a tool
+  is a loose file with no git and no package metadata, so it MUST read its version from the
+  neighboring `VERSION` file (the existing three-directories-up read, unchanged). A new top-level
+  `versioning.py` holds `resolve_version(repo_root)`, which parses the real
+  `git describe --tags --always --dirty --long` forms and produces PEP 440 strings: a clean
+  tagged tree -> `1.0.0`; an ahead-of-release or dirty tree -> `1.0.1.devN+g<sha>[.dYYYYMMDD]`
+  (next-patch dev of the upcoming release, dirty date appended inside the local segment); no-tags
+  -> `0.0.0+g<sha>` (with a `.dDATE` when dirty; the real dirty-no-tags form appends `-dirty` to
+  a bare sha, V-7). No git tree -> read the baked `VERSION` (wheel / copied-out / plain clone).
+- **Comparator:** a small dependency-free comparator over our OWN controlled format
+  (`MAJOR.MINOR.PATCH[.devN][+local]`), NOT the third-party `packaging` library, preserving the
+  zero-runtime-dependency rule (P6, D-Q3). `+local` is compared as presence only; `.devN` sorts
+  before its final release. `status(target, packaged)` maps to
+  not-installed / stale / current / ahead / dev / unknown (a legacy `YYYYMMDD-NN` or a `0.0.0`
+  pre-baseline target is reported `unknown` rather than guessed). IPD-2's `list`/`status` consume
+  this.
+- **Scope of this change:** added `versioning.py` + `tests/test_versioning.py` (22 tests); made
+  `install-workflows.py:read_version` git-aware (resolver in a git tree, VERSION file otherwise;
+  the non-git file-read path is pinned by a characterization test, V-9); added a `make
+  version-file` target (regenerate VERSION from the tag) and made `make version` print the
+  resolved value; fixed the `scan_secrets.py` docstring "two" -> "three directories up" (V-2);
+  migrated forward-facing docs (README, ARCHITECTURE, CONTRIBUTING, index.md scheme note,
+  release-notes workflow) from `YYYYMMDD-NN` to semver; created the annotated `v1.0.0` tag on a
+  clean tree and baked `VERSION` -> `1.0.0`. Suite 52 -> 75 tests, green.
+- **Deferred to IPD-2 (sequencing, not a Remediation-Risk deferral):** the `setuptools-scm` /
+  `hatch-vcs` build-backend wiring and `pyproject.toml`, and the `list`/`status` currency UI.
+  IPD-1 delivers the resolver, the tag, and the derived VERSION so IPD-2 can build on a settled
+  scheme.
+- **Historical records untouched (P4):** the D32 / open-Q2 `YYYYMMDD-NN` decision, dated
+  DECISIONS entries, and `.agents/plans/done/*` remain as written; only forward-facing docs
+  migrated.

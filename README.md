@@ -172,10 +172,14 @@ each workflow's body path.
 - **Options:** `--dry-run` (preview), `--repo <path>` (target another repo),
   `--source <path>` (framework source), `--no-prune` (do not remove stale framework
   files), `--no-backup`, `--version` (print the framework version and exit).
-- **Versioning:** the framework carries a version (scheme `YYYYMMDD-NN`) in
-  `.agents/workflows/VERSION`. The installer stamps it into each target (copied with the
-  files) and prints it in the summary; `/list-workflows` reports the installed version.
-  `install-workflows.py --version` and `scan_secrets.py --version` print it too.
+- **Versioning:** the framework uses git-tag-driven semantic versioning (baseline
+  `v1.0.0`). The version is DERIVED from the git tag and baked into
+  `.agents/workflows/VERSION` (a generated file, not hand-edited); a clean tagged
+  checkout reports e.g. `1.0.0`, while an ahead-of-release or dirty checkout reports a
+  `1.0.1.devN+g<sha>` string so a copy that differs from a release can never be mistaken
+  for one. The installer stamps `VERSION` into each target (copied with the files) and
+  prints the resolved version in the summary; `/list-workflows` reports the installed
+  version. `install-workflows.py --version` and `scan_secrets.py --version` print it too.
 - **Updating:** just re-run the installer. It is idempotent, clean-syncs the framework,
   regenerates shims, and (if it changed anything) reminds you to re-run `/setup-repo` as
   a conformance check.

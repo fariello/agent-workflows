@@ -2,8 +2,9 @@
 
 <!-- WORKFLOWS-VERSION: 20260704-06 -->
 Version: `20260704-06` (source of truth: `.agents/workflows/VERSION`). Scheme:
-`YYYYMMDD-NN` (calendar date plus a same-day sequence). The installer stamps this into
-each target so `/list-workflows` and `setup-repo` can report the installed version.
+git-tag-driven semantic versioning (baseline `v1.0.0`); `VERSION` is DERIVED from the
+tag, not hand-edited. The installer stamps this into each target so `/list-workflows`
+and `setup-repo` can report the installed version.
 
 Reusable, tool-agnostic agent workflows for this repository. Each workflow is a
 capability with its own subdirectory here. To run one, read and execute its body

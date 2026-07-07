@@ -73,3 +73,14 @@ Test only the mechanical tools, not the instruction prose (prose is reviewed by
 - Keep each policy or rule in exactly one canonical place and link to it, rather than
   duplicating it (P8).
 - Do not use em dashes in authored Markdown; use hyphens or parenthetical dashes.
+
+## Versioning
+
+The framework uses git-tag-driven semantic versioning (baseline `v1.0.0`; DECISIONS
+D44). `.agents/workflows/VERSION` is a DERIVED artifact generated from the git tag by
+`versioning.py` - do NOT hand-edit it. To bake the version after tagging, run
+`make version-file` on a clean, tagged tree (it writes the resolved semver, e.g.
+`1.0.0`). To cut a new release, create an annotated tag (`git tag -a vX.Y.Z -m ...`) on a
+clean tree, then regenerate `VERSION` and the `index.md` stamp. A dirty or
+ahead-of-release checkout resolves to a `X.Y.Z.devN+g<sha>` string on purpose, so a copy
+that differs from a release is never reported as a clean version.
