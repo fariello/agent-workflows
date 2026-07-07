@@ -1,7 +1,7 @@
 # Agent Workflows
 
-<!-- WORKFLOWS-VERSION: 20260704-06 -->
-Version: `20260704-06` (source of truth: `.agents/workflows/VERSION`). Scheme:
+<!-- WORKFLOWS-VERSION: 1.0.0 -->
+Version: `1.0.0` (source of truth: `.agents/workflows/VERSION`). Scheme:
 git-tag-driven semantic versioning (baseline `v1.0.0`); `VERSION` is DERIVED from the
 tag, not hand-edited. The installer stamps this into each target so `/list-workflows`
 and `setup-repo` can report the installed version.
