@@ -15,15 +15,24 @@ from __future__ import annotations
 from pathlib import Path
 
 from . import versioning
+from ._compat import packaged_source_root
 
 
 def _resolve_own_version() -> str:
-    """Best-effort version of this package for `__version__` (never raises)."""
+    """Best-effort version of this package for `__version__` (never raises).
+
+    - Installed wheel: read the baked VERSION from the bundled data tree
+      (`agent_workflows/_data/.agents/workflows/VERSION`) - AC-1.
+    - Source checkout: resolve from git via the repo-root tree (two parents up), so a
+      clean tagged tree reports the semver and a dirty/ahead tree reports a .devN string.
+    """
 
     try:
-        # From a git checkout the repo root is two parents up from this file
-        # (agent_workflows/__init__.py -> repo root). resolve_version falls back to the
-        # baked VERSION file when there is no git tree (wheel/copied-out).
+        bundled = packaged_source_root()
+        if bundled is not None:
+            # Installed package: the tree has no git; resolve_version reads its VERSION.
+            return versioning.resolve_version(bundled, version_file=bundled / "VERSION")
+        # Source checkout: repo root is two parents up from this file.
         repo_root = Path(__file__).resolve().parent.parent
         return versioning.resolve_version(repo_root)
     except Exception:
