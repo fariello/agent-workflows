@@ -52,10 +52,22 @@ class InstallerUnitTests(unittest.TestCase):
         # assess-all gets its own shim (prefix exception).
         self.assertTrue(any(k.endswith("/assess-all.md") for k in shims))
 
-    def test_read_version_matches_file(self):
+    def test_read_version_in_git_tree_matches_resolver(self):
+        # In this project's real git tree, read_version is git-aware and must agree with
+        # the resolver (a semver/.dev string), not necessarily the raw VERSION file.
         source = REPO_ROOT / ".agents" / "workflows"
-        expected = (source / "VERSION").read_text(encoding="utf-8").strip()
+        VER = load_module("versioning", REPO_ROOT / "versioning.py")
+        expected = VER.resolve_version(source, version_file=source / "VERSION")
         self.assertEqual(INS.read_version(source), expected)
+
+    def test_read_version_non_git_reads_file(self):
+        # V-9 characterization: from a non-git tree (a copied/unpacked install),
+        # read_version MUST fall back to the baked VERSION file value.
+        with tempfile.TemporaryDirectory() as d:
+            source = Path(d) / "workflows"
+            source.mkdir(parents=True)
+            (source / "VERSION").write_text("1.2.3\n", encoding="utf-8")
+            self.assertEqual(INS.read_version(source), "1.2.3")
 
 
 class InstallerEndToEndTests(unittest.TestCase):
@@ -139,9 +151,12 @@ class InstallerEndToEndTests(unittest.TestCase):
         self.assertTrue((self.repo / ".agents/workflows/index.md").is_file())
 
     def test_version_flag(self):
+        # --version is git-aware (resolver). In this project's git tree it reports the
+        # resolved semver/.dev string, which is what read_version(source) returns.
         proc = run_installer(self.repo, "--version")
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        expected = (REPO_ROOT / ".agents/workflows/VERSION").read_text(encoding="utf-8").strip()
+        source = REPO_ROOT / ".agents" / "workflows"
+        expected = INS.read_version(source)
         self.assertEqual(proc.stdout.strip(), expected)
 
     def test_tool_scripts_are_executable_and_staged(self):

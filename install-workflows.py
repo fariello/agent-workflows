@@ -60,6 +60,7 @@ Dry run / no-prune / specific repo / custom source:
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import re
 import shutil
 import subprocess
@@ -67,6 +68,33 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+
+
+def _load_versioning():
+    """Import the sibling versioning.py resolver, or return None if unavailable.
+
+    versioning.py lives next to this installer at the repo root. When the installer is
+    run from a full checkout it is present and gives tag-driven versions; if the
+    installer were ever copied out on its own, we degrade gracefully to reading the
+    baked VERSION file (see read_version).
+    """
+
+    path = Path(__file__).resolve().parent / "versioning.py"
+    if not path.is_file():
+        return None
+    try:
+        spec = importlib.util.spec_from_file_location("agent_workflows_versioning", path)
+        if spec is None or spec.loader is None:
+            return None
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules.setdefault("agent_workflows_versioning", mod)
+        spec.loader.exec_module(mod)
+        return mod
+    except Exception:
+        return None
+
+
+_VERSIONING = _load_versioning()
 
 
 WORKFLOWS_DIR = ".agents/workflows"
@@ -131,16 +159,28 @@ VERSION_FILE = "VERSION"  # under the source .agents/workflows/; stamped into ta
 
 
 def read_version(source_root: Path) -> str:
-    """Return the framework version string from the source VERSION file.
+    """Return the framework version for the source at ``source_root``.
 
-    The VERSION file (scheme YYYYMMDD-NN) is the single machine-readable source of truth;
-    it is copied verbatim into each target as part of the normal file install, so the
-    installed copy carries its own version marker.
+    Prefers the git-tag-driven resolver (versioning.py) when the source is a real git
+    work tree of this project, so a clean tagged checkout reports the semver (e.g.
+    ``1.0.0``) and a dirty/ahead checkout reports a ``.devN`` string that cannot be
+    mistaken for a release. When the source is not a git tree (a copied-out install, a
+    plain file copy, or an unpacked wheel) it reads the baked ``VERSION`` file, which is
+    copied verbatim into each target so the installed copy carries its own marker.
+
+    The VERSION file is a DERIVED artifact (regenerated from the tag via
+    ``make version-file``), no longer hand-edited.
 
     Returns:
-        The trimmed version string, or "unknown" if the file is absent/empty.
+        The resolved/trimmed version string, or "unknown" if unresolvable.
     """
 
+    if _VERSIONING is not None:
+        # The resolver runs `git describe` in source_root (git works from any subdir of
+        # the work tree) and falls back to the VERSION file itself when there is no git.
+        return _VERSIONING.resolve_version(source_root, version_file=source_root / VERSION_FILE)
+
+    # Degraded path (versioning.py unavailable): read the file directly.
     path = source_root / VERSION_FILE
     try:
         value = path.read_text(encoding="utf-8").strip()
