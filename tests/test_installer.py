@@ -13,7 +13,10 @@ from pathlib import Path
 
 from tests.support import REPO_ROOT, INSTALLER, init_repo, run_installer, load_module
 
-INS = load_module("install_workflows", INSTALLER)
+# The install engine now lives in the agent_workflows package (IPD-2). Import it directly
+# for the unit tests; the root install-workflows.py is a thin deprecated shim exercised by
+# the subprocess-based end-to-end tests via run_installer().
+from agent_workflows import engine as INS
 
 
 class InstallerUnitTests(unittest.TestCase):
@@ -56,7 +59,7 @@ class InstallerUnitTests(unittest.TestCase):
         # In this project's real git tree, read_version is git-aware and must agree with
         # the resolver (a semver/.dev string), not necessarily the raw VERSION file.
         source = REPO_ROOT / ".agents" / "workflows"
-        VER = load_module("versioning", REPO_ROOT / "versioning.py")
+        from agent_workflows import versioning as VER
         expected = VER.resolve_version(source, version_file=source / "VERSION")
         self.assertEqual(INS.read_version(source), expected)
 

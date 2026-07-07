@@ -11,9 +11,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tests.support import REPO_ROOT, load_module
-
-VER = load_module("versioning", REPO_ROOT / "versioning.py")
+from agent_workflows import versioning as VER
 
 DATE = "20260706"  # fixed UTC date for deterministic dev-segment assertions
 
