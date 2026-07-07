@@ -1323,3 +1323,31 @@ both execute the (large) set well.
 - **Historical records untouched (P4):** the D32 / open-Q2 `YYYYMMDD-NN` decision, dated
   DECISIONS entries, and `.agents/plans/done/*` remain as written; only forward-facing docs
   migrated.
+
+### D45. Plan lifecycle: canonical `pending/` + `reusable/` + `executed/`; rename this repo's `done/`
+
+- **Context:** the plan/IPD lifecycle convention was inconsistent. This repo's terminal dir was
+  `.agents/plans/done/` (kept as the accepted `executed/` alias per D26), and plan files were
+  named `YYYY-MM-DD-<slug>.md`. Neither matched the intended convention, and there was no home
+  for recurring, re-runnable plans. This is a deliberate reversal of D26's "do not rename this
+  repo's `done/`" choice.
+- **Decision (canonical, framework-wide):** the plan lifecycle has THREE states:
+  - `.agents/plans/pending/` - new / awaiting-approval IPDs.
+  - `.agents/plans/reusable/` - recurring plans meant to be re-run repeatedly (e.g. a periodic
+    audit, a rollout or release runbook). These STAY here across runs rather than moving to
+    `executed/` after each run.
+  - `.agents/plans/executed/` - terminal; completed one-off IPDs.
+  Plan files are named `YYYYMMDD-<slug>.md` (compact date, no hyphens in the date). `done/`
+  remains an accepted alias for `executed/` for repos that already use it (discover-and-respect),
+  but `executed/` is canonical and this repo now uses it.
+- **Applied to this repo:** `git mv .agents/plans/done .agents/plans/executed`; renamed all 16
+  plan files from `YYYY-MM-DD-<slug>.md` to `YYYYMMDD-<slug>.md`; added `.agents/plans/reusable/`
+  (with a committed `.gitkeep`). This supersedes D26 decision 2's "keep `done/`" for THIS repo;
+  D26's discover-and-respect rule for OTHER repos still holds.
+- **Forward-facing docs updated:** the canonical three-state lifecycle and the `YYYYMMDD-<slug>`
+  naming are now taught in `assess/assess.md` (Step 0), `assess/templates/ipd.md`,
+  `setup-repo/setup-repo.md` (Step 0 + Step 1b), `index.md`, and the pip-distribution spec's
+  setup-artifacts step. `setup-repo` now creates all three dirs.
+- **Historical records untouched (P4):** executed-plan BODY text and `workflow-artifacts/*` run
+  records still reference `done/` and the old `YYYY-MM-DD` names as written; those are immutable
+  history. Only filenames, the directory, and forward-facing docs changed.

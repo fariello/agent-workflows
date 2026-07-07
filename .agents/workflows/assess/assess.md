@@ -81,11 +81,14 @@ directory) and a run record (the evidence and report of this assessment, under
 3. **Plan/IPD lifecycle location and format** - where plans live and any required
    structure. Discover the project's existing convention and USE it (do not impose a
    different one): a pending dir (e.g. `.agents/plans/pending/`, `docs/rfcs/`, an ADR
-   dir) and a terminal dir for completed plans (accept whatever exists - `executed/`
-   or `done/`). If none exists, create and use `.agents/plans/pending/` for new IPDs
-   and treat `.agents/plans/executed/` as the terminal dir (the canonical default;
-   `done/` is an accepted alias if the repo already uses it). Record which you chose.
-   The `setup-repo` workflow can establish and document this lifecycle for a repo.
+   dir) and a terminal dir for completed plans. If none exists, create and use the
+   canonical three-state lifecycle: `.agents/plans/pending/` (new/awaiting-approval
+   IPDs), `.agents/plans/reusable/` (recurring plans meant to be re-run repeatedly, e.g.
+   a periodic audit or rollout runbook - these stay here rather than moving on after a
+   run), and `.agents/plans/executed/` (terminal; completed one-off IPDs). Plan files are
+   named `YYYYMMDD-<slug>.md`. `done/` is an accepted alias for `executed/` if a repo
+   already uses it; respect whatever exists. Record which you chose. The `setup-repo`
+   workflow can establish and document this lifecycle for a repo.
 4. **Contributor contract** - `AGENTS.md`/`CONTRIBUTING.md` for plan/spec-sync rules.
 5. **Apply the review scope exclusions** from `../release-review/00-run-protocol.md`:
    do not assess the framework's own directory (`.agents/workflows/`) or

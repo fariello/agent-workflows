@@ -44,7 +44,7 @@ and use. It must work on Linux, macOS, and Windows, verified in CI.
 8. **Move the deterministic setup artifacts into the CLI (conservative-to-moderate)**: the
    fixed-template, always-the-same artifacts that `/setup-repo` handles today move into the
    install engine so a repo is more useful out of the box - the plan/IPD lifecycle dirs
-   (`.agents/plans/pending/` + `done/`), the `AGENTS.md` pointer block, a `.gitleaksignore`
+   (`.agents/plans/pending/` + `reusable/` + `executed/`), the `AGENTS.md` pointer block, a `.gitleaksignore`
    baseline, and the secret-scan CI workflow. The STACK-TAILORED and judgment/consent-heavy
    parts stay with the LLM `/setup-repo` (project-type detection, tailoring `.gitignore`/CI to
    the stack, reconciling existing conflicting config, the lifecycle contract prose). The CLI

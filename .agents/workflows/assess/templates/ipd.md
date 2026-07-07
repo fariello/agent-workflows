@@ -75,4 +75,5 @@ and it is NOT auto-executed. Recommended next steps:
 2. On approval, execute the ordered changes, run the validation, and sync specs/docs.
 3. Only then move this IPD from the pending dir to the terminal dir per the project's
    lifecycle convention (canonical: `.agents/plans/pending/` -> `.agents/plans/executed/`;
-   a repo already using `done/` keeps `done/`).
+   recurring plans meant to be re-run repeatedly go in `.agents/plans/reusable/` instead;
+   a repo already using `done/` keeps `done/`). Plan files are named `YYYYMMDD-<slug>.md`.

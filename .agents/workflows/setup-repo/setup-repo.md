@@ -48,7 +48,8 @@ Before proposing anything, determine and briefly report:
 2. Project type / stack (languages, package manager, frameworks, whether it has an app /
    library / CLI / UI / just docs). This tailors the .gitignore, CI, and hygiene steps.
 3. What is already present: `.agents/workflows/`, `.agents/plans/` (and its
-   `pending/` + terminal `executed/` or `done/` subdirs), `.github/workflows/`,
+   `pending/` + `reusable/` + terminal `executed/` subdirs; `done/` is an accepted alias
+   for `executed/`), `.github/workflows/`,
    `.pre-commit-config.yaml`, `.gitignore`, `.gitleaksignore`, `README`, `CONTRIBUTING`,
    `AGENTS.md` (and whether it documents the plan lifecycle), `LICENSE`, `.editorconfig`,
    lockfiles, `GUIDING_PRINCIPLES.md`.
@@ -85,10 +86,14 @@ lifecycle. Establish it so any coding agent working in the repo follows it, not 
 these workflows:
 
 - **Directories:** discover the existing convention and respect it; otherwise offer to
-  create `.agents/plans/pending/` (new/awaiting-approval IPDs) and
-  `.agents/plans/executed/` (completed IPDs) - each with a committed `.gitkeep` so the
-  empty dirs are tracked. If the repo already uses a terminal dir named `done/` (or
-  another), keep it - do not rename; just record which is canonical for this repo.
+  create the canonical three-state lifecycle: `.agents/plans/pending/`
+  (new/awaiting-approval IPDs), `.agents/plans/reusable/` (recurring plans meant to be
+  re-run repeatedly, e.g. a periodic audit or rollout runbook - they stay here rather
+  than moving to `executed/` after a run), and `.agents/plans/executed/` (completed
+  one-off IPDs) - each with a committed `.gitkeep` so the empty dirs are tracked. Plan
+  files are named `YYYYMMDD-<slug>.md`. If the repo already uses a terminal dir named
+  `done/` (or another), keep it - do not rename; just record which is canonical for this
+  repo.
 - **Documented contract (this is the part that makes agents pick it up):** offer to add
   a short, marker-delimited "Plan/IPD lifecycle" note to `AGENTS.md` (and/or
   `CONTRIBUTING.md`) stating: proposals are dated IPDs in `.agents/plans/pending/`; they

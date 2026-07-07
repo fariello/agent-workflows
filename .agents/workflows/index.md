@@ -102,7 +102,7 @@ proposing.
 - **`/setup-repo`** walks the repo owner through best-practices and security setup -
   installing tools (via `setup-repo/tools/setup_tools.py`, which detects and, on
   confirmation, installs gitleaks/pre-commit/detect-secrets), adding secret-scanning CI
-  and a local hook, the **plan/IPD lifecycle** (`.agents/plans/pending/` +
+  and a local hook, the **plan/IPD lifecycle** (`.agents/plans/pending/` + `reusable/` +
   `executed/` plus a documented contract in `AGENTS.md`/`CONTRIBUTING` so coding agents
   follow it), `.gitignore` hygiene, hygiene files, a stack CI baseline, a pre-commit
   config, dependency hygiene, and branch-protection advice. Ask-before-each-change,
