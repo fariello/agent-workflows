@@ -6,7 +6,8 @@
   `_framework_version()`, the installer's `read_version`, `VERSION`, `index.md` stamp, a new
   version resolver, and forward-facing docs. Does NOT touch workflow behavior, the CLI/config/
   wizard (that is IPD-2), or historical records.
-- Status: PENDING (awaiting human approval + plan-review; not executed)
+- Status: DONE (approved + plan-reviewed twice + executed 2026-07-06; see DECISIONS D44). Tag
+  `v1.0.0` created; `VERSION` baked to `1.0.0`; suite 52 -> 75 green.
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Source spec: `docs/specs/2026-07-06-pip-distribution-and-multi-repo-setup.md` (Sequencing:
   this is IPD-1, first, before IPD-2 distribution).
