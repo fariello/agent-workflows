@@ -1,118 +1,467 @@
 """Command-line entry point for agent-workflows (`agent-workflows` / `aw` / `agentwf`).
 
-This is the packaged CLI. In Batch A (IPD-2) it wires the `install` verb and `--version`
-to the existing install engine (parity with the historical `install-workflows.py`); the
-`setup`, `uninstall`, `list`, and `status` verbs plus the bare-command smart default are
-scaffolded here and implemented in later batches (C-D). All subcommands route through
-`main(argv)` so the deprecated root shim and tests can drive them from an argv list.
+Verbs (spec OQ7): `install <dir>|all`, `setup`, `uninstall <dir>`, `list`, `status`.
+There is intentionally NO `update` (install is idempotent) and NO `doctor` (its safety is
+preflight-warn+confirm here; its readout is folded into `status`). Bare `aw` is a smart
+default: run `setup` when unconfigured, else show `status` + hints.
+
+The CLI (host-level, deterministic, multi-repo) COMPLEMENTS the LLM `/setup-repo` workflow
+(in-agent, stack-tailored). After install/setup the CLI points the user at `/setup-repo`
+for the judgment layer.
+
+All output goes through `term.Term` for accessible, degrade-when-piped styling (AC-15).
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
-from typing import Optional, Sequence
+from pathlib import Path
+from typing import List, Optional, Sequence
 
-from . import __version__, engine
+from . import __version__, config, discovery, engine, versioning
+from .term import Term
 
+
+# --------------------------------------------------------------------------------------
+# Argument parsing
+# --------------------------------------------------------------------------------------
 
 def _build_parser() -> argparse.ArgumentParser:
+    # A shared parent so --no-color works both before AND after the subcommand.
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--no-color", action="store_true",
+                        help="Disable ANSI color (also honored via NO_COLOR).")
+
     parser = argparse.ArgumentParser(
         prog="agent-workflows",
         description="Install and manage the agent-workflows framework across your repos.",
+        parents=[common],
     )
     parser.add_argument(
-        "-V",
-        "--version",
-        action="version",
-        version=f"agent-workflows {__version__}",
+        "-V", "--version", action="version", version=f"agent-workflows {__version__}",
         help="Print the agent-workflows version and exit.",
     )
     sub = parser.add_subparsers(dest="command", metavar="<command>")
 
-    # install <dir> | all  (the idempotent workhorse; no separate `update` verb)
-    p_install = sub.add_parser(
-        "install",
-        help="Install or update the framework in a repo (idempotent).",
-    )
-    p_install.add_argument(
-        "target",
-        nargs="?",
-        default=None,
-        help="Repo directory to install into (default: current directory). "
-        "'all' installs into every configured repo (Batch D).",
-    )
+    p_install = sub.add_parser("install", parents=[common],
+                               help="Install or update the framework in a repo (idempotent).")
+    p_install.add_argument("target", nargs="?", default=None,
+                           help="Repo dir (default: cwd), or 'all' for every configured repo.")
     p_install.add_argument("--source", dest="source_root", default=None,
                            help="Path to the source .agents/workflows (dev/override).")
     p_install.add_argument("--dry-run", action="store_true", help="Show actions without writing.")
-    p_install.add_argument("--no-backup", action="store_true",
-                           help="Do not back up before overwrite/prune.")
-    p_install.add_argument("--no-prune", action="store_true",
-                           help="Do not remove stale framework files.")
+    p_install.add_argument("--no-backup", action="store_true", help="Do not back up before overwrite/prune.")
+    p_install.add_argument("--no-prune", action="store_true", help="Do not remove stale framework files.")
+    p_install.add_argument("-y", "--yes", action="store_true", help="Skip preflight confirmations.")
 
-    # Verbs scaffolded now, implemented in later batches (kept discoverable in --help).
-    sub.add_parser("setup", help="Guided first-run setup wizard (Batch D).")
-    sub.add_parser("uninstall", help="Remove the framework from a repo (Batch D).")
-    sub.add_parser("list", help="List configured/discovered repos and currency (Batch D).")
-    sub.add_parser("status", help="Show environment + currency summary (Batch D).")
+    p_setup = sub.add_parser("setup", parents=[common], help="Guided first-run setup wizard.")
+    p_setup.add_argument("--root", dest="roots", action="append", default=None,
+                         help="A search root to discover repos under (repeatable). "
+                              "Non-interactive when supplied.")
+    p_setup.add_argument("--recursive", action="store_true", help="Discover repos recursively.")
+    p_setup.add_argument("-y", "--yes", action="store_true", help="Install without per-repo prompts.")
+    p_setup.add_argument("--source", dest="source_root", default=None, help=argparse.SUPPRESS)
+
+    p_uninstall = sub.add_parser("uninstall", parents=[common],
+                                 help="Remove the framework from a repo (asks first).")
+    p_uninstall.add_argument("target", help="Repo directory to remove the framework from.")
+    p_uninstall.add_argument("-y", "--yes", action="store_true", help="Skip the confirmation prompt.")
+
+    p_list = sub.add_parser("list", parents=[common],
+                            help="List configured/discovered repos and their currency.")
+    p_list.add_argument("--recursive", action="store_true", help="Discover repos recursively.")
+
+    sub.add_parser("status", parents=[common], help="Show environment + currency summary.")
 
     return parser
 
 
-def _run_install(args: argparse.Namespace) -> int:
-    """Adapt the CLI `install` args to the engine's namespace and run it.
+# --------------------------------------------------------------------------------------
+# Shared helpers
+# --------------------------------------------------------------------------------------
 
-    Batch A supports `install <dir>` (and default cwd). `install all` is a Batch D
-    capability (needs config); we fail clearly rather than pretend.
+def _packaged_version() -> str:
+    """The version this distribution ships (what installed repos are compared against)."""
+
+    return __version__
+
+
+def _confirm(term: Term, prompt: str, assume_yes: bool) -> bool:
+    """Ask a yes/no question; auto-yes when assume_yes or non-interactive stdin."""
+
+    if assume_yes:
+        return True
+    if not sys.stdin.isatty():
+        # Non-interactive without --yes: refuse to change things silently.
+        term.status("warn", f"{prompt} (declining: non-interactive; pass --yes to proceed)")
+        return False
+    try:
+        answer = input(f"{prompt} [y/N] ").strip().lower()
+    except EOFError:
+        return False
+    return answer in ("y", "yes")
+
+
+def _has_uncommitted_changes(repo_root: Path) -> bool:
+    """True if the git working tree has staged or unstaged changes (best-effort)."""
+
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), "status", "--porcelain"],
+            capture_output=True, text=True,
+        )
+    except OSError:
+        return False
+    return result.returncode == 0 and bool(result.stdout.strip())
+
+
+def _preflight_warnings(repo_root: Path, packaged: str) -> List[str]:
+    """Return preflight WARN messages for a target (ex-`doctor`; D6).
+
+    Warns on: not a git repo; a would-downgrade (installed is 'ahead' of the packaged
+    version). Uncommitted-changes warning is left to the interactive path.
     """
 
-    from pathlib import Path
-
-    if args.target == "all":
-        print(
-            "install all requires configured repos and lands in a later batch; "
-            "for now run 'install <dir>' per repo.",
-            file=sys.stderr,
+    warnings: List[str] = []
+    if not (repo_root / ".git").exists():
+        warnings.append(f"{repo_root} is not a git repository (install will still write files).")
+    elif _has_uncommitted_changes(repo_root):
+        warnings.append(
+            f"{repo_root} has uncommitted changes; install stages more changes on top "
+            "(nothing is committed, but review before you commit)."
         )
-        return 2
-
-    repo_root = Path(args.target).expanduser() if args.target else Path.cwd()
-
-    # Build the engine's argparse.Namespace shape (parity with install-workflows.py).
-    engine_args = argparse.Namespace(
-        source_root=Path(args.source_root).expanduser() if args.source_root else None,
-        repo_root=repo_root,
-        dry_run=args.dry_run,
-        no_backup=args.no_backup,
-        no_prune=args.no_prune,
-        version=False,
-    )
-    return engine.run(engine_args)
+    installed = engine.read_installed_version(repo_root)
+    if installed is not None:
+        state = versioning.status(installed, packaged)
+        if state == "ahead":
+            warnings.append(
+                f"{repo_root} has {installed}, which is AHEAD of this tool's {packaged}; "
+                "installing would DOWNGRADE it."
+            )
+    return warnings
 
 
-def _not_yet(command: str) -> int:
-    print(
-        f"'{command}' is scaffolded and lands in a later IPD-2 batch. "
-        f"Available now: 'install <dir>' and '--version'.",
-        file=sys.stderr,
-    )
-    return 2
+# --------------------------------------------------------------------------------------
+# install
+# --------------------------------------------------------------------------------------
 
+def _run_install(args: argparse.Namespace, term: Term) -> int:
+    if args.target == "all":
+        return _install_all(args, term)
+
+    # Single explicit repo (or cwd). `ignore` never applies to an explicit target.
+    repo_root = Path(args.target).expanduser().resolve() if args.target else Path.cwd()
+
+    if not config.config_path().is_file() and args.target is None:
+        term.status("warn", "No config yet. Run 'aw setup' to configure your repos, or "
+                             "'aw install <dir>' for a one-off.")
+
+    packaged = _packaged_version()
+    for w in _preflight_warnings(repo_root, packaged):
+        term.status("warn", w)
+    if not _confirm(term, f"Install agent-workflows into {repo_root}?", args.yes):
+        term.status("skip", "aborted; nothing changed.")
+        return 1
+
+    try:
+        source_root = engine.resolve_source_root(
+            Path(args.source_root).expanduser() if args.source_root else None)
+        result = engine.install_into_repo(
+            repo_root, source_root,
+            dry_run=args.dry_run, backup=not args.no_backup, prune=not args.no_prune,
+        )
+    except SystemExit as exc:
+        term.status("fail", f"{repo_root}: {exc}")
+        return 1
+
+    n = len(result["installed"])
+    term.status("ok", f"{repo_root}: installed/updated {n} file(s); version {result['version']}.")
+    _teach(term)
+    return 0
+
+
+def _install_all(args: argparse.Namespace, term: Term) -> int:
+    """Install into every repo in the config allowlist, with per-repo isolation (R-3/R-4)."""
+
+    cfg = config.load()
+    repos = config.expanded_repos(cfg)
+    if not repos:
+        term.status("warn", "No repos in your config yet. Run 'aw setup' to add search roots.")
+        return 1
+
+    packaged = _packaged_version()
+    try:
+        source_root = engine.resolve_source_root(
+            Path(args.source_root).expanduser() if getattr(args, "source_root", None) else None)
+    except SystemExit as exc:
+        term.status("fail", str(exc))
+        return 1
+
+    if not _confirm(term, f"Install/update agent-workflows into {len(repos)} repo(s)?", args.yes):
+        term.status("skip", "aborted; nothing changed.")
+        return 1
+
+    ok = 0
+    failed = 0
+    for repo in repos:
+        if not repo.is_dir():
+            term.status("skip", f"{repo}: not a directory")
+            continue
+        try:
+            result = engine.install_into_repo(
+                repo, source_root,
+                dry_run=args.dry_run, backup=not args.no_backup, prune=not args.no_prune,
+            )
+            term.status("ok", f"{repo}: {len(result['installed'])} file(s); "
+                              f"version {result['version']}")
+            ok += 1
+        except Exception as exc:  # isolate: one repo failing must not stop the batch (R-4)
+            term.status("fail", f"{repo}: {exc}")
+            failed += 1
+
+    term.line()
+    term.kv("Summary", f"{ok} installed, {failed} failed, {len(repos)} total")
+    if ok:
+        _teach(term)
+    return 1 if failed else 0
+
+
+def _teach(term: Term) -> None:
+    term.line()
+    term.status("ok", "Next: run the LLM '/setup-repo' workflow in each repo for "
+                      "stack-tailored conformance (CI, .gitignore, lifecycle contract).")
+
+
+# --------------------------------------------------------------------------------------
+# uninstall
+# --------------------------------------------------------------------------------------
+
+def _run_uninstall(args: argparse.Namespace, term: Term) -> int:
+    repo_root = Path(args.target).expanduser().resolve()
+    if not (repo_root / engine.WORKFLOWS_DIR).is_dir():
+        term.status("warn", f"{repo_root}: framework not installed (nothing to remove).")
+        return 1
+    if not _confirm(term, f"Remove agent-workflows from {repo_root}? "
+                          "(framework + generated shims + AGENTS pointer)", args.yes):
+        term.status("skip", "aborted; nothing changed.")
+        return 1
+
+    use_git = engine.git_available(repo_root)
+    actions = engine.uninstall_repo(repo_root, use_git)
+    for a in actions:
+        term.status("ok", a)
+
+    # Drop the repo from the config allowlist, if present.
+    cfg = config.load()
+    stored = [p for p in cfg.get("repos", []) if config.expand_path(p).resolve() != repo_root]
+    if len(stored) != len(cfg.get("repos", [])):
+        cfg["repos"] = stored
+        config.save(cfg)
+        term.status("ok", f"removed {repo_root} from the config repo list.")
+
+    term.status("warn", "Deletions are STAGED, not committed. Review and commit.")
+    return 0
+
+
+# --------------------------------------------------------------------------------------
+# list / status
+# --------------------------------------------------------------------------------------
+
+def _repos_for_report(recursive: bool) -> List[Path]:
+    """Config repos plus repos discovered under the config search roots (deduped)."""
+
+    cfg = config.load()
+    repos = list(config.expanded_repos(cfg))
+    roots = config.expanded_search_roots(cfg)
+    if roots:
+        found = discovery.discover(roots, ignore=cfg.get("ignore", []), recursive=recursive)
+        repos.extend(found.targets)
+    seen = set()
+    out = []
+    for r in repos:
+        rp = r.resolve()
+        if rp not in seen:
+            seen.add(rp)
+            out.append(rp)
+    return out
+
+
+def _run_list(args: argparse.Namespace, term: Term) -> int:
+    packaged = _packaged_version()
+    repos = _repos_for_report(args.recursive)
+    if not repos:
+        term.status("warn", "No configured or discovered repos. Run 'aw setup'.")
+        return 0
+    term.heading("Repositories")
+    for repo in repos:
+        installed = engine.read_installed_version(repo)
+        state = versioning.status(installed, packaged)
+        detail = installed if installed else "not installed"
+        term.status(state, f"{repo}  ({detail})")
+    return 0
+
+
+def _run_status(term: Term) -> int:
+    packaged = _packaged_version()
+    term.heading("agent-workflows status")
+    term.kv("Packaged version", packaged)
+    term.kv("Python", sys.version.split()[0])
+    term.kv("git", "present" if engine.git_available(Path.cwd()) else "not found")
+    term.kv("Config", str(config.config_path()) +
+            ("" if config.config_path().is_file() else "  (none yet; run 'aw setup')"))
+    cfg = config.load()
+    term.kv("Search roots", ", ".join(cfg.get("search_roots", [])) or "(none)")
+    term.kv("Repos configured", str(len(cfg.get("repos", []))))
+
+    repos = _repos_for_report(recursive=False)
+    if repos:
+        counts = {}
+        for repo in repos:
+            state = versioning.status(engine.read_installed_version(repo), packaged)
+            counts[state] = counts.get(state, 0) + 1
+        term.line()
+        term.heading("Currency")
+        for state in ("current", "stale", "ahead", "dev", "not-installed", "unknown"):
+            if counts.get(state):
+                term.status(state, f"{counts[state]} repo(s)")
+    return 0
+
+
+# --------------------------------------------------------------------------------------
+# setup wizard
+# --------------------------------------------------------------------------------------
+
+def _run_setup(args: argparse.Namespace, term: Term) -> int:
+    cfg = config.load()
+    interactive = args.roots is None and sys.stdin.isatty()
+
+    if args.roots is None and config.is_configured() and not sys.stdin.isatty():
+        # Non-interactive re-run of a configured tool: summarize, do not re-interview.
+        term.status("ok", "Already configured.")
+        return _run_status(term)
+
+    # Gather search roots.
+    roots: List[str] = []
+    if args.roots:
+        roots = list(args.roots)
+    elif interactive:
+        term.heading("agent-workflows setup")
+        term.line("Where do you keep your repositories? Enter one path per line; "
+                  "blank to finish.")
+        existing = cfg.get("search_roots", [])
+        if existing:
+            term.kv("Current roots", ", ".join(existing))
+        while True:
+            try:
+                entry = input("  root> ").strip()
+            except EOFError:
+                break
+            if not entry:
+                break
+            roots.append(entry)
+        if not roots:
+            roots = existing
+    else:
+        term.status("warn", "Non-interactive and no --root given; nothing to configure.")
+        return 1
+
+    if roots:
+        # Merge (store ~-preserved via normalize on save).
+        merged = list(dict.fromkeys(list(cfg.get("search_roots", [])) + roots))
+        cfg["search_roots"] = merged
+
+    # Discover repos under the roots.
+    expanded_roots = [config.expand_path(r) for r in cfg.get("search_roots", [])]
+    found = discovery.discover(expanded_roots, ignore=cfg.get("ignore", []),
+                               recursive=args.recursive)
+    term.line()
+    term.heading("Discovered repositories")
+    if not found.targets:
+        term.status("warn", "No git repos found under those roots.")
+    for repo in found.targets:
+        term.status("ok", str(repo))
+    for repo, reason in sorted(found.skipped.items()):
+        term.status("skip", f"{repo} ({reason})")
+    for repo in found.ignored:
+        term.status("ignored", str(repo))
+
+    # Record discovered repos into the allowlist.
+    if found.targets:
+        cfg_repos = list(cfg.get("repos", []))
+        for repo in found.targets:
+            cfg_repos.append(str(repo))
+        cfg["repos"] = list(dict.fromkeys(cfg_repos))
+
+    saved = config.save(cfg)
+    term.status("ok", f"Saved config to {saved}")
+
+    # Install into discovered repos (with consent unless --yes).
+    if found.targets and _confirm(
+        term, f"Install agent-workflows into {len(found.targets)} repo(s) now?", args.yes
+    ):
+        try:
+            source_root = engine.resolve_source_root(
+                Path(args.source_root).expanduser() if getattr(args, "source_root", None) else None)
+        except SystemExit as exc:
+            term.status("fail", str(exc))
+            return 1
+        for repo in found.targets:
+            try:
+                result = engine.install_into_repo(repo, source_root)
+                term.status("ok", f"{repo}: version {result['version']}")
+            except Exception as exc:
+                term.status("fail", f"{repo}: {exc}")
+
+    _orient(term)
+    return 0
+
+
+def _orient(term: Term) -> None:
+    term.line()
+    term.heading("You are set up")
+    term.line("The workflows are agent instructions your AI coding tool runs. Try:")
+    term.line("  /release-review, /assess <concern>, /advise <persona>, /verify, /setup-repo")
+    term.line("Or from any agent: 'Read and execute .agents/workflows/index.md'.")
+    _teach(term)
+
+
+# --------------------------------------------------------------------------------------
+# dispatch
+# --------------------------------------------------------------------------------------
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
+    term = Term(color=False if args.no_color else None)
+
     if args.command is None:
-        # Smart default (setup-if-unconfigured / status) lands in Batch D. For now, help.
-        parser.print_help()
+        # Smart default (D7): setup if unconfigured, else status + hints.
+        if not config.is_configured():
+            if sys.stdin.isatty():
+                return _run_setup(argparse.Namespace(
+                    roots=None, recursive=False, yes=False, source_root=None), term)
+            term.status("warn", "Not configured. Run 'aw setup' to get started.")
+            return _run_status(term)
+        _run_status(term)
+        term.line()
+        term.line("Commands: install <dir>|all, setup, uninstall <dir>, list, status. "
+                  "See 'aw --help'.")
         return 0
 
     if args.command == "install":
-        return _run_install(args)
-
-    if args.command in ("setup", "uninstall", "list", "status"):
-        return _not_yet(args.command)
+        return _run_install(args, term)
+    if args.command == "uninstall":
+        return _run_uninstall(args, term)
+    if args.command == "list":
+        return _run_list(args, term)
+    if args.command == "status":
+        return _run_status(term)
+    if args.command == "setup":
+        return _run_setup(args, term)
 
     parser.print_help()
     return 2

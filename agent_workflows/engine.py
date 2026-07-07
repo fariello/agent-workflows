@@ -1091,6 +1091,151 @@ def print_summary(
         print("   conformance check, and stages changes without committing.)")
 
 
+def remove_agents_pointer(repo_root: Path, use_git: bool) -> str:
+    """Remove the managed AGENTS pointer block; leave the rest of the file untouched.
+
+    Only strips a single well-formed BEGIN..END block (the same fail-safe discipline as
+    update_agents_pointer). Returns a human-readable status string.
+    """
+
+    rel = resolve_agents_file(repo_root)
+    agents_path = repo_root / rel
+    if not agents_path.is_file():
+        return f"{rel} absent (no pointer to remove)"
+    existing = agents_path.read_text(encoding="utf-8")
+    begins = existing.count(AGENTS_BEGIN)
+    ends = existing.count(AGENTS_END)
+    well_formed = (
+        begins == 1 and ends == 1 and existing.find(AGENTS_BEGIN) < existing.find(AGENTS_END)
+    )
+    if not well_formed:
+        return f"{rel} pointer not found (nothing removed)"
+
+    new_text = re.sub(
+        re.escape(AGENTS_BEGIN) + r".*?" + re.escape(AGENTS_END),
+        "",
+        existing,
+        count=1,
+        flags=re.DOTALL,
+    )
+    # Tidy: collapse the blank hole left behind, keep a trailing newline.
+    new_text = re.sub(r"\n{3,}", "\n\n", new_text).rstrip("\n") + "\n"
+    agents_path.write_text(new_text, encoding="utf-8")
+    if use_git and git_is_tracked(repo_root, rel):
+        git_add_optional(repo_root, rel)
+    return f"removed pointer block from {rel}"
+
+
+def _uninstall_remove(repo_root: Path, rel: str, use_git: bool) -> None:
+    """Remove a framework path for uninstall: `git rm -rf` when tracked/staged, else FS.
+
+    Uses -f so a path that is STAGED but not yet committed (the normal post-install state,
+    since the installer stages without committing) is removed cleanly; `git rm` without
+    -f refuses those. Falls back to filesystem removal for untracked paths.
+    """
+
+    target = repo_root / rel
+    if not target.exists():
+        return
+    if use_git and git_is_tracked(repo_root, rel):
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), "rm", "-rf", "--quiet", "--", rel],
+            capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            return
+        # Fall through to filesystem removal if git refused for any reason.
+    if target.is_dir():
+        shutil.rmtree(target)
+    else:
+        target.unlink()
+
+
+def uninstall_repo(repo_root: Path, use_git: bool) -> list[str]:
+    """Remove the framework from a repo: .agents/workflows/, our shims, the AGENTS block.
+
+    Stages deletions (git rm -f when tracked/staged) and never commits. Never touches user
+    content outside the framework namespace. Returns human-readable actions taken.
+    """
+
+    actions: list[str] = []
+
+    # 1. The workflow tree.
+    if (repo_root / WORKFLOWS_DIR).is_dir():
+        _uninstall_remove(repo_root, WORKFLOWS_DIR, use_git)
+        actions.append(f"removed {WORKFLOWS_DIR}/")
+
+    # 2. The generated command shims (only the .md files we generate).
+    for shim_dir in COMMAND_SHIM_DIRS:
+        d = repo_root / shim_dir
+        if not d.is_dir():
+            continue
+        for path in sorted(d.glob("*.md")):
+            rel = path.relative_to(repo_root).as_posix()
+            _uninstall_remove(repo_root, rel, use_git)
+            actions.append(f"removed {rel}")
+
+    # 3. The managed AGENTS pointer block (leaves the user's own AGENTS prose intact).
+    actions.append(remove_agents_pointer(repo_root, use_git))
+
+    return actions
+
+
+def read_installed_version(repo_root: Path) -> str | None:
+    """Return the framework VERSION installed in ``repo_root``, or None if not installed."""
+
+    vpath = repo_root / WORKFLOWS_DIR / VERSION_FILE
+    try:
+        value = vpath.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return value or None
+
+
+def install_into_repo(
+    repo_root: Path,
+    source_root: Path,
+    *,
+    dry_run: bool = False,
+    backup: bool = True,
+    prune: bool = True,
+) -> dict:
+    """Install/update the framework into a single repo. Returns a structured result.
+
+    This is the multi-repo-friendly entry the CLI's `install all` drives per repo, so a
+    failure in one repo can be isolated and reported without aborting the batch. It reuses
+    the exact same engine steps as the single-repo `run()` path.
+    """
+
+    plan = InstallPlan(
+        source_root=source_root,
+        repo_root=repo_root,
+        dry_run=dry_run,
+        backup=backup,
+        prune=prune,
+    )
+    use_git = git_available(plan.repo_root)
+    workflows = parse_manifest(plan.source_root)
+    body_members = collect_source_members(plan.source_root)
+    shim_members = generate_shim_members(workflows)
+
+    migrate_legacy_layout(plan, use_git)
+    installed, skipped, _ = install_all(plan, body_members, shim_members, use_git)
+    pruned = prune_stale(plan, body_members, shim_members, use_git)
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    update_agents_pointer(plan, use_git, timestamp)
+    ensure_backups_gitignored(plan, use_git)
+
+    return {
+        "repo": repo_root,
+        "installed": installed,
+        "skipped": skipped,
+        "pruned": pruned,
+        "use_git": use_git,
+        "version": read_installed_version(repo_root),
+    }
+
+
 def run(args: argparse.Namespace) -> int:
     """Execute an install run from an already-parsed args namespace.
 
