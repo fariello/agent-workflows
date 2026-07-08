@@ -1181,6 +1181,113 @@ def uninstall_repo(repo_root: Path, use_git: bool) -> list[str]:
     return actions
 
 
+# --------------------------------------------------------------------------------------
+# Deterministic setup artifacts (IPD-2 Batch E / Goal 8). These are the fixed-template,
+# always-the-same scaffolding the CLI creates on install so a repo is useful out of the
+# box. The STACK-TAILORED / judgment parts (.gitignore, stack CI, the lifecycle contract
+# prose) stay with the LLM /setup-repo workflow. Artifacts are created NO-CLOBBER: an
+# existing target file is never overwritten (R-2); the AGENTS pointer is handled
+# separately by update_agents_pointer.
+# --------------------------------------------------------------------------------------
+
+PLANS_DIR = ".agents/plans"
+PLAN_LIFECYCLE_SUBDIRS = ("pending", "reusable", "executed")
+GITLEAKSIGNORE_FILE = ".gitleaksignore"
+SECRET_SCAN_CI = ".github/workflows/secret-scan.yml"
+
+_GITLEAKSIGNORE_TEMPLATE = """\
+# gitleaks false-positive baseline (created by agent-workflows).
+#
+# gitleaks ignores findings by FINGERPRINT, printed in its report as:
+#   <commit-sha>:<file-path>:<rule-id>:<line-number>
+# Paste a confirmed false positive's fingerprint on its own line to suppress it.
+# Do NOT suppress a real secret: rotate it, then purge it from history.
+#
+# This baseline starts empty. Example (commented out):
+# 0a1b2c3d4e5f6a7b8c9d:tests/fixtures/sample.env:generic-api-key:12
+"""
+
+_SECRET_SCAN_CI_TEMPLATE = """\
+name: secret-scan
+
+# Committed-secret scan on push and PR using gitleaks (created by agent-workflows).
+# False positives are managed via the committed .gitleaksignore baseline at the repo root.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          # fetch-depth: 0 so gitleaks scans full history, not just HEAD - a secret
+          # removed from HEAD but still in history is the dangerous case.
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+"""
+
+
+def _create_if_absent(
+    repo_root: Path, rel: str, content: str, use_git: bool, created: list[str]
+) -> None:
+    """Write ``content`` to ``rel`` ONLY if it does not already exist (no-clobber, R-2).
+
+    Stages the new file when tracked-able. An existing file (the user's own) is left
+    untouched and recorded as skipped-existing.
+    """
+
+    target = repo_root / rel
+    if target.exists():
+        return
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content, encoding="utf-8")
+    if use_git:
+        git_add_optional(repo_root, rel)
+    created.append(rel)
+
+
+def create_setup_artifacts(repo_root: Path, use_git: bool, dry_run: bool = False) -> list[str]:
+    """Create the deterministic setup artifacts in a target repo (no-clobber, idempotent).
+
+    Creates (only when absent): the plan lifecycle dirs with .gitkeep, a .gitleaksignore
+    baseline, and the secret-scan CI workflow. Returns the list of created paths (empty on
+    a re-run where everything already exists, so it is quiet and idempotent).
+
+    NOTE: the AGENTS pointer is created by update_agents_pointer during install; the
+    stack-tailored .gitignore/CI stay with the LLM /setup-repo workflow.
+    """
+
+    created: list[str] = []
+    if dry_run:
+        # Report what WOULD be created without writing.
+        for sub in PLAN_LIFECYCLE_SUBDIRS:
+            keep = f"{PLANS_DIR}/{sub}/.gitkeep"
+            if not (repo_root / keep).exists():
+                created.append(keep + " [dry-run]")
+        for rel in (GITLEAKSIGNORE_FILE, SECRET_SCAN_CI):
+            if not (repo_root / rel).exists():
+                created.append(rel + " [dry-run]")
+        return created
+
+    for sub in PLAN_LIFECYCLE_SUBDIRS:
+        _create_if_absent(repo_root, f"{PLANS_DIR}/{sub}/.gitkeep", "", use_git, created)
+    _create_if_absent(repo_root, GITLEAKSIGNORE_FILE, _GITLEAKSIGNORE_TEMPLATE, use_git, created)
+    _create_if_absent(repo_root, SECRET_SCAN_CI, _SECRET_SCAN_CI_TEMPLATE, use_git, created)
+    return created
+
+
 def read_installed_version(repo_root: Path) -> str | None:
     """Return the framework VERSION installed in ``repo_root``, or None if not installed."""
 
@@ -1225,12 +1332,14 @@ def install_into_repo(
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     update_agents_pointer(plan, use_git, timestamp)
     ensure_backups_gitignored(plan, use_git)
+    artifacts = create_setup_artifacts(repo_root, use_git, dry_run=dry_run)
 
     return {
         "repo": repo_root,
         "installed": installed,
         "skipped": skipped,
         "pruned": pruned,
+        "artifacts": artifacts,
         "use_git": use_git,
         "version": read_installed_version(repo_root),
     }
@@ -1265,6 +1374,7 @@ def run(args: argparse.Namespace) -> int:
     agents_status = update_agents_pointer(plan, use_git, run_timestamp)
     gitignore_status = check_gitignore(plan)
     backups_ignore_status = ensure_backups_gitignored(plan, use_git)
+    artifacts = create_setup_artifacts(plan.repo_root, use_git, dry_run=plan.dry_run)
 
     print_summary(
         plan=plan,
@@ -1278,6 +1388,11 @@ def run(args: argparse.Namespace) -> int:
         backups_ignore_status=backups_ignore_status,
         use_git=use_git,
     )
+    if artifacts:
+        print()
+        print("Setup artifacts created (staged; run /setup-repo for stack-tailored setup):")
+        for item in artifacts:
+            print(f"  - {item}")
     return 0
 
 

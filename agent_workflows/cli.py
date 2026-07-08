@@ -179,6 +179,10 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
 
     n = len(result["installed"])
     term.status("ok", f"{repo_root}: installed/updated {n} file(s); version {result['version']}.")
+    artifacts = result.get("artifacts") or []
+    if artifacts:
+        term.status("ok", f"created {len(artifacts)} setup artifact(s) "
+                          "(plan dirs, .gitleaksignore, secret-scan CI).")
     _teach(term)
     return 0
 
