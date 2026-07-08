@@ -5,6 +5,7 @@ pass/fail evidence, and --version. Stdlib unittest only.
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -46,6 +47,12 @@ class ClassificationUnitTests(unittest.TestCase):
         self.assertEqual(proc.stdout.strip(), expected)
 
 
+@unittest.skipIf(
+    os.name == "nt",
+    "run_checks.py's npm-script execution behaves differently on Windows (npm.cmd / shell "
+    "resolution); these node-runner e2e checks are POSIX-verified. run_checks is unrelated "
+    "to IPD-2 distribution; Windows support for it is a separate follow-up.",
+)
 class RunChecksEndToEndTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()

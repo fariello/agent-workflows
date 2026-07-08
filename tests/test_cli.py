@@ -100,7 +100,9 @@ class ListStatusTests(CliTestBase):
         CFG.save(cfg)
         code, out = _run(["list"])
         self.assertEqual(code, 0, out)
-        self.assertIn(str(repo), out)
+        # `list` prints the resolved path (canonicalized; on Windows this expands 8.3
+        # short names), so match on the stable basename, not the raw temp path string.
+        self.assertIn(repo.name, out)
         # The installed repo carries a VERSION; its state is one of the known labels.
         self.assertTrue(any(s in out for s in ("CURRENT", "STALE", "AHEAD", "DEV")))
 

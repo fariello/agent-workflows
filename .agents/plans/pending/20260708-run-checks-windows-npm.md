@@ -1,0 +1,61 @@
+# IPD: run_checks.py npm-script execution on Windows
+
+- Date: 2026-07-08
+- Concern: cross-platform correctness (tooling)
+- Scope: `run_checks.py`'s execution of npm/package.json checks on Windows only. NOT the
+  CLI/distribution (IPD-2), which is verified green cross-OS.
+- Status: PENDING (awaiting human approval; not executed)
+- Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+
+## Goal
+
+Make `run_checks.py` run detected npm `scripts` correctly on Windows so the two
+node-runner end-to-end self-tests pass there, instead of being skipped.
+
+## Context (how this surfaced)
+
+IPD-2 Batch F added a Windows CI matrix. It revealed that
+`tests.test_run_checks.RunChecksEndToEndTests.test_passing_check_exit_zero` and
+`test_failing_check_exit_one` fail on Windows: a passing npm `test` script reports
+`all_ran_passed: False` and a failing one exits 0 instead of 1. The tests are currently
+SKIPPED on Windows (`@unittest.skipIf(os.name == "nt", ...)`) with that reason recorded,
+so the suite is green on all OSes. This IPD tracks the real fix.
+
+This is a PRE-EXISTING `run_checks.py` gap (the tool predates IPD-2 and was never
+Windows-verified), surfaced by the new CI matrix - not a regression from IPD-2.
+
+## Likely cause (to confirm)
+
+`run_checks.py` runs the package-manager check via a subprocess. On Windows the npm
+executable is `npm.cmd` (not `npm`), and `subprocess.run([...], shell=False)` will not
+find/execute a `.cmd` the same way, and/or exit codes are not propagated as expected.
+Candidates to inspect: how the check command is built and invoked (shell vs list form,
+`shutil.which("npm")` resolution, `.cmd`/`.bat` handling, and returncode capture).
+
+## Proposed approach (draft; refine during execution)
+
+1. Reproduce on a Windows runner (or Windows VM); capture the actual command and exit
+   code `run_checks.py` produces for a trivial passing and failing npm script.
+2. Fix the invocation so it is Windows-correct (e.g. resolve the real executable via
+   `shutil.which`, or use the documented Windows-safe subprocess pattern), without
+   changing POSIX behavior.
+3. Remove the `skipIf(os.name == "nt")` guard on `RunChecksEndToEndTests` so both tests
+   run and pass on Windows.
+4. Keep zero runtime dependencies; add a DECISIONS entry if the invocation contract
+   changes.
+
+## Required tests / validation
+
+- The two `RunChecksEndToEndTests` pass on the Windows CI matrix with the skip guard
+  removed; still green on Linux/macOS.
+- Full suite green on all three OSes.
+
+## Open questions
+
+1. Is there a Windows runner available to iterate against, or is this fixed blind and
+   verified via CI on push? (CI-verified is acceptable but slower.)
+
+## Approval and execution gate
+
+Proposal only; not auto-executed. On approval, execute the steps, verify via the Windows
+CI matrix, then move to `.agents/plans/executed/`.

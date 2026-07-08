@@ -84,8 +84,12 @@ def _preserve_home(path: str) -> str:
         return "~"
     prefix = home + os.sep
     if norm.startswith(prefix):
-        return "~" + os.sep + norm[len(prefix):]
-    return norm
+        rel = norm[len(prefix):]
+        # Store with forward slashes so the config is portable across OSes; both
+        # os.path.expanduser and pathlib.Path accept "/" on Windows at expand-time.
+        return "~/" + rel.replace(os.sep, "/")
+    # Normalize separators in stored absolute paths too, for a portable, stable config.
+    return norm.replace(os.sep, "/")
 
 
 def expand_path(stored: str) -> Path:
