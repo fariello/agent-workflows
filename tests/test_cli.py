@@ -126,7 +126,10 @@ class SetupTests(CliTestBase):
         self.assertTrue((a / ".agents/workflows/VERSION").is_file())
         self.assertTrue((b / ".agents/workflows/VERSION").is_file())
         cfg = CFG.load()
-        self.assertIn(str(self.base), cfg["search_roots"])
+        # Config stores paths with forward slashes for portability; compare by expanding
+        # each stored root back to a Path (separator-independent) rather than string-eq.
+        expanded = [CFG.expand_path(r) for r in cfg["search_roots"]]
+        self.assertIn(self.base, expanded)
 
     def test_setup_skips_submodule(self):
         # A submodule under the root must not be installed into.
