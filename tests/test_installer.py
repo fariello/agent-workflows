@@ -163,21 +163,25 @@ class InstallerEndToEndTests(unittest.TestCase):
         self.assertEqual(proc.stdout.strip(), expected)
 
     def test_tool_scripts_are_executable_and_staged(self):
+        import os
         from tests.support import git
         run_installer(self.repo)
         tool = self.repo / ".agents/workflows/assess/tools/scan_secrets.py"
-        self.assertTrue(tool.stat().st_mode & 0o111, "tool script is not executable")
-        # Git records the executable mode (100755), and a re-run leaves nothing unstaged
-        # (no mode-only leftover).
+        # The re-run-leaves-nothing-unstaged idempotency guarantee holds on every OS.
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", "init")
         proc = run_installer(self.repo)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         leftover = git(self.repo, "status", "--porcelain").stdout.strip()
         self.assertEqual(leftover, "", f"re-run left files unstaged:\n{leftover}")
-        indexed = git(self.repo, "ls-files", "-s",
-                      ".agents/workflows/assess/tools/scan_secrets.py").stdout
-        self.assertTrue(indexed.startswith("100755"), f"exec bit not in index: {indexed!r}")
+
+        # The POSIX executable-bit assertions are meaningful only on POSIX: Windows has no
+        # mode exec bit and git there records 100644. Skip the mode checks on Windows.
+        if os.name == "posix":
+            self.assertTrue(tool.stat().st_mode & 0o111, "tool script is not executable")
+            indexed = git(self.repo, "ls-files", "-s",
+                          ".agents/workflows/assess/tools/scan_secrets.py").stdout
+            self.assertTrue(indexed.startswith("100755"), f"exec bit not in index: {indexed!r}")
 
     def test_gitignored_opencode_does_not_abort(self):
         from tests.support import git

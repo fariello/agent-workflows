@@ -77,10 +77,34 @@ Test only the mechanical tools, not the instruction prose (prose is reviewed by
 ## Versioning
 
 The framework uses git-tag-driven semantic versioning (baseline `v1.0.0`; DECISIONS
-D44). `.agents/workflows/VERSION` is a DERIVED artifact generated from the git tag by
-`versioning.py` - do NOT hand-edit it. To bake the version after tagging, run
+D44/D46). `.agents/workflows/VERSION` is a DERIVED artifact generated from the git tag by
+`agent_workflows/versioning.py` (a top-level `versioning.py` re-export shim preserves the
+old import path) - do NOT hand-edit it. To bake the version after tagging, run
 `make version-file` on a clean, tagged tree (it writes the resolved semver, e.g.
 `1.0.0`). To cut a new release, create an annotated tag (`git tag -a vX.Y.Z -m ...`) on a
 clean tree, then regenerate `VERSION` and the `index.md` stamp. A dirty or
 ahead-of-release checkout resolves to a `X.Y.Z.devN+g<sha>` string on purpose, so a copy
-that differs from a release is never reported as a clean version.
+that differs from a release is never reported as a clean version. The wheel's version is
+computed by the same resolver via the `hatch_build.py` version source, so the packaged
+version always matches.
+
+## Packaging and the CLI (DECISIONS D46)
+
+The distributable is a wheel built with `hatchling` (a dev/build-time dependency; there
+are ZERO runtime dependencies). The importable package is `agent_workflows/`; the shipped
+workflow tree (`.agents/workflows/`) is included as package data via `force-include`,
+mapped into the wheel under `agent_workflows/_data/` (the tree is NOT moved in the repo).
+The console scripts `agent-workflows` / `aw` / `agentwf` all point at
+`agent_workflows.cli:main`.
+
+- **Dev install:** `pip install -e .` exposes the `aw` CLI against your working tree.
+- **Build a wheel:** `python -m build --wheel` (needs `pip install build`). The
+  ship-vs-dev boundary is enforced by `tests/test_packaging.py`, which asserts the wheel
+  contains only the package + `_data` tree and NONE of `docs/`, `prompts/`, `tests/`,
+  `workflow-artifacts/`, or the meta docs, and that no runtime dependency is declared.
+- **CLI vs the LLM `/setup-repo`:** the CLI does the deterministic, multi-repo, host-level
+  work (install/update, config, discovery, the fixed setup artifacts); the LLM
+  `/setup-repo` workflow does the stack-tailored, judgment layer. They complement each
+  other, and `aw` points the user at `/setup-repo`.
+- **Publishing to PyPI is a separate, credentialed, user-gated step** (`twine upload`); it
+  is intentionally NOT part of the normal build/test flow.

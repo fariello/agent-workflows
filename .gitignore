@@ -19,6 +19,8 @@ __pycache__/
 /dist/
 /build/
 *.egg-info/
+# CI/local wheel-install smoke-test venv
+/.wheeltest/
 
 # Environment / secrets
 .env

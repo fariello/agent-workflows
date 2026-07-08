@@ -14,22 +14,54 @@ Claude Code) also get `/release-review`, `/assess security`, etc. for free.
 
 ## Quick start
 
-**1. Install into your repo.** Requires Python 3.9+ (CI-verified floor; older 3.x likely works but is untested) and a git repo. From your target
-repo's root:
+**1. Install the CLI, then install into your repo.** Requires Python 3.9+ (CI-verified
+floor; older 3.x likely works but is untested) and a git repo. Works on Linux, macOS, and
+Windows.
 
 ```
-python3 /path/to/agent-workflows/install-workflows.py
+pipx install agent-workflows      # or: pip install agent-workflows
 ```
 
-This copies the workflows into `.agents/workflows/`, generates slash-command shims for
-OpenCode and Claude Code, and adds a pointer to your `AGENTS.md`. It **stages** changes
-with git but never commits and never touches your code, so review and commit yourself:
+This gives you the `aw` command (aliases: `agent-workflows`, `agentwf`). If `aw` is
+already used by another tool on your system, use `agentwf` or `agent-workflows`.
+
+Then, from your target repo's root:
+
+```
+aw install .            # install/update the framework into this repo (idempotent)
+```
+
+Or set up many repos at once with the guided wizard, which remembers your repos in a
+config file (under `~/.config/agent-workflows/`, never in your home directory root):
+
+```
+aw setup                # asks where your repos are, discovers them, installs, teaches
+aw install all          # later: install/update every configured repo
+aw list                 # see each repo's installed version and currency
+```
+
+`aw install` copies the workflows into `.agents/workflows/`, generates slash-command shims
+for OpenCode and Claude Code, adds a pointer to your `AGENTS.md`, and scaffolds the
+deterministic setup files (plan-lifecycle dirs, a `.gitleaksignore` baseline, a
+secret-scan CI workflow). It **stages** changes with git but never commits and never
+touches your code, so review and commit yourself:
 
 ```
 git status && git commit -m "chore: add agent-workflows"
 ```
 
-(Prefer to preview first? Add `--dry-run`. Re-run any time to update; it is idempotent.)
+(Preview first with `aw install . --dry-run`; re-run any time to update, it is idempotent;
+`aw uninstall .` removes it. Prefer color off? Set `NO_COLOR=1` or pass `--no-color`.)
+
+**Developing agent-workflows itself, or installing without pip?** Clone the repo and run
+the installer directly (the deprecated but supported path); an editable install exposes
+the same CLI:
+
+```
+python3 /path/to/agent-workflows/install-workflows.py    # from your target repo root
+# or, for development:
+pip install -e /path/to/agent-workflows                  # then use `aw` as above
+```
 
 **2. Set the repo up (recommended first run).** In your agent, run the guided setup:
 

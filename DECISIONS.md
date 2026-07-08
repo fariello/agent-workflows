@@ -1351,3 +1351,56 @@ both execute the (large) set well.
 - **Historical records untouched (P4):** executed-plan BODY text and `workflow-artifacts/*` run
   records still reference `done/` and the old `YYYY-MM-DD` names as written; those are immutable
   history. Only filenames, the directory, and forward-facing docs changed.
+
+### D46. Pip distribution: installable wheel + `aw` CLI + config + multi-repo wizard + cross-OS CI
+
+- **Context:** the framework was usable only by cloning the repo and running
+  `install-workflows.py` per target repo, with no memory of which repos a user manages - a real
+  adoption barrier. IPD-2 (executed 2026-07-07 from
+  `.agents/plans/executed/20260707-pip-distribution-cli-config-wizard.md`, after `/plan-review`
+  fixed R-1..R-9 and all six open questions were resolved interactively) makes it
+  pip/pipx-installable with a real CLI. Built on IPD-1's versioning (D44).
+- **Packaging:** a wheel built with `hatchling` (dev/build-only; ZERO runtime dependencies). The
+  importable package is `agent_workflows/`; the shipped `.agents/workflows/` tree is included as
+  package data via `force-include` -> `agent_workflows/_data/` (the tree is NOT moved in the
+  repo). Three console scripts (`agent-workflows`, `aw`, `agentwf`) all point at
+  `agent_workflows.cli:main`. The wheel version comes from IPD-1's resolver via a `hatch_build.py`
+  `code` version source (no `hatch-vcs`; single source of versioning truth). A ship-vs-dev test
+  (`tests/test_packaging.py`) asserts the wheel contains only the product and no docs/prompts/
+  tests/workflow-artifacts/meta-docs, and declares no runtime deps.
+- **Source lookup:** `_compat.packaged_source_root()` locates the bundled tree - `importlib.
+  resources.files()` on 3.9+, a `__file__`-relative `_data/` fallback on the 3.8 floor (R-1; no
+  backport dep). The four COPIED-OUT tools still read their neighboring `VERSION` (unchanged).
+- **CLI (OQ7):** `install <dir>|all`, `setup`, `uninstall <dir>`, `list`, `status`; NO `update`
+  (install is idempotent), NO `doctor` (its safety is preflight-warn+confirm; its readout is
+  folded into `status`). `install`/`setup` share one engine; `install all` isolates per-repo
+  failures and reports installed/skipped/ignored/failed; `uninstall` asks first and stages
+  removal of the framework + our shims + the AGENTS block + the config entry, never touching user
+  content; bare `aw` is a smart default. Preflight warns on non-git / uncommitted / would-
+  downgrade with a `--yes` bypass.
+- **Config:** JSON at `$XDG_CONFIG_HOME/agent-workflows/config.json` (fallback `~/.config/...`),
+  never under `~/` directly; atomic writes; `~`-preserved paths expanded at use-time; a fixed
+  non-sensitive key allowlist (no secrets persisted). Discovery per OQ4 (configured-repo = target
+  no-descent; else immediate children; submodules skipped; recursive opt-in; `ignore` fnmatch
+  globs, discovery-only).
+- **Deterministic setup artifacts (Goal 8):** on install the engine also scaffolds, no-clobber
+  and idempotent, the plan-lifecycle dirs, a `.gitleaksignore` baseline, and a secret-scan CI
+  workflow (target templates, distinct from this repo's own - R-2). The stack-tailored
+  `.gitignore`/CI and the lifecycle-contract prose stay with the LLM `/setup-repo`, which the CLI
+  points the user to.
+- **Accessible CLI (Goal 9):** `agent_workflows/term.py` holds output to the terminal-
+  accessibility lens - color is never the sole signal (status words always present), honors
+  `NO_COLOR`/`FORCE_COLOR`/`TERM`/`isatty`, 16-color only, no blink or load-bearing dim, degrades
+  to plain when piped.
+- **Cross-OS CI:** `.github/workflows/tests.yml` runs the suite on ubuntu/macos/windows (py3.9 +
+  py3.13) and builds + installs + imports the wheel on each OS. The one POSIX-only test (git exec
+  bit `100755`) is guarded to skip on Windows; the idempotency assertion still runs everywhere.
+- **Back-compat:** `install-workflows.py`/`.sh` remain as thin DEPRECATED shims delegating to the
+  packaged engine (D46 preserves every historical flag).
+- **Deferred (unchanged posture):** the actual `twine upload` to PyPI is a separate, credentialed,
+  user-gated release step; rolling the CLI/versioning conventions to the 27 downstream repos is a
+  separate user-gated rollout; per-OS `command -v aw` / `Get-Alias aw` collision checks are a
+  pre-release checklist item.
+- **Scope:** engine packaged (Batch A), pyproject + wheel gate (B), config + discovery (C), CLI
+  verbs + UX + preflight (D), setup artifacts (E), cross-OS CI + docs (F). Suite 75 -> 129 green.
+  No workflow BEHAVIOR changed; this is distribution + UX only.

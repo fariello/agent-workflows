@@ -1,9 +1,10 @@
 name: tests
 
-# Run the framework's stdlib-unittest self-tests on push and PR. These tests gate every
-# change to the Python tools and the installer (see CONTRIBUTING). Zero dependencies, so
-# no install step is needed. This workflow only runs tests: it never publishes, deploys,
-# uploads, or touches remote state, and needs no secrets.
+# Run the framework's stdlib-unittest self-tests and verify the wheel builds and imports,
+# across Linux, macOS, and Windows (IPD-2). The suite has zero runtime dependencies, so no
+# install step is needed for it; the wheel job installs the dev build backend only. This
+# workflow only tests/builds: it never publishes, deploys, uploads, or touches remote
+# state, and needs no secrets.
 
 on:
   push:
@@ -15,24 +16,81 @@ permissions:
 
 jobs:
   unittest:
-    runs-on: ubuntu-latest
+    name: unittest (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        # Currently-supported Python minors. This also verifies the README compatibility
-        # floor: the lowest version here is the version we actually CI-verify. 3.7/3.8 are
-        # end-of-life and not provisioned; the tools use `from __future__ import annotations`
-        # and no runtime 3.9+-only feature, so older interpreters are expected to work but
-        # are not verified here.
-        python-version: ["3.9", "3.11", "3.13"]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        # Reduced Python combos across the OS matrix: verify the compatibility floor
+        # (lowest provisioned = 3.9) and a current version on every OS, without a full
+        # cross-product. 3.8 is end-of-life and not provisioned; the code uses
+        # `from __future__ import annotations` and no runtime 3.9+-only feature, so 3.8 is
+        # expected to work but is not CI-verified.
+        python-version: ["3.9", "3.13"]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Full history so the git-tag-driven version resolver and the scanner's
+          # history scan behave as in a real clone.
+          fetch-depth: 0
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Configure git identity (some tests init throwaway repos)
+        shell: bash
+        run: |
+          git config --global user.email "ci@example.com"
+          git config --global user.name "CI"
+          git config --global init.defaultBranch main
+
       - name: Run self-tests
-        run: python3 -m unittest discover -s tests -t .
+        shell: bash
+        run: python -m unittest discover -s tests -t .
+
+  wheel:
+    name: build + import wheel (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install the build frontend (dev-only; no runtime deps)
+        shell: bash
+        run: python -m pip install --upgrade build
+
+      - name: Build the wheel
+        shell: bash
+        run: python -m build --wheel
+
+      - name: Install the built wheel into a clean venv and smoke-test the CLI
+        shell: bash
+        run: |
+          python -m venv .wheeltest
+          if [ -f .wheeltest/bin/python ]; then
+            PY=.wheeltest/bin/python
+          else
+            PY=.wheeltest/Scripts/python
+          fi
+          "$PY" -m pip install --upgrade pip
+          # Install the single built wheel (glob differs per OS shell; bash is available).
+          "$PY" -m pip install dist/*.whl
+          # The console script and the packaged data lookup must both work from
+          # site-packages (run from a scratch dir so the source tree does not shadow it).
+          "$PY" -c "import agent_workflows, agent_workflows.cli; print('import ok', agent_workflows.__version__)"
+          "$PY" -m agent_workflows --version
