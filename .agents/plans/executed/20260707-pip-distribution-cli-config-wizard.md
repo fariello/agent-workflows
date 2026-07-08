@@ -8,8 +8,9 @@
   a guided multi-repo setup wizard, deterministic setup-artifact creation on install, an
   accessible ANSI terminal UX, and a cross-OS CI matrix. Does NOT change what any workflow
   DOES, nor the per-repo self-contained install model, nor the stage-not-commit safety posture.
-- Status: PENDING (plan-reviewed 2026-07-07, R-1..R-6 fixed; all 6 open questions resolved
-  interactively 2026-07-07; awaiting final human go to execute; not executed)
+- Status: DONE (plan-reviewed + all 6 OQs resolved; executed 2026-07-07 in batches A-F;
+  see DECISIONS D46). Suite 75 -> 129 green. CROSS-OS CI green is pending real-runner
+  verification on push (no macOS/Windows runners locally).
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Source spec: `docs/specs/2026-07-06-pip-distribution-and-multi-repo-setup.md` (this IPD
   expands that spec's 12-point IPD-2 checklist; all listed decisions are already resolved there).
