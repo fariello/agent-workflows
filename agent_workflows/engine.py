@@ -659,7 +659,7 @@ def write_file(
                 current_text = destination.read_text(encoding="utf-8")
                 if is_shim_customized(current_text):
                     term = Term(plan.no_color)
-                    print(term.colorize(f"⚠️ Warning: {relative_posix} has manual modifications.", "yellow"))
+                    print(term.colorize(f"Warning: {relative_posix} has manual modifications.", "yellow"))
                     is_interactive = sys.stdin.isatty() and not plan.yes
                     choice = "n"
                     if is_interactive:
@@ -831,7 +831,7 @@ def prune_stale(
                 current_text = destination.read_text(encoding="utf-8")
                 if is_shim_customized(current_text):
                     term = Term(plan.no_color)
-                    print(term.colorize(f"⚠️ Warning: {rel} has manual modifications and is no longer needed (stale).", "yellow"))
+                    print(term.colorize(f"Warning: {rel} has manual modifications and is no longer needed (stale).", "yellow"))
                     is_interactive = sys.stdin.isatty() and not plan.yes
                     choice = "n"
                     if is_interactive:
@@ -1186,7 +1186,7 @@ def run_git_diagnostics(plan: InstallPlan) -> bool:
 
     if not is_interactive:
         for warn in warnings:
-            sys.stderr.write(f"⚠️ Git Warning: {warn}\n")
+            sys.stderr.write(f"Git Warning: {warn}\n")
         return True
 
     term = Term(plan.no_color)
