@@ -282,6 +282,7 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
         agents_status=result["agents_status"],
         backups_ignore_status=result["backups_ignore_status"],
         use_git=result["use_git"],
+        artifacts=result.get("artifacts") or [],
     )
     return 0
 

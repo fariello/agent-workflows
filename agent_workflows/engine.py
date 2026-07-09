@@ -1603,6 +1603,7 @@ def prompt_and_run_commit(
     agents_status: str,
     backups_ignore_status: str,
     use_git: bool,
+    artifacts: list[str] = None,
 ) -> None:
     """Offer to commit only the installer-modified files."""
     if not use_git or plan.dry_run:
@@ -1610,6 +1611,15 @@ def prompt_and_run_commit(
 
     term = Term(plan.no_color)
     files_to_commit: dict[str, str] = {}
+
+    if artifacts:
+        for art in artifacts:
+            parts = art.rsplit(" [", 1)
+            rel_path = parts[0]
+            action = parts[1].rstrip("]") if len(parts) == 2 else "added"
+            if "dry-run" in action:
+                continue
+            files_to_commit[rel_path] = "added"
 
     for item in installed:
         parts = item.rsplit(" [", 1)
@@ -2251,6 +2261,7 @@ def run(args: argparse.Namespace) -> int:
         agents_status=agents_status,
         backups_ignore_status=backups_ignore_status,
         use_git=use_git,
+        artifacts=artifacts,
     )
     return 0
 
