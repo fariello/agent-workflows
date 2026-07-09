@@ -3,7 +3,7 @@
 - Date: 2026-07-09
 - Concern: Usability, documentation clarity, and developer safety in target repositories.
 - Scope: Define standard READMEs for four directories (`.agents/workflows/`, `.opencode/commands/`, `.claude/commands/`, `workflow-artifacts/`) and update the installer engine to manage them correctly.
-- Status: PENDING / PROPOSAL
+- Status: EXECUTED 2026-07-09
 
 ## Goal
 
@@ -93,4 +93,13 @@ This directory contains review records, verification evidence, and audit logs ge
 
 ## Approval and Execution Gate
 
-This is a proposal. Once approved, the implementation plan will be executed.
+Approved by user and executed.
+
+## Execution record (2026-07-09)
+
+Executed successfully:
+- Created the source templates `.agents/workflows/templates/shim-README.md` and `.agents/workflows/templates/workflow-artifacts-README.md`.
+- Created the orientation `.agents/workflows/README.md` file.
+- Updated `engine.py` to load and generate command shims' README files dynamically and write `workflow-artifacts/README.md` non-destructively.
+- Added comprehensive unit and E2E test cases in `tests/test_installer.py` verifying correct creation, preservation, and pruning exclusion.
+- All 128 tests are verified passing.

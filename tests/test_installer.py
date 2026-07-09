@@ -44,8 +44,9 @@ class InstallerUnitTests(unittest.TestCase):
         self.assertFalse(INS.is_concern_catalog_row(mk("assess-all")))
 
     def test_shim_generation_collapses_catalog(self):
-        workflows = INS.parse_manifest(REPO_ROOT / ".agents" / "workflows")
-        shims = INS.generate_shim_members(workflows)
+        source = REPO_ROOT / ".agents" / "workflows"
+        workflows = INS.parse_manifest(source)
+        shims = INS.generate_shim_members(workflows, source)
         # No per-concern / per-persona shims are generated.
         self.assertFalse(any("/assess-security.md" in k for k in shims))
         self.assertFalse(any("/advise-skeptic.md" in k for k in shims))
@@ -230,6 +231,45 @@ class InstallerEndToEndTests(unittest.TestCase):
         self.assertNotIn(".opencode/", staged)
         self.assertIn(".claude/commands/assess.md", staged)
         self.assertIn(".agents/workflows/index.md", staged)
+
+    def test_readme_creation_and_preservation(self):
+        # 1) Fresh install creates all README files
+        proc = run_installer(self.repo)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+
+        readmes = [
+            self.repo / ".agents/workflows/README.md",
+            self.repo / ".opencode/commands/README.md",
+            self.repo / ".claude/commands/README.md",
+            self.repo / "workflow-artifacts/README.md",
+        ]
+        for path in readmes:
+            self.assertTrue(path.is_file(), f"README not created: {path}")
+
+        # Verify they contain expected indicators
+        self.assertIn("auto-generated", (self.repo / ".opencode/commands/README.md").read_text(encoding="utf-8"))
+        self.assertIn("Git Guidelines", (self.repo / "workflow-artifacts/README.md").read_text(encoding="utf-8"))
+
+        # 2) Re-run preserves customized workflow-artifacts/README.md
+        custom_path = self.repo / "workflow-artifacts/README.md"
+        custom_content = "Custom user guidelines for this repo's execution trails."
+        custom_path.write_text(custom_content, encoding="utf-8")
+
+        # Run installer again
+        proc = run_installer(self.repo)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(custom_path.read_text(encoding="utf-8"), custom_content, "Custom README content was overwritten!")
+
+    def test_shim_readme_is_not_pruned(self):
+        # Run installer to write shims
+        run_installer(self.repo)
+        shim_readme = self.repo / ".opencode/commands/README.md"
+        self.assertTrue(shim_readme.is_file())
+
+        # Run installer with prune=True
+        proc = run_installer(self.repo)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertTrue(shim_readme.is_file(), "Shim README was pruned!")
 
 
 if __name__ == "__main__":
