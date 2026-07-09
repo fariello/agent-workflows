@@ -36,9 +36,11 @@ Candidates to inspect: how the check command is built and invoked (shell vs list
 
 1. Reproduce on a Windows runner (or Windows VM); capture the actual command and exit
    code `run_checks.py` produces for a trivial passing and failing npm script.
-2. Fix the invocation so it is Windows-correct (e.g. resolve the real executable via
-   `shutil.which`, or use the documented Windows-safe subprocess pattern), without
-   changing POSIX behavior.
+2. Fix the invocation so it is Windows-correct:
+   * Resolve the command executable path using `shutil.which`.
+   * On Windows (`os.name == "nt"`), if the resolved executable ends with a batch/command script extension (such as `.cmd` or `.bat`), prepend `["cmd.exe", "/c"]` to the command list while keeping `shell=False`.
+   * This ensures safe, parameter-safe execution without command injection or shell escaping vulnerabilities associated with `shell=True`.
+   * Ensure POSIX behavior is completely unchanged.
 3. Remove the `skipIf(os.name == "nt")` guard on `RunChecksEndToEndTests` so both tests
    run and pass on Windows.
 4. Keep zero runtime dependencies; add a DECISIONS entry if the invocation contract
@@ -48,6 +50,7 @@ Candidates to inspect: how the check command is built and invoked (shell vs list
 
 - The two `RunChecksEndToEndTests` pass on the Windows CI matrix with the skip guard
   removed; still green on Linux/macOS.
+- Run the full test suite on Linux/macOS to guarantee zero regressions.
 - Full suite green on all three OSes.
 
 ## Open questions
