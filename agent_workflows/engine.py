@@ -129,7 +129,9 @@ def is_ignored_source_path(path: Path) -> bool:
     if "__pycache__" in path.parts:
         return True
     return False
-LEGACY_FRAMEWORK_DIR = "release-review"      # pre-D17 root location; migrated on install
+
+
+LEGACY_FRAMEWORK_DIR = "release-review"  # pre-D17 root location; migrated on install
 
 MANIFEST_BEGIN = "<!-- WORKFLOWS-MANIFEST:BEGIN -->"
 MANIFEST_END = "<!-- WORKFLOWS-MANIFEST:END -->"
@@ -157,7 +159,9 @@ def read_version(source_root: Path) -> str:
     if _VERSIONING is not None:
         # The resolver runs `git describe` in source_root (git works from any subdir of
         # the work tree) and falls back to the VERSION file itself when there is no git.
-        return _VERSIONING.resolve_version(source_root, version_file=source_root / VERSION_FILE)
+        return _VERSIONING.resolve_version(
+            source_root, version_file=source_root / VERSION_FILE
+        )
 
     # Degraded path (versioning.py unavailable): read the file directly.
     path = source_root / VERSION_FILE
@@ -210,9 +214,17 @@ def parse_args(argv=None) -> argparse.Namespace:
         default=Path.cwd(),
         help="Repository root to install into. Defaults to the current directory.",
     )
-    parser.add_argument("--dry-run", action="store_true", help="Show actions without writing.")
-    parser.add_argument("--no-backup", action="store_true", help="Do not back up before overwrite/prune.")
-    parser.add_argument("--no-prune", action="store_true", help="Do not remove stale framework files.")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Show actions without writing."
+    )
+    parser.add_argument(
+        "--no-backup",
+        action="store_true",
+        help="Do not back up before overwrite/prune.",
+    )
+    parser.add_argument(
+        "--no-prune", action="store_true", help="Do not remove stale framework files."
+    )
     parser.add_argument(
         "--no-color",
         action="store_true",
@@ -260,7 +272,10 @@ def resolve_source_root(provided: Path | None) -> Path:
     if provided is not None:
         candidate = provided.expanduser().resolve()
         # Accept either the workflows dir itself or a repo root containing it.
-        if candidate.name != "workflows" and (candidate / ".agents" / "workflows").is_dir():
+        if (
+            candidate.name != "workflows"
+            and (candidate / ".agents" / "workflows").is_dir()
+        ):
             candidate = candidate / ".agents" / "workflows"
         source_root = candidate
     else:
@@ -269,7 +284,9 @@ def resolve_source_root(provided: Path | None) -> Path:
             source_root = bundled
         else:
             # Dev/clone: repo root is two dirs up from agent_workflows/engine.py.
-            source_root = Path(__file__).resolve().parent.parent / ".agents" / "workflows"
+            source_root = (
+                Path(__file__).resolve().parent.parent / ".agents" / "workflows"
+            )
 
     index = source_root / "index.md"
     if not index.is_file() or source_root.name != "workflows":
@@ -297,7 +314,10 @@ def ensure_repo_root(path: Path) -> None:
     if not path.exists() or not path.is_dir():
         raise SystemExit(f"Repository root is not a directory: {path}")
     if not (path / ".git").exists():
-        print("Warning: target directory does not contain .git. Continuing anyway.", file=sys.stderr)
+        print(
+            "Warning: target directory does not contain .git. Continuing anyway.",
+            file=sys.stderr,
+        )
 
 
 def parse_manifest(source_root: Path) -> list[Workflow]:
@@ -317,7 +337,9 @@ def parse_manifest(source_root: Path) -> list[Workflow]:
         re.DOTALL,
     )
     if not block:
-        raise SystemExit(f"index.md is missing the manifest markers {MANIFEST_BEGIN} / {MANIFEST_END}.")
+        raise SystemExit(
+            f"index.md is missing the manifest markers {MANIFEST_BEGIN} / {MANIFEST_END}."
+        )
 
     workflows: list[Workflow] = []
     for line in block.group(1).splitlines():
@@ -436,15 +458,12 @@ def shim_body(command: str, workflow: Workflow, tool: str) -> str:
         frontmatter = (
             "---\n"
             f"description: {workflow.description}\n"
-            "argument-hint: \"[optional target path or flags]\"\n"
+            'argument-hint: "[optional target path or flags]"\n'
             "---\n"
         )
     else:  # opencode
         frontmatter = (
-            "---\n"
-            f"description: {workflow.description}\n"
-            "agent: build\n"
-            "---\n"
+            "---\n" f"description: {workflow.description}\n" "agent: build\n" "---\n"
         )
 
     return (
@@ -484,7 +503,9 @@ def is_concern_catalog_row(workflow: Workflow) -> bool:
     return workflow.command.startswith(CATALOG_ROW_PREFIXES)
 
 
-def generate_shim_members(workflows: list[Workflow], source_root: Path) -> dict[str, str]:
+def generate_shim_members(
+    workflows: list[Workflow], source_root: Path
+) -> dict[str, str]:
     """Build the map of shim repo-relative path -> file content for all tools.
 
     One shim per command row, EXCEPT `assess-<concern>` catalog rows, which are folded
@@ -525,7 +546,11 @@ def agents_pointer_block() -> str:
         "This repository includes reusable agent workflows under `.agents/workflows/`. "
         "They are invoked on demand and are NOT always-loaded context. See "
         "`.agents/workflows/index.md` for the list and how to run each (native `/commands` "
-        "in OpenCode/Claude Code, or \"read and execute <body path>\" in any other agent).\n"
+        'in OpenCode/Claude Code, or "read and execute <body path>" in any other agent).\n\n'
+        "### Guidelines for Antigravity & Other Agents\n"
+        'When requested to run one of these workflows (e.g. "run release-review", "assess <concern>", "run setup-repo", "run scaffold"):\n'
+        "1. Locate the workflow's entry file under `.agents/workflows/` (referenced in `.agents/workflows/index.md`).\n"
+        "2. Read and execute the instructions defined in that workflow file step-by-step.\n"
         f"{AGENTS_END}\n"
     )
 
@@ -541,6 +566,7 @@ def is_interactive_session(plan: InstallPlan) -> bool:
     if sys.platform == "win32":
         try:
             import ctypes
+
             handle = ctypes.windll.kernel32.GetStdHandle(-10)  # STD_INPUT_HANDLE
             mode = ctypes.c_ulong()
             if not ctypes.windll.kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
@@ -586,7 +612,14 @@ def git_available(repo_root: Path) -> bool:
 def git_is_tracked(repo_root: Path, relative_posix: str) -> bool:
     try:
         result = subprocess.run(
-            ["git", "-C", str(repo_root), "ls-files", "--error-unmatch", relative_posix],
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "ls-files",
+                "--error-unmatch",
+                relative_posix,
+            ],
             capture_output=True,
             text=True,
         )
@@ -596,7 +629,9 @@ def git_is_tracked(repo_root: Path, relative_posix: str) -> bool:
 
 
 def git_run(repo_root: Path, args: list[str]) -> None:
-    result = subprocess.run(["git", "-C", str(repo_root), *args], capture_output=True, text=True)
+    result = subprocess.run(
+        ["git", "-C", str(repo_root), *args], capture_output=True, text=True
+    )
     if result.returncode != 0:
         raise SystemExit(f"git {' '.join(args)} failed:\n{result.stderr.strip()}")
 
@@ -630,7 +665,9 @@ def in_framework_namespace(relative_posix: str) -> bool:
 
     if relative_posix.startswith(WORKFLOWS_DIR + "/"):
         return True
-    return any(relative_posix.startswith(shim_dir + "/") for shim_dir in COMMAND_SHIM_DIRS)
+    return any(
+        relative_posix.startswith(shim_dir + "/") for shim_dir in COMMAND_SHIM_DIRS
+    )
 
 
 def _wants_executable(mode: int) -> bool:
@@ -686,18 +723,29 @@ def write_file(
         action = "chmod"
 
     if action == "overwrite" and not content_current:
-        is_shim = any(relative_posix.startswith(sd + "/") for sd in COMMAND_SHIM_DIRS) and relative_posix.endswith(".md")
+        is_shim = any(
+            relative_posix.startswith(sd + "/") for sd in COMMAND_SHIM_DIRS
+        ) and relative_posix.endswith(".md")
         if is_shim and not relative_posix.endswith("README.md"):
             try:
                 current_text = destination.read_text(encoding="utf-8")
                 if is_shim_customized(current_text):
                     term = Term(plan.no_color)
-                    print(term.colorize(f"Warning: {relative_posix} has manual modifications.", "yellow"))
+                    print(
+                        term.colorize(
+                            f"Warning: {relative_posix} has manual modifications.",
+                            "yellow",
+                        )
+                    )
                     is_interactive = is_interactive_session(plan)
                     choice = "n"
                     if is_interactive:
                         try:
-                            choice = input("Do you want to overwrite it? [y/N]: ").strip().lower()
+                            choice = (
+                                input("Do you want to overwrite it? [y/N]: ")
+                                .strip()
+                                .lower()
+                            )
                         except (KeyboardInterrupt, EOFError):
                             print()
                             choice = "n"
@@ -782,19 +830,37 @@ def install_all(
     prefix = WORKFLOWS_DIR + "/"
     for member in body_members:
         # member is e.g. ".agents/workflows/release-review/README.md"; map to source.
-        source_relative = member[len(prefix):] if member.startswith(prefix) else member
+        source_relative = member[len(prefix) :] if member.startswith(prefix) else member
         source_path = plan.source_root / source_relative
         data = source_path.read_bytes()
         # Sync the source's executable bit (tool scripts stay executable); write_file
         # applies it and re-stages even on a mode-only change.
         executable = _wants_executable(source_path.stat().st_mode)
-        write_file(plan, member, data, use_git, timestamp, installed, skipped, conflicted,
-                   executable=executable)
+        write_file(
+            plan,
+            member,
+            data,
+            use_git,
+            timestamp,
+            installed,
+            skipped,
+            conflicted,
+            executable=executable,
+        )
 
     for rel, content in sorted(shim_members.items()):
         # Generated shims are plain markdown, never executable.
-        write_file(plan, rel, content.encode("utf-8"), use_git, timestamp, installed, skipped,
-                   conflicted, executable=False)
+        write_file(
+            plan,
+            rel,
+            content.encode("utf-8"),
+            use_git,
+            timestamp,
+            installed,
+            skipped,
+            conflicted,
+            executable=False,
+        )
 
     if conflicted:
         message = [
@@ -858,18 +924,29 @@ def prune_stale(
             continue
         destination = plan.repo_root / rel
 
-        is_shim = any(rel.startswith(sd + "/") for sd in COMMAND_SHIM_DIRS) and rel.endswith(".md")
+        is_shim = any(
+            rel.startswith(sd + "/") for sd in COMMAND_SHIM_DIRS
+        ) and rel.endswith(".md")
         if is_shim and not rel.endswith("README.md"):
             try:
                 current_text = destination.read_text(encoding="utf-8")
                 if is_shim_customized(current_text):
                     term = Term(plan.no_color)
-                    print(term.colorize(f"Warning: {rel} has manual modifications and is no longer needed (stale).", "yellow"))
+                    print(
+                        term.colorize(
+                            f"Warning: {rel} has manual modifications and is no longer needed (stale).",
+                            "yellow",
+                        )
+                    )
                     is_interactive = is_interactive_session(plan)
                     choice = "n"
                     if is_interactive:
                         try:
-                            choice = input("Do you want to delete it? [y/N]: ").strip().lower()
+                            choice = (
+                                input("Do you want to delete it? [y/N]: ")
+                                .strip()
+                                .lower()
+                            )
                         except (KeyboardInterrupt, EOFError):
                             print()
                             choice = "n"
@@ -954,7 +1031,7 @@ def update_agents_pointer(plan: InstallPlan, use_git: bool, timestamp: str) -> s
             flags=re.DOTALL,
         )
         verb = f"refreshed pointer in {rel}"
-    elif (begins or ends):
+    elif begins or ends:
         # Malformed/partial markers present: do not risk mangling. Append a clean block.
         new_text = existing.rstrip("\n") + "\n\n" + block
         verb = f"appended pointer to {rel} (left existing malformed marker untouched)"
@@ -997,7 +1074,9 @@ def _git_mv(repo_root: Path, src: str, dst: str) -> None:
         shutil.move(str(repo_root / src), str(repo_root / dst))
 
 
-def _remove_path(repo_root: Path, rel: str, use_git: bool, backup_root: Path | None) -> None:
+def _remove_path(
+    repo_root: Path, rel: str, use_git: bool, backup_root: Path | None
+) -> None:
     """Remove a file or directory, git rm if tracked, else filesystem; back up first."""
 
     target = repo_root / rel
@@ -1037,8 +1116,10 @@ def migrate_legacy_layout(plan: InstallPlan, use_git: bool) -> list[str]:
     actions: list[str] = []
     repo = plan.repo_root
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    backup_root = None if (plan.dry_run or not plan.backup) else create_backup_path(
-        repo, Path("legacy-migration"), timestamp
+    backup_root = (
+        None
+        if (plan.dry_run or not plan.backup)
+        else create_backup_path(repo, Path("legacy-migration"), timestamp)
     )
 
     # 1) Pre-D19: migrate run records repository-review/ -> workflow-artifacts/release-review/
@@ -1058,8 +1139,14 @@ def migrate_legacy_layout(plan: InstallPlan, use_git: bool) -> list[str]:
                 git_run(repo, ["add", "--", rel_dst])
             actions.append(f"{rel_src} -> {rel_dst} [migrated]")
         # remove the now-empty legacy dir if anything remains (e.g. stray files)
-        remaining = list(legacy_artifacts.rglob("*")) if legacy_artifacts.exists() else []
-        if not any(p.is_file() for p in remaining) and not plan.dry_run and legacy_artifacts.exists():
+        remaining = (
+            list(legacy_artifacts.rglob("*")) if legacy_artifacts.exists() else []
+        )
+        if (
+            not any(p.is_file() for p in remaining)
+            and not plan.dry_run
+            and legacy_artifacts.exists()
+        ):
             try:
                 shutil.rmtree(legacy_artifacts)
             except OSError:
@@ -1070,15 +1157,20 @@ def migrate_legacy_layout(plan: InstallPlan, use_git: bool) -> list[str]:
     # the target is a different repo than this framework's own checkout).
     legacy_framework = repo / LEGACY_FRAMEWORK_DIR
     new_framework = repo / WORKFLOWS_DIR / "release-review"
-    is_self = legacy_framework.resolve() == (plan.source_root / "release-review").resolve() \
-        if legacy_framework.exists() else False
+    is_self = (
+        legacy_framework.resolve() == (plan.source_root / "release-review").resolve()
+        if legacy_framework.exists()
+        else False
+    )
     if legacy_framework.is_dir() and not is_self and new_framework != legacy_framework:
         rel = LEGACY_FRAMEWORK_DIR
         if plan.dry_run:
             actions.append(f"{rel}/ [remove legacy root framework dir, dry-run]")
         else:
             _remove_path(repo, rel, use_git, backup_root)
-            actions.append(f"{rel}/ [removed legacy root framework dir; new copy under .agents/workflows/]")
+            actions.append(
+                f"{rel}/ [removed legacy root framework dir; new copy under .agents/workflows/]"
+            )
 
     return actions
 
@@ -1087,7 +1179,9 @@ def check_gitignore(plan: InstallPlan) -> str:
     gitignore_path = plan.repo_root / ".gitignore"
     if not gitignore_path.exists():
         return "no .gitignore present; workflow-artifacts/ will be tracked (correct)"
-    lines = [line.strip() for line in gitignore_path.read_text(encoding="utf-8").splitlines()]
+    lines = [
+        line.strip() for line in gitignore_path.read_text(encoding="utf-8").splitlines()
+    ]
     ignored = []
     for d in (ARTIFACTS_DIR, LEGACY_ARTIFACTS_DIR):
         if any(line in (d, d.rstrip("/")) for line in lines):
@@ -1116,7 +1210,9 @@ def ensure_backups_gitignored(plan: InstallPlan, use_git: bool) -> str:
     existing = ""
     if gitignore_path.exists():
         existing = gitignore_path.read_text(encoding="utf-8")
-        if any(line.strip() in (pattern, BACKUPS_DIR) for line in existing.splitlines()):
+        if any(
+            line.strip() in (pattern, BACKUPS_DIR) for line in existing.splitlines()
+        ):
             return f"{pattern} already ignored (correct)"
 
     if plan.dry_run:
@@ -1175,7 +1271,7 @@ def run_git_diagnostics(plan: InstallPlan) -> bool:
         shell=False,
     )
     branch = branch_proc.stdout.strip()
-    
+
     tracking_proc = subprocess.run(
         ["git", "rev-parse", "--abbrev-ref", "@{u}"],
         cwd=str(plan.repo_root),
@@ -1187,7 +1283,7 @@ def run_git_diagnostics(plan: InstallPlan) -> bool:
     tracking_branch = tracking_proc.stdout.strip() if has_tracking else ""
 
     behind = 0
-    ahead = 0
+    _ahead = 0
     if has_tracking:
         sync_proc = subprocess.run(
             ["git", "rev-list", "--left-right", "--count", f"HEAD...{tracking_branch}"],
@@ -1199,7 +1295,7 @@ def run_git_diagnostics(plan: InstallPlan) -> bool:
         if sync_proc.returncode == 0:
             m = re.match(r"(\d+)\s+(\d+)", sync_proc.stdout.strip())
             if m:
-                ahead = int(m.group(1))
+                _ahead = int(m.group(1))
                 behind = int(m.group(2))
 
     # If clean and remote is synced, proceed silently
@@ -1211,9 +1307,13 @@ def run_git_diagnostics(plan: InstallPlan) -> bool:
 
     warnings = []
     if is_dirty:
-        warnings.append(f"Repository has {len(dirty_lines)} uncommitted local files (dirty).")
+        warnings.append(
+            f"Repository has {len(dirty_lines)} uncommitted local files (dirty)."
+        )
     if has_tracking and behind > 0:
-        warnings.append(f"Branch '{branch}' is behind '{tracking_branch}' by {behind} commit{'s' if behind > 1 else ''} (needs pull).")
+        warnings.append(
+            f"Branch '{branch}' is behind '{tracking_branch}' by {behind} commit{'s' if behind > 1 else ''} (needs pull)."
+        )
     elif not has_tracking:
         warnings.append(f"Branch '{branch}' has no tracking remote branch configured.")
 
@@ -1232,7 +1332,7 @@ def run_git_diagnostics(plan: InstallPlan) -> bool:
     print("  [1] Pull latest changes (git pull --rebase) and proceed")
     print("  [2] Proceed anyway (risk of merge/overwrite)")
     print("  [3] Abort installation")
-    
+
     try:
         val = input("Select an option [1-3, default 1]: ").strip()
     except (KeyboardInterrupt, EOFError):
@@ -1250,7 +1350,9 @@ def run_git_diagnostics(plan: InstallPlan) -> bool:
             shell=False,
         )
         if pull_proc.returncode != 0:
-            sys.stderr.write(term.colorize("Error: git pull failed. Aborting installation.\n", "red"))
+            sys.stderr.write(
+                term.colorize("Error: git pull failed. Aborting installation.\n", "red")
+            )
             return False
         return True
     elif val == "2":
@@ -1263,36 +1365,59 @@ def run_git_diagnostics(plan: InstallPlan) -> bool:
 def is_shim_customized(content: str) -> bool:
     """Detect if a command shim file has manual user customizations."""
     standard_prefixes = (
-        "---", "description:", "agent: build", "argument-hint:",
+        "---",
+        "description:",
+        "agent: build",
+        "argument-hint:",
         "Read and execute @.agents/workflows",
-        "The first argument names", "any further", "Resolve the",
-        "Accept case-insensitive", "on an unknown", "If NO",
+        "The first argument names",
+        "any further",
+        "Resolve the",
+        "Accept case-insensitive",
+        "on an unknown",
+        "If NO",
         "Apply the concern lens @.agents/workflows",
     )
-    lines = [l.strip() for l in content.splitlines() if l.strip()]
+    lines = [line.strip() for line in content.splitlines() if line.strip()]
     if not lines:
         return False
-    
-    if not any(l.startswith("Read and execute @.agents/workflows") for l in lines):
+
+    if not any(
+        line.startswith("Read and execute @.agents/workflows") for line in lines
+    ):
         return True
-        
+
     for line in lines:
         if any(line.startswith(prefix) for prefix in standard_prefixes):
             continue
-        if any(term in line.lower() for term in ("concern", "persona", "charter", "adoption", "harness", "audit", "conduct a", "coach")):
+        if any(
+            term in line.lower()
+            for term in (
+                "concern",
+                "persona",
+                "charter",
+                "adoption",
+                "harness",
+                "audit",
+                "conduct a",
+                "coach",
+            )
+        ):
             continue
         return True
     return False
 
 
-def save_created_files_record(repo_root: Path, timestamp: str, newly_created: list[str]) -> None:
+def save_created_files_record(
+    repo_root: Path, timestamp: str, newly_created: list[str]
+) -> None:
     """Save the list of newly created files in the backup directory."""
     if not newly_created:
         return
     backup_dir = repo_root / BACKUPS_DIR / timestamp
     if not backup_dir.is_dir():
         backup_dir.mkdir(parents=True, exist_ok=True)
-    
+
     record_path = backup_dir / ".created-files.json"
     try:
         record_path.write_text(json.dumps(newly_created, indent=2), encoding="utf-8")
@@ -1306,7 +1431,9 @@ def prune_old_backups(repo_root: Path) -> None:
     if not backups_path.is_dir():
         return
     try:
-        dirs = sorted([d for d in backups_path.iterdir() if d.is_dir()], key=lambda d: d.name)
+        dirs = sorted(
+            [d for d in backups_path.iterdir() if d.is_dir()], key=lambda d: d.name
+        )
         if len(dirs) > 5:
             to_delete = dirs[:-5]
             for d in to_delete:
@@ -1322,21 +1449,22 @@ def show_install_diffs(
 ) -> None:
     """Generate and display a colorized unified diff of the proposed changes."""
     import difflib
+
     term = Term(plan.no_color)
     prefix = WORKFLOWS_DIR + "/"
     proposed: dict[str, bytes] = {}
-    
+
     for member in body_members:
-        source_relative = member[len(prefix):] if member.startswith(prefix) else member
+        source_relative = member[len(prefix) :] if member.startswith(prefix) else member
         source_path = plan.source_root / source_relative
         try:
             proposed[member] = source_path.read_bytes()
         except OSError:
             pass
-            
+
     for rel, content in shim_members.items():
         proposed[rel] = content.encode("utf-8")
-        
+
     artifacts_readme = "workflow-artifacts/README.md"
     artifacts_dest = plan.repo_root / artifacts_readme
     if not artifacts_dest.is_file():
@@ -1364,16 +1492,16 @@ def show_install_diffs(
                 current_lines = current_text.splitlines(keepends=True)
             except OSError:
                 pass
-                
+
         new_text = new_bytes.decode("utf-8", errors="replace")
         new_lines = new_text.splitlines(keepends=True)
-        
+
         if "".join(current_lines) == "".join(new_lines):
             continue
-            
+
         has_diffs = True
         print(term.colorize(f"\nDiff: {rel}", "bold"))
-        
+
         diff = difflib.unified_diff(
             current_lines,
             new_lines,
@@ -1381,7 +1509,7 @@ def show_install_diffs(
             tofile=f"b/{rel}",
             n=3,
         )
-        
+
         for line in diff:
             stripped = line.rstrip("\r\n")
             if stripped.startswith("+") and not stripped.startswith("+++"):
@@ -1392,7 +1520,7 @@ def show_install_diffs(
                 print_stdout_safe(term.colorize(stripped, "cyan"))
             else:
                 print_stdout_safe(stripped)
-                
+
     if not has_diffs:
         print("No changes (everything is already current).")
 
@@ -1402,19 +1530,27 @@ def run_rollback(repo_root: Path, no_color: bool) -> int:
     term = Term(no_color)
     backups_path = repo_root / BACKUPS_DIR
     if not backups_path.is_dir():
-        sys.stderr.write(term.colorize("Error: No backups found. Cannot roll back.\n", "red"))
+        sys.stderr.write(
+            term.colorize("Error: No backups found. Cannot roll back.\n", "red")
+        )
         return 1
-        
-    dirs = sorted([d for d in backups_path.iterdir() if d.is_dir()], key=lambda d: d.name)
+
+    dirs = sorted(
+        [d for d in backups_path.iterdir() if d.is_dir()], key=lambda d: d.name
+    )
     if not dirs:
-        sys.stderr.write(term.colorize("Error: No backup directories found. Cannot roll back.\n", "red"))
+        sys.stderr.write(
+            term.colorize(
+                "Error: No backup directories found. Cannot roll back.\n", "red"
+            )
+        )
         return 1
-        
+
     latest_backup = dirs[-1]
     print(f"Rolling back using backup from {latest_backup.name}...")
-    
+
     use_git = git_available(repo_root)
-    
+
     created_record = latest_backup / ".created-files.json"
     created_files = []
     if created_record.is_file():
@@ -1430,17 +1566,19 @@ def run_rollback(repo_root: Path, no_color: bool) -> int:
             try:
                 target.unlink()
                 if use_git:
-                    git_run(repo_root, ["rm", "--cached", "--ignore-unmatch", "--", rel])
+                    git_run(
+                        repo_root, ["rm", "--cached", "--ignore-unmatch", "--", rel]
+                    )
             except OSError as e:
                 sys.stderr.write(term.colorize(f"Error removing {rel}: {e}\n", "red"))
-                
+
     for path in sorted(latest_backup.rglob("*")):
         if not path.is_file():
             continue
         rel_to_backup = path.relative_to(latest_backup)
         if rel_to_backup.as_posix() == ".created-files.json":
             continue
-            
+
         target = repo_root / rel_to_backup
         target.parent.mkdir(parents=True, exist_ok=True)
         print(f"  [restored ] {rel_to_backup.as_posix()}")
@@ -1449,8 +1587,10 @@ def run_rollback(repo_root: Path, no_color: bool) -> int:
             if use_git:
                 git_run(repo_root, ["add", "--", rel_to_backup.as_posix()])
         except OSError as e:
-            sys.stderr.write(term.colorize(f"Error restoring {rel_to_backup}: {e}\n", "red"))
-            
+            sys.stderr.write(
+                term.colorize(f"Error restoring {rel_to_backup}: {e}\n", "red")
+            )
+
     shutil.rmtree(latest_backup, ignore_errors=True)
     print(term.colorize("Rollback completed successfully.", "green"))
     return 0
@@ -1494,11 +1634,17 @@ def prompt_and_run_commit(
                 continue
             files_to_commit[rel_path] = "removed"
 
-    if not agents_status.endswith("already current") and not "[dry-run]" in agents_status:
+    if (
+        not agents_status.endswith("already current")
+        and "[dry-run]" not in agents_status
+    ):
         agents_rel = resolve_agents_file(plan.repo_root)
         files_to_commit[agents_rel] = "modified"
 
-    if backups_ignore_status.startswith("added ") and not "[dry-run]" in backups_ignore_status:
+    if (
+        backups_ignore_status.startswith("added ")
+        and "[dry-run]" not in backups_ignore_status
+    ):
         files_to_commit[".gitignore"] = "modified"
 
     if not files_to_commit:
@@ -1520,10 +1666,14 @@ def prompt_and_run_commit(
     print()
     is_interactive = is_interactive_session(plan)
     choice = "n"
-    
+
     if is_interactive:
         try:
-            choice = input("Would you like the installer to commit these changes? [Y/n] ").strip().lower()
+            choice = (
+                input("Would you like the installer to commit these changes? [Y/n] ")
+                .strip()
+                .lower()
+            )
             if choice not in ("", "y", "yes"):
                 is_interactive = False
         except (KeyboardInterrupt, EOFError):
@@ -1533,7 +1683,13 @@ def prompt_and_run_commit(
     paths_list = sorted(files_to_commit.keys())
     if plan.yes or (is_interactive and choice in ("", "y", "yes")):
         print("Committing changes...")
-        cmd = ["git", "commit", "-m", "agent-workflows: sync via installer", "--"] + paths_list
+        cmd = [
+            "git",
+            "commit",
+            "-m",
+            "agent-workflows: sync via installer",
+            "--",
+        ] + paths_list
         res = subprocess.run(cmd, cwd=str(plan.repo_root), shell=False)
         if res.returncode == 0:
             print(term.colorize("Changes committed successfully.", "green"))
@@ -1616,7 +1772,9 @@ def print_summary(
     print(f"Version: {read_version(plan.source_root)}")
     print(f"Repository root: {plan.repo_root}")
     print(f"Source: {plan.source_root}")
-    print(f"Git: {'staging changes (no commit)' if use_git else 'not a git repo; filesystem only'}")
+    print(
+        f"Git: {'staging changes (no commit)' if use_git else 'not a git repo; filesystem only'}"
+    )
     print()
 
     if migrated:
@@ -1653,7 +1811,11 @@ def print_summary(
     print(f"Gitignore (workflow-artifacts): {gitignore_status}")
     print(f"Gitignore (installer backups): {backups_ignore_status}")
 
-    if use_git and not plan.dry_run and (installed or pruned or backups_ignore_status.startswith("added")):
+    if (
+        use_git
+        and not plan.dry_run
+        and (installed or pruned or backups_ignore_status.startswith("added"))
+    ):
         print()
         print("Changes are STAGED but NOT committed. Review and commit, e.g.:")
         print('  git commit -m "agent-workflows: sync via installer"')
@@ -1670,18 +1832,24 @@ def print_summary(
     # It is idempotent and drift-aware, so it doubles as a post-update conformance check.
     setup = next((w for w in workflows if w.command == "setup-repo"), None)
     if setup is not None:
-        updated = any("[install]" in i or "[overwrite]" in i or "migrated" in i.lower()
-                      for i in (installed + pruned + migrated))
+        updated = any(
+            "[install]" in i or "[overwrite]" in i or "migrated" in i.lower()
+            for i in (installed + pruned + migrated)
+        )
         print()
         if updated:
             print("NEXT STEP - the framework changed; re-run setup-repo to re-check")
-            print("best-practice CONFORMANCE (it detects drift and only proposes gaps):")
+            print(
+                "best-practice CONFORMANCE (it detects drift and only proposes gaps):"
+            )
         else:
             print("NEXT STEP - set up this repo for best practices and security:")
         print("  - OpenCode or Claude Code: run  /setup-repo")
         print("  - Cursor / Codex / Antigravity / VS Code agents / any other agent:")
         print(f"    tell the agent:  Read and execute {setup.body}")
-        print("  (Guided + idempotent: it asks before each change, is safe to re-run as a")
+        print(
+            "  (Guided + idempotent: it asks before each change, is safe to re-run as a"
+        )
         print("   conformance check, and stages changes without committing.)")
 
 
@@ -1700,7 +1868,9 @@ def remove_agents_pointer(repo_root: Path, use_git: bool) -> str:
     begins = existing.count(AGENTS_BEGIN)
     ends = existing.count(AGENTS_END)
     well_formed = (
-        begins == 1 and ends == 1 and existing.find(AGENTS_BEGIN) < existing.find(AGENTS_END)
+        begins == 1
+        and ends == 1
+        and existing.find(AGENTS_BEGIN) < existing.find(AGENTS_END)
     )
     if not well_formed:
         return f"{rel} pointer not found (nothing removed)"
@@ -1734,7 +1904,8 @@ def _uninstall_remove(repo_root: Path, rel: str, use_git: bool) -> None:
     if use_git and git_is_tracked(repo_root, rel):
         result = subprocess.run(
             ["git", "-C", str(repo_root), "rm", "-rf", "--quiet", "--", rel],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         if result.returncode == 0:
             return
@@ -1894,7 +2065,9 @@ def ensure_workflow_artifacts_readme(
     installed.append(f"{rel_path} [install]")
 
 
-def create_setup_artifacts(repo_root: Path, use_git: bool, dry_run: bool = False) -> list[str]:
+def create_setup_artifacts(
+    repo_root: Path, use_git: bool, dry_run: bool = False
+) -> list[str]:
     """Create the deterministic setup artifacts in a target repo (no-clobber, idempotent).
 
     Creates (only when absent): the plan lifecycle dirs with .gitkeep, a .gitleaksignore
@@ -1918,9 +2091,15 @@ def create_setup_artifacts(repo_root: Path, use_git: bool, dry_run: bool = False
         return created
 
     for sub in PLAN_LIFECYCLE_SUBDIRS:
-        _create_if_absent(repo_root, f"{PLANS_DIR}/{sub}/.gitkeep", "", use_git, created)
-    _create_if_absent(repo_root, GITLEAKSIGNORE_FILE, _GITLEAKSIGNORE_TEMPLATE, use_git, created)
-    _create_if_absent(repo_root, SECRET_SCAN_CI, _SECRET_SCAN_CI_TEMPLATE, use_git, created)
+        _create_if_absent(
+            repo_root, f"{PLANS_DIR}/{sub}/.gitkeep", "", use_git, created
+        )
+    _create_if_absent(
+        repo_root, GITLEAKSIGNORE_FILE, _GITLEAKSIGNORE_TEMPLATE, use_git, created
+    )
+    _create_if_absent(
+        repo_root, SECRET_SCAN_CI, _SECRET_SCAN_CI_TEMPLATE, use_git, created
+    )
     return created
 
 
@@ -1966,12 +2145,14 @@ def install_into_repo(
     installed, skipped, _ = install_all(plan, body_members, shim_members, use_git)
     pruned = prune_stale(plan, body_members, shim_members, use_git)
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    agents_status = update_agents_pointer(plan, use_git, timestamp)
+    update_agents_pointer(plan, use_git, timestamp)
     ensure_backups_gitignored(plan, use_git)
     ensure_workflow_artifacts_readme(plan, use_git, installed, skipped)
     artifacts = create_setup_artifacts(repo_root, use_git, dry_run=dry_run)
 
-    newly_created = [item.rsplit(" [", 1)[0] for item in installed if item.endswith(" [install]")]
+    newly_created = [
+        item.rsplit(" [", 1)[0] for item in installed if item.endswith(" [install]")
+    ]
     save_created_files_record(plan.repo_root, timestamp, newly_created)
     prune_old_backups(plan.repo_root)
 
@@ -2012,7 +2193,7 @@ def run(args: argparse.Namespace) -> int:
         return 0
 
     ensure_repo_root(plan.repo_root)
-    
+
     # Run Git Diagnostics pre-flight checks
     if not run_git_diagnostics(plan):
         return 1
@@ -2033,7 +2214,9 @@ def run(args: argparse.Namespace) -> int:
     ensure_workflow_artifacts_readme(plan, use_git, installed, skipped)
     artifacts = create_setup_artifacts(plan.repo_root, use_git, dry_run=plan.dry_run)
 
-    newly_created = [item.rsplit(" [", 1)[0] for item in installed if item.endswith(" [install]")]
+    newly_created = [
+        item.rsplit(" [", 1)[0] for item in installed if item.endswith(" [install]")
+    ]
     save_created_files_record(plan.repo_root, run_timestamp, newly_created)
     prune_old_backups(plan.repo_root)
 
@@ -2051,7 +2234,9 @@ def run(args: argparse.Namespace) -> int:
     )
     if artifacts:
         print()
-        print("Setup artifacts created (staged; run /setup-repo for stack-tailored setup):")
+        print(
+            "Setup artifacts created (staged; run /setup-repo for stack-tailored setup):"
+        )
         for item in artifacts:
             print(f"  - {item}")
 
