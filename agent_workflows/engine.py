@@ -64,6 +64,8 @@ import re
 import shutil
 import subprocess
 import sys
+import os
+import shlex
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -528,6 +530,37 @@ def agents_pointer_block() -> str:
     )
 
 
+def is_interactive_session(plan: InstallPlan) -> bool:
+    """Helper to check if we are in a real interactive terminal session."""
+    if plan.yes:
+        return False
+    if os.environ.get("CI"):
+        return False
+    if not sys.stdin.isatty():
+        return False
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            handle = ctypes.windll.kernel32.GetStdHandle(-10)  # STD_INPUT_HANDLE
+            mode = ctypes.c_ulong()
+            if not ctypes.windll.kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+                return False
+        except Exception:
+            return False
+    return True
+
+
+def print_stdout_safe(text: str) -> None:
+    """Safely print a string to stdout without raising UnicodeEncodeError."""
+    try:
+        sys.stdout.write(text + "\n")
+        sys.stdout.flush()
+    except UnicodeEncodeError:
+        encoding = sys.stdout.encoding or "utf-8"
+        sys.stdout.buffer.write((text + "\n").encode(encoding, errors="replace"))
+        sys.stdout.flush()
+
+
 def same_bytes(path: Path, data: bytes) -> bool:
     return path.exists() and path.is_file() and path.read_bytes() == data
 
@@ -660,7 +693,7 @@ def write_file(
                 if is_shim_customized(current_text):
                     term = Term(plan.no_color)
                     print(term.colorize(f"Warning: {relative_posix} has manual modifications.", "yellow"))
-                    is_interactive = sys.stdin.isatty() and not plan.yes
+                    is_interactive = is_interactive_session(plan)
                     choice = "n"
                     if is_interactive:
                         try:
@@ -832,7 +865,7 @@ def prune_stale(
                 if is_shim_customized(current_text):
                     term = Term(plan.no_color)
                     print(term.colorize(f"Warning: {rel} has manual modifications and is no longer needed (stale).", "yellow"))
-                    is_interactive = sys.stdin.isatty() and not plan.yes
+                    is_interactive = is_interactive_session(plan)
                     choice = "n"
                     if is_interactive:
                         try:
@@ -1174,7 +1207,7 @@ def run_git_diagnostics(plan: InstallPlan) -> bool:
         return True
 
     # If non-interactive, print warnings to stderr and proceed
-    is_interactive = sys.stdin.isatty() and not plan.yes and not plan.diff
+    is_interactive = is_interactive_session(plan) and not plan.diff
 
     warnings = []
     if is_dirty:
@@ -1352,13 +1385,13 @@ def show_install_diffs(
         for line in diff:
             stripped = line.rstrip("\r\n")
             if stripped.startswith("+") and not stripped.startswith("+++"):
-                print(term.colorize(stripped, "green"))
+                print_stdout_safe(term.colorize(stripped, "green"))
             elif stripped.startswith("-") and not stripped.startswith("---"):
-                print(term.colorize(stripped, "red"))
+                print_stdout_safe(term.colorize(stripped, "red"))
             elif stripped.startswith("@@"):
-                print(term.colorize(stripped, "cyan"))
+                print_stdout_safe(term.colorize(stripped, "cyan"))
             else:
-                print(stripped)
+                print_stdout_safe(stripped)
                 
     if not has_diffs:
         print("No changes (everything is already current).")
@@ -1485,7 +1518,7 @@ def prompt_and_run_commit(
         print(f"  {prefix} {path}")
 
     print()
-    is_interactive = sys.stdin.isatty() and not plan.yes
+    is_interactive = is_interactive_session(plan)
     choice = "n"
     
     if is_interactive:
