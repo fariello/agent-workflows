@@ -57,6 +57,7 @@ def run_installer(repo: Path, *extra: str) -> subprocess.CompletedProcess:
         [sys.executable, str(INSTALLER), "--repo", str(repo), *extra],
         capture_output=True,
         text=True,
+        stdin=subprocess.DEVNULL,
         check=False,
     )
 
@@ -69,5 +70,6 @@ def run_tool(tool: Path, *args: str, cwd: Path | None = None) -> subprocess.Comp
         cwd=str(cwd) if cwd else None,
         capture_output=True,
         text=True,
+        stdin=subprocess.DEVNULL,
         check=False,
     )

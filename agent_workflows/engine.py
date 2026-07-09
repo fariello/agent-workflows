@@ -71,6 +71,7 @@ from pathlib import Path
 from . import versioning as _VERSIONING
 from ._compat import packaged_source_root
 from .term import Term
+import json
 
 
 WORKFLOWS_DIR = ".agents/workflows"
@@ -185,6 +186,8 @@ class InstallPlan:
     backup: bool
     prune: bool
     no_color: bool = False
+    yes: bool = False
+    diff: bool = False
 
 
 def parse_args(argv=None) -> argparse.Namespace:
@@ -217,6 +220,23 @@ def parse_args(argv=None) -> argparse.Namespace:
         "--version",
         action="store_true",
         help="Print the framework version (from the source VERSION file) and exit.",
+    )
+    parser.add_argument(
+        "--yes",
+        "-y",
+        action="store_true",
+        help="Automatically answer yes to all prompts.",
+    )
+    parser.add_argument(
+        "--diff",
+        "-d",
+        action="store_true",
+        help="Show a unified diff of differences instead of writing.",
+    )
+    parser.add_argument(
+        "--undo",
+        action="store_true",
+        help="Roll back the installation to the state of the last backup.",
     )
     return parser.parse_args(argv)
 
@@ -266,6 +286,8 @@ def build_install_plan(args: argparse.Namespace) -> InstallPlan:
         backup=not args.no_backup,
         prune=not args.no_prune,
         no_color=getattr(args, "no_color", False),
+        yes=getattr(args, "yes", False),
+        diff=getattr(args, "diff", False),
     )
 
 
@@ -629,6 +651,29 @@ def write_file(
     action = "overwrite" if destination.exists() else "install"
     if content_current and mode_differs:
         action = "chmod"
+
+    if action == "overwrite" and not content_current:
+        is_shim = any(relative_posix.startswith(sd + "/") for sd in COMMAND_SHIM_DIRS) and relative_posix.endswith(".md")
+        if is_shim and not relative_posix.endswith("README.md"):
+            try:
+                current_text = destination.read_text(encoding="utf-8")
+                if is_shim_customized(current_text):
+                    term = Term(plan.no_color)
+                    print(term.colorize(f"⚠️ Warning: {relative_posix} has manual modifications.", "yellow"))
+                    is_interactive = sys.stdin.isatty() and not plan.yes
+                    choice = "n"
+                    if is_interactive:
+                        try:
+                            choice = input("Do you want to overwrite it? [y/N]: ").strip().lower()
+                        except (KeyboardInterrupt, EOFError):
+                            print()
+                            choice = "n"
+                    if not plan.yes and choice not in ("y", "yes"):
+                        skipped.append(relative_posix + " [already current]")
+                        return
+            except OSError:
+                pass
+
     if plan.dry_run:
         installed.append(f"{relative_posix} [{action}, dry-run]")
         return
@@ -779,6 +824,27 @@ def prune_stale(
         if not in_framework_namespace(rel):  # defense in depth
             continue
         destination = plan.repo_root / rel
+
+        is_shim = any(rel.startswith(sd + "/") for sd in COMMAND_SHIM_DIRS) and rel.endswith(".md")
+        if is_shim and not rel.endswith("README.md"):
+            try:
+                current_text = destination.read_text(encoding="utf-8")
+                if is_shim_customized(current_text):
+                    term = Term(plan.no_color)
+                    print(term.colorize(f"⚠️ Warning: {rel} has manual modifications and is no longer needed (stale).", "yellow"))
+                    is_interactive = sys.stdin.isatty() and not plan.yes
+                    choice = "n"
+                    if is_interactive:
+                        try:
+                            choice = input("Do you want to delete it? [y/N]: ").strip().lower()
+                        except (KeyboardInterrupt, EOFError):
+                            print()
+                            choice = "n"
+                    if not plan.yes and choice not in ("y", "yes"):
+                        continue
+            except OSError:
+                pass
+
         tracked = use_git and git_is_tracked(plan.repo_root, rel)
         how = "git rm" if tracked else "rm"
 
@@ -1034,6 +1100,422 @@ def ensure_backups_gitignored(plan: InstallPlan, use_git: bool) -> str:
     if use_git:
         git_run(plan.repo_root, ["add", "--", ".gitignore"])
     return f"added {pattern} to .gitignore"
+
+
+def run_git_diagnostics(plan: InstallPlan) -> bool:
+    """Run Git pre-flight checks (dirty, sync).
+
+    If interactive, display a consolidated diagnostic block and prompt menu.
+    Returns True if we should proceed with the install, or False if we should abort.
+    """
+    if not git_available(plan.repo_root):
+        return True
+
+    # 1. Run git status --porcelain
+    status_proc = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=str(plan.repo_root),
+        capture_output=True,
+        text=True,
+        shell=False,
+    )
+    is_dirty = bool(status_proc.stdout.strip())
+    dirty_lines = status_proc.stdout.strip().split("\n") if is_dirty else []
+
+    # 2. Run fast git fetch with a timeout
+    try:
+        subprocess.run(
+            ["git", "fetch", "--quiet"],
+            cwd=str(plan.repo_root),
+            timeout=3.0,
+            shell=False,
+        )
+    except (subprocess.TimeoutExpired, OSError, subprocess.CalledProcessError):
+        pass
+
+    # 3. Check tracking branch sync status
+    branch_proc = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=str(plan.repo_root),
+        capture_output=True,
+        text=True,
+        shell=False,
+    )
+    branch = branch_proc.stdout.strip()
+    
+    tracking_proc = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "@{u}"],
+        cwd=str(plan.repo_root),
+        capture_output=True,
+        text=True,
+        shell=False,
+    )
+    has_tracking = tracking_proc.returncode == 0
+    tracking_branch = tracking_proc.stdout.strip() if has_tracking else ""
+
+    behind = 0
+    ahead = 0
+    if has_tracking:
+        sync_proc = subprocess.run(
+            ["git", "rev-list", "--left-right", "--count", f"HEAD...{tracking_branch}"],
+            cwd=str(plan.repo_root),
+            capture_output=True,
+            text=True,
+            shell=False,
+        )
+        if sync_proc.returncode == 0:
+            m = re.match(r"(\d+)\s+(\d+)", sync_proc.stdout.strip())
+            if m:
+                ahead = int(m.group(1))
+                behind = int(m.group(2))
+
+    # If clean and remote is synced, proceed silently
+    if not is_dirty and behind == 0:
+        return True
+
+    # If non-interactive, print warnings to stderr and proceed
+    is_interactive = sys.stdin.isatty() and not plan.yes and not plan.diff
+
+    warnings = []
+    if is_dirty:
+        warnings.append(f"Repository has {len(dirty_lines)} uncommitted local files (dirty).")
+    if has_tracking and behind > 0:
+        warnings.append(f"Branch '{branch}' is behind '{tracking_branch}' by {behind} commit{'s' if behind > 1 else ''} (needs pull).")
+    elif not has_tracking:
+        warnings.append(f"Branch '{branch}' has no tracking remote branch configured.")
+
+    if not is_interactive:
+        for warn in warnings:
+            sys.stderr.write(f"⚠️ Git Warning: {warn}\n")
+        return True
+
+    term = Term(plan.no_color)
+    print()
+    print(term.colorize("Git Diagnostics:", "yellow"))
+    for warn in warnings:
+        print(f"  - {warn}")
+    print()
+    print("What would you like to do?")
+    print("  [1] Pull latest changes (git pull --rebase) and proceed")
+    print("  [2] Proceed anyway (risk of merge/overwrite)")
+    print("  [3] Abort installation")
+    
+    try:
+        val = input("Select an option [1-3, default 1]: ").strip()
+    except (KeyboardInterrupt, EOFError):
+        print()
+        return False
+
+    if not val:
+        val = "1"
+
+    if val == "1":
+        print("Running: git pull --rebase ...")
+        pull_proc = subprocess.run(
+            ["git", "pull", "--rebase"],
+            cwd=str(plan.repo_root),
+            shell=False,
+        )
+        if pull_proc.returncode != 0:
+            sys.stderr.write(term.colorize("Error: git pull failed. Aborting installation.\n", "red"))
+            return False
+        return True
+    elif val == "2":
+        return True
+    else:
+        print("Aborted.")
+        return False
+
+
+def is_shim_customized(content: str) -> bool:
+    """Detect if a command shim file has manual user customizations."""
+    standard_prefixes = (
+        "---", "description:", "agent: build", "argument-hint:",
+        "Read and execute @.agents/workflows",
+        "The first argument names", "any further", "Resolve the",
+        "Accept case-insensitive", "on an unknown", "If NO",
+        "Apply the concern lens @.agents/workflows",
+    )
+    lines = [l.strip() for l in content.splitlines() if l.strip()]
+    if not lines:
+        return False
+    
+    if not any(l.startswith("Read and execute @.agents/workflows") for l in lines):
+        return True
+        
+    for line in lines:
+        if any(line.startswith(prefix) for prefix in standard_prefixes):
+            continue
+        if any(term in line.lower() for term in ("concern", "persona", "charter", "adoption", "harness", "audit", "conduct a", "coach")):
+            continue
+        return True
+    return False
+
+
+def save_created_files_record(repo_root: Path, timestamp: str, newly_created: list[str]) -> None:
+    """Save the list of newly created files in the backup directory."""
+    if not newly_created:
+        return
+    backup_dir = repo_root / BACKUPS_DIR / timestamp
+    if not backup_dir.is_dir():
+        backup_dir.mkdir(parents=True, exist_ok=True)
+    
+    record_path = backup_dir / ".created-files.json"
+    try:
+        record_path.write_text(json.dumps(newly_created, indent=2), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def prune_old_backups(repo_root: Path) -> None:
+    """Keep only the 5 most recent backups under BACKUPS_DIR."""
+    backups_path = repo_root / BACKUPS_DIR
+    if not backups_path.is_dir():
+        return
+    try:
+        dirs = sorted([d for d in backups_path.iterdir() if d.is_dir()], key=lambda d: d.name)
+        if len(dirs) > 5:
+            to_delete = dirs[:-5]
+            for d in to_delete:
+                shutil.rmtree(d, ignore_errors=True)
+    except OSError:
+        pass
+
+
+def show_install_diffs(
+    plan: InstallPlan,
+    body_members: list[str],
+    shim_members: dict[str, str],
+) -> None:
+    """Generate and display a colorized unified diff of the proposed changes."""
+    import difflib
+    term = Term(plan.no_color)
+    prefix = WORKFLOWS_DIR + "/"
+    proposed: dict[str, bytes] = {}
+    
+    for member in body_members:
+        source_relative = member[len(prefix):] if member.startswith(prefix) else member
+        source_path = plan.source_root / source_relative
+        try:
+            proposed[member] = source_path.read_bytes()
+        except OSError:
+            pass
+            
+    for rel, content in shim_members.items():
+        proposed[rel] = content.encode("utf-8")
+        
+    artifacts_readme = "workflow-artifacts/README.md"
+    artifacts_dest = plan.repo_root / artifacts_readme
+    if not artifacts_dest.is_file():
+        template_path = plan.source_root / "templates" / "workflow-artifacts-README.md"
+        try:
+            proposed[artifacts_readme] = template_path.read_bytes()
+        except OSError:
+            proposed[artifacts_readme] = (
+                "# Workflow Run Artifacts\n\n"
+                "This directory contains review records, verification evidence, and audit logs "
+                "generated by AI agent workflows (such as release reviews or plan reviews).\n\n"
+                "## ⚠️ Git Guidelines\n"
+                "* **DO NOT gitignore this folder.**\n"
+                "* These records represent the review and approval history of this repository "
+                "and are intended to be committed to git alongside your code changes.\n"
+            ).encode("utf-8")
+
+    has_diffs = False
+    for rel, new_bytes in sorted(proposed.items()):
+        dest_path = plan.repo_root / rel
+        current_lines = []
+        if dest_path.is_file():
+            try:
+                current_text = dest_path.read_text(encoding="utf-8", errors="replace")
+                current_lines = current_text.splitlines(keepends=True)
+            except OSError:
+                pass
+                
+        new_text = new_bytes.decode("utf-8", errors="replace")
+        new_lines = new_text.splitlines(keepends=True)
+        
+        if "".join(current_lines) == "".join(new_lines):
+            continue
+            
+        has_diffs = True
+        print(term.colorize(f"\nDiff: {rel}", "bold"))
+        
+        diff = difflib.unified_diff(
+            current_lines,
+            new_lines,
+            fromfile=f"a/{rel}",
+            tofile=f"b/{rel}",
+            n=3,
+        )
+        
+        for line in diff:
+            stripped = line.rstrip("\r\n")
+            if stripped.startswith("+") and not stripped.startswith("+++"):
+                print(term.colorize(stripped, "green"))
+            elif stripped.startswith("-") and not stripped.startswith("---"):
+                print(term.colorize(stripped, "red"))
+            elif stripped.startswith("@@"):
+                print(term.colorize(stripped, "cyan"))
+            else:
+                print(stripped)
+                
+    if not has_diffs:
+        print("No changes (everything is already current).")
+
+
+def run_rollback(repo_root: Path, no_color: bool) -> int:
+    """Revert the last installation using the latest backup."""
+    term = Term(no_color)
+    backups_path = repo_root / BACKUPS_DIR
+    if not backups_path.is_dir():
+        sys.stderr.write(term.colorize("Error: No backups found. Cannot roll back.\n", "red"))
+        return 1
+        
+    dirs = sorted([d for d in backups_path.iterdir() if d.is_dir()], key=lambda d: d.name)
+    if not dirs:
+        sys.stderr.write(term.colorize("Error: No backup directories found. Cannot roll back.\n", "red"))
+        return 1
+        
+    latest_backup = dirs[-1]
+    print(f"Rolling back using backup from {latest_backup.name}...")
+    
+    use_git = git_available(repo_root)
+    
+    created_record = latest_backup / ".created-files.json"
+    created_files = []
+    if created_record.is_file():
+        try:
+            created_files = json.loads(created_record.read_text(encoding="utf-8"))
+        except OSError:
+            pass
+
+    for rel in created_files:
+        target = repo_root / rel
+        if target.is_file():
+            print(f"  [removed  ] {rel}")
+            try:
+                target.unlink()
+                if use_git:
+                    git_run(repo_root, ["rm", "--cached", "--ignore-unmatch", "--", rel])
+            except OSError as e:
+                sys.stderr.write(term.colorize(f"Error removing {rel}: {e}\n", "red"))
+                
+    for path in sorted(latest_backup.rglob("*")):
+        if not path.is_file():
+            continue
+        rel_to_backup = path.relative_to(latest_backup)
+        if rel_to_backup.as_posix() == ".created-files.json":
+            continue
+            
+        target = repo_root / rel_to_backup
+        target.parent.mkdir(parents=True, exist_ok=True)
+        print(f"  [restored ] {rel_to_backup.as_posix()}")
+        try:
+            shutil.copy2(path, target)
+            if use_git:
+                git_run(repo_root, ["add", "--", rel_to_backup.as_posix()])
+        except OSError as e:
+            sys.stderr.write(term.colorize(f"Error restoring {rel_to_backup}: {e}\n", "red"))
+            
+    shutil.rmtree(latest_backup, ignore_errors=True)
+    print(term.colorize("Rollback completed successfully.", "green"))
+    return 0
+
+
+def prompt_and_run_commit(
+    plan: InstallPlan,
+    installed: list[str],
+    pruned: list[str],
+    agents_status: str,
+    backups_ignore_status: str,
+    use_git: bool,
+) -> None:
+    """Offer to commit only the installer-modified files."""
+    if not use_git or plan.dry_run:
+        return
+
+    term = Term(plan.no_color)
+    files_to_commit: dict[str, str] = {}
+
+    for item in installed:
+        parts = item.rsplit(" [", 1)
+        if len(parts) == 2:
+            rel_path = parts[0]
+            action = parts[1].rstrip("]")
+            if "dry-run" in action:
+                continue
+            if action == "install":
+                files_to_commit[rel_path] = "added"
+            elif action == "overwrite":
+                files_to_commit[rel_path] = "modified"
+            elif action == "chmod":
+                files_to_commit[rel_path] = "chmod"
+
+    for item in pruned:
+        parts = item.rsplit(" [", 1)
+        if len(parts) == 2:
+            rel_path = parts[0]
+            action = parts[1].rstrip("]")
+            if "dry-run" in action:
+                continue
+            files_to_commit[rel_path] = "removed"
+
+    if not agents_status.endswith("already current") and not "[dry-run]" in agents_status:
+        agents_rel = resolve_agents_file(plan.repo_root)
+        files_to_commit[agents_rel] = "modified"
+
+    if backups_ignore_status.startswith("added ") and not "[dry-run]" in backups_ignore_status:
+        files_to_commit[".gitignore"] = "modified"
+
+    if not files_to_commit:
+        return
+
+    print()
+    print("Ready to commit framework sync changes:")
+    for path, action in sorted(files_to_commit.items()):
+        if action == "added":
+            prefix = term.colorize("[added    ]", "green", "bold")
+        elif action == "modified":
+            prefix = term.colorize("[modified ]", "yellow", "bold")
+        elif action == "chmod":
+            prefix = term.colorize("[chmod    ]", "cyan", "bold")
+        else:
+            prefix = term.colorize("[removed  ]", "red", "bold")
+        print(f"  {prefix} {path}")
+
+    print()
+    is_interactive = sys.stdin.isatty() and not plan.yes
+    choice = "n"
+    
+    if is_interactive:
+        try:
+            choice = input("Would you like the installer to commit these changes? [Y/n] ").strip().lower()
+            if choice not in ("", "y", "yes"):
+                is_interactive = False
+        except (KeyboardInterrupt, EOFError):
+            print()
+            is_interactive = False
+
+    paths_list = sorted(files_to_commit.keys())
+    if plan.yes or (is_interactive and choice in ("", "y", "yes")):
+        print("Committing changes...")
+        cmd = ["git", "commit", "-m", "agent-workflows: sync via installer", "--"] + paths_list
+        res = subprocess.run(cmd, cwd=str(plan.repo_root), shell=False)
+        if res.returncode == 0:
+            print(term.colorize("Changes committed successfully.", "green"))
+        else:
+            sys.stderr.write(term.colorize("Error: git commit failed.\n", "red"))
+    else:
+        quoted_paths = []
+        for p in paths_list:
+            if " " in p or '"' in p or "'" in p:
+                quoted_paths.append(shlex.quote(p))
+            else:
+                quoted_paths.append(p)
+        print()
+        print("To commit these changes manually, run:")
+        print(f"  git commit -m \"sync agent-workflows\" -- {' '.join(quoted_paths)}")
 
 
 def format_output_item(item: str, term: Term) -> str:
@@ -1451,10 +1933,14 @@ def install_into_repo(
     installed, skipped, _ = install_all(plan, body_members, shim_members, use_git)
     pruned = prune_stale(plan, body_members, shim_members, use_git)
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    update_agents_pointer(plan, use_git, timestamp)
+    agents_status = update_agents_pointer(plan, use_git, timestamp)
     ensure_backups_gitignored(plan, use_git)
     ensure_workflow_artifacts_readme(plan, use_git, installed, skipped)
     artifacts = create_setup_artifacts(repo_root, use_git, dry_run=dry_run)
+
+    newly_created = [item.rsplit(" [", 1)[0] for item in installed if item.endswith(" [install]")]
+    save_created_files_record(plan.repo_root, timestamp, newly_created)
+    prune_old_backups(plan.repo_root)
 
     return {
         "repo": repo_root,
@@ -1480,9 +1966,24 @@ def run(args: argparse.Namespace) -> int:
         print(read_version(resolve_source_root(args.source_root)))
         return 0
 
+    if getattr(args, "undo", False):
+        return run_rollback(args.repo_root, getattr(args, "no_color", False))
+
     plan = build_install_plan(args)
 
+    if plan.diff:
+        workflows = parse_manifest(plan.source_root)
+        body_members = collect_source_members(plan.source_root)
+        shim_members = generate_shim_members(workflows, plan.source_root)
+        show_install_diffs(plan, body_members, shim_members)
+        return 0
+
     ensure_repo_root(plan.repo_root)
+    
+    # Run Git Diagnostics pre-flight checks
+    if not run_git_diagnostics(plan):
+        return 1
+
     use_git = git_available(plan.repo_root)
 
     workflows = parse_manifest(plan.source_root)
@@ -1498,6 +1999,10 @@ def run(args: argparse.Namespace) -> int:
     backups_ignore_status = ensure_backups_gitignored(plan, use_git)
     ensure_workflow_artifacts_readme(plan, use_git, installed, skipped)
     artifacts = create_setup_artifacts(plan.repo_root, use_git, dry_run=plan.dry_run)
+
+    newly_created = [item.rsplit(" [", 1)[0] for item in installed if item.endswith(" [install]")]
+    save_created_files_record(plan.repo_root, run_timestamp, newly_created)
+    prune_old_backups(plan.repo_root)
 
     print_summary(
         plan=plan,
@@ -1516,6 +2021,15 @@ def run(args: argparse.Namespace) -> int:
         print("Setup artifacts created (staged; run /setup-repo for stack-tailored setup):")
         for item in artifacts:
             print(f"  - {item}")
+
+    prompt_and_run_commit(
+        plan=plan,
+        installed=installed,
+        pruned=pruned,
+        agents_status=agents_status,
+        backups_ignore_status=backups_ignore_status,
+        use_git=use_git,
+    )
     return 0
 
 

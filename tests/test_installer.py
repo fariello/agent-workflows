@@ -157,9 +157,9 @@ class InstallerEndToEndTests(unittest.TestCase):
         run_installer(self.repo)
         # Simulate an older install that had per-concern shims.
         legacy = self.repo / ".opencode/commands/assess-security.md"
-        legacy.write_text("---\ndescription: old\n---\nold\n", encoding="utf-8")
+        legacy.write_text("Read and execute @.agents/workflows/assess-security\n", encoding="utf-8")
         legacy2 = self.repo / ".claude/commands/assess-prose.md"
-        legacy2.write_text("---\ndescription: old\n---\nold\n", encoding="utf-8")
+        legacy2.write_text("Read and execute @.agents/workflows/assess-prose\n", encoding="utf-8")
         proc = run_installer(self.repo)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertFalse(legacy.exists(), "stale assess-security shim not pruned")
@@ -168,7 +168,7 @@ class InstallerEndToEndTests(unittest.TestCase):
     def test_no_prune_keeps_stale(self):
         run_installer(self.repo)
         legacy = self.repo / ".opencode/commands/assess-security.md"
-        legacy.write_text("old\n", encoding="utf-8")
+        legacy.write_text("Read and execute @.agents/workflows/assess-security\n", encoding="utf-8")
         run_installer(self.repo, "--no-prune")
         self.assertTrue(legacy.exists(), "--no-prune should not remove stale files")
 
@@ -270,6 +270,89 @@ class InstallerEndToEndTests(unittest.TestCase):
         proc = run_installer(self.repo)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertTrue(shim_readme.is_file(), "Shim README was pruned!")
+
+    def test_rollback_undo(self):
+        # 1) Install the framework
+        proc = run_installer(self.repo)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        
+        target_file = self.repo / ".agents/workflows/index.md"
+        original_text = target_file.read_text(encoding="utf-8")
+        
+        # Modify the target file
+        target_file.write_text("MODIFIED CONTENT", encoding="utf-8")
+        
+        # 2) Run installer again to trigger an overwrite and backup
+        proc2 = run_installer(self.repo)
+        self.assertEqual(proc2.returncode, 0, proc2.stderr)
+        
+        # Verify it got overwritten back to original content
+        self.assertEqual(target_file.read_text(encoding="utf-8"), original_text)
+        
+        # Now modify it again, so we can test rollback
+        target_file.write_text("MODIFIED CONTENT SECOND TIME", encoding="utf-8")
+        
+        # Run rollback
+        proc_undo = run_installer(self.repo, "--undo")
+        self.assertEqual(proc_undo.returncode, 0, proc_undo.stderr)
+        
+        # Verify it got rolled back to the backup state ("MODIFIED CONTENT" from before the second install!)
+        self.assertEqual(target_file.read_text(encoding="utf-8"), "MODIFIED CONTENT")
+
+    def test_backup_auto_pruning(self):
+        # 1) Install once so backups dir is created
+        proc = run_installer(self.repo)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        
+        backups_dir = self.repo / ".agent-workflows-installer-backups"
+        backups_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 2) Create 7 mock backup directories manually
+        for i in range(7):
+            (backups_dir / f"20260709-12000{i}").mkdir(parents=True, exist_ok=True)
+            
+        # 3) Run installer again with --yes to trigger pruning (since one more run occurs, it's 8 runs total)
+        proc2 = run_installer(self.repo, "--yes")
+        self.assertEqual(proc2.returncode, 0, proc2.stderr)
+        
+        # 4) Verify only 5 backup directories exist under .agent-workflows-installer-backups/
+        self.assertTrue(backups_dir.is_dir())
+        subdirs = sorted([d for d in backups_dir.iterdir() if d.is_dir()], key=lambda d: d.name)
+        self.assertEqual(len(subdirs), 5)
+
+    def test_customization_protection(self):
+        # Install shims first
+        proc = run_installer(self.repo)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        
+        shim_file = self.repo / ".opencode/commands/assess.md"
+        self.assertTrue(shim_file.is_file())
+        
+        # Manually customize the shim
+        custom_content = "---\ndescription: My custom assessment\n---\nCustom instructions here."
+        shim_file.write_text(custom_content, encoding="utf-8")
+        
+        # Run installer without --yes (non-interactive mock skips customization overwrite by default)
+        proc2 = run_installer(self.repo)
+        self.assertEqual(proc2.returncode, 0, proc2.stderr)
+        # Content should remain customized
+        self.assertEqual(shim_file.read_text(encoding="utf-8"), custom_content)
+        
+        # Run installer with --yes
+        proc3 = run_installer(self.repo, "--yes")
+        self.assertEqual(proc3.returncode, 0, proc3.stderr)
+        # Content should be overwritten back to standard shim template
+        self.assertNotEqual(shim_file.read_text(encoding="utf-8"), custom_content)
+
+    def test_diff_mode(self):
+        # Run with --diff
+        proc = run_installer(self.repo, "--diff")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        # Diff output should show additions (+) since it's a fresh repo
+        self.assertIn("+", proc.stdout)
+        # Confirm no files were written to disk
+        workflows_dir = self.repo / ".agents/workflows"
+        self.assertFalse(workflows_dir.exists())
 
 
 if __name__ == "__main__":

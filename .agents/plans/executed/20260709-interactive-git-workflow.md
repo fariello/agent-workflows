@@ -3,7 +3,7 @@
 - Date: 2026-07-09
 - Concern: Usability, safety, and Git integration of the installer CLI.
 - Scope: Enhance the installation workflow with target repo git health checks (dirty state, pull/sync state) and a post-install prompt to auto-commit the changes.
-- Status: PENDING / PROPOSAL
+- Status: EXECUTED
 
 ## Goal
 
