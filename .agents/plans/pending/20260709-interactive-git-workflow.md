@@ -15,6 +15,9 @@ Provide a smooth, transparent Git integration for the installer:
 
 ## Proposed Design
 
+* **Execution Safety**: All Git commands (`git fetch`, `git status`, `git pull`, `git commit`) must be run via `subprocess.run(shell=False)` with arguments passed as a list of strings to avoid shell injection or argument escaping vulnerabilities.
+* **KISS Diffing**: The `--diff` feature must use Python's standard-library `difflib` to ensure cross-platform availability and zero-dependency implementation.
+
 ### Phase 1: Consolidated Pre-flight Git Diagnostics
 
 Before applying any changes, if the target repository is a Git repository, the installer runs:
