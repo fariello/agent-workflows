@@ -2145,8 +2145,9 @@ def install_into_repo(
     installed, skipped, _ = install_all(plan, body_members, shim_members, use_git)
     pruned = prune_stale(plan, body_members, shim_members, use_git)
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    update_agents_pointer(plan, use_git, timestamp)
-    ensure_backups_gitignored(plan, use_git)
+    agents_status = update_agents_pointer(plan, use_git, timestamp)
+    gitignore_status = check_gitignore(plan)
+    backups_ignore_status = ensure_backups_gitignored(plan, use_git)
     ensure_workflow_artifacts_readme(plan, use_git, installed, skipped)
     artifacts = create_setup_artifacts(repo_root, use_git, dry_run=dry_run)
 
@@ -2164,6 +2165,9 @@ def install_into_repo(
         "artifacts": artifacts,
         "use_git": use_git,
         "version": read_installed_version(repo_root),
+        "agents_status": agents_status,
+        "gitignore_status": gitignore_status,
+        "backups_ignore_status": backups_ignore_status,
     }
 
 
