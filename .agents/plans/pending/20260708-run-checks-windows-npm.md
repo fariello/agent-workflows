@@ -53,10 +53,11 @@ Candidates to inspect: how the check command is built and invoked (shell vs list
 - Run the full test suite on Linux/macOS to guarantee zero regressions.
 - Full suite green on all three OSes.
 
-## Open questions
+## Open questions (Resolved)
 
 1. Is there a Windows runner available to iterate against, or is this fixed blind and
    verified via CI on push? (CI-verified is acceptable but slower.)
+   * *Resolution*: Confirmed that no Windows runner is available on this system; changes must be verified via the Windows CI matrix on push.
 
 ## Approval and execution gate
 
