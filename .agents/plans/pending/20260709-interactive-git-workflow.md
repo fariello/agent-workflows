@@ -64,6 +64,27 @@ If running interactively:
      `To commit these changes manually, run:`
      `  git commit -m "sync agent-workflows" -- <paths...>`
 
+### Phase 3: Safety and Quality of Life Enhancements
+
+1. **Customization Protection (Warnings on Edited Shims)**:
+   * Before replacing or pruning any `.md` shim inside `.opencode/commands/` or `.claude/commands/`, check if its contents contain the standard signature line or are identical to a generated shim.
+   * If a file has been manually edited/customized by the developer, prompt:
+     `⚠️ Warning: .opencode/commands/<name>.md has manual modifications that will be overwritten. Proceed? [y/N]`
+   * If they choose No, skip that shim or abort.
+
+2. **Rollback / Undo Support (`--undo`)**:
+   * Add a command-line flag `aw install --undo` (or `install-workflows.py --undo`).
+   * When triggered, identify the most recent backup folder under `.agents/backups/`.
+   * Restore all files from that backup directory to their original paths in the target repository, cleanly rolling back the installation.
+
+3. **Backup Auto-Pruning (Clutter Control)**:
+   * During installation (after creating a new backup), count the directories under `.agents/backups/`.
+   * If there are more than 5 backup folders, delete the oldest ones to maintain a rolling window of the last 5 backups.
+
+4. **Change Diffs (`--diff` / `-d`)**:
+   * Support a `--diff` command-line option.
+   * Instead of installing, show a line-by-line colored diff (similar to `git diff`) of the differences between the current installed files and the source files.
+
 ---
 
 ## Required Validation
@@ -74,6 +95,14 @@ If running interactively:
    * Assert the framework files are committed, but the dirty file is left unstaged.
 2. **Diagnostic Menu Assertions**:
    * Simulate dry-run and exit flows for options 1, 2, and 3 under mock TTY stdin environments.
+3. **Undo / Rollback Verification**:
+   * Install the framework, modify a file, then trigger `aw install --undo`.
+   * Assert the modified file is successfully restored to its backup state.
+4. **Backup Auto-Pruning**:
+   * Simulate creating 7 sequential installations.
+   * Assert that only the 5 most recent backup folders remain in `.agents/backups/`.
+5. **Customization Protection**:
+   * Manually edit a command shim file, run the installer, and verify it alerts the user before overwriting.
 
 ---
 
@@ -83,3 +112,5 @@ If running interactively:
    * *Recommendation*: No. If the worktree is dirty and the user selects Option 1 (Pull), git pull might fail naturally if there are conflicting changes. We should let Git handle this and cleanly report the failure rather than attempting complex stashing logic which can risk data loss.
 2. **What if the branch has no tracking remote?**
    * *Recommendation*: The diagnostics block should skip the remote sync check and show `Remote: No tracking remote branch configured` without warning.
+3. **Should the rollback option (`--undo`) stage the restored files in Git?**
+   * *Recommendation*: Yes, if Git is available, it should stage the restored/deleted files to mirror the state before the install.
