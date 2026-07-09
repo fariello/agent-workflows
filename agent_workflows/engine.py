@@ -70,6 +70,7 @@ from pathlib import Path
 
 from . import versioning as _VERSIONING
 from ._compat import packaged_source_root
+from .term import Term
 
 
 WORKFLOWS_DIR = ".agents/workflows"
@@ -183,6 +184,7 @@ class InstallPlan:
     dry_run: bool
     backup: bool
     prune: bool
+    no_color: bool = False
 
 
 def parse_args(argv=None) -> argparse.Namespace:
@@ -206,6 +208,11 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--dry-run", action="store_true", help="Show actions without writing.")
     parser.add_argument("--no-backup", action="store_true", help="Do not back up before overwrite/prune.")
     parser.add_argument("--no-prune", action="store_true", help="Do not remove stale framework files.")
+    parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable ANSI color (also honored via NO_COLOR).",
+    )
     parser.add_argument(
         "--version",
         action="store_true",
@@ -258,6 +265,7 @@ def build_install_plan(args: argparse.Namespace) -> InstallPlan:
         dry_run=args.dry_run,
         backup=not args.no_backup,
         prune=not args.no_prune,
+        no_color=getattr(args, "no_color", False),
     )
 
 
@@ -1014,6 +1022,52 @@ def ensure_backups_gitignored(plan: InstallPlan, use_git: bool) -> str:
     return f"added {pattern} to .gitignore"
 
 
+def format_output_item(item: str, term: Term) -> str:
+    """Parse an item from installed/skipped/pruned and format it with aligned tags and optional colors.
+
+    Format of input is: "path [action]" or "path [action, dry-run]"
+    """
+    match = re.search(r"^(.*?) \[([^\]]+)\]$", item)
+    if not match:
+        return item
+
+    path = match.group(1).strip()
+    action_part = match.group(2).strip()
+
+    parts = [p.strip() for p in action_part.split(",")]
+    action = parts[0]
+    dry_run = "dry-run" in parts
+
+    tag = ""
+    color = ""
+
+    if action == "install":
+        tag = "[added    ]"
+        color = "green"
+    elif action == "overwrite":
+        tag = "[overwrite]"
+        color = "red"
+    elif action == "chmod":
+        tag = "[chmod    ]"
+        color = "cyan"
+    elif action == "already current":
+        tag = "[no change]"
+        color = "yellow"
+    elif action in ("git rm", "rm"):
+        tag = "[removed  ]"
+        color = "red"
+    else:
+        # Fallback
+        cleaned = action[:9]
+        padded = cleaned.ljust(9)
+        tag = f"[{padded}]"
+        color = "gray"
+
+    styled_tag = term.colorize(tag, color, "bold") if color else tag
+    suffix = " (dry-run)" if dry_run else ""
+    return f"{styled_tag} {path}{suffix}"
+
+
 def print_summary(
     plan: InstallPlan,
     workflows: list[Workflow],
@@ -1026,6 +1080,8 @@ def print_summary(
     backups_ignore_status: str,
     use_git: bool,
 ) -> None:
+    term = Term(color=False if plan.no_color else None)
+
     mode = "DRY RUN" if plan.dry_run else "COMPLETE"
     print(f"Agent workflows installer: {mode}")
     print(f"Version: {read_version(plan.source_root)}")
@@ -1042,16 +1098,25 @@ def print_summary(
 
     print("Installed or updated:")
     for item in installed or ["None"]:
-        print(f"  - {item}")
+        if item == "None":
+            print(f"  - {item}")
+        else:
+            print(format_output_item(item, term))
     print()
     print("Skipped:")
     for item in skipped or ["None"]:
-        print(f"  - {item}")
+        if item == "None":
+            print(f"  - {item}")
+        else:
+            print(format_output_item(item, term))
     print()
     if plan.prune:
         print("Pruned (stale framework files):")
         for item in pruned or ["None"]:
-            print(f"  - {item}")
+            if item == "None":
+                print(f"  - {item}")
+            else:
+                print(format_output_item(item, term))
     else:
         print("Pruned: disabled by --no-prune")
     print()

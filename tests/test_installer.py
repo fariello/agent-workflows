@@ -72,6 +72,37 @@ class InstallerUnitTests(unittest.TestCase):
             (source / "VERSION").write_text("1.2.3\n", encoding="utf-8")
             self.assertEqual(INS.read_version(source), "1.2.3")
 
+    def test_parse_args_no_color(self):
+        args = INS.parse_args(["--no-color"])
+        self.assertTrue(args.no_color)
+        args_default = INS.parse_args([])
+        self.assertFalse(args_default.no_color)
+
+    def test_format_output_item(self):
+        from agent_workflows.term import Term
+
+        # Color enabled
+        term_color = Term(color=True)
+        res = INS.format_output_item("foo/bar.py [install]", term_color)
+        # Should be green and bold for [added    ]
+        self.assertIn("\033[32;1m[added    ]\033[0m", res)
+        self.assertIn("foo/bar.py", res)
+        self.assertNotIn("(dry-run)", res)
+
+        res_dry = INS.format_output_item("foo/bar.py [overwrite, dry-run]", term_color)
+        # Should be red and bold for [overwrite] and end with (dry-run)
+        self.assertIn("\033[31;1m[overwrite]\033[0m", res_dry)
+        self.assertIn("foo/bar.py", res_dry)
+        self.assertTrue(res_dry.endswith("(dry-run)"))
+
+        # Color disabled
+        term_plain = Term(color=False)
+        res_plain = INS.format_output_item("foo/bar.py [already current]", term_plain)
+        self.assertEqual(res_plain, "[no change] foo/bar.py")
+
+        res_prune = INS.format_output_item("foo/bar.py [git rm]", term_plain)
+        self.assertEqual(res_prune, "[removed  ] foo/bar.py")
+
 
 class InstallerEndToEndTests(unittest.TestCase):
     """Run the installer against throwaway repos and assert filesystem state."""
