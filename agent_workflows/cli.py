@@ -57,10 +57,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Install or update the framework in a repo (idempotent).",
     )
     p_install.add_argument(
-        "target",
-        nargs="?",
+        "targets",
+        nargs="*",
         default=None,
-        help="Repo dir (default: cwd), or 'all' for every configured repo.",
+        help="Repo dirs (default: cwd), or 'all' for every configured repo.",
     )
     p_install.add_argument(
         "--source",
@@ -211,80 +211,95 @@ def _preflight_warnings(repo_root: Path, packaged: str) -> List[str]:
 
 
 def _run_install(args: argparse.Namespace, term: Term) -> int:
-    if args.target == "all":
+    targets = args.targets if getattr(args, "targets", None) else []
+    if "all" in targets:
         return _install_all(args, term)
 
-    # Single explicit repo (or cwd). `ignore` never applies to an explicit target.
-    repo_root = Path(args.target).expanduser().resolve() if args.target else Path.cwd()
+    repo_roots = (
+        [Path(t).expanduser().resolve() for t in targets] if targets else [Path.cwd()]
+    )
 
-    if not config.config_path().is_file() and args.target is None:
+    if not config.config_path().is_file() and not targets:
         term.status(
             "warn",
             "No config yet. Run 'aw setup' to configure your repos, or "
             "'aw install <dir>' for a one-off.",
         )
 
-    packaged = _packaged_version()
-    for w in _preflight_warnings(repo_root, packaged):
-        term.status("warn", w)
-    if not _confirm(term, f"Install agent-workflows into {repo_root}?", args.yes):
-        term.status("skip", "aborted; nothing changed.")
-        return 1
-
     try:
         source_root = engine.resolve_source_root(
             Path(args.source_root).expanduser() if args.source_root else None
         )
-        result = engine.install_into_repo(
-            repo_root,
-            source_root,
-            dry_run=args.dry_run,
-            backup=not args.no_backup,
-            prune=not args.no_prune,
-        )
     except SystemExit as exc:
-        term.status("fail", f"{repo_root}: {exc}")
+        term.status("fail", f"Resolve source root: {exc}")
         return 1
 
-    workflows = engine.parse_manifest(source_root)
-    import copy
+    packaged = _packaged_version()
+    returncode = 0
 
-    engine_args = copy.copy(args)
-    engine_args.repo_root = repo_root
-    engine_args.version = False
-    engine_args.diff = False
-    engine_args.undo = False
-    plan = engine.build_install_plan(engine_args)
+    for repo_root in repo_roots:
+        if len(repo_roots) > 1:
+            term.line()
+            term.heading(f"Target Repo: {repo_root}")
 
-    engine.print_summary(
-        plan=plan,
-        workflows=workflows,
-        migrated=result.get("migrated") or [],
-        installed=result["installed"],
-        skipped=result["skipped"],
-        pruned=result["pruned"],
-        agents_status=result["agents_status"],
-        gitignore_status=result["gitignore_status"],
-        backups_ignore_status=result["backups_ignore_status"],
-        use_git=result["use_git"],
-    )
+        for w in _preflight_warnings(repo_root, packaged):
+            term.status("warn", w)
+        if not _confirm(term, f"Install agent-workflows into {repo_root}?", args.yes):
+            term.status("skip", f"{repo_root}: aborted; nothing changed.")
+            continue
 
-    n = len(result["installed"])
-    term.status(
-        "ok",
-        f"{repo_root}: installed/updated {n} file(s); version {result['version']}.",
-    )
+        try:
+            result = engine.install_into_repo(
+                repo_root,
+                source_root,
+                dry_run=args.dry_run,
+                backup=not args.no_backup,
+                prune=not args.no_prune,
+            )
+        except SystemExit as exc:
+            term.status("fail", f"{repo_root}: {exc}")
+            returncode = 1
+            continue
 
-    engine.prompt_and_run_commit(
-        plan=plan,
-        installed=result["installed"],
-        pruned=result["pruned"],
-        agents_status=result["agents_status"],
-        backups_ignore_status=result["backups_ignore_status"],
-        use_git=result["use_git"],
-        artifacts=result.get("artifacts") or [],
-    )
-    return 0
+        workflows = engine.parse_manifest(source_root)
+        import copy
+
+        engine_args = copy.copy(args)
+        engine_args.repo_root = repo_root
+        engine_args.version = False
+        engine_args.diff = False
+        engine_args.undo = False
+        plan = engine.build_install_plan(engine_args)
+
+        engine.print_summary(
+            plan=plan,
+            workflows=workflows,
+            migrated=result.get("migrated") or [],
+            installed=result["installed"],
+            skipped=result["skipped"],
+            pruned=result["pruned"],
+            agents_status=result["agents_status"],
+            gitignore_status=result["gitignore_status"],
+            backups_ignore_status=result["backups_ignore_status"],
+            use_git=result["use_git"],
+        )
+
+        n = len(result["installed"])
+        term.status(
+            "ok",
+            f"{repo_root}: installed/updated {n} file(s); version {result['version']}.",
+        )
+
+        engine.prompt_and_run_commit(
+            plan=plan,
+            installed=result["installed"],
+            pruned=result["pruned"],
+            agents_status=result["agents_status"],
+            backups_ignore_status=result["backups_ignore_status"],
+            use_git=result["use_git"],
+            artifacts=result.get("artifacts") or [],
+        )
+    return returncode
 
 
 def _install_all(args: argparse.Namespace, term: Term) -> int:

@@ -209,10 +209,11 @@ def parse_args(argv=None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--repo",
-        dest="repo_root",
+        dest="repo_roots",
         type=Path,
-        default=Path.cwd(),
-        help="Repository root to install into. Defaults to the current directory.",
+        nargs="*",
+        default=None,
+        help="Repository roots to install into. Defaults to the current directory.",
     )
     parser.add_argument(
         "--dry-run", action="store_true", help="Show actions without writing."
@@ -2194,75 +2195,112 @@ def run(args: argparse.Namespace) -> int:
         print(read_version(resolve_source_root(args.source_root)))
         return 0
 
+    repo_roots = getattr(args, "repo_roots", None)
+    if not repo_roots:
+        # Check if the caller supplied repo_root directly (e.g. from cli.py)
+        repo_root = getattr(args, "repo_root", None)
+        if repo_root is not None:
+            repo_roots = [repo_root]
+        else:
+            repo_roots = [Path.cwd()]
+
     if getattr(args, "undo", False):
-        return run_rollback(args.repo_root, getattr(args, "no_color", False))
+        returncode = 0
+        for root in repo_roots:
+            res = run_rollback(
+                root.expanduser().resolve(), getattr(args, "no_color", False)
+            )
+            if res != 0:
+                returncode = res
+        return returncode
 
-    plan = build_install_plan(args)
+    returncode = 0
+    import copy
 
-    if plan.diff:
+    for root in repo_roots:
+        repo_args = copy.copy(args)
+        repo_args.repo_root = root
+
+        plan = build_install_plan(repo_args)
+
+        if len(repo_roots) > 1:
+            term = Term(plan.no_color)
+            print(term.colorize("\n========================================", "bold"))
+            print(term.colorize(f"Target Repo: {plan.repo_root}", "bold"))
+            print(term.colorize("========================================", "bold"))
+
+        if plan.diff:
+            workflows = parse_manifest(plan.source_root)
+            body_members = collect_source_members(plan.source_root)
+            shim_members = generate_shim_members(workflows, plan.source_root)
+            show_install_diffs(plan, body_members, shim_members)
+            continue
+
+        try:
+            ensure_repo_root(plan.repo_root)
+        except SystemExit as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            returncode = 1
+            continue
+
+        # Run Git Diagnostics pre-flight checks
+        if not run_git_diagnostics(plan):
+            returncode = 1
+            continue
+
+        use_git = git_available(plan.repo_root)
+
         workflows = parse_manifest(plan.source_root)
         body_members = collect_source_members(plan.source_root)
         shim_members = generate_shim_members(workflows, plan.source_root)
-        show_install_diffs(plan, body_members, shim_members)
-        return 0
 
-    ensure_repo_root(plan.repo_root)
-
-    # Run Git Diagnostics pre-flight checks
-    if not run_git_diagnostics(plan):
-        return 1
-
-    use_git = git_available(plan.repo_root)
-
-    workflows = parse_manifest(plan.source_root)
-    body_members = collect_source_members(plan.source_root)
-    shim_members = generate_shim_members(workflows, plan.source_root)
-
-    run_timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    migrated = migrate_legacy_layout(plan, use_git)
-    installed, skipped, _ = install_all(plan, body_members, shim_members, use_git)
-    pruned = prune_stale(plan, body_members, shim_members, use_git)
-    agents_status = update_agents_pointer(plan, use_git, run_timestamp)
-    gitignore_status = check_gitignore(plan)
-    backups_ignore_status = ensure_backups_gitignored(plan, use_git)
-    ensure_workflow_artifacts_readme(plan, use_git, installed, skipped)
-    artifacts = create_setup_artifacts(plan.repo_root, use_git, dry_run=plan.dry_run)
-
-    newly_created = [
-        item.rsplit(" [", 1)[0] for item in installed if item.endswith(" [install]")
-    ]
-    save_created_files_record(plan.repo_root, run_timestamp, newly_created)
-    prune_old_backups(plan.repo_root)
-
-    print_summary(
-        plan=plan,
-        workflows=workflows,
-        migrated=migrated,
-        installed=installed,
-        skipped=skipped,
-        pruned=pruned,
-        agents_status=agents_status,
-        gitignore_status=gitignore_status,
-        backups_ignore_status=backups_ignore_status,
-        use_git=use_git,
-    )
-    if artifacts:
-        print()
-        print(
-            "Setup artifacts created (staged; run /setup-repo for stack-tailored setup):"
+        run_timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        migrated = migrate_legacy_layout(plan, use_git)
+        installed, skipped, _ = install_all(plan, body_members, shim_members, use_git)
+        pruned = prune_stale(plan, body_members, shim_members, use_git)
+        agents_status = update_agents_pointer(plan, use_git, run_timestamp)
+        gitignore_status = check_gitignore(plan)
+        backups_ignore_status = ensure_backups_gitignored(plan, use_git)
+        ensure_workflow_artifacts_readme(plan, use_git, installed, skipped)
+        artifacts = create_setup_artifacts(
+            plan.repo_root, use_git, dry_run=plan.dry_run
         )
-        for item in artifacts:
-            print(f"  - {item}")
 
-    prompt_and_run_commit(
-        plan=plan,
-        installed=installed,
-        pruned=pruned,
-        agents_status=agents_status,
-        backups_ignore_status=backups_ignore_status,
-        use_git=use_git,
-        artifacts=artifacts,
-    )
+        newly_created = [
+            item.rsplit(" [", 1)[0] for item in installed if item.endswith(" [install]")
+        ]
+        save_created_files_record(plan.repo_root, run_timestamp, newly_created)
+        prune_old_backups(plan.repo_root)
+
+        print_summary(
+            plan=plan,
+            workflows=workflows,
+            migrated=migrated,
+            installed=installed,
+            skipped=skipped,
+            pruned=pruned,
+            agents_status=agents_status,
+            gitignore_status=gitignore_status,
+            backups_ignore_status=backups_ignore_status,
+            use_git=use_git,
+        )
+        if artifacts:
+            print()
+            print(
+                "Setup artifacts created (staged; run /setup-repo for stack-tailored setup):"
+            )
+            for item in artifacts:
+                print(f"  - {item}")
+
+        prompt_and_run_commit(
+            plan=plan,
+            installed=installed,
+            pruned=pruned,
+            agents_status=agents_status,
+            backups_ignore_status=backups_ignore_status,
+            use_git=use_git,
+            artifacts=artifacts,
+        )
     return 0
 
 

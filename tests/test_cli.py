@@ -17,7 +17,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 from tests.support import init_repo
-from agent_workflows import cli, config as CFG, engine
+from agent_workflows import cli, config as CFG
 
 _ANSI = re.compile(r"\033\[[0-9;]*m")
 
@@ -83,6 +83,15 @@ class InstallVerbTests(CliTestBase):
         self.assertEqual(code, 1)
         self.assertIn("No repos", out)
 
+    def test_install_multiple_repos_yes(self):
+        repo1 = self._repo("multi1")
+        repo2 = self._repo("multi2")
+        code, out = _run(["install", str(repo1), str(repo2), "--yes"])
+        self.assertEqual(code, 0, out)
+        self.assertTrue((repo1 / ".agents/workflows/VERSION").is_file())
+        self.assertTrue((repo2 / ".agents/workflows/VERSION").is_file())
+        self.assertIn("Target Repo:", out)
+
 
 class ListStatusTests(CliTestBase):
     def test_status_shows_environment_readout(self):
@@ -133,7 +142,7 @@ class SetupTests(CliTestBase):
 
     def test_setup_skips_submodule(self):
         # A submodule under the root must not be installed into.
-        a = self._repo("app")
+        _ = self._repo("app")
         lib = init_repo(self.base / "lib")
         (self.base / ".gitmodules").write_text(
             '[submodule "lib"]\n\tpath = lib\n\turl = https://example/lib.git\n',
