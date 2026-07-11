@@ -1665,3 +1665,30 @@ both execute the (large) set well.
   with the two-commit contract, approved, executed).
 - **Deferred:** a configurable auto-push opt-in (rejected as default; possible follow-on); "always
   auto-push with no approval" (rejected, violates P10).
+
+### D54. `aw plans` status board + on-demand `STATUS.md` index
+
+- **Context:** D52 established the plan readiness `Status:` vocabulary with front-matter as the single
+  source of truth (no status token in the filename, so `ls` never lies). That needs an at-a-glance
+  view. Split from the D52 IPD as its own follow-on (heaviest net-new code, independent) and executed
+  from `.agents/plans/executed/20260711-2223-01-aw-plans-status-board.md`.
+- **Decision - `aw plans` verb.** A new CLI verb reads each plan/prompt file's front-matter `Status:`
+  and prints a board grouped by disposition directory then readiness, with per-group counts, in
+  lifecycle order (`draft -> to-review -> reviewed -> approved`, then terminal, then reusable, then
+  `legacy/unknown`). Filters: `--pending`, `--status <s>`. Optional positional `[dir]` (default cwd,
+  matching the other verbs); when `.agents/plans/` is absent it prints "no plans found" and exits 0.
+- **Decision - `--write-index`.** On demand only, (re)generates a plain, deterministic
+  `.agents/plans/STATUS.md` (a grouped list mirroring the board) for the no-CLI / GitHub-web view. It
+  is NEVER auto-written by `aw install` (D52 OQ3: avoid surprise writes / extra moving parts).
+- **Decision - one source of truth for the vocabulary.** The parsing + legacy mapping live in
+  `agent_workflows/plans.py` (stdlib-only, zero deps, reads front-matter only, never renames/moves);
+  the D52 drift-guard test (`tests/test_plan_status.py`) imports its `RECOGNIZED`/`DIR_TERMINAL`/
+  `LEGACY_MAP` so the runtime board and the test can never diverge. Legacy free-text
+  (`EXECUTED`/`DONE`/`PENDING (...)`) is case-normalized + alias-mapped; unrecognized tokens group
+  under `legacy/unknown` (never an error); prompts with no status are tolerated.
+- **Decision - display-only for v1 (advisory).** The board shows state + counts; it does NOT suggest
+  or perform transitions (consistent with D52's advisory-first stance). A "ready to execute" hint is a
+  possible follow-on.
+- **Applied:** `agent_workflows/plans.py`; the `aw plans` verb + `_run_plans` in `cli.py` (help and
+  no-arg hint updated); `tests/test_plans_board.py` (+ drift-guard refactor to share the vocabulary);
+  README CLI section; this repo's own committed `.agents/plans/STATUS.md` (dogfood).

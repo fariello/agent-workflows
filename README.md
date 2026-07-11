@@ -38,7 +38,14 @@ config file (under `~/.config/agent-workflows/`, never in your home directory ro
 aw setup                # asks where your repos are, discovers them, installs, teaches
 aw install all          # later: install/update every configured repo
 aw list                 # see each repo's installed version and currency
+aw plans                # board of your plan/IPD readiness Status, grouped by lifecycle
 ```
+
+`aw plans` reads each plan/IPD's front-matter `Status:` (the readiness vocabulary
+`draft -> to-review -> reviewed -> approved`, then the terminal state) and prints a board grouped
+by lifecycle directory, with counts. Filter with `--pending` or `--status <s>`; `--write-index`
+(re)generates a plain `.agents/plans/STATUS.md` for the no-CLI / GitHub-web view. It reads
+front-matter only and never moves or renames a plan.
 
 `aw install` copies the workflows into `.agents/workflows/`, generates slash-command shims
 for OpenCode and Claude Code, adds a pointer to your `AGENTS.md`, and scaffolds the

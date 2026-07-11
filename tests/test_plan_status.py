@@ -20,34 +20,25 @@ import re
 import unittest
 from pathlib import Path
 
+from agent_workflows import plans as plans_mod
 from tests.support import REPO_ROOT
 
 PLANS = REPO_ROOT / ".agents" / "plans"
 
-PRE_TERMINAL = {"draft", "to-review", "reviewed", "approved"}
-TERMINAL = {"executed", "superseded", "not-executed"}
-STANDING = {"reusable"}
-RECOGNIZED = PRE_TERMINAL | TERMINAL | STANDING
-
-# Directory -> the terminal status that must match it (terminal-only rule).
-DIR_TERMINAL = {
-    "executed": "executed",
-    "superseded": "superseded",
-    "not-executed": "not-executed",
-}
+# Share the vocabulary + legacy map with the runtime helper so they can never diverge (D52).
+RECOGNIZED = plans_mod.RECOGNIZED
+DIR_TERMINAL = plans_mod.DIR_TERMINAL
 
 _STATUS_RE = re.compile(r"^- Status:\s*(?P<val>\S+)", re.MULTILINE)
 
-# Backward-compat (D52): legacy free-text status tokens map to the canonical enum for the
-# drift-guard, so historical executed/ plans are tolerated WITHOUT being rewritten (P4).
-_LEGACY_MAP = {
-    "pending": "to-review",
-    "done": "executed",  # `done` is the accepted alias for `executed`
-}
-
 
 def _status(md: Path) -> str | None:
-    """Return the plan's Status token, lowercased and legacy-mapped, or None if absent."""
+    """Return the plan's Status token, lowercased and legacy-mapped, or None if absent.
+
+    Unlike ``plans.normalize_status`` (which maps unknown tokens to a ``legacy/unknown`` group), the
+    drift-guard keeps an unrecognized token AS-IS so ``test_every_plan_has_a_recognized_status`` can
+    flag it. It reuses the shared legacy map so the recognized/mapped set stays single-sourced.
+    """
 
     try:
         text = md.read_text(encoding="utf-8")
@@ -57,7 +48,7 @@ def _status(md: Path) -> str | None:
     if not m:
         return None
     val = m.group("val").strip().rstrip(".").lower()
-    return _LEGACY_MAP.get(val, val)
+    return plans_mod.LEGACY_MAP.get(val, val)
 
 
 class PlanStatusDriftGuard(unittest.TestCase):

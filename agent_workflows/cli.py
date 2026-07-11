@@ -129,6 +129,34 @@ def _build_parser() -> argparse.ArgumentParser:
         "status", parents=[common], help="Show environment + currency summary."
     )
 
+    p_plans = sub.add_parser(
+        "plans",
+        parents=[common],
+        help="Show a board of plan/IPD readiness Status, grouped by lifecycle.",
+    )
+    p_plans.add_argument(
+        "dir",
+        nargs="?",
+        default=None,
+        help="Repo root to read (default: current directory).",
+    )
+    p_plans.add_argument(
+        "--pending",
+        action="store_true",
+        help="Only show plans in the pending/ directory.",
+    )
+    p_plans.add_argument(
+        "--status",
+        dest="status_filter",
+        default=None,
+        help="Only show one readiness status.",
+    )
+    p_plans.add_argument(
+        "--write-index",
+        action="store_true",
+        help="(Re)generate .agents/plans/STATUS.md instead of printing.",
+    )
+
     return parser
 
 
@@ -597,6 +625,60 @@ def _orient(term: Term) -> None:
 # --------------------------------------------------------------------------------------
 
 
+def _run_plans(args: argparse.Namespace, term: Term) -> int:
+    from . import plans as plans_mod
+
+    root = (
+        Path(args.dir).expanduser().resolve()
+        if getattr(args, "dir", None)
+        else Path.cwd()
+    )
+
+    if not (root / ".agents" / "plans").is_dir():
+        term.status("skip", f"No plans found (no .agents/plans/ under {root}).")
+        return 0
+
+    records = plans_mod.scan(root)
+
+    if getattr(args, "pending", False):
+        records = [r for r in records if r.disposition == "pending"]
+    status_filter = getattr(args, "status_filter", None)
+    if status_filter:
+        want = plans_mod.normalize_status(status_filter)
+        records = [r for r in records if r.status == want]
+
+    if getattr(args, "write_index", False):
+        index_path = root / ".agents" / "plans" / "STATUS.md"
+        index_path.write_text(
+            plans_mod.render_status_index(root, records), encoding="utf-8"
+        )
+        term.status(
+            "ok",
+            f"Wrote {index_path.relative_to(root).as_posix()} ({len(records)} entries).",
+        )
+        return 0
+
+    if not records:
+        term.status("skip", "No matching plans.")
+        return 0
+
+    by_disp = plans_mod.group(records)
+    term.kv("Total", f"{len(records)} plan/prompt file(s)")
+    for disp in plans_mod.DISPOSITION_DIRS:
+        statuses = by_disp.get(disp)
+        if not statuses:
+            continue
+        count = sum(len(v) for v in statuses.values())
+        term.line()
+        term.heading(f"{disp}/ ({count})")
+        for status in sorted(statuses, key=plans_mod._status_sort_key):
+            recs = statuses[status]
+            term.line(f"  {term.colorize(status, 'bold')} ({len(recs)})")
+            for rec in sorted(recs, key=lambda r: r.path.name):
+                term.line(f"    {rec.path.relative_to(root).as_posix()}")
+    return 0
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -618,7 +700,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         _run_status(term)
         term.line()
         term.line(
-            "Commands: install <dir>|all, setup, uninstall <dir>, list, status. "
+            "Commands: install <dir>|all, setup, uninstall <dir>, list, status, plans. "
             "See 'aw --help'."
         )
         return 0
@@ -633,6 +715,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return _run_status(term)
     if args.command == "setup":
         return _run_setup(args, term)
+    if args.command == "plans":
+        return _run_plans(args, term)
 
     parser.print_help()
     return 2

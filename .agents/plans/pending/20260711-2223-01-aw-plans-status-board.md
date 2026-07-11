@@ -8,7 +8,10 @@
   optional `--write-index` that writes `.agents/plans/STATUS.md`, tests, and docs. Depends on the
   vocabulary/front-matter conventions defined by
   `20260711-1945-01-plan-status-vocabulary-and-workflow-provenance` (the "core" IPD).
-- Status: reviewed
+- Status: approved
+- Approval: approved by maintainer 2026-07-11 (reviewed; OQ1-4 leans confirmed - STATUS.md grouped
+  list, lifecycle-ordered board, display-only v1, shared helper in plans.py imported by the
+  drift-guard test). Ready to execute changes 1-5.
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -109,7 +112,7 @@ Dependency satisfied; this board IPD may now proceed.
    diff; the helper reads front-matter only and renames/moves nothing. Follows the repo's
    "test the mechanical parts" policy.
 5. **Docs**: add `aw plans` to the README CLI-verb table and ARCHITECTURE's CLI section, and to
-   `aw --help` (the parser help string). DECISIONS: a short entry (next Dnn) recording the board +
+   `aw --help` (the parser help string). DECISIONS: a short entry (D54) recording the board +
    `--write-index` + the metadata-is-truth stance, cross-referencing D52.
 
 ## Deferred / out of scope
