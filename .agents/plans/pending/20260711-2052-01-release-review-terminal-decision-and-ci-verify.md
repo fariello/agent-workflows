@@ -7,13 +7,18 @@
 - Scope: `.agents/workflows/release-review/` (notably `00-run-protocol.md`, `08-final-ship-review.md`,
   Section 9 / the push+CI phase, `templates/final-response.md`, and the `ci-assessment.md` /
   `11-push-plan.md` artifacts) + docs/DECISIONS. Does NOT change the audit sections' substance.
-- Status: draft
+- Status: to-review
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
 
 - 2026-07-11 drafted (its_direct/pt3-claude-opus-4.8-1m-us): stub from an interactive session;
   requirements decided with the maintainer. Awaiting flesh-out of open questions.
+- 2026-07-11 to-review (its_direct/pt3-claude-opus-4.8-1m-us): OQ2-5 resolved with the maintainer
+  (bounded-timeout CI poll; CONDITIONAL GO pushes only after conditions met + re-approval; report
+  aggregate + every failing job; push target from 11-push-plan.md, explicit choice on multiple
+  remotes). Plan-status IPD (D52) landed first, so change #5 adopts that convention and this IPD's
+  DECISIONS entry is D53. Approach committed; promoted to to-review for /plan-review.
 
 ## Goal
 
@@ -53,7 +58,7 @@ push/CI recommendation. The explicit-approval safety gate (P10) is preserved.
 - `gh` usage: the framework already uses `gh` opportunistically elsewhere (cross-OS CI watched via
   `gh run`); reuse that pattern. Must handle `gh` missing/unauthed.
 - Safety: P10 (no push/remote changes without permission) is binding and preserved.
-- Latest DECISIONS: D51 (this adds D53, assuming the plan-status IPD takes D52).
+- Latest DECISIONS: D52 (the plan-status IPD landed); this adds D53.
 - House rule: no em dashes in authored Markdown.
 
 ## Proposed changes (ordered, validatable)
@@ -82,10 +87,12 @@ Reconcile the release-review README/docs and `00-run-protocol.md` narrative to d
 DECISION block and the push+CI-verify-on-approval behavior. Add DECISIONS D53. Note the preserved
 approval gate so the change is not read as "auto-push".
 
-### 5. (If the plan-status IPD lands) adopt its conventions
-If `20260711-1945-01-plan-status-vocabulary-and-workflow-provenance` executes first, this IPD's own
-Status/Workflow-history follow that convention, and release-review's own commit discipline aligns
-with it. Independent otherwise (sequence-agnostic; reconcile against whichever lands first).
+### 5. Adopt the plan-status conventions (D52 landed first)
+`20260711-1945-01-plan-status-vocabulary-and-workflow-provenance` executed first (D52), so this IPD
+already follows that convention (front-matter readiness `Status:`, `## Workflow history`,
+commit-not-push). Additionally, reconcile release-review's own commit discipline with D52 where it
+touches plans, and confirm the terminal-DECISION-block wording does not conflict with D52's
+commit-not-push posture (release-review still never pushes without the explicit GO gate).
 
 ## Deferred / out of scope
 
@@ -117,15 +124,21 @@ execution mechanics; the safety posture (approval-gated push) is unchanged.
 
 ## Open questions
 
-1. Exact DECISION-block format/banner (characters, fields order) - define in
-   `templates/final-response.md`.
-2. CONDITIONAL GO: does push+CI-verify apply the same way (push after the named conditions are
-   satisfied + approved), or only on a clean GO?
-3. CI wait behavior: block until the run completes (with a timeout), or report the run URL/ID and a
-   status snapshot without long-waiting? (Cross-OS matrix runs can take minutes.)
-4. Multi-run/matrix: report the aggregate plus the first failing job, or every job?
-5. Where the push target/branch/remote is confirmed (reuse `11-push-plan.md`), and behavior when
-   there are multiple remotes.
+1. **DECISION-block format/banner: RESOLVED at execution** - a ruled banner defined in
+   `templates/final-response.md` (exact characters/field order chosen when the template is written;
+   fields: recommendation, named blockers/pending items, the AWAITING-GO/NO-GO line). Detail, not
+   approach.
+2. **CONDITIONAL GO: RESOLVED** - a CONDITIONAL GO does NOT push yet. The human satisfies the named
+   conditions, then gives explicit GO, and the SAME push-then-verify path runs. No push on a bare
+   conditional.
+3. **CI wait behavior: RESOLVED** - poll with a BOUNDED timeout (default ~10-15 min, statable): wait
+   for the definitive green/red for typical runs, report progress; if it exceeds the timeout, report
+   the `gh run` URL + last status and stop (never hang). Reuses the repo's own CI-watching pattern.
+4. **Multi-run/matrix: RESOLVED** - on red, report the AGGREGATE pass/fail AND name EVERY failing
+   job (matrix failures are often OS-specific; the full picture matters), not just the first.
+5. **Push target: RESOLVED** - reuse `11-push-plan.md`, which names the exact remote + branch + ref
+   the DECISION block references. If there are multiple remotes or any ambiguity (origin vs upstream,
+   a fork), require an EXPLICIT human choice; never guess a default remote (P10).
 
 ## Approval and execution gate
 
