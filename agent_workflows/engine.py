@@ -1967,7 +1967,13 @@ def uninstall_repo(repo_root: Path, use_git: bool) -> list[str]:
 # --------------------------------------------------------------------------------------
 
 PLANS_DIR = ".agents/plans"
-PLAN_LIFECYCLE_SUBDIRS = ("pending", "reusable", "executed")
+PLAN_LIFECYCLE_SUBDIRS = (
+    "pending",
+    "executed",
+    "superseded",
+    "not-executed",
+    "reusable",
+)
 GITLEAKSIGNORE_FILE = ".gitleaksignore"
 SECRET_SCAN_CI = ".github/workflows/secret-scan.yml"
 

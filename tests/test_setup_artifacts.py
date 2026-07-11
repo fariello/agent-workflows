@@ -45,7 +45,7 @@ class SetupArtifactTests(unittest.TestCase):
     def test_install_creates_all_artifacts_and_guidance(self):
         code, out = _run(["install", str(self.repo), "--yes"])
         self.assertEqual(code, 0, out)
-        for sub in ("pending", "reusable", "executed"):
+        for sub in ("pending", "reusable", "executed", "superseded", "not-executed"):
             self.assertTrue(
                 (self.repo / ".agents/plans" / sub / ".gitkeep").is_file(),
                 f"missing plan dir {sub}",
@@ -75,14 +75,17 @@ class SetupArtifactTests(unittest.TestCase):
         )
         self.assertIn(
             "my-own-scan",
-            (self.repo / ".github/workflows/secret-scan.yml").read_text(encoding="utf-8"),
+            (self.repo / ".github/workflows/secret-scan.yml").read_text(
+                encoding="utf-8"
+            ),
         )
 
     def test_engine_returns_created_list(self):
         use_git = engine.git_available(self.repo)
         created = engine.create_setup_artifacts(self.repo, use_git)
-        # 3 gitkeeps + gitleaksignore + secret-scan CI = 5 on a fresh repo.
-        self.assertEqual(len(created), 5)
+        # 5 plan-dir gitkeeps (pending/executed/superseded/not-executed/reusable)
+        # + gitleaksignore + secret-scan CI = 7 on a fresh repo.
+        self.assertEqual(len(created), 7)
 
     def test_dry_run_reports_without_writing(self):
         use_git = engine.git_available(self.repo)

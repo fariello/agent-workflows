@@ -81,14 +81,19 @@ directory) and a run record (the evidence and report of this assessment, under
 3. **Plan/IPD lifecycle location and format** - where plans live and any required
    structure. Discover the project's existing convention and USE it (do not impose a
    different one): a pending dir (e.g. `.agents/plans/pending/`, `docs/rfcs/`, an ADR
-   dir) and a terminal dir for completed plans. If none exists, create and use the
-   canonical three-state lifecycle: `.agents/plans/pending/` (new/awaiting-approval
-   IPDs), `.agents/plans/reusable/` (recurring plans meant to be re-run repeatedly, e.g.
-   a periodic audit or rollout runbook - these stay here rather than moving on after a
-   run), and `.agents/plans/executed/` (terminal; completed one-off IPDs). Plan files are
-   named `YYYYMMDD-<slug>.md`. `done/` is an accepted alias for `executed/` if a repo
-   already uses it; respect whatever exists. Record which you chose. The `setup-repo`
-   workflow can establish and document this lifecycle for a repo.
+   dir) and terminal dirs for finished plans. If none exists, create and use the
+   canonical five-state lifecycle: `.agents/plans/pending/` (new/awaiting-approval IPDs),
+   `.agents/plans/executed/` (terminal; implemented, verified, and tested),
+   `.agents/plans/superseded/` (replaced by a better/subsequent plan; kept for the
+   record), `.agents/plans/not-executed/` (deliberately decided against, no replacement),
+   and `.agents/plans/reusable/` (recurring plans meant to be re-run repeatedly, e.g. a
+   periodic audit or rollout runbook - these stay here rather than moving on after a run).
+   Plan files are named `YYYYMMDD-<slug>.md`. Never file an un-run plan in `executed/`;
+   retire a plan by prepending `RETIRED YYYY-MM-DD: <reason>; superseded by <path/commit>`
+   and `git mv`ing it to `superseded/` or `not-executed/` (never silently delete).
+   `done/` is an accepted alias for `executed/` if a repo already uses it; respect
+   whatever exists. Record which you chose. The `setup-repo` workflow can establish and
+   document this lifecycle for a repo.
 4. **Contributor contract** - `AGENTS.md`/`CONTRIBUTING.md` for plan/spec-sync rules.
 5. **Apply the review scope exclusions** from `../release-review/00-run-protocol.md`:
    do not assess the framework's own directory (`.agents/workflows/`) or

@@ -48,8 +48,8 @@ Before proposing anything, determine and briefly report:
 2. Project type / stack (languages, package manager, frameworks, whether it has an app /
    library / CLI / UI / just docs). This tailors the .gitignore, CI, and hygiene steps.
 3. What is already present: `.agents/workflows/`, `.agents/plans/` (and its
-   `pending/` + `reusable/` + terminal `executed/` subdirs; `done/` is an accepted alias
-   for `executed/`), `.github/workflows/`,
+   `pending/` + `executed/` + `superseded/` + `not-executed/` + `reusable/` subdirs;
+   `done/` is an accepted alias for `executed/`), `.github/workflows/`,
    `.pre-commit-config.yaml`, `.gitignore`, `.gitleaksignore`, `README`, `CONTRIBUTING`,
    `AGENTS.md` (and whether it documents the plan lifecycle), `LICENSE`, `.editorconfig`,
    lockfiles, `GUIDING_PRINCIPLES.md`.
@@ -86,20 +86,29 @@ lifecycle. Establish it so any coding agent working in the repo follows it, not 
 these workflows:
 
 - **Directories:** discover the existing convention and respect it; otherwise offer to
-  create the canonical three-state lifecycle: `.agents/plans/pending/`
-  (new/awaiting-approval IPDs), `.agents/plans/reusable/` (recurring plans meant to be
-  re-run repeatedly, e.g. a periodic audit or rollout runbook - they stay here rather
-  than moving to `executed/` after a run), and `.agents/plans/executed/` (completed
-  one-off IPDs) - each with a committed `.gitkeep` so the empty dirs are tracked. Plan
-  files are named `YYYYMMDD-<slug>.md`. If the repo already uses a terminal dir named
+  create the canonical five-state lifecycle, each with a committed `.gitkeep` so the empty
+  dirs are tracked:
+  - `.agents/plans/pending/` - new/awaiting-approval IPDs.
+  - `.agents/plans/executed/` - terminal; implemented, verified, and tested.
+  - `.agents/plans/superseded/` - replaced by a better/subsequent plan; kept for the
+    record, not the live path.
+  - `.agents/plans/not-executed/` - deliberately decided against, no replacement
+    (explored/rejected or overtaken by events).
+  - `.agents/plans/reusable/` - recurring plans meant to be re-run repeatedly (e.g. a
+    periodic audit or rollout runbook); they stay here rather than moving on after a run.
+
+  Plan files are named `YYYYMMDD-<slug>.md`. If the repo already uses a terminal dir named
   `done/` (or another), keep it - do not rename; just record which is canonical for this
   repo.
 - **Documented contract (this is the part that makes agents pick it up):** offer to add
   a short, marker-delimited "Plan/IPD lifecycle" note to `AGENTS.md` (and/or
   `CONTRIBUTING.md`) stating: proposals are dated IPDs in `.agents/plans/pending/`; they
-  are reviewed (optionally via `plan-review`), approved by a human, executed, then moved
-  to the terminal dir. Marker-delimited so re-running updates it in place without
-  duplicating (same discipline as the AGENTS workflow pointer).
+  are reviewed (optionally via `plan-review`), approved by a human, then EITHER executed
+  (moved to `executed/` once implemented+verified), retired to `superseded/` (replaced) or
+  `not-executed/` (deliberately not run) with a `RETIRED YYYY-MM-DD: <reason>; superseded
+  by <path/commit>` header + `git mv` (never a silent delete; never file an un-run plan in
+  `executed/`), or kept in `reusable/` if recurring. Marker-delimited so re-running updates
+  it in place without duplicating (same discipline as the AGENTS workflow pointer).
 - **Conformance:** if the dirs exist but the contract is undocumented, that is
   "partial" - offer to add the doc. If both exist, "conformant" - skip.
 

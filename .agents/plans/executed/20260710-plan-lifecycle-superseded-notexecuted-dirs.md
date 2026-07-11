@@ -3,7 +3,7 @@
 - Date: 2026-07-10
 - Concern: Auditability and honesty of the plan lifecycle - an honest home for plans drafted but never run.
 - Scope: Add two terminal lifecycle states (`superseded/`, `not-executed/`) to the plan lifecycle the installer scaffolds and the docs describe; reconcile all docs that currently say "three states"; update the `/setup-repo` AGENT-PLANS prose and this repo's own `AGENTS.md`; add a dated `DECISIONS.md` entry extending D45.
-- Status: PENDING (open questions resolved with the maintainer 2026-07-10; scope trimmed - see "Decisions taken" below)
+- Status: DONE (executed 2026-07-11; see DECISIONS D47). Five-state lifecycle live; suite 133 green.
 - Note: the per-lifecycle-dir READMEs originally proposed here were SPLIT OUT into a separate follow-on IPD (see "Deferred / out of scope"), so this plan stays lean and focused on the auditability fix.
 
 ## Decisions taken (maintainer, 2026-07-10)

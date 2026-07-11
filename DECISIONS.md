@@ -1404,3 +1404,37 @@ both execute the (large) set well.
 - **Scope:** engine packaged (Batch A), pyproject + wheel gate (B), config + discovery (C), CLI
   verbs + UX + preflight (D), setup artifacts (E), cross-OS CI + docs (F). Suite 75 -> 129 green.
   No workflow BEHAVIOR changed; this is distribution + UX only.
+
+### D47. Plan lifecycle gains `superseded/` and `not-executed/` (five states)
+
+- **Context:** the lifecycle was `pending/` + `reusable/` + terminal `executed/` (D45). A plan that
+  was drafted but never run had no honest home: it could only sit in `pending/` (falsely "still
+  queued"), be forced into `executed/` (falsely "implemented and verified" - an auditability
+  defect), or be silently deleted (losing the record of why we chose not to do something). Executed
+  from `.agents/plans/executed/20260710-plan-lifecycle-superseded-notexecuted-dirs.md` after two
+  `/plan-review` passes.
+- **Decision:** add two terminal states, for FIVE total: `pending/`, `executed/`, `superseded/`
+  (replaced by a better/subsequent plan; kept for the record, not the live path), `not-executed/`
+  (deliberately decided against, no replacement - explored/rejected or overtaken by events), and
+  `reusable/` (recurring plans re-run repeatedly). `done/` remains an accepted alias for
+  `executed/`.
+- **Why TWO dirs and not one merged `retired/`:** deliberately chosen for `ls`-level visual
+  separation of "replaced" vs "deliberately rejected", even though both are terminal not-run states
+  differing only by whether a successor exists. Do NOT collapse them back; the distinction is the
+  point.
+- **Retirement convention:** never file an un-run plan in `executed/`. Retire by prepending a
+  `RETIRED YYYY-MM-DD: <reason>; superseded by <path/commit>` header and `git mv`ing the file into
+  `superseded/` or `not-executed/` (history preserved). Never silently delete a plan.
+- **Applied:** `PLAN_LIFECYCLE_SUBDIRS` in `engine.py` extended to
+  `("pending", "executed", "superseded", "not-executed", "reusable")` (order = lifecycle flow, with
+  `reusable` last); `create_setup_artifacts` scaffolds all five `.gitkeep`s no-clobber
+  automatically. `tests/test_setup_artifacts.py` updated (loop + the fresh-repo `created` count
+  5 -> 7).
+- **Forward-facing docs updated:** the five-state lifecycle and the retirement convention now in
+  `assess/assess.md` (Step 0), `assess/templates/ipd.md`, `setup-repo/setup-repo.md` (Step 0 + the
+  Step 1b directories/contract), `index.md`, and this repo's own `AGENTS.md` AGENT-PLANS block.
+- **Deliberately NOT done (deferred to follow-on IPDs):** per-lifecycle-dir READMEs (the whole
+  `.agents/` tree; `20260711-agents-tree-directory-readmes.md`), and an installer-managed
+  AGENT-PLANS block (delivery stays via the LLM `/setup-repo`).
+- **Historical records untouched (P4):** D45 and prior dated entries stand as written; only
+  forward-facing docs changed.
