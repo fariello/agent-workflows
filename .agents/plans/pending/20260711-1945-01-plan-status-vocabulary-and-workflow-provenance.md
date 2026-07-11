@@ -8,7 +8,7 @@
   `spec`, `migrate`, `incident`) + a new `aw plans` status board + docs (lifecycle prose, AGENTS.md,
   `.agents/plans/README.md`, DECISIONS). Does NOT change disposition directories (the five-state dir
   set from D45/D47 is unchanged) or the filename convention (D48/D50 unchanged).
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -22,6 +22,10 @@
 - 2026-07-11 folded in audience/teachability consideration (its_direct/pt3-claude-opus-4.8-1m-us):
   most users are not discussion-first; added change #11 (teach draft-vs-to-review; `/plan-review`
   names an unready plan) + background rationale.
+- 2026-07-11 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED;
+  PS-1 (status<->dir for pre-terminal `approved`), PS-2 (approval-enforcement gap -> OQ2), PS-3
+  (batching + `aw plans` split candidate -> OQ6), PS-4 (reframed prompts OQ). Status -> reviewed;
+  refinement OQs 2-6 open for maintainer.
 
 ## Goal
 
@@ -80,6 +84,13 @@ guidance - which is the whole point of a framework. Captured as change #11.
    - Terminal (file in the matching dir; `Status:` MIRRORS the dir): `executed`, `superseded`,
      `not-executed`.
    - Standing: `reusable`.
+   - **Pre-terminal statuses all live in `pending/` (clarified by plan-review, PS-1):** `draft`,
+     `to-review`, `reviewed`, AND `approved` all reside in `.agents/plans/pending/` - `approved`
+     means "signed off, ready to execute" but the file has NOT moved yet (it moves to `executed/`
+     only when execution completes). So "Status MIRRORS the dir" is a rule for TERMINAL statuses
+     only; pre-terminal statuses deliberately do NOT correspond to a directory (they are all
+     `pending/`). The drift-guard (change #10) therefore checks dir-match ONLY for terminal statuses,
+     never for pre-terminal ones.
     - Longest path: `draft -> to-review -> reviewed -> approved -> executed`. Terminal `superseded`/
       `not-executed` are reachable from ANY pre-terminal state (the "abandon at any step but keep"
       case; retire with the `RETIRED YYYY-MM-DD: <reason>; superseded by <path/commit>` header +
@@ -249,6 +260,16 @@ The new surface is one CLI verb (`aw plans`) + front-matter conventions + workfl
 Directories still carry disposition (one axis); status carries readiness (the other) - no
 combinatorial folder explosion. General-case: every repo benefits; nothing personal is hardcoded.
 
+**Size / batching (plan-review, PS-3):** this is a LARGE plan - 11 changes touching the IPD
+template, 6 workflow bodies, a net-new `aw plans` CLI verb, docs, and DECISIONS. It is not
+over-scoped (each change traces to a stated need), but it MUST execute in independently-committable
+batches (e.g. B1 template+vocabulary+docs; B2 workflow-body wiring incl. plan-review two-commit; B3
+the `aw plans` board + tests). The `aw plans` board (change #5) is the heaviest net-new CODE and is
+INDEPENDENT of the vocabulary/provenance/commit-discipline prose - it is a candidate to SPLIT into
+its own follow-on IPD if this plan proves too big to land cleanly (the vocabulary + Workflow-history
++ commit contract deliver most of the value; the board is the visibility cherry on top). Decide at
+approval time (see OQ6).
+
 ## Required tests / validation
 
 Automated per change #10; full `python3 -m unittest discover -s tests -t .` green. Manual: create a
@@ -264,24 +285,65 @@ BEHAVIOR changes beyond the added commit points and metadata; no code-execution 
 
 ## Open questions
 
-1. **IPD default status:** should `/assess`, `/spec`, `/migrate`, `/incident` set the IPD they emit
-   to `to-review` (proposed - they produce a complete proposal), or `draft` (let the human bump it to
-   `to-review` when ready)? Hand-created stubs start `draft` regardless.
+(Sharpened by `/plan-review` 2026-07-11. Per the "`to-review` gates on approach-committed" rule,
+these are refinement/detail questions, resolvable during or after review - the approach is set.)
+
+1. **IPD default status: RESOLVED** (born-`to-review`, `draft` opt-in for stubs - decision 2 /
+   change #11). Kept here only as a pointer to that resolution.
 2. **Gating strictness (change #7):** advisory-only (board + warnings) for v1, or add a hard
-   `verify`/test gate ("terminal status must match dir"; "do not execute a non-`approved` plan")?
-   Leaning advisory-first to protect downstream repos with legacy status text.
+   `verify`/test gate? Leaning advisory-first to protect downstream repos with legacy status text.
+   PLAN-REVIEW NOTE (PS-2): even advisory, execution SHOULD verify `Status: approved` (or an
+   explicit override) before executing a plan - otherwise nothing guarantees an `executed` plan ever
+   passed through `approved` (the manual approval step is unenforced). Decide whether that check is
+   advisory (warn) or blocking, and whether it lives in the executing workflow's prose or a
+   `verify`/release-review check.
 3. **`aw plans` scope:** plans only, or plans + prompts by default? And is `STATUS.md` generated
    on-demand (`--write-index`) only, or refreshed automatically by `aw install` (more moving parts)?
-4. **Prompts:** prompts are more free-form than IPDs; do they get the FULL status enum + Workflow
-   history, or a lighter subset (e.g. just Workflow history, no readiness enum)?
-5. **`assess-all`:** it writes one consolidated IPD; confirm the single-IPD status/history model fits
-   (vs. per-concern sub-entries).
+4. **Prompts (reframed by plan-review, PS-4):** the real question is not "full enum vs subset" but
+   "do prompts have a READINESS lifecycle at all?" Most prompts are either reusable/standing or
+   one-shot reference inputs, not `draft->approved->executed` artifacts. Proposal to evaluate: give
+   prompts the `## Workflow history` provenance section (universally useful) but NOT the readiness
+   enum unless a prompt is genuinely being developed like a plan; do not force a lifecycle onto
+   reference material. Confirm.
+5. **`assess-all`:** it writes ONE consolidated IPD (verified: assess-all.md:48 "Emit ONE
+   consolidated IPD"); confirm the single-IPD status/history model fits (vs. per-concern
+   sub-entries). Leaning: single IPD, one Status, and a Workflow-history line naming the concerns
+   rolled up.
+6. **Batch vs split (plan-review, PS-3):** execute all 11 changes as one batched plan, or SPLIT the
+   `aw plans` board (change #5, the heaviest net-new code, independent of the rest) into its own
+   follow-on IPD so the vocabulary + provenance + commit-discipline land first? Decide at approval.
+
+## Plan-review record (2026-07-11)
+
+Reviewed by `/plan-review` (its_direct/pt3-claude-opus-4.8-1m-us). Verdict: **APPROVE WITH REVISIONS
+APPLIED** (pending human sign-off to move `approved`). All factual claims verified against source:
+`assess` does commit + not push (assess.md:130,67); `plan-review` has NO commit guidance today (the
+real gap); `assess-all` emits one consolidated IPD (assess-all.md:48); `aw` verbs are
+install/setup/uninstall/list/status so `plans` is net-new; `term.py:should_color` exists for the
+board. Approach is sound and additive/non-disruptive. Findings (all Low Remediation Risk):
+
+- PS-1 (Medium): the status<->dir rule was ambiguous for `approved` (a pre-terminal status whose
+  file stays in `pending/`). Fixed in decision 2: "Status mirrors dir" applies to TERMINAL statuses
+  only; the drift-guard checks dir-match for terminal statuses only.
+- PS-2 (Medium): the `approved` transition is an unenforced manual step, so nothing guarantees an
+  `executed` plan passed through `approved`. Recorded in OQ2: execution SHOULD verify
+  `Status: approved` (advisory or blocking - to decide).
+- PS-3 (Low, KISS): this is a large 11-change plan; added a batching mandate + flagged the `aw plans`
+  board (change #5) as a split candidate (new OQ6).
+- PS-4 (interrogation): reframed the prompts OQ from "full enum vs subset" to "do prompts have a
+  readiness lifecycle at all?" (proposal: Workflow-history yes, readiness enum only if genuinely
+  developed like a plan).
+- OQ1 confirmed already-resolved (born-`to-review`).
+
+No approach or scope changed; review sharpened the state-machine edge (PS-1), surfaced the
+approval-enforcement gap (PS-2), and reframed OQ4 - exactly the interrogation role. Reviewing is not
+executing. Remaining OQs (2, 3, 4, 5, 6) are refinement-level and for the maintainer to answer.
 
 ## Approval and execution gate
 
-This IPD is a proposal (currently `draft`; not yet `to-review`). It MUST be fleshed out (open
-questions resolved), moved to `to-review`, optionally `/plan-review`ed to `reviewed`, and
-human-`approved` before execution. It is NOT auto-executed. On approval: implement changes 1-10, run
-validation, commit (never push), then set `Status: executed` and `git mv` to
-`.agents/plans/executed/`. This plan will itself be the first artifact to exercise the new
-commit-not-push + Workflow-history + status-transition conventions (dogfooding).
+This IPD is `reviewed` (approach committed; refinement OQs 2-6 open for the maintainer). It MUST be
+human-`approved` before execution and is NOT auto-executed. On approval: implement changes 1-11 IN
+BATCHES (per the Scope-check batching mandate; decide OQ6 split first), run validation, commit at
+each batch (never push), then set `Status: executed` and `git mv` to `.agents/plans/executed/`. This
+plan itself is the first artifact exercising the new commit-not-push + Workflow-history +
+status-transition conventions (dogfooding).
