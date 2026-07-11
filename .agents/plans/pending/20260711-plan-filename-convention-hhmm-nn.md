@@ -92,10 +92,10 @@ for the user to review and commit.
   lifecycle contract exist. The new "check + offer to normalize filenames" behavior slots into
   Step 1b as an additional conformance check.
 - **Helper seam:** `.agents/workflows/setup-repo/tools/setup_tools.py` is an argparse tool
-  (`main()` at :180, discrete functions, `--format text|json`). The new normalizer can be a sibling
-  module or an extension here (execution-time choice; a dedicated `normalize_plan_names.py` keeps
-  concerns separate and is the leaning). It reads neighboring `VERSION` for `--version` like the
-  other tools; zero third-party deps.
+  (`main()` at :180, discrete functions, `--format text|json`). The new normalizer is a DEDICATED
+  sibling module `.agents/workflows/setup-repo/tools/normalize_plan_names.py` (OQ1 resolved: keep it
+  separate from `setup_tools.py` for cleaner concerns + easier testing). It reads neighboring
+  `VERSION` for `--version` like the other tools; zero third-party deps.
 - **Lifecycle dirs (post the superseded/not-executed IPD):** `PLAN_LIFECYCLE_SUBDIRS` in
   `engine.py` is the single source of truth for the bucket set; the normalizer should scan those
   same dir names (plus `done/`) so it cannot drift.
@@ -186,6 +186,15 @@ workflow-artifacts are NOT touched (only plan filenames).
   are left untouched (idempotent).
 - Reuse the `tests/support.py` git-repo helpers; stdlib unittest only.
 
+### 7. CI drift-guard for THIS repo (OQ2 resolved: yes)
+Add a test (e.g. in `tests/test_normalize_plan_names.py` or a small `tests/test_plan_names.py`) that
+walks this repo's own `.agents/plans/*` and asserts every plan file is `is_conformant`, failing if a
+nonconforming name is ever committed. This keeps the reference repo exemplary and prevents silent
+drift after adoption. It runs in the existing suite (so the cross-OS CI already covers it); no new
+workflow file needed. It must run AFTER change #5 (this repo's files normalized) or it would fail on
+the pre-normalization names. Downstream repos are unaffected - they rely on the `/setup-repo` check,
+not this test.
+
 ## Directory / format spec (authoritative)
 
 `YYYYMMDD-HHMM-NN-<slug>.md`
@@ -244,13 +253,14 @@ Concrete couplings: (a) the normalizer's bucket list should include `superseded/
 once present, since it reads `PLAN_LIFECYCLE_SUBDIRS`); (b) the READMEs IPD's `plans-README.md`
 should state the NEW filename convention if this IPD has landed. No hard ordering required.
 
-## Open questions
+## Open questions (RESOLVED with the maintainer 2026-07-11)
 
-1. Helper home: a dedicated `normalize_plan_names.py` (leaning) vs. extending `setup_tools.py`.
-   Execution-time call; dedicated module keeps concerns separate and is easier to test.
-2. Should `--check` be added to the framework's own `verify`/CI so THIS repo stays conformant going
-   forward (a guard against regressions), or is `/setup-repo` + the one-time normalization enough?
-   (Leaning: add a lightweight check to this repo's test suite so its own plan names cannot drift.)
+1. Helper home: **RESOLVED - a dedicated `.agents/workflows/setup-repo/tools/normalize_plan_names.py`
+   module** (not folded into `setup_tools.py`), for cleaner separation and easier unit testing.
+2. CI drift-guard: **RESOLVED - YES.** Add a check to THIS repo's own test suite that every file in
+   `.agents/plans/*` conforms to the new convention, so agent-workflows itself cannot drift back to
+   a nonconforming plan filename after adoption. It reuses the normalizer's `is_conformant` (see the
+   new change #7). Downstream repos are unaffected (they get the `/setup-repo` check, not our CI).
 
 ## Plan-review revisions applied (2026-07-11)
 
@@ -277,8 +287,13 @@ Verified that dogfooding (change #5) is real: 23 existing plan files in THIS rep
 normalized. The approach (deterministic helper + `/setup-repo` preview+confirm + staged `git mv`) is
 sound; no scope or approach changed in review. Reviewing is not executing.
 
+Open questions then RESOLVED interactively with the maintainer (2026-07-11): OQ1 - dedicated
+`normalize_plan_names.py` module (not folded into `setup_tools.py`); OQ2 - YES add a CI drift-guard
+to this repo's own suite, added as change #7 (runs after #5).
+
 ## Approval and execution gate
 
-Proposal only; not auto-executed. On approval: implement changes 1-6, run the full suite green, do
-the manual validation, normalize this repo's own plan files (previewed), then move this IPD to
-`.agents/plans/executed/` (under the NEW name) with an execution-record summary.
+Proposal only; not auto-executed. On approval: implement changes 1-7 (note #7, the CI drift-guard,
+runs after #5 normalizes this repo's own files), run the full suite green, do the manual validation,
+then move this IPD to `.agents/plans/executed/` (under the NEW name) with an execution-record
+summary.

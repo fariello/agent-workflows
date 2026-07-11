@@ -111,8 +111,9 @@ IPD extends) so it cannot drift from the dirs actually created.
 
 ### 3. Category 2 authored capability READMEs (source files, no installer change)
 Author `README.md` under source `.agents/workflows/<capability>/` for every top-level capability
-that lacks one (all 16 except `release-review/`, which has one; `.agents/workflows/README.md`
-already covers the `workflows/` root). Each README: one-screen, states the capability's purpose,
+that lacks one (all 16 except `release-review/`, which already has one; `.agents/workflows/README.md`
+already covers the `workflows/` root). This INCLUDES `templates/`, which gets the short meta-README
+described in OQ2 (resolved: yes). Each README: one-screen, states the capability's purpose,
 how to invoke it (native `/command` or "read and execute <body>"), and - where the capability has
 leaf subdirs - a short "Subdirectories" list explaining each (e.g. `assess/README.md` explains
 `lenses/`, `templates/`, `tools/`, `references/`). This satisfies the maintainer's condition that
@@ -209,14 +210,16 @@ nothing new; confirm a user-authored README in any Category 1 dir is preserved.
 New DECISIONS entry (change #5). No user-visible WORKFLOW behavior change. `index.md` stays the
 catalog; capability READMEs reference it rather than duplicating it (P8).
 
-## Open questions
+## Open questions (RESOLVED with the maintainer 2026-07-11)
 
-1. Should `.agents/plans/README.md` and the per-bucket READMEs be a single overview file plus thin
-   per-bucket files, or is the per-bucket detail redundant given the overview? (Proposed: keep both;
-   a browser landing directly in `superseded/` should not have to walk up to understand it.)
-2. Category 2 wording per capability is drafted at execution time; confirm no capability wants to
-   OMIT a README (e.g. `templates/` under `workflows/` - it holds README templates; a meta-note
-   there may be worth it or may be noise).
+1. Overview + per-bucket READMEs: **RESOLVED - keep BOTH.** `.agents/plans/README.md` gives the
+   whole-lifecycle picture AND each of the five buckets gets its own short README, so a browser
+   landing directly in (say) `superseded/` understands it in isolation. Total Category-1 generated
+   files: `.agents/README.md` + `.agents/plans/README.md` + 5 bucket READMEs = 7.
+2. README for `templates/`: **RESOLVED - YES**, add a short meta-README at
+   `.agents/workflows/templates/README.md`: "Source templates the installer copies/generates into
+   targets (shim and directory READMEs); not workflows themselves - edit here to change what
+   installed repos get." So every top-level dir including the meta-dir is self-documenting.
 
 ## Plan-review revisions applied (2026-07-11)
 
