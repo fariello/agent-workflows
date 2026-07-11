@@ -280,13 +280,13 @@ prominently. Concretely, derived/redistributed works must include the following,
 in the project README (or equivalent top-level documentation) and in any "About"/credits
 screen the software presents:
 
-> Based on the original agent-workflows by Gabriele G. R. Fariello (https://github.com/fariello/agent-workflows).
+> Based on the original agent-workflows by Gabriele Fariello (https://github.com/fariello/agent-workflows).
 
 **Citation.** If you use `agent-workflows` in academic or scholarly work, please cite it. GitHub's
 "Cite this repository" button (backed by `CITATION.cff`) provides ready-to-use formats. A
 suggested citation:
 
-> Fariello, Gabriele G. R. *agent-workflows*. 2026. https://github.com/fariello/agent-workflows
+> Fariello, Gabriele. *agent-workflows*. 2026. https://github.com/fariello/agent-workflows
 
 The attribution and citation requests impose no warranty or liability on the author; the
 software is provided "AS IS" per the LICENSE.

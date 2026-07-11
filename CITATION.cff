@@ -6,7 +6,7 @@ abstract: >-
 type: software
 authors:
   - family-names: "Fariello"
-    given-names: "Gabriele G. R."
+    given-names: "Gabriele"
     email: "gfariello@fariel.com"
 repository-code: "https://github.com/fariello/agent-workflows"
 url: "https://github.com/fariello/agent-workflows"
