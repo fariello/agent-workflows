@@ -8,7 +8,7 @@
   optional `--write-index` that writes `.agents/plans/STATUS.md`, tests, and docs. Depends on the
   vocabulary/front-matter conventions defined by
   `20260711-1945-01-plan-status-vocabulary-and-workflow-provenance` (the "core" IPD).
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -20,6 +20,11 @@
   fleshed out with concrete code anchors (cli.py verb dispatch + _run_* handlers; term.py
   status_label/heading/kv; discovery for the plans root). OQs given v1 leans for review. Approach
   committed; promoted to to-review for /plan-review.
+- 2026-07-11 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED.
+  Verified against source: `_STATUS_STYLE` (term.py:39) is install-currency not readiness (board maps
+  its own); `discovery.py` has no plans-root helper; verbs default root to `Path.cwd()` with optional
+  path (cli.py:218-220). PB-1 added the root-resolution rule + optional `[dir]` arg + "no plans found
+  -> exit 0" case. OQs leaned; none escalated. Status -> reviewed.
 
 ## Goal
 
@@ -49,9 +54,17 @@ Dependency satisfied; this board IPD may now proceed.
   isatty/NO_COLOR; the board reuses this - no new color logic. NOTE: `status_label` maps a fixed
   `_STATUS_STYLE` set (install-currency states, not plan-readiness states); the board will map the
   readiness vocabulary to styles itself (or extend `_STATUS_STYLE`) rather than assume it exists.
-- Plans root discovery: locate `.agents/plans/` (and `.agents/prompts/`) from the invocation cwd /
-  repo root, tolerating a repo that uses `done/`. Stdlib-only, zero deps (D46), consistent with the
-  D48/D50 normalizer's scope model.
+- Plans root discovery: VERIFIED that verbs resolve the repo root as `Path.cwd()` by default with an
+  optional explicit path (`_run_install` :218-220). `aw plans` follows suit: default to cwd, accept an
+  optional positional `[dir]`; locate `<root>/.agents/plans/` (and `.agents/prompts/`), tolerating a
+  repo that uses `done/`. If `.agents/plans/` is absent, print a clear "no plans found here" message
+  and exit 0 (not an error). Stdlib-only, zero deps (D46), consistent with the D48/D50 normalizer's
+  scope model.
+- VERIFIED that `term._STATUS_STYLE` (term.py:39) holds INSTALL-CURRENCY states
+  (`ok/current/installed/stale/ahead/...`), NOT plan-readiness states - so the board maps the
+  readiness vocabulary to styles itself (or extends `_STATUS_STYLE`); it must not assume the readiness
+  words are already stylable. VERIFIED `discovery.py` exposes no plans-root helper, so the new helper
+  owns that resolution.
 - Backward-compat: reuse the same legacy mapping the drift-guard test encodes (D52): case-normalize,
   map `pending`->to-review and `done`->executed; unrecognized values -> a `legacy/unknown` group,
   never an error.
@@ -77,13 +90,14 @@ Dependency satisfied; this board IPD may now proceed.
    (path, disposition-dir, readiness). Mirror the mapping already in `tests/test_plan_status.py` so
    the two never diverge (single source of truth is the D52 vocabulary; consider having the test
    import from `plans.py` to enforce that).
-2. **`aw plans` verb** in `cli.py`: register `sub.add_parser("plans", parents=[common], ...)`, a
-   dispatch branch in `main()`, and a `_run_plans(args, term)` handler that calls the helper and
-   prints a board grouped by disposition dir then readiness, with per-group counts. Render via
-   `term.py` (`heading`, `kv`, `line`; map readiness states to styled labels; honor
-   NO_COLOR/isatty/piped -> plain, reusing `should_color`). Add `plans` to the no-arg default hint
-   (:620-622). Flags: `--pending` (only pending/), `--status <s>` (filter to one readiness),
-   `--write-index`.
+2. **`aw plans` verb** in `cli.py`: register `sub.add_parser("plans", parents=[common], ...)` with an
+   optional positional `[dir]` (default cwd, matching `_run_install` :218-220), a dispatch branch in
+   `main()` (:626-635), and a `_run_plans(args, term)` handler that resolves the root, calls the
+   helper, and prints a board grouped by disposition dir then readiness, with per-group counts. When
+   `.agents/plans/` is absent, print "no plans found" and return 0. Render via `term.py` (`heading`,
+   `kv`, `line`; map readiness states to styled labels; honor NO_COLOR/isatty/piped -> plain, reusing
+   `should_color`). Add `plans` to the no-arg default hint (:620-622). Flags: `--pending` (only
+   pending/), `--status <s>` (filter to one readiness), `--write-index`.
 3. **`--write-index`**: (re)generate `.agents/plans/STATUS.md` - a plain, committed-friendly grouped
    list mirroring the terminal board, for the no-CLI / GitHub-web case. On-demand only (never
    auto-written by `aw install`, per D52 OQ3). Must be deterministic (stable sort) so re-running
@@ -120,9 +134,21 @@ Dependency satisfied; this board IPD may now proceed.
    source of truth (avoids the two-mappings-diverge risk). Confirm this refactor is in scope for this
    IPD (lean: yes, it is cheap and removes duplication).
 
+## Plan-review record (2026-07-11)
+
+Reviewed by `/plan-review` (its_direct/pt3-claude-opus-4.8-1m-us). Verdict: **APPROVE WITH REVISIONS
+APPLIED** (pending human sign-off to move `approved`). Claims verified against source:
+- `term._STATUS_STYLE` (term.py:39) holds install-currency states, not plan-readiness - the board
+  maps its own readiness styles. Confirmed.
+- `discovery.py` exposes no plans-root helper; the new `plans.py` helper owns root resolution.
+- Verbs default the root to `Path.cwd()` with an optional explicit path (`_run_install` :218-220).
+- PB-1 (gap fixed in place): specify root resolution (default cwd + optional `[dir]`), and the
+  "`.agents/plans/` absent -> print 'no plans found', exit 0 (not an error)" case.
+No new open questions; OQ1-4 leaned for v1 and left for human confirmation at approval. This IPD does
+not self-approve.
+
 ## Approval and execution gate
 
-This IPD is `to-review` (dependency D52 satisfied; approach committed). Next: `/plan-review` (with the
-D52 two-commit contract), resolve the OQs, human-approve (`Status: approved`), then execute changes
-1-5, validate (full suite green), commit per batch and NEVER push, set `Status: executed`, and
-`git mv` to `.agents/plans/executed/`. Not auto-executed.
+This IPD is `reviewed` (`/plan-review` done, revisions applied); awaiting explicit human sign-off to
+move `approved`. On approval: execute changes 1-5, validate (full suite green), commit per batch and
+NEVER push, set `Status: executed`, and `git mv` to `.agents/plans/executed/`. Not auto-executed.
