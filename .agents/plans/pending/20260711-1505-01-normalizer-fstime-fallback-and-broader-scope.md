@@ -36,11 +36,15 @@ be renamed, so protection must be by structure (nesting) AND pattern (exclusions
    exposes it) -> `st_ctime` -> `st_mtime` -> `0000`. Replaces today's straight-to-`0000` fallback.
    All times formatted as UTC `YYYYMMDD-HHMM` (and the DATE part may come from the fs time too when a
    file has no usable date in its name).
-2. **Scan scope (tiered) + force flags:** recurse ALL directories under `.agents/`. Priority tiers:
-   `plans/` (most important), then `prompts/`, then everything else. Default run targets
-   `plans/` + `prompts/`. Flags: `--plans` (force only plans), `--prompts` (force only prompts),
-   `--all` (everything under `.agents/`). The maintainer expects "almost all to conform" and assumes
-   other users want the same, so broad coverage is the intent - bounded by exclusions.
+2. **Scan scope (default narrow, opt-in broadening) - REVISED 2026-07-11:** default run scans ONLY
+   `.agents/plans/` + `.agents/prompts/` (the two areas the framework blesses for the lifecycle).
+   Broadening is opt-in: `--area <name>` (repeatable) - when given, it REPLACES the default set with
+   exactly the named areas (e.g. `--area plans` = only plans; `--area designs --area rfcs` = those
+   two); `--all` = every top-level area under `.agents/`. There are NO `--plans`/`--prompts`
+   convenience flags (use `--area plans` / `--area prompts`); one uniform mechanism. This reverses
+   the earlier "recurse everything by default" idea: defaulting to plans+prompts avoids reaching
+   into areas the framework does not own, while `--area`/`--all` let a user who keeps other
+   lifecycle-bearing areas opt in.
 3. **Recursion + rename eligibility:** walk fully (so nothing is missed in REPORTING), but only
    auto-rename a `*.md` whose IMMEDIATE PARENT is a recognized lifecycle dir
    (`pending/executed/superseded/not-executed/reusable/done`, under a scanned area). Files nested
@@ -104,33 +108,38 @@ count of the first post-date group, so `20260709-01-foo` is read as NN=01 (no ti
 `20260709-1044-foo` as time=1044 (no NN). `is_conformant` stays strict (only the exact canonical
 form with a clean lowercase-kebab slug).
 
-### 3. Broader, tiered, flag-controlled scan (decisions 2, 3)
-Rework `scan` to walk `.agents/` recursively. Areas: default `plans/` + `prompts/`; `--plans`,
-`--prompts`, `--all` (everything under `.agents/`, still rename-eligibility-gated). Recognize the
-lifecycle subdir set under any scanned area. Rename-eligible = `*.md` whose IMMEDIATE parent is a
-lifecycle dir; deeper files are reported (as `nested`, not renamed) unless `--include-nested` is
-given. Report every file with a status: conformant / to-rename / excluded / nested / non-numeric /
-conflict.
+### 3. Scan scope: default plans+prompts, `--area`/`--all` to broaden (decisions 2, 3)
+Rework `scan` to take a set of AREAS (top-level names under `.agents/`). Default = {`plans`,
+`prompts`}. `--area <name>` (repeatable) REPLACES the default with exactly the named areas; `--all`
+= every top-level dir under `.agents/`. Within each scanned area, recurse and recognize the
+lifecycle subdir set (`pending/executed/superseded/not-executed/reusable/done`). Rename-eligible =
+`*.md` whose IMMEDIATE parent is a lifecycle dir within a scanned area; deeper files are reported
+(as `nested`, not renamed) unless `--include-nested`. Report every file with a status: conformant /
+to-rename / excluded / nested / non-numeric / conflict.
 
-`--all` reporting noise (N-5): even with `--all`, only files under a recognized lifecycle dir (at any
-depth) are REPORTED; the framework tree `.agents/workflows/**` and other non-lifecycle `*.md` are
-NOT listed (they are framework-owned and out of the convention's scope). So `--all` widens WHICH
-top-level areas under `.agents/` are searched for lifecycle dirs, not "print every markdown file in
-.agents/". This keeps `--all` output usable and avoids flooding with hundreds of framework files.
-The framework's own `.agents/workflows/` is never a rename target regardless of flags.
+Scope guardrails (N-5): only files under a recognized lifecycle dir are REPORTED and eligible; even
+with `--all`, non-lifecycle `*.md` (including the whole framework tree `.agents/workflows/**`) are
+NOT listed or targeted. `.agents/workflows/` is never a rename target regardless of flags. So `--all`
+widens WHICH top-level areas are searched for lifecycle dirs, not "print/rename every markdown file
+under .agents/". This keeps output usable and the blast radius bounded.
 
 ### 4. Exclusions (decision 4)
-Add `--exclude PATTERN` (repeatable) and a built-in default exclude set (at minimum: `*/sources/*`,
-`README.md`, and an all-caps context-doc guard like `*/MASTER-CONTEXT-*`). Exclusions are fnmatch
+Add `--exclude PATTERN` (repeatable) and a MINIMAL built-in default exclude set of `README.md` ONLY
+(RESOLVED 2026-07-11: do NOT hardcode personal-layout patterns like `*/sources/*` or
+`*/MASTER-CONTEXT-*` - those are one user's idiom and would surprise downstream repos, violating
+P7; the framework only owns the lifecycle dirs and the READMEs it generates. Reference-input folders
+are protected structurally by the nested-file rule, not by a baked-in glob). Exclusions are fnmatch
 globs on the repo-relative POSIX path. An excluded file is reported `excluded`, never renamed. A
 `--no-default-excludes` escape hatch lets a user opt out of the built-ins.
 
 ### 5. Non-numeric renaming (decision 5)
 Add `--rename-non-numeric`. Off by default: a non-numeric, non-excluded, lifecycle-parent file is
-reported `non-numeric (needs --rename-non-numeric)`. On: rename it to canonical using the
-time-fallback date/time and a slug from the old stem (lowercased-kebab; strip a trailing/leading date
-if present, e.g. `MASTER-CONTEXT-...-20260711` -> slug `master-context-...`; empty -> `untitled`).
-Never touch excluded or nested files even with this flag (nesting needs `--include-nested` too).
+reported `non-numeric (needs --rename-non-numeric)`. On: rename it to canonical. DATE (OQ2 resolved):
+if the name contains a parseable `YYYYMMDD` anywhere, use it for the date and take only HHMM from the
+git/fs fallback; otherwise take BOTH date and time from the git/fs fallback (change #1). SLUG: derived
+from the old stem, lowercased-kebab, with the consumed date removed
+(`MASTER-CONTEXT-a-private-repo-20260711` -> `master-context-a-private-repo`; empty -> `untitled`). Never
+touch excluded or nested files even with this flag (nesting needs `--include-nested` too).
 
 ### 6. `/setup-repo` prose + docs
 Update Step 1b to mention the new flags and that the check now covers `plans/` and `prompts/` by
@@ -151,24 +160,30 @@ Extend `tests/test_normalize_plan_names.py`:
   normalize correctly, preserving present time/NN; explicitly assert the hyphenated-date case does
   NOT raise (N-1 regression guard) and yields a compact `YYYYMMDD` date; assert the NN-vs-HHMM
   disambiguation (`...-01-` -> NN, `...-1044-` -> time).
-- scope: a file under `prompts/pending/` is found by default; `--plans` excludes it; `--all` finds a
-  file in a non-lifecycle area only for REPORTING (not rename).
-- recursion: a `.../sources/foo.md` is reported `nested` and NOT renamed without `--include-nested`.
-- exclusions: `*/sources/*` (default) protects nested inputs; a `--exclude` pattern protects a named
-  file; `--no-default-excludes` re-includes.
+- scope: a file under `prompts/pending/` is found by default; `--area plans` excludes it (only plans
+  scanned); `--all` still lists only lifecycle-dir files, never `.agents/workflows/**` (N-5).
+- recursion: a `.../<suite>/sources/foo.md` is reported `nested` and NOT renamed without
+  `--include-nested` (structural protection, no glob needed).
+- exclusions: `README.md` is skipped by default; a `--exclude` pattern protects a named file;
+  `--no-default-excludes` drops the README.md default.
 - non-numeric: off by default -> reported, not renamed; `--rename-non-numeric` renames a top-level
   `foo-bar.md` to a canonical name with a `foo-bar` slug and a fs/`0000` time; still skips excluded.
 - idempotency + no-clobber + staged-git-mv still hold; repo drift-guard still green.
 
 ## Directory / eligibility spec (authoritative)
 
-- **Scanned areas:** default {`plans`, `prompts`}; `--plans` / `--prompts` force one; `--all` = every
-  dir under `.agents/`.
+- **Scanned areas:** default {`plans`, `prompts`}; `--area <name>` (repeatable) replaces the set
+  with exactly those; `--all` = every top-level dir under `.agents/`. No `--plans`/`--prompts` flags.
 - **Lifecycle dirs:** `pending`, `executed`, `superseded`, `not-executed`, `reusable`, `done`.
 - **Rename-eligible:** `*.md` whose immediate parent is a lifecycle dir within a scanned area, not
   excluded. (`--include-nested` also makes deeper files eligible.)
-- **Time:** git-first-commit UTC -> `st_birthtime` -> `st_ctime` -> `st_mtime` -> `0000`.
-- **Excluded (default):** `*/sources/*`, `README.md`, `*/MASTER-CONTEXT-*` (+ user `--exclude`).
+- **Time:** git-first-commit UTC -> `st_birthtime` -> `st_ctime` -> `st_mtime` -> `0000` (as a
+  single atomic date+time source; see change #1).
+- **Excluded (default): `README.md` ONLY** (the sole framework-owned file that must never be
+  renamed). NO hardcoded personal-layout patterns like `*/sources/*` (that would impose one user's
+  idiom on all downstream repos - P7); reference-input folders are protected STRUCTURALLY by the
+  nested-file rule instead. Users add their own via repeatable `--exclude PATTERN`;
+  `--no-default-excludes` drops even the README.md default.
 
 ## Deferred / out of scope
 
@@ -199,14 +214,23 @@ file; confirm the preview classifies each correctly (excluded / nested / to-rena
 DECISIONS D50 (change #7); `/setup-repo` prose + tool docstring/`--help` (change #6). The canonical
 convention docs (D48 sites) are unchanged.
 
-## Open questions
+## Open questions (RESOLVED with the maintainer 2026-07-11)
 
-1. Built-in default exclude set: is `*/sources/*`, `README.md`, `*/MASTER-CONTEXT-*` the right
-   starting set, or should it be broader/narrower? (Proposed as above; easy to extend.)
-2. When `--rename-non-numeric` derives a slug from a name that ENDS in a date
-   (`MASTER-CONTEXT-...-20260711.md`), should that trailing date become the file's date (likely yes,
-   more accurate than fs time)? Proposed: if the name contains a parseable YYYYMMDD anywhere, prefer
-   it for the DATE and use the time-fallback only for HHMM.
+1. Built-in default exclude set: **RESOLVED - `README.md` ONLY.** No hardcoded personal-layout
+   globs (`*/sources/*`, `*/MASTER-CONTEXT-*`): those are one user's idiom and would surprise
+   downstream repos (P7). The framework only owns the lifecycle dirs + the READMEs it generates;
+   reference-input folders are protected structurally by the nested-file rule, and users add
+   `--exclude` for their own layouts. (See change #4 and the eligibility spec.)
+2. Embedded date in a non-leading position: **RESOLVED - YES, use it.** When `--rename-non-numeric`
+   handles a name that contains a parseable `YYYYMMDD` anywhere (e.g.
+   `MASTER-CONTEXT-...-20260711.md`), use that date for the file's DATE, take HHMM from the git/fs
+   fallback, and drop the consumed date from the derived slug (-> `master-context-...`). If the name
+   has no parseable date, both date and time come from the git/fs fallback (change #1).
+
+Related scoping note (raised during this pass): whether to CODIFY a blessed directory for plan
+input/reference artifacts (the `sources/` need) is deliberately NOT decided here - it is a
+separate lifecycle/structure concern for its own future IPD, not this normalizer change. The
+nested-file rule already protects such folders from renaming today.
 
 ## Plan-review revisions applied (2026-07-11)
 
