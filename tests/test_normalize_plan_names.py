@@ -75,7 +75,40 @@ class ScanTests(unittest.TestCase):
         self.assertEqual(len(renames), 1)
         new = renames[0].new
         self.assertRegex(Path(new).name, r"^20260711-\d{4}-01-my-plan\.md$")
-        self.assertEqual(renames[0].reason, "legacy")
+        self.assertEqual(renames[0].reason, "to-rename")
+
+    def test_legacy_shapes_all_normalize(self):
+        # date-only, NN-only, time-only, hyphenated, hyphenated+NN (committed today so the
+        # name-date agrees with git and none is flagged imported).
+        for name in (
+            "20260711-date-only.md",
+            "20260711-07-with-nn.md",
+            "20260711-1430-with-time.md",
+            "2026-07-11-hyphenated.md",
+            "2026-07-11-09-hyphenated-nn.md",
+        ):
+            self._add(name)
+        renames = [r for r in NPN.scan(self.repo) if r.reason == "to-rename"]
+        self.assertEqual(len(renames), 5, [r.old for r in NPN.scan(self.repo)])
+        for r in renames:
+            self.assertTrue(NPN.is_conformant(Path(r.new).name), r.new)
+        by_old = {Path(r.old).name: Path(r.new).name for r in renames}
+        # Present time/NN preserved.
+        self.assertIn("-1430-", by_old["20260711-1430-with-time.md"])
+        self.assertRegex(by_old["20260711-07-with-nn.md"], r"-07-with-nn\.md$")
+        self.assertRegex(
+            by_old["2026-07-11-09-hyphenated-nn.md"], r"^20260711-\d{4}-09-"
+        )
+        # Hyphenated date compacted to YYYYMMDD (N-1 regression: did not raise + no hyphens in date).
+        self.assertTrue(by_old["2026-07-11-hyphenated.md"].startswith("20260711-"))
+
+    def test_nn_vs_hhmm_disambiguation(self):
+        p2 = NPN.parse_name("20260709-01-foo.md")
+        self.assertEqual(p2.nn, "01")
+        self.assertIsNone(p2.time)
+        p4 = NPN.parse_name("20260709-1044-foo.md")
+        self.assertEqual(p4.time, "1044")
+        self.assertIsNone(p4.nn)
 
     def test_same_minute_legacy_files_get_sequential_nn(self):
         # Two files committed together -> same first-commit minute -> 01, 02.
@@ -92,18 +125,61 @@ class ScanTests(unittest.TestCase):
         stamps = {Path(r.new).name.split("-", 2)[1] for r in renames}
         self.assertEqual(len(stamps), 1)
 
-    def test_untracked_file_falls_back_to_0000(self):
-        self._add("20260711-untracked.md", commit=False)  # never committed
-        renames = [r for r in NPN.scan(self.repo) if r.old != r.new]
-        self.assertEqual(len(renames), 1)
-        self.assertRegex(Path(renames[0].new).name, r"^20260711-0000-01-untracked\.md$")
+    def test_untracked_file_uses_fs_mtime_not_0000(self):
+        # D50: an untracked file's time comes from earliest fs evidence, not 0000.
+        p = self._add("20260711-untracked.md", commit=False)  # never committed
+        import os as _os
 
-    def test_slug_only_nonconformance_is_reason_slug_when_new_format(self):
-        # A new-format prefix but a bad slug is caught (not conformant) -> normalized.
-        # (Bad-slug new-format files parse as legacy here since the strict new regex fails;
-        #  the important guarantee is they get normalized, not their reason label.)
+        # Set mtime to a known instant; the name-date wins for DATE, time from fs.
+        _os.utime(p, (1751000000, 1751000000))  # some fixed epoch in 2025-ish
+        renames = [r for r in NPN.scan(self.repo) if r.reason == "to-rename"]
+        self.assertEqual(len(renames), 1)
+        name = Path(renames[0].new).name
+        # Name date preserved; time is a real HHMM (4 digits), not necessarily 0000.
+        self.assertTrue(name.startswith("20260711-"))
+        self.assertRegex(name, r"^20260711-\d{4}-01-untracked\.md$")
+
+    def test_name_date_wins_over_git_and_fs(self):
+        # A file whose name says 20260101 but committed today keeps 20260101 as the date.
+        self._add("20260101-old-dated.md")
+        r = [
+            x for x in NPN.scan(self.repo, assume_dates=True) if x.reason == "to-rename"
+        ]
+        self.assertEqual(len(r), 1)
+        self.assertTrue(Path(r[0].new).name.startswith("20260101-"))
+
+    def test_import_case_mtime_older_than_git_flagged_and_uses_mtime(self):
+        # Non-numeric name, mtime = June 1 (older than the July commit) -> earliest = mtime,
+        # flagged imported? (needs --assume-dates), and resolves to the June date.
+        import os as _os
+
+        p = self._add("imported-notes.md")  # committed now (git = today)
+        june = 1748800000  # ~2025-06; a clearly-older-than-now epoch
+        _os.utime(p, (june, june))
+        flagged = [
+            r
+            for r in NPN.scan(self.repo, rename_non_numeric=True)
+            if r.reason == "imported"
+        ]
+        self.assertEqual(len(flagged), 1)
+        # With --assume-dates it renames, using the (older) fs date, not today's git date.
+        done = [
+            r
+            for r in NPN.scan(self.repo, rename_non_numeric=True, assume_dates=True)
+            if r.reason == "to-rename"
+        ]
+        self.assertEqual(len(done), 1)
+        import datetime as _dt
+
+        june_date = _dt.datetime.fromtimestamp(june, _dt.timezone.utc).strftime(
+            "%Y%m%d"
+        )
+        self.assertTrue(Path(done[0].new).name.startswith(june_date + "-"))
+
+    def test_bad_slug_new_format_is_normalized(self):
+        # A canonical prefix but a bad slug is not conformant -> normalized slug.
         self._add("20260711-1430-01-Bad_Slug.md")
-        renames = [r for r in NPN.scan(self.repo) if r.old != r.new]
+        renames = [r for r in NPN.scan(self.repo) if r.reason == "to-rename"]
         self.assertEqual(len(renames), 1)
         self.assertIn("bad-slug", Path(renames[0].new).name)
 
@@ -153,7 +229,7 @@ class ApplyTests(unittest.TestCase):
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", "add legacy")
         # Precompute the target and create a conflicting file there.
-        target = NPN.scan(self.repo)[0].new
+        target = [r for r in NPN.scan(self.repo) if r.reason == "to-rename"][0].new
         (self.repo / target).write_text("# occupied\n", encoding="utf-8")
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", "occupy")
@@ -162,6 +238,93 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual(
             (self.repo / target).read_text(encoding="utf-8"), "# occupied\n"
         )
+
+
+class ScopeExcludeNonNumericTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.repo = init_repo(Path(self._tmp.name) / "repo")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _mk(self, rel, commit=True):
+        p = self.repo / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("x\n", encoding="utf-8")
+        if commit:
+            git(self.repo, "add", "-A")
+            git(self.repo, "commit", "-q", "-m", f"add {rel}")
+        return p
+
+    def _statuses(self, **kw):
+        return {r.old: r.reason for r in NPN.scan(self.repo, **kw)}
+
+    def test_prompts_scanned_by_default_area_narrows(self):
+        self._mk(".agents/prompts/pending/20260711-note.md")
+        # Default (plans+prompts): the prompts file is found (to-rename).
+        st = self._statuses()
+        self.assertIn(".agents/prompts/pending/20260711-note.md", st)
+        # --area plans: prompts excluded entirely (not reported).
+        st2 = self._statuses(areas=["plans"])
+        self.assertNotIn(".agents/prompts/pending/20260711-note.md", st2)
+
+    def test_workflows_tree_never_targeted_even_with_all(self):
+        self._mk(".agents/workflows/assess/20260711-not-a-plan.md")
+        self._mk(".agents/plans/pending/20260711-real.md")
+        st = self._statuses(all_areas=True)
+        self.assertNotIn(".agents/workflows/assess/20260711-not-a-plan.md", st)
+        self.assertIn(".agents/plans/pending/20260711-real.md", st)
+
+    def test_nested_reported_not_renamed_without_include(self):
+        self._mk(".agents/plans/pending/suite/sources/20260711-input.md")
+        st = self._statuses()
+        self.assertEqual(
+            st[".agents/plans/pending/suite/sources/20260711-input.md"], "nested"
+        )
+        st2 = self._statuses(include_nested=True)
+        self.assertEqual(
+            st2[".agents/plans/pending/suite/sources/20260711-input.md"], "to-rename"
+        )
+
+    def test_readme_excluded_by_default(self):
+        self._mk(".agents/plans/pending/README.md")
+        st = self._statuses()
+        # README under a lifecycle dir is excluded (or simply not offered); never to-rename.
+        self.assertNotEqual(st.get(".agents/plans/pending/README.md"), "to-rename")
+
+    def test_custom_exclude_pattern(self):
+        self._mk(".agents/plans/pending/20260711-keep.md")
+        self._mk(".agents/plans/pending/20260711-skip.md")
+        st = self._statuses(excludes=["*/20260711-skip.md"])
+        self.assertEqual(st[".agents/plans/pending/20260711-skip.md"], "excluded")
+        self.assertEqual(st[".agents/plans/pending/20260711-keep.md"], "to-rename")
+
+    def test_non_numeric_off_by_default_then_opt_in(self):
+        self._mk(".agents/plans/pending/free-form-name.md")
+        st = self._statuses()
+        self.assertEqual(st[".agents/plans/pending/free-form-name.md"], "non-numeric")
+        r = [
+            x
+            for x in NPN.scan(self.repo, rename_non_numeric=True, assume_dates=True)
+            if x.reason == "to-rename"
+        ]
+        self.assertEqual(len(r), 1)
+        self.assertTrue(NPN.is_conformant(Path(r[0].new).name))
+        self.assertIn("free-form-name", Path(r[0].new).name)
+
+    def test_non_numeric_with_embedded_date_uses_it(self):
+        self._mk(".agents/plans/pending/MASTER-CONTEXT-proj-20260101.md")
+        r = [
+            x
+            for x in NPN.scan(self.repo, rename_non_numeric=True, assume_dates=True)
+            if x.reason == "to-rename"
+        ]
+        self.assertEqual(len(r), 1)
+        name = Path(r[0].new).name
+        self.assertTrue(name.startswith("20260101-"), name)
+        # The consumed date is dropped from the slug.
+        self.assertNotIn("20260101", name.split("-", 3)[3])
 
 
 class RepoConformanceTests(unittest.TestCase):

@@ -114,14 +114,26 @@ these workflows:
 - **Conformance:** if the dirs exist but the contract is undocumented, that is
   "partial" - offer to add the doc. If both exist, "conformant" - skip.
 - **Filename normalization:** run the deterministic checker
-  `python3 .agents/workflows/setup-repo/tools/normalize_plan_names.py --repo . --check`.
-  It lists any plan files not matching `YYYYMMDD-HHMM-NN-<slug>.md` and the exact
-  `old -> new` names it would assign (deriving `HHMM` from each file's first git-commit
-  time in UTC, `NN` per-minute, slug lowercased-kebab). If any are nonconforming, SHOW the
-  user the full preview and ASK whether to normalize. On yes, run the same tool with
-  `--apply` (it performs history-preserving `git mv`, staged NOT committed) and remind the
-  user to review and commit. On no, leave everything and record it as a noted gap.
-  Classify: conformant (none nonconforming) / files-need-normalizing / not-applicable.
+  `python3 .agents/workflows/setup-repo/tools/normalize_plan_names.py --repo .` (check mode).
+  By default it scans `.agents/plans/` and `.agents/prompts/` and lists any file not matching
+  `YYYYMMDD-HHMM-NN-<slug>.md` with its proposed `old -> new` name or a status. The date is the
+  file's CREATION proxy: a date already in the name wins; otherwise the EARLIEST of its
+  git-first-commit / birthtime / mtime (UTC). Statuses to relay to the user:
+  - `to-rename` - ready; the tool will `git mv` it (staged, not committed).
+  - `imported?` - the chosen date disagrees with the git-commit date by more than a day (a copied/
+    imported file); held unless you pass `--assume-dates`. Confirm the date with the user first.
+  - `non-numeric` - has no leading date; renamed only with `--rename-non-numeric`.
+  - `nested` - a `*.md` below (not directly in) a lifecycle dir, e.g. a plan's reference inputs;
+    left alone unless `--include-nested`. Usually you should NOT rename these.
+  - `excluded` - matched a `--exclude` glob or the built-in `README.md` default.
+  Also available: `--area <name>` (repeatable; scan exactly those top-level `.agents/` areas),
+  `--all` (every area under `.agents/`, never `workflows/`), `--exclude PATTERN`,
+  `--no-default-excludes`. If any files are nonconforming, SHOW the user the full preview and ASK
+  whether to normalize (and, for `imported?`/non-numeric/nested items, whether to pass
+  `--assume-dates`/`--rename-non-numeric`/`--include-nested`). On yes, re-run with `--apply` (+ the
+  agreed flags); it performs history-preserving `git mv`, staged NOT committed - remind the user to
+  review and commit. On no, leave everything and record it as a noted gap. Classify: conformant /
+  files-need-normalizing / not-applicable.
 
 ### 2. Secret scanning (CI + local hook)
 

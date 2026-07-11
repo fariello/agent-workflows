@@ -9,8 +9,9 @@
 - Scope: `.agents/workflows/setup-repo/tools/normalize_plan_names.py` + its tests + the `/setup-repo`
   prose that drives it + docs/DECISIONS. Does NOT change the canonical convention itself
   (`YYYYMMDD-HHMM-NN-<slug>.md`, D48) - only how files are FOUND, TIMED, EXCLUDED, and renamed.
-- Status: PENDING (behavior decided interactively with the maintainer 2026-07-11; see "Decisions
-  taken"). Follow-on to D48.
+- Status: DONE (executed 2026-07-11; see DECISIONS D50). Normalizer rewritten with earliest-evidence
+  creation time, plans+prompts scan + `--area`/`--all`, exclusions, and opt-in `--rename-non-numeric`;
+  suite 153 -> 169 green. Follow-on to D48.
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Motivation (survey evidence)

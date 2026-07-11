@@ -1497,3 +1497,47 @@ both execute the (large) set well.
 - **Deliberately NOT done:** per-leaf-dir READMEs (parent describes them); an installer-managed
   AGENT-PLANS block (still delivered by LLM `/setup-repo`); auto-refresh of Category-1 READMEs on
   upgrade (create-if-absent, like `workflow-artifacts/README.md`).
+
+### D50. Plan-name normalizer: creation-time = earliest evidence, broader scan, exclusions, non-numeric
+
+- **Context:** the D48 normalizer (`normalize_plan_names.py`) had three gaps found in use and by a
+  survey of all 23 `a local checkout dir/*/.agents` trees (391 files): (1) it fell straight to `0000` when there was
+  no git commit; (2) it scanned only `.agents/plans/` and recognized only `YYYYMMDD-<slug>`, missing
+  the `YYYYMMDD-HHMM-`, `YYYYMMDD-NN-`, and `YYYY-MM-DD-` shapes and everything under
+  `.agents/prompts/`; (3) it could not touch files with no leading date, and had no way to protect
+  reference inputs. Executed from
+  `.agents/plans/executed/20260711-1505-01-normalizer-fstime-fallback-and-broader-scope.md` after
+  two `/plan-review` passes. Refines the D48 tool; does NOT change the convention.
+- **Timestamp semantics (settled):** the filename timestamp is CREATION/authoring time, STABLE for
+  the plan's whole life (not execution - unknowable; not last-modified - would rename a plan through
+  its lifecycle and scatter `NN` groups). This is why the time source is "earliest evidence."
+- **Time source = EARLIEST EVIDENCE:** a date embedded in the filename always wins for the DATE;
+  otherwise the (date, time) is the `min` (earliest) of {git-first-commit, `st_birthtime`,
+  `st_mtime`} in UTC. Rationale: creation is the earliest moment we have evidence for, and `min` is
+  correct in BOTH the import case (git-commit is late because the file entered the repo later -> fs
+  time wins) and the born-here-then-edited case (mtime is late from edits -> git wins). `st_ctime`
+  is not used as a value (Linux inode-change time is not creation). A chosen-vs-git disagreement of
+  more than a day flags the file `imported?` and holds it from auto-rename unless `--assume-dates`,
+  so a copied/imported file is never silently stamped with the wrong (repo-entry) date - the same
+  "no stale value masquerading as authoritative" discipline as D44/D48.
+- **Scan scope:** default scans `.agents/plans/` + `.agents/prompts/`. `--area <name>` (repeatable)
+  replaces that with exactly the named top-level areas; `--all` scans every top-level area under
+  `.agents/`. `.agents/workflows/` is never a rename target. Only `*.md` whose IMMEDIATE parent is a
+  lifecycle dir is rename-eligible; deeper files (e.g. a plan's reference inputs) are reported
+  `nested` and left alone unless `--include-nested`.
+- **Exclusions:** built-in default is `README.md` ONLY. We deliberately do NOT hardcode
+  personal-layout globs like `*/sources/*` (that would impose one contributor's idiom on all
+  downstream repos - P7); reference-input folders are protected structurally by the nested-file
+  rule. Users add fnmatch globs via repeatable `--exclude`; `--no-default-excludes` drops the
+  README default.
+- **Non-numeric renaming:** opt-in `--rename-non-numeric`. When on, a non-numeric lifecycle-parent
+  file is renamed; if its name contains a parseable `YYYYMMDD` anywhere (e.g.
+  `MASTER-CONTEXT-...-20260711.md`), that date is used and dropped from the derived slug.
+- **Applied:** rewrote the tool (parsing of all legacy shapes with a compact-date invariant so no
+  downstream `split("-")` ambiguity; `(date, time)` carried as a structured pair; `resolve_creation`
+  earliest-evidence + `imported?`; area/nested/exclude-aware `scan`; new flags); extended
+  `tests/test_normalize_plan_names.py` (14 -> 25); updated the `/setup-repo` Step 1b prose and the
+  tool docstring/`--help`.
+- **Deferred:** coupling the standalone tool to the `aw` package config's `ignore` list; an
+  `aw plans normalize` CLI verb; codifying a blessed input-artifact directory (the `sources/` need)
+  - each its own future concern.
