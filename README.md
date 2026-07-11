@@ -6,7 +6,7 @@ agent can run a deep pre-release review, review a plan before you build it, set 
 up with security best practices, or assess one specific concern (security, performance,
 accessibility, tests, secrets, ...) and propose a plan.
 
-The workflows are plain instruction files plus two small Python helpers, so the
+The workflows are plain instruction files plus a few small dependency-free Python tools and an installer/CLI, so the
 substance works in **any** agent; tools that support native slash commands (OpenCode,
 Claude Code) also get `/release-review`, `/assess security`, etc. for free.
 
@@ -43,7 +43,9 @@ aw list                 # see each repo's installed version and currency
 `aw install` copies the workflows into `.agents/workflows/`, generates slash-command shims
 for OpenCode and Claude Code, adds a pointer to your `AGENTS.md`, and scaffolds the
 deterministic setup files (plan-lifecycle dirs, a `.gitleaksignore` baseline, a
-secret-scan CI workflow). It **stages** changes with git but never commits and never
+secret-scan CI workflow, and a short explanatory `README.md` in each `.agents/` directory
+so the tree is self-documenting). All are written no-clobber (your own versions are never
+overwritten). It **stages** changes with git but never commits and never
 touches your code, so review and commit yourself:
 
 ```
@@ -99,9 +101,9 @@ Thirteen core workflows - spanning onboarding (`/getting-started`), discovery (`
 build/review (`/release-review`, `/plan-review`, `/verify`), performance (`/benchmark`),
 ship (`/release-notes`), operate (`/incident`), high-risk change (`/migrate`), setup
 (`/setup-repo`, `/scaffold`), and discovery of the toolkit itself (`/list-workflows`) -
-plus two parameterized commands,
-`/assess <concern>` (single-concern assessments) and `/advise <persona>` (expert
-interrogation and coaching). New here? Start with `/getting-started`. Not sure what is
+plus two parameterized commands, `/assess <concern>` (single-concern assessments) and
+`/advise <persona>` (expert interrogation and coaching). The table below lists the
+thirteen core workflows and `/advise` (14 rows); `/assess` has its own section after it. New here? Start with `/getting-started`. Not sure what is
 available or which version is installed? Run `/list-workflows`. For any tool without native
 slash commands, run the body file shown in the manifest (`.agents/workflows/index.md`) via
 "Read and execute ...".
@@ -247,6 +249,9 @@ your code.
   - `verify/` - the evidence layer (`tools/run_checks.py`).
   - `benchmark/` - guided performance benchmarking + the environment-capture tool
     (`tools/bench_env.py`).
+  - `setup-repo/` - the guided repo-setup wizard + its tools (`tools/setup_tools.py` for
+    tool detection/install, `tools/normalize_plan_names.py` for checking/normalizing plan
+    filenames to the `YYYYMMDD-HHMM-NN-<slug>` convention).
   - `spec/`, `incident/`, `release-notes/`, `migrate/` - the lifecycle workflows.
   - `VERSION` - the framework version; `index.md` - the workflow manifest (source of
     truth; the installer reads it).

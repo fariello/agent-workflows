@@ -1541,3 +1541,39 @@ both execute the (large) set well.
 - **Deferred:** coupling the standalone tool to the `aw` package config's `ignore` list; an
   `aw plans normalize` CLI verb; codifying a blessed input-artifact directory (the `sources/` need)
   - each its own future concern.
+
+### D51. Documentation reconciliation + self-conformance; first PyPI release is v1.1.0
+
+- **Context:** an `/assess documentation` pass (run record
+  `workflow-artifacts/assess-documentation/20260711-173843/`, IPD
+  `.agents/plans/executed/20260711-1738-01-assess-documentation.md`) before a planned
+  `/release-review` found no false-feature claims but concentrated drift after D44-D50, plus two
+  self-conformance gaps: this repo had not re-run its own installer since D47/D49, so its
+  `.agents/plans/` lacked `superseded/` + `not-executed/` and the Category-1 directory READMEs, and
+  `index.md`/`VERSION` still stamped a bare `1.0.0` at 40 commits past the `v1.0.0` tag.
+- **Documentation fixes (all Low Remediation Risk):** README front-page tool phrasing made
+  count-free (was "two small Python helpers"); `normalize_plan_names.py` added to the README,
+  ARCHITECTURE (four -> FIVE tools + file tree), and CONTRIBUTING inventories; the `assess.md`
+  IPD-name example corrected to `YYYYMMDD-HHMM-NN-<slug>`; CONTRIBUTING self-tests section updated to
+  the current tool/package set + the discover command; the self-documenting `.agents/` tree READMEs
+  described in the README install flow; the README "thirteen core" prose reconciled with its
+  14-row table; `scaffold.md` examples moved to the `aw` path.
+- **Self-conformance (dogfooding):** re-ran the framework's own installer against itself, creating
+  the missing plan-lifecycle dirs and the `.agents/` + `.agents/plans/*` READMEs (no-clobber,
+  staged; auto-committed by the installer as "agent-workflows: sync via installer"). The tree now
+  matches D47/D49 and `normalize_plan_names.py --check` is clean.
+- **Python floor:** tightened `pyproject.toml` `requires-python` from `>=3.8` to `>=3.9` so the
+  package metadata matches the README ("3.9+") and CI (provisions 3.9/3.13). The code stays 3.8-safe
+  defensively (comments/CI note this), but 3.9 is the declared and verified floor.
+- **Version / first PyPI release = v1.1.0 (decided with the maintainer):** `agent-workflows` has
+  never been on PyPI; `v1.0.0` is only a git tag that some users have cloned. HEAD is 40 additive,
+  backward-compatible commits ahead (new user-facing features: the `superseded/`/`not-executed/`
+  lifecycle states, the filename convention + `normalize_plan_names.py`, the directory READMEs).
+  Reusing `1.0.0` for HEAD's content would make `1.0.0` name two different trees (the "stale value
+  masquerading as authoritative" dishonesty D44/D50 warn against), so HEAD is tagged as a NEW
+  version. New user-facing functionality with no breaking changes -> MINOR bump per semver ->
+  `v1.1.0`. `make version-file` bakes `1.1.0` into `VERSION`; the `index.md` stamp is updated to
+  match. The first PyPI upload (a separate, credentialed, user-gated `twine` step, still deferred)
+  will therefore be `1.1.0`; there is no gap, since `1.0.0` was never published.
+- **Deliberately NOT changed:** historical `workflow-artifacts/` and dated DECISIONS entries
+  (append-only, P4). The actual PyPI publish remains a separate release step.

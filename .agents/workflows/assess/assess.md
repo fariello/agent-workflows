@@ -121,9 +121,10 @@ Then read the selected lens file and adopt its focus, lead personas, and rubric.
 4. **Guard scope (KISS):** the Complexity axis is the counterweight to fix-by-default.
    Flag over-scope (untraceable to a need - propose removal/deferral) and under-scope
    (a needed capability that is missing - propose adding it). Do not gold-plate.
-5. **Write the IPD** to the pending-plans directory using `templates/ipd.md`, named
-   with a date and the concern, e.g.
-   `<plans-pending>/YYYY-MM-DD-assess-<concern>.md`.
+5. **Write the IPD** to the pending-plans directory using `templates/ipd.md`, named per
+   the project's filename convention (canonical: `YYYYMMDD-HHMM-NN-<slug>.md`, UTC
+   date+time, `NN` a two-digit per-minute sequence with `00` reserved for an orchestrator),
+   e.g. `<plans-pending>/YYYYMMDD-HHMM-NN-assess-<concern>.md`.
 6. **Write the run record** to `workflow-artifacts/assess-<concern>/<RUN_ID>/` (see the
    next section) so the report and evidence are durable, not just shown in chat.
 7. **Commit** the IPD and the run record (they are committed deliverables by default,

@@ -349,6 +349,10 @@ class RepoConformanceTests(unittest.TestCase):
             if not d.is_dir():
                 continue
             for f in d.glob("*.md"):
+                # README.md is a directory doc, not a plan file (the normalizer excludes
+                # it by default); it is not subject to the plan-filename convention.
+                if f.name == "README.md":
+                    continue
                 if not NPN.is_conformant(f.name):
                     offenders.append(f.relative_to(REPO_ROOT).as_posix())
         self.assertEqual(offenders, [], f"nonconforming plan filenames: {offenders}")

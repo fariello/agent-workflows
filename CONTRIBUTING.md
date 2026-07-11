@@ -49,22 +49,26 @@ Committed secrets and PII/PHI must never enter this repo, including its git hist
 
 ## Self-tests (run before pushing tool changes)
 
-The framework's Python tools have automated tests (stdlib `unittest`, zero dependencies -
-consistent with the tools themselves). If you change `install-workflows.py`,
-`scan_secrets.py`, or `run_checks.py`, run them:
+The framework's Python code has automated tests (stdlib `unittest`, zero dependencies -
+consistent with the tools themselves). If you change any of the mechanical parts - the
+`agent_workflows/` package (installer/CLI engine, config, discovery, versioning, term) or
+the workflow tools (`scan_secrets.py`, `run_checks.py`, `bench_env.py`, `setup_tools.py`,
+`normalize_plan_names.py`) - run the whole suite:
 
 ```
 python3 -m unittest discover -s tests -t .
 ```
 
-They cover the installer (fresh install, idempotent re-run, prune of stale/legacy shims,
-legacy-layout migration, dry-run makes no changes, the catalog-row collapse and the
-`assess-all` prefix exception, `--version`), the secret scanner (planted secret in the
-working tree AND in git history, redaction, clean-repo zero), and the check runner
-(classification, the safety denylist never running under `--yes`, honest pass/fail exit
-codes, no-checks honesty). The framework's own `verify` workflow discovers and runs them.
-Test only the mechanical tools, not the instruction prose (prose is reviewed by
-`/assess prose`, not unit-tested).
+The suite covers the installer/CLI (fresh install, idempotent re-run, prune of
+stale/legacy shims, legacy-layout migration, dry-run, the catalog-row collapse and the
+`assess-all` prefix exception, `install`/`setup`/`uninstall`/`list`/`status`, `--version`),
+the config and repo discovery, git-tag versioning, the accessible terminal helper, the
+wheel packaging (ship-vs-dev), the secret scanner (planted secret in tree AND history,
+redaction, clean-repo zero), the check runner (classification, the safety denylist under
+`--yes`, honest pass/fail), the env tool, `setup_tools`, and the plan-filename normalizer
+(parse/legacy shapes/earliest-evidence time/scan/apply/exclusions). The framework's own
+`verify` workflow discovers and runs them. Test only the mechanical parts, not the
+instruction prose (prose is reviewed by `/assess prose`, not unit-tested).
 
 ## Authoring conventions
 

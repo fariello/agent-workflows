@@ -45,6 +45,7 @@ agent-workflows/
       tools/bench_env.py    Read-only machine/environment capture + diagnosis + HPC detect
     setup-repo/             Guided setup + conformance wizard
       tools/setup_tools.py  Deterministic tool-install helper
+      tools/normalize_plan_names.py  Check/normalize plan filenames to the convention
     scaffold/               Guided authoring of a new lens/persona/workflow/command
     spec/                   Draft a reviewable specification (front of funnel)
     incident/               Blameless post-mortem (reactive operations)
@@ -379,15 +380,18 @@ up from each tool); only the resolver knows about git. The value is surfaced in
 `index.md` and reported by `install-workflows.py --version` and the tools' `--version`.
 The installer stamps `VERSION` into every target (the copied `VERSION` file IS the
 installed-version record), so `list-workflows` and `setup-repo` can report which version
-a repo has (DECISIONS D32). The four Python tools
-(`scan_secrets.py`, `setup_tools.py`, `run_checks.py`, `bench_env.py`) plus the installer
-have stdlib-`unittest` self-tests under `tests/`, run with `python3 -m unittest discover -s
+a repo has (DECISIONS D32). The five Python tools
+(`scan_secrets.py`, `setup_tools.py`, `run_checks.py`, `bench_env.py`,
+`normalize_plan_names.py`) plus the installer/CLI (`agent_workflows/`) have
+stdlib-`unittest` self-tests under `tests/`, run with `python3 -m unittest discover -s
 tests -t .`, covering the installer (fresh install, idempotent re-run, prune, legacy
 migration, dry-run, the catalog-row collapse), the scanner (planted secret in tree and
 history, redaction, skip-scope), the check runner (classification, the safety denylist,
 honest pass/fail), the env tool (each environment diagnosis, HPC detection, scrub, bounded
-probe), and setup_tools (`--version`, tool table). This is the
-framework holding itself to its own testing/verification bar (DECISIONS D36).
+probe), setup_tools (`--version`, tool table), the plan-filename normalizer
+(`normalize_plan_names.py`: parse/legacy-shape/earliest-evidence time/scan/apply/exclusions),
+and the CLI/config/discovery/packaging. This is the framework holding itself to its own
+testing/verification bar (DECISIONS D36).
 
 ### Meta / authoring workflows (`setup-repo`, `scaffold`)
 
