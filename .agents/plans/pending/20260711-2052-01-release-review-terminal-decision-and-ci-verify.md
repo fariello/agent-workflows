@@ -7,7 +7,7 @@
 - Scope: `.agents/workflows/release-review/` (notably `00-run-protocol.md`, `08-final-ship-review.md`,
   Section 9 / the push+CI phase, `templates/final-response.md`, and the `ci-assessment.md` /
   `11-push-plan.md` artifacts) + docs/DECISIONS. Does NOT change the audit sections' substance.
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -19,6 +19,12 @@
   aggregate + every failing job; push target from 11-push-plan.md, explicit choice on multiple
   remotes). Plan-status IPD (D52) landed first, so change #5 adopts that convention and this IPD's
   DECISIONS entry is D53. Approach committed; promoted to to-review for /plan-review.
+- 2026-07-11 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED.
+  Re-opened the evidence: corrected the Step-0 source claims (cited Remote push policy `:399-401` +
+  CI section `:425-427`; clarified ci-assessment.md/11-push-plan.md are generated, not templated).
+  PR-2 (DECISION block is APPENDED after the full ~18-section report, not a truncation), PR-3
+  (preserve lanes-must-not-push `:357` + Section-9-serial `:366`), PR-4 (update the existing "CI
+  assessment summary" section in final-response.md:40). All OQs resolved. Status -> reviewed.
 
 ## Goal
 
@@ -48,13 +54,19 @@ push/CI recommendation. The explicit-approval safety gate (P10) is preserved.
 
 ## Project conventions discovered (Step 0)
 
-- Today: `00-run-protocol.md:51` "never push/publish/deploy without explicit permission";
-  Section 9 (`:244`) is release execution, run only after GO/CONDITIONAL GO + explicit approval and
-  never automatically. Artifacts `ci-assessment.md` and `11-push-plan.md` already exist but frame CI
-  as ASSESSMENT/recommendation, not push-then-verify. The final report uses
-  `templates/final-response.md`; the Section 8 Go/No-Go + loud pending-plan WARNING live in
-  `08-final-ship-review.md`. So the approval gate and a CI-assessment slot already exist; this IPD
-  makes the ending unmissable and turns CI assessment into actual push+verify on approval.
+- Today (VERIFIED against source by /plan-review): `00-run-protocol.md:51` "never push/publish/deploy
+  without explicit permission"; Section 9 (`:244`) is release execution, run only after
+  GO/CONDITIONAL GO + explicit approval and never automatically; the "Remote push policy" (`:399-401`)
+  is the controlling push text (creates `11-push-plan.md`, push only if permitted); the "CI and
+  GitHub Actions" section (`:425-427`) writes `ci-assessment.md`. Both `ci-assessment.md` and
+  `11-push-plan.md` are GENERATED artifacts (defined `:293`/`:290`) with NO template file (they are
+  generated, not template-backed) - confirmed: only a "CI assessment summary" SECTION exists in
+  `templates/final-response.md:40`. They frame CI as ASSESSMENT/recommendation, not push-then-verify.
+  The final report (`templates/final-response.md`, ~18 sections per `:462`) is LARGE; the Section 8
+  Go/No-Go + loud pending-plan WARNING live in `08-final-ship-review.md`. Parallel lanes must not push
+  (`:357`) and Section 9 must stay serial (`:366`). So the approval gate and a CI-assessment slot
+  already exist; this IPD makes the ending unmissable (block APPENDED after the full report) and turns
+  CI assessment into actual push+verify on approval, in the serial Section-9 phase only.
 - `gh` usage: the framework already uses `gh` opportunistically elsewhere (cross-OS CI watched via
   `gh run`); reuse that pattern. Must handle `gh` missing/unauthed.
 - Safety: P10 (no push/remote changes without permission) is binding and preserved.
@@ -69,23 +81,40 @@ the final response MUST END with a delimited DECISION block (a ruled banner) sta
 named blockers/pending items + the explicit "AWAITING YOUR GO/NO-GO ... nothing is pushed until you
 do" line. It is a forcing function: nothing prints after it. Specify the exact block format in the
 template so runs are consistent.
+- PLAN-REVIEW NOTE (PR-2): the current final report is LARGE - `final-response.md:462` and the two
+  tables plus ~18 named sections (summary, Fix Bar, validations, CI assessment, schema, personas,
+  push/no-push, GO recommendation, ...). "Nothing prints after the block" must NOT be read as
+  "replace the report". The DECISION block is APPENDED as the final element AFTER the full report
+  body; the report still prints in full, then the block is the literal last thing. State this
+  explicitly so the change is additive, not a truncation of the existing report.
 
 ### 2. Redefine the push phase as push-then-verify-CI (on approval only)
-Rework Section 9 / the push step: on explicit GO approval, push the approved ref, then use `gh` to
-find and WAIT on the triggered GitHub Actions run(s) and report the outcome (green -> done; red ->
-name the failing workflow/job/step and surface it). Record it in `ci-assessment.md` /
-`11-push-plan.md` (what was pushed, the run URL/ID, and the result). Keep it Section-9-gated
-(post-approval) - the audit sections and the Go/No-Go are unchanged.
+Rework the release-execution push step, whose controlling text is `00-run-protocol.md:244` (Section 9
+gate), the **"Remote push policy" (`00-run-protocol.md:399-401`)**, and the **"CI and GitHub Actions"
+section (`00-run-protocol.md:425-427`, which writes `ci-assessment.md`)** - cite these, not a vague
+"Section 9". On explicit GO approval, push the approved ref, then use `gh` to find and poll the
+triggered GitHub Actions run(s) with a BOUNDED timeout (OQ3), and report the outcome (green -> done;
+red -> report the AGGREGATE plus EVERY failing workflow/job/step, OQ4). Record it in
+`ci-assessment.md` and `11-push-plan.md` (what was pushed, the run URL/ID, and the result). Keep it
+Section-9-gated (post-approval); the audit sections and the Go/No-Go are unchanged.
+- PLAN-REVIEW NOTE (PR-3): preserve the parallelism rules - `00-run-protocol.md:357` ("Lanes must not
+  push to a remote") and `:366` ("Section 9 release execution must remain serial"). The push + CI
+  verify MUST run in the serial Section-9 phase, NEVER inside a parallel audit lane. Say so.
+- CONDITIONAL GO (OQ2): a CONDITIONAL GO does not push; conditions are met, the human re-approves
+  with an explicit GO, and then this same push-then-verify path runs.
 
 ### 3. `gh` graceful degradation
 Specify behavior when `gh` is unavailable/unauthenticated or the remote is not GitHub: report that CI
 could not be auto-verified, give the manual command / URL, and do NOT block or fail the release on
-the tool's absence. "if available" is honored explicitly.
+the tool's absence. "if available" is honored explicitly. Push target comes from `11-push-plan.md`
+(remote + branch + ref); on multiple remotes or ambiguity, require an explicit human choice, never a
+default guess (OQ5, P10).
 
 ### 4. Docs + DECISIONS
 Reconcile the release-review README/docs and `00-run-protocol.md` narrative to describe the terminal
-DECISION block and the push+CI-verify-on-approval behavior. Add DECISIONS D53. Note the preserved
-approval gate so the change is not read as "auto-push".
+DECISION block and the push+CI-verify-on-approval behavior. Update the existing **"CI assessment
+summary" section in `templates/final-response.md:40`** to cover the push+verify result (PR-4). Add
+DECISIONS D53. Note the preserved approval gate so the change is not read as "auto-push".
 
 ### 5. Adopt the plan-status conventions (D52 landed first)
 `20260711-1945-01-plan-status-vocabulary-and-workflow-provenance` executed first (D52), so this IPD
@@ -140,10 +169,24 @@ execution mechanics; the safety posture (approval-gated push) is unchanged.
    the DECISION block references. If there are multiple remotes or any ambiguity (origin vs upstream,
    a fork), require an EXPLICIT human choice; never guess a default remote (P10).
 
+## Plan-review record (2026-07-11)
+
+Reviewed by `/plan-review` (its_direct/pt3-claude-opus-4.8-1m-us). Verdict: **APPROVE WITH REVISIONS
+APPLIED** (pending human sign-off to move `approved`). Evidence re-opened against source; findings:
+- PR-1 (accuracy): Step-0 source claims sharpened - cite the Remote push policy (`:399-401`) and the
+  CI section (`:425-427`); clarified that `ci-assessment.md` and `11-push-plan.md` are generated (not
+  template-backed) and only a "CI assessment summary" section exists in `final-response.md:40`.
+- PR-2 (gap): DECISION block is APPENDED after the full ~18-section report (`final-response.md:462`),
+  not a truncation - stated explicitly so the change is additive.
+- PR-3 (gap): preserve `:357` (lanes must not push) and `:366` (Section 9 serial); push+verify runs
+  only in the serial Section-9 phase.
+- PR-4 (consistency): update the existing "CI assessment summary" section in `final-response.md:40`.
+No new open questions; OQ1-5 all resolved. This IPD does not self-approve.
+
 ## Approval and execution gate
 
-This IPD is a proposal (currently `draft`; not yet `to-review`). Flesh out the open questions, move
-to `to-review`, optionally `/plan-review`, and human-approve before execution. NOT auto-executed. On
-approval: implement changes 1-4, validate manually (per above), commit (never push - ironically this
-IPD's own execution follows the very commit-not-push discipline), then set `Status: executed` and
+This IPD is `reviewed` (`/plan-review` done, revisions applied); awaiting explicit human sign-off to
+move `approved`. NOT auto-executed. On approval: implement changes 1-4, validate manually (per
+above), commit (never push - fittingly, this IPD's own execution follows the very commit-not-push
+discipline it documents), then set `Status: executed` and
 `git mv` to `.agents/plans/executed/`.
