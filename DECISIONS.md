@@ -1629,3 +1629,39 @@ both execute the (large) set well.
 - **Deferred to follow-ons:** the `aw plans` board + `STATUS.md` index
   (`20260711-2223-01`); a hard status gate; and the release-review terminal-DECISION-block + CI
   verify (`20260711-2052-01`, unrelated).
+
+### D53. Release-review terminal Go/No-Go DECISION block + push-then-verify-CI on approval
+
+- **Context:** the release-review final report is large (~18 sections + two tables); the human's
+  Go/No-Go call was easy to lose at the bottom of a wall of text, and CI verification was framed as
+  an ASSESSMENT/recommendation rather than something the workflow actually does on an approved
+  release. Executed from
+  `.agents/plans/executed/20260711-2052-01-release-review-terminal-decision-and-ci-verify.md`.
+- **Decision - unmissable terminal DECISION block.** The final response MUST END with a ruled
+  `RELEASE REVIEW DECISION` banner (recommendation GO/CONDITIONAL GO/NO-GO, named blocking/pending
+  items, and an explicit "AWAITING YOUR GO/NO-GO ... NOTHING IS PUSHED UNTIL YOU DO" line). It is
+  APPENDED after the full report (it does NOT replace or truncate any section) and is the literal
+  last output - nothing prints after it. A forcing function so the decision and the awaiting-state
+  cannot be missed. Mandated in `00-run-protocol.md`, `08-final-ship-review.md` (exit gate), and
+  `templates/final-response.md` (the block's exact format).
+- **Decision - push-then-verify-CI on approval (gate preserved, P10).** The approval gate is
+  UNCHANGED: pushing happens only in the serial Section 9 (`09-release-execution.md`), after a GO or
+  CONDITIONAL GO AND explicit human approval; never automatically, never in a parallel lane (lanes
+  must not push; Section 9 stays serial). This is NOT "always auto-push". On an approved GO, Section
+  9 now PUSHES the confirmed ref and then VERIFIES CI: identify the triggered `gh run`(s), poll to
+  completion with a BOUNDED timeout (~10-15 min, stated), report green, or on red report the
+  aggregate plus EVERY failing workflow/job/step; on timeout report the run URL/last status and stop
+  (never hang). Push target comes from `11-push-plan.md`; on multiple remotes or ambiguity, require
+  an explicit human choice (no default guess). A CONDITIONAL GO does not push on a bare conditional -
+  conditions are met, the human re-approves with an explicit GO, then the same push+verify runs.
+- **Decision - `gh` graceful degradation.** If `gh` is unavailable/unauthenticated or the remote is
+  not GitHub, say so plainly, give the manual check command/URL, and do NOT block or fail the release
+  on the tool's absence ("if available" honored). No CI at all -> run full local validation on the
+  release commit instead. The push+verify result is recorded in `ci-assessment.md` / `11-push-plan.md`
+  and surfaced in the report's CI assessment summary.
+- **Scope:** ending-UX + release-execution mechanics only; the audit sections (1-8) substance and the
+  Go/No-Go logic are unchanged. General-case: benefits any repo; `gh`-optional so non-GitHub repos are
+  unaffected. Followed the D52 plan-status conventions (this IPD was born to-review, /plan-review'd
+  with the two-commit contract, approved, executed).
+- **Deferred:** a configurable auto-push opt-in (rejected as default; possible follow-on); "always
+  auto-push with no approval" (rejected, violates P10).

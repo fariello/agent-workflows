@@ -12,7 +12,7 @@ After installation (via `install-workflows.py` at the agent-workflows repo root,
 /release-review
 ```
 
-Runs the full workflow, including audit, implementation, validation, final report, and push/no-push decision.
+Runs the full workflow, including audit, implementation, validation, final report, and push/no-push decision. The final report ENDS with an unmissable, ruled `RELEASE REVIEW DECISION` block (recommendation + named blocking/pending items + an explicit "AWAITING YOUR GO/NO-GO ... nothing is pushed until you do" line) as the literal last output. Nothing is pushed without your explicit GO; on approval, Section 9 release execution pushes and then VERIFIES CI via `gh` (bounded-timeout poll, reporting every failing job on red, degrading gracefully when `gh` is unavailable or the remote is not GitHub).
 
 ```text
 /release-review-plan
