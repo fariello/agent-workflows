@@ -1577,3 +1577,55 @@ both execute the (large) set well.
   will therefore be `1.1.0`; there is no gap, since `1.0.0` was never published.
 - **Deliberately NOT changed:** historical `workflow-artifacts/` and dated DECISIONS entries
   (append-only, P4). The actual PyPI publish remains a separate release step.
+
+### D52. Plan readiness `Status:` vocabulary, Workflow-history provenance, commit-not-push pipeline
+
+- **Context:** the lifecycle directories captured a plan's DISPOSITION (pending/executed/superseded/
+  not-executed/reusable; D45/D47) but there was no home for a plan's READINESS within the pending
+  phase - a one-line stub and an approved, hardened IPD looked identical. The maintainer routinely
+  wants to "capture a stub to work on later" and to see, in git history, a plan moving through the
+  pipeline (before/after `/plan-review`). Executed from
+  `.agents/plans/executed/20260711-1945-01-plan-status-vocabulary-and-workflow-provenance.md` (itself
+  the first artifact to dogfood the conventions below).
+- **Decision - readiness `Status:` (front-matter is the single source of truth; lowercase-kebab):**
+  `draft` (stub/partial; not ready) -> `to-review` (complete enough to critique) -> `reviewed`
+  (`/plan-review` done, revisions applied) -> `approved` (human sign-off; ready to execute). Terminal
+  statuses (`executed`/`superseded`/`not-executed`) MIRROR the directory; `reusable` is standing.
+  Longest path: `draft -> to-review -> reviewed -> approved -> executed`. DISPOSITION stays in the
+  directory; READINESS is the `Status:` field. Pre-terminal statuses all live in `pending/`
+  (including `approved`, which has not moved yet); "Status mirrors dir" is a terminal-only rule.
+- **Born `to-review`, `draft` is opt-in.** A normally-drafted IPD (from `/assess`, `/spec`,
+  `/migrate`, `/incident`, or a careful agent draft) is review-ready at creation, so it is born
+  `to-review`; `draft` is used only for an explicit stub. This avoids taxing the common case (most
+  IPDs are review-ready) with a mandatory draft step. `to-review` gates on APPROACH-COMMITTED, not
+  all-questions-resolved - open questions are expected and are what `/plan-review` interrogates.
+- **Visibility = metadata, NOT filename.** No status token in the filename (that would re-churn the
+  D48/D50 convention and create a two-sources-of-truth divergence where `ls` could lie). Visibility
+  comes from a first-class `aw plans` board - SPLIT into a follow-on IPD
+  (`20260711-2223-01-aw-plans-status-board.md`) as the heaviest net-new code, independent of the
+  vocabulary. Front-matter stays the sole source of truth.
+- **`## Workflow history` provenance.** Each plan/prompt keeps an appended (never rewritten) dated
+  line per workflow that touched it: `- <date> /<workflow> (<agent/model>): <one-line outcome>`.
+  `Status:` shows the CURRENT state; Workflow history shows the PATH taken. Prompts get Workflow
+  history but the readiness enum is OPTIONAL for them (reference/standing prompts have no lifecycle).
+- **Commit-not-push across the plan-mutating pipeline** (`assess`, `assess-all`, `plan-review`,
+  `spec`, `migrate`, `incident`): each sets/advances `Status:`, appends a Workflow-history line, and
+  COMMITS its output, and NEVER pushes. `/plan-review` specifically does a TWO-COMMIT before/after:
+  a pre-review snapshot commit (if the plan has uncommitted changes) then a hardened-result commit,
+  so the history shows the plan before and after review. `/plan-review` sets `Status: reviewed` and
+  never self-approves; human sign-off sets `approved`; execution sets the terminal status + `git
+  mv`.
+- **Gating is advisory-first (v1).** Tooling REPORTS mismatches (terminal-status vs dir; a would-be
+  execution of a non-`approved` plan) as warnings; nothing BLOCKS - protects the downstream repos
+  with legacy free-text `Status:` lines. A this-repo-only drift-guard test asserts THIS repo's own
+  plans use a recognized status. A hard gate can come later.
+- **Backward compatibility.** Existing free-text `Status:` (`PENDING (...)`, `EXECUTED ...`) remains
+  valid; unrecognized/legacy values are treated as legacy, not errors. Historical executed IPDs are
+  not rewritten (P4).
+- **Applied:** IPD template (vocabulary legend + Workflow-history + Approval line, born-to-review);
+  the six plan-mutating workflow bodies wired for Status + history + commit-not-push (plan-review's
+  two-commit contract); AGENTS.md AGENT-PLANS block, `.agents/plans` README + template, assess.md
+  Step 0, setup-repo contract prose reconciled; an advisory drift-guard test.
+- **Deferred to follow-ons:** the `aw plans` board + `STATUS.md` index
+  (`20260711-2223-01`); a hard status gate; and the release-review terminal-DECISION-block + CI
+  verify (`20260711-2052-01`, unrelated).
