@@ -5,7 +5,9 @@
 - Scope: whole project, forward-facing docs (README, ARCHITECTURE, CONTRIBUTING, index.md stamp,
   the `assess` harness example), plus two self-conformance (dogfooding) gaps the assessment
   surfaced. Run before a planned `/release-review`.
-- Status: PENDING (awaiting human approval; not executed)
+- Status: DONE (executed 2026-07-11; see DECISIONS D51). All 10 steps done; both open questions
+  resolved by the maintainer (first release = v1.1.0 minor; Python floor tightened to >=3.9). Suite
+  169 green.
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Run record: `workflow-artifacts/assess-documentation/20260711-173843/`
 
