@@ -7,7 +7,9 @@
 - Scope: `.agents/workflows/release-review/` (notably `00-run-protocol.md`, `08-final-ship-review.md`,
   Section 9 / the push+CI phase, `templates/final-response.md`, and the `ci-assessment.md` /
   `11-push-plan.md` artifacts) + docs/DECISIONS. Does NOT change the audit sections' substance.
-- Status: reviewed
+- Status: approved
+- Approval: approved by maintainer 2026-07-11 (reviewed; OQ1-5 resolved; approval gate preserved).
+  Ready to execute changes 1-4.
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history

@@ -40,6 +40,10 @@ Summarize the most important changes made.
 ## CI assessment summary
 
 Summarize CI findings, changes made, recommendations, or reasons no CI changes were made.
+If release execution proceeded (Section 9, post-approval), ALSO record the push+verify result
+here: what ref was pushed, the triggered `gh run` URL/ID, and the outcome (green; or red with the
+aggregate plus EVERY failing workflow/job/step); or the reason CI could not be auto-verified (e.g.
+`gh` unavailable/unauthenticated, non-GitHub remote) with the manual check command.
 
 ## Schema validation summary
 
@@ -141,3 +145,28 @@ State whether a new review run is recommended and why.
 If GO or CONDITIONAL GO, state whether the project is ready to proceed to Section 9
 release execution and exactly what user approval/prerequisites are required first.
 If NO-GO, state that release execution must not proceed.
+
+## DECISION (must be the LITERAL LAST output)
+
+This block is APPENDED after the full report above (it does NOT replace or truncate any section).
+Nothing - no summary, findings, paths, or commentary - prints after it. It is the forcing function
+that makes the human's Go/No-Go call, and the fact that the workflow has STOPPED and is awaiting it,
+impossible to miss. Emit exactly this ruled banner, filled in:
+
+```
+========================================================================
+  RELEASE REVIEW DECISION: <GO | CONDITIONAL GO | NO-GO>
+------------------------------------------------------------------------
+  Blocking / pending items: <"none" | each named explicitly, with IDs>
+  Conditions (if CONDITIONAL GO): <each named; must be met + re-approved>
+------------------------------------------------------------------------
+  AWAITING YOUR GO/NO-GO. Reply GO to approve release execution
+  (Section 9: push + CI verify). NOTHING IS PUSHED UNTIL YOU DO.
+========================================================================
+```
+
+- NO-GO: keep the banner but omit the AWAITING line; state that release execution must not proceed.
+- CONDITIONAL GO: list the named conditions; a conditional does NOT authorize a push - the human
+  meets the conditions, then replies GO, and only then does Section 9 run.
+- This block is mandated by `00-run-protocol.md` and `08-final-ship-review.md`; do not print anything
+  after it.

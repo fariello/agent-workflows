@@ -50,14 +50,37 @@ Derive the concrete commands for each step from the repository: `README`/`CONTRI
 
 ### 2. Push the release commit
 
-- Push the release branch to its remote (e.g., `git push origin <branch>`), using the branch the project actually releases from.
+- Push the release branch to its remote, using the exact remote + branch + ref recorded in
+  `11-push-plan.md` (that artifact is the confirmed push target). If there are multiple remotes or
+  any ambiguity (e.g. `origin` vs `upstream`, a fork), STOP and require an explicit human choice;
+  never guess a default remote.
+- CONDITIONAL GO: do not push on a bare conditional. The named conditions must be met and the human
+  must re-approve with an explicit GO first; then push.
 - If the project uses submodules or nested repositories, push those to their own remotes **first**, then the parent, and verify the parent records the intended submodule commits.
 
-### 3. Verify remote CI
+### 3. Push-then-verify remote CI
 
-- If CI exists, wait for and inspect the CI result for the pushed commit (e.g., `gh run list`/`gh run watch`, or the project's CI UI).
-- Do NOT proceed to building or publishing artifacts until CI is green for the release commit. If CI fails, fix, recommit, repush, and restart this step.
-- If no CI exists, run the project's full local validation suite on the release commit instead and record the result.
+After pushing, actively VERIFY CI rather than only recommending it:
+
+- If the remote is GitHub and `gh` is available and authenticated: identify the run(s) triggered by
+  the pushed commit (`gh run list`), then poll to completion with a BOUNDED timeout (default ~10-15
+  minutes; state the timeout used) - report progress while waiting. Cross-OS/matrix runs can take
+  minutes; never hang indefinitely.
+  - **Green:** report success and proceed.
+  - **Red:** report the AGGREGATE pass/fail AND name EVERY failing workflow/job/step (matrix
+    failures are often OS-specific; give the full picture, not just the first). Then fix, recommit,
+    repush, and restart this step. Do NOT proceed to building/publishing until green.
+  - **Timeout exceeded:** report the `gh run` URL/ID and the last known status, and stop waiting
+    (hand the watch back to the user); do not proceed to publish on an unverified run.
+- **`gh` graceful degradation:** if `gh` is unavailable/unauthenticated or the remote is not GitHub,
+  say so plainly, provide the manual check command / CI URL, and do NOT block or fail the release on
+  the tool's absence. When no CI exists at all, run the project's full local validation suite on the
+  release commit instead and record the result.
+- Record the push+verify outcome (ref pushed, run URL/ID, result) in `ci-assessment.md` and
+  `11-push-plan.md`, and surface it in the report's "CI assessment summary" section.
+
+This push-then-verify runs only in the serial Section 9 phase (post-approval); it MUST NOT run inside
+a parallel audit lane (lanes must not push), consistent with `00-run-protocol.md`.
 
 ### 4. Build release artifacts
 

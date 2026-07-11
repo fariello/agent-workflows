@@ -167,4 +167,5 @@ The run is complete only when all are true (MUST):
 - [ ] Pending-plans / staged-prompts gate applied: any in-scope pending IPD or staged prompt (or status/location mismatch) is loudly WARNED in the Go/No-Go and summary and blocks a clean GO; absence stated explicitly.
 - [ ] `11-push-plan.md` and restart assessment (with loop guard) recorded.
 - [ ] `12-final-response.md` saved per `templates/final-response.md` (both tables + all sections) and presented to the user.
+- [ ] The mandated `RELEASE REVIEW DECISION` block is APPENDED as the literal last output of the presented response (recommendation + named blocking/pending items + the "AWAITING YOUR GO/NO-GO ... NOTHING IS PUSHED UNTIL YOU DO" line); nothing prints after it.
 - [ ] Per-phase report written; checkpoint recorded and committed.

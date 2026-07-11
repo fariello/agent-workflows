@@ -461,6 +461,8 @@ The second table must include audit findings that were identified but not implem
 
 After the two tables, include every remaining section listed in `templates/final-response.md` (summary of changes, Fix Bar summary, validations run, CI assessment, schema validation, deprecated-code, final bug/security/memory sanity audit, TODO/backlog reconciliation, pending plans / staged prompts, guiding-principles adherence, eight-persona sign-off, self-documenting/learn-as-you-go assessment, documentation/artifact updates, remaining risks, push/no-push decision, GO/CONDITIONAL GO/NO-GO recommendation, restart recommendation, and Section 9 readiness).
 
+Finally, the report MUST END with the mandated DECISION block from `templates/final-response.md` (the ruled `RELEASE REVIEW DECISION` banner: recommendation, named blocking/pending items, and the "AWAITING YOUR GO/NO-GO ... NOTHING IS PUSHED UNTIL YOU DO" line). This block is APPENDED after all the sections above (it does not replace or truncate them) and is the LITERAL last output: nothing - no summary, findings, paths, or commentary - prints after it. It is a forcing function so the human's Go/No-Go call, and the fact that the run has stopped awaiting it, cannot be missed.
+
 ## Restart assessment
 
 At the end, decide whether a new review run should be started. Recommend a restart only when implementation changed enough that earlier audit results may be stale, substantial architecture or behavior was discovered late, validation exposed issues requiring another broad pass, or major CI, packaging, public contract, or security changes were made. Do not restart merely because minor fixes were made.
