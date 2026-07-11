@@ -104,13 +104,15 @@ these workflows:
   for this repo.
 - **Documented contract (this is the part that makes agents pick it up):** offer to add
   a short, marker-delimited "Plan/IPD lifecycle" note to `AGENTS.md` (and/or
-  `CONTRIBUTING.md`) stating: proposals are dated IPDs in `.agents/plans/pending/`; they
-  are reviewed (optionally via `plan-review`), approved by a human, then EITHER executed
-  (moved to `executed/` once implemented+verified), retired to `superseded/` (replaced) or
-  `not-executed/` (deliberately not run) with a `RETIRED YYYY-MM-DD: <reason>; superseded
-  by <path/commit>` header + `git mv` (never a silent delete; never file an un-run plan in
-  `executed/`), or kept in `reusable/` if recurring. Marker-delimited so re-running updates
-  it in place without duplicating (same discipline as the AGENTS workflow pointer).
+  `CONTRIBUTING.md`) stating: proposals are dated IPDs in `.agents/plans/pending/`; each
+  carries a front-matter `Status:` recording readiness (`draft` -> `to-review` -> `reviewed`
+  -> `approved`; then a terminal status mirroring the dir) and an appended `## Workflow
+  history`; they are reviewed (optionally via `plan-review`), approved by a human, then
+  EITHER executed (moved to `executed/` once implemented+verified), retired to `superseded/`
+  (replaced) or `not-executed/` (deliberately not run) with a `RETIRED YYYY-MM-DD: <reason>;
+  superseded by <path/commit>` header + `git mv` (never a silent delete; never file an un-run
+  plan in `executed/`), or kept in `reusable/` if recurring. Marker-delimited so re-running
+  updates it in place without duplicating (same discipline as the AGENTS workflow pointer).
 - **Conformance:** if the dirs exist but the contract is undocumented, that is
   "partial" - offer to add the doc. If both exist, "conformant" - skip.
 - **Filename normalization:** run the deterministic checker

@@ -95,7 +95,10 @@ directory) and a run record (the evidence and report of this assessment, under
    and `git mv`ing it to `superseded/` or `not-executed/` (never silently delete).
    `done/` is an accepted alias for `executed/` if a repo already uses it; respect
    whatever exists. Record which you chose. The `setup-repo` workflow can establish and
-   document this lifecycle for a repo.
+   document this lifecycle for a repo. Beyond the directory (disposition), each plan's
+   front-matter `Status:` records READINESS: `draft` -> `to-review` -> `reviewed` ->
+   `approved`, then a terminal status mirroring the dir (see `templates/ipd.md` for the
+   canonical vocabulary). A newly-written IPD is born `to-review`.
 4. **Contributor contract** - `AGENTS.md`/`CONTRIBUTING.md` for plan/spec-sync rules.
 5. **Apply the review scope exclusions** from `../release-review/00-run-protocol.md`:
    do not assess the framework's own directory (`.agents/workflows/`) or

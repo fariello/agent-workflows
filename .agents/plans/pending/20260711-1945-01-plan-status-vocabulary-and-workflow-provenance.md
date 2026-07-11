@@ -8,7 +8,9 @@
   `spec`, `migrate`, `incident`) + a new `aw plans` status board + docs (lifecycle prose, AGENTS.md,
   `.agents/plans/README.md`, DECISIONS). Does NOT change disposition directories (the five-state dir
   set from D45/D47 is unchanged) or the filename convention (D48/D50 unchanged).
-- Status: reviewed
+- Status: approved
+- Approval: approved by maintainer 2026-07-11 (all open questions OQ2-6 resolved; `aw plans` board
+  split to a follow-on per OQ6; advisory-first gating per OQ2). Ready to execute.
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -26,6 +28,10 @@
   PS-1 (status<->dir for pre-terminal `approved`), PS-2 (approval-enforcement gap -> OQ2), PS-3
   (batching + `aw plans` split candidate -> OQ6), PS-4 (reframed prompts OQ). Status -> reviewed;
   refinement OQs 2-6 open for maintainer.
+- 2026-07-11 approved (maintainer): OQ2-6 resolved (advisory-first gating; prompts get
+  Workflow-history + optional enum; assess-all single-IPD; `aw plans` board SPLIT to a follow-on).
+  Status -> approved. Ready to execute the core (vocabulary + provenance + commit-discipline + docs);
+  board excluded.
 
 ## Goal
 
@@ -283,35 +289,29 @@ pushed; confirm a legacy free-text IPD still groups sanely.
 This IPD includes the doc reconciliation (change #8) + DECISIONS D52 (change #9). No workflow
 BEHAVIOR changes beyond the added commit points and metadata; no code-execution behavior changes.
 
-## Open questions
+## Open questions (ALL RESOLVED with the maintainer 2026-07-11 at approval)
 
-(Sharpened by `/plan-review` 2026-07-11. Per the "`to-review` gates on approach-committed" rule,
-these are refinement/detail questions, resolvable during or after review - the approach is set.)
-
-1. **IPD default status: RESOLVED** (born-`to-review`, `draft` opt-in for stubs - decision 2 /
-   change #11). Kept here only as a pointer to that resolution.
-2. **Gating strictness (change #7):** advisory-only (board + warnings) for v1, or add a hard
-   `verify`/test gate? Leaning advisory-first to protect downstream repos with legacy status text.
-   PLAN-REVIEW NOTE (PS-2): even advisory, execution SHOULD verify `Status: approved` (or an
-   explicit override) before executing a plan - otherwise nothing guarantees an `executed` plan ever
-   passed through `approved` (the manual approval step is unenforced). Decide whether that check is
-   advisory (warn) or blocking, and whether it lives in the executing workflow's prose or a
-   `verify`/release-review check.
-3. **`aw plans` scope:** plans only, or plans + prompts by default? And is `STATUS.md` generated
-   on-demand (`--write-index`) only, or refreshed automatically by `aw install` (more moving parts)?
-4. **Prompts (reframed by plan-review, PS-4):** the real question is not "full enum vs subset" but
-   "do prompts have a READINESS lifecycle at all?" Most prompts are either reusable/standing or
-   one-shot reference inputs, not `draft->approved->executed` artifacts. Proposal to evaluate: give
-   prompts the `## Workflow history` provenance section (universally useful) but NOT the readiness
-   enum unless a prompt is genuinely being developed like a plan; do not force a lifecycle onto
-   reference material. Confirm.
-5. **`assess-all`:** it writes ONE consolidated IPD (verified: assess-all.md:48 "Emit ONE
-   consolidated IPD"); confirm the single-IPD status/history model fits (vs. per-concern
-   sub-entries). Leaning: single IPD, one Status, and a Workflow-history line naming the concerns
-   rolled up.
-6. **Batch vs split (plan-review, PS-3):** execute all 11 changes as one batched plan, or SPLIT the
-   `aw plans` board (change #5, the heaviest net-new code, independent of the rest) into its own
-   follow-on IPD so the vocabulary + provenance + commit-discipline land first? Decide at approval.
+1. **IPD default status: RESOLVED** - born-`to-review`, `draft` opt-in for stubs (decision 2 /
+   change #11).
+2. **Gating strictness: RESOLVED - advisory-first for v1.** `aw plans` / `verify` REPORT mismatches
+   (terminal-status-vs-dir; a would-be-executed non-`approved` plan) as warnings; nothing BLOCKS
+   (protects the ~146 downstream repos with legacy free-text status). A this-repo-only drift-guard
+   test (assert THIS repo's own plans conform) is safe and included. A hard gate can come later.
+   PS-2 (execution should verify `Status: approved`) is honored as an ADVISORY warning, not a block.
+3. **`aw plans` scope: RESOLVED - plans + prompts by default; `STATUS.md` only via `--write-index`**
+   (on demand; NOT auto-refreshed by `aw install`). Consistent with the normalizer's D50 scope.
+   (Moot for THIS IPD - the board is split out per OQ6.)
+4. **Prompts: RESOLVED** - prompts get the `## Workflow history` provenance section; the readiness
+   enum is OPTIONAL for prompts (used only when a prompt is genuinely developed like a plan). Do not
+   force a `draft->executed` lifecycle onto reference/standing prompts; tolerate "no status".
+5. **`assess-all`: RESOLVED** - one consolidated IPD, a SINGLE `Status:`, and a Workflow-history line
+   that NAMES the concerns rolled up (not per-concern sub-entries).
+6. **Batch vs split: RESOLVED - SPLIT.** The `aw plans` board (was change #5) and its board test move
+   to a SEPARATE follow-on IPD (`20260711-<hhmm>-01-aw-plans-status-board.md`). THIS IPD executes the
+   high-value core now: vocabulary (change #1), Workflow-history (#2), workflow-body wiring incl.
+   plan-review two-commit (#3, #4), backward-compat (#6), advisory drift-guard (subset of #7 + #10),
+   docs (#8), DECISIONS (#9), teachability (#11). Change #5 is REMOVED from this plan's execution
+   (see the follow-on).
 
 ## Plan-review record (2026-07-11)
 
