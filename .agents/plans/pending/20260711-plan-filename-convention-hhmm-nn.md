@@ -77,11 +77,16 @@ for the user to review and commit.
 - **Current convention (to be revised):** `YYYYMMDD-<slug>.md`, established by `DECISIONS.md` **D45**
   (line ~1327). There is NO code today that validates or generates plan filenames - the convention
   is documented prose only. This IPD introduces the first mechanical enforcement.
-- **Doc sites that state the filename rule** (all must be reconciled - P8): `DECISIONS.md` D45 (via a
-  new entry, not by editing D45), `AGENTS.md` AGENT-PLANS block (line ~13), `.agents/workflows/
-  setup-repo/setup-repo.md:94` ("files are named `YYYYMMDD-<slug>.md`"), `.agents/workflows/assess/
-  templates/ipd.md:78-79`, `.agents/workflows/assess/assess.md` (Step 0 lifecycle bullet),
-  `.agents/workflows/index.md` (lifecycle mention). Re-grep at execution time to confirm the set.
+- **Doc sites that state the filename rule** (verified during plan-review - grep for
+  `YYYYMMDD-<slug>` found EXACTLY these four forward-facing sites; `index.md` does NOT state the
+  filename rule, only the lifecycle dirs, so it is NOT in this set):
+  - `.agents/workflows/assess/assess.md:89`
+  - `.agents/workflows/setup-repo/setup-repo.md:94`
+  - `.agents/workflows/assess/templates/ipd.md:79`
+  - `AGENTS.md:13` (the AGENT-PLANS block; also update the `/setup-repo` prose that WRITES this
+    block into targets, setup-repo.md Step 1b).
+  Plus a new `DECISIONS.md` entry (NOT by editing D45 - P4). Re-grep `YYYYMMDD` at execution time to
+  confirm no new site has appeared.
 - **`/setup-repo` seam:** `setup-repo.md:82-104` is Step 1b (Plan/IPD lifecycle). The naming rule is
   stated at :94; the detection list (Step 0, :50-54) checks whether `.agents/plans/*` and the
   lifecycle contract exist. The new "check + offer to normalize filenames" behavior slots into
@@ -109,15 +114,38 @@ providing:
   the file's first git-commit time (UTC) or `0000`, assigning `NN` per same-minute collision order
   (never `00` for auto-normalized files), and normalizing the slug to lowercase kebab-case.
 - `scan(repo_root, subdirs) -> list[Rename]`: returns the (old -> new) rename plan for every
-  nonconforming file across the given lifecycle dirs, with collision-safe NN assignment computed
-  over the whole batch (so two same-minute legacy files get `01`/`02`, and NEW-format files already
-  present are respected when choosing the next free NN).
+  nonconforming file across the given lifecycle dirs. Edge rules (R3-2..R3-5, plan-review):
+  - **Idempotency (R3-3):** files that are already conformant are EXCLUDED from the plan entirely
+    (never re-timed or re-numbered), so a second run is a no-op.
+  - **NN assignment (R3-2):** compute the next free NN per `YYYYMMDD-HHMM` over the WHOLE batch,
+    counting BOTH already-present conformant files at that timestamp AND earlier entries in this
+    same plan; assign in a deterministic stable order (sort candidates by existing filename). Never
+    assign `00` (reserved for a human-designated orchestrator).
+  - **Target-collision (R3-4):** if a computed target name already exists on disk (a coincidence,
+    or a prior partial run), advance NN to the next free value; if that is impossible or ambiguous,
+    record the file as a CONFLICT and skip it (report it; do not clobber). `git mv` must never
+    overwrite an existing path.
+  - **Empty slug (R3-5):** if slug-normalization yields an empty string (e.g. an all-punctuation
+    slug), use the fallback slug `untitled`.
 - `apply(renames, repo_root, use_git) -> list[str]`: performs `git mv` (or filesystem mv if
-  untracked), staged not committed; returns actions.
+  untracked), staged not committed; returns actions. Aborts an individual move (and reports) if its
+  target already exists, so nothing is ever clobbered.
 - A CLI: `--repo <dir> --check` (report only, JSON or text, nonzero exit if nonconforming found)
   and `--repo <dir> --apply` (perform the staged renames). `--version` like the sibling tools.
-Uses `git log --diff-filter=A --follow --format=%aI -- <file>` (or equivalent) for first-commit
-time; guarded so a non-git repo or untracked file falls back to `0000`.
+First-commit time (R3-1, plan-review - the naive command is wrong on TWO axes, both verified live):
+- **Timezone:** `%aI`/`%aI` emit the author's LOCAL tz (e.g. `-04:00`), but HHMM must be UTC
+  (decision 1). Use `TZ=UTC git log ... --date=format-local:%Y%m%d-%H%M --format=%ad` (the
+  `format-local` + `TZ=UTC` combination converts to UTC), NOT `%aI`.
+- **`--follow` quirk:** `--follow` combined with `--diff-filter=A` can report a DIFFERENT (earlier)
+  commit than the file's first appearance under its current path, because `--follow` traces through
+  prior renames (verified: on a renamed plan file the two commands returned `10:37` vs `20:27`).
+  DECISION FOR EXECUTION: use `--follow` deliberately (we WANT the original creation time across the
+  `done/`->`executed/` and `YYYY-MM-DD`->`YYYYMMDD` renames this repo already did), and take the
+  EARLIEST such author time. Document this choice in code so it is not "fixed" into the wrong one.
+- Concrete: `TZ=UTC git -C <repo> log --follow --diff-filter=A --date=format-local:%Y%m%d-%H%M
+  --format=%ad -- <file>` then take the last (oldest) line. Guard: non-git repo, untracked file, or
+  empty output -> fall back to `0000`. Use author-date (`%ad`), not commit-date, as the creation
+  proxy.
 
 ### 2. Wire `/setup-repo` to check + offer normalization (Step 1b)
 Extend `setup-repo.md` Step 1b prose: after establishing the lifecycle dirs, run
@@ -128,10 +156,11 @@ everything and record it as a noted gap. Classify this as its own conformance li
 (conformant / files-need-normalizing / not-applicable).
 
 ### 3. Update the naming rule everywhere (P8)
-Change every doc site in Step 0 from `YYYYMMDD-<slug>.md` to `YYYYMMDD-HHMM-NN-<slug>.md`, including
-the `NN`/`00`-orchestrator semantics and the lowercase-kebab slug rule. Update the `/setup-repo`
-AGENT-PLANS prose (and this repo's own `AGENTS.md` AGENT-PLANS block) so targets learn the new
-convention. Keep `done/` alias language unchanged.
+Change the four verified doc sites in Step 0 (`assess.md:89`, `setup-repo.md:94`, `ipd.md:79`,
+`AGENTS.md:13`) from `YYYYMMDD-<slug>.md` to `YYYYMMDD-HHMM-NN-<slug>.md`, including the
+`NN`/`00`-orchestrator semantics and the lowercase-kebab slug rule. Update the `/setup-repo` Step 1b
+prose that WRITES the AGENT-PLANS block into targets so targets learn the new convention. Keep
+`done/` alias language unchanged. `index.md` needs no change (it does not state the filename rule).
 
 ### 4. New `DECISIONS.md` entry (extends/refines D45)
 `### D<next>. Plan filename convention: `YYYYMMDD-HHMM-NN-<slug>` + `/setup-repo` normalization`.
@@ -223,9 +252,33 @@ should state the NEW filename convention if this IPD has landed. No hard orderin
    forward (a guard against regressions), or is `/setup-repo` + the one-time normalization enough?
    (Leaning: add a lightweight check to this repo's test suite so its own plan names cannot drift.)
 
+## Plan-review revisions applied (2026-07-11)
+
+Reviewed by `plan-review`. Claims verified against source: no code validates plan filenames today
+(this is net-new); `setup_tools.py` is an argparse tool (`main()` at :180); the filename rule lives
+at `assess.md:89`, `setup-repo.md:94`, `ipd.md:79`, `AGENTS.md:13` (NOT `index.md` - corrected);
+`/setup-repo` Step 1b (setup-repo.md:82-104) is the wiring seam. Fixes applied (the normalizer core
+had real correctness gaps; all Low RR to FIX on paper, and fixing them is what prevents a
+data-moving bug):
+
+- R3-1 (BLOCKER-if-unfixed, correctness): the proposed git first-commit-time command was wrong on
+  TWO axes, both verified live - `%aI` emits LOCAL tz (HHMM must be UTC) and `--follow` +
+  `--diff-filter=A` returns a different commit than the current-path first-add (`10:37` vs `20:27`
+  on a renamed file). Pinned the exact `TZ=UTC ... --date=format-local:%Y%m%d-%H%M --format=%ad
+  --follow` command, take-the-oldest semantics, and the `0000` fallback.
+- R3-2/R3-3/R3-4/R3-5 (correctness/idempotency): specified the `scan` edge rules - already-conformant
+  files excluded (idempotent no-op re-run), deterministic per-minute NN assignment counting existing
+  conformant files, target-already-exists -> bump-or-report-CONFLICT (never clobber via `git mv`),
+  and an `untitled` fallback for an empty normalized slug.
+- R3-6 (doc accuracy, P8): corrected the doc-site set to the four verified locations; `index.md`
+  removed from the list (it does not state the filename rule).
+
+Verified that dogfooding (change #5) is real: 23 existing plan files in THIS repo would be
+normalized. The approach (deterministic helper + `/setup-repo` preview+confirm + staged `git mv`) is
+sound; no scope or approach changed in review. Reviewing is not executing.
+
 ## Approval and execution gate
 
 Proposal only; not auto-executed. On approval: implement changes 1-6, run the full suite green, do
 the manual validation, normalize this repo's own plan files (previewed), then move this IPD to
-`.agents/plans/executed/` (under the NEW name) with an execution-record summary. Optionally run
-`/plan-review` first to harden it.
+`.agents/plans/executed/` (under the NEW name) with an execution-record summary.

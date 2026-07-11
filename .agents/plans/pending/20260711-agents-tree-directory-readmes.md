@@ -90,6 +90,14 @@ overview), and one per bucket: `plans-pending-README.md`, `plans-reusable-README
 `plans-executed-README.md`, `plans-superseded-README.md`, `plans-not-executed-README.md`. Content
 per the specs below (the per-bucket specs are lifted from the superseded/not-executed IPD).
 
+NOTE (R2-1, plan-review): `.agents/workflows/templates/` is INSIDE the framework namespace, so its
+files are copied into every target (verified: the existing `shim-README.md` and
+`workflow-artifacts-README.md` already land at `<target>/.agents/workflows/templates/`). These 7
+new template files will likewise be present in targets. This is the EXISTING pattern, accepted as-is
+here to avoid scope creep (moving generation-templates out of the installed tree is a separate
+cleanup, not this IPD). Just be aware the target's `templates/` dir grows by 7 files; that is
+intended, not a leak to fix in this plan.
+
 ### 2. Write the Category 1 READMEs from the installer (no-clobber)
 Add a plan-aware engine function (model on `ensure_workflow_artifacts_readme`, which already has
 `plan.source_root`) that, for each Category 1 dir, writes `<dir>/README.md` from its template if
@@ -126,7 +134,9 @@ done: per-leaf READMEs. Confirm the next D-number at execution time.
   temp repo, assert each Category 1 README exists (`.agents/README.md`, `.agents/plans/README.md`,
   and one per bucket driven by `engine.PLAN_LIFECYCLE_SUBDIRS`), assert no-clobber (a pre-existing
   user README is preserved), assert idempotent re-run creates nothing new, assert `--dry-run` writes
-  nothing. If the Category 1 count is folded into an existing `created`-count assertion, update it.
+  nothing. NOTE (R2-3): because the Category 1 READMEs are written by a SEPARATE plan-aware function
+  (not `create_setup_artifacts`), they do NOT change `test_engine_returns_created_list`'s
+  `.gitkeep`-count assertion; assert the READMEs independently rather than folding into that count.
 - `tests/test_installer.py`: assert a representative Category 2 capability README (e.g.
   `.agents/workflows/assess/README.md`) is installed into a target and is pruned/not-orphaned like
   other framework files (mirrors the existing README create/preserve test).
@@ -143,11 +153,17 @@ one bolded guidance line where useful, imperative). Category 1 (generated):
   Implementation Plan Documents (IPDs) through their lifecycle. See `workflows/index.md` for the
   workflow catalog."
 - **`.agents/plans/README.md`** - the lifecycle overview: the five buckets and what each is for,
-  `YYYYMMDD-<slug>.md` naming, `done/` accepted as an alias for `executed/`, and the retirement
-  convention (`RETIRED YYYY-MM-DD: <reason>; superseded by <path/commit>` + `git mv`; never file an
-  un-run plan in `executed/`; never silently delete).
-- **pending/** - "IPDs queued or under review/implementation. Named `YYYYMMDD-<slug>.md`. Move to
-  `executed/` ONLY after the change is implemented, verified, and tested."
+  the plan-filename naming rule (see the naming-convention note below), `done/` accepted as an alias
+  for `executed/`, and the retirement convention (`RETIRED YYYY-MM-DD: <reason>; superseded by
+  <path/commit>` + `git mv`; never file an un-run plan in `executed/`; never silently delete).
+- **pending/** - "IPDs queued or under review/implementation. Named per the plan-filename
+  convention. Move to `executed/` ONLY after the change is implemented, verified, and tested."
+
+NAMING-CONVENTION NOTE (R2-2, plan-review): the filename string these READMEs state MUST match
+whichever convention is current at execution time. If the filename-convention IPD
+(`20260711-plan-filename-convention-hhmm-nn.md`) has landed, use `YYYYMMDD-HHMM-NN-<slug>.md`
+(with the `NN`/`00`-orchestrator + lowercase-kebab rules); otherwise use the then-current
+`YYYYMMDD-<slug>.md`. Do NOT hard-code a stale format; check the live D45-successor at execution.
 - **executed/** - "IPDs implemented, verified, and tested. Terminal, append-only history; do not
   edit past records. (`done/` is an accepted alias.)"
 - **superseded/** - "IPDs REPLACED by a better/subsequent plan - kept for the record, not the live
@@ -201,6 +217,27 @@ catalog; capability READMEs reference it rather than duplicating it (P8).
 2. Category 2 wording per capability is drafted at execution time; confirm no capability wants to
    OMIT a README (e.g. `templates/` under `workflows/` - it holds README templates; a meta-note
    there may be worth it or may be noise).
+
+## Plan-review revisions applied (2026-07-11)
+
+Reviewed by `plan-review`. All claims verified against source: engine line refs (shim README
+517/537, `in_framework_namespace` 664-671 = only `.agents/workflows/**`+shim dirs so `.agents/plans`
+is never pruned, prune README-skip 730/931, `ensure_workflow_artifacts_readme` 2037-2076 called at
+2162/2264), the 16 top-level capability dirs, and that `collect_source_members` installs EVERY file
+under `.agents/workflows/` via `rglob` (so authored Category-2 READMEs need zero installer code) all
+check out. The two-category / two-mechanic architecture is sound. Fixes applied (all Low RR):
+
+- R2-1 (KISS/consistency): noted that `.agents/workflows/templates/` files are copied into targets
+  (verified the existing two templates already land there), so the 7 new templates will too;
+  accepted as the existing pattern to avoid scope creep, but now called out rather than silent.
+- R2-2 (doc-consistency): the `.agents/plans/README.md` + `pending/` specs no longer hard-code
+  `YYYYMMDD-<slug>.md`; they defer to whichever filename convention is live at execution time
+  (cross-refs the filename-convention IPD).
+- R2-3 (test precision): clarified Category 1 READMEs are written by a separate function and do NOT
+  affect `test_engine_returns_created_list`'s count; assert them independently.
+
+No scope or approach changed; the review tightened accuracy and doc-drift resistance. Reviewing is
+not executing.
 
 ## Approval and execution gate
 
