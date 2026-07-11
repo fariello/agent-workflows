@@ -9,10 +9,9 @@
   `.agents/workflows/<capability>/` (authored source, copied+pruned like other framework files).
   Leaf dirs (`lenses/`, `personas/`, `tools/`, `templates/`, `references/`) do NOT get their own
   README; their PARENT capability README describes them.
-- Status: PENDING (scope decided interactively with the maintainer 2026-07-10/11; see "Decisions
-  taken"). Sequenced AFTER the superseded/not-executed IPD
-  (`20260710-plan-lifecycle-superseded-notexecuted-dirs.md`), because this documents the two new
-  buckets (`superseded/`, `not-executed/`) that IPD creates.
+- Status: DONE (executed 2026-07-11; see DECISIONS D49). Every `.agents/` top-level dir + the whole
+  `.agents/plans/` tree is README-covered; suite 153 green. Executed third of three (after
+  superseded/not-executed and the filename convention).
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Decisions taken (maintainer, 2026-07-10/11)

@@ -2082,6 +2082,54 @@ def ensure_workflow_artifacts_readme(
     installed.append(f"{rel_path} [install]")
 
 
+# Category-1 (user-owned) directory READMEs generated no-clobber from templates. The
+# `.agents/` root and `.agents/plans/` overview use fixed template names; each lifecycle
+# bucket uses `plans-<bucket>-README.md`. Buckets are driven by PLAN_LIFECYCLE_SUBDIRS so
+# they cannot drift from the dirs create_setup_artifacts scaffolds.
+_PLANS_README_TARGETS = (
+    (".agents/README.md", "agents-README.md"),
+    (f"{PLANS_DIR}/README.md", "plans-README.md"),
+)
+
+
+def ensure_plans_readmes(
+    plan: InstallPlan,
+    use_git: bool,
+    installed: list[str],
+    skipped: list[str],
+) -> None:
+    """Create a README.md in `.agents/`, `.agents/plans/`, and each lifecycle bucket.
+
+    No-clobber (a user's own README is never overwritten), staged, dry-run aware. Modeled
+    on `ensure_workflow_artifacts_readme`. Templates live under the source
+    `.agents/workflows/templates/`; a bucket with no template is skipped defensively.
+    """
+
+    targets = list(_PLANS_README_TARGETS)
+    for bucket in PLAN_LIFECYCLE_SUBDIRS:
+        targets.append((f"{PLANS_DIR}/{bucket}/README.md", f"plans-{bucket}-README.md"))
+
+    for rel_path, template_name in targets:
+        readme_path = plan.repo_root / rel_path
+        if readme_path.is_file():
+            skipped.append(f"{rel_path} [already current]")
+            continue
+        template_path = plan.source_root / "templates" / template_name
+        try:
+            content = template_path.read_text(encoding="utf-8")
+        except OSError:
+            # No template shipped for this target; skip rather than invent content.
+            continue
+        if plan.dry_run:
+            installed.append(f"{rel_path} [install, dry-run]")
+            continue
+        readme_path.parent.mkdir(parents=True, exist_ok=True)
+        readme_path.write_text(content, encoding="utf-8")
+        if use_git:
+            git_add_optional(plan.repo_root, rel_path)
+        installed.append(f"{rel_path} [install]")
+
+
 def create_setup_artifacts(
     repo_root: Path, use_git: bool, dry_run: bool = False
 ) -> list[str]:
@@ -2167,6 +2215,7 @@ def install_into_repo(
     backups_ignore_status = ensure_backups_gitignored(plan, use_git)
     ensure_workflow_artifacts_readme(plan, use_git, installed, skipped)
     artifacts = create_setup_artifacts(repo_root, use_git, dry_run=dry_run)
+    ensure_plans_readmes(plan, use_git, installed, skipped)
 
     newly_created = [
         item.rsplit(" [", 1)[0] for item in installed if item.endswith(" [install]")
@@ -2268,6 +2317,7 @@ def run(args: argparse.Namespace) -> int:
         gitignore_status = check_gitignore(plan)
         backups_ignore_status = ensure_backups_gitignored(plan, use_git)
         ensure_workflow_artifacts_readme(plan, use_git, installed, skipped)
+        ensure_plans_readmes(plan, use_git, installed, skipped)
         artifacts = create_setup_artifacts(
             plan.repo_root, use_git, dry_run=plan.dry_run
         )

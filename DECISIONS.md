@@ -1468,3 +1468,32 @@ both execute the (large) set well.
   normalized via `/setup-repo`, not this repo's CI.
 - **Historical records untouched (P4):** DECISIONS text and `workflow-artifacts/*` are not renamed;
   only plan FILENAMES change, and each rename preserves git history.
+
+### D49. Self-documenting `.agents/` tree: a README in every directory
+
+- **Context:** an installed repo's `.agents/plans/*` dirs were empty `.gitkeep`-only with no in-repo
+  explanation, and the `.agents/workflows/<capability>/` dirs were mostly undocumented in place
+  (only `index.md` centrally). A developer or agent browsing a directory could not tell what it was
+  for without leaving it. Executed from
+  `.agents/plans/executed/20260711-0501-01-agents-tree-directory-readmes.md` after `/plan-review`.
+- **Decision:** put an explanatory `README.md` in every directory of the installed `.agents/` tree,
+  at TOP-LEVEL depth. Leaf dirs (`lenses/`, `personas/`, `tools/`, `templates/`, `references/`) do
+  NOT each carry a README; their parent capability README describes them (bounds maintenance and
+  avoids duplicating `index.md`).
+- **Two categories, two mechanics:**
+  - Category 1 (USER-owned, installer-GENERATED no-clobber): `.agents/README.md`,
+    `.agents/plans/README.md`, and one per lifecycle bucket. Written by `ensure_plans_readmes` from
+    templates under `.agents/workflows/templates/` (`agents-README.md`, `plans-README.md`,
+    `plans-<bucket>-README.md`), bucket list driven by `PLAN_LIFECYCLE_SUBDIRS`. No-clobber, staged,
+    dry-run aware - modeled on `ensure_workflow_artifacts_readme`.
+  - Category 2 (FRAMEWORK-authored, copied+pruned): a `README.md` in each top-level
+    `.agents/workflows/<capability>/` (16 dirs; `release-review/` already had one). These are plain
+    source files installed by the normal copy path - zero installer code.
+- **Applied:** added 7 Category-1 templates + `ensure_plans_readmes` (wired at both install
+  orchestration sites); authored 15 capability READMEs (each states purpose + how-to-invoke, and a
+  Subdirectories list where it has leaves; `templates/` gets a meta-README); DECISIONS D49; tests
+  (`tests/test_dir_readmes.py`: Category-1 generate/no-clobber/idempotent/dry-run, Category-2 install
+  + a source completeness guard).
+- **Deliberately NOT done:** per-leaf-dir READMEs (parent describes them); an installer-managed
+  AGENT-PLANS block (still delivered by LLM `/setup-repo`); auto-refresh of Category-1 READMEs on
+  upgrade (create-if-absent, like `workflow-artifacts/README.md`).
