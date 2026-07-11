@@ -25,7 +25,7 @@ We will introduce README files for the four key directories. All templates will 
 
 ### 2. Slash-Command Shim Directories (`.opencode/commands/README.md` and `.claude/commands/README.md`)
 * **Behavior**: Sourced from a template and updated/written dynamically by the installer.
-* **Installer Logic**: 
+* **Installer Logic**:
   * The installer will read the template from `<source_root>/templates/shim-README.md` and write it to `.opencode/commands/README.md` and `.claude/commands/README.md` during the shim generation phase (`generate_shim_members`).
   * The pruning logic in `prune_stale` will be updated to explicitly exclude `README.md` from deletion, treating it as a known framework shim file.
 

@@ -10,8 +10,8 @@
   performs `git mv` normalization; (3) wire `/setup-repo` to run that check and offer to normalize;
   (4) reconcile all doc sites + a new DECISIONS entry. Does NOT build an `aw` CLI verb (noted as a
   later follow-on).
-- Status: PENDING (convention + behavior decided interactively with the maintainer 2026-07-11; see
-  "Decisions taken"). Independent of the two other pending IPDs; see "Sequencing".
+- Status: DONE (executed 2026-07-11; see DECISIONS D48). Convention live; this repo's 23 plan files
+  normalized; suite 147 green. Executed second of three (after superseded/not-executed).
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Self-note: under the NEW convention this very file would normalize to something like
   `20260711-HHMM-01-plan-filename-convention-hhmm-nn.md`; it is named in the CURRENT `YYYYMMDD-<slug>`

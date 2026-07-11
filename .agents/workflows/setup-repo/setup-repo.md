@@ -97,9 +97,11 @@ these workflows:
   - `.agents/plans/reusable/` - recurring plans meant to be re-run repeatedly (e.g. a
     periodic audit or rollout runbook); they stay here rather than moving on after a run.
 
-  Plan files are named `YYYYMMDD-<slug>.md`. If the repo already uses a terminal dir named
-  `done/` (or another), keep it - do not rename; just record which is canonical for this
-  repo.
+  Plan files are named `YYYYMMDD-HHMM-NN-<slug>.md` (UTC date + time; `NN` a two-digit
+  per-minute sequence, `00` reserved by convention for an orchestrator plan and `01+` for
+  ordinary/child plans; `<slug>` lowercase kebab-case). If the repo already uses a terminal
+  dir named `done/` (or another), keep it - do not rename; just record which is canonical
+  for this repo.
 - **Documented contract (this is the part that makes agents pick it up):** offer to add
   a short, marker-delimited "Plan/IPD lifecycle" note to `AGENTS.md` (and/or
   `CONTRIBUTING.md`) stating: proposals are dated IPDs in `.agents/plans/pending/`; they
@@ -111,6 +113,15 @@ these workflows:
   it in place without duplicating (same discipline as the AGENTS workflow pointer).
 - **Conformance:** if the dirs exist but the contract is undocumented, that is
   "partial" - offer to add the doc. If both exist, "conformant" - skip.
+- **Filename normalization:** run the deterministic checker
+  `python3 .agents/workflows/setup-repo/tools/normalize_plan_names.py --repo . --check`.
+  It lists any plan files not matching `YYYYMMDD-HHMM-NN-<slug>.md` and the exact
+  `old -> new` names it would assign (deriving `HHMM` from each file's first git-commit
+  time in UTC, `NN` per-minute, slug lowercased-kebab). If any are nonconforming, SHOW the
+  user the full preview and ASK whether to normalize. On yes, run the same tool with
+  `--apply` (it performs history-preserving `git mv`, staged NOT committed) and remind the
+  user to review and commit. On no, leave everything and record it as a noted gap.
+  Classify: conformant (none nonconforming) / files-need-normalizing / not-applicable.
 
 ### 2. Secret scanning (CI + local hook)
 

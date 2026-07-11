@@ -1438,3 +1438,33 @@ both execute the (large) set well.
   AGENT-PLANS block (delivery stays via the LLM `/setup-repo`).
 - **Historical records untouched (P4):** D45 and prior dated entries stand as written; only
   forward-facing docs changed.
+
+### D48. Plan filename convention: `YYYYMMDD-HHMM-NN-<slug>` + `/setup-repo` normalization
+
+- **Context:** the filename rule was `YYYYMMDD-<slug>.md` (D45). It cannot distinguish two plans
+  authored the same day, does not order within a day, and has no way to show an orchestrator plus
+  its child plans as a group. Executed from
+  `.agents/plans/executed/<this-IPD>.md` after `/plan-review`.
+- **Decision:** the convention is `YYYYMMDD-HHMM-NN-<slug>.md`: UTC date + 24h time; `NN` a
+  two-digit sequence within that exact `YYYYMMDD-HHMM` (so same-minute plans are distinct); `00`
+  RESERVED (by convention, not enforced) for an orchestrator plan that coordinates the `01+` child
+  plans of the same timestamp; `<slug>` lowercase kebab-case (`[a-z0-9-]+`). This refines D45's
+  filename rule (D45 not edited - P4).
+- **Normalizer + `/setup-repo`:** a deterministic stdlib helper
+  `.agents/workflows/setup-repo/tools/normalize_plan_names.py` scans the plan lifecycle dirs,
+  reports nonconforming files with proposed `old -> new` names, and (with `--apply`) performs the
+  renames via history-preserving `git mv`, STAGED not committed. Legacy files get `HHMM` from their
+  first git-commit author time in UTC (via `--follow`, taking the oldest, so files moved by earlier
+  migrations trace to true creation; fallback `0000` when untracked/no-git), `NN` by same-minute
+  collision order (never `00`), and a lowercased-kebab slug (empty -> `untitled`). A computed target
+  that already exists advances `NN`, or is reported as a CONFLICT and skipped - `git mv` never
+  clobbers. `/setup-repo` Step 1b runs `--check`, previews, asks, and only then `--apply`s.
+- **Applied:** added the helper + `tests/test_normalize_plan_names.py`; wired `/setup-repo`; updated
+  the four filename-rule doc sites (`assess.md`, `setup-repo.md`, `ipd.md`, `AGENTS.md`); normalized
+  THIS repo's own plan files (previewed; `git mv`); added a drift-guard test asserting every
+  `.agents/plans/*` filename conforms so this repo cannot regress.
+- **Deliberately NOT done:** an `aw plans normalize`/`--check` CLI verb (a later ergonomic
+  follow-on); enforcing that `00` is really an orchestrator (convention-only). Downstream repos are
+  normalized via `/setup-repo`, not this repo's CI.
+- **Historical records untouched (P4):** DECISIONS text and `workflow-artifacts/*` are not renamed;
+  only plan FILENAMES change, and each rename preserves git history.

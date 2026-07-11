@@ -36,7 +36,7 @@ What would you like to do?
   [1] Pull latest changes (git pull --rebase) and proceed
   [2] Proceed anyway (risk of merge/overwrite)
   [3] Abort installation
-Select an option [1-3, default 1]: 
+Select an option [1-3, default 1]:
 ```
 
 * If option **[1]** is selected: Run `git pull --rebase`. If it succeeds, proceed with the install. If it fails, abort with instructions.

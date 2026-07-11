@@ -79,4 +79,5 @@ and it is NOT auto-executed. Recommended next steps:
    better plan or `not-executed/` if deliberately not run - retire with a
    `RETIRED YYYY-MM-DD: <reason>; superseded by <path/commit>` header + `git mv`, never a
    delete; recurring plans live in `.agents/plans/reusable/`; a repo already using `done/`
-   keeps `done/`). Plan files are named `YYYYMMDD-<slug>.md`.
+   keeps `done/`). Plan files are named `YYYYMMDD-HHMM-NN-<slug>.md` (UTC date+time; `NN`
+   per-minute two-digit sequence, `00` reserved for an orchestrator; lowercase-kebab slug).

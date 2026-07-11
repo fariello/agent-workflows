@@ -88,7 +88,9 @@ directory) and a run record (the evidence and report of this assessment, under
    record), `.agents/plans/not-executed/` (deliberately decided against, no replacement),
    and `.agents/plans/reusable/` (recurring plans meant to be re-run repeatedly, e.g. a
    periodic audit or rollout runbook - these stay here rather than moving on after a run).
-   Plan files are named `YYYYMMDD-<slug>.md`. Never file an un-run plan in `executed/`;
+   Plan files are named `YYYYMMDD-HHMM-NN-<slug>.md` (UTC date+time; `NN` a two-digit
+   per-minute sequence, `00` reserved for an orchestrator, `01+` otherwise; lowercase-kebab
+   slug). Never file an un-run plan in `executed/`;
    retire a plan by prepending `RETIRED YYYY-MM-DD: <reason>; superseded by <path/commit>`
    and `git mv`ing it to `superseded/` or `not-executed/` (never silently delete).
    `done/` is an accepted alias for `executed/` if a repo already uses it; respect
