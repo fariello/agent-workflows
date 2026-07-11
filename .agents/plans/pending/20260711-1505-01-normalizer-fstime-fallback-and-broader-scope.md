@@ -30,12 +30,39 @@ scan; (2) `YYYY-MM-DD-` and `YYYYMMDD-NN-` legacy shapes exist that the current 
 (`^\d{8}-`) does not recognize; (3) some non-numeric files are genuine reference inputs that must NOT
 be renamed, so protection must be by structure (nesting) AND pattern (exclusions).
 
+## What the filename timestamp represents (SETTLED 2026-07-11)
+
+**CREATION / authoring time, stable for the plan's whole life.** The date is set once when the plan
+is authored and NEVER changes as it moves `pending -> executed -> superseded -> ...`. A plan's name
+(hence its identity/reference) is permanent; `NN` groups an orchestrator with its child plans by
+their shared CREATION moment. We deliberately do NOT use "execution" time (not reliably knowable)
+nor "last-modified/completion" time (would rename a plan through its lifecycle and scatter `NN`
+groups). This matches the D48 convention already shipped to 27+ repos. This semantic is the reason
+for the time-source rule below - do not reintroduce a completion/last-touched interpretation.
+
 ## Decisions taken (maintainer, 2026-07-11)
 
-1. **Time fallback order:** git first-commit (author) time UTC -> `st_birthtime` (if the platform/FS
-   exposes it) -> `st_ctime` -> `st_mtime` -> `0000`. Replaces today's straight-to-`0000` fallback.
-   All times formatted as UTC `YYYYMMDD-HHMM` (and the DATE part may come from the fs time too when a
-   file has no usable date in its name).
+1. **Time source = EARLIEST EVIDENCE of the file's existence (REVISED 2026-07-11):** because the
+   goal is CREATION time (above), and no single signal is reliably "real" across all workflows
+   (git-first-commit is WRONG for imported/copied files - it records when the file entered THIS
+   repo, e.g. a June-authored file committed here in July; fs times can be reset by a checkout or
+   copy), the automatic date is the **minimum (earliest)** of the signals that exist:
+   `min(st_birthtime, st_mtime, git-first-commit-time)`, in UTC. Rationale: creation is the earliest
+   moment for which we have any evidence.
+   - This is robust in BOTH edge cases: an IMPORT (git-commit late -> mtime/birthtime wins) and a
+     BORN-HERE-THEN-EDITED file (mtime late from edits -> git-first-commit wins). ("Most recent"
+     would pick the wrong signal in both.)
+   - A **filename-embedded date ALWAYS wins** over all signals (the human already stated it).
+   - **Disagreement warning:** when the chosen date and the git-first-commit date differ by more
+     than ~1 day (the tell-tale of an import or a reset clock), `--check` surfaces it
+     (`chosen=20260601 (mtime); git=20260711 - imported?`) and treats the file as NEEDS-DECISION,
+     not a silent rename, unless the operator passes `--assume-dates`. So the clean
+     case (all signals agree within a day) stays quiet; only the ambiguous case is loud.
+   - If truly nothing is available (no git, no readable stat), fall back to `0000` on whatever date
+     exists (name date, else the run date) - effectively unreachable since `stat` succeeds for an
+     existing file.
+   All times formatted UTC `YYYYMMDD-HHMM`; date and time are taken from the SAME chosen source
+   (never a name-date mixed with a fallback-time), carried as a structured `(date, time)` pair.
 2. **Scan scope (default narrow, opt-in broadening) - REVISED 2026-07-11:** default run scans ONLY
    `.agents/plans/` + `.agents/prompts/` (the two areas the framework blesses for the lifecycle).
    Broadening is opt-in: `--area <name>` (repeatable) - when given, it REPLACES the default set with
@@ -80,19 +107,42 @@ be renamed, so protection must be by structure (nesting) AND pattern (exclusions
 
 ## Proposed changes (ordered, validatable)
 
-### 1. Filesystem-time fallback (decision 1)
-Add `fs_stamp(path) -> (date, time)` returning a `("YYYYMMDD", "HHMM")` PAIR (not a hyphen-joined
-string - see N-1) that tries `os.stat().st_birthtime` (guard with `getattr(st, "st_birthtime",
-None)`; absent on Linux ext4), then `st_ctime`, then `st_mtime`, converting each to UTC.
-Rewrite `_time_and_date_for` to return a `(date, time)` PAIR chosen from a SINGLE atomic source, in
-order (N-2 - never mix a name-date with a fallback-time):
-  1. git first-commit stamp (both date and time), else
-  2. `fs_stamp` (both date and time), else
-  3. the name's own date if it has one, with time `0000`, else
-  4. `("00000000", "0000")` only if truly nothing is available (should not happen: fs stat always
-     succeeds for an existing file, so 3/4 are effectively unreachable once fs_stamp is in).
-Keep git as the preferred source (true creation across past renames via `--follow`). The caller uses
-the returned pair directly; do NOT reconstruct-then-`split("-")` a string (N-1).
+### 1. Creation-time resolution = earliest evidence (decision 1)
+Each candidate signal is a UTC `(date, time)` PAIR (never a hyphen-joined string - N-1):
+- `git_first_commit_stamp(path)` - from `git log --follow --diff-filter=A` (oldest; already exists).
+- `fs_stamp(path)` - `os.stat()`: `st_birthtime` if present (`getattr(st, "st_birthtime", None)`;
+  absent on Linux ext4), and `st_mtime`. (We do NOT use `st_ctime` for the value - on Linux it is
+  inode-change time, which a `chmod`/rename bumps and which is rarely creation; keep it only as a
+  last-ditch tiebreak if neither birthtime nor mtime is readable.)
+- `name_date` - a date parsed from the filename, if any.
+
+Rewrite `_time_and_date_for(path, parsed) -> (date, time)`:
+1. If the filename has an embedded date (`parsed`/name), USE IT for the date; take the time from the
+   earliest-evidence computation below (or `0000` if none). Name date always wins (decision 1).
+2. Else compute `chosen = min(...)` over ONLY the EVIDENCE signals that exist among
+   {git-first-commit, st_birthtime, st_mtime} (compare on the full `(YYYYMMDD, HHMM)`); this is the
+   earliest evidence of the file's existence = its creation proxy. (The name-date from rule 1 is a
+   short-circuit, NOT a `min` participant - so a day-only name-date at `0000` never falsely wins the
+   min by looking like midnight; R-1.)
+3. Else `("<run-or-only-known-date>", "0000")` (effectively unreachable: `stat` succeeds for an
+   existing file).
+Return the chosen `(date, time)` PAIR directly; the caller uses it as-is (no `split("-")`, N-1;
+never mix a name-date with a different source's time except per rule 1 which is intentional and
+same-file, N-2).
+
+**Disagreement flag (decision 1):** compute `git_first_commit_stamp` even when it is not chosen; if
+it EXISTS and `abs(chosen_date - git_date) > 1 day`, mark the file `imported?` and treat it as
+NEEDS-DECISION (not auto-renamed) unless the operator passes `--assume-dates`. This surfaces the
+import / reset-clock case (the whole reason git-first was wrong) without nagging on clean files.
+- **Limitation (R-2):** for an UNTRACKED file there is no git time to disagree with, so the flag
+  cannot fire; the file just uses its earliest fs evidence. This is acceptable (we cannot compare to
+  a signal that does not exist); it is stated so it is not mistaken for a bug. Such files are still
+  subject to the normal preview before `--apply`.
+- **Flag semantics (R-3):** `--assume-dates` specifically means "accept the chosen dates for files
+  flagged `imported?` and rename them anyway." It is distinct from the wizard's general
+  ask-before-change; a bare `--apply` still HOLDS `imported?` files (reports them, does not rename)
+  so the human sees them. (There is no separate `--yes` on this tool; the LLM `/setup-repo` layer
+  handles the interactive yes/no and would pass `--assume-dates` only after showing the preview.)
 
 ### 2. Recognize more legacy shapes (survey finding)
 Extend parsing so a small ordered set of legacy regexes recognizes: `YYYYMMDD-<slug>`,
@@ -153,9 +203,13 @@ tool without changing the convention.
 
 ### 8. Tests
 Extend `tests/test_normalize_plan_names.py`:
-- fs-time fallback: an untracked file with a known `st_mtime` normalizes to that UTC date+time (not
-  `0000`); a committed file still uses git time (git wins). Also exercise the `st_birthtime`-absent
-  path (Linux) by asserting the helper degrades to `st_ctime`/`st_mtime` without error (N-4).
+- earliest-evidence date: an untracked file with a known `st_mtime` normalizes to that UTC date+time
+  (not `0000`). IMPORT case: a file whose `st_mtime` is OLDER than its git-first-commit time (the
+  June-authored / July-committed scenario) resolves to the MTIME date (earliest), and is flagged
+  `imported?` (needs `--assume-dates` to auto-rename). BORN-HERE-EDITED case: a file whose mtime is
+  NEWER than its git-first-commit resolves to the GIT date (earliest). Exercise the
+  `st_birthtime`-absent path (Linux) so the helper degrades to mtime/git without error (N-4).
+- name-date wins: a filename with an embedded/leading date keeps that date regardless of fs/git.
 - new legacy shapes: `YYYYMMDD-NN-`, `YYYYMMDD-HHMM-`, `YYYY-MM-DD-` (and `YYYY-MM-DD-NN-`) all
   normalize correctly, preserving present time/NN; explicitly assert the hyphenated-date case does
   NOT raise (N-1 regression guard) and yields a compact `YYYYMMDD` date; assert the NN-vs-HHMM
@@ -177,8 +231,10 @@ Extend `tests/test_normalize_plan_names.py`:
 - **Lifecycle dirs:** `pending`, `executed`, `superseded`, `not-executed`, `reusable`, `done`.
 - **Rename-eligible:** `*.md` whose immediate parent is a lifecycle dir within a scanned area, not
   excluded. (`--include-nested` also makes deeper files eligible.)
-- **Time:** git-first-commit UTC -> `st_birthtime` -> `st_ctime` -> `st_mtime` -> `0000` (as a
-  single atomic date+time source; see change #1).
+- **Time:** CREATION proxy = filename-embedded date if present, else the EARLIEST of
+  {git-first-commit, `st_birthtime`, `st_mtime`} in UTC (min = earliest evidence of existence), else
+  `0000`. Date+time taken from the same chosen source (structured pair; see change #1). A
+  chosen-vs-git disagreement > ~1 day flags the file `imported?` (needs `--assume-dates`).
 - **Excluded (default): `README.md` ONLY** (the sole framework-owned file that must never be
   renamed). NO hardcoded personal-layout patterns like `*/sources/*` (that would impose one user's
   idiom on all downstream repos - P7); reference-input folders are protected STRUCTURALLY by the
@@ -255,6 +311,34 @@ approach is sound; findings fixed in place (all Low Remediation Risk to fix on p
 - N-5 (LOW, anti-regression/usability): pinned that `--all` widens which top-level areas are
   SEARCHED for lifecycle dirs, and still only REPORTS files under lifecycle dirs - it never lists or
   targets the framework `.agents/workflows/**` tree, so `--all` output stays usable.
+
+### Post-review semantics revision (2026-07-11, maintainer)
+
+A real case (importing June-authored, untracked files on another machine, then committing them here
+in July) exposed that the reviewed decision-1 ordering (git-first-commit -> fs) was WRONG for
+imports: git-commit time records when a file entered THIS repo, not when it was created, so those
+files would be stamped July 11 and their true June date hidden - the exact "stale value masquerading
+as authoritative" failure D48 exists to prevent. Two things were then settled and folded in above
+(this is a material change to decision-1, hence a re-review of the changed sections):
+
+- **Semantics pinned:** the filename timestamp is CREATION/authoring time, stable for the plan's
+  whole life (new "What the filename timestamp represents" section). NOT execution time (not
+  knowable) and NOT last-modified/completion (would rename a plan through its lifecycle). This
+  matches D48 as shipped.
+- **Time source reversed to EARLIEST EVIDENCE:** `min(git-first-commit, st_birthtime, st_mtime)`,
+  with a filename-embedded date always winning, plus a >1-day chosen-vs-git disagreement flag
+  (`imported?`, needs `--assume-dates`). Reasoning worked through with the maintainer: creation is
+  the earliest evidence of existence, and `min` is correct in BOTH the import case (git late) and
+  the born-here-then-edited case (mtime late), whereas both "git-first" and "most recent" are wrong
+  in one of those. `st_ctime` dropped as a value source (Linux inode-change time, not creation).
+
+Re-review of the changed sections (2026-07-11) found and fixed three follow-on points, all Low RR:
+R-1 - only the evidence signals enter the `min`; a day-only name-date is a short-circuit, not a
+`min` participant (else its `0000` time could falsely win as "earliest"). R-2 - stated the
+limitation that the `imported?` disagreement flag cannot fire for an UNTRACKED file (no git time to
+compare), which is acceptable, not a bug. R-3 - clarified `--assume-dates` is the single flag that
+accepts `imported?`-flagged dates; there is no `--yes` on this standalone tool (the `/setup-repo`
+layer handles interactive confirmation and passes `--assume-dates` after previewing).
 
 No scope or approach changed; the review made the time-sourcing, parsing, and scan-scope precise
 enough to build without a data-moving bug. Reviewing is not executing.
