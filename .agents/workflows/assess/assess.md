@@ -124,12 +124,17 @@ Then read the selected lens file and adopt its focus, lead personas, and rubric.
 5. **Write the IPD** to the pending-plans directory using `templates/ipd.md`, named per
    the project's filename convention (canonical: `YYYYMMDD-HHMM-NN-<slug>.md`, UTC
    date+time, `NN` a two-digit per-minute sequence with `00` reserved for an orchestrator),
-   e.g. `<plans-pending>/YYYYMMDD-HHMM-NN-assess-<concern>.md`.
+   e.g. `<plans-pending>/YYYYMMDD-HHMM-NN-assess-<concern>.md`. Set the IPD's front-matter
+   `Status: to-review` (assess produces a complete proposal, which is review-ready by
+   default; use `draft` only if you are deliberately emitting a stub), and add the first
+   `## Workflow history` line: `- <date> /assess <concern> (<agent/model>): assessed;
+   proposed N changes`.
 6. **Write the run record** to `workflow-artifacts/assess-<concern>/<RUN_ID>/` (see the
    next section) so the report and evidence are durable, not just shown in chat.
-7. **Commit** the IPD and the run record (they are committed deliverables by default,
-   the same policy as release-review; keep local only if the user asks). Do not commit
-   unrelated changes; run `git status --short` first.
+7. **Commit** the IPD and the run record, and NEVER push (commit-only; no remote changes).
+   They are committed deliverables by default (the same policy as release-review; keep
+   local only if the user asks). Do not commit unrelated changes; run `git status --short`
+   first.
 8. **Report and stop.** Present the report (below) to the user with the IPD and run-
    record paths, and ask them to review and approve (optionally via `plan-review`)
    before execution. Do not execute.

@@ -90,6 +90,28 @@ project's specification/docs (whatever the project uses, e.g. a functional spec 
 
 ---
 
+## Commit contract: capture the plan before and after review (two commits, never push)
+
+So the commit history shows the plan moving through the pipeline (provenance), `/plan-review`
+commits at two points and NEVER pushes (commit-only; no remote changes, per the project's
+safety posture):
+
+1. **Pre-review snapshot (start).** Before revising, if the target plan has UNCOMMITTED
+   changes, commit it verbatim first: `plan: pre-review snapshot of <slug>`. This preserves
+   the "before" state. If the plan is already committed and unchanged, skip this (nothing to
+   snapshot) - that is expected, not an error.
+2. **Hardened result (end).** After applying the review's in-place revisions, set the plan's
+   front-matter `Status: reviewed` (plan-review does NOT self-`approve`; human sign-off moves
+   it to `approved`), append a `## Workflow history` line
+   (`- <date> /plan-review (<agent/model>): <verdict>; <finding IDs>`), and commit:
+   `plan-review: harden <slug> (revisions applied)`.
+
+Commit only the plan(s) reviewed (and their run record if any); do not sweep unrelated
+changes. Never push. If the target plan is not tracked / not in a git repo, do the review
+and note that commits were not applicable.
+
+---
+
 ## Cross-cutting engineering rubric (applies to every plan)
 
 For each item, verify the plan addresses it **or** explicitly and correctly scopes it

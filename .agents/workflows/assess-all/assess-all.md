@@ -47,12 +47,17 @@ Running all concerns is expensive (many deep passes). Before running anything:
      performance change vs. a readability change), name the trade-off and recommend.
 4. **Emit ONE consolidated IPD** into the project's pending plans directory (default
    `.agents/plans/pending/`): a single prioritized, cross-concern plan, with findings
-   grouped by priority and each tagged with its originating concern(s).
+   grouped by priority and each tagged with its originating concern(s). Set the IPD's
+   front-matter `Status: to-review` and add ONE `## Workflow history` line that NAMES the
+   concerns rolled up: `- <date> /assess-all (<agent/model>): rolled up <concerns>; proposed
+   N changes` (a single consolidated IPD carries a single Status and one history line, not
+   per-concern sub-entries).
 5. **Write a rollup run record** under `workflow-artifacts/assess-all/<RUN_ID>/`:
    the consolidated report, the resolved scope and cost, and links to any per-concern run
    records produced along the way.
-6. It does NOT change code and does NOT execute the plan (the assess contract). Recommend
-   `plan-review` before execution.
+6. It does NOT change code and does NOT execute the plan (the assess contract). **Commit**
+   the IPD and the rollup run record, and NEVER push (commit-only). Recommend `plan-review`
+   before execution.
 
 ## Honesty and guardrails
 
