@@ -8,9 +8,12 @@
   `spec`, `migrate`, `incident`) + a new `aw plans` status board + docs (lifecycle prose, AGENTS.md,
   `.agents/plans/README.md`, DECISIONS). Does NOT change disposition directories (the five-state dir
   set from D45/D47 is unchanged) or the filename convention (D48/D50 unchanged).
-- Status: approved
+- Status: executed
 - Approval: approved by maintainer 2026-07-11 (all open questions OQ2-6 resolved; `aw plans` board
-  split to a follow-on per OQ6; advisory-first gating per OQ2). Ready to execute.
+  split to a follow-on per OQ6; advisory-first gating per OQ2). Executed 2026-07-11 in four batches
+  (template, workflow bodies, docs, DECISIONS+test); full suite green (171 tests). The `aw plans`
+  board (was change #5) was split to follow-on `20260711-2223-01-aw-plans-status-board.md` and is
+  NOT part of this execution.
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -32,6 +35,10 @@
   Workflow-history + optional enum; assess-all single-IPD; `aw plans` board SPLIT to a follow-on).
   Status -> approved. Ready to execute the core (vocabulary + provenance + commit-discipline + docs);
   board excluded.
+- 2026-07-11 executed (its_direct/pt3-claude-opus-4.8-1m-us): four batches - B1 template
+  (5dbfb14), B2 workflow bodies + plan-review two-commit (b5006ab), B3 docs + approval + board split
+  (B3 commit), B4 DECISIONS D52 + advisory drift-guard test (0ef6a6d). Full suite green (171 tests).
+  Status -> executed; git mv to executed/. Board (change #5) split to 20260711-2223-01.
 
 ## Goal
 
