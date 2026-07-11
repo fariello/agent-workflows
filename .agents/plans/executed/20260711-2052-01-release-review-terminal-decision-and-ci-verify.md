@@ -7,9 +7,9 @@
 - Scope: `.agents/workflows/release-review/` (notably `00-run-protocol.md`, `08-final-ship-review.md`,
   Section 9 / the push+CI phase, `templates/final-response.md`, and the `ci-assessment.md` /
   `11-push-plan.md` artifacts) + docs/DECISIONS. Does NOT change the audit sections' substance.
-- Status: approved
+- Status: executed
 - Approval: approved by maintainer 2026-07-11 (reviewed; OQ1-5 resolved; approval gate preserved).
-  Ready to execute changes 1-4.
+  Executed 2026-07-11 (changes 1-4); full suite green (171 tests).
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -27,6 +27,11 @@
   PR-2 (DECISION block is APPENDED after the full ~18-section report, not a truncation), PR-3
   (preserve lanes-must-not-push `:357` + Section-9-serial `:366`), PR-4 (update the existing "CI
   assessment summary" section in final-response.md:40). All OQs resolved. Status -> reviewed.
+- 2026-07-11 approved (maintainer): OQ1-5 resolved; approval gate preserved. Status -> approved.
+- 2026-07-11 executed (its_direct/pt3-claude-opus-4.8-1m-us): changes #1-3 (terminal DECISION block
+  in final-response template + 00-run-protocol + 08-final-ship-review; push-then-verify-CI in
+  09-release-execution) committed 4cb0f66; change #4 (README + DECISIONS D53) committed 4a490b9.
+  Full suite green (171 tests). Status -> executed; git mv to executed/.
 
 ## Goal
 
