@@ -8,10 +8,10 @@
   optional `--write-index` that writes `.agents/plans/STATUS.md`, tests, and docs. Depends on the
   vocabulary/front-matter conventions defined by
   `20260711-1945-01-plan-status-vocabulary-and-workflow-provenance` (the "core" IPD).
-- Status: approved
+- Status: executed
 - Approval: approved by maintainer 2026-07-11 (reviewed; OQ1-4 leans confirmed - STATUS.md grouped
   list, lifecycle-ordered board, display-only v1, shared helper in plans.py imported by the
-  drift-guard test). Ready to execute changes 1-5.
+  drift-guard test). Executed 2026-07-11 (changes 1-5); full suite green (176 tests).
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -28,6 +28,10 @@
   its own); `discovery.py` has no plans-root helper; verbs default root to `Path.cwd()` with optional
   path (cli.py:218-220). PB-1 added the root-resolution rule + optional `[dir]` arg + "no plans found
   -> exit 0" case. OQs leaned; none escalated. Status -> reviewed.
+- 2026-07-11 approved (maintainer): OQ1-4 leans confirmed. Status -> approved.
+- 2026-07-11 executed (its_direct/pt3-claude-opus-4.8-1m-us): changes 1-5 built - plans.py helper,
+  aw plans verb + --write-index, tests/test_plans_board.py, drift-guard refactor, README + D54,
+  committed STATUS.md. Full suite green (176 tests). Status -> executed; git mv to executed/.
 
 ## Goal
 
