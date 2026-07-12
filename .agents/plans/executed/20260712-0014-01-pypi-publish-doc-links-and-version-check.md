@@ -10,9 +10,10 @@
   source untouched), the packaging config that wires it, a PyPI latest-version lookup helper, and a
   `/release-review` hook that consumes it. Docs + DECISIONS. `.md` only (PyPI renders the
   long-description file; HTML/other docs are not published to PyPI - confirmed).
-- Status: approved
+- Status: executed
 - Approval: approved by maintainer 2026-07-12 (reviewed; OQ1-6 leans confirmed; spike PA-1 first).
-  Ready to execute changes 1-5.
+  Executed 2026-07-12 (changes 1-5; PA-1 spike confirmed the hook + version source coexist in
+  hatch_build.py; verified by a real wheel build); suite green (196 tests).
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -36,6 +37,12 @@
   D46 zero-deps) - use a stdlib custom hook. PA-3 the sdist README file is shipped verbatim (source
   links); only the METADATA long-description is rewritten - fine, since PyPI renders the metadata, not
   the shipped file. OQs leaned; none escalated. Status -> reviewed.
+- 2026-07-12 approved (maintainer): OQ1-6 leans confirmed. Status -> approved.
+- 2026-07-12 executed (its_direct/pt3-claude-opus-4.8-1m-us): pypi_links.py rewriter + custom
+  metadata hook in hatch_build.py + pyproject dynamic readme + versioning PyPI helpers +
+  release-review Section 6 check (ce28d24); DECISIONS D58 + ARCHITECTURE note (c9ccc7f). PA-1 spike:
+  hook + version source coexist in hatch_build.py; real wheel build verified. 13 new tests; suite
+  green (196). Status -> executed; git mv to executed/.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
