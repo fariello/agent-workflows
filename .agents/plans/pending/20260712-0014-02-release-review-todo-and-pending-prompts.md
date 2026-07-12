@@ -7,7 +7,11 @@
 - Scope: `.agents/workflows/release-review/` (Section 1 pre-flight / `00-run-protocol.md`,
   `08-final-ship-review.md`, and the pending-plans handling that already exists) + docs/DECISIONS.
   Behavioral: adds interactive prompts + an ABORT path; does not change the audit sections' substance.
-- Status: reviewed
+- Status: approved
+- Approval: approved by maintainer 2026-07-12 (reviewed; OQ1-6 leans confirmed - early Section-1
+  pre-flight gate; non-interactive falls back to the loud WARNING; keep existing Section 7/8
+  reconciliation; cursory not a second triage; covers plans+prompts pending + status mismatches;
+  ABORT recorded in run metadata; ONE combined pre-flight prompt). Ready to execute changes 1-5.
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history

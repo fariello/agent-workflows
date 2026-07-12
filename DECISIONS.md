@@ -1750,3 +1750,33 @@ both execute the (large) set well.
 - **Noted, deferred:** the standalone tools (`normalize_plan_names.py`, `scan_secrets.py`) run
   directly can get the same interrupt guard later; and pre-existing `engine.py` `Term(<bool>)` type
   diagnostics (unrelated) remain for a separate cleanup.
+
+### D57. /release-review Section 1 pre-flight gate: cursory TODO + pending-plans ask, with an ABORT path
+
+- **Context:** `/release-review` already inventories TODO/backlog sources and pending plans/prompts in
+  Section 1 and surfaces them as a loud Section 8 WARNING, but that is at the END of a full audit. The
+  maintainer wanted an EARLY "did you mean to ship without handling this?" check that can stop the run
+  before the work is spent (ITEM-02 + ITEM-03). Executed from
+  `.agents/plans/executed/20260712-0014-02-release-review-todo-and-pending-prompts.md`.
+- **Decision - an early, interactive Section 1 pre-flight gate,** run after discovery and BEFORE the
+  audit (and before any parallel audit lanes, serial, so an abort saves the whole run):
+  - Take a genuinely CURSORY look (not a second triage) at discovered `TODO.md`/backlog items and
+    pending plans (`.agents/plans/pending/`) + staged prompts (`.agents/prompts/pending/`), including
+    status/location mismatches.
+  - If anything obviously warrants attention first, ASK the user ONCE in a single bounded pre-flight
+    prompt naming the TODO candidates AND the pending plans/prompts together.
+  - On "address first" -> ABORT (a first-class ABORTED-PRE-FLIGHT outcome, distinct from a Section 8
+    NO-GO): stop before the audit, record which gate/items in `00-run-metadata.md`, tell the user how
+    to resume.
+  - On "proceed" -> FORGET the cursory impressions entirely: they must not leak into findings, the
+    implementation plan, severities, or the report. The thorough Section 7 reconciliation runs
+    independently from the full discovered list, so the glance leaves zero residue.
+- **Non-interactive fallback:** no TTY -> skip the ask and rely on the existing loud Section 8 WARNING
+  and Section 7 reconciliation; never silently drop the signal, never block a headless run. Mirrors the
+  existing "Asking for missing intent" bounded exception.
+- **Kept, not replaced:** the Section 7 TODO reconciliation and the Section 8 pending-plans WARNING
+  remain unchanged; the pre-flight gate is an ADDITIONAL early safety net.
+- **Applied:** new "Section 1 pre-flight gate" section in `00-run-protocol.md`; wired into
+  `01-current-state.md` (step + exit-gate checkbox); release-review README note. Prose-workflow change
+  (no unit tests per the repo's "test mechanical parts, not instruction prose" policy; validation is
+  dogfooded).

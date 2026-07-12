@@ -194,6 +194,16 @@ Repositories driven by agent workflows often accumulate **planned-but-not-execut
 4. **Surface loudly.** Any pending plan or staged prompt that is not clearly out-of-scope for this release is a WARNING that must appear prominently in the Section 8 Go/No-Go and summary (see `08-final-ship-review.md`). Pending in-scope plans push the recommendation off a clean GO toward CONDITIONAL GO with the pending items named as prerequisites/decisions.
 5. Record the inventory and per-item classification and reflect it in the Section 8 report.
 
+## Section 1 pre-flight gate (early, interactive: ask before auditing)
+
+After Section 1 discovery (above) and BEFORE any audit work - specifically BEFORE starting any parallel audit lanes, so an abort saves the whole run - apply an early, interactive pre-flight gate. This is an EARLY safety net that is DISTINCT from, and in addition to, the thorough Section 7 TODO reconciliation and the Section 8 pending-plans WARNING (all of which remain). Its purpose: catch "did you mean to ship without handling this?" before spending a full review.
+
+1. **Cursory look, not a second triage.** Take a genuinely cursory pass over (a) the discovered `TODO.md`/backlog items and (b) the discovered pending agent plans (`.agents/plans/pending/`) and staged prompts (`.agents/prompts/pending/`), including any status/location mismatch. You are only judging whether anything OBVIOUSLY ought to be handled before this release (a clear blocker or clearly-risky item), not scoring every item.
+2. **Ask once, if interactive.** If anything looks worth handling first, ASK the user a single, bounded pre-flight question that names the candidate TODO items AND the pending plans/prompts together (one interruption, not two). Phrase it as: "these look like they might need attention before release - address them first (abort to discuss), or proceed?"
+3. **On "yes, address first" -> ABORT (a first-class outcome).** Stop before the audit. Record the abort in `00-run-metadata.md` (which gate fired, which items, the user's answer) and tell the user how to resume once they have discussed/addressed the items. This ABORTED-PRE-FLIGHT result is distinct from a Section 8 NO-GO (which follows a full audit).
+4. **On "no, proceed" -> forget and proceed.** Discard the cursory impressions entirely: do NOT carry them into findings, `implementation-plan.md`, severities, or the report. The thorough Section 7 reconciliation runs INDEPENDENTLY from the full discovered list, so this early glance must leave zero residue and cannot bias the review.
+5. **Non-interactive fallback.** If there is no TTY (another IDE, a CI runner), SKIP the interactive ask and rely on the existing loud Section 8 pending-plans WARNING / TODO reconciliation. Never silently drop the signal and never block a headless run - identical posture to the "Asking for missing intent" bounded exception above.
+
 ## Where cross-cutting concerns are performed (ownership map)
 
 Several concerns span the whole review. To avoid both omission and pointless repetition, each has a defined owner section for the substantive work; other sections only contribute incremental findings. Do the substantive work once, in the owner section, and reference it elsewhere.
