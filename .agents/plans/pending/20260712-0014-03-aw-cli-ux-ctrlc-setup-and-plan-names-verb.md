@@ -10,7 +10,7 @@
 - Scope: `agent_workflows/cli.py` (signal handling wrapper + setup loop), possibly `engine.py`
   input sites, a new `aw plan-names` (working name) verb delegating to the existing normalizer, and
   docs/help. No new config format (keep `config.json`); no `/setup-repo` rename.
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -20,6 +20,14 @@
 - 2026-07-12 to-review (its_direct/pt3-claude-opus-4.8-1m-us): fleshed out with verified anchors
   (input() sites; normalizer's main(argv)/flags; _compat.packaged_source_root() for locating the
   bundled script in a wheel). OQs leaned. Approach committed; promoted to to-review.
+- 2026-07-12 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED.
+  Re-opened evidence: all 3 console scripts -> `agent_workflows.cli:main` (pyproject:36-38); `main()`
+  RETURNS an int and `__main__` does `raise SystemExit(main())` (cli.py:726); tests call
+  `cli.main(argv)` IN-PROCESS and read the return code (test_cli.py:30); `engine.main()` also returns
+  int (engine.py:2363). Findings: PC-1 the CTRL-C guard MUST `return 130` from `main()`, NOT
+  `sys.exit()` inside it (else it breaks in-process tests / raises SystemExit mid-call); PC-2 apply the
+  same return-code guard shape to `engine.main()`; PC-3 the CTRL-C test patches `input` to raise
+  KeyboardInterrupt and asserts `main()` returns 130 with no traceback escaping. Status -> reviewed.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -52,12 +60,14 @@ verb, keep `config.json` (ITEM-04). 3. Expose the normalizer as an `aw` verb (IT
 
 ## Proposed changes (ordered, validatable)
 
-1. **Central CTRL-C / EOF guard.** Wrap the body of `cli.main()` so `KeyboardInterrupt` and EOF at
-   ANY prompt print a clean `Cancelled.` to stderr and return 130 (conventional SIGINT code) - no
-   traceback. Apply the same guard to `engine.main()` (the deprecated installer shim path). Ensure no
-   partial state is written on abort (setup writes config only after the loop completes). Keep the
-   existing per-prompt `EOFError` handling but make it consistent (treat EOF as "cancel/finish", not
-   a crash).
+1. **Central CTRL-C / EOF guard (PC-1/PC-2).** Wrap the BODY of `cli.main()` in a
+   `try/except KeyboardInterrupt` that prints a clean `Cancelled.` to stderr and RETURNS 130 (the
+   conventional SIGINT code) - it MUST return, NOT call `sys.exit()` inside `main()` (tests call
+   `cli.main(argv)` in-process and read the int; `__main__` already does `raise SystemExit(main())`,
+   so a returned 130 becomes the process exit code). Do the same in `engine.main()` (used by the
+   deprecated installer shim; also returns an int). No traceback escapes. Ensure no partial state on
+   abort (setup writes config only after the loop completes). Keep the existing per-prompt `EOFError`
+   handling; treat EOF consistently as "cancel/finish", not a crash.
 2. **Better `aw setup` roots loop (in place).** In `_run_setup`: for each entered root, expand `~`,
    validate it exists and is a directory; on failure print a clear `term.status("warn", ...)` and
    re-prompt (do not abort the loop); store the accepted path `~`-relative when under `$HOME`
@@ -75,10 +85,12 @@ verb, keep `config.json` (ITEM-04). 3. Expose the normalizer as an `aw` verb (IT
 4. **Docs (ITEM-05 + ITEM-07).** Document in README/help that `aw install <dir>` is the idempotent
    updater (re-run to update; no-clobber) - the answer for users seeking "update". Add `aw plan-names`
    to the README CLI section. Keep `/setup-repo` named as-is (note the decision in DECISIONS).
-5. **Tests.** `tests/test_cli.py` (or new): CTRL-C guard returns 130 with no traceback (simulate
-   KeyboardInterrupt from a patched `input`); setup rejects/re-prompts a bad path and stores a good
-   one `~`-relative; `aw plan-names` on a temp repo with a mis-named plan reports it (check) and
-   renames it with `--apply` (exit codes match the script). DECISIONS entry (Dnn).
+5. **Tests (PC-3).** `tests/test_cli.py`: CTRL-C guard - patch `input` (via the `builtins.input`
+   the CLI uses) to raise `KeyboardInterrupt`, run `cli.main(["setup"])` in-process, assert it RETURNS
+   130 and no traceback escapes; setup rejects/re-prompts a bad path and stores a good one
+   `~`-relative (patch `input` to feed a bad-then-good sequence, assert config contents); `aw
+   plan-names` on a temp repo with a mis-named plan reports it (check, exit 1) and renames it with
+   `--apply` (exit codes match the underlying script). DECISIONS entry (Dnn).
 
 ## Open questions (v1 leans for review)
 
@@ -94,7 +106,20 @@ verb, keep `config.json` (ITEM-04). 3. Expose the normalizer as an `aw` verb (IT
    hard-reject.
 5. Exit-code convention: 130 for SIGINT (confirm; matches shells) vs a plain 1.
 
+## Plan-review record (2026-07-12)
+
+Reviewed by `/plan-review` (its_direct/pt3-claude-opus-4.8-1m-us). Verdict: **APPROVE WITH REVISIONS
+APPLIED** (pending human sign-off). Evidence re-opened against source:
+- PC-1: the CTRL-C guard must RETURN 130 from `main()`, not `sys.exit()` inside it - all 3 console
+  scripts call `agent_workflows.cli:main`, `__main__` does `raise SystemExit(main())` (cli.py:726),
+  and tests call `cli.main(argv)` in-process reading the int (test_cli.py:30). A mid-`main` sys.exit
+  would raise SystemExit into those callers.
+- PC-2: `engine.main()` also returns int (engine.py:2363) - same return-code guard shape.
+- PC-3: the CTRL-C test patches `input` to raise KeyboardInterrupt and asserts `main()` returns 130.
+No blocking findings; OQ1-5 leaned for v1 confirmation. This IPD does not self-approve.
+
 ## Approval and execution gate
 
-Proposal (`draft`). Flesh out -> `to-review` -> `/plan-review` -> resolve OQs -> human approve ->
+`reviewed`. Next: human approve (confirm OQ1-5 leans), execute changes 1-5, validate (suite green),
+commit (never push), `git mv` to executed/. Not auto-executed. (Original stub flow: draft ->
 execute -> validate (suite green) -> commit (never push) -> `git mv` to executed/. Not auto-executed.
