@@ -52,10 +52,25 @@ def _utc_date() -> str:
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
 
 
-def _normalize_tag(tag: str) -> str:
-    """Strip a leading ``v`` from a tag so ``v1.0.0`` becomes ``1.0.0``."""
+# A SemVer/PEP 440 release-candidate tag: an X.Y.Z core followed by an rc identifier.
+# Accepts the SemVer spelling (`-rc.N`) and the PEP 440 spelling (`rcN`); e.g.
+# `v1.2.0-rc.1`, `1.2.0-rc.1`, `1.2.0rc1` all parse to core=1.2.0, rc=1.
+_RC_TAG_RE = re.compile(r"^(?P<core>\d+(?:\.\d+)*)-?rc\.?(?P<rc>\d+)$")
 
-    return tag[1:] if tag.startswith("v") else tag
+
+def _normalize_tag(tag: str) -> str:
+    """Normalize a git tag to a PEP 440 version string.
+
+    Strips a leading ``v`` (``v1.0.0`` -> ``1.0.0``) and normalizes a release-candidate
+    spelling to PEP 440 (``v1.2.0-rc.1`` -> ``1.2.0rc1``), so the emitted version is valid
+    PEP 440 and pip/PyPI treat it as a pre-release.
+    """
+
+    tag = tag[1:] if tag.startswith("v") else tag
+    match = _RC_TAG_RE.match(tag)
+    if match:
+        return f"{match.group('core')}rc{int(match.group('rc'))}"
+    return tag
 
 
 def _next_patch(release: str) -> str:
@@ -74,6 +89,25 @@ def _next_patch(release: str) -> str:
             return ".".join(parts)
     # No numeric component (degenerate tag); append .1 as a defensive bump.
     return release + ".1"
+
+
+# A normalized PEP 440 release-candidate version: X.Y.ZrcN (rc num captured).
+_NORMALIZED_RC_RE = re.compile(r"^(?P<core>\d+(?:\.\d+)*)rc(?P<rc>\d+)$")
+
+
+def _next_dev_base(tag: str) -> str:
+    """Return the PEP 440 base for a ``.devN`` build that is AHEAD of ``tag``.
+
+    For a plain release (``1.2.0``) this is the next patch (``1.2.1``). For a release
+    candidate (``1.2.0rc1``) it is the NEXT candidate of the SAME release (``1.2.0rc2``),
+    so a build ahead of the rc tag sorts AFTER that rc (PEP 440: ``1.2.0rc2.devN`` > rc1),
+    rather than bumping the patch/minor. ``tag`` is already normalized by ``_normalize_tag``.
+    """
+
+    match = _NORMALIZED_RC_RE.match(tag)
+    if match:
+        return f"{match.group('core')}rc{int(match.group('rc')) + 1}"
+    return _next_patch(tag)
 
 
 def parse_describe(describe: str, *, date: Optional[str] = None) -> str:
@@ -102,8 +136,9 @@ def parse_describe(describe: str, *, date: Optional[str] = None) -> str:
             # Exact tagged release, clean tree.
             return tag
 
-        # Ahead of the tag, or dirty at the tag: a dev build of the NEXT release.
-        base = _next_patch(tag)
+        # Ahead of the tag, or dirty at the tag: a dev build of the NEXT release
+        # (or the next release candidate, when the tag is itself an rc).
+        base = _next_dev_base(tag)
         local = f"+g{sha}"
         if dirty:
             local += f".d{date}"

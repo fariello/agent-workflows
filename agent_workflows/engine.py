@@ -579,7 +579,10 @@ def agents_pointer_block() -> str:
         "write no em or en dashes in authored Markdown. When asked to REVIEW or report, do NOT modify "
         "or commit anything: report and wait. Do NOT add commits to a plan already in "
         "`.agents/plans/executed/`; close a post-execution gap with a new corrective IPD, not an "
-        "in-place edit. See `CONTRIBUTING.md` and the `.agents/plans` README for detail.\n"
+        "in-place edit. Never create or push a git tag, a GitHub Release, or a registry/PyPI upload "
+        "except inside release-review Section 9 after an explicit human GO (see `RELEASING.md`); no "
+        "ad-hoc `git tag` or `git push --follow-tags`. See `CONTRIBUTING.md` and the `.agents/plans` "
+        "README for detail.\n"
         f"{AGENTS_END}\n"
     )
 

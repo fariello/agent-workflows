@@ -87,13 +87,17 @@ a parallel audit lane (lanes must not push), consistent with `00-run-protocol.md
 - Build the artifacts the project actually ships (e.g., wheels/sdists, compiled binaries, container images, a frontend production bundle, a static site, a tarball). Use the project's documented build command.
 - Verify the artifacts exist, are non-empty, and match the release version/commit. Where supported, verify the embedded commit hash/version equals the release commit.
 
-### 5. Tag the release
+### 5. Tag the release (each externally-visible action is a separate, default-NO confirmation)
 
-- If a stale/lightweight tag for this version exists locally, delete it first.
-- Create an annotated tag matching the version (signed if the project signs tags): `git tag -a <vX.Y.Z> -m "Release <vX.Y.Z>"`.
-- Push the tag to the remote and confirm it appears there.
+You entered Section 9 via a rung chosen in Section 8: **B (release candidate)** or **C (full release)**. Never bundle the actions below under one "yes"; confirm each one explicitly, defaulting to NO, naming its exact consequence. A bare `vX.Y.Z` tag means "intended for a registry release"; a candidate MUST be `vX.Y.Z-rc.N` (a pre-release the resolver emits as PEP 440 `X.Y.ZrcN`, which pip does not install without `--pre`). Tags are ALWAYS annotated (signed if the project signs tags), never lightweight.
 
-### 6. Publish / deploy (only with explicit, authorized credentials)
+- **Tag?** "Create annotated tag `<vX.Y.Z-rc.N>` (rung B) or `<vX.Y.Z>` (rung C)?" If a stale/lightweight tag for this exact version exists locally, delete that local tag first. Then `git tag -a <ref> -m "Release <ref>"`.
+- **Push the tag/commit?** Separate confirmation, default NO, even for a candidate: "Push `<ref>` to `<remote>`?" Preserve the multi-remote STOP rule above (never guess a remote). A candidate that is only tagged locally is fully reversible; pushing it is not.
+- **GitHub Release?** (rung C only, optional) "Create a GitHub Release for `<tag>`?" Default to a DRAFT (`gh release create <tag> --draft ...`); NEVER auto-publish. The human publishes the draft as a separate, deliberate act.
+
+Rung B stops here (candidate: tag, optionally pushed; no GitHub Release, no publish). Rung C continues to publish/deploy below.
+
+### 6. Publish / deploy (rung C only; only with explicit, authorized credentials)
 
 - Publish to the package registry or deploy to the target environment **only** if the user has explicitly authorized it and the necessary credentials are available to this run.
 - For registry publishing, prefer a dry run/validation first when the tooling supports it, then publish.

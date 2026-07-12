@@ -55,6 +55,34 @@ class ParseDescribeTests(unittest.TestCase):
             VER.parse_describe("v2.3.4-1-gabc1234", date=DATE), "2.3.5.dev1+gabc1234"
         )
 
+    def test_rc_tag_clean(self):
+        # A clean release-candidate tag normalizes to valid PEP 440 (X.Y.ZrcN),
+        # not the raw SemVer spelling, so pip treats it as a pre-release.
+        self.assertEqual(
+            VER.parse_describe("v1.2.0-rc.1-0-g49f2bdc", date=DATE), "1.2.0rc1"
+        )
+
+    def test_rc_tag_ahead_clean(self):
+        # Ahead of an rc tag: a dev build of the NEXT candidate of the same release,
+        # so it sorts AFTER the rc (1.2.0rc2.devN > 1.2.0rc1), and it is normalized
+        # (not the accidental raw "1.2.0-rc.2.dev3").
+        self.assertEqual(
+            VER.parse_describe("v1.2.0-rc.1-3-g49f2bdc", date=DATE),
+            "1.2.0rc2.dev3+g49f2bdc",
+        )
+
+    def test_rc_tag_ahead_dirty(self):
+        self.assertEqual(
+            VER.parse_describe("v1.2.0-rc.1-3-g49f2bdc-dirty", date=DATE),
+            "1.2.0rc2.dev3+g49f2bdc.d20260706",
+        )
+
+    def test_rc_pep440_spelling_tag(self):
+        # A tag already in PEP 440 spelling (rcN, no hyphen/dot) is handled too.
+        self.assertEqual(
+            VER.parse_describe("v1.2.0rc1-0-g49f2bdc", date=DATE), "1.2.0rc1"
+        )
+
 
 class ResolveVersionTests(unittest.TestCase):
     """resolve_version: git branch vs VERSION-file fallback (V-8)."""

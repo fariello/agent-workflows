@@ -91,7 +91,10 @@ D44/D46). `.agents/workflows/VERSION` is a DERIVED artifact generated from the g
 old import path) - do NOT hand-edit it. To bake the version after tagging, run
 `make version-file` on a clean, tagged tree (it writes the resolved semver, e.g.
 `1.0.0`). To cut a new release, create an annotated tag (`git tag -a vX.Y.Z -m ...`) on a
-clean tree, then regenerate `VERSION` and the `index.md` stamp. A dirty or
+clean tree, then regenerate `VERSION` and the `index.md` stamp. See `RELEASING.md` for the
+full release policy: the close-out / release-candidate / full-release consent tree, the
+`vX.Y.Z-rc.N` pre-release convention (a bare `vX.Y.Z` means "intended for the registry"),
+draft GitHub Releases, and the never-tag/release/publish-outside-Section-9 rule. A dirty or
 ahead-of-release checkout resolves to a `X.Y.Z.devN+g<sha>` string on purpose, so a copy
 that differs from a release is never reported as a clean version. The wheel's version is
 computed by the same resolver via the `hatch_build.py` version source, so the packaged

@@ -160,12 +160,19 @@ impossible to miss. Emit exactly this ruled banner, filled in:
   Blocking / pending items: <"none" | each named explicitly, with IDs>
   Conditions (if CONDITIONAL GO): <each named; must be met + re-approved>
 ------------------------------------------------------------------------
-  AWAITING YOUR GO/NO-GO. Reply GO to approve release execution
-  (Section 9: push + CI verify). NOTHING IS PUSHED UNTIL YOU DO.
+  ON APPROVAL, choose one (default A; nothing is done without your pick):
+   A) Close out the review only. No tag, push, release, or publish. [DEFAULT]
+   B) Cut a release CANDIDATE: annotated vX.Y.Z-rc.N tag only (push is a
+      separate confirm). Not a GitHub Release; not published to a registry.
+   C) FULL RELEASE: Section 9, each action (tag/push/GitHub Release/publish)
+      named and separately confirmed. Bare vX.Y.Z (no -rc) only.
+------------------------------------------------------------------------
+  AWAITING YOUR GO/NO-GO. Reply with your rung (A/B/C) to approve; A is the
+  default. NOTHING IS PUSHED UNTIL YOU DO.
 ========================================================================
 ```
 
-- NO-GO: keep the banner but omit the AWAITING line; state that release execution must not proceed.
+- NO-GO: keep the banner but omit the rung menu and the AWAITING line; state that release execution must not proceed (no rungs are offered).
 - CONDITIONAL GO: list the named conditions; a conditional does NOT authorize a push - the human
   meets the conditions, then replies GO, and only then does Section 9 run.
 - This block is mandated by `00-run-protocol.md` and `08-final-ship-review.md`; do not print anything
