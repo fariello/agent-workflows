@@ -6,6 +6,10 @@
   maintainer's design philosophy. Most is already covered by existing lenses; a filtered subset of
   genuinely-missing, sharp principles is worth importing. The compliance/security/accessibility-heavy
   remainder of those generics is deliberately OUT of scope here.
+  [PATH UPDATE 2026-07-12 (D73 tmp cleanup): the two cited `tmp/` source drafts were archived to
+  `.agents/docs/research/20260711-2355-01-gpt56-generic-agents-source-draft.md` and
+  `...-02-gpt56-generic-guiding-principles-source-draft.md`; the original ephemeral `tmp/` copies were
+  deleted. Content unchanged; only the provenance path moved.]
 - Scope: (1) a NEW `assess` lens `data-modeling.md` + its manifest row; (2) enrich the existing
   `ui-ux` lens rubric; (3) lightly sharpen THIS repo's `GUIDING_PRINCIPLES.md` (P6/P7/P3);
   (4) cross-link from `architecture`/`api-design` lenses; (5) regenerate shims + docs/DECISIONS.
