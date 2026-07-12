@@ -2212,6 +2212,8 @@ DOCS_DIR = ".agents/docs"
 DOCS_SUBDIRS = (
     "research",
     "walkthroughs",
+    "specs",
+    "prompts",
 )
 GITLEAKSIGNORE_FILE = ".gitleaksignore"
 SECRET_SCAN_CI = ".github/workflows/secret-scan.yml"

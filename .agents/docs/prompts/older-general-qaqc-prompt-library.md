@@ -585,4 +585,3 @@ Please also provide:
 10. Concrete post-release follow-up list, using item IDs
 
 Do not make changes yet. First provide the release readiness assessment.
-

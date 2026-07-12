@@ -22,9 +22,6 @@ agent-workflows/
   AGENTS.md                 One-line pointer to the workflow index (mirrored into CLAUDE.md/GEMINI.md if they exist)
   install-workflows.py/.sh  Installer (human-run bootstrap; at the root, not a workflow)
   tests/                    Stdlib-unittest self-tests for the Python tools
-  prompts/                  Reusable prompt library (independent of the workflows;
-                            historical/origin material, e.g. fix-bar.md, an origin
-                            note for the Fix Bar; see prompts/README.md)
   .agents/workflows/        Reusable agent workflows (canonical source of truth)
     VERSION                 Framework version (semver, tag-derived); stamped into targets
     index.md                Workflow manifest (installer reads it to generate shims)
@@ -53,6 +50,10 @@ agent-workflows/
     migrate/                Assess-and-plan a high-risk migration
     list-workflows/         Toolkit discovery (capabilities + installed version)
     getting-started/        Guided in-agent tour and router for newcomers
+  .agents/docs/             Durable reference docs (research, walkthroughs, specs,
+                            prompts, roadmaps)
+    prompts/                Historical/reference prompt library (e.g. fix-bar.md, an
+                            origin note for the Fix Bar; see its README)
   .opencode/commands/       Generated OpenCode shims (one per command, 16)
   .claude/commands/         Generated Claude Code shims (same set)
 ```

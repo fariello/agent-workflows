@@ -278,8 +278,8 @@ your code.
   from `.agents/workflows/`).
 - `.opencode/commands/`, `.claude/commands/` - generated slash-command shims.
 - `AGENTS.md` (and existing `CLAUDE.md`/`GEMINI.md` files) - a managed pointer block to the workflow index.
-- `prompts/` - a reusable prompt library (independent of the workflows; historical/origin
-  material, see `prompts/README.md`).
+- `.agents/docs/prompts/` - a historical/reference prompt library (independent of the workflows;
+  origin material, see `.agents/docs/prompts/README.md`).
 
 ## Understanding this project
 

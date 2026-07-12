@@ -93,9 +93,9 @@ class SetupArtifactTests(unittest.TestCase):
         use_git = engine.git_available(self.repo)
         created = engine.create_setup_artifacts(self.repo, use_git)
         # 5 plan-dir gitkeeps (pending/executed/superseded/not-executed/reusable)
-        # + 2 docs-dir gitkeeps (research/walkthroughs)
-        # + gitleaksignore + secret-scan CI = 9 on a fresh repo.
-        self.assertEqual(len(created), 9)
+        # + 4 docs-dir gitkeeps (research/walkthroughs/specs/prompts)
+        # + gitleaksignore + secret-scan CI = 11 on a fresh repo.
+        self.assertEqual(len(created), 11)
 
     def test_dry_run_reports_without_writing(self):
         use_git = engine.git_available(self.repo)

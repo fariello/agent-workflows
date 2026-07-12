@@ -112,8 +112,9 @@ The console scripts `agent-workflows` / `aw` / `agentwf` all point at
 - **Dev install:** `pip install -e .` exposes the `aw` CLI against your working tree.
 - **Build a wheel:** `python -m build --wheel` (needs `pip install build`). The
   ship-vs-dev boundary is enforced by `tests/test_packaging.py`, which asserts the wheel
-  contains only the package + `_data` tree and NONE of `docs/`, `prompts/`, `tests/`,
-  `workflow-artifacts/`, or the meta docs, and that no runtime dependency is declared.
+  contains only the package + `_data` tree and NONE of `tests/`, `workflow-artifacts/`,
+  the source `.agents/` tree (docs, plans, prompts), or the meta docs, and that no runtime
+  dependency is declared.
 - **CLI vs the LLM `/setup-repo`:** the CLI does the deterministic, multi-repo, host-level
   work (install/update, config, discovery, the fixed setup artifacts); the LLM
   `/setup-repo` workflow does the stack-tailored, judgment layer. They complement each

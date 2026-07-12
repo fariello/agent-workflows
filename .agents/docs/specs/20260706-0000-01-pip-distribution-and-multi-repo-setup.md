@@ -72,8 +72,13 @@ become explicit once we build a wheel:
 
 Keeping `docs/specs/` and `prompts/` at the repo root is CORRECT (the `spec` workflow itself
 names `docs/specs/` as a valid home; `prompts/README.md` already marks that dir as historical
-reference). It is not a convention violation. The packaging config MUST explicitly include only
-the shipped product and exclude the dev/meta content, so a user's `pip install` never drags in
+reference). It is not a convention violation. [CORRECTION 2026-07-12 (D73): this decision was
+RECINDED. Root `docs/specs/` and `prompts/` were retired and moved under `.agents/docs/` (this
+spec now lives at `.agents/docs/specs/`; the prompt library at `.agents/docs/prompts/`); the
+`spec` workflow's home is now `.agents/docs/specs/`. The packaging boundary below still holds:
+the source `.agents/` tree is dev/meta and is not shipped.] The packaging config MUST explicitly
+include only the shipped product and exclude the dev/meta content, so a user's `pip install`
+never drags in
 development cruft. This is an acceptance criterion, not a nicety.
 
 ## Non-goals

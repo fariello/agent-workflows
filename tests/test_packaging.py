@@ -22,7 +22,12 @@ from pathlib import Path
 from tests.support import REPO_ROOT
 
 # Dev/meta content that MUST NOT appear in the wheel (ship-vs-dev boundary).
-FORBIDDEN_TOP = ("docs/", "prompts/", "tests/", "workflow-artifacts/")
+FORBIDDEN_TOP = ("tests/", "workflow-artifacts/")
+# The source .agents/ tree is dev/meta EXCEPT .agents/workflows/, which is the shipped
+# payload (bundled under agent_workflows/_data/). Nothing from these source subtrees may
+# ship in any form (root or under _data/): docs (research/walkthroughs/specs/prompts/
+# roadmaps), plans, and the operational prompts staging dir.
+FORBIDDEN_AGENTS_SUBSTRINGS = (".agents/docs/", ".agents/plans/", ".agents/prompts/")
 FORBIDDEN_FILES = (
     "DECISIONS.md",
     "ARCHITECTURE.md",
@@ -60,7 +65,9 @@ class PackagingTests(unittest.TestCase):
             cls.wheel = _build_wheel(Path(cls._tmp.name))
         except (subprocess.CalledProcessError, RuntimeError, OSError) as exc:
             cls._tmp.cleanup()
-            raise unittest.SkipTest(f"wheel build unavailable in this environment: {exc}")
+            raise unittest.SkipTest(
+                f"wheel build unavailable in this environment: {exc}"
+            )
         cls.names = zipfile.ZipFile(cls.wheel).namelist()
 
     @classmethod
@@ -79,8 +86,11 @@ class PackagingTests(unittest.TestCase):
         self.assertIn("agent_workflows/_data/.agents/workflows/index.md", self.names)
         self.assertIn("agent_workflows/_data/.agents/workflows/VERSION", self.names)
         self.assertTrue(
-            any(n.startswith("agent_workflows/_data/.agents/workflows/") and "tools/" in n
-                for n in self.names),
+            any(
+                n.startswith("agent_workflows/_data/.agents/workflows/")
+                and "tools/" in n
+                for n in self.names
+            ),
             "expected the workflow tools under the bundled data tree",
         )
 
@@ -91,9 +101,14 @@ class PackagingTests(unittest.TestCase):
             base = n.split("/")[-1]
             if any(n.startswith(p) for p in FORBIDDEN_TOP):
                 leaked.append(n)
+            elif any(s in n for s in FORBIDDEN_AGENTS_SUBSTRINGS):
+                # The only shipped .agents/ content is .agents/workflows/ under _data/.
+                leaked.append(n)
             elif base in FORBIDDEN_FILES:
                 leaked.append(n)
-        self.assertEqual(leaked, [], f"dev/meta content leaked into the wheel: {leaked}")
+        self.assertEqual(
+            leaked, [], f"dev/meta content leaked into the wheel: {leaked}"
+        )
 
     def test_wheel_declares_no_runtime_dependencies(self):
         # AC-12: zero runtime deps (no Requires-Dist lines in METADATA).
