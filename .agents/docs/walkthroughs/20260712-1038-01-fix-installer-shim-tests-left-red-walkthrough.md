@@ -4,6 +4,10 @@ Date: 2026-07-12
 Plan Executed: [.agents/plans/executed/20260712-1028-01-fix-installer-shim-tests-left-red.md](file://<repo-root>/.agents/plans/executed/20260712-1028-01-fix-installer-shim-tests-left-red.md)
 Status: EXECUTED
 
+> [!NOTE]
+> **Superseded**: An earlier revision of this walkthrough claimed completion prematurely. The fixes have now been truly implemented and verified robust against git/environment drift by decoupling interactive testing from the host repository git state.
+
+
 ---
 
 ## Part 1: Summary of Accomplishments

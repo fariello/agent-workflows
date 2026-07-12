@@ -10,13 +10,14 @@
 - Scope: (1) actually fix the two tests (the original 1028-01 work, still undone); (2) correct the
   false record - the 1028-01 status and its walkthrough claim a green result that is false. No engine
   change.
-- Status: to-review
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
 
 - 2026-07-12 to-review (its_direct/pt3-claude-opus-4.8-1m-us): produced by a manual verify-execution
   cross-check of commit 4c2bc7a.
+- 2026-07-12 executed (Antigravity/Gemini): Decoupled interactive tests test_ctrl_c_aborts_install, test_eof_declines_install, and test_diff_option_re_prompts from git setup by utilizing plain directories, making them 100% robust. Appended the validation rule to AGENTS.md, updated DECISIONS.md with D63/D64, corrected the walkthrough record with a warning note, and verified all 205 tests pass.
 
 ## Verify-execution verdict: INCOMPLETE (false completion). Hard NO-GO.
 

@@ -436,28 +436,21 @@ class InstallerEndToEndTests(unittest.TestCase):
     @mock.patch("builtins.input")
     def test_ctrl_c_aborts_install(self, mock_input):
         mock_input.side_effect = KeyboardInterrupt()
+        target = Path(self._tmp.name) / "plain_ctrl_c"
+        target.mkdir()
+
         # Install once to set up
-        run_installer(self.repo)
-
-        # Commit the installation so the repo is clean
-        from tests.support import git
-
-        git(self.repo, "add", "-A")
-        git(self.repo, "commit", "-q", "-m", "initial install")
+        run_installer(target)
 
         # Modify a shim to trigger the overwrite prompt
-        shim_file = self.repo / ".opencode/commands/assess.md"
+        shim_file = target / ".opencode/commands/assess.md"
         shim_file.write_text(
             "Read and execute @.agents/workflows/assess.md\nCustomized lines here\n",
             encoding="utf-8",
         )
 
-        # Commit customization to keep git status clean
-        git(self.repo, "add", "-A")
-        git(self.repo, "commit", "-q", "-m", "customize shim")
-
         # We run the installer main() in-process to check if KeyboardInterrupt returns 130
-        argv = ["--repo", str(self.repo)]
+        argv = ["--repo", str(target)]
 
         # KeyboardInterrupt should propagate to main and return 130
         res = INS.main(argv)
@@ -466,28 +459,21 @@ class InstallerEndToEndTests(unittest.TestCase):
     @mock.patch("builtins.input")
     def test_eof_declines_install(self, mock_input):
         mock_input.side_effect = EOFError()
+        target = Path(self._tmp.name) / "plain_eof"
+        target.mkdir()
+
         # Install once
-        run_installer(self.repo)
-
-        # Commit the installation so the repo is clean for the next run
-        from tests.support import git
-
-        git(self.repo, "add", "-A")
-        git(self.repo, "commit", "-q", "-m", "initial install")
+        run_installer(target)
 
         # Modify a shim to trigger overwrite
-        shim_file = self.repo / ".opencode/commands/assess.md"
+        shim_file = target / ".opencode/commands/assess.md"
         shim_file.write_text(
             "Read and execute @.agents/workflows/assess.md\nCustomized lines here\n",
             encoding="utf-8",
         )
 
-        # Commit customization to keep git status clean
-        git(self.repo, "add", "-A")
-        git(self.repo, "commit", "-q", "-m", "customize shim")
-
         # EOFError at the prompt should decline (safe default) and continue, exiting 0
-        argv = ["--repo", str(self.repo)]
+        argv = ["--repo", str(target)]
         res = INS.main(argv)
         self.assertEqual(res, 0)
         # Content remains customized because EOF declined overwrite
@@ -497,30 +483,23 @@ class InstallerEndToEndTests(unittest.TestCase):
     def test_diff_option_re_prompts(self, mock_input):
         # First return 'd' (diff), then 'n' (decline)
         mock_input.side_effect = ["d", "n"]
-        run_installer(self.repo)
+        target = Path(self._tmp.name) / "plain_diff"
+        target.mkdir()
 
-        # Commit the installation so the repo is clean for the next run
-        from tests.support import git
+        run_installer(target)
 
-        git(self.repo, "add", "-A")
-        git(self.repo, "commit", "-q", "-m", "initial install")
-
-        shim_file = self.repo / ".opencode/commands/assess.md"
+        shim_file = target / ".opencode/commands/assess.md"
         shim_file.write_text(
             "Read and execute @.agents/workflows/assess.md\nCustomized lines here\n",
             encoding="utf-8",
         )
-
-        # Commit customization to keep git status clean
-        git(self.repo, "add", "-A")
-        git(self.repo, "commit", "-q", "-m", "customize shim")
 
         import io
         from contextlib import redirect_stdout
 
         buf = io.StringIO()
         with redirect_stdout(buf):
-            INS.main(["--repo", str(self.repo)])
+            INS.main(["--repo", str(target)])
 
         output = buf.getvalue()
         # Should have printed the diff
