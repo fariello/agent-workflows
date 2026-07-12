@@ -157,6 +157,65 @@ def _build_parser() -> argparse.ArgumentParser:
         help="(Re)generate .agents/plans/STATUS.md instead of printing.",
     )
 
+    p_names = sub.add_parser(
+        "plan-names",
+        parents=[common],
+        help="Check (or --apply) that plan/prompt filenames match YYYYMMDD-HHMM-NN-<slug>.md.",
+    )
+    p_names.add_argument(
+        "dir", nargs="?", default=None, help="Repo root (default: current directory)."
+    )
+    p_names.add_argument(
+        "--apply",
+        action="store_true",
+        help="Perform the staged git-mv renames (default: check).",
+    )
+    p_names.add_argument(
+        "--area",
+        action="append",
+        default=None,
+        help="Top-level .agents/ area to scan (repeatable).",
+    )
+    p_names.add_argument(
+        "--all",
+        dest="all_areas",
+        action="store_true",
+        help="Scan every top-level .agents/ area.",
+    )
+    p_names.add_argument(
+        "--exclude",
+        action="append",
+        default=None,
+        help="fnmatch glob to exclude (repeatable).",
+    )
+    p_names.add_argument(
+        "--no-default-excludes",
+        action="store_true",
+        help="Drop the built-in README.md exclude.",
+    )
+    p_names.add_argument(
+        "--include-nested",
+        action="store_true",
+        help="Also rename eligible *.md nested deeper.",
+    )
+    p_names.add_argument(
+        "--rename-non-numeric",
+        action="store_true",
+        help="Also rename files not starting with a date.",
+    )
+    p_names.add_argument(
+        "--assume-dates",
+        action="store_true",
+        help="Accept derived dates for 'imported?' files.",
+    )
+    p_names.add_argument(
+        "--format",
+        dest="fmt",
+        choices=["text", "json"],
+        default="text",
+        help="Output format.",
+    )
+
     return parser
 
 
@@ -530,20 +589,32 @@ def _run_setup(args: argparse.Namespace, term: Term) -> int:
     elif interactive:
         term.heading("agent-workflows setup")
         term.line(
-            "Where do you keep your repositories? Enter one path per line; "
-            "blank to finish."
+            "Where do you keep your repositories? Enter one path per line "
+            "(use ~ for home); blank to finish."
         )
         existing = cfg.get("search_roots", [])
         if existing:
             term.kv("Current roots", ", ".join(existing))
         while True:
-            try:
-                entry = input("  root> ").strip()
-            except EOFError:
-                break
+            entry = input("  root> ").strip()  # KeyboardInterrupt/EOF handled in main()
             if not entry:
                 break
-            roots.append(entry)
+            expanded = Path(entry).expanduser()
+            stored = config._preserve_home(str(expanded))
+            if not expanded.exists():
+                term.status(
+                    "warn",
+                    f"{stored} does not exist yet; storing it anyway (roots are scanned "
+                    "when you install).",
+                )
+            elif not expanded.is_dir():
+                term.status("fail", f"{stored} is not a directory; skipped.")
+                continue
+            if stored in roots:
+                term.status("skip", f"{stored} already added.")
+                continue
+            roots.append(stored)
+            term.status("ok", f"Added {stored}.")
         if not roots:
             roots = existing
     else:
@@ -679,7 +750,64 @@ def _run_plans(args: argparse.Namespace, term: Term) -> int:
     return 0
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def _load_normalizer():
+    """Import the plan-name normalizer script (it lives under the bundled workflow tree).
+
+    Resolves the `.agents/workflows/` root via `_compat.packaged_source_root()` (installed
+    wheel) or the repo root (source checkout / editable install), then loads the standalone
+    script by path (it is a script, not an importable package module). Returns the module or
+    None if it cannot be located/loaded.
+    """
+
+    import importlib.util
+
+    from . import _compat
+
+    root = _compat.packaged_source_root()
+    if root is None:
+        # Source checkout: .agents/workflows lives at the repo root (two levels up from here).
+        root = Path(__file__).resolve().parent.parent / ".agents" / "workflows"
+    script = root / "setup-repo" / "tools" / "normalize_plan_names.py"
+    if not script.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location("aw_normalize_plan_names", script)
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _run_plan_names(args: argparse.Namespace, term: Term) -> int:
+    normalizer = _load_normalizer()
+    if normalizer is None:
+        term.status("fail", "Could not locate the plan-name normalizer script.")
+        return 1
+
+    root = Path(args.dir).expanduser() if getattr(args, "dir", None) else Path.cwd()
+    passthrough = ["--repo", str(root), "--format", getattr(args, "fmt", "text")]
+    if getattr(args, "apply", False):
+        passthrough.append("--apply")
+    if getattr(args, "all_areas", False):
+        passthrough.append("--all")
+    for area in getattr(args, "area", None) or []:
+        passthrough += ["--area", area]
+    for glob in getattr(args, "exclude", None) or []:
+        passthrough += ["--exclude", glob]
+    if getattr(args, "no_default_excludes", False):
+        passthrough.append("--no-default-excludes")
+    if getattr(args, "include_nested", False):
+        passthrough.append("--include-nested")
+    if getattr(args, "rename_non_numeric", False):
+        passthrough.append("--rename-non-numeric")
+    if getattr(args, "assume_dates", False):
+        passthrough.append("--assume-dates")
+
+    # Delegate to the script's own main(argv); it prints its report and returns its exit code.
+    return normalizer.main(passthrough)
+
+
+def _dispatch(argv: Optional[Sequence[str]]) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
@@ -700,8 +828,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         _run_status(term)
         term.line()
         term.line(
-            "Commands: install <dir>|all, setup, uninstall <dir>, list, status, plans. "
-            "See 'aw --help'."
+            "Commands: install <dir>|all, setup, uninstall <dir>, list, status, plans, "
+            "plan-names. See 'aw --help'."
         )
         return 0
 
@@ -717,9 +845,29 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return _run_setup(args, term)
     if args.command == "plans":
         return _run_plans(args, term)
+    if args.command == "plan-names":
+        return _run_plan_names(args, term)
 
     parser.print_help()
     return 2
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    """CLI entry point. Catches CTRL-C / EOF at any prompt and exits cleanly (D-CLI-UX).
+
+    Returns the conventional 130 for a user interrupt instead of dumping a traceback.
+    MUST return (not sys.exit) so in-process callers/tests reading the int keep working;
+    ``__main__`` turns the return value into the process exit code.
+    """
+
+    try:
+        return _dispatch(argv)
+    except KeyboardInterrupt:
+        print("\nCancelled.", file=sys.stderr)
+        return 130
+    except EOFError:
+        print("\nCancelled (end of input).", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":

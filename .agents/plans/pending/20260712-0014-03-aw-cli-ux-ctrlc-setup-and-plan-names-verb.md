@@ -10,7 +10,10 @@
 - Scope: `agent_workflows/cli.py` (signal handling wrapper + setup loop), possibly `engine.py`
   input sites, a new `aw plan-names` (working name) verb delegating to the existing normalizer, and
   docs/help. No new config format (keep `config.json`); no `/setup-repo` rename.
-- Status: reviewed
+- Status: approved
+- Approval: approved by maintainer 2026-07-12 (reviewed; OQ1-5 leans confirmed - verb `aw plan-names`;
+  normalizer stays in place + loaded via _compat; CTRL-C guard returns 130 in cli.main + engine.main;
+  setup warns-but-allows non-existent dirs; exit 130 for SIGINT). Ready to execute changes 1-5.
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history

@@ -2361,9 +2361,20 @@ def run(args: argparse.Namespace) -> int:
 
 
 def main(argv=None) -> int:
-    """Parse args (from argv or sys.argv) and run an install. Back-compat entry point."""
+    """Parse args (from argv or sys.argv) and run an install. Back-compat entry point.
 
-    return run(parse_args(argv))
+    Catches CTRL-C / EOF at any prompt and returns the conventional 130 rather than
+    dumping a traceback (D-CLI-UX). Returns (not sys.exit) so callers reading the int work.
+    """
+
+    try:
+        return run(parse_args(argv))
+    except KeyboardInterrupt:
+        print("\nCancelled.", file=sys.stderr)
+        return 130
+    except EOFError:
+        print("\nCancelled (end of input).", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":
