@@ -51,6 +51,15 @@
    `YYYYMMDD-HHMM-NN-fix-<original-slug>-<short>.md`) describing exactly what was missed/diverged and
    what must be done, cross-referencing the original plan and the execution commit(s). Never fix in
    place. If MATCHES with a green suite and no gaps, emit NO IPD and say so.
+   - **Status of the corrective IPD (D65):** born `auto-approved` (ready to execute without human
+     review) when the correction is fully specified, has zero open questions, corrects
+     already-reviewed work, and is LOW-COMPLEXITY/low-risk - judged by COMPLEXITY, not file count (a
+     large mechanical `foo`->`bar` sweep can auto-approve; a small risky refactor of critical logic
+     cannot). Add an `Approval:` line `auto-approved by /verify-execution <date>; not human-reviewed`
+     and a Workflow-history line recording the rationale. Otherwise born `to-review`. Err toward
+     `to-review` ONLY on genuine complexity uncertainty. `auto-approved` is set by this CHECKER, never
+     by an executor fast-tracking its own work; and an `auto-approved` plan still must pass its stated
+     validation before being marked `executed` (D64).
 6. **Report** in a fixed format ending with the verdict + GO/NO-GO as the last output (mirror the
    plan-review report discipline).
 

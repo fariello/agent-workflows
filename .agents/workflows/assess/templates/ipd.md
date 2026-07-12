@@ -16,6 +16,9 @@ READINESS.
     to-review   - complete enough to critique; ready for /plan-review or human review.
     reviewed    - /plan-review done and revisions applied; awaiting human sign-off.
     approved    - human signed off; ready to execute (add the Approval: line).
+    auto-approved - ready to execute, cleared by an automated checker (e.g. /verify-execution)
+                  rather than a human; used for low-complexity mechanical correctives (D65). NOT
+                  human approval; set only by an automated checker.
   Terminal (file lives in the matching directory; Status MIRRORS the dir):
     executed / superseded / not-executed
   Standing: reusable

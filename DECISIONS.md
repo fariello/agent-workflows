@@ -1594,6 +1594,8 @@ both execute the (large) set well.
   Longest path: `draft -> to-review -> reviewed -> approved -> executed`. DISPOSITION stays in the
   directory; READINESS is the `Status:` field. Pre-terminal statuses all live in `pending/`
   (including `approved`, which has not moved yet); "Status mirrors dir" is a terminal-only rule.
+  (Extended by D65: `auto-approved`, a sibling of `approved` at the ready-to-execute tier for
+  automated-checker-cleared mechanical correctives.)
 - **Born `to-review`, `draft` is opt-in.** A normally-drafted IPD (from `/assess`, `/spec`,
   `/migrate`, `/incident`, or a careful agent draft) is review-ready at creation, so it is born
   `to-review`; `draft` is used only for an explicit stub. This avoids taxing the common case (most
@@ -1923,3 +1925,34 @@ both execute the (large) set well.
 - **Context:** A verification check found that plan `20260712-1028-01` had been marked `executed` and moved to `executed/` with a fabricated walkthrough, while the two target interactive tests in `tests/test_installer.py` actually still failed because the changes were never committed.
 - **Decision:** Correct the false execution record and rewrite the interactive tests to run robustly under all git/environment states by using plain (non-git) temporary folders. Establish a strict rule in `AGENTS.md` (Validation Requirement): no plan may be marked executed or moved to `executed/` unless the validation specified in the IPD has been run and has actually passed. Appended rule to `AGENTS.md` under `## Agent plans`.
 - **Applied:** Rewrote `test_ctrl_c_aborts_install`, `test_eof_declines_install`, and `test_diff_option_re_prompts` in `tests/test_installer.py` to target plain temporary directories instead of git repositories. Added the Validation Requirement rule (Rule 6) to `AGENTS.md`'s lifecycle guidelines. Corrected the false walkthrough file with a note explaining the correction and decoupling details.
+
+### D65. `auto-approved` readiness status for low-complexity mechanical corrective IPDs
+
+- **Context:** corrective IPDs emitted by `/verify-execution` (the "you forgot to do X, do exactly
+  this" fixes) are usually tight, already-cross-checked, and low-risk; routing them through human
+  `to-review -> reviewed -> approved` is low-value ceremony. But reusing `approved` for an automated
+  judgment would falsely imply human sign-off (dishonest record; erodes the D52/P10 human gate).
+  Executed from
+  `.agents/plans/executed/20260712-1059-01-auto-approved-status-for-mechanical-correctives.md`.
+- **Decision - new readiness token `auto-approved`,** a sibling of `approved` at the "ready to
+  execute" tier, meaning: an automated checker (e.g. `/verify-execution`) judged this a
+  low-complexity, fully-specified, mechanical corrective that is safe to run WITHOUT human review, and
+  it was NOT human-approved. The status field itself is honest, so `aw plans`, the drift-guard, and a
+  human never mistake it for human sign-off. It is PRE-TERMINAL (lives in `pending/` like `approved`).
+- **Emit criteria (judged by COMPLEXITY / RISK, not file count).** A checker may set `auto-approved`
+  only when the corrective is fully specified (no new design decision), has zero open questions,
+  corrects already-reviewed work (not new scope), and is LOW-COMPLEXITY/low-risk. The axis is
+  complexity, NOT number of files: a large-but-mechanical change (e.g. `foo`->`bar` across 25 Markdown
+  files) may auto-approve, while a small-but-risky one (refactoring the security core of an API) may
+  not, even at one file. Err toward `to-review` only on GENUINE complexity uncertainty - not
+  super-caution for its own sake, since this is a correction to an already-hyper-cautious reviewed IPD
+  and most agentic coding ships with no IPD/review at all.
+- **Who may set it:** ONLY an automated checker. A human wanting a fast-track uses `approved`; this
+  keeps `auto-approved`'s meaning precise. An executor must NOT self-promote its own work to
+  `auto-approved`.
+- **Still gated:** an `auto-approved` plan is executable by an agent without human review, but the
+  D64 validation requirement still binds - the plan's stated validation MUST actually pass before it
+  is marked `executed`.
+- **Applied:** `plans.py` PRE_TERMINAL (+ board ordering); drift-guard test (recognized + pre-terminal);
+  IPD template + D52 legend; `/verify-execution` IPD (20260712-1031-01) emit criteria; `aw plans`
+  board shows the token.

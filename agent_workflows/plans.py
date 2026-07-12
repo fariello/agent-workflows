@@ -18,8 +18,11 @@ import re
 from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional
 
-# Readiness vocabulary (D52). Lowercase-kebab; front-matter is the single source of truth.
-PRE_TERMINAL = ("draft", "to-review", "reviewed", "approved")
+# Readiness vocabulary (D52; `auto-approved` added by D65). Lowercase-kebab; front-matter is the
+# single source of truth. `auto-approved` is a sibling of `approved` at the ready-to-execute tier:
+# it means an automated checker (e.g. /verify-execution) cleared a low-complexity mechanical
+# corrective to run WITHOUT human review; it is NOT human approval.
+PRE_TERMINAL = ("draft", "to-review", "reviewed", "approved", "auto-approved")
 TERMINAL = ("executed", "superseded", "not-executed")
 STANDING = ("reusable",)
 RECOGNIZED = frozenset(PRE_TERMINAL + TERMINAL + STANDING)

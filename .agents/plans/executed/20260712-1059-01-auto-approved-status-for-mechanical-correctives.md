@@ -11,7 +11,9 @@
 - Scope: extend the D52 readiness vocabulary with `auto-approved`; update the shared parser
   (`agent_workflows/plans.py`), the drift-guard test, the IPD template, the `aw plans` board ordering,
   DECISIONS, and wire `/verify-execution` (IPD 20260712-1031-01) to emit it under strict criteria.
-- Status: reviewed
+- Status: executed
+- Approval: approved by maintainer 2026-07-12. Executed 2026-07-12 (its_direct/pt3-claude-opus-4.8-1m-us);
+  full suite green (207).
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -23,6 +25,10 @@
   RECOGNIZED/DIR_TERMINAL/LEGACY_MAP from it, and auto-approved is pre-terminal so the terminal-vs-dir
   rule is unaffected. All 3 OQs resolved interactively (complexity-not-file-count bar; name
   auto-approved; checker-only). Fixed the DECISIONS number (D65; D64 already taken). Status -> reviewed.
+- 2026-07-12 approved + executed (its_direct/pt3-claude-opus-4.8-1m-us): added auto-approved to
+  plans.py PRE_TERMINAL (+ board order idx 4); drift-guard test test_auto_approved_is_recognized_and_
+  pre_terminal; IPD template legend + D52 pointer; DECISIONS D65; wired the complexity-based emit
+  criteria into the /verify-execution IPD (1031-01). Full suite green (207). Status -> executed.
 
 ## Decision taken (maintainer, 2026-07-12)
 

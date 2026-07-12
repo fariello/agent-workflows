@@ -94,6 +94,13 @@ class PlanStatusDriftGuard(unittest.TestCase):
             mismatches, [], f"terminal status/dir mismatches: {mismatches}"
         )
 
+    def test_auto_approved_is_recognized_and_pre_terminal(self):
+        # D65: `auto-approved` is a recognized readiness status and is PRE-TERMINAL (it lives in
+        # pending/, like `approved`), so it is not a terminal/dir-mirrored status.
+        self.assertIn("auto-approved", RECOGNIZED)
+        self.assertIn("auto-approved", plans_mod.PRE_TERMINAL)
+        self.assertNotIn("auto-approved", plans_mod.DIR_TERMINAL.values())
+
 
 if __name__ == "__main__":
     unittest.main()
