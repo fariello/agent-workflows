@@ -31,6 +31,7 @@ Re-read this before each step and before the final report:
 6. Preserve valid plan content and required structure.
 7. Make at most two local commits. Never push.
 8. The reviewed/not-reviewed enumeration is the literal final output.
+9. A gate or interactive question MUST NOT assert or imply the verdict it precedes (readiness, approval, GO); it states what was found and asks what to do. The verdict is formed only from the reviewed work's evidence.
 
 ---
 ## Step 0: Scope and project contract
