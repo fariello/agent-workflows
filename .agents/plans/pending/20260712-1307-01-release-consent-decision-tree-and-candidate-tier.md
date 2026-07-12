@@ -19,7 +19,7 @@
   except inside gated release-review Section 9"); a new single-source `RELEASING.md`; templates
   (`templates/final-response.md` terminal block); docs + DECISIONS. Regenerate shims if any manifest
   row changes (none expected).
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -32,8 +32,15 @@
   maintainer resolved OQ1-5 interactively (all recommended leans): `-rc.N` per target with a required
   resolver PEP 440 test; rc push separate/default-NO; GitHub Release default `--draft`; rungs sit
   UNDER GO/CONDITIONAL GO/NO-GO (D53 preserved); `RELEASING.md` at repo root. Wrote a scope-fenced
-  execution contract into the gate. Executable from its path once approved. Stays to-review (needs
-  human approval before execution).
+  execution contract into the gate. Executable from its path once approved.
+- 2026-07-12 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED;
+  PR-001 (HIGH, accuracy) - traced the resolver against source: the "no resolver change required"
+  claim was FALSE; `_normalize_tag` (versioning.py:55-59) does not normalize `-rc.N`, and `_next_patch`
+  (versioning.py:61-77) bumps the rc counter (`v1.2.0-rc.1-3-g` -> `1.2.0-rc.2.dev3`), so a resolver
+  fix is EXPECTED; corrected the evidence section + OQ1 + contract step 2. PR-002 (MEDIUM,
+  executability) - required test coverage for the ahead-of-rc `.devN` case, not only the clean-rc read.
+  Other cited evidence (08:139/157/170, release-notes:9/13-16/27-32/48, CONTRIBUTING:88/113, 09:35/93)
+  verified accurate. No BLOCKER. No unresolved OQs. Status -> reviewed (awaiting human approval).
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -54,12 +61,19 @@
   GO, not individually re-confirmed.
 - release-notes already RECOMMENDS the next semver and explicitly never tags/pushes/publishes
   (`release-notes.md:9,13-16,31-32,48`); it is the natural home to teach `-rc.N`.
-- versioning resolver already emits PEP 440 pre-release/dev forms; `parse_describe` maps a clean tag to
-  itself and an ahead/dirty tree to `X.Y.(patch+1).devN+g<sha>` (`versioning.py:79-119`). A
-  `vX.Y.Z-rc.N` annotated tag is a standard SemVer pre-release and PEP 440-compatible
-  (`X.Y.ZrcN`), so pip/PyPI treat it as a pre-release (not installed without `--pre`) and it sorts
-  BEFORE the final `vX.Y.Z`. No resolver change is required for reading it; confirm `parse_describe`
-  handles the `-rc.N` describe form (add a test if it does not already).
+- versioning resolver: `parse_describe` maps a clean tag to itself and an ahead/dirty tree to
+  `_next_patch(tag).devN+g<sha>` (`versioning.py:79-119`). A `vX.Y.Z-rc.N` annotated tag IS a standard
+  SemVer pre-release and normalizes to valid PEP 440 (`X.Y.ZrcN`) via `packaging`, so pip/PyPI treat it
+  as a pre-release and it sorts before the final `vX.Y.Z`. HOWEVER, a resolver change IS required
+  (verified 2026-07-12 by plan-review, PR-001): (a) `_normalize_tag` (`versioning.py:55-59`) only
+  strips a leading `v`, so a clean rc tag is emitted as the raw `1.2.0-rc.1`, not the normalized
+  `1.2.0rc1`; and (b) `_next_patch` (`versioning.py:61-77`) bumps the LAST numeric part, so on
+  `v1.2.0-rc.1-3-g<sha>` it bumps the rc NUMBER, yielding `1.2.0-rc.2.dev3+g<sha>` - it treats the
+  candidate counter as if it were the patch. That ahead-of-rc `.devN` behavior is accidental, not
+  designed. So OQ1's "minimal resolver fix" is EXPECTED, not merely possible: `parse_describe` must
+  handle a pre-release tag deliberately (emit normalized PEP 440 for the exact tag, and compute a
+  sensible dev base when ahead of an rc). Add tests for BOTH the clean-rc read AND the ahead-of-rc
+  `.devN` case.
 - Enforcement posture: advisory-first (D52) for the prose rules; the CONSENT gate is a hard
   interactive gate (P10, D53 preserved - nothing pushed without explicit approval).
 - House rule: no em dashes in authored Markdown.
@@ -142,10 +156,12 @@ action; clear states) and P2 (honest over aspirational: a candidate is labeled a
 ## Open questions (ALL RESOLVED with maintainer 2026-07-12; execute exactly as stated)
 
 1. rc numbering: RESOLVED - `-rc.N` per TARGET version (`v1.2.0-rc.1` -> `-rc.2` -> final `v1.2.0`),
-   counter reset when `X.Y.Z` changes. The executor MUST add a `test_versioning` case proving
-   `parse_describe` reads a `vX.Y.Z-rc.N` describe form into a VALID PEP 440 version (`X.Y.ZrcN`, e.g.
-   `1.2.0rc1`); if the resolver does not already do so, make the minimal fix to `parse_describe` and
-   test it. A candidate MUST be recognizable by pip as a pre-release (not installed on a plain
+   counter reset when `X.Y.Z` changes. Per PR-001 a resolver fix IS expected (not merely possible).
+   The executor MUST make `parse_describe` handle a pre-release tag deliberately and add
+   `test_versioning` cases for BOTH: (a) a CLEAN rc tag (`v1.2.0-rc.1-0-g<sha>`) reads to a valid PEP
+   440 pre-release; and (b) an AHEAD-of-rc tree (`v1.2.0-rc.1-3-g<sha>`) produces a sensible dev
+   version, NOT the accidental `1.2.0-rc.2.dev3` that today's `_next_patch` yields by bumping the rc
+   counter. A candidate MUST be recognizable by pip as a pre-release (not installed on a plain
    `pip install`).
 2. rc push default: RESOLVED - cutting an rc (rung B) does NOT push it. Pushing the rc tag is a
    SEPARATE, default-NO confirmation. Never push implicitly, even for a candidate (P10).
@@ -167,9 +183,31 @@ action; clear states) and P2 (honest over aspirational: a candidate is labeled a
 - REFINES D53 (does not reverse it): the human GO gate is preserved; this adds the candidate tier and
   per-action consent.
 
+## Plan-review record (2026-07-12)
+
+Reviewed by `/plan-review` (its_direct/pt3-claude-opus-4.8-1m-us). Verdict: **APPROVE WITH REVISIONS
+APPLIED** (pending human sign-off). Evidence re-opened against source:
+- PR-001 (HIGH, accuracy / UNDER-SCOPE): the "Project conventions discovered" section originally
+  claimed "No resolver change is required for reading it." Traced against `agent_workflows/versioning.py`
+  and confirmed FALSE by running `parse_describe`: a clean rc tag emits the raw `1.2.0-rc.1` (not the
+  normalized `1.2.0rc1`), and an ahead-of-rc tree yields `1.2.0-rc.2.dev3` because `_next_patch`
+  (:61-77) bumps the last numeric part (the rc counter). Fixed: the evidence section, OQ1, and
+  execution-contract step 2 now state a resolver fix is EXPECTED and require tests for both the clean
+  and ahead-of-rc cases. Remediation Risk: Low (plan-prose edit; the code fix itself is bounded and the
+  executor is now correctly directed to it).
+- PR-002 (MEDIUM, executability): the test requirement covered only the clean-rc read; extended it to
+  the ahead-of-rc `.devN` case where the actual defect lives.
+- Verified accurate (no finding): `08-final-ship-review.md:139,157,170`; `release-notes.md:9,13-16,
+  27-32,48`; `CONTRIBUTING.md:88,113`; `09-release-execution.md:35,93`; no pre-existing rc test in
+  `tests/test_versioning.py` (so the test-add requirement is real). Rubric B (security): the design
+  strengthens the consent gate (default-NO externally-visible actions, draft GitHub Release) and
+  preserves P10/D53; no regression. Rubric F (KISS/UX): the "gate by consequence, one interaction,
+  safe default" design is well-disciplined and maps to the imported ui-ux principles. No BLOCKER/HIGH
+  remains unfixed. All 5 OQs resolved. Does not self-approve.
+
 ## Approval and execution gate
 
-`to-review`. All OQs are RESOLVED above, so this IPD is executable from its path once approved.
+`reviewed`. All OQs are RESOLVED above, so this IPD is executable from its path once approved.
 Execution contract (follow EXACTLY):
 
 1. SCOPE FENCE. Implement ONLY changes 1-6. Touch ONLY: `08-final-ship-review.md`,
@@ -181,9 +219,10 @@ Execution contract (follow EXACTLY):
    resolver needs it for OQ1, `agent_workflows/versioning.py` + `tests/test_versioning.py`. Do NOT
    refactor, rename, or "improve" anything the plan did not ask for; if a change seems to need more,
    STOP and leave a note rather than expanding scope.
-2. rc convention (OQ1): add/verify a `test_versioning` case that `parse_describe` reads a
-   `vX.Y.Z-rc.N` tag into valid PEP 440 (`X.Y.ZrcN`); make the minimal resolver fix only if the test
-   fails.
+2. rc convention (OQ1, PR-001): make `parse_describe` handle a pre-release tag deliberately and add
+   `test_versioning` cases for BOTH the clean-rc read AND the ahead-of-rc `.devN` case (today's
+   `_next_patch` wrongly bumps the rc counter to `1.2.0-rc.2.dev3`). A resolver change is EXPECTED
+   here, not optional.
 3. Authoring style: NO em dashes or en dashes in any Markdown you write (use a hyphen or reword).
 4. VALIDATE: run the FULL test suite. When you report validation passed you MUST paste the ACTUAL
    test-runner output (real command + real summary line). Never report success you did not run.
