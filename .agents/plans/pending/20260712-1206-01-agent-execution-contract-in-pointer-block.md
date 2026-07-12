@@ -1,4 +1,4 @@
-# IPD: Add a standing "Agent execution contract" to the managed pointer block
+# IPD: Standing "Agent execution contract" - in the pointer block AND required in every IPD gate (plan-review enforced)
 
 - Date: 2026-07-12
 - Concern: handoff reliability / instruction reach. When an agent (this repo's maintainer, OpenCode,
@@ -11,10 +11,19 @@
   gate lines, so a fresh agent handed only a plan path does not reliably receive them. The honesty rule
   (d) is currently written NOWHERE as a standing expectation, yet it is the exact failure we hit twice
   this session (plans marked `executed` with fabricated "tests green").
-- Scope: add a SHORT "Agent execution contract" sub-section to the managed `AGENT-WORKFLOWS` block
-  (`agents_pointer_block()`, engine.py:541) and this repo's mirrored `AGENTS.md`, inside the existing
-  markers (ONE block definition). Docs/DECISIONS. This IPD adds standing PROSE only; it does NOT add a
-  machine gate (that stays `/verify-execution`).
+- Scope: TWO coordinated halves, one contract, single source. (1) ALWAYS-LOADED half: add a SHORT
+  "Agent execution contract" sub-section to the managed `AGENT-WORKFLOWS` block
+  (`agents_pointer_block()`, engine.py:541) + this repo's mirrored `AGENTS.md` (ships on install,
+  reaches every downstream repo). (2) AUTHORING/REVIEW half: codify that EVERY IPD's approval-and-gate
+  section MUST carry a scope-fenced execution contract (locked OQs, scope fence, the hard-MUST honesty
+  rule, path-scoped commit, never-push, lifecycle move), and make `/plan-review` and
+  `/plan-review-long` VERIFY that contract is present and INJECT it if missing. Homes: the block +
+  `templates/plans-README.md` (regenerates `.agents/plans/README.md`; the de-facto plan-authoring
+  guidance, as there is NO separate IPD template) + `plan-review.md` + `plan-review-long/review-rubric.md`
+  + `plan-review-long/02-review-and-revise.md`. Docs/DECISIONS. Standing PROSE + review-workflow steps
+  only; NO installer machine gate (enforcement stays `/verify-execution` + the interactive review).
+  The review half is the practice we validated this session by hand-writing the same gated contract
+  into 0020-01/0030-01/1307-01; codifying it removes that per-IPD duplication (P8, single source).
 - Status: to-review
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
@@ -30,6 +39,13 @@
   commits to a terminal/executed plan, close post-execution gaps via a corrective IPD. Also recorded
   that the hard-MUST honesty rule alone did not reliably yield pasted output in two observed runs;
   noted a by-construction template alternative as deferred. Stays to-review.
+- 2026-07-12 expanded AGAIN (its_direct/pt3-claude-opus-4.8-1m-us): broadened scope from block-only to
+  ALSO codify the plan-authoring/review discipline (maintainer request), since we validated it by
+  hand-writing the same gated contract into 0020-01/0030-01/1307-01 and want to stop duplicating it
+  (P8). New changes 3-4: document the required gate contract in `templates/plans-README.md`, and make
+  `/plan-review` + `/plan-review-long` verify/inject it. Also corrected a stale dependency (0030-01 and
+  0033-01 have executed this session). Evidence basis recorded honestly as suggestive (n=1 High, n=1
+  Medium; not a controlled A/B). Stays to-review.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -94,23 +110,46 @@
    output. Consider satisfying it BY CONSTRUCTION via a walkthrough-template slot for an embedded
    fenced block of real runner output, rather than relying on more MUST-phrasing (deferred; a template
    tweak, not part of the block).
-3. **Reconcile with the other block-editing IPDs under the brevity budget.** After 0014-04 (brain-dir
-   MUST rules), 0033-01 (immortalize-research, already executed), 0030-01 (native-file mirroring), and
-   THIS contract all land, the ADDED contract prose stays within ~6-8 lines in the pointer block;
-   overflow moves to the referenced convention docs. Whichever of {0014-04, 0030-01, this} lands last
-   integrates the others' text within budget. Recommended order overall:
-   0030-01 (reach) -> this (contract) -> 0014-04 (brain-dir), so the contract is present and reaching
-   Claude/Gemini before the brain-dir rules that lean on it. Update this repo's `AGENTS.md` to match
-   and verify in sync via `aw install . --dry-run` ("pointer already current").
-4. **Docs + DECISIONS.** Note the standing execution contract where contributor rules live
-   (`CONTRIBUTING.md` gets a one-line pointer to the block; the block is now the single always-loaded
-   home). DECISIONS entry (Dnn) recording the contract, the hard-MUST honesty rule and its rationale
-   (twice-seen false completions), the advisory-first posture, and that `/verify-execution` is the
-   enforcement, not a machine gate in the installer.
-5. **Validation.** Prose-contract change (no unit test for instruction prose, per repo policy);
+3. **Codify the contract requirement in plan AUTHORING guidance.** In `templates/plans-README.md`
+   (which regenerates `.agents/plans/README.md`; there is NO separate IPD template, verified), add a
+   short subsection stating that every IPD's "Approval and execution gate" MUST carry an execution
+   contract: (i) all open questions RESOLVED (or explicitly OPEN + NO-GO); (ii) a SCOPE FENCE listing
+   the exact files/areas to touch and "do not expand scope; if it seems to need more, STOP"; (iii) the
+   HARD-MUST honesty rule (paste the ACTUAL runner output; never report success you did not run);
+   (iv) path-scoped commit, never push; (v) the lifecycle move. Point at the always-loaded block as the
+   canonical rule text (do not restate it in full). Regenerate the READMEs via the installer so the
+   tracked copy matches.
+4. **Make `/plan-review` and `/plan-review-long` VERIFY and INJECT the contract.** Add a review
+   obligation to both: as part of finalizing a `reviewed` IPD, confirm its gate carries the execution
+   contract (i-v above); if any element is missing, ADD it (this is an in-place plan revision, exactly
+   what these workflows already do) and record it as a finding. Concrete edits: `plan-review.md`
+   Step 4 "Finalize state" (:226-233) gains a "gate carries the execution contract" confirmation, and
+   rubric area **G. Plan executability** (:313-324) gains a line requiring the scope-fenced contract;
+   `plan-review-long/review-rubric.md` area G + `plan-review-long/02-review-and-revise.md` gain the
+   matching check. This is advisory-first (D52) enforced by the reviewer, not a machine gate.
+5. **Reconcile with the other block-editing IPDs under the brevity budget.** 0033-01
+   (immortalize-research) and 0030-01 (native-file mirroring) have ALREADY EXECUTED this session, so
+   the remaining block-editing IPDs are THIS one and 0014-04 (brain-dir MUST rules). The ADDED contract
+   prose across them stays within the ~6-8 line budget (0014-04 PB4-2); overflow moves to the
+   referenced convention docs (block is a POINTER, P9). Whichever of {this, 0014-04} lands last
+   integrates the other's text within budget. Recommended: this (contract) -> 0014-04, so the contract
+   exists before the brain-dir rules that lean on it. 1307-01 change #4 adds ONE tag/release/PyPI line
+   to the same block under the same budget - coordinate. Update this repo's `AGENTS.md` and verify in
+   sync via `aw install . --dry-run` ("pointer already current").
+6. **Docs + DECISIONS.** Note the standing execution contract where contributor rules live
+   (`CONTRIBUTING.md` gets a one-line pointer to the block; the block is the single always-loaded
+   home). DECISIONS entry (Dnn) recording BOTH halves: the always-loaded contract (hard-MUST honesty +
+   commit discipline + read-only-review + no-edits-to-terminal-plans) and the plan-review-enforced
+   "every IPD gate carries the contract" practice, with the rationale (twice-seen false completions;
+   the observed veracity/rigor lift from the hand-written gated contract in 0020-01/0030-01/1307-01),
+   the advisory-first posture, and that enforcement is `/verify-execution` + the interactive reviews,
+   NOT a machine gate. Record the evidence HONESTLY: n=1 High + n=1 Medium, not a controlled A/B; High
+   was cleaner than Medium; treat as suggestive, not proven.
+7. **Validation.** Prose + workflow-step change (no unit test for instruction prose, per repo policy);
    validate that the block round-trips (`aw install . --dry-run` reports in-sync; full suite green;
-   `aw plan-names` clean). If any test asserts block content/markers (e.g. marker count, "pointer
-   already current" idempotence), keep it green and paste the actual runner output.
+   `aw plan-names` clean); confirm `.agents/plans/README.md` matches its regenerated template. If any
+   test asserts block content/markers (marker count, "pointer already current" idempotence) or README
+   generation, keep it green and paste the actual runner output.
 
 ## Deferred / out of scope
 
@@ -136,14 +175,19 @@
 
 ## Dependencies / sequencing
 
-- SOFT-but-important: IPD `20260712-0030-01` (mirrors the block into CLAUDE.md/GEMINI.md) - without it
-  the contract under-reaches Claude Code + default Gemini, the agents this most needs to reach.
-- SHARED HOT SPOT: this, `20260712-0014-04`, and `20260712-0030-01` all edit the single
-  `agents_pointer_block()` under the 6-8 line brevity budget (0014-04 PB4-2). Reconcile block text on
-  whichever lands last; no divergent copies. Recommended order: 0030-01 -> this -> 0014-04.
+- REACH (already satisfied): IPD `20260712-0030-01` (mirror the block into existing CLAUDE.md/GEMINI.md)
+  ALREADY EXECUTED this session, so the always-loaded contract will now reach Claude Code + default
+  Gemini once this lands. No longer a pending dependency.
+- SHARED HOT SPOT: this and `20260712-0014-04` edit the single `agents_pointer_block()` under the
+  ~6-8 line brevity budget (0014-04 PB4-2); `20260712-1307-01` change #4 adds one more line to it.
+  Reconcile block text on whichever lands last; no divergent copies. Recommended order: this
+  (contract) -> 0014-04 (brain-dir); fold 1307-01's tag/release line whenever it executes.
+- The AUTHORING/REVIEW half (changes 3-4) is INDEPENDENT of the block edit and can land together with
+  or without the block reconciliation; it only edits templates/plans-README + the two review workflows.
 
 ## Approval and execution gate
 
 `to-review`. Next: `/plan-review` (two-commit per D52), resolve OQ2-4 interactively, human approve,
-execute changes 1-5, validate (block in sync + full suite green, paste real runner output), commit
-ONLY this IPD's touched files path-scoped (never push), `git mv` to executed/. Not auto-executed.
+execute changes 1-7, validate (block in sync + `.agents/plans/README.md` matches template + full suite
+green, paste real runner output), commit ONLY this IPD's touched files path-scoped (never push),
+`git mv` to executed/. Not auto-executed.
