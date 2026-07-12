@@ -24,6 +24,7 @@ never manufacture fiction to fill a gap.
 Software should teach the user as they go (clear names, helpful defaults, actionable
 errors, good first-run guidance) so they need not read a manual or take a course.
 Prefer making the product self-explanatory over compensating with more documentation.
+Minimize user effort; an unnecessary action is a defect.
 
 ## 4. Durable knowledge for cold-start handoff
 
@@ -42,13 +43,17 @@ context degradation.
 
 Prefer the simplest design that meets the need. Because "fix by default" invites
 gold-plating, the complexity axis is the deliberate counterweight: do not add
-abstraction, features, or dependencies not traceable to a real need.
+abstraction, features, or dependencies not traceable to a real need. A new noun does
+not automatically require a new model or abstraction; compare semantics, not names.
+Follow the generality ladder: prefer variation as data or config first, then a shared
+core with thin specialization, and only use bounded special cases when justified.
+Do not build for hypothetical needs.
 
 ## 7. Solve the general case; stay project-agnostic
 
 Generalize project-specific insight into universal concepts rather than hardcoding one
 stack's checklist. The framework must work across languages, frameworks, and project
-types.
+types. Prefer variation as data or config before code.
 
 ## 8. Single source of truth; no drift
 

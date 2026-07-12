@@ -56,6 +56,7 @@ focusing on different concerns; leave it `-` when not used.
 | assess-testing | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/testing.md | Assess testing rigor and completeness and propose an IPD. |
 | assess-architecture | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/architecture.md | Assess architecture and extensibility and propose an IPD. |
 | assess-api-design | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/api-design.md | Assess public API/contract design and propose an IPD. |
+| assess-data-modeling | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/data-modeling.md | Assess object and data-modeling quality and propose an IPD. |
 | assess-compatibility | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/compatibility.md | Assess compatibility and interoperability and propose an IPD. |
 | assess-supply-chain | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/supply-chain.md | Assess dependencies/licensing/supply-chain and propose an IPD. |
 | assess-guiding-principles | .agents/workflows/assess/assess.md | .agents/workflows/assess/lenses/guiding-principles.md | Assess conformance to the project's guiding principles and propose an IPD. |

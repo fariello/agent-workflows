@@ -159,7 +159,7 @@ be asked which to run; concern names are matched case-insensitively with common 
 | Security & privacy | `security` `secrets` `privacy` `data-exfiltration` `intrusion-detection` `ransomware-resilience` `threat-model` `logging-audit` |
 | Compliance | `compliance` `compliance-readiness` (FIPS / NIST 800-171 / CMMC L2 - repo-slice only, not a certification) |
 | UX & docs | `ui-ux` `accessibility` (WCAG 2.1 AA for GUIs + a WCAG-inspired rubric for terminal/CLI/ANSI output) `self-documentation` `documentation` `prose` (writing style across all prose) |
-| Product & design | `functionality` `use-cases` `architecture` `api-design` `generalization` |
+| Product & design | `functionality` `use-cases` `architecture` `api-design` `data-modeling` `generalization` |
 | Delivery & quality | `testing` `performance` `compatibility` `supply-chain` `guiding-principles` |
 
 Want the whole picture at once? **`/assess-all`** runs the family (all, a group, or a

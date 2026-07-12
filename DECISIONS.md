@@ -1987,3 +1987,9 @@ both execute the (large) set well.
 - **Applied:** `.agents/workflows/verify-execution/{verify-execution.md,README.md}`; `index.md`
   manifest row + generated shims; README command table. Single-file for now (a modular `-long` variant
   is deferred, P6). Prose workflow (no unit test for instruction prose per repo policy).
+
+### D67. Import of filtered UX and data-modeling design principles
+
+- **Context:** A set of generic UX and data-modeling principles was analyzed for relevance to the repository. The maintainer approved importing a filtered subset of UX and object/schema design guidelines while excluding N/A compliance, database-heavy, or security-heavy generic rules.
+- **Decision:** Import the new `data-modeling` lens and record it in the workflow manifest. Enrich the existing `ui-ux` lens with missing usability rules. Sharpen existing root guiding principles (P3, P6, and P7) to reinforce these modeling and usability rules at the repository root.
+- **Applied:** Created `.agents/workflows/assess/lenses/data-modeling.md`. Updated `ui-ux.md`, `architecture.md`, and `api-design.md` under `.agents/workflows/assess/lenses/` to enrich and cross-link guidelines. Sharpened `GUIDING_PRINCIPLES.md` (P3/P6/P7) and updated `assess-all.md` area routing. Added the concern to the `README.md` catalog table, added `assess-data-modeling` to the `index.md` manifest, and regenerated all command shims. All 207 tests green.

@@ -17,7 +17,7 @@ that `/list-workflows` uses.
 Running all concerns is expensive (many deep passes). Before running anything:
 
 1. Read the concern catalog from the manifest and present the concerns grouped by area
-   (correctness, security/privacy, compliance, UX/docs, product/design, delivery/quality).
+   (correctness, security/privacy, compliance, UX/docs, product/design [e.g., data-modeling], delivery/quality).
 2. State plainly that a full run is many passes and will take a while.
 3. Offer the choice and default to a sensible set (the core-quality group unless the user
    indicates otherwise):
