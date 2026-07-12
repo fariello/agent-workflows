@@ -1839,3 +1839,25 @@ both execute the (large) set well.
   detecting/ warning when a target has a `<TOOL>.md` that would shadow our AGENTS.md rules.
 - **Status:** provisional; revisit when the precedence facts are known or if a downstream repo shows
   AGENTS.md being shadowed.
+
+### D60. /plan-review must resolve open questions interactively and end with a reviewed/not-reviewed enumeration
+
+- **Context:** `/plan-review` could leave a plan `reviewed` while its open questions still held
+  agent-chosen "leans" rather than human decisions, and a multi-plan run did not clearly state, at the
+  end, which plans it actually reviewed vs. skipped. The maintainer directed both gaps be closed.
+- **Decision - resolve open questions INTERACTIVELY (MUST).** Before reporting, `/plan-review` gathers
+  each plan's still-unresolved open questions (pre-existing and review-raised) and ASKS the human to
+  decide them; it must not guess or leave silently-assumed answers. Questions are asked in plain,
+  non-jargony, concise-and-precise language, with AMPLE context (what the question is, why it matters,
+  what each option means in practice, trade-offs, and a recommendation with a one-line reason),
+  grouped into a small number of focused prompts. Answers are recorded back into the owning plan. On a
+  genuinely non-interactive run, questions are NOT invented: they stay explicitly OPEN and block a GO.
+- **Decision - final reviewed/not-reviewed enumeration (LAST item).** The report ENDS with an explicit
+  enumeration of every plan considered: a REVIEWED list (each with a GO/NO-GO recommendation and a
+  one-line reason - GO = reviewed, all open questions resolved, no unfixed BLOCKER/HIGH; NO-GO names
+  what must change) and a NOT-REVIEWED list (each with the skip reason, e.g. `Status: draft` is not
+  yet eligible per the D52 status vocabulary, out of scope, or not a plan file). Nothing prints after
+  it.
+- **Applied:** `.agents/workflows/plan-review/plan-review.md` - new interactive step in the operating
+  mode; new final enumeration in the required report format. Ships to installed repos via the workflow
+  tree. Prose-workflow change (no unit test for instruction prose); suite green.

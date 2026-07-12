@@ -84,9 +84,23 @@ project's specification/docs (whatever the project uses, e.g. a functional spec 
    equivalent) with the explicit Remediation-Risk justification: which axis
    (complexity / usability / security / functionality) and why it is Medium-High or
    higher. "Too much effort/time" is never a valid reason to defer.
-5. **Report back** using the format below: the verdict, the findings table, and the
-   exact edits made to each plan, with enough detail for a human to audit. Do not mark
-   the plan as executed; reviewing/revising is not executing.
+5. **Resolve every open question INTERACTIVELY with the human (MUST).** Before reporting,
+   gather each plan's still-unresolved open questions (both pre-existing ones and any this
+   review raised) and ASK the human to decide them - do not guess, and do not leave a plan
+   `reviewed` with silently-assumed answers. For each question:
+   - Ask in **plain, non-jargony language**: concise and precise, no unexplained acronyms
+     or internal shorthand. Spell out any term the human may not carry in their head.
+   - Give **ample context**: what the question is, why it matters, what each option would
+     mean in practice, the trade-offs, and your recommendation with a one-line reason.
+   - Prefer a small number of focused prompts over one long list; group tightly-related
+     questions. Record each answer back into the owning plan (resolving the open question
+     in place) and reflect any consequent edits.
+   - If the run is genuinely non-interactive (no human to ask), do NOT invent answers:
+     leave those questions explicitly OPEN in the plan, and the plan cannot be recommended
+     GO until they are resolved (report them as blocking in the final enumeration).
+6. **Report back** using the format below: the verdict, the findings table, the exact edits
+   made to each plan, and the final reviewed/not-reviewed enumeration. Do not mark the plan
+   as executed; reviewing/revising is not executing.
 
 ---
 
@@ -247,6 +261,23 @@ Verdict: <APPROVE | APPROVE WITH REVISIONS APPLIED | REJECT - NEEDS REPLAN>
 - <finding>: deferred - Remediation Risk <Medium-High|High> on
   <complexity|usability|security|functionality> because <reason>.
   (Effort/time is never a reason.)
+
+### Plans reviewed and not reviewed (MUST be the LAST item)
+Enumerate EVERY plan considered in this run, split into two lists. This is the final
+output; nothing else prints after it.
+
+REVIEWED (each with a Go/No-Go recommendation):
+- <plan file>: <GO | NO-GO> - <one-line reason>. Verdict: <verdict>. Open questions: all
+  resolved interactively | <N still open (blocks GO)>.
+  - GO = reviewed, all open questions resolved, no unfixed BLOCKER/HIGH; recommended for
+    human approval to execute.
+  - NO-GO = a BLOCKER/HIGH remains unfixed, OR open questions could not be resolved (e.g.
+    non-interactive run), OR the verdict is REJECT - NEEDS REPLAN. Name what must change to
+    reach GO.
+
+NOT REVIEWED (with the reason each was skipped):
+- <plan file>: <reason> (e.g. `Status: draft` - not yet `to-review`, so not eligible per the
+  status vocabulary; out of the requested scope; not a plan file; malformed).
 ```
 
 Be rigorous and specific, cite `file:line` evidence, and do not invent issues where
