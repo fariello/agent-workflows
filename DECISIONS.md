@@ -1861,3 +1861,39 @@ both execute the (large) set well.
 - **Applied:** `.agents/workflows/plan-review/plan-review.md` - new interactive step in the operating
   mode; new final enumeration in the required report format. Ships to installed repos via the workflow
   tree. Prose-workflow change (no unit test for instruction prose); suite green.
+
+### D61. plan-review adopts a tightened single-file body; a parallel modular /plan-review-long is added to A/B test
+
+- **Context:** the `plan-review.md` runbook was reviewed and improved by an external LLM (ChatGPT), in
+  three rounds: a full rewrite (about 780 lines, too long and enterprise-leaning), a compact
+  single-file (437 lines), and a tightened single-file (417 lines). The reviewer also proposed a
+  MODULAR restructuring (a small orchestrator that loads one step at a time, plus per-phase files, a
+  shared rubric, and a report template) to reduce directive drift on long runs. All of it is archived
+  under `.agents/docs/research/plan-review/` (GUIDING_PRINCIPLES P4).
+- **Decision - adopt the tightened single-file version as `/plan-review`.** It replaces the prior
+  288-line body. It keeps every substantive correction the review surfaced and now missing before:
+  verdict separated from GO/NO-GO readiness plus a `REVIEWED - OPEN QUESTIONS` verdict; a DEFINED
+  Remediation Risk scale (Low/Medium/Medium-High/High, overall = highest axis) the Fix Bar depends on;
+  a Step-0 review-scope ledger the final enumeration must use; the evidence-first, 1-to-3-question
+  interactive loop (D60); the tightened non-interactive exception; `Status: reviewed` clarified (D52);
+  the two-commit-never-push contract (D52); an evidence field + commit-result in the report; and the
+  reviewed/not-reviewed enumeration as the literal last output. Fix Bar philosophy, the eight personas
+  with security as a cross-cutting lens, tool/project-agnosticism, the sibling references with
+  graceful degradation, and the planning-only boundary are all preserved. No em/en dashes.
+- **Decision - add `/plan-review-long` as a parallel MODULAR variant to test.** A new workflow
+  directory (`.agents/workflows/plan-review-long/`) holding a memory-kernel orchestrator
+  (`plan-review-long.md`) plus `01-discover-and-snapshot.md`, `02-review-and-revise.md`,
+  `03-resolve-and-finalize.md`, `review-rubric.md`, and `report-template.md`. The orchestrator loads
+  one step at a time and re-reads its kernel per step, to reduce directive drift and improve recovery
+  after context compaction. No separate state-template file was added: the delivered step files carry
+  their own inline exit-gate checklists, so an extra file would be unreferenced (P6). Registered in
+  `index.md`; shims generated; each top-level dir has a README (D49).
+- **Rationale for shipping BOTH:** the maintainer wants to A/B test the single-file vs. modular forms
+  in real use before committing to one. This is deliberately, TEMPORARILY two implementations of the
+  same workflow. We are NOT building generator/parity tooling now (P6); the two are kept in manual
+  parity and MUST be reconciled to one canonical form (or a generate-one-from-the-other approach) once
+  testing picks a winner. Until then, treat divergence between them as expected experiment state, not
+  drift to police. This is the one sanctioned exception to P8 (single source of truth) and is
+  time-boxed to the experiment.
+- **Deferred:** choosing the winner and collapsing to one form; any parity/generation tooling;
+  applying the modular pattern to other workflows (a separate whole-family decision).

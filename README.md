@@ -132,6 +132,7 @@ slash commands, run the body file shown in the manifest (`.agents/workflows/inde
 | `/release-review` | Deep, all-concerns pre-release review of the repo; finds and fixes issues, produces an auditable run record and a GO / NO-GO recommendation. | Yes (the fix-in-place review) |
 | `/release-review-plan` | The release review in planning-only mode: audit + a consolidated implementation plan, stopping before changes. | No |
 | `/plan-review` | Review and improve a proposed implementation plan (IPD) **before** any code is written. | No (edits the plan doc) |
+| `/plan-review-long` | Same as `/plan-review`, in a multi-file orchestrator form (loads one step at a time to reduce drift on long runs). Currently an experimental parallel variant, kept in parity with `/plan-review`. | No (edits the plan doc) |
 | `/scaffold` | Guided creation of a new assessment lens, workflow, or command, wired into the manifest. | Framework files only |
 | `/getting-started` | Guided in-agent tour for newcomers: detects your repo/toolkit state, explains the mental model, asks your goal, and routes you to the right workflow with the exact command for your tool. Orients and routes; runs nothing without your say-so. | No (read-only) |
 | `/list-workflows` | Toolkit discovery: lists what this toolkit can do (core workflows, the `/assess` concerns, personas) and the installed framework version, read from the manifest. Optional filter, e.g. `/list-workflows security`. | No (read-only) |
