@@ -62,6 +62,17 @@
   job, executed separately, by whichever agent).
 - Honest about attribution: distinguishes gaps INTRODUCED by this execution from pre-existing repo
   state (e.g. a suite already red before the execution).
+- **Runs safely IN PARALLEL with the executing agent (concurrency rule).** This workflow is often
+  run WHILE another agent is still working in the same repo (that is the whole point: cross-checking
+  another agent's work). Therefore it MUST commit ONLY the file(s) IT creates - normally a single
+  corrective IPD (plus its own run record). Commit path-scoped (`git commit -- <that-file>`), NEVER a
+  bare `git commit` or `git add -A`/`git commit -a`, because the other agent may have unrelated files
+  staged in the index and a bare commit would sweep THEIR in-flight work into yours. Do not stage,
+  amend, revert, `git mv`, or reset any file this workflow did not itself create. Do not rewrite
+  history while another agent may be active. If the working tree/index shows another agent's
+  in-progress changes, that is expected - leave them entirely alone and commit only your IPD by exact
+  path. (Learned from a real collision: a bare commit here swept a concurrently-running agent's staged
+  renames into the wrong commit.)
 
 ## Proposed changes (ordered, validatable)
 
