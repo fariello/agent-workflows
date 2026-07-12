@@ -11,7 +11,7 @@
   (4) cross-link from `architecture`/`api-design` lenses; (5) regenerate shims + docs/DECISIONS.
   Single-source-of-truth: the LENSES are the canonical home for the installed-side principles (not a
   competing baseline doc).
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -20,6 +20,9 @@
   UX + data/schema; confirmed against existing ui-ux/architecture/api-design lenses what is genuinely
   new; maintainer chose lens-enrichment + a new data-modeling lens + light P6/P7 sharpening. Complete
   proposal; born to-review.
+- 2026-07-12 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED;
+  PR-A (assess-all areas are prose at assess-all.md:20, not a manifest group -> reframed OQ2; new
+  assess- row auto-recognized as catalog). No BLOCKER/HIGH. Status -> reviewed.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -57,7 +60,14 @@
      matters. (Keep it general - not DB/regulatory-specific.)
    - Lead personas: architect (primary), software engineer, stakeholder. IPD emphasis: model changes
      are high Remediation Risk (migrations/blast radius); prefer the smallest evidenced change.
-   - Register the manifest row `assess-data-modeling`; regenerate shims.
+   - Register the manifest row `assess-data-modeling | .agents/workflows/assess/assess.md |
+     .agents/workflows/assess/lenses/data-modeling.md | <desc>` in `index.md`; regenerate shims.
+     PR-A (verified): the `assess-` prefix means `is_concern_catalog_row` recognizes it automatically
+     (engine.py; tested in test_installer.py:38-44), and `test_parse_manifest_has_core_and_catalog`
+     stays green - no test change needed for recognition. The concern's AREA (for `assess-all`
+     grouping) is defined in PROSE at `assess-all.md:20` ("correctness, security/privacy, compliance,
+     UX/docs, product/design, delivery/quality"), NOT a manifest field: add `data-modeling` to the
+     "product/design" area there (this replaces the misframed OQ2 "add to a group").
 2. **Enrich `ui-ux.md` rubric** with the missing sharp one-liners (do not duplicate existing bullets):
    - "Every unnecessary action is a defect" (friction is a defect, not a nicety).
    - "Do not require the user to select the only available option."
@@ -90,15 +100,34 @@
 
 1. Lens name: `data-modeling` vs `schema-design` vs `object-modeling`. (Lean: `data-modeling` -
    broadest, covers objects+tables+schemas+config.)
-2. Should the new lens be added to any default `assess-all` GROUP? (Lean: yes, include it in the
-   architecture/design group so rollups pick it up.)
+2. assess-all grouping: RESOLVED (PR-A) - there is no manifest "group" field; areas are prose at
+   `assess-all.md:20`. Add `data-modeling` to the "product/design" area there so rollups group it.
 3. How much provenance/historical-truth to include without drifting into DB/regulatory territory.
    (Lean: keep to the general "don't rewrite history; preserve provenance; version when
    reconstruction matters" - 3-4 bullets, project-agnostic.)
 4. Confirm the P6/P7/P3 edits SHARPEN rather than lengthen (keep GUIDING_PRINCIPLES tight).
 
+## Plan-review record (2026-07-12)
+
+Reviewed by `/plan-review` (its_direct/pt3-claude-opus-4.8-1m-us). Verdict: **APPROVE WITH REVISIONS
+APPLIED** (pending human sign-off). Evidence re-opened against source:
+- PR-A (accuracy): a new `assess-<concern>` row is auto-recognized as a catalog row
+  (`is_concern_catalog_row`, test_installer.py:38-44) - no recognition test breaks; but assess-all
+  AREAS are prose at `assess-all.md:20`, not a manifest group, so OQ2 was reframed (add to
+  "product/design").
+- Rubric G/H (KISS + principles): scope is well-disciplined - imports only the filtered subset,
+  enriches existing lenses rather than duplicating (P8 single-source), keeps GUIDING_PRINCIPLES
+  edits as SHARPENING not bloat (OQ4), and explicitly EXCLUDES the N/A compliance/security/DB bulk
+  and the conflicting plan-lifecycle section (vs D45-D55). Good over-scope guarding.
+- Rubric I (domain invariants): the new lens's "provenance/historical truth" bullet is kept
+  general (OQ3), consistent with this repo's P4 (don't rewrite executed history) without importing
+  DB/regulatory specifics.
+- No BLOCKER/HIGH; a lens is prose (per the repo's "test mechanical parts, not instruction prose"
+  policy) so validation is the manifest/shim regen staying green. OQ1/3/4 leaned. Does not
+  self-approve.
+
 ## Approval and execution gate
 
-`to-review`. Next: `/plan-review` (two-commit per D52), resolve OQs, human approve, execute changes
-1-5, validate (suite green + shims regenerated), commit (never push), `git mv` to executed/. Not
+`reviewed`. Next: human approve (confirm OQ1/3/4 leans + the lens name), execute changes 1-5,
+validate (suite green + shims regenerated), commit (never push), `git mv` to executed/. Not
 auto-executed.

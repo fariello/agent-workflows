@@ -13,7 +13,7 @@
   DECISIONS (revise D59; note D21). CORE ONLY: patch native files that ALREADY EXIST; never create
   them. Detection/adapters/doctor-report/Zed-first-match-shadowing/`.agents/AGENTS.md`-revisit are
   DEFERRED to a follow-on.
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -21,6 +21,9 @@
 - 2026-07-12 to-review (its_direct/pt3-claude-opus-4.8-1m-us): raised after the GPT-5.6 research
   survey. Maintainer chose the core (mirror into existing CLAUDE.md/GEMINI.md) + revise D59, deferring
   the doctor/adapters/shadowing machinery. Complete proposal; born to-review.
+- 2026-07-12 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED;
+  PR-B (uninstall already strips the block -> generalize remove_agents_pointer), PR-C (native writes
+  inherit backup+stage+no-commit via the shared helper). No BLOCKER/HIGH. Status -> reviewed.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -36,6 +39,15 @@
   for any mainstream agent (dead-end fallback). We are NOT doing (c) detection/doctor/shadowing yet.
 - The block is identical across files (same `AGENT-WORKFLOWS:BEGIN/END`), so a repo that loads BOTH
   files (e.g. Cursor CLI) sees one small pointer duplicated - acceptable and easy to dedupe/remove.
+- PLAN-REVIEW VERIFIED (PR-B): uninstall ALREADY strips the AGENTS block via
+  `remove_agents_pointer` (engine.py:1964, called from `uninstall_repo` :1939, "leaves the user's own
+  AGENTS prose intact"). So change #3 GENERALIZES `remove_agents_pointer`, not net-new behavior. The
+  marker-merge write logic is currently INLINE in `update_agents_pointer` (engine.py:1026-1053), so
+  "factor into a shared helper" is accurate and the right refactor.
+- PLAN-REVIEW VERIFIED (PR-C): the AGENTS write contract already backs up before first edit and stages
+  (never commits); the native-file writes MUST inherit the same backup+stage+no-commit behavior (the
+  shared helper gives this for free). Confirm the backup path (`create_backup_path`) is used for each
+  native file too, so a user's pre-existing CLAUDE.md/GEMINI.md is backed up before its first edit.
 - House rule: no em dashes in authored Markdown.
 
 ## Proposed changes (ordered, validatable)
@@ -50,8 +62,10 @@
    context and pick a side the repo did not choose).
 2. **Report each mirrored file** in the install summary (e.g. `CLAUDE.md: refreshed workflow pointer`
    / `GEMINI.md: not present (skipped)`), consistent with the existing `AGENTS.md:` status line.
-3. **Uninstall symmetry.** `aw uninstall` must remove the managed block from the native files too
-   (only the block, leaving user content), matching how it treats AGENTS.md.
+3. **Uninstall symmetry.** Generalize `remove_agents_pointer` (engine.py:1963-1964) so `uninstall_repo`
+   removes the managed block from the native files too (only the block, leaving user content), matching
+   AGENTS.md. A native file left with ONLY the block + whitespace after removal is still left in place
+   (we never created it, so we never delete the user's file - only our block).
 4. **Tests** (`tests/test_installer.py` / `test_cli.py`): existing `CLAUDE.md` gets the block
    (idempotent re-run = one block; user prose preserved; malformed marker -> safe append); existing
    `GEMINI.md` likewise; ABSENT native file is NOT created; dry-run reports without writing; uninstall
@@ -82,9 +96,26 @@
    nested are the user's domain, not ours to edit.)
 3. Should mirroring be default-on, or gated behind a flag? (Lean: default-on but ONLY for files that
    already exist - zero new files, minimal intrusion, so default-on is safe and matches the goal.)
-4. Confirm uninstall removes the block from native files by default (symmetry).
+4. Uninstall symmetry: RESOLVED (PR-B) - uninstall already strips the AGENTS block via
+   `remove_agents_pointer`; generalize it to the native files. Confirmed by source, not deferred.
+
+## Plan-review record (2026-07-12)
+
+Reviewed by `/plan-review` (its_direct/pt3-claude-opus-4.8-1m-us). Verdict: **APPROVE WITH REVISIONS
+APPLIED** (pending human sign-off). Evidence re-opened against source:
+- PR-B (verified, tightened): uninstall ALREADY removes the AGENTS block (`remove_agents_pointer`,
+  engine.py:1963-1964); change #3 generalizes that function rather than adding new behavior. Also
+  confirmed the never-delete-the-user's-file rule (we only strip our block).
+- PR-C (guardrail added): the shared write helper must carry the existing backup-before-first-edit +
+  stage-never-commit contract to each native file (`create_backup_path` per file), so a user's
+  pre-existing CLAUDE.md/GEMINI.md is backed up before its first edit.
+- Rubric G (KISS): scope is correctly held to the core (patch existing files only; never create),
+  with detection/doctor/adapters/shadowing explicitly deferred - good complexity discipline.
+- Rubric B/H (safety/principles): never creating native files and touch-only-our-region respects
+  user-owned content (P10, "touch only its region"); no security regression.
+No BLOCKER/HIGH findings; OQ1-4 leaned/resolved. This IPD does not self-approve.
 
 ## Approval and execution gate
 
-`to-review`. Next: `/plan-review` (two-commit per D52), resolve OQs, human approve, execute changes
-1-5, validate (suite green), commit (never push), `git mv` to executed/. Not auto-executed.
+`reviewed`. Next: human approve (confirm OQ1-3 leans), execute changes 1-5, validate (suite green),
+commit (never push), `git mv` to executed/. Not auto-executed.

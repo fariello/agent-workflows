@@ -8,7 +8,7 @@ Total: 36 plan/prompt file(s).
 
 - **draft** (1)
   - `.agents/plans/pending/20260712-0014-04-agent-brain-dir-plan-and-walkthrough-mirroring.md`
-- **to-review** (3)
+- **reviewed** (3)
   - `.agents/plans/pending/20260712-0020-01-ux-and-data-modeling-principles-import.md`
   - `.agents/plans/pending/20260712-0030-01-mirror-workflow-pointer-into-native-agent-files.md`
   - `.agents/plans/pending/20260712-0033-01-agents-docs-research-and-walkthroughs-convention.md`

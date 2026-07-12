@@ -13,7 +13,7 @@
   canonical names; add an AGENTS.md directive to immortalize relied-on research; docs + DECISIONS.
   ABSORBS Theme D's `.agents/docs/walkthroughs/` scaffold (Theme D then shrinks to just the brain-dir
   MUST-mirror RULES).
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -21,6 +21,10 @@
 - 2026-07-12 to-review (its_direct/pt3-claude-opus-4.8-1m-us): raised by the maintainer - research we
   use should be tracked with standard names, here and in installed repos. Fleshed out against the
   D49 dir-README machinery and the plan-naming convention. Complete proposal; born to-review.
+- 2026-07-12 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED;
+  PR-D (wire ensure_docs_readmes into the install flow at engine.py:2225), PR-E (README is the
+  tracked placeholder), cross-plan note with 0030-01 (share ONE agents_pointer_block). Mechanism
+  verified against source. No BLOCKER/HIGH. Status -> reviewed.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -48,10 +52,14 @@
    and `walkthroughs/` (narrative session/feature walkthroughs). Both use
    `YYYYMMDD-HHMM-NN-<slug>.md` (walkthroughs: `...-<slug>-walkthrough.md`). Add three Category-1
    templates: `agents-docs-README.md` (overview of the docs tree + naming), plus per-bucket READMEs.
-2. **Scaffold + no-clobber READMEs.** Extend `create_setup_artifacts` to mkdir `.agents/docs/research`
-   and `.agents/docs/walkthroughs`, and add a `_DOCS_README_TARGETS` path in an `ensure_docs_readmes`
-   (mirroring `ensure_plans_readmes`) so installed repos get the tree + generated READMEs, no-clobber.
-   Wire it into the install flow next to `ensure_plans_readmes`.
+2. **Scaffold + no-clobber READMEs.** Extend `create_setup_artifacts` (engine.py:2142, which already
+   mkdirs the plan buckets via `PLAN_LIFECYCLE_SUBDIRS` :2158/2167) to mkdir `.agents/docs/research`
+   and `.agents/docs/walkthroughs`, and add `ensure_docs_readmes` mirroring `ensure_plans_readmes`
+   (:2104) with a `_DOCS_README_TARGETS` tuple. PR-D: WIRE the new function into the install flow at
+   the same call site as `ensure_workflow_artifacts_readme` / `ensure_plans_readmes` (engine.py:2225),
+   else it is dead code. PR-E: the generated README is the tracked placeholder that keeps each
+   otherwise-empty bucket in git (git does not track empty dirs) - intended, not a workaround.
+   No-clobber, staged, dry-run aware, exactly like the plans READMEs.
 3. **`setup-repo` awareness.** Update `setup-repo.md` to list `.agents/docs/{research,walkthroughs}/`
    among the scaffolded lifecycle dirs and describe the naming + immortalize-research contract.
 4. **Migrate current artifacts.** `git mv` the two `docs/research/*` files into `.agents/docs/research/`
@@ -90,9 +98,28 @@
    curated, relied-on artifacts an agent chooses to immortalize, not every run.)
 4. Confirm the normalizer default scan should include `.agents/docs` or only via `--all`/`--area docs`.
 
+## Plan-review record (2026-07-12)
+
+Reviewed by `/plan-review` (its_direct/pt3-claude-opus-4.8-1m-us). Verdict: **APPROVE WITH REVISIONS
+APPLIED** (pending human sign-off). Evidence re-opened against source:
+- Mechanism VERIFIED: `PLAN_LIFECYCLE_SUBDIRS` (engine.py:1979), `ensure_plans_readmes` (:2104) +
+  its call site next to `ensure_workflow_artifacts_readme` (:2225), and `create_setup_artifacts`
+  bucket mkdirs (:2158/2167) - the `.agents/docs/` extension is a faithful mirror. Test harnesses
+  `test_setup_artifacts.py` + `test_dir_readmes.py` exist to extend.
+- PR-D (gap fixed): must WIRE `ensure_docs_readmes` into the install flow at :2225, else dead code.
+- PR-E (clarified): the generated README is the tracked git placeholder for each otherwise-empty
+  bucket (git ignores empty dirs) - intended.
+- Rubric G (KISS): OQ3 correctly keeps run-records in `workflow-artifacts/` (no migration) and OQ2
+  keeps research free-form (no forced Status lifecycle) - avoids over-modeling reference material.
+- Cross-plan (with 0030-01): both edit the AGENTS.md managed block; the shared block content must be
+  reconciled so change #6's directive text and 0030-01's mirroring use ONE block definition
+  (`agents_pointer_block`), not two - noted so execution order does not create drift.
+No BLOCKER/HIGH findings; OQ1-4 leaned. This IPD does not self-approve.
+
 ## Approval and execution gate
 
-`to-review`. Next: `/plan-review` (two-commit per D52), resolve OQs, human approve, execute changes
-1-7, validate (suite green + dogfood scaffold), commit (never push), `git mv` to executed/. Not
-auto-executed. Sequence note: independent of the native-file-mirroring IPD (20260712-0030-01) except
-that both touch the AGENTS.md managed block - reconcile against whichever lands first.
+`reviewed`. Next: human approve (confirm OQ1-4 leans), execute changes 1-7, validate (suite green +
+dogfood scaffold), commit (never push), `git mv` to executed/. Not auto-executed. Sequence note:
+independent of the native-file-mirroring IPD (20260712-0030-01) except that both touch the AGENTS.md
+managed block (`agents_pointer_block`) - reconcile against whichever lands first (ONE block
+definition).
