@@ -6,15 +6,14 @@ Total: 39 plan/prompt file(s).
 
 ## pending/ (7)
 
-- **to-review** (1)
-  - `.agents/plans/pending/20260712-1005-01-assess-tests.md`
-- **reviewed** (6)
+- **reviewed** (7)
   - `.agents/plans/pending/20260712-0014-04-agent-brain-dir-plan-and-walkthrough-mirroring.md`
   - `.agents/plans/pending/20260712-0020-01-ux-and-data-modeling-principles-import.md`
   - `.agents/plans/pending/20260712-0030-01-mirror-workflow-pointer-into-native-agent-files.md`
   - `.agents/plans/pending/20260712-0033-01-agents-docs-research-and-walkthroughs-convention.md`
   - `.agents/plans/pending/20260712-0954-01-installer-shim-detection-ctrlc-and-diff.md`
   - `.agents/plans/pending/20260712-0959-01-assess-bugs-in-scripts.md`
+  - `.agents/plans/pending/20260712-1005-01-assess-tests.md`
 
 ## executed/ (32)
 
