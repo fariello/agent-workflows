@@ -739,7 +739,8 @@ def write_file(
         if is_shim and not relative_posix.endswith("README.md"):
             try:
                 current_text = destination.read_text(encoding="utf-8")
-                if is_shim_customized(current_text):
+                expected_text = data.decode("utf-8", errors="replace")
+                if is_shim_customized_vs_expected(current_text, expected_text):
                     term = Term(plan.no_color)
                     print(
                         term.colorize(
@@ -750,15 +751,26 @@ def write_file(
                     is_interactive = is_interactive_session(plan)
                     choice = "n"
                     if is_interactive:
-                        try:
-                            choice = (
-                                input("Do you want to overwrite it? [y/N]: ")
-                                .strip()
-                                .lower()
-                            )
-                        except (KeyboardInterrupt, EOFError):
-                            print()
-                            choice = "n"
+                        while True:
+                            try:
+                                choice = (
+                                    input("Do you want to overwrite it? [y/N/d]: ")
+                                    .strip()
+                                    .lower()
+                                )
+                            except EOFError:
+                                print()
+                                choice = "n"
+                                break
+                            if choice == "d":
+                                print_shim_diff(
+                                    relative_posix,
+                                    current_text,
+                                    expected_text,
+                                    plan.no_color,
+                                )
+                                continue
+                            break
                     if not plan.yes and choice not in ("y", "yes"):
                         skipped.append(relative_posix + " [already current]")
                         return
@@ -957,7 +969,7 @@ def prune_stale(
                                 .strip()
                                 .lower()
                             )
-                        except (KeyboardInterrupt, EOFError):
+                        except EOFError:
                             print()
                             choice = "n"
                     if not plan.yes and choice not in ("y", "yes"):
@@ -1345,7 +1357,7 @@ def run_git_diagnostics(plan: InstallPlan) -> bool:
 
     try:
         val = input("Select an option [1-3, default 1]: ").strip()
-    except (KeyboardInterrupt, EOFError):
+    except EOFError:
         print()
         return False
 
@@ -1372,30 +1384,81 @@ def run_git_diagnostics(plan: InstallPlan) -> bool:
         return False
 
 
-def is_shim_customized(content: str) -> bool:
-    """Detect if a command shim file has manual user customizations."""
-    standard_prefixes = (
-        "---",
-        "description:",
-        "agent: build",
-        "argument-hint:",
-        "Read and execute @.agents/workflows",
-        "The first argument names",
-        "any further",
-        "Resolve the",
-        "Accept case-insensitive",
-        "on an unknown",
-        "If NO",
-        "Apply the concern lens @.agents/workflows",
-    )
+def normalize_text_for_compare(text: str) -> str:
+    # Normalize line endings to \n, strip trailing whitespaces, and drop empty lines
+    lines = []
+    for line in text.splitlines():
+        line = line.strip()
+        if line:
+            lines.append(line)
+    return "\n".join(lines)
+
+
+def strip_description_and_normalize(text: str) -> str:
+    # Remove lines starting with description: in the front-matter.
+    lines = []
+    for line in text.splitlines():
+        line_strip = line.strip()
+        if not line_strip:
+            continue
+        if line_strip.lower().startswith("description:"):
+            continue
+        lines.append(line_strip)
+    return "\n".join(lines)
+
+
+def is_shim_customized_vs_expected(content: str, expected: str) -> bool:
+    norm_actual = strip_description_and_normalize(content)
+    norm_expected = strip_description_and_normalize(expected)
+    return norm_actual != norm_expected
+
+
+def is_stale_shim_customized(content: str) -> bool:
+    """Decide if a stale shim (command removed from manifest) has user customizations.
+
+    If it has only generated structural lines, it is safe to delete automatically.
+    """
     lines = [line.strip() for line in content.splitlines() if line.strip()]
     if not lines:
         return False
 
+    # Must have the primary "Read and execute @.agents/workflows/..." line
     if not any(
-        line.startswith("Read and execute @.agents/workflows") for line in lines
+        line.startswith("Read and execute @.agents/workflows/") for line in lines
     ):
         return True
+
+    # Structural standard lines allowlist
+    standard_prefixes = (
+        "---",
+        "description:",
+        "agent: build",
+        'argument-hint: "[optional target path or flags]"',
+        "Read and execute @.agents/workflows/",
+        "If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS",
+        "Treat the referenced file as the controlling instruction and follow it fully.",
+        # Parameterized / lens helper prefixes:
+        "The first argument names the CONCERN to assess",
+        "any further arguments narrow the scope",
+        "Resolve the concern to its lens",
+        "Accept case-insensitive aliases and common short forms",
+        "on an unknown concern, show the closest matches.",
+        "If NO concern was given, list the available concerns",
+        "run.",
+        "Apply the concern lens @.agents/workflows/assess/lenses/",
+        "The first argument names the expert PERSONA",
+        "any further arguments name the artifact to examine",
+        "decision doc) - otherwise the persona examines the current context.",
+        "Resolve the persona to its charter",
+        "and adopt it: conduct a genuine question-driven session,",
+        "assumptions, and coach the author.",
+        "It may edit a planning/prose artifact only with per-change consent;",
+        "it never executes code. Accept case-insensitive aliases",
+        "staff-engineer, `red-team`/`adversary` -> red-teamer, `naive`/`novice` ->",
+        "ask the user which to use.",
+        "Run in planning-only mode: complete the audit and the consolidated implementation plan,",
+        "and stop before implementation.",
+    )
 
     for line in lines:
         if any(line.startswith(prefix) for prefix in standard_prefixes):
@@ -1411,11 +1474,53 @@ def is_shim_customized(content: str) -> bool:
                 "audit",
                 "conduct a",
                 "coach",
+                "accept case-insensitive",
+                "naive-user",
+                "skeptic",
+                "spec-editor",
+                "architect",
+                "red-teamer",
+                "staff-engineer",
+                "domain-expert",
             )
         ):
             continue
         return True
+
     return False
+
+
+def is_shim_customized(content: str) -> bool:
+    """Detect if a command shim file has manual user customizations."""
+    return is_stale_shim_customized(content)
+
+
+def print_shim_diff(rel: str, current: str, expected: str, no_color: bool) -> None:
+    term = Term(no_color)
+    current_lines = current.splitlines(keepends=True)
+    expected_lines = expected.splitlines(keepends=True)
+
+    print(term.colorize(f"\nDiff: {rel}", "bold"))
+
+    import difflib
+
+    diff = difflib.unified_diff(
+        current_lines,
+        expected_lines,
+        fromfile=f"a/{rel}",
+        tofile=f"b/{rel}",
+        n=3,
+    )
+    for line in diff:
+        stripped = line.rstrip("\r\n")
+        if stripped.startswith("+") and not stripped.startswith("+++"):
+            print_stdout_safe(term.colorize(stripped, "green"))
+        elif stripped.startswith("-") and not stripped.startswith("---"):
+            print_stdout_safe(term.colorize(stripped, "red"))
+        elif stripped.startswith("@@"):
+            print_stdout_safe(term.colorize(stripped, "cyan"))
+        else:
+            print_stdout_safe(stripped)
 
 
 def save_created_files_record(
@@ -1696,7 +1801,7 @@ def prompt_and_run_commit(
             )
             if choice not in ("", "y", "yes"):
                 is_interactive = False
-        except (KeyboardInterrupt, EOFError):
+        except EOFError:
             print()
             is_interactive = False
 

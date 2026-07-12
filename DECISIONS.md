@@ -1897,3 +1897,15 @@ both execute the (large) set well.
   time-boxed to the experiment.
 - **Deferred:** choosing the winner and collapsing to one form; any parity/generation tooling;
   applying the modular pattern to other workflows (a separate whole-family decision).
+
+### D62. Robust template-truth command-shim validation, Ctrl-C aborts, and diff view on conflict
+
+- **Problem:** Three correctness and UX issues were identified in the installer:
+  1) False customization warnings: the heuristic-based allowlist in `is_shim_customized()` drifted from generated output (specifically, flagging the `plan-review` command shims as manually modified).
+  2) Prompts swallowing interrupts: KeyboardInterrupt was caught at prompt sites, preventing Ctrl-C from aborting the installation process.
+  3) No visibility on drift: there was no way to see what differed when a shim was flagged.
+- **Decision - Template-Truth Validation:** Replace allowlist heuristics with template-truth comparison. A shim is customized only if it differs from what the canonical generator `shim_body(command, workflow, tool)` produces now. Normalized comparison ignores line spacing and description changes to avoid false warnings when the manifest is updated.
+- **Decision - Stale Shim Structural Fallback:** For stale shims (where the command is removed from the manifest and cannot render `shim_body`), fall back to a structural check verifying the presence of standard generated prefixes/rules. Only warn/warn-before-prune if extra human-authored lines exist.
+- **Decision - Interactive Ctrl-C and EOF Semantics:** Propagate KeyboardInterrupt up to the `main()` execution guard to cleanly cancel the run with exit code 130. Catch EOFError locally at each prompt to decline/skip the prompt and continue the run safely.
+- **Decision - Unified Diff Prompt:** Offer `[y/N/d]` at the overwrite prompt, where choosing `d` displays a unified diff (current on-disk vs. generated expected content) using `difflib.unified_diff`, then re-prompts.
+- **Applied:** `agent_workflows/engine.py` (rewritten `is_shim_customized`, added `is_shim_customized_vs_expected`, `print_shim_diff`, and updated the four `input()` prompt sites). Expanded `tests/test_installer.py` with 5 regression tests covering mock inputs, expected/unexpected shims, and diff output. All tests green.

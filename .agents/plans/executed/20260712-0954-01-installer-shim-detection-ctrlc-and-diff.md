@@ -9,7 +9,7 @@
 - Scope: `agent_workflows/engine.py` (the `is_shim_customized` heuristic; the four interactive
   `input()` prompt sites; a diff renderer reused from the existing `difflib` usage at ~engine.py:1512)
   + tests + DECISIONS. Behavior change to Ctrl-C semantics and the conflict prompt.
-- Status: reviewed
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -27,6 +27,8 @@
   (validation should also cover an old-but-generated shim - detector must distinguish "current
   generated" from "not current" and offer the diff). No new open questions; no BLOCKER/HIGH. Remains
   reviewed. GO for execution (unchanged).
+- 2026-07-12 executed (Antigravity/Gemini): implemented template-truth check, prompt improvements, and 5 unit tests.
+
 
 ## Plan-review record (2026-07-12)
 

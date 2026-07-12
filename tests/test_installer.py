@@ -10,8 +10,9 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from tests.support import REPO_ROOT, INSTALLER, init_repo, run_installer, load_module
+from tests.support import REPO_ROOT, init_repo, run_installer
 
 # The install engine now lives in the agent_workflows package (IPD-2). Import it directly
 # for the unit tests; the root install-workflows.py is a thin deprecated shim exercised by
@@ -34,7 +35,9 @@ class InstallerUnitTests(unittest.TestCase):
         self.assertIn("advise-skeptic", commands)
 
     def test_catalog_rows_are_recognized(self):
-        mk = lambda c: INS.Workflow(command=c, body="b", description="d")
+        def mk(c):
+            return INS.Workflow(command=c, body="b", description="d")
+
         self.assertTrue(INS.is_concern_catalog_row(mk("assess-security")))
         self.assertTrue(INS.is_concern_catalog_row(mk("advise-skeptic")))
         self.assertFalse(INS.is_concern_catalog_row(mk("assess")))
@@ -61,6 +64,7 @@ class InstallerUnitTests(unittest.TestCase):
         # the resolver (a semver/.dev string), not necessarily the raw VERSION file.
         source = REPO_ROOT / ".agents" / "workflows"
         from agent_workflows import versioning as VER
+
         expected = VER.resolve_version(source, version_file=source / "VERSION")
         self.assertEqual(INS.read_version(source), expected)
 
@@ -138,28 +142,39 @@ class InstallerEndToEndTests(unittest.TestCase):
 
     def test_idempotent_rerun(self):
         run_installer(self.repo)
-        before = sorted(p.relative_to(self.repo).as_posix()
-                        for p in self.repo.rglob("*") if p.is_file())
+        before = sorted(
+            p.relative_to(self.repo).as_posix()
+            for p in self.repo.rglob("*")
+            if p.is_file()
+        )
         proc = run_installer(self.repo)
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        after = sorted(p.relative_to(self.repo).as_posix()
-                       for p in self.repo.rglob("*") if p.is_file())
+        after = sorted(
+            p.relative_to(self.repo).as_posix()
+            for p in self.repo.rglob("*")
+            if p.is_file()
+        )
         self.assertEqual(before, after, "re-run changed the set of files")
 
     def test_dry_run_makes_no_changes(self):
         proc = run_installer(self.repo, "--dry-run")
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertFalse((self.repo / ".agents/workflows/index.md").exists(),
-                         "dry-run wrote files")
+        self.assertFalse(
+            (self.repo / ".agents/workflows/index.md").exists(), "dry-run wrote files"
+        )
         self.assertFalse((self.repo / ".opencode/commands/assess.md").exists())
 
     def test_prune_removes_legacy_assess_shims(self):
         run_installer(self.repo)
         # Simulate an older install that had per-concern shims.
         legacy = self.repo / ".opencode/commands/assess-security.md"
-        legacy.write_text("Read and execute @.agents/workflows/assess-security\n", encoding="utf-8")
+        legacy.write_text(
+            "Read and execute @.agents/workflows/assess-security\n", encoding="utf-8"
+        )
         legacy2 = self.repo / ".claude/commands/assess-prose.md"
-        legacy2.write_text("Read and execute @.agents/workflows/assess-prose\n", encoding="utf-8")
+        legacy2.write_text(
+            "Read and execute @.agents/workflows/assess-prose\n", encoding="utf-8"
+        )
         proc = run_installer(self.repo)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertFalse(legacy.exists(), "stale assess-security shim not pruned")
@@ -168,7 +183,9 @@ class InstallerEndToEndTests(unittest.TestCase):
     def test_no_prune_keeps_stale(self):
         run_installer(self.repo)
         legacy = self.repo / ".opencode/commands/assess-security.md"
-        legacy.write_text("Read and execute @.agents/workflows/assess-security\n", encoding="utf-8")
+        legacy.write_text(
+            "Read and execute @.agents/workflows/assess-security\n", encoding="utf-8"
+        )
         run_installer(self.repo, "--no-prune")
         self.assertTrue(legacy.exists(), "--no-prune should not remove stale files")
 
@@ -178,6 +195,7 @@ class InstallerEndToEndTests(unittest.TestCase):
         legacy_dir.mkdir(parents=True)
         (legacy_dir / "README.md").write_text("legacy runbook\n", encoding="utf-8")
         from tests.support import git
+
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", "legacy layout")
         proc = run_installer(self.repo)
@@ -197,6 +215,7 @@ class InstallerEndToEndTests(unittest.TestCase):
     def test_tool_scripts_are_executable_and_staged(self):
         import os
         from tests.support import git
+
         run_installer(self.repo)
         tool = self.repo / ".agents/workflows/assess/tools/scan_secrets.py"
         # The re-run-leaves-nothing-unstaged idempotency guarantee holds on every OS.
@@ -210,13 +229,22 @@ class InstallerEndToEndTests(unittest.TestCase):
         # The POSIX executable-bit assertions are meaningful only on POSIX: Windows has no
         # mode exec bit and git there records 100644. Skip the mode checks on Windows.
         if os.name == "posix":
-            self.assertTrue(tool.stat().st_mode & 0o111, "tool script is not executable")
-            indexed = git(self.repo, "ls-files", "-s",
-                          ".agents/workflows/assess/tools/scan_secrets.py").stdout
-            self.assertTrue(indexed.startswith("100755"), f"exec bit not in index: {indexed!r}")
+            self.assertTrue(
+                tool.stat().st_mode & 0o111, "tool script is not executable"
+            )
+            indexed = git(
+                self.repo,
+                "ls-files",
+                "-s",
+                ".agents/workflows/assess/tools/scan_secrets.py",
+            ).stdout
+            self.assertTrue(
+                indexed.startswith("100755"), f"exec bit not in index: {indexed!r}"
+            )
 
     def test_gitignored_opencode_does_not_abort(self):
         from tests.support import git
+
         (self.repo / ".gitignore").write_text(".opencode/\n", encoding="utf-8")
         git(self.repo, "add", ".gitignore")
         git(self.repo, "commit", "-q", "-m", "ignore opencode")
@@ -247,8 +275,14 @@ class InstallerEndToEndTests(unittest.TestCase):
             self.assertTrue(path.is_file(), f"README not created: {path}")
 
         # Verify they contain expected indicators
-        self.assertIn("auto-generated", (self.repo / ".opencode/commands/README.md").read_text(encoding="utf-8"))
-        self.assertIn("Git Guidelines", (self.repo / "workflow-artifacts/README.md").read_text(encoding="utf-8"))
+        self.assertIn(
+            "auto-generated",
+            (self.repo / ".opencode/commands/README.md").read_text(encoding="utf-8"),
+        )
+        self.assertIn(
+            "Git Guidelines",
+            (self.repo / "workflow-artifacts/README.md").read_text(encoding="utf-8"),
+        )
 
         # 2) Re-run preserves customized workflow-artifacts/README.md
         custom_path = self.repo / "workflow-artifacts/README.md"
@@ -258,7 +292,11 @@ class InstallerEndToEndTests(unittest.TestCase):
         # Run installer again
         proc = run_installer(self.repo)
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertEqual(custom_path.read_text(encoding="utf-8"), custom_content, "Custom README content was overwritten!")
+        self.assertEqual(
+            custom_path.read_text(encoding="utf-8"),
+            custom_content,
+            "Custom README content was overwritten!",
+        )
 
     def test_shim_readme_is_not_pruned(self):
         # Run installer to write shims
@@ -275,27 +313,27 @@ class InstallerEndToEndTests(unittest.TestCase):
         # 1) Install the framework
         proc = run_installer(self.repo)
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        
+
         target_file = self.repo / ".agents/workflows/index.md"
         original_text = target_file.read_text(encoding="utf-8")
-        
+
         # Modify the target file
         target_file.write_text("MODIFIED CONTENT", encoding="utf-8")
-        
+
         # 2) Run installer again to trigger an overwrite and backup
         proc2 = run_installer(self.repo)
         self.assertEqual(proc2.returncode, 0, proc2.stderr)
-        
+
         # Verify it got overwritten back to original content
         self.assertEqual(target_file.read_text(encoding="utf-8"), original_text)
-        
+
         # Now modify it again, so we can test rollback
         target_file.write_text("MODIFIED CONTENT SECOND TIME", encoding="utf-8")
-        
+
         # Run rollback
         proc_undo = run_installer(self.repo, "--undo")
         self.assertEqual(proc_undo.returncode, 0, proc_undo.stderr)
-        
+
         # Verify it got rolled back to the backup state ("MODIFIED CONTENT" from before the second install!)
         self.assertEqual(target_file.read_text(encoding="utf-8"), "MODIFIED CONTENT")
 
@@ -303,41 +341,45 @@ class InstallerEndToEndTests(unittest.TestCase):
         # 1) Install once so backups dir is created
         proc = run_installer(self.repo)
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        
+
         backups_dir = self.repo / ".agent-workflows-installer-backups"
         backups_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # 2) Create 7 mock backup directories manually
         for i in range(7):
             (backups_dir / f"20260709-12000{i}").mkdir(parents=True, exist_ok=True)
-            
+
         # 3) Run installer again with --yes to trigger pruning (since one more run occurs, it's 8 runs total)
         proc2 = run_installer(self.repo, "--yes")
         self.assertEqual(proc2.returncode, 0, proc2.stderr)
-        
+
         # 4) Verify only 5 backup directories exist under .agent-workflows-installer-backups/
         self.assertTrue(backups_dir.is_dir())
-        subdirs = sorted([d for d in backups_dir.iterdir() if d.is_dir()], key=lambda d: d.name)
+        subdirs = sorted(
+            [d for d in backups_dir.iterdir() if d.is_dir()], key=lambda d: d.name
+        )
         self.assertEqual(len(subdirs), 5)
 
     def test_customization_protection(self):
         # Install shims first
         proc = run_installer(self.repo)
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        
+
         shim_file = self.repo / ".opencode/commands/assess.md"
         self.assertTrue(shim_file.is_file())
-        
+
         # Manually customize the shim
-        custom_content = "---\ndescription: My custom assessment\n---\nCustom instructions here."
+        custom_content = (
+            "---\ndescription: My custom assessment\n---\nCustom instructions here."
+        )
         shim_file.write_text(custom_content, encoding="utf-8")
-        
+
         # Run installer without --yes (non-interactive mock skips customization overwrite by default)
         proc2 = run_installer(self.repo)
         self.assertEqual(proc2.returncode, 0, proc2.stderr)
         # Content should remain customized
         self.assertEqual(shim_file.read_text(encoding="utf-8"), custom_content)
-        
+
         # Run installer with --yes
         proc3 = run_installer(self.repo, "--yes")
         self.assertEqual(proc3.returncode, 0, proc3.stderr)
@@ -353,6 +395,137 @@ class InstallerEndToEndTests(unittest.TestCase):
         # Confirm no files were written to disk
         workflows_dir = self.repo / ".agents/workflows"
         self.assertFalse(workflows_dir.exists())
+
+    def test_shim_expected_does_not_warn(self):
+        # Every shim generated from the manifest must NOT be flagged as customized
+        source = REPO_ROOT / ".agents" / "workflows"
+        workflows = INS.parse_manifest(source)
+        shims = INS.generate_shim_members(workflows, source)
+        for rel, content in shims.items():
+            if rel.endswith("README.md"):
+                continue
+            self.assertFalse(
+                INS.is_shim_customized_vs_expected(content, content),
+                f"Generated shim {rel} was flagged as customized vs expected",
+            )
+            self.assertFalse(
+                INS.is_shim_customized(content),
+                f"Generated shim {rel} was flagged as customized by fallback check",
+            )
+
+    def test_hand_edited_and_legacy_shims(self):
+        # Genuinely hand-edited content is customized
+        hand_edited = "---\ndescription: custom\n---\nSome user note here."
+        self.assertTrue(INS.is_shim_customized(hand_edited))
+
+        # A shim with an old/prior template format is differing (not current expected)
+        old_template = (
+            "---\ndescription: plan-review\nagent: build\n---\n"
+            "Read and execute @.agents/workflows/plan-review\n"
+            "Accept case-insensitive options..."
+        )
+        current_expected = (
+            "---\ndescription: plan-review\nagent: build\n---\n"
+            "Read and execute @.agents/workflows/plan-review-long\n"
+            "Accept case-insensitive options..."
+        )
+        self.assertTrue(
+            INS.is_shim_customized_vs_expected(old_template, current_expected)
+        )
+
+    @mock.patch("builtins.input")
+    def test_ctrl_c_aborts_install(self, mock_input):
+        mock_input.side_effect = KeyboardInterrupt()
+        # Install once to set up
+        run_installer(self.repo)
+
+        # Commit the installation so the repo is clean
+        from tests.support import git
+
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "initial install")
+
+        # Modify a shim to trigger the overwrite prompt
+        shim_file = self.repo / ".opencode/commands/assess.md"
+        shim_file.write_text(
+            "Read and execute @.agents/workflows/assess.md\nCustomized lines here\n",
+            encoding="utf-8",
+        )
+
+        # Commit customization to keep git status clean
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "customize shim")
+
+        # We run the installer main() in-process to check if KeyboardInterrupt returns 130
+        argv = ["--repo", str(self.repo)]
+
+        # KeyboardInterrupt should propagate to main and return 130
+        res = INS.main(argv)
+        self.assertEqual(res, 130)
+
+    @mock.patch("builtins.input")
+    def test_eof_declines_install(self, mock_input):
+        mock_input.side_effect = EOFError()
+        # Install once
+        run_installer(self.repo)
+
+        # Commit the installation so the repo is clean for the next run
+        from tests.support import git
+
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "initial install")
+
+        # Modify a shim to trigger overwrite
+        shim_file = self.repo / ".opencode/commands/assess.md"
+        shim_file.write_text(
+            "Read and execute @.agents/workflows/assess.md\nCustomized lines here\n",
+            encoding="utf-8",
+        )
+
+        # Commit customization to keep git status clean
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "customize shim")
+
+        # EOFError at the prompt should decline (safe default) and continue, exiting 0
+        argv = ["--repo", str(self.repo)]
+        res = INS.main(argv)
+        self.assertEqual(res, 0)
+        # Content remains customized because EOF declined overwrite
+        self.assertIn("Customized lines here", shim_file.read_text(encoding="utf-8"))
+
+    @mock.patch("builtins.input")
+    def test_diff_option_re_prompts(self, mock_input):
+        # First return 'd' (diff), then 'n' (decline)
+        mock_input.side_effect = ["d", "n"]
+        run_installer(self.repo)
+
+        # Commit the installation so the repo is clean for the next run
+        from tests.support import git
+
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "initial install")
+
+        shim_file = self.repo / ".opencode/commands/assess.md"
+        shim_file.write_text(
+            "Read and execute @.agents/workflows/assess.md\nCustomized lines here\n",
+            encoding="utf-8",
+        )
+
+        # Commit customization to keep git status clean
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "customize shim")
+
+        import io
+        from contextlib import redirect_stdout
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            INS.main(["--repo", str(self.repo)])
+
+        output = buf.getvalue()
+        # Should have printed the diff
+        self.assertIn("Diff:", output)
+        self.assertIn("-Customized lines here", output)
 
 
 if __name__ == "__main__":
