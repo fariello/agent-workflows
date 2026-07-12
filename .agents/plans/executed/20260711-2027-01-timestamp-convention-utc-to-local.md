@@ -15,7 +15,9 @@
   "prefer UTC" for logs; `bench_env.py` `captured_at_utc` ISO-8601 field) and the dev-version-string
   date segment (`versioning.py:52`). Touches: `normalize_plan_names.py` date-derivation (real UTC
   code) + ~24 authored docs stating "UTC" for plan/RUN_ID names.
-- Status: reviewed
+- Status: executed
+- Approval: approved by maintainer 2026-07-11 (reviewed; OQ3 resolved - `versioning.py:52` version
+  date stays UTC, excluded). Executed 2026-07-11 (changes 1-5); full suite green (178 tests).
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -32,8 +34,14 @@
   those docs are simply WRONG today and flipping the prose to "local" makes docs match code (no code
   change there); (TL-3) `bench_env.py:625 captured_at_utc` and `logging-audit.md:32` are
   telemetry/log timestamps, NOT filenames - EXCLUDED; (TL-4) `versioning.py:52 _utc_date()` is a
-  dev-VERSION-string segment, a distinct concern - EXCLUDED pending maintainer confirm. Status ->
-  reviewed.
+   dev-VERSION-string segment, a distinct concern - EXCLUDED pending maintainer confirm. Status ->
+   reviewed.
+- 2026-07-11 approved (maintainer): OQ3 resolved (versioning.py stays UTC, excluded). Status ->
+  approved.
+- 2026-07-11 executed (its_direct/pt3-claude-opus-4.8-1m-us): normalizer local-time code + ~12 doc
+  reconciliations + DECISIONS D55 + local-time guard tests, committed 5828f04. Full suite green (178).
+  Status -> executed; git mv to executed/.
+
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
