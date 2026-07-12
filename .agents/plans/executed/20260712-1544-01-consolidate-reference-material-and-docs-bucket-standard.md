@@ -16,7 +16,7 @@
   update every reference (README, ARCHITECTURE, CONTRIBUTING, the `spec` workflow, `prompts/README.md`,
   the reversed decisions), the packaging test, and DECISIONS. Touches `agent_workflows/engine.py`
   (`DOCS_SUBDIRS` + a new docs-bucket README template) and `tests/test_packaging.py`.
-- Status: reviewed
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -35,6 +35,20 @@
   prompts README; RENAME moved files to convention; document `roadmaps/` but do NOT ship it in
   DOCS_SUBDIRS (reconciled change #1 accordingly); next-free DECISIONS number. All cited path:line
   claims verified accurate. No BLOCKER/HIGH. Status -> reviewed.
+
+- 2026-07-12 executed (its_direct/pt3-claude-opus-4.8-1m-us): implemented changes 1-7. Established the
+  non-limiting `.agents/docs/` bucket standard (README template + new `specs`/`prompts` bucket
+  templates; `DOCS_SUBDIRS` += `specs`,`prompts`; `roadmaps` documented but NOT shipped, per OQ3);
+  `git mv` of the 5 prompts files -> `.agents/docs/prompts/` (rich README kept, no-clobber) and the 2
+  `docs/specs/` files -> `.agents/docs/{specs,research}/` renamed to convention (OQ2); retired root
+  `docs/`+`prompts/`; updated `spec.md:24`, README/ARCHITECTURE/CONTRIBUTING/DECISIONS:65, a dated
+  CORRECTION note in the moved pip spec; packaging test (dropped stale FORBIDDEN_TOP roots + added
+  `.agents/{docs,plans,prompts}` no-ship assertion); `test_setup_artifacts.py` gitkeep count 9 -> 11
+  (in-scope consequence of the DOCS_SUBDIRS change). Left generic-example refs and `.agents/docs/
+  roadmaps/` untouched. DECISIONS D73. Validated: full suite `212 passed`; packaging test green;
+  `aw plan-names` clean; docs READMEs in sync. Pre-commit end-of-file-fixer normalized a trailing
+  newline on one moved historical prompt (cosmetic). Committed path-scoped `09730e4` (never pushed).
+  Pre-existing `Term(<bool>)` LSP diagnostics in engine.py left untouched (out of scope).
 
 ## Plan-review record (2026-07-12)
 
