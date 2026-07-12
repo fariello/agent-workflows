@@ -10,10 +10,11 @@
 - Scope: `agent_workflows/cli.py` (signal handling wrapper + setup loop), possibly `engine.py`
   input sites, a new `aw plan-names` (working name) verb delegating to the existing normalizer, and
   docs/help. No new config format (keep `config.json`); no `/setup-repo` rename.
-- Status: approved
+- Status: executed
 - Approval: approved by maintainer 2026-07-12 (reviewed; OQ1-5 leans confirmed - verb `aw plan-names`;
   normalizer stays in place + loaded via _compat; CTRL-C guard returns 130 in cli.main + engine.main;
-  setup warns-but-allows non-existent dirs; exit 130 for SIGINT). Ready to execute changes 1-5.
+  setup warns-but-allows non-existent dirs; exit 130 for SIGINT). Executed 2026-07-12 (changes 1-5);
+  full suite green (183 tests).
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -31,6 +32,10 @@
   `sys.exit()` inside it (else it breaks in-process tests / raises SystemExit mid-call); PC-2 apply the
   same return-code guard shape to `engine.main()`; PC-3 the CTRL-C test patches `input` to raise
   KeyboardInterrupt and asserts `main()` returns 130 with no traceback escaping. Status -> reviewed.
+- 2026-07-12 approved (maintainer): OQ1-5 leans confirmed. Status -> approved.
+- 2026-07-12 executed (its_direct/pt3-claude-opus-4.8-1m-us): CTRL-C/EOF guard in cli.main +
+  engine.main (08f369d), validating setup loop, aw plan-names verb; README + DECISIONS D56 + 5 CLI
+  tests (b80519a). Full suite green (183). Status -> executed; git mv to executed/.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
