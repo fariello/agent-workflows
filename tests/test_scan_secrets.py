@@ -104,6 +104,41 @@ class ScannerEndToEndTests(unittest.TestCase):
             data["summary"]["total"], 1, "secret in history not found"
         )
 
+    def test_scan_history_reports_correct_offset(self):
+        # A secret introduced at a KNOWN line offset in history must be reported at that exact
+        # line, not the old default of :1 (IPD 20260712-1052-01).
+        f = self.repo / "offset_leak.txt"
+        f.write_text(
+            f"line one\nline two\nline three\nkey={FAKE_AWS_KEY}\n", encoding="utf-8"
+        )
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "planted at line 4")
+        f.unlink()
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "remove")
+        proc = run_tool(
+            SCANNER,
+            "--repo",
+            str(self.repo),
+            "--format",
+            "json",
+            "--history-only",
+            "--no-external",
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        data = json.loads(proc.stdout)
+        aws = [
+            f
+            for f in data["findings"]
+            if f["rule"] == "aws-access-key-id" and "offset_leak.txt" in f["location"]
+        ]
+        self.assertTrue(aws, "planted AWS key not found in history")
+        # location is "<commit>:<file>:<line>"; the secret was on line 4.
+        self.assertTrue(
+            aws[0]["location"].endswith(":4"),
+            f"expected the finding at line 4, got {aws[0]['location']!r}",
+        )
+
     def test_clean_repo_reports_zero(self):
         (self.repo / "readme.md").write_text("nothing to see here\n", encoding="utf-8")
         proc = run_tool(

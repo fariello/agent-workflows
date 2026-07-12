@@ -344,6 +344,7 @@ def scan_text(
     use_entropy: bool,
     use_pii: bool,
     commit: str = "",
+    start_line: int = 1,
 ) -> list[Finding]:
     findings: list[Finding] = []
     lines = text.splitlines()
@@ -354,8 +355,10 @@ def scan_text(
             matched = m.group(0)
             if name == "credit-card-candidate" and not luhn_ok(matched):
                 continue
-            # line number (1-based) for working-tree; approximate for blobs
-            line_no = text.count("\n", 0, m.start()) + 1
+            # Line number of the match, offset by start_line so a caller scanning a fragment
+            # (e.g. a single added history line at a known target-file line) reports the real
+            # line. Defaults to 1, so whole-file callers are unaffected.
+            line_no = text.count("\n", 0, m.start()) + start_line
             loc = f"{location}:{line_no}"
             findings.append(
                 Finding(
@@ -369,7 +372,7 @@ def scan_text(
                 )
             )
     if use_entropy:
-        for i, line in enumerate(lines, 1):
+        for i, line in enumerate(lines, start_line):
             for tok in HIGH_ENTROPY_TOKEN.findall(line):
                 if len(tok) < 24:
                     continue
@@ -502,6 +505,7 @@ def scan_history(
 
     commit = ""
     cur_file = ""
+    line_no = 0  # current target-file line number of the next added line in the hunk
     for raw in proc.stdout.splitlines():
         if "\x00" in raw and re.match(r"^[0-9a-f]{7,40}\x00", raw):
             commit = raw.split("\x00", 1)[0]
@@ -509,14 +513,19 @@ def scan_history(
             continue
         if raw.startswith("+++ b/"):
             cur_file = raw[6:]
+            line_no = 0
             continue
         if raw.startswith("@@"):
+            # Hunk header: @@ -a,b +c,d @@ -> added lines start at target line c.
+            m = re.match(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@", raw)
+            line_no = int(m.group(1)) if m else 0
             continue
         if cur_file and is_skipped_path(cur_file):
             continue
         if raw.startswith("+") and not raw.startswith("+++"):
             added = raw[1:]
-            # scan just this added line
+            # Scan just this added line, telling scan_text its real target-file line number
+            # so history findings report the exact line instead of :1.
             for f in scan_text(
                 added,
                 "history",
@@ -524,8 +533,11 @@ def scan_history(
                 use_entropy,
                 use_pii,
                 commit=commit,
+                start_line=line_no if line_no else 1,
             ):
                 findings.append(f)
+            if line_no:
+                line_no += 1
     return findings
 
 
