@@ -11,13 +11,18 @@
 - Scope: extend the D52 readiness vocabulary with `auto-approved`; update the shared parser
   (`agent_workflows/plans.py`), the drift-guard test, the IPD template, the `aw plans` board ordering,
   DECISIONS, and wire `/verify-execution` (IPD 20260712-1031-01) to emit it under strict criteria.
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
 
 - 2026-07-12 to-review (its_direct/pt3-claude-opus-4.8-1m-us): decided interactively with the
   maintainer while designing /verify-execution. Complete proposal; born to-review.
+- 2026-07-12 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED.
+  Verified against source: PRE_TERMINAL (plans.py:22) is the single vocab source, drift-guard imports
+  RECOGNIZED/DIR_TERMINAL/LEGACY_MAP from it, and auto-approved is pre-terminal so the terminal-vs-dir
+  rule is unaffected. All 3 OQs resolved interactively (complexity-not-file-count bar; name
+  auto-approved; checker-only). Fixed the DECISIONS number (D65; D64 already taken). Status -> reviewed.
 
 ## Decision taken (maintainer, 2026-07-12)
 
@@ -51,14 +56,20 @@ goes through human `approved`.
    with `Status: auto-approved` must live in `pending/`, not a terminal dir).
 3. **IPD template + D52 legend.** Add `auto-approved` to the vocabulary comment in
    `templates/ipd.md` and to DECISIONS D52's enumerated set, defined as: "ready to execute, cleared by
-   an automated check rather than a human; used for small mechanical correctives (see D64)".
-4. **Wire `/verify-execution` (IPD 20260712-1031-01) to emit `auto-approved` under STRICT criteria.**
-   The corrective IPD is born `auto-approved` ONLY when ALL hold:
+   an automated check rather than a human; used for low-complexity mechanical correctives (see D65)".
+4. **Wire `/verify-execution` (IPD 20260712-1031-01) to emit `auto-approved` under criteria judged by
+   COMPLEXITY/RISK, not file count (OQ1 resolved).** The corrective IPD is born `auto-approved` when:
    - it is fully specified ("do exactly X"), with no new design decision to make;
    - zero open questions;
-   - small blast radius (a bounded diff / few files - name a concrete cap, e.g. <= ~3 files);
-   - it CORRECTS already-reviewed work (completion/fix), not new scope.
-   Otherwise it is born `to-review`. Err toward `to-review` when unsure. Record the choice in a
+   - it CORRECTS already-reviewed work (completion/fix), not new scope; and
+   - the change is LOW-COMPLEXITY / low-risk by judgment - the axis is complexity, NOT number of
+     files. Illustration: changing `foo`->`bar` across 25 Markdown files is mechanical and fine to
+     auto-approve; "refactor biz.js" where biz.js is the security core of an API is NOT, even though
+     it is one file. Apply sound judgment and ERR TOWARD `to-review` only when genuinely UNCERTAIN
+     about complexity. Do not be super-cautious for its own sake: this is a corrective to an
+     already-hyper-cautious (reviewed) IPD, and most agentic coding ships with no IPD or review at
+     all, so a proportionate bar is appropriate.
+   Otherwise it is born `to-review`. Record the choice in a
    Workflow-history line: `auto-approved by /verify-execution (criteria: <which>)`. Add an `Approval:`
    line `auto-approved by /verify-execution <date>; not human-reviewed`.
 5. **Executor + guardrails.** Document that an executor may run an `auto-approved` IPD without human
@@ -67,9 +78,9 @@ goes through human `approved`.
    `auto-approved` outside the /verify-execution criteria - `auto-approved` is set by the CHECKING
    agent for a corrective, not by an executor to fast-track its own work.
 6. **`aw plans` board + docs.** Board displays `auto-approved` in its lifecycle slot (after
-   `approved`); README/relevant docs mention it. DECISIONS entry (D64) records the token, its meaning,
-   the strict emit criteria, the executor rule, and that it deliberately does NOT count as human
-   approval.
+   `approved`); README/relevant docs mention it. DECISIONS entry (D65 - note D64 already exists)
+   records the token, its meaning, the complexity-based emit criteria, the executor rule, and that it
+   deliberately does NOT count as human approval.
 
 ## Deferred / out of scope
 
@@ -78,16 +89,16 @@ goes through human `approved`.
 - A hard machine gate enforcing the "strict criteria" (advisory-first per D52; the criteria are prose
   the checking agent applies, plus the recorded rationale for audit).
 
-## Open questions (v1 leans for review)
+## Open questions (RESOLVED with maintainer 2026-07-12)
 
-1. Blast-radius cap for auto-approval: a concrete number (e.g. <= 3 files AND no new function/public
-   API) vs. a judgment call. (Lean: name a soft cap of ~3 files + "no new design decision", and
-   downshift to to-review above it - concrete enough to be consistent, with judgment for edge cases.)
-2. Token name: `auto-approved` vs `ready` vs `machine-approved`. (Lean: `auto-approved` - reads as a
-   sibling of approved, clearly not human.)
-3. Should `auto-approved` also be allowed for a human to set manually (a fast-track), or ONLY by an
-   automated checker? (Lean: only by an automated checker; a human who wants fast-track just uses
-   `approved`. Keeps the token's meaning precise.)
+1. Auto-approval bar: RESOLVED - judged by COMPLEXITY/RISK, NOT file count. A large-but-mechanical
+   change (e.g. `foo`->`bar` across 25 files) can auto-approve; a small-but-risky one (refactoring an
+   API's security core) cannot. Sound judgment, err toward `to-review` only on genuine complexity
+   uncertainty; do not be super-cautious for its own sake (we are already correcting a hyper-cautious
+   reviewed IPD). See change #4.
+2. Token name: RESOLVED - `auto-approved` (a clear sibling of `approved`, obviously not human).
+3. Who may set it: RESOLVED - ONLY an automated checker (e.g. /verify-execution). A human wanting a
+   fast-track just uses `approved`; keeps the token's meaning precise.
 
 ## Approval and execution gate
 

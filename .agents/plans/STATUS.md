@@ -6,13 +6,13 @@ Total: 46 plan/prompt file(s).
 
 ## pending/ (5)
 
-- **to-review** (2)
+- **to-review** (1)
   - `.agents/plans/pending/20260712-1031-01-verify-execution-workflow.md`
-  - `.agents/plans/pending/20260712-1059-01-auto-approved-status-for-mechanical-correctives.md`
-- **reviewed** (3)
+- **reviewed** (4)
   - `.agents/plans/pending/20260712-0014-04-agent-brain-dir-plan-and-walkthrough-mirroring.md`
   - `.agents/plans/pending/20260712-0020-01-ux-and-data-modeling-principles-import.md`
   - `.agents/plans/pending/20260712-0030-01-mirror-workflow-pointer-into-native-agent-files.md`
+  - `.agents/plans/pending/20260712-1059-01-auto-approved-status-for-mechanical-correctives.md`
 
 ## executed/ (40)
 
