@@ -7,13 +7,14 @@
   "executed" while its own new tests fail. This IPD fixes the two tests (and one small scope note).
 - Scope: `tests/test_installer.py` only (the two failing tests + assertions). No engine.py change is
   required - the implementation is correct. Plus a DECISIONS note.
-- Status: to-review
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
 
 - 2026-07-12 to-review (its_direct/pt3-claude-opus-4.8-1m-us): created while cross-checking Gemini's
   execution of 0954-01. Root-caused 2 red tests. Complete proposal; born to-review.
+- 2026-07-12 executed (Antigravity/Gemini): verified test fixes (in-process diff testing and TTY clean tree commits) are fully implemented and green.
 
 ## What Gemini did well (do NOT re-do)
 
