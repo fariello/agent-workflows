@@ -140,6 +140,19 @@ class ComparatorTests(unittest.TestCase):
             VER.compare("1.0.1.dev2+gaaaa", "1.0.1.dev2+gbbbb.d20260706"), 0
         )
 
+    def test_rc_versions_parse_and_order(self):
+        # An rc version (emitted by parse_describe) must be parseable and ordered.
+        self.assertIsNotNone(VER.parse_our_version("1.2.0rc1"))
+        # rc1 < rc2 < final; and rc2.dev3 < rc2 (dev sorts before its target).
+        self.assertEqual(VER.compare("1.2.0rc1", "1.2.0rc2"), -1)
+        self.assertEqual(VER.compare("1.2.0rc2", "1.2.0"), -1)
+        self.assertEqual(VER.compare("1.2.0rc2.dev3", "1.2.0rc2"), -1)
+        self.assertEqual(VER.compare("1.2.0", "1.2.0rc9"), 1)
+
+    def test_rc_status_is_not_unknown(self):
+        # A tagged rc install must report a real status, not "unknown".
+        self.assertEqual(VER.status("1.2.0rc1", "1.2.0rc1"), "current")
+
     def test_dev_number_ordering(self):
         self.assertEqual(VER.compare("1.0.1.dev1", "1.0.1.dev2"), -1)
 

@@ -84,6 +84,13 @@ class PyPIVersionTests(unittest.TestCase):
         self.assertFalse(versioning.next_version_ok("1.0.0", "1.1.0"))
         self.assertTrue(versioning.next_version_ok("0.1.0", None))  # unpublished
 
+    def test_next_version_ok_rc_and_legacy_do_not_crash(self):
+        # rc versions are comparable (no ValueError); a legacy/odd published string is
+        # treated as no-constraint rather than crashing.
+        self.assertTrue(versioning.next_version_ok("1.2.0rc1", "1.1.0"))
+        self.assertTrue(versioning.next_version_ok("1.0.1", "1.0.0rc1"))
+        self.assertTrue(versioning.next_version_ok("1.1.0", "20260704-06"))
+
     def test_latest_pypi_version_success(self):
         payload = b'{"info": {"version": "2.3.4"}}'
         cm = mock.MagicMock()

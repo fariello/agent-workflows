@@ -763,7 +763,7 @@ def write_file(
                 current_text = destination.read_text(encoding="utf-8")
                 expected_text = data.decode("utf-8", errors="replace")
                 if is_shim_customized_vs_expected(current_text, expected_text):
-                    term = Term(plan.no_color)
+                    term = Term(color=False if plan.no_color else None)
                     print(
                         term.colorize(
                             f"Warning: {relative_posix} has manual modifications.",
@@ -975,7 +975,7 @@ def prune_stale(
             try:
                 current_text = destination.read_text(encoding="utf-8")
                 if is_shim_customized(current_text):
-                    term = Term(plan.no_color)
+                    term = Term(color=False if plan.no_color else None)
                     print(
                         term.colorize(
                             f"Warning: {rel} has manual modifications and is no longer needed (stale).",
@@ -1427,7 +1427,7 @@ def run_git_diagnostics(plan: InstallPlan) -> bool:
             sys.stderr.write(f"Git Warning: {warn}\n")
         return True
 
-    term = Term(plan.no_color)
+    term = Term(color=False if plan.no_color else None)
     print()
     print(term.colorize("Git Diagnostics:", "yellow"))
     for warn in warnings:
@@ -1579,7 +1579,7 @@ def is_shim_customized(content: str) -> bool:
 
 
 def print_shim_diff(rel: str, current: str, expected: str, no_color: bool) -> None:
-    term = Term(no_color)
+    term = Term(color=False if no_color else None)
     current_lines = current.splitlines(keepends=True)
     expected_lines = expected.splitlines(keepends=True)
 
@@ -1648,7 +1648,7 @@ def show_install_diffs(
     """Generate and display a colorized unified diff of the proposed changes."""
     import difflib
 
-    term = Term(plan.no_color)
+    term = Term(color=False if plan.no_color else None)
     prefix = WORKFLOWS_DIR + "/"
     proposed: dict[str, bytes] = {}
 
@@ -1725,7 +1725,7 @@ def show_install_diffs(
 
 def run_rollback(repo_root: Path, no_color: bool) -> int:
     """Revert the last installation using the latest backup."""
-    term = Term(no_color)
+    term = Term(color=False if no_color else None)
     backups_path = repo_root / BACKUPS_DIR
     if not backups_path.is_dir():
         sys.stderr.write(
@@ -1807,7 +1807,7 @@ def prompt_and_run_commit(
     if not use_git or plan.dry_run:
         return
 
-    term = Term(plan.no_color)
+    term = Term(color=False if plan.no_color else None)
     files_to_commit: dict[str, str] = {}
 
     if artifacts:
@@ -2569,7 +2569,7 @@ def run(args: argparse.Namespace) -> int:
         plan = build_install_plan(repo_args)
 
         if len(repo_roots) > 1:
-            term = Term(plan.no_color)
+            term = Term(color=False if plan.no_color else None)
             print(term.colorize("\n========================================", "bold"))
             print(term.colorize(f"Target Repo: {plan.repo_root}", "bold"))
             print(term.colorize("========================================", "bold"))

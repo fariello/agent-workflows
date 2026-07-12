@@ -18,7 +18,6 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Software Development :: Quality Assurance",
@@ -31,6 +30,8 @@ dependencies = []
 [project.urls]
 Homepage = "https://github.com/fariello/agent-workflows"
 Repository = "https://github.com/fariello/agent-workflows"
+Issues = "https://github.com/fariello/agent-workflows/issues"
+Changelog = "https://github.com/fariello/agent-workflows/releases"
 
 # Three console scripts, all -> the same entry point (spec OQ1; collision research).
 # If `aw` is already used by another tool on your system, use `agentwf` or `agent-workflows`.

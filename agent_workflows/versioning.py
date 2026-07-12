@@ -222,9 +222,12 @@ def resolve_version(repo_root: Path, *, version_file: Optional[Path] = None) -> 
 # A legacy hand-maintained version string, e.g. "20260704-06" (pre-migration installs).
 _LEGACY_RE = re.compile(r"^\d{8}-\d+$")
 
-# Our own controlled shape: MAJOR.MINOR.PATCH[.devN][+local]
+# Our own controlled shape: MAJOR.MINOR.PATCH[rcN][.devN][+local]
+# The optional rcN pre-release segment (PEP 440 spelling) is emitted by parse_describe
+# for release-candidate tags, so the comparator must understand it too.
 _OURS_RE = re.compile(
     r"^(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)"
+    r"(?:rc(?P<rc>\d+))?"
     r"(?:\.dev(?P<dev>\d+))?"
     r"(?P<local>\+.+)?$"
 )
@@ -234,6 +237,7 @@ class Parsed(NamedTuple):
     """A parsed version in our controlled format."""
 
     release: tuple  # (major, minor, patch) ints
+    rc: Optional[int]  # rcN pre-release number, or None for a non-rc version
     dev: Optional[int]  # .devN integer, or None for a final release
     is_local: bool  # whether a +local segment is present
 
@@ -254,25 +258,32 @@ def parse_our_version(version: str) -> Optional[Parsed]:
         int(match.group("minor")),
         int(match.group("patch")),
     )
+    rc = match.group("rc")
     dev = match.group("dev")
     return Parsed(
         release=release,
+        rc=int(rc) if rc is not None else None,
         dev=int(dev) if dev is not None else None,
         is_local=match.group("local") is not None,
     )
 
 
 def _sort_key(parsed: Parsed) -> tuple:
-    """Ordering key: a ``.devN`` sorts BEFORE its final release (PEP 440 semantics).
+    """Ordering key (PEP 440 semantics).
 
-    We encode "final release" as dev-rank 1 and a dev build as dev-rank 0 with its N,
-    so ``1.0.1.dev2 < 1.0.1``. The ``+local`` segment is NOT part of ordering (presence
-    only), matching the plan: two dev builds of the same base are equally "dev".
+    Two orderings compose, both "pre-release sorts before its target":
+    - rc: a release candidate sorts BEFORE the final release of the same X.Y.Z. We encode
+      an rc as rc-rank 0 with its number, and a final (no rc) as rc-rank 1, so
+      ``1.2.0rc1 < 1.2.0rc2 < 1.2.0``.
+    - dev: a ``.devN`` sorts BEFORE its (non-dev) target, so ``1.0.1.dev2 < 1.0.1`` and
+      ``1.2.0rc2.dev3 < 1.2.0rc2``. Final/non-dev is dev-rank 1; a dev build is dev-rank 0
+      with its N.
+    The ``+local`` segment is NOT part of ordering (presence only).
     """
 
-    if parsed.dev is None:
-        return (parsed.release, 1, 0)
-    return (parsed.release, 0, parsed.dev)
+    rc_part = (0, parsed.rc) if parsed.rc is not None else (1, 0)
+    dev_part = (0, parsed.dev) if parsed.dev is not None else (1, 0)
+    return (parsed.release, rc_part, dev_part)
 
 
 def compare(a: str, b: str) -> int:
@@ -365,5 +376,10 @@ def next_version_ok(proposed: str, published: Optional[str]) -> bool:
     """
 
     if not published:
+        return True
+    # If either side is not in our controlled shape (a legacy/odd published string, or an
+    # unrecognized proposed value), treat it as "no constraint" rather than crashing: the
+    # comparator only orders our own shape. rc versions ARE our shape and compare normally.
+    if parse_our_version(proposed) is None or parse_our_version(published) is None:
         return True
     return compare(proposed, published) >= 0

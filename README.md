@@ -113,13 +113,14 @@ command for your tool. `/list-workflows` shows the full catalog.
 
 ## What you can run
 
-Thirteen core workflows - spanning onboarding (`/getting-started`), discovery (`/spec`),
-build/review (`/release-review`, `/plan-review`, `/verify`), performance (`/benchmark`),
-ship (`/release-notes`), operate (`/incident`), high-risk change (`/migrate`), setup
-(`/setup-repo`, `/scaffold`), and discovery of the toolkit itself (`/list-workflows`) -
-plus two parameterized commands, `/assess <concern>` (single-concern assessments) and
-`/advise <persona>` (expert interrogation and coaching). The table below lists the
-thirteen core workflows and `/advise` (14 rows); `/assess` has its own section after it. New here? Start with `/getting-started`. Not sure what is
+A family of core workflows - spanning onboarding (`/getting-started`), discovery (`/spec`),
+build/review (`/release-review`, `/release-review-plan`, `/plan-review`, `/plan-review-long`,
+`/verify`, `/verify-execution`), performance (`/benchmark`), ship (`/release-notes`), operate
+(`/incident`), high-risk change (`/migrate`), setup (`/setup-repo`, `/scaffold`), and discovery
+of the toolkit itself (`/list-workflows`) - plus two parameterized commands, `/assess <concern>`
+(single-concern assessments) and `/advise <persona>` (expert interrogation and coaching). The
+table below lists the core workflows and `/advise` (16 rows); `/assess` has its own section after
+it. New here? Start with `/getting-started`. Not sure what is
 available or which version is installed? Run `/list-workflows`. For any tool without native
 slash commands, run the body file shown in the manifest (`.agents/workflows/index.md`) via
 "Read and execute ...".

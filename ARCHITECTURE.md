@@ -27,6 +27,7 @@ agent-workflows/
     index.md                Workflow manifest (installer reads it to generate shims)
     release-review/         The full, all-concerns pre-release review framework
     plan-review/            Pre-execution plan reviewer (plan-time sibling)
+    plan-review-long/       Modular multi-file variant of plan-review (parity)
     assess/                 Single-concern assessment harness + per-concern lenses
       assess.md             Shared harness (assess one concern -> IPD, no auto-execute)
       lenses/               One lens per concern (performance, security, ...)
@@ -37,6 +38,7 @@ agent-workflows/
     advise/                 Interrogate-and-coach harness + persona charters
       personas/             One charter per expert persona (skeptic, architect, ...)
     verify/                 Evidence layer (proof, not self-report)
+    verify-execution/       Post-execution cross-check that a plan was truly done
       tools/run_checks.py   Discovers and runs the repo's own checks; captures evidence
     benchmark/              Guided performance benchmarking (informational)
       tools/bench_env.py    Read-only machine/environment capture + diagnosis + HPC detect
@@ -54,7 +56,7 @@ agent-workflows/
                             prompts, roadmaps)
     prompts/                Historical/reference prompt library (e.g. fix-bar.md, an
                             origin note for the Fix Bar; see its README)
-  .opencode/commands/       Generated OpenCode shims (one per command, 16)
+  .opencode/commands/       Generated OpenCode shims (one per command, 18)
   .claude/commands/         Generated Claude Code shims (same set)
 ```
 
