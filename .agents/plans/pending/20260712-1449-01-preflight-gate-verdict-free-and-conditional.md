@@ -12,10 +12,14 @@
   "if anything looks worth handling first"); and (c) example phrasing that primes a release-readiness
   framing ("these look like they might need attention before release ... or proceed?").
 - Scope: `.agents/workflows/release-review/00-run-protocol.md` (the pre-flight gate definition,
-  :197-205) and `.agents/workflows/release-review/01-current-state.md` (the pointer to it, :40 + exit
-  gate :102). Docs/DECISIONS. Prose-only workflow change; the Section 8 terminal GO/NO-GO gate + 3-rung
+  :197-205), `.agents/workflows/release-review/01-current-state.md` (the pointer to it, :40 + exit
+  gate :102), and `.agents/workflows/release-review/README.md:68` (the runbook's own pre-flight summary,
+  which also says "ask ONCE" and must not contradict the new conditional behavior; added by
+  /plan-review-long PB-1); and, per OQ2 (hoist), the plan-review Memory kernels
+  (`plan-review/plan-review.md`, `plan-review-long/plan-review-long.md`) gain the one-line no-verdict-leak
+  principle. Docs/DECISIONS. Prose-only workflow change; the Section 8 terminal GO/NO-GO gate + 3-rung
   consent tree is UNCHANGED (it stays an unconditional interactive ask on every run).
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -25,6 +29,25 @@
   real signal exists (pending plans/prompts, status/location mismatch, obvious blocker), skips silently
   when clean, and is always verdict-free; the END gate stays an unconditional interactive ask. Complete
   proposal; born to-review.
+- 2026-07-12 /plan-review-long (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED.
+  PB-1 (MEDIUM, internal-consistency): `README.md:68` also summarizes the gate as an unconditional "ask
+  ONCE" and was MISSING from the original 2-file scope; leaving it would drift out of sync. Added to
+  scope + change #5. OQ2 resolved (maintainer): HOIST the no-verdict-leak principle repo-wide (new
+  change #6; plan-review Memory kernels added to scope). All cited path:line claims verified accurate.
+  No BLOCKER/HIGH. Status -> reviewed.
+
+## Plan-review record (2026-07-12)
+
+Reviewed by `/plan-review-long` (its_direct/pt3-claude-opus-4.8-1m-us). Verdict: **APPROVE WITH
+REVISIONS APPLIED** (pending human sign-off).
+- PB-1 (MEDIUM, rubric E, IN-SCOPE, FIXED): scope fence too narrow - `README.md:68` (the runbook's own
+  pre-flight summary) says "ask ONCE" unconditionally and would contradict the reworded gate. Added it
+  to scope + a change to keep it in sync. Remediation Risk: Low.
+- OQ2 (FIXED via maintainer decision): hoist the no-verdict-leak principle repo-wide; added change #6
+  (plan-review Memory kernels + one shared principle) and widened scope.
+- Verified accurate (no finding): `00-run-protocol.md:197-205,204`, `01-current-state.md:40,102`; no
+  other pre-flight references beyond the three now in scope. Rubric A (completeness) satisfied incl. the
+  gate execution contract. No BLOCKER/HIGH remains. Does not self-approve.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -66,10 +89,25 @@
 4. **Update `01-current-state.md`** (:40 pointer + :102 exit-gate item) to match: the pre-flight ask is
    conditional (fires only on a real signal), verdict-free when it fires, and skipped-when-clean; the
    exit-gate item reads "applied (asked only if a signal existed; verdict-free; else proceeded)".
-5. **Docs + DECISIONS.** DECISIONS entry (Dnn = D72) recording the defect (premature verdict leak at a
-   clean-repo pre-flight), the fix (conditional + verdict-free ask; end gate unchanged), and the
-   general principle "a gate question must not leak the verdict it precedes". Note the aborted run
-   20260712-143730 as the motivating incident.
+5. **Update `README.md:68` (the runbook's own pre-flight summary)** so it does NOT contradict the new
+   behavior. It currently says "ask ONCE whether anything should be handled ... On 'yes' the review
+   ABORTS ... on 'no' it forgets the glance and proceeds" - an UNCONDITIONAL always-ask. Reword to:
+   ask ONLY when the cursory look surfaces a real signal (else proceed silently), and keep it
+   verdict-free. (Found by /plan-review-long PB-1: this file was missing from the original 2-file
+   scope and would have drifted out of sync with `00-run-protocol.md`.)
+6. **Hoist the no-verdict-leak principle repo-wide (OQ2 RESOLVED).** State it once in a shared home:
+   `../release-review/00-run-protocol.md` already houses cross-cutting rules, but plan-review is a
+   sibling family, so put the one-line principle where BOTH families see it - add it to the plan-review
+   Memory kernel (`plan-review/plan-review.md` and `plan-review-long/plan-review-long.md`) AND reference
+   it from the pre-flight gate: "An interactive gate/question MUST NOT assert or imply the verdict it
+   precedes (readiness, approval, GO); it states what was found and asks what to do. The verdict is
+   formed only from the gated work's evidence." Keep it terse; single definition referenced, not
+   restated. This widens the fix from release-review-only to all interactive gates (maintainer chose
+   to hoist now rather than defer).
+7. **Docs + DECISIONS.** DECISIONS entry (next free number at execution time; likely D72/D73)
+   recording the defect (premature verdict leak at a clean-repo pre-flight), the fix (conditional +
+   verdict-free ask; end gate unchanged), the repo-wide no-verdict-leak principle (OQ2), and the
+   motivating aborted run 20260712-143730.
 
 ## Deferred / out of scope
 
@@ -84,9 +122,9 @@
 
 1. Found-nothing behavior: RESOLVED (maintainer) - SKIP the ask when clean; fire only on a real signal
    (pending plans/prompts, status/location mismatch, obvious blocker). The END gate still always asks.
-2. Should the "gate question must not leak its verdict" principle be hoisted repo-wide now, or kept
-   local to release-review for this IPD? (Lean: keep local now; note a follow-on. The maintainer may
-   widen it.)
+2. Hoist the "no-verdict-leak" principle repo-wide? RESOLVED (maintainer) - YES, hoist it now. Add the
+   principle "a gate question must not leak the verdict it precedes" to a shared home so it also covers
+   `plan-review`/`plan-review-long` interactive OQ prompts and any future gate. See change #6.
 3. When a signal fires and the user says "proceed anyway", does the zero-residue rule (:204) still
    apply? (Lean: yes, unchanged - the user acknowledged the item; the audit still runs independently
    and must not be biased by the glance.)
@@ -98,9 +136,13 @@
 EXACTLY):
 
 1. SCOPE FENCE. Edit ONLY `.agents/workflows/release-review/00-run-protocol.md` (pre-flight gate
-   :197-205) and `.agents/workflows/release-review/01-current-state.md` (:40 pointer + :102 exit gate),
-   plus `DECISIONS.md` (append D72). Do NOT touch the Section 8 gate, the 3-rung tree, or any other
-   workflow. If a change seems to need more, STOP and report.
+   :197-205), `.agents/workflows/release-review/01-current-state.md` (:40 pointer + :102 exit gate),
+   `.agents/workflows/release-review/README.md:68` (the pre-flight summary), the plan-review Memory
+   kernels `.agents/workflows/plan-review/plan-review.md` + `.agents/workflows/plan-review-long/plan-review-long.md`
+   (one-line no-verdict-leak principle, change #6), plus `DECISIONS.md` (append the next free number,
+   NOT a hardcoded D72 - IPD 1544-01 also targets D72; whichever lands second takes the next number).
+   Do NOT touch the Section 8 gate, the 3-rung tree, or any other workflow. If a change seems to need
+   more, STOP and report.
 2. Authoring style: NO em dashes or en dashes in any Markdown you write.
 3. VALIDATE: prose-only (no unit test for instruction prose per repo policy); run the FULL test suite
    and paste the ACTUAL runner output; confirm `aw plan-names` stays clean. If any test asserts

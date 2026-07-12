@@ -16,7 +16,7 @@
   update every reference (README, ARCHITECTURE, CONTRIBUTING, the `spec` workflow, `prompts/README.md`,
   the reversed decisions), the packaging test, and DECISIONS. Touches `agent_workflows/engine.py`
   (`DOCS_SUBDIRS` + a new docs-bucket README template) and `tests/test_packaging.py`.
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -25,8 +25,34 @@
   `prompts/` as "that's wrong" and asked to move it (and `docs/specs/`) under `.agents/`. Investigation
   found the moves reverse two prior committed decisions AND that the `.agents/docs/` bucket standard is
   under-specified (the real root cause). Maintainer recinded the prior decisions, chose to MOVE (not
-  delete) prompts/ preserving provenance, and asked to establish the docs-bucket standard. Complete
-  proposal; born to-review.
+   delete) prompts/ preserving provenance, and asked to establish the docs-bucket standard. Complete
+   proposal; born to-review.
+- 2026-07-12 /plan-review-long (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED.
+  PB-2 (MEDIUM, completeness): a full `git grep` found `release-review/templates/final-response.md:70`
+  references `prompts/` and was NOT enumerated; added it to change #5 + scope (conditional on it
+  referring to this library), plus an explicit "LEAVE generic-example references alone" note
+  (`assess.md:83`, `data-exfiltration.md:19`, `docs/rfcs/`). OQ1-4 resolved (maintainer): keep the rich
+  prompts README; RENAME moved files to convention; document `roadmaps/` but do NOT ship it in
+  DOCS_SUBDIRS (reconciled change #1 accordingly); next-free DECISIONS number. All cited path:line
+  claims verified accurate. No BLOCKER/HIGH. Status -> reviewed.
+
+## Plan-review record (2026-07-12)
+
+Reviewed by `/plan-review-long` (its_direct/pt3-claude-opus-4.8-1m-us). Verdict: **APPROVE WITH
+REVISIONS APPLIED** (pending human sign-off).
+- PB-2 (MEDIUM, rubric A/E, IN-SCOPE, FIXED): reference enumeration incomplete - a full `git grep`
+  surfaced `final-response.md:70` (unenumerated) and the risk of over-reaching into generic-example
+  references. Fixed: added the missing reference (conditionally) + an explicit leave-generic-examples
+  instruction. Remediation Risk: Low.
+- OQ1-4 (FIXED via maintainer decisions): keep rich prompts README (no-clobber); rename moved files to
+  the `YYYYMMDD-HHMM-NN-<slug>` convention on move; document `roadmaps/` as a recognized bucket but do
+  NOT add it to shipped `DOCS_SUBDIRS` (change #1 reconciled to add only `specs`+`prompts`); executor
+  uses next-free DECISIONS number.
+- Verified accurate (no finding): `DOCS_SUBDIRS` (engine.py:2212-2215), `FORBIDDEN_TOP`
+  (test_packaging.py:25), `spec.md:24`, the prior "keep at root" statement (:73-74), `README.md:281-282`,
+  `DECISIONS.md:65`, the wheel bundling model (test_packaging.py:79). Rubric E (packaging compatibility)
+  is the load-bearing area and is handled (moves keep content out of the wheel; stale FORBIDDEN_TOP
+  entries dropped; new assertion added). No BLOCKER/HIGH remains. Does not self-approve.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -66,12 +92,13 @@
    `.agents/workflows/templates/agents-docs-README.md` so it presents the buckets as a STANDARD that
    sets expectations WITHOUT limiting what may live under `.agents/docs/` (explicitly: "these are the
    standard buckets; other durable-doc content may exist"). Document buckets: `research/`,
-   `walkthroughs/`, `specs/`, `prompts/`, `roadmaps/`, each with a one-line purpose. Add `specs`,
-   `prompts`, `roadmaps` to `DOCS_SUBDIRS` (engine.py:2212) and add the matching
-   `agents-docs-<bucket>-README.md` bucket-README templates. Regenerate `.agents/docs/README.md` +
-   per-bucket READMEs (no-clobber; this repo's copies updated to match). `roadmaps/` gets only a
-   one-line "roadmap/consideration docs" purpose here; any deeper roadmaps policy is deferred to a
-   separate post-release discussion (maintainer).
+   `walkthroughs/`, `specs/`, `prompts/`, and `roadmaps/`, each with a one-line purpose. Add ONLY
+   `specs` and `prompts` to the shipped `DOCS_SUBDIRS` (engine.py:2212) with matching
+   `agents-docs-<bucket>-README.md` templates; do NOT add `roadmaps` to `DOCS_SUBDIRS` (OQ3 RESOLVED:
+   document it as a recognized bucket in the README standard, but do not scaffold it into downstream
+   repos until the deferred post-release roadmaps-policy discussion). Regenerate `.agents/docs/README.md`
+   + per-bucket READMEs (no-clobber; this repo's copies updated to match). The README's `roadmaps/`
+   entry gets only a one-line "roadmap/consideration docs" purpose.
 2. **Move `prompts/` -> `.agents/docs/prompts/`.** `git mv` all 5 files. Reframe `prompts/README.md` as
    the `.agents/docs/prompts/` bucket README (still "historical/reference, not maintained, superseded by
    the workflows"); reconcile it with the generated bucket README (keep the rich table as the bucket's
@@ -92,7 +119,14 @@
    now-false ":73-74" statement to record that root `docs/specs/`+`prompts/` were RETIRED into
    `.agents/docs/` by this IPD (append a corrective note; do not silently rewrite - it is a moved
    historical doc, so a dated correction line is honest). `DECISIONS.md:65` "Sourced from
-   `prompts/fix-bar.md`" -> `.agents/docs/prompts/fix-bar.md`.
+   `prompts/fix-bar.md`" -> `.agents/docs/prompts/fix-bar.md`. COMPLETE reference set (added by
+   /plan-review-long PB-2 after a full `git grep` for root `docs/`+`prompts/`):
+   `release-review/templates/final-response.md:70` also names `prompts/` as a staging location - update
+   it to `.agents/docs/prompts/` if it refers to this library, OR leave it if it refers to the generic
+   pending-prompt staging concept (decide per the surrounding text; do not guess). LEAVE UNCHANGED
+   (intentionally): `assess/assess.md:83` and `assess/lenses/data-exfiltration.md:19` and
+   `spec.md`'s `docs/rfcs/` mention - these are GENERIC EXAMPLES of pending/spec dirs, not references to
+   THIS repo's retired root `docs/`/`prompts/`; do not over-reach and edit generic examples.
 6. **Packaging test.** In `tests/test_packaging.py`, drop the stale `"docs/"` and `"prompts/"` entries
    from `FORBIDDEN_TOP` (those root dirs no longer exist), and ADD an assertion that the wheel does not
    ship the source `.agents/docs/` or `.agents/prompts/` trees (only `agent_workflows/_data/.agents/
@@ -113,18 +147,20 @@
   staging area; this IPD does not touch it).
 - Shipping any of this reference material in the wheel: explicitly NOT wanted (stays dev/meta).
 
-## Open questions (v1 leans for review)
+## Open questions (ALL RESOLVED with maintainer 2026-07-12 via /plan-review-long)
 
-1. Bucket README for `.agents/docs/prompts/`: keep the existing rich `prompts/README.md` table as the
-   bucket's README (richer than a generated stub)? (Lean: yes - preserve the table; have the generator
-   treat an existing README as no-clobber.)
-2. Naming convention for the moved spec/research files: must they be renamed to
-   `YYYYMMDD-HHMM-NN-<slug>.md`? (Lean: bring them into convention where the normalizer expects it;
-   confirm `aw plan-names` behavior for `.agents/docs/**` at execution.)
-3. Does `roadmaps/` belong in the shipped `DOCS_SUBDIRS` standard, or is it repo-local? (Lean: include
-   it in the standard as a recognized bucket; it is generally useful and already in use.)
-4. DECISIONS number collision with 1449-01 (both would be "D72"): the executor uses the next free
-   number at execution time. (Lean: whichever lands second takes D73.)
+1. Bucket README for `.agents/docs/prompts/`: RESOLVED - keep the existing rich `prompts/README.md`
+   table as the bucket's README (no-clobber; richer than a generated stub).
+2. Naming of the moved spec/research files: RESOLVED - RENAME to the `YYYYMMDD-HHMM-NN-<slug>.md`
+   convention on move (via `git mv`, preserving history), so they are conformant in the
+   convention-governed tree. The spec (`2026-07-06-pip-distribution-...`) and the research prompt
+   (currently undated) each get a conformant dated name.
+3. `roadmaps/` in the shipped standard: RESOLVED - DOCUMENT `roadmaps/` as a recognized bucket in the
+   `.agents/docs/` README standard, but do NOT add it to the shipped `DOCS_SUBDIRS` yet (the installer
+   ships only `research`/`walkthroughs`/`specs`/`prompts`). Deeper roadmaps policy is a deferred
+   post-release discussion, so we do not scaffold `roadmaps/` into downstream repos until then.
+4. DECISIONS number collision with 1449-01 (both drafted "D72"): RESOLVED - the executor uses the next
+   FREE number at execution time; whichever of {1449-01, 1544-01} lands second takes the higher number.
 
 ## Dependencies / sequencing
 
@@ -141,8 +177,11 @@
    wiring), `.agents/workflows/templates/agents-docs-README.md` + new `agents-docs-{specs,prompts,
    roadmaps}-README.md` templates, the regenerated `.agents/docs/**/README.md`, the moved files under
    `.agents/docs/`, the retired root `docs/` + `prompts/`, `.agents/workflows/spec/spec.md`,
-   `README.md`, `ARCHITECTURE.md`, `CONTRIBUTING.md`, `tests/test_packaging.py`, `DECISIONS.md`. Do NOT
-   refactor unrelated code or touch other workflows. If a change seems to need more, STOP and report.
+   `.agents/workflows/release-review/templates/final-response.md` (the `:70` prompts-staging reference,
+   per change #5, ONLY if it refers to this library), `README.md`, `ARCHITECTURE.md`, `CONTRIBUTING.md`,
+   `tests/test_packaging.py`, `DECISIONS.md`. Do NOT refactor unrelated code, touch other workflows, or
+   edit generic-example references (`assess/assess.md:83`, `data-exfiltration.md:19`, the `docs/rfcs/`
+   mention). If a change seems to need more, STOP and report.
 2. Use `git mv` for every relocation (preserve history); the source deletion + destination are both
    committed (path-scoped) so the move is complete.
 3. Authoring style: NO em dashes or en dashes in any Markdown you write.
