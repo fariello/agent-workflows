@@ -223,8 +223,11 @@ def fs_stamp(path: Path) -> Optional[tuple]:
         epochs.append(st.st_mtime)
     if not epochs:
         return None
-    dt = datetime.datetime.fromtimestamp(min(epochs))
-    return (dt.strftime("%Y%m%d"), dt.strftime("%H%M"))
+    try:
+        dt = datetime.datetime.fromtimestamp(min(epochs))
+        return (dt.strftime("%Y%m%d"), dt.strftime("%H%M"))
+    except (ValueError, OSError, OverflowError):
+        return None
 
 
 def _min_stamp(*stamps) -> Optional[tuple]:

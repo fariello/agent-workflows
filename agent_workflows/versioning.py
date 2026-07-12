@@ -316,6 +316,8 @@ def latest_pypi_version(name: str, timeout: float = 5.0) -> Optional[str]:
             data = json.loads(resp.read().decode("utf-8"))
     except (urllib.error.URLError, OSError, ValueError, TimeoutError):
         return None
+    if not isinstance(data, dict):
+        return None
     version = (data.get("info") or {}).get("version")
     return version if isinstance(version, str) and version else None
 

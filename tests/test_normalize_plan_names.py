@@ -376,6 +376,20 @@ class LocalTimeTests(unittest.TestCase):
             self.assertEqual(date, local.strftime("%Y%m%d"))
             self.assertEqual(hm, local.strftime("%H%M"))
 
+    def test_fs_stamp_invalid_timestamp_returns_none(self):
+        # TEST-02: fs_stamp returns None (does not raise) for a bad/out-of-range epoch value
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as td:
+            f = Path(td) / "x.md"
+            f.write_text("x\n", encoding="utf-8")
+            st_mock = mock.MagicMock()
+            st_mock.st_mtime = 9999999999999999.0
+            st_mock.st_birthtime = 9999999999999999.0
+            with mock.patch.object(Path, "stat", return_value=st_mock):
+                res = NPN.fs_stamp(f)
+                self.assertIsNone(res)
+
 
 if __name__ == "__main__":
     unittest.main()

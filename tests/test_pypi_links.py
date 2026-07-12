@@ -100,6 +100,15 @@ class PyPIVersionTests(unittest.TestCase):
         ):
             self.assertIsNone(versioning.latest_pypi_version("whatever"))
 
+    def test_latest_pypi_version_non_dict_json_returns_none(self):
+        # TEST-03: latest_pypi_version returns None when JSON payload is a list
+        payload = b'["not", "a", "dict"]'
+        cm = mock.MagicMock()
+        cm.read.return_value = payload
+        cm.__enter__.return_value = cm
+        with mock.patch("urllib.request.urlopen", return_value=cm):
+            self.assertIsNone(versioning.latest_pypi_version("whatever"))
+
 
 if __name__ == "__main__":
     unittest.main()

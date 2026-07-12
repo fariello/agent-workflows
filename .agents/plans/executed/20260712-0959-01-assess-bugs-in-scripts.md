@@ -3,7 +3,7 @@
 - Date: 2026-07-12
 - Concern: bugs
 - Scope: python scripts (install-workflows.py, versioning.py, hatch_build.py, agent_workflows/*.py, tools under .agents/workflows/*)
-- Status: reviewed
+- Status: executed
 - Author: Antigravity (Gemini 1.5 Pro)
 
 ## Workflow history
@@ -16,6 +16,7 @@
   contradicting its own docstring; BUG-04 scan_secrets.py unused line_no). PL-1 (per-bug regression
   tests required, not just "run the suite"), PL-2 (disambiguate BUG-01 to the behavior-preserving
   cleanup; resolved interactively). No BLOCKER/HIGH. Status -> reviewed.
+- 2026-07-12 executed (Antigravity/Gemini): implemented fixes for BUG-01, BUG-02, BUG-03, and BUG-04.
 
 ## Goal
 

@@ -5,7 +5,6 @@ pass/fail evidence, and --version. Stdlib unittest only.
 from __future__ import annotations
 
 import json
-import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -43,7 +42,11 @@ class ClassificationUnitTests(unittest.TestCase):
     def test_version_flag(self):
         proc = run_tool(RUN_CHECKS, "--version")
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        expected = (REPO_ROOT / ".agents/workflows/VERSION").read_text(encoding="utf-8").strip()
+        expected = (
+            (REPO_ROOT / ".agents/workflows/VERSION")
+            .read_text(encoding="utf-8")
+            .strip()
+        )
         self.assertEqual(proc.stdout.strip(), expected)
 
 
@@ -58,41 +61,70 @@ class RunChecksEndToEndTests(unittest.TestCase):
 
     def _write_pkg(self, scripts: dict):
         import json as _json
+
         (self.repo / "package.json").write_text(
             _json.dumps({"name": "fix", "version": "1.0.0", "scripts": scripts}),
             encoding="utf-8",
         )
 
     def test_passing_check_exit_zero(self):
-        self._write_pkg({"test": "node -e \"process.exit(0)\""})
-        proc = run_tool(RUN_CHECKS, "--repo", str(self.repo), "--yes", "--format", "json")
+        self._write_pkg({"test": 'node -e "process.exit(0)"'})
+        proc = run_tool(
+            RUN_CHECKS, "--repo", str(self.repo), "--yes", "--format", "json"
+        )
         self.assertEqual(proc.returncode, 0, proc.stderr)
         data = json.loads(proc.stdout)
         self.assertTrue(data["summary"]["all_ran_passed"])
         self.assertEqual(data["summary"]["failed"], 0)
 
     def test_failing_check_exit_one(self):
-        self._write_pkg({"test": "node -e \"process.exit(3)\""})
-        proc = run_tool(RUN_CHECKS, "--repo", str(self.repo), "--yes", "--format", "json")
+        self._write_pkg({"test": 'node -e "process.exit(3)"'})
+        proc = run_tool(
+            RUN_CHECKS, "--repo", str(self.repo), "--yes", "--format", "json"
+        )
         self.assertEqual(proc.returncode, 1, "a failing check must exit 1")
         data = json.loads(proc.stdout)
         self.assertEqual(data["summary"]["failed"], 1)
         self.assertFalse(data["summary"]["all_ran_passed"])
 
     def test_denylisted_never_runs_even_with_yes(self):
-        self._write_pkg({"deploy": "node -e \"require('fs').writeFileSync('RAN','1')\""})
-        proc = run_tool(RUN_CHECKS, "--repo", str(self.repo), "--yes", "--format", "json")
+        self._write_pkg(
+            {"deploy": "node -e \"require('fs').writeFileSync('RAN','1')\""}
+        )
+        proc = run_tool(
+            RUN_CHECKS, "--repo", str(self.repo), "--yes", "--format", "json"
+        )
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertFalse((self.repo / "RAN").exists(),
-                         "a denylisted command was executed under --yes")
+        self.assertFalse(
+            (self.repo / "RAN").exists(),
+            "a denylisted command was executed under --yes",
+        )
 
     def test_no_checks_repo_is_honest(self):
-        proc = run_tool(RUN_CHECKS, "--repo", str(self.repo), "--yes", "--format", "json")
+        proc = run_tool(
+            RUN_CHECKS, "--repo", str(self.repo), "--yes", "--format", "json"
+        )
         self.assertEqual(proc.returncode, 0, proc.stderr)
         data = json.loads(proc.stdout)
         self.assertEqual(data["summary"]["ran"], 0)
-        self.assertFalse(data["summary"]["all_ran_passed"],
-                         "a repo with no checks must not read as passed")
+        self.assertFalse(
+            data["summary"]["all_ran_passed"],
+            "a repo with no checks must not read as passed",
+        )
+
+    def test_unclassified_script_skipped_under_yes(self):
+        # An unclassified script (like custom-script) is skipped and skip_reason is 'unclassified; not run'
+        self._write_pkg({"custom-script": 'node -e "process.exit(0)"'})
+        proc = run_tool(
+            RUN_CHECKS, "--repo", str(self.repo), "--yes", "--format", "json"
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        data = json.loads(proc.stdout)
+        skipped_item = [x for x in data["results"] if x["name"] == "npm:custom-script"][
+            0
+        ]
+        self.assertEqual(skipped_item["status"], "skipped")
+        self.assertEqual(skipped_item["skip_reason"], "unclassified; not run")
 
 
 if __name__ == "__main__":

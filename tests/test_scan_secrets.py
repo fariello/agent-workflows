@@ -28,17 +28,27 @@ class ScannerUnitTests(unittest.TestCase):
 
     def test_detects_aws_key_in_text(self):
         findings = SS.scan_text(
-            f"aws_key = {FAKE_AWS_KEY}", where="working-tree",
-            location="config.txt", use_entropy=False, use_pii=False, commit="",
+            f"aws_key = {FAKE_AWS_KEY}",
+            where="working-tree",
+            location="config.txt",
+            use_entropy=False,
+            use_pii=False,
+            commit="",
         )
         self.assertTrue(findings, "planted AWS key not detected")
-        self.assertTrue(all(FAKE_AWS_KEY not in f.preview for f in findings),
-                        "raw secret leaked into finding preview")
+        self.assertTrue(
+            all(FAKE_AWS_KEY not in f.preview for f in findings),
+            "raw secret leaked into finding preview",
+        )
 
     def test_version_flag(self):
         proc = run_tool(SCANNER, "--version")
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        expected = (REPO_ROOT / ".agents/workflows/VERSION").read_text(encoding="utf-8").strip()
+        expected = (
+            (REPO_ROOT / ".agents/workflows/VERSION")
+            .read_text(encoding="utf-8")
+            .strip()
+        )
         self.assertEqual(proc.stdout.strip(), expected)
 
 
@@ -51,13 +61,24 @@ class ScannerEndToEndTests(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_detects_planted_secret_in_working_tree(self):
-        (self.repo / "config.env").write_text(f"AWS_KEY={FAKE_AWS_KEY}\n", encoding="utf-8")
-        proc = run_tool(SCANNER, "--repo", str(self.repo), "--format", "json",
-                        "--working-tree-only", "--no-external")
+        (self.repo / "config.env").write_text(
+            f"AWS_KEY={FAKE_AWS_KEY}\n", encoding="utf-8"
+        )
+        proc = run_tool(
+            SCANNER,
+            "--repo",
+            str(self.repo),
+            "--format",
+            "json",
+            "--working-tree-only",
+            "--no-external",
+        )
         self.assertEqual(proc.returncode, 0, proc.stderr)
         data = json.loads(proc.stdout)
         self.assertGreaterEqual(data["summary"]["total"], 1, "secret in tree not found")
-        self.assertNotIn(FAKE_AWS_KEY, proc.stdout, "raw secret leaked into JSON output")
+        self.assertNotIn(
+            FAKE_AWS_KEY, proc.stdout, "raw secret leaked into JSON output"
+        )
 
     def test_detects_planted_secret_in_history(self):
         # Commit a secret, then remove it: it should still be found in history.
@@ -68,19 +89,59 @@ class ScannerEndToEndTests(unittest.TestCase):
         f.unlink()
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", "remove")
-        proc = run_tool(SCANNER, "--repo", str(self.repo), "--format", "json",
-                        "--history-only", "--no-external")
+        proc = run_tool(
+            SCANNER,
+            "--repo",
+            str(self.repo),
+            "--format",
+            "json",
+            "--history-only",
+            "--no-external",
+        )
         self.assertEqual(proc.returncode, 0, proc.stderr)
         data = json.loads(proc.stdout)
-        self.assertGreaterEqual(data["summary"]["total"], 1, "secret in history not found")
+        self.assertGreaterEqual(
+            data["summary"]["total"], 1, "secret in history not found"
+        )
 
     def test_clean_repo_reports_zero(self):
         (self.repo / "readme.md").write_text("nothing to see here\n", encoding="utf-8")
-        proc = run_tool(SCANNER, "--repo", str(self.repo), "--format", "json",
-                        "--working-tree-only", "--no-external", "--no-entropy")
+        proc = run_tool(
+            SCANNER,
+            "--repo",
+            str(self.repo),
+            "--format",
+            "json",
+            "--working-tree-only",
+            "--no-external",
+            "--no-entropy",
+        )
         self.assertEqual(proc.returncode, 0, proc.stderr)
         data = json.loads(proc.stdout)
         self.assertEqual(data["summary"]["total"], 0)
+
+    def test_scan_history_reports_correct_offset(self):
+        # TEST-04: plant a secret at line 6 in history and assert it is reported on line 6
+        f = self.repo / "leak.txt"
+        f.write_text("\n\n\n\n\nkey=" + FAKE_AWS_KEY + "\n", encoding="utf-8")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "add secret on line 6")
+        f.unlink()
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "remove leak file")
+
+        findings = SS.scan_history(
+            self.repo,
+            None,
+            None,
+            use_entropy=False,
+            use_pii=False,
+            max_bytes=10_000_000,
+        )
+        self.assertGreaterEqual(len(findings), 1)
+
+        finding = [x for x in findings if x.rule == "aws-access-key-id"][0]
+        self.assertIn("leak.txt:6", finding.location)
 
 
 class ScannerScopeTests(unittest.TestCase):
@@ -88,7 +149,9 @@ class ScannerScopeTests(unittest.TestCase):
     are skipped so the scanner does not re-flag its own noise (S2-B1)."""
 
     def test_is_skipped_path_covers_workflow_artifacts_and_lockfiles(self):
-        self.assertTrue(SS.is_skipped_path("workflow-artifacts/benchmark/x/results.json"))
+        self.assertTrue(
+            SS.is_skipped_path("workflow-artifacts/benchmark/x/results.json")
+        )
         self.assertTrue(SS.is_skipped_path("package-lock.json"))
         self.assertTrue(SS.is_skipped_path("sub/dir/package-lock.json"))
         self.assertTrue(SS.is_skipped_path("poetry.lock"))
@@ -100,15 +163,24 @@ class ScannerScopeTests(unittest.TestCase):
             root = Path(td)
             (root / "workflow-artifacts").mkdir()
             (root / "workflow-artifacts" / "scan.json").write_text(
-                f"leak={FAKE_AWS_KEY}\n", encoding="utf-8")
+                f"leak={FAKE_AWS_KEY}\n", encoding="utf-8"
+            )
             (root / "package-lock.json").write_text(
-                f"hash={FAKE_AWS_KEY}\n", encoding="utf-8")
-            findings = SS.scan_working_tree(root, max_bytes=1_000_000,
-                                            use_entropy=True, use_pii=True)
+                f"hash={FAKE_AWS_KEY}\n", encoding="utf-8"
+            )
+            findings = SS.scan_working_tree(
+                root, max_bytes=1_000_000, use_entropy=True, use_pii=True
+            )
             # the planted key lives ONLY in skipped paths, so nothing should be found
             self.assertEqual(
-                [f for f in findings if FAKE_AWS_KEY[:4] in f.preview or f.rule == "aws-access-key-id"],
-                [], "scanner flagged a secret inside a skipped path")
+                [
+                    f
+                    for f in findings
+                    if FAKE_AWS_KEY[:4] in f.preview or f.rule == "aws-access-key-id"
+                ],
+                [],
+                "scanner flagged a secret inside a skipped path",
+            )
 
 
 class ScannerRecommendationTests(unittest.TestCase):
