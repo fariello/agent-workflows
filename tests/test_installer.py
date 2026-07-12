@@ -433,8 +433,13 @@ class InstallerEndToEndTests(unittest.TestCase):
             INS.is_shim_customized_vs_expected(old_template, current_expected)
         )
 
+    # The overwrite prompt only runs when the installer thinks it is in an interactive
+    # session (engine.is_interactive_session). Under a test harness sys.stdin is not a TTY,
+    # so we must force interactivity on for these prompt tests; otherwise the prompt is
+    # skipped, input() is never called, and the mocked interrupt/choice is never exercised.
+    @mock.patch("agent_workflows.engine.is_interactive_session", return_value=True)
     @mock.patch("builtins.input")
-    def test_ctrl_c_aborts_install(self, mock_input):
+    def test_ctrl_c_aborts_install(self, mock_input, _mock_interactive):
         mock_input.side_effect = KeyboardInterrupt()
         target = Path(self._tmp.name) / "plain_ctrl_c"
         target.mkdir()
@@ -442,22 +447,23 @@ class InstallerEndToEndTests(unittest.TestCase):
         # Install once to set up
         run_installer(target)
 
-        # Modify a shim to trigger the overwrite prompt
+        # Modify a shim to a value that differs from its generated expected content,
+        # so the overwrite prompt is reached.
         shim_file = target / ".opencode/commands/assess.md"
         shim_file.write_text(
             "Read and execute @.agents/workflows/assess.md\nCustomized lines here\n",
             encoding="utf-8",
         )
 
-        # We run the installer main() in-process to check if KeyboardInterrupt returns 130
-        argv = ["--repo", str(target)]
-
-        # KeyboardInterrupt should propagate to main and return 130
-        res = INS.main(argv)
+        # Ctrl-C at the prompt must propagate to main() and abort with 130 (not decline+continue).
+        res = INS.main(["--repo", str(target)])
         self.assertEqual(res, 130)
+        # The shim was NOT overwritten (the run aborted).
+        self.assertIn("Customized lines here", shim_file.read_text(encoding="utf-8"))
 
+    @mock.patch("agent_workflows.engine.is_interactive_session", return_value=True)
     @mock.patch("builtins.input")
-    def test_eof_declines_install(self, mock_input):
+    def test_eof_declines_install(self, mock_input, _mock_interactive):
         mock_input.side_effect = EOFError()
         target = Path(self._tmp.name) / "plain_eof"
         target.mkdir()
@@ -472,16 +478,16 @@ class InstallerEndToEndTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-        # EOFError at the prompt should decline (safe default) and continue, exiting 0
-        argv = ["--repo", str(target)]
-        res = INS.main(argv)
+        # EOF at the prompt declines THIS file (safe default) and continues, exiting 0.
+        res = INS.main(["--repo", str(target)])
         self.assertEqual(res, 0)
-        # Content remains customized because EOF declined overwrite
+        # Content remains customized because EOF declined overwrite.
         self.assertIn("Customized lines here", shim_file.read_text(encoding="utf-8"))
 
+    @mock.patch("agent_workflows.engine.is_interactive_session", return_value=True)
     @mock.patch("builtins.input")
-    def test_diff_option_re_prompts(self, mock_input):
-        # First return 'd' (diff), then 'n' (decline)
+    def test_diff_option_re_prompts(self, mock_input, _mock_interactive):
+        # First return 'd' (show diff), then 'n' (decline).
         mock_input.side_effect = ["d", "n"]
         target = Path(self._tmp.name) / "plain_diff"
         target.mkdir()
@@ -502,9 +508,11 @@ class InstallerEndToEndTests(unittest.TestCase):
             INS.main(["--repo", str(target)])
 
         output = buf.getvalue()
-        # Should have printed the diff
+        # 'd' should have printed the diff, then re-prompted (and 'n' declined).
         self.assertIn("Diff:", output)
         self.assertIn("-Customized lines here", output)
+        # Declined: the customized content remains.
+        self.assertIn("Customized lines here", shim_file.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
