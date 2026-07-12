@@ -1780,3 +1780,33 @@ both execute the (large) set well.
   `01-current-state.md` (step + exit-gate checkbox); release-review README note. Prose-workflow change
   (no unit tests per the repo's "test mechanical parts, not instruction prose" policy; validation is
   dogfooded).
+
+### D58. PyPI publish support: absolutize README links at build time + a published-version check
+
+- **Context:** the first PyPI release is imminent. PyPI renders the long-description (our `README.md`)
+  with NO repository context, so relative Markdown links (to the CLI docs, functional specs, other
+  `.md`) 404 on PyPI while working on GitHub. Separately, `/release-review` had no awareness of the
+  currently-published PyPI version, so it could not confirm the proposed next version is a valid bump.
+  Executed from `.agents/plans/executed/20260712-0014-01-pypi-publish-doc-links-and-version-check.md`.
+- **Decision - build-time link rewrite on the metadata COPY (source untouched).** A stdlib
+  pure-function `agent_workflows.pypi_links.rewrite_relative_links()` turns relative repo-internal
+  Markdown links into absolute, tag-pinned GitHub URLs (docs -> `/blob/v<version>/...`, images ->
+  `/raw/v<version>/...`); absolute, `mailto:`, in-page `#anchor`, protocol-relative, and `../`-escaping
+  links are left alone. A hatchling CUSTOM metadata hook (`CustomMetadataHook` in `hatch_build.py`,
+  `[tool.hatch.metadata.hooks.custom]`) sets the dynamic `readme` long-description to the rewritten
+  text at build time; the source `README.md` on disk is NEVER modified (its relative links stay
+  correct for GitHub browsing). Owner/repo come from `[project.urls]`; a non-GitHub URL -> no rewrite.
+- **Why a custom hook, not `hatch-fancy-pypi-readme`:** that third-party plugin does this but is a
+  BUILD DEPENDENCY, which violates the zero-dependency rule (D46). Our hook is stdlib-only and lives
+  in the same `hatch_build.py` that already provides the version `code` source (verified they coexist;
+  the hook adds the repo root to `sys.path` because `load_plugin_from_script` does not).
+- **Decision - published-version check for /release-review.** `versioning.latest_pypi_version(name)`
+  (stdlib `urllib` against the PyPI JSON API; returns None on offline/404/timeout/parse-failure) and
+  `next_version_ok(proposed, published)` (uses our own comparator, no `packaging` dep). Wired into
+  release-review Section 6 (compatibility/packaging/release): for a registry-published project, report
+  the published version and confirm the proposed next version is `>=` it, filing a `PKG` finding if
+  not. Degrades gracefully / skips when offline or unpublished; never blocks on network state.
+- **Scope:** `.md` long-description only (PyPI renders the one declared long-description; it does not
+  publish an HTML/docs tree). Verified by a real wheel build that the hook runs and the metadata
+  long-description is produced. The rewriter and version helpers are unit-tested (13 tests, network
+  mocked).

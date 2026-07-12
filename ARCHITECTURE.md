@@ -390,6 +390,9 @@ history, redaction, skip-scope), the check runner (classification, the safety de
 honest pass/fail), the env tool (each environment diagnosis, HPC detection, scrub, bounded
 probe), setup_tools (`--version`, tool table), the plan-filename normalizer
 (`normalize_plan_names.py`: parse/legacy-shape/earliest-evidence time/scan/apply/exclusions),
+the PyPI long-description link rewriter (`pypi_links.py`: relative -> absolute tag-pinned
+GitHub URLs, applied at build time by a hatchling metadata hook so PyPI links resolve while
+the source README keeps GitHub-relative links; DECISIONS D58),
 and the CLI/config/discovery/packaging. This is the framework holding itself to its own
 testing/verification bar (DECISIONS D36).
 
