@@ -7,11 +7,12 @@
 - Scope: `.agents/workflows/release-review/` (Section 1 pre-flight / `00-run-protocol.md`,
   `08-final-ship-review.md`, and the pending-plans handling that already exists) + docs/DECISIONS.
   Behavioral: adds interactive prompts + an ABORT path; does not change the audit sections' substance.
-- Status: approved
+- Status: executed
 - Approval: approved by maintainer 2026-07-12 (reviewed; OQ1-6 leans confirmed - early Section-1
   pre-flight gate; non-interactive falls back to the loud WARNING; keep existing Section 7/8
   reconciliation; cursory not a second triage; covers plans+prompts pending + status mismatches;
-  ABORT recorded in run metadata; ONE combined pre-flight prompt). Ready to execute changes 1-5.
+  ABORT recorded in run metadata; ONE combined pre-flight prompt). Executed 2026-07-12 (changes 1-5);
+  suite green (183 tests).
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -27,6 +28,10 @@
   audit lanes) so an abort saves the whole run. PB-2: "forget and proceed" must not leak cursory
   judgments into findings/plan/report - Section 7 reconciles independently from the full list. OQs
   leaned; none escalated. Status -> reviewed.
+- 2026-07-12 approved (maintainer): OQ1-6 leans confirmed. Status -> approved.
+- 2026-07-12 executed (its_direct/pt3-claude-opus-4.8-1m-us): Section 1 pre-flight gate added to
+  00-run-protocol.md + wired into 01-current-state.md + README note + DECISIONS D57, committed
+  bc04e6b. Suite green (183). Status -> executed; git mv to executed/.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
