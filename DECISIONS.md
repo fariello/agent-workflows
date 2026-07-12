@@ -1956,3 +1956,34 @@ both execute the (large) set well.
 - **Applied:** `plans.py` PRE_TERMINAL (+ board ordering); drift-guard test (recognized + pre-terminal);
   IPD template + D52 legend; `/verify-execution` IPD (20260712-1031-01) emit criteria; `aw plans`
   board shows the token.
+
+### D66. `/verify-execution` workflow: cross-check that an executed plan was actually done
+
+- **Context:** running two agents on this repo in parallel produced several executions that diverged
+  from their plans - an over-scoped refactor and two false completions (a plan marked `executed` with
+  a walkthrough claiming a green suite, while the target tests were still red). There was no reusable
+  way to catch this. The pattern was executed by hand five times this session before being
+  generalized. Executed from
+  `.agents/plans/executed/20260712-1031-01-verify-execution-workflow.md`.
+- **Decision - a new `/verify-execution` workflow.** Given an EXECUTED plan (and optionally its
+  commit range), it: loads what the plan REQUIRED (proposed changes, validation, spec-sync, and the
+  findings the plan agreed to fix during `/plan-review`); discovers the execution commit(s) and reads
+  the ACTUAL diff (never trusts the commit message or a walkthrough); checks each required change as
+  done/partial/missing/diverged/over-scope with `path:line` evidence; re-runs the repo's real
+  validation via `/verify`, attributing failures honestly vs. a pre-existing baseline; and produces a
+  verdict `MATCHES`/`DIVERGES`/`INCOMPLETE` plus a GO/NO-GO on "truly executed as approved?".
+- **Pure verifier - emits, never fixes.** It never edits code/tests in place. It ALWAYS writes a run
+  record to `workflow-artifacts/verify-execution/<RUN_ID>/` (durable provenance, even on a clean
+  MATCHES). For any gap it emits ONE corrective IPD (`YYYYMMDD-HHMM-NN-fix-<original-slug>-<short>.md`)
+  cross-referencing the original plan and commits. The corrective IPD is born `auto-approved` (D65)
+  when low-complexity/fully-specified, else `to-review`.
+- **Safe under concurrency.** Because it is typically run WHILE another agent is active, it commits
+  only its own files path-scoped (`git commit -- <path>`), never a bare commit / add -A, and never
+  stages/amends/reverts/`git mv`s another agent's files or rewrites history. (Encoded after a real
+  collision + detached-HEAD incident this session.)
+- **Distinct from siblings:** `/plan-review` reviews a plan BEFORE building; `/release-review` reviews
+  a repo before shipping; `/verify-execution` checks whether a specific plan's EXECUTION matches the
+  plan.
+- **Applied:** `.agents/workflows/verify-execution/{verify-execution.md,README.md}`; `index.md`
+  manifest row + generated shims; README command table. Single-file for now (a modular `-long` variant
+  is deferred, P6). Prose workflow (no unit test for instruction prose per repo policy).
