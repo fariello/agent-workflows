@@ -197,5 +197,100 @@ class AccessibilityTests(CliTestBase):
         self.assertIn("OK", out)
 
 
+class CtrlCGuardTests(CliTestBase):
+    """CTRL-C / EOF at a prompt returns 130 cleanly, never a traceback (Theme C #1)."""
+
+    def _run_setup_with_input(self, exc):
+        import builtins
+        import io as _io
+        from contextlib import redirect_stderr
+
+        class _FakeTTY:
+            def isatty(self):
+                return True
+
+        real_input, real_stdin = builtins.input, __import__("sys").stdin
+
+        def boom(*a, **k):
+            raise exc
+
+        builtins.input = boom
+        __import__("sys").stdin = _FakeTTY()
+        err = _io.StringIO()
+        try:
+            with redirect_stderr(err):
+                code = cli.main(
+                    ["setup"]
+                )  # unconfigured temp XDG -> interactive prompt
+        finally:
+            builtins.input = real_input
+            __import__("sys").stdin = real_stdin
+        return code, err.getvalue()
+
+    def test_keyboard_interrupt_returns_130_no_traceback(self):
+        code, err = self._run_setup_with_input(KeyboardInterrupt())
+        self.assertEqual(code, 130)
+        self.assertIn("Cancelled", err)
+        self.assertNotIn("Traceback", err)
+
+    def test_eof_returns_130(self):
+        code, err = self._run_setup_with_input(EOFError())
+        self.assertEqual(code, 130)
+        self.assertNotIn("Traceback", err)
+
+
+class SetupPathValidationTests(CliTestBase):
+    """aw setup validates roots, stores ~-relative, rejects non-dirs (Theme C #2)."""
+
+    def test_bad_then_good_path(self):
+        import builtins
+
+        class _FakeTTY:
+            def isatty(self):
+                return True
+
+        # a file (not a dir) -> rejected; a real dir -> accepted; blank -> finish.
+        good = self._repo("good-root")
+        notdir = self.base / "afile"
+        notdir.write_text("x", encoding="utf-8")
+        answers = iter([str(notdir), str(good), ""])
+        real_input, real_stdin = builtins.input, __import__("sys").stdin
+        # Scripted answers for the roots loop; any later prompt (e.g. install confirm) gets "".
+        builtins.input = lambda *a, **k: next(answers, "")
+        __import__("sys").stdin = _FakeTTY()
+        try:
+            code, out = _run(["setup", "--yes"])
+        finally:
+            builtins.input = real_input
+            __import__("sys").stdin = real_stdin
+        self.assertEqual(code, 0)
+        roots = CFG.load().get("search_roots", [])
+        # the non-dir must be absent; the good dir present.
+        self.assertNotIn(str(notdir), roots)
+        self.assertEqual(len(roots), 1)
+
+
+class PlanNamesVerbTests(CliTestBase):
+    """aw plan-names checks (exit 1 on nonconforming) and --apply renames (Theme C #3)."""
+
+    def _plans_repo(self, plan_name):
+        repo = init_repo(self.base / "pn")
+        pending = repo / ".agents" / "plans" / "pending"
+        pending.mkdir(parents=True, exist_ok=True)
+        (pending / plan_name).write_text("# IPD\n\n- Status: draft\n", encoding="utf-8")
+        return repo
+
+    def test_check_reports_nonconforming(self):
+        repo = self._plans_repo("not-a-date.md")
+        code, out = _run(["plan-names", str(repo)])
+        # normalizer returns 1 when work/decision remains; the file is non-numeric.
+        self.assertEqual(code, 1)
+
+    def test_conformant_repo_exit_0(self):
+        repo = self._plans_repo("20260711-2027-01-good-slug.md")
+        code, out = _run(["plan-names", str(repo)])
+        self.assertEqual(code, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

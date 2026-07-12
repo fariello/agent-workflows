@@ -1722,3 +1722,31 @@ both execute the (large) set well.
   which is what matters for solo/small-team use.
 - **Backward compat:** historical UTC-named plan files are NOT renamed (P4); they remain as the
   record. D48/D50 remain the historical record; this entry supersedes only their timezone clause.
+
+### D56. aw CLI ergonomics: graceful interrupt, validating setup, and `aw plan-names`
+
+- **Context:** three `aw` UX gaps found while dogfooding (ITEM-04/05/06/07): CTRL-C at a prompt
+  dumped a raw traceback; `aw setup` accepted roots with no validation or `~`-relative storage; and
+  the plan-filename normalizer was buried at `.agents/workflows/setup-repo/tools/normalize_plan_names.py`
+  with no ergonomic entry point (a user could not discover or run it). Executed from
+  `.agents/plans/executed/20260712-0014-03-aw-cli-ux-ctrlc-setup-and-plan-names-verb.md`.
+- **Graceful interrupt:** `cli.main()` and `engine.main()` catch `KeyboardInterrupt`/`EOFError`,
+  print a clean `Cancelled.` to stderr, and RETURN 130 (the conventional SIGINT code). They RETURN
+  rather than `sys.exit()` inside `main()` so in-process callers/tests reading the int keep working;
+  `__main__` does `raise SystemExit(main())`, turning 130 into the process exit code.
+- **Validating setup loop:** the `aw setup` roots prompt validates each entry (expand `~`; warn but
+  ALLOW a not-yet-existing dir since roots are scanned lazily at install time; reject non-directories
+  and re-prompt), stores paths `~`-relative via `config._preserve_home`, dedupes, and uses colorized
+  `ok`/`warn`/`skip` status lines. No new config format and no separate `aw config` verb (KISS).
+- **`aw plan-names` verb:** a thin verb that locates the bundled normalizer via
+  `_compat.packaged_source_root()` (installed wheel `_data/...`) or the repo root (source checkout),
+  loads it by path with `importlib.util.spec_from_file_location`, forwards flags, and returns its exit
+  code. Check by default; `--apply` renames (staged git-mv). Added to `aw --help` and the no-arg hint.
+  NO algorithm duplication - the script stays the single source of truth and stays where many docs
+  reference it.
+- **Update story + naming (ITEM-05):** documented that `aw install <dir>` IS the idempotent updater
+  (re-run to update; no-clobber), so there is no separate "update" command. Kept `/setup-repo` named
+  as-is (renaming to `/setup-project` would churn installs/shims/docs/tests for little gain).
+- **Noted, deferred:** the standalone tools (`normalize_plan_names.py`, `scan_secrets.py`) run
+  directly can get the same interrupt guard later; and pre-existing `engine.py` `Term(<bool>)` type
+  diagnostics (unrelated) remain for a separate cleanup.

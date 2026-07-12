@@ -39,13 +39,22 @@ aw setup                # asks where your repos are, discovers them, installs, t
 aw install all          # later: install/update every configured repo
 aw list                 # see each repo's installed version and currency
 aw plans                # board of your plan/IPD readiness Status, grouped by lifecycle
+aw plan-names           # check plan/IPD filenames match the convention (--apply to fix)
 ```
+
+Re-run `aw install <dir>` any time to UPDATE an installed repo to the current version; it is
+idempotent and no-clobber (your own edits are never overwritten), so it doubles as the updater,
+there is no separate "update" command.
 
 `aw plans` reads each plan/IPD's front-matter `Status:` (the readiness vocabulary
 `draft -> to-review -> reviewed -> approved`, then the terminal state) and prints a board grouped
 by lifecycle directory, with counts. Filter with `--pending` or `--status <s>`; `--write-index`
 (re)generates a plain `.agents/plans/STATUS.md` for the no-CLI / GitHub-web view. It reads
 front-matter only and never moves or renames a plan.
+
+`aw plan-names` checks that plan/IPD filenames follow the `YYYYMMDD-HHMM-NN-<slug>.md` convention
+(local date+time); it is check-only by default and `--apply` performs the staged `git mv` renames.
+This surfaces the filename normalizer as a first-class command rather than a buried script.
 
 `aw install` copies the workflows into `.agents/workflows/`, generates slash-command shims
 for OpenCode and Claude Code, adds a pointer to your `AGENTS.md`, and scaffolds the
