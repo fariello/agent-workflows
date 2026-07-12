@@ -231,6 +231,10 @@ For each reviewed plan confirm:
 - Required specification and documentation work is included.
 - Tests and validation map to affected invariants.
 - The plan does not claim execution.
+- The plan's gate carries an execution contract (resolved open questions, a scope fence,
+  the hard-MUST "paste the actual runner output" honesty rule, path-scoped commit and
+  never-push, and the lifecycle move). If any element is missing, ADD it as an in-place
+  revision and record it as a finding.
 
 If the project uses `Status`, set it to `reviewed` unless its contract requires
 another review-complete value.
@@ -319,6 +323,9 @@ Verify the plan states:
 - Security, privacy, migration, documentation, and specification effects.
 - Validation, rollout or recovery when relevant.
 - Assumptions, open questions, ownership, and follow-up work.
+- An execution contract in the gate: resolved open questions, a scope fence, the hard-MUST
+  honesty rule (paste the actual runner output), path-scoped commit and never-push, and the
+  lifecycle move.
 
 Another qualified agent or developer must be able to execute the plan without
 inventing missing architecture.

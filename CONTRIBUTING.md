@@ -77,6 +77,11 @@ instruction prose (prose is reviewed by `/assess prose`, not unit-tested).
 - Keep each policy or rule in exactly one canonical place and link to it, rather than
   duplicating it (P8).
 - Do not use em dashes in authored Markdown; use hyphens or parenthetical dashes.
+- The standing agent execution contract (commit only your own files path-scoped, never
+  `git add -A`/bare/`-a`, never push; paste the actual runner output when you claim tests
+  passed; review-means-read-only; no in-place edits to a plan already in `executed/`) lives
+  in the managed `AGENT-WORKFLOWS` block in `AGENTS.md`. That block is the canonical home;
+  this file and the `.agents/plans` README point at it (D69).
 
 ## Versioning
 

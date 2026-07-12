@@ -13,7 +13,10 @@ Verify:
 - ordered implementation steps and dependencies;
 - assumptions and open questions;
 - validation commands and expected evidence;
-- rollout, rollback, recovery, and follow-up ownership.
+- rollout, rollback, recovery, and follow-up ownership;
+- an execution contract in the gate: resolved open questions, a scope fence, the hard-MUST
+  honesty rule (paste the actual runner output), path-scoped commit and never-push, and the
+  lifecycle move.
 
 The plan must be executable by another qualified agent or developer without
 inventing architecture.

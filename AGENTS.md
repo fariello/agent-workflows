@@ -19,6 +19,9 @@ When asked to write a prompt to give to another AI (e.g. a research prompt for a
 ### Durable reference and walkthroughs documentation
 1. Immortalize research/analysis you rely on for a decision to `.agents/docs/research/` using `YYYYMMDD-HHMM-NN-<slug>.md`.
 2. Save narrative walkthroughs to `.agents/docs/walkthroughs/` with `...-walkthrough.md`.
+
+### Agent execution contract
+When you execute a task or plan here you MUST: commit ONLY files you changed, path-scoped (`git commit -m msg -- <path>`), never `git add -A`/bare/`-a`, and never push; when you report tests passed, paste the ACTUAL runner output (never claim success you did not run); write no em or en dashes in authored Markdown. When asked to REVIEW or report, do NOT modify or commit anything: report and wait. Do NOT add commits to a plan already in `.agents/plans/executed/`; close a post-execution gap with a new corrective IPD, not an in-place edit. See `CONTRIBUTING.md` and the `.agents/plans` README for detail.
 <!-- AGENT-WORKFLOWS:END -->
 
 <!-- AGENT-PLANS:BEGIN -->

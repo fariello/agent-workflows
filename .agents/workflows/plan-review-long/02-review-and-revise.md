@@ -66,6 +66,8 @@ Make surgical, well-anchored edits:
 - replace ambiguity rather than appending duplicate prose;
 - add missing guardrails, sequencing, acceptance criteria, tests, rollout,
   recovery, specification work, and validation;
+- inject the gate execution contract if missing (resolved open questions, a scope
+  fence, the hard-MUST honesty rule, path-scoped commit and never-push, lifecycle move);
 - remove unsupported or gold-plated scope;
 - keep the plan concise and executable;
 - do not weaken valid requirements.

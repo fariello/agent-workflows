@@ -35,3 +35,22 @@ records its READINESS within the lifecycle:
 Each plan also keeps a `## Workflow history` section: an appended, dated line per workflow
 that touched it (assess, plan-review, ...), so you can see the path a plan took. The
 plan-mutating workflows commit (never push) as they go, so `git log` shows the progression.
+
+## Execution contract in every plan's gate
+
+Every IPD's `Approval and execution gate` MUST carry an execution contract so the plan is
+safe to hand to any agent from its path alone:
+
+1. All open questions RESOLVED (or explicitly OPEN, in which case the plan is NO-GO).
+2. A SCOPE FENCE naming the exact files/areas to touch, with "do not expand scope; if it
+   seems to need more, STOP and report".
+3. The HARD MUST honesty rule: when you report tests/validation passed, paste the ACTUAL
+   runner output; never claim success you did not run.
+4. Commit ONLY the plan's own changed files, path-scoped; never `git add -A`/bare/`-a`;
+   never push.
+5. The lifecycle move on completion (`git mv` to the terminal directory, set `Status:`,
+   append a `## Workflow history` line).
+
+This restates, at the plan level, the standing `AGENT-WORKFLOWS` execution contract (see the
+managed block in `AGENTS.md` and `CONTRIBUTING.md`); `/plan-review` and `/plan-review-long`
+verify it is present and add it if missing.
