@@ -12,7 +12,7 @@
   a reference to the plan + walkthrough naming conventions. Docs/DECISIONS. The `.agents/docs/`
   tree + `walkthroughs/` scaffold and its README are NOT in this IPD - they are provided by IPD
   `20260712-0033-01` (this IPD DEPENDS on that home existing).
-- Status: reviewed
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -37,6 +37,15 @@
   (`~/.gemini/antigravity-ide/brain/<conversation-id>`) now captured in Step 0 as reported/to-verify.
   Also asserted Antigravity reads AGENTS.md (unconfirmed vs. the survey); noted as a reach caveat.
   Enrichment only; approach and findings unchanged; remains reviewed.
+- 2026-07-12 executed (its_direct/pt3-claude-opus-4.8-1m-us): implemented changes 1-4. Per maintainer
+  decision, FOLDED the brain-dir MUST-mirror rule into the existing "Durable reference and walkthroughs"
+  sub-section of `agents_pointer_block()` (item 3) rather than adding a 6th sub-section, honoring the
+  ~6-8 line brevity budget (change #2, P9); synced this repo's `AGENTS.md` (block "pointer already
+  current"); added a brain-dir mirroring note to `templates/plans-README.md` + regenerated
+  `.agents/plans/README.md` (identical); DECISIONS D70. Both hard deps (0033-01 walkthroughs home,
+  0030-01 native-file reach) already executed this session. Validated: full suite `208 passed in
+  44.86s`; `aw plan-names` clean; em/en-dash sweep 0. Committed path-scoped `b787704` (never pushed).
+  Pre-existing `Term(<bool>)` LSP diagnostics in engine.py left untouched (out of scope).
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
