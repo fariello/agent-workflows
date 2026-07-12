@@ -10,7 +10,7 @@
   `index.md` (shims regenerate), reuse of the existing `/verify` workflow for running the repo's real
   checks, tests for any mechanical bits, docs + DECISIONS. Distinct from `/plan-review` (pre-execution
   planning review) and `/release-review` (broad ship review).
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -18,6 +18,11 @@
 - 2026-07-12 to-review (its_direct/pt3-claude-opus-4.8-1m-us): drafted after hand-executing the
   cross-check on Gemini's 0954-01 work; design decisions taken with the maintainer. Complete
   proposal; born to-review.
+- 2026-07-12 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED.
+  Wiring matches how plan-review-long was built (manifest row + per-dir README + shim regen). All 4
+  OQs resolved interactively: single-file only; fix-<slug> naming; consume original plan-review
+  findings; always write a run record (change #5). This workflow was already dogfooded by hand five
+  times this session (0954/0959+1005/1028/0033/1041), so the design is proven. Status -> reviewed.
 
 ## Design decisions taken (maintainer, 2026-07-12)
 
@@ -98,22 +103,25 @@
    DECISIONS entry recording the workflow, the pure-verifier/emit-a-corrective-IPD contract, the
    MATCHES/DIVERGES/INCOMPLETE + GO/NO-GO verdict, and its distinction from /plan-review and
    /release-review.
-5. **Tests:** prose workflow (no unit test for instruction prose, per repo policy); the manifest/shim
+5. **Run record (OQ4).** The workflow ALWAYS writes a brief run record to
+   `workflow-artifacts/verify-execution/<RUN_ID>/` (RUN_ID = local `YYYYMMDD-HHMMSS` per D55): the
+   plan reviewed, the execution commit(s), the per-required-change check results, the validation
+   result, and the verdict. This is durable provenance even on a clean MATCHES; a corrective IPD is
+   emitted only when there are gaps.
+6. **Tests:** prose workflow (no unit test for instruction prose, per repo policy); the manifest/shim
    wiring must keep the suite + dir-readmes test green. If any mechanical helper is added (e.g. a
    commit-range discovery snippet), unit-test it.
 
-## Open questions (v1 leans for review)
+## Open questions (RESOLVED with maintainer 2026-07-12)
 
-1. Should there also be a modular `/verify-execution-long` (like plan-review has), or single-file
-   only for now? (Lean: single-file only; revisit if the body grows or the plan-review A/B favors
-   modular.)
-2. Corrective-IPD naming: `YYYYMMDD-HHMM-NN-fix-<original-slug>-<short>.md` vs a plain new slug.
-   (Lean: reference the original slug so the pairing is obvious.)
-3. Does it also consume the ORIGINAL plan-review record (the findings the plan agreed to fix), to
-   verify those specific fixes landed? (Lean: yes - agreed plan-review findings are part of "what was
-   required".)
-4. Should MATCHES-with-green auto-nothing, or always leave a short run record? (Lean: always write a
-   brief run record for provenance, even on a clean MATCHES; emit an IPD only when there are gaps.)
+1. Single-file only (no modular `-long` for now; revisit later - do not build two forms
+   speculatively, P6).
+2. Corrective-IPD naming: `YYYYMMDD-HHMM-NN-fix-<original-slug>-<short>.md` (references the original
+   slug so the pairing is obvious).
+3. YES - also verify the ORIGINAL plan-review findings (the fixes the plan agreed to during
+   /plan-review) actually landed; they are part of "what was required".
+4. ALWAYS write a brief run record (even on a clean MATCHES) for durable provenance, under
+   `workflow-artifacts/verify-execution/<RUN_ID>/`; emit a corrective IPD only when there are gaps.
 
 ## Approval and execution gate
 
