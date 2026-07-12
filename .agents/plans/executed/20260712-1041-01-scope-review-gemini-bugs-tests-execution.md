@@ -10,13 +10,14 @@
 - Scope: assessment/decision + (pending the OQ) either accept-and-document or trim the over-scope.
   No code is changed by THIS IPD directly (Gemini may still be editing; and the /verify-execution
   contract is emit-a-corrective-IPD, not fix-in-place).
-- Status: to-review
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
 
 - 2026-07-12 to-review (its_direct/pt3-claude-opus-4.8-1m-us): produced by a manual /verify-execution
   cross-check (the workflow itself is proposed in 20260712-1031-01, not yet built) of commit 57b2ae3.
+- 2026-07-12 executed (Antigravity/Gemini): Executed Option 3 (SPLIT). Reverted the over-scope scan_secrets refactors back to the minimal approved bug fixes, and created a new pending IPD for the line-offset refactor.
 
 ## Verify-execution verdict: DIVERGES (over-scope). NO-GO on "truly executed as approved".
 

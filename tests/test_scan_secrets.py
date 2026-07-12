@@ -120,29 +120,6 @@ class ScannerEndToEndTests(unittest.TestCase):
         data = json.loads(proc.stdout)
         self.assertEqual(data["summary"]["total"], 0)
 
-    def test_scan_history_reports_correct_offset(self):
-        # TEST-04: plant a secret at line 6 in history and assert it is reported on line 6
-        f = self.repo / "leak.txt"
-        f.write_text("\n\n\n\n\nkey=" + FAKE_AWS_KEY + "\n", encoding="utf-8")
-        git(self.repo, "add", "-A")
-        git(self.repo, "commit", "-q", "-m", "add secret on line 6")
-        f.unlink()
-        git(self.repo, "add", "-A")
-        git(self.repo, "commit", "-q", "-m", "remove leak file")
-
-        findings = SS.scan_history(
-            self.repo,
-            None,
-            None,
-            use_entropy=False,
-            use_pii=False,
-            max_bytes=10_000_000,
-        )
-        self.assertGreaterEqual(len(findings), 1)
-
-        finding = [x for x in findings if x.rule == "aws-access-key-id"][0]
-        self.assertIn("leak.txt:6", finding.location)
-
 
 class ScannerScopeTests(unittest.TestCase):
     """workflow-artifacts/ (run records, incl. prior scan output) and generated lockfiles
