@@ -569,6 +569,16 @@ class InstallerEndToEndTests(unittest.TestCase):
             "<!-- AGENT-WORKFLOWS:BEGIN -->", gemini_file.read_text(encoding="utf-8")
         )
 
+        # 6. Malformed markers present: safe append.
+        claude_file.write_text(
+            "User prose\n<!-- AGENT-WORKFLOWS:BEGIN -->\n", encoding="utf-8"
+        )
+        run_installer(self.repo)
+        txt = claude_file.read_text(encoding="utf-8")
+        self.assertIn("User prose\n<!-- AGENT-WORKFLOWS:BEGIN -->\n", txt)
+        self.assertEqual(txt.count("<!-- AGENT-WORKFLOWS:BEGIN -->"), 2)
+        self.assertEqual(txt.count("<!-- AGENT-WORKFLOWS:END -->"), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
