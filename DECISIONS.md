@@ -1839,8 +1839,7 @@ both execute the (large) set well.
   Gemini/Claude docs). If a tool subordinates AGENTS.md to its own file, revisit: options include
   writing a managed pointer block INTO an existing `<TOOL>.md` (update-in-place, never create), or
   detecting/ warning when a target has a `<TOOL>.md` that would shadow our AGENTS.md rules.
-- **Status:** provisional; revisit when the precedence facts are known or if a downstream repo shows
-  AGENTS.md being shadowed.
+- **Status:** revised by D68 (precedence facts established; now mirror pointer into existing files).
 
 ### D60. /plan-review must resolve open questions interactively and end with a reviewed/not-reviewed enumeration
 
@@ -1993,3 +1992,13 @@ both execute the (large) set well.
 - **Context:** A set of generic UX and data-modeling principles was analyzed for relevance to the repository. The maintainer approved importing a filtered subset of UX and object/schema design guidelines while excluding N/A compliance, database-heavy, or security-heavy generic rules.
 - **Decision:** Import the new `data-modeling` lens and record it in the workflow manifest. Enrich the existing `ui-ux` lens with missing usability rules. Sharpen existing root guiding principles (P3, P6, and P7) to reinforce these modeling and usability rules at the repository root.
 - **Applied:** Created `.agents/workflows/assess/lenses/data-modeling.md`. Updated `ui-ux.md`, `architecture.md`, and `api-design.md` under `.agents/workflows/assess/lenses/` to enrich and cross-link guidelines. Sharpened `GUIDING_PRINCIPLES.md` (P3/P6/P7) and updated `assess-all.md` area routing. Added the concern to the `README.md` catalog table, added `assess-data-modeling` to the `index.md` manifest, and regenerated all command shims. All 207 tests green.
+
+### D68. Mirror managed workflow pointer to existing native agent files (CLAUDE.md / GEMINI.md)
+
+- **Context:** A research survey verified that writing instructions only to `AGENTS.md` is not fully portable. Specifically, Claude Code ignores `AGENTS.md` automatically (it reads `CLAUDE.md`) and Gemini CLI/Antigravity default to `GEMINI.md`. Leaving the pointer only in `AGENTS.md` causes non-discovery by those tools.
+- **Decision:** Mirror the managed pointer block into existing root-level `CLAUDE.md` and `GEMINI.md` files during installation.
+- **Rules & Safety Constraints:**
+  1. Never create `CLAUDE.md` or `GEMINI.md` if they do not exist.
+  2. Perform update-in-place on existing files, replacing only the marked pointer block region (same marker-merge logic as `AGENTS.md`).
+  3. Support backup, dry-run, staging (no-commit), and uninstall symmetry (stripping the block from native files).
+- **Applied:** Generalised `update_agents_pointer` and `remove_agents_pointer` in `agent_workflows/engine.py` to target `CLAUDE.md` and `GEMINI.md` at the repo root when present. Updated `print_summary` and `prompt_and_run_commit` to handle multi-file results. Added testing in `tests/test_installer.py`.

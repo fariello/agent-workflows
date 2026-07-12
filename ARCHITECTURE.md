@@ -19,7 +19,7 @@ agent-workflows/
   ARCHITECTURE.md           This file
   DECISIONS.md              Dated decision log (the "why")
   GUIDING_PRINCIPLES.md     Values guiding the work
-  AGENTS.md                 One-line pointer to the workflow index (not the payload)
+  AGENTS.md                 One-line pointer to the workflow index (mirrored into CLAUDE.md/GEMINI.md if they exist)
   install-workflows.py/.sh  Installer (human-run bootstrap; at the root, not a workflow)
   tests/                    Stdlib-unittest self-tests for the Python tools
   prompts/                  Reusable prompt library (independent of the workflows;
@@ -181,7 +181,7 @@ a repo already on the new layout, and reports exactly what it moved/removed.
 
 It also **generates the per-tool slash-command shims** from the `index.md` manifest
 (into `.opencode/commands/` and `.claude/commands/`) and adds a one-line **pointer
-block** to the target's `AGENTS.md`. The shims and the pointer are the only
+block** to the target's `AGENTS.md` (and existing `CLAUDE.md`/`GEMINI.md` files). The shims and the pointer are the only
 tool-specific surface; the workflow bodies are tool-agnostic. Tools without native
 slash commands use the universal fallback: read `.agents/workflows/index.md` and
 "read and execute" the workflow body.

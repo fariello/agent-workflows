@@ -100,6 +100,7 @@ COMMAND_SHIM_DIRS: tuple[str, ...] = (
 # installer updates an EXISTING one (so it does not create a second, ignored file);
 # it creates the first candidate only if none exists.
 AGENTS_FILE_CANDIDATES: tuple[str, ...] = ("AGENTS.md", ".agents/AGENTS.md")
+NATIVE_AGENT_FILES: tuple[str, ...] = ("CLAUDE.md", "GEMINI.md")
 AGENTS_BEGIN = "<!-- AGENT-WORKFLOWS:BEGIN -->"
 AGENTS_END = "<!-- AGENT-WORKFLOWS:END -->"
 
@@ -1021,26 +1022,15 @@ def resolve_agents_file(repo_root: Path) -> str:
     return AGENTS_FILE_CANDIDATES[0]
 
 
-def update_agents_pointer(plan: InstallPlan, use_git: bool, timestamp: str) -> str:
-    """Add or refresh the managed pointer block in the target's AGENTS file.
+def merge_pointer_block(
+    existing: str, block: str, default_header: str = ""
+) -> tuple[str, str]:
+    """Merge the managed pointer block into the existing file content.
 
-    Safety contract (deliberately stricter than an append-to-config installer):
-    - Updates an existing AGENTS file in place rather than creating a duplicate.
-    - Edits ONLY the marked region; never reflows or touches the user's own prose.
-    - Idempotent: a well-formed BEGIN..END pair is replaced, so re-runs do not stack
-      blocks.
-    - Fail-safe on malformed markers: if exactly one well-formed pair is not present,
-      it appends a fresh block instead of risking a destructive regex over user text.
-    - Backs up the existing file before the first modification (unless --no-backup).
+    Returns:
+        A tuple of (new_text, action).
     """
 
-    rel = resolve_agents_file(plan.repo_root)
-    agents_path = plan.repo_root / rel
-    block = agents_pointer_block()
-    existing = agents_path.read_text(encoding="utf-8") if agents_path.exists() else ""
-
-    # Only treat the file as having a managed block when there is exactly one
-    # well-formed BEGIN..END pair, in order. Otherwise fail safe (append).
     begins = existing.count(AGENTS_BEGIN)
     ends = existing.count(AGENTS_END)
     well_formed = (
@@ -1052,39 +1042,111 @@ def update_agents_pointer(plan: InstallPlan, use_git: bool, timestamp: str) -> s
     if well_formed:
         new_text = re.sub(
             re.escape(AGENTS_BEGIN) + r".*?" + re.escape(AGENTS_END),
-            lambda _m: block.strip(),  # lambda avoids backref interpretation in block
+            lambda _m: block.strip(),
             existing,
             count=1,
             flags=re.DOTALL,
         )
-        verb = f"refreshed pointer in {rel}"
+        action = "refreshed"
     elif begins or ends:
-        # Malformed/partial markers present: do not risk mangling. Append a clean block.
         new_text = existing.rstrip("\n") + "\n\n" + block
-        verb = f"appended pointer to {rel} (left existing malformed marker untouched)"
+        action = "malformed"
     elif existing:
         new_text = existing.rstrip("\n") + "\n\n" + block
-        verb = f"appended pointer to existing {rel}"
+        action = "existing"
     else:
-        new_text = "# AGENTS\n\n" + block
-        verb = f"created {rel} with pointer"
+        new_text = (default_header + "\n\n" if default_header else "") + block
+        action = "new"
 
-    if new_text == existing:
-        return f"{rel} pointer already current"
-    if plan.dry_run:
-        return f"{rel} would be updated ({verb}) [dry-run]"
+    return new_text, action
 
-    # Back up an existing file before the first modification.
-    if existing and plan.backup:
-        backup = create_backup_path(plan.repo_root, Path(rel), timestamp)
-        backup.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(agents_path, backup)
 
-    agents_path.parent.mkdir(parents=True, exist_ok=True)
-    agents_path.write_text(new_text, encoding="utf-8")
-    if use_git:
-        git_run(plan.repo_root, ["add", "--", rel])
-    return verb
+def update_agents_pointer(
+    plan: InstallPlan, use_git: bool, timestamp: str
+) -> dict[str, str]:
+    """Add or refresh the managed pointer block in the target's AGENTS and native files.
+
+    Safety contract (deliberately stricter than an append-to-config installer):
+    - Updates an existing file in place rather than creating a duplicate.
+    - Edits ONLY the marked region; never reflows or touches the user's own prose.
+    - Idempotent: a well-formed BEGIN..END pair is replaced, so re-runs do not stack
+      blocks.
+    - Fail-safe on malformed markers: if exactly one well-formed pair is not present,
+      it appends a fresh block instead of risking a destructive regex over user text.
+    - Backs up the existing file before the first modification (unless --no-backup).
+    """
+
+    block = agents_pointer_block()
+    results: dict[str, str] = {}
+
+    # 1. Handle AGENTS file (create if absent)
+    rel_agents = resolve_agents_file(plan.repo_root)
+    agents_path = plan.repo_root / rel_agents
+    existing_agents = (
+        agents_path.read_text(encoding="utf-8") if agents_path.exists() else ""
+    )
+
+    new_agents, action = merge_pointer_block(
+        existing_agents, block, default_header="# AGENTS"
+    )
+    if action == "refreshed":
+        verb = f"refreshed pointer in {rel_agents}"
+    elif action == "malformed":
+        verb = f"appended pointer to {rel_agents} (left existing malformed marker untouched)"
+    elif action == "existing":
+        verb = f"appended pointer to existing {rel_agents}"
+    else:
+        verb = f"created {rel_agents} with pointer"
+
+    if new_agents == existing_agents:
+        results[rel_agents] = "pointer already current"
+    elif plan.dry_run:
+        results[rel_agents] = f"would be updated ({verb}) [dry-run]"
+    else:
+        if existing_agents and plan.backup:
+            backup = create_backup_path(plan.repo_root, Path(rel_agents), timestamp)
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(agents_path, backup)
+        agents_path.parent.mkdir(parents=True, exist_ok=True)
+        agents_path.write_text(new_agents, encoding="utf-8")
+        if use_git:
+            git_run(plan.repo_root, ["add", "--", rel_agents])
+        results[rel_agents] = verb
+
+    # 2. Handle native files (mirror if they already exist, never create them)
+    for native_rel in NATIVE_AGENT_FILES:
+        native_path = plan.repo_root / native_rel
+        if not native_path.is_file():
+            results[native_rel] = "not present (skipped)"
+            continue
+
+        existing_native = native_path.read_text(encoding="utf-8")
+        new_native, action = merge_pointer_block(
+            existing_native, block, default_header=""
+        )
+
+        if action == "refreshed":
+            verb = f"refreshed pointer in {native_rel}"
+        elif action == "malformed":
+            verb = f"appended pointer to {native_rel} (left existing malformed marker untouched)"
+        elif action == "existing" or action == "new":
+            verb = f"appended pointer to existing {native_rel}"
+
+        if new_native == existing_native:
+            results[native_rel] = "pointer already current"
+        elif plan.dry_run:
+            results[native_rel] = f"would be updated ({verb}) [dry-run]"
+        else:
+            if existing_native and plan.backup:
+                backup = create_backup_path(plan.repo_root, Path(native_rel), timestamp)
+                backup.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(native_path, backup)
+            native_path.write_text(new_native, encoding="utf-8")
+            if use_git:
+                git_run(plan.repo_root, ["add", "--", native_rel])
+            results[native_rel] = verb
+
+    return results
 
 
 def _git_mv(repo_root: Path, src: str, dst: str) -> None:
@@ -1720,7 +1782,7 @@ def prompt_and_run_commit(
     plan: InstallPlan,
     installed: list[str],
     pruned: list[str],
-    agents_status: str,
+    agents_status: dict[str, str],
     backups_ignore_status: str,
     use_git: bool,
     artifacts: list[str] = None,
@@ -1764,12 +1826,13 @@ def prompt_and_run_commit(
                 continue
             files_to_commit[rel_path] = "removed"
 
-    if (
-        not agents_status.endswith("already current")
-        and "[dry-run]" not in agents_status
-    ):
-        agents_rel = resolve_agents_file(plan.repo_root)
-        files_to_commit[agents_rel] = "modified"
+    for path, status in agents_status.items():
+        if (
+            not status.endswith("already current")
+            and "not present (skipped)" not in status
+            and "[dry-run]" not in status
+        ):
+            files_to_commit[path] = "modified"
 
     if (
         backups_ignore_status.startswith("added ")
@@ -1890,7 +1953,7 @@ def print_summary(
     installed: list[str],
     skipped: list[str],
     pruned: list[str],
-    agents_status: str,
+    agents_status: dict[str, str],
     gitignore_status: str,
     backups_ignore_status: str,
     use_git: bool,
@@ -1937,7 +2000,8 @@ def print_summary(
     else:
         print("Pruned: disabled by --no-prune")
     print()
-    print(f"AGENTS.md: {agents_status}")
+    for path, status in agents_status.items():
+        print(f"{path}: {status}")
     print(f"Gitignore (workflow-artifacts): {gitignore_status}")
     print(f"Gitignore (installer backups): {backups_ignore_status}")
 
@@ -1983,41 +2047,76 @@ def print_summary(
         print("   conformance check, and stages changes without committing.)")
 
 
-def remove_agents_pointer(repo_root: Path, use_git: bool) -> str:
-    """Remove the managed AGENTS pointer block; leave the rest of the file untouched.
+def remove_agents_pointer(repo_root: Path, use_git: bool) -> list[str]:
+    """Remove the managed pointer block from AGENTS and native files; leave other content.
 
-    Only strips a single well-formed BEGIN..END block (the same fail-safe discipline as
-    update_agents_pointer). Returns a human-readable status string.
+    Only strips a single well-formed BEGIN..END block. Returns human-readable status strings.
     """
 
-    rel = resolve_agents_file(repo_root)
-    agents_path = repo_root / rel
-    if not agents_path.is_file():
-        return f"{rel} absent (no pointer to remove)"
-    existing = agents_path.read_text(encoding="utf-8")
-    begins = existing.count(AGENTS_BEGIN)
-    ends = existing.count(AGENTS_END)
-    well_formed = (
-        begins == 1
-        and ends == 1
-        and existing.find(AGENTS_BEGIN) < existing.find(AGENTS_END)
-    )
-    if not well_formed:
-        return f"{rel} pointer not found (nothing removed)"
+    results: list[str] = []
 
-    new_text = re.sub(
-        re.escape(AGENTS_BEGIN) + r".*?" + re.escape(AGENTS_END),
-        "",
-        existing,
-        count=1,
-        flags=re.DOTALL,
-    )
-    # Tidy: collapse the blank hole left behind, keep a trailing newline.
-    new_text = re.sub(r"\n{3,}", "\n\n", new_text).rstrip("\n") + "\n"
-    agents_path.write_text(new_text, encoding="utf-8")
-    if use_git and git_is_tracked(repo_root, rel):
-        git_add_optional(repo_root, rel)
-    return f"removed pointer block from {rel}"
+    # 1. Resolved AGENTS file
+    rel_agents = resolve_agents_file(repo_root)
+    agents_path = repo_root / rel_agents
+    if not agents_path.is_file():
+        results.append(f"{rel_agents} absent (no pointer to remove)")
+    else:
+        existing = agents_path.read_text(encoding="utf-8")
+        begins = existing.count(AGENTS_BEGIN)
+        ends = existing.count(AGENTS_END)
+        well_formed = (
+            begins == 1
+            and ends == 1
+            and existing.find(AGENTS_BEGIN) < existing.find(AGENTS_END)
+        )
+        if not well_formed:
+            results.append(f"{rel_agents} pointer not found (nothing removed)")
+        else:
+            new_text = re.sub(
+                re.escape(AGENTS_BEGIN) + r".*?" + re.escape(AGENTS_END),
+                "",
+                existing,
+                count=1,
+                flags=re.DOTALL,
+            )
+            new_text = re.sub(r"\n{3,}", "\n\n", new_text).rstrip("\n") + "\n"
+            agents_path.write_text(new_text, encoding="utf-8")
+            if use_git and git_is_tracked(repo_root, rel_agents):
+                git_add_optional(repo_root, rel_agents)
+            results.append(f"removed pointer block from {rel_agents}")
+
+    # 2. Native agent files (only if present)
+    for native_rel in NATIVE_AGENT_FILES:
+        native_path = repo_root / native_rel
+        if not native_path.is_file():
+            results.append(f"{native_rel} absent (no pointer to remove)")
+            continue
+
+        existing = native_path.read_text(encoding="utf-8")
+        begins = existing.count(AGENTS_BEGIN)
+        ends = existing.count(AGENTS_END)
+        well_formed = (
+            begins == 1
+            and ends == 1
+            and existing.find(AGENTS_BEGIN) < existing.find(AGENTS_END)
+        )
+        if not well_formed:
+            results.append(f"{native_rel} pointer not found (nothing removed)")
+        else:
+            new_text = re.sub(
+                re.escape(AGENTS_BEGIN) + r".*?" + re.escape(AGENTS_END),
+                "",
+                existing,
+                count=1,
+                flags=re.DOTALL,
+            )
+            new_text = re.sub(r"\n{3,}", "\n\n", new_text).rstrip("\n") + "\n"
+            native_path.write_text(new_text, encoding="utf-8")
+            if use_git and git_is_tracked(repo_root, native_rel):
+                git_add_optional(repo_root, native_rel)
+            results.append(f"removed pointer block from {native_rel}")
+
+    return results
 
 
 def _uninstall_remove(repo_root: Path, rel: str, use_git: bool) -> None:
@@ -2071,7 +2170,7 @@ def uninstall_repo(repo_root: Path, use_git: bool) -> list[str]:
             actions.append(f"removed {rel}")
 
     # 3. The managed AGENTS pointer block (leaves the user's own AGENTS prose intact).
-    actions.append(remove_agents_pointer(repo_root, use_git))
+    actions.extend(remove_agents_pointer(repo_root, use_git))
 
     return actions
 

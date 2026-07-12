@@ -514,6 +514,61 @@ class InstallerEndToEndTests(unittest.TestCase):
         # Declined: the customized content remains.
         self.assertIn("Customized lines here", shim_file.read_text(encoding="utf-8"))
 
+    def test_native_agent_files_mirroring(self):
+        # 1. By default, absent CLAUDE.md/GEMINI.md are NOT created.
+        proc = run_installer(self.repo)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertFalse((self.repo / "CLAUDE.md").exists())
+        self.assertFalse((self.repo / "GEMINI.md").exists())
+
+        # 2. Existing CLAUDE.md / GEMINI.md get the block.
+        claude_file = self.repo / "CLAUDE.md"
+        gemini_file = self.repo / "GEMINI.md"
+        claude_file.write_text("User CLAUDE content\n", encoding="utf-8")
+        gemini_file.write_text("User GEMINI content\n", encoding="utf-8")
+
+        proc2 = run_installer(self.repo)
+        self.assertEqual(proc2.returncode, 0, proc2.stderr)
+
+        claude_txt = claude_file.read_text(encoding="utf-8")
+        gemini_txt = gemini_file.read_text(encoding="utf-8")
+
+        self.assertIn("User CLAUDE content", claude_txt)
+        self.assertIn("<!-- AGENT-WORKFLOWS:BEGIN -->", claude_txt)
+        self.assertIn("<!-- AGENT-WORKFLOWS:END -->", claude_txt)
+
+        self.assertIn("User GEMINI content", gemini_txt)
+        self.assertIn("<!-- AGENT-WORKFLOWS:BEGIN -->", gemini_txt)
+        self.assertIn("<!-- AGENT-WORKFLOWS:END -->", gemini_txt)
+
+        # 3. Dry-run does not write to them.
+        claude_file.write_text("User CLAUDE content\n", encoding="utf-8")
+        proc3 = run_installer(self.repo, "--dry-run")
+        self.assertEqual(proc3.returncode, 0, proc3.stderr)
+        self.assertEqual(
+            claude_file.read_text(encoding="utf-8"), "User CLAUDE content\n"
+        )
+
+        # 4. Re-running is idempotent.
+        run_installer(self.repo)
+        txt_after = claude_file.read_text(encoding="utf-8")
+        self.assertEqual(txt_after.count("<!-- AGENT-WORKFLOWS:BEGIN -->"), 1)
+
+        # 5. Uninstall removes only the block.
+        INS.uninstall_repo(self.repo, use_git=True)
+
+        # User content remains in the file
+        self.assertTrue(claude_file.is_file())
+        self.assertTrue(gemini_file.is_file())
+        self.assertIn("User CLAUDE content", claude_file.read_text(encoding="utf-8"))
+        self.assertNotIn(
+            "<!-- AGENT-WORKFLOWS:BEGIN -->", claude_file.read_text(encoding="utf-8")
+        )
+        self.assertIn("User GEMINI content", gemini_file.read_text(encoding="utf-8"))
+        self.assertNotIn(
+            "<!-- AGENT-WORKFLOWS:BEGIN -->", gemini_file.read_text(encoding="utf-8")
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

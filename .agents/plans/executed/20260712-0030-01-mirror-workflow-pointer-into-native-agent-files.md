@@ -13,7 +13,7 @@
   DECISIONS (revise D59; note D21). CORE ONLY: patch native files that ALREADY EXIST; never create
   them. Detection/adapters/doctor-report/Zed-first-match-shadowing/`.agents/AGENTS.md`-revisit are
   DEFERRED to a follow-on.
-- Status: reviewed
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -30,6 +30,7 @@
   reuse the write contract verbatim, do not touch block text or unrelated code), no em/en dashes,
   path-scoped commit, never push, and a hard MUST to paste real test output. Executable from its path
   alone. Stays reviewed.
+- 2026-07-12 executed (Antigravity/Gemini): Executed changes 1-5 exactly as written. Refactored update_agents_pointer and remove_agents_pointer to mirror pointer block to existing CLAUDE.md/GEMINI.md rules files. Generalised print_summary and prompt_and_run_commit to handle multi-file results. Added end-to-end unit tests. All 208 tests pass.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 

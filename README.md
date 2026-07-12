@@ -57,7 +57,7 @@ front-matter only and never moves or renames a plan.
 This surfaces the filename normalizer as a first-class command rather than a buried script.
 
 `aw install` copies the workflows into `.agents/workflows/`, generates slash-command shims
-for OpenCode and Claude Code, adds a pointer to your `AGENTS.md`, and scaffolds the
+for OpenCode and Claude Code, adds a pointer to your `AGENTS.md` (mirroring it into existing `CLAUDE.md` or `GEMINI.md` files), and scaffolds the
 deterministic setup files (plan-lifecycle dirs, a `.gitleaksignore` baseline, a
 secret-scan CI workflow, and a short explanatory `README.md` in each `.agents/` directory
 so the tree is self-documenting). All are written no-clobber (your own versions are never
@@ -277,7 +277,7 @@ your code.
   bootstrap tool, distinct from the agent-executed workflows, and installs the framework
   from `.agents/workflows/`).
 - `.opencode/commands/`, `.claude/commands/` - generated slash-command shims.
-- `AGENTS.md` - a one-line pointer to the workflow index.
+- `AGENTS.md` (and existing `CLAUDE.md`/`GEMINI.md` files) - a managed pointer block to the workflow index.
 - `prompts/` - a reusable prompt library (independent of the workflows; historical/origin
   material, see `prompts/README.md`).
 
