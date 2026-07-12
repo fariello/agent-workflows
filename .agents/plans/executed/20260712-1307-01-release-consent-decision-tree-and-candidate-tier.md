@@ -19,7 +19,7 @@
   except inside gated release-review Section 9"); a new single-source `RELEASING.md`; templates
   (`templates/final-response.md` terminal block); docs + DECISIONS. Regenerate shims if any manifest
   row changes (none expected).
-- Status: reviewed
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -204,6 +204,19 @@ APPLIED** (pending human sign-off). Evidence re-opened against source:
   preserves P10/D53; no regression. Rubric F (KISS/UX): the "gate by consequence, one interaction,
   safe default" design is well-disciplined and maps to the imported ui-ux principles. No BLOCKER/HIGH
   remains unfixed. All 5 OQs resolved. Does not self-approve.
+- 2026-07-12 executed (its_direct/pt3-claude-opus-4.8-1m-us): implemented changes 1-6. Section 8 gained
+  the 3-rung consent decision tree (handoff + exit gate) and `templates/final-response.md` the DECISION
+  banner rung menu; Section 9 split into per-action default-NO confirmations (tag/push/draft GitHub
+  Release/publish) with the rc-vs-final rule; release-notes teaches `-rc.N`. Resolver (PR-001):
+  `_normalize_tag` now maps `v1.2.0-rc.1`/`v1.2.0rc1` -> PEP 440 `1.2.0rc1`, and `_next_dev_base` makes
+  an ahead-of-rc tree resolve to `1.2.0rc2.devN` (sorts after rc1, before the final), replacing the
+  accidental raw `1.2.0-rc.2.dev3`; 4 new `test_versioning` cases (clean rc, ahead clean, ahead dirty,
+  PEP 440 spelling). Integrated the one tag/release MUST line into `agents_pointer_block()` (1206-01
+  landed first) + synced `AGENTS.md` ("pointer already current"); new root `RELEASING.md` + CONTRIBUTING
+  cross-link; DECISIONS D71 (not D69 - D69/D70 were taken this session). Validated: full suite `212
+  passed in 44.20s` (was 208, +4 rc tests); `aw plan-names` clean; em/en-dash sweep 0. Did NOT
+  retag/remove `v1.1.0`; never exercised the tag/release gate. Committed path-scoped `402543b` (never
+  pushed). Pre-existing `Term(<bool>)` LSP diagnostics in engine.py left untouched (out of scope).
 
 ## Approval and execution gate
 
