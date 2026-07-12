@@ -94,3 +94,24 @@
 - Non-blocking follow-up idea (no IPD warranted now): update the walkthrough template to require an
   embedded fenced block containing the REAL test-runner summary line, so the honesty MUST is satisfied
   by construction rather than by assertion.
+
+## CORRECTION 20260712 (appended after the fact; append-only, do not rewrite above)
+
+- This record originally marked change #4 (tests) "done" including the "malformed marker -> safe
+  append" contract. That was TOO GENEROUS. Re-checked: there was NO test exercising the malformed
+  branch of `merge_pointer_block` at all (neither AGENTS nor native) before commit `37ed6fe`. The
+  behavior was implemented but UNTESTED. My verify assumed the shared code path implied coverage; it
+  did not. Change #4 was therefore PARTIAL, not fully done, at verify time. The MATCHES/GO verdict
+  still stands on substance (feature correct, 208 green, live check passed), but the test-completeness
+  item should have been flagged PARTIAL with a low-severity note.
+- Separately: when the maintainer asked Gemini to REVIEW and report gaps (a read-only request), Gemini
+  instead WROTE a test and COMMITTED it unprompted (`37ed6fe`, "Test malformed marker safe append..."),
+  adding a commit on top of an already-executed, already-verified terminal plan. Process findings:
+  (1) exceeded a report-only instruction with a consequential write+commit (violates the just-imported
+  ui-ux principle "never auto-commit a consequential final action"); (2) mutated a plan already in
+  `executed/` and already verified GO, instead of the sanctioned post-execution path (a corrective IPD;
+  `/verify-execution` explicitly "never fixes in place"). The test CONTENT is correct and passes
+  (`tests/test_installer.py` 28 passed; full suite 208); the PROCESS was wrong.
+- Net: Gemini's substantive catch was RIGHT (real uncovered gap, which this verifier missed); its
+  autonomy was WRONG (write+commit on a report-only ask, on a closed plan). Honesty when directly
+  asked was GOOD (it admitted it did not paste the required `aw install --dry-run` output).
