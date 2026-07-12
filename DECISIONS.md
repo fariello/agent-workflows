@@ -2036,3 +2036,26 @@ both execute the (large) set well.
 - **Decision:** Establish the `.agents/docs/` bucket standard as a NON-LIMITING standard (it sets expectations without limiting what may live there). Standard buckets: `research/`, `walkthroughs/`, `specs/`, `prompts/`, `roadmaps/`. Ship `specs` and `prompts` in `DOCS_SUBDIRS` (the installer scaffolds them); `roadmaps` is documented as a recognized bucket but NOT shipped in `DOCS_SUBDIRS` yet (deeper roadmaps policy deferred). Move `prompts/` -> `.agents/docs/prompts/` (historical library, keeps its non-dated filenames + its rich README) and `docs/specs/` -> `.agents/docs/{specs,research}/` (renamed to the `YYYYMMDD-HHMM-NN-<slug>` convention), then retire root `docs/`. Content moved (not deleted) to preserve provenance (P2/P4; `fix-bar.md` is the origin of `fix-decision-policy.md`).
 - **Packaging:** the wheel ships only `agent_workflows/` + `_data/.agents/workflows/`; the source `.agents/` tree (docs/plans/prompts) is dev/meta and never ships. `test_packaging.py` FORBIDDEN_TOP dropped the now-gone root `docs/`/`prompts/` and gained an assertion that `.agents/docs/`, `.agents/plans/`, `.agents/prompts/` never appear in the wheel.
 - **Applied:** `engine.py` `DOCS_SUBDIRS` (+`specs`,`prompts`); `templates/agents-docs-README.md` (non-limiting standard) + new `agents-docs-{specs,prompts}-README.md`; regenerated `.agents/docs/README.md` + `specs/README.md` (prompts README is the moved rich one, no-clobber); `git mv` of the 5 prompts files + 2 docs/specs files; `spec.md:24`; `README.md`, `ARCHITECTURE.md`, `CONTRIBUTING.md`, `DECISIONS.md:65`; a dated CORRECTION note in the moved pip-distribution spec recording the reversal; `tests/test_packaging.py` + `tests/test_setup_artifacts.py` (docs-dir gitkeep count 9 -> 11). Validated: full suite `212 passed`; packaging test green; `aw plan-names` clean; docs READMEs in sync.
+
+### D74. First PyPI publish is v1.2.0 (not 1.0.0), over a registered maintainer protestation
+
+- **Context:** Rung C (full release) was chosen for the first PyPI publication. The maintainer's
+  instinct was that a first official release "should" be 1.0.0 and that seeing 1.1.0/1.2.0 as the
+  first PyPI entry "feels icky and suspicious". The maintainer explicitly asked to be argued out of
+  it and, after the argument, "very reluctantly" agreed to 1.2.0 and asked that the protestation be
+  registered.
+- **Decision:** Publish the first PyPI release as **1.2.0**, continuing the existing public git-tag
+  line (`v1.0.0` -> `v1.1.0` -> `v1.2.0`). Rationale (consistent with D44/D50/D51): `v1.0.0` and
+  `v1.1.0` are already public git tags that users have cloned. Publishing PyPI `1.0.0` would make the
+  string `1.0.0` name two different trees (the existing git `v1.0.0` vs a ~110-commit-newer PyPI
+  build) - the exact "a version means two things" dishonesty the versioning decisions avoid. The tree
+  has backward-compatible new features since `v1.1.0`, so semver -> MINOR -> `1.2.0`. A PyPI history
+  that starts mid-story is honest for a project that was git-tag-released before it reached PyPI;
+  matching PyPI to the git tags is the audit-friendly, trustworthy choice, whereas a PyPI `1.0.0` that
+  differs from git `v1.0.0` is what would actually look suspicious.
+- **Registered protestation:** the maintainer disagrees with starting PyPI above 1.0 and records that
+  disagreement here; they deferred to the honesty/collision argument, not because they were persuaded
+  the >1.0 start "feels" right. Preserved per P2 (honest record) and P4 (durable rationale).
+- **Applied:** `CHANGELOG.md` (new; documents the first-PyPI-publish framing), this entry. The
+  `v1.2.0` annotated tag, push, GitHub Release, and `twine upload` are performed in release-review
+  Section 9 as separate, individually-confirmed steps after this record.
