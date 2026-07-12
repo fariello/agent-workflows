@@ -32,6 +32,11 @@
   interactively with the maintainer (universal rule + example; prose-only enforcement; independent
   walkthrough NN; 0033-01 -> 0030-01 -> this order). Evidence re-verified against source. No
   BLOCKER/HIGH. Status -> reviewed (awaiting human approval to execute).
+- 2026-07-12 external review (Gemini in Antigravity IDE, relayed by maintainer): corroborated the
+  plan set and the execution order; supplied the concrete Antigravity brain-dir path
+  (`~/.gemini/antigravity-ide/brain/<conversation-id>`) now captured in Step 0 as reported/to-verify.
+  Also asserted Antigravity reads AGENTS.md (unconfirmed vs. the survey); noted as a reach caveat.
+  Enrichment only; approach and findings unchanged; remains reviewed.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -55,6 +60,16 @@
   0033-01 extends that coverage to `.agents/docs/**`.
 - Enforcement posture: advisory-first (D52) - MUST prose in the contract, not a hard machine gate
   (hidden brain-dir layouts are agent-specific and not generally detectable).
+- Concrete offender path (REPORTED by Gemini in Antigravity IDE 2026-07-12, NOT independently
+  verified): Antigravity keeps session walkthroughs and task checklists under
+  `~/.gemini/antigravity-ide/brain/<conversation-id>`. Useful as the motivating example for the rule
+  and as a potential detector target IF a detector is ever built (deferred per OQ3). Treat as a lead
+  to confirm, not an established fact; the rule stays agent-agnostic regardless.
+- Reach discrepancy to note: Gemini's review asserted "Antigravity reads `AGENTS.md`", but the
+  instruction-file survey lists Antigravity IDE root-`AGENTS.md` behavior as undocumented / needs
+  empirical test. If the IDE does NOT reliably read `AGENTS.md`, that STRENGTHENS the 0030-01
+  dependency (mirror the block into an existing `GEMINI.md` so these rules actually reach Antigravity).
+  Unresolved; do not assume AGENTS.md alone reaches Antigravity.
 - House rule: no em dashes in authored Markdown.
 
 ## Decisions taken (maintainer, 2026-07-12)
