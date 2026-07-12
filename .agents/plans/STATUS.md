@@ -6,10 +6,11 @@ Total: 33 plan/prompt file(s).
 
 ## pending/ (3)
 
-- **draft** (3)
+- **draft** (2)
   - `.agents/plans/pending/20260712-0014-01-pypi-publish-doc-links-and-version-check.md`
-  - `.agents/plans/pending/20260712-0014-02-release-review-todo-and-pending-prompts.md`
   - `.agents/plans/pending/20260712-0014-04-agent-brain-dir-plan-and-walkthrough-mirroring.md`
+- **to-review** (1)
+  - `.agents/plans/pending/20260712-0014-02-release-review-todo-and-pending-prompts.md`
 
 ## executed/ (30)
 
