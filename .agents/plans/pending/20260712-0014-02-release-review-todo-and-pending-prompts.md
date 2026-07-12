@@ -7,7 +7,7 @@
 - Scope: `.agents/workflows/release-review/` (Section 1 pre-flight / `00-run-protocol.md`,
   `08-final-ship-review.md`, and the pending-plans handling that already exists) + docs/DECISIONS.
   Behavioral: adds interactive prompts + an ABORT path; does not change the audit sections' substance.
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -17,6 +17,12 @@
 - 2026-07-12 to-review (its_direct/pt3-claude-opus-4.8-1m-us): fleshed out against the existing
   release-review structure (Section 1 discovery; the TODO + pending-plans policies; the
   ask-the-user bounded exception). OQs leaned. Approach committed; promoted to to-review.
+- 2026-07-12 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED.
+  Verified: no existing pre-flight gate to duplicate; `:166-168` intent-ask is the right precedent;
+  Section 1 exit gate is the checkbox home. PB-1: state the gate is SERIAL/pre-lane (before parallel
+  audit lanes) so an abort saves the whole run. PB-2: "forget and proceed" must not leak cursory
+  judgments into findings/plan/report - Section 7 reconciles independently from the full list. OQs
+  leaned; none escalated. Status -> reviewed.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -61,13 +67,16 @@
 ## Proposed changes (ordered, validatable)
 
 1. **New "Section 1 pre-flight gate" in `00-run-protocol.md`.** After Section 1 discovery (which
-   already inventories TODO sources and pending plans/prompts) and BEFORE the audit sections, add an
-   interactive pre-flight gate with two parts:
+   already inventories TODO sources and pending plans/prompts) and BEFORE the audit sections - and
+   specifically BEFORE any parallel audit lanes start (PB-1: the gate is serial/pre-lane so an abort
+   saves the whole run) - add an interactive pre-flight gate with two parts:
    - **TODO gate:** do a CURSORY pass over discovered `TODO.md`/backlog items (NOT the full Section-7
      triage) and judge whether any plausibly ought to be handled before this release. If yes, ASK the
      user (a short, specific question naming the candidate items). If the user says yes -> ABORT the
-     run to discuss. If no -> FORGET the cursory impressions and proceed (no residue in the report;
-     the normal thorough Section-7 reconciliation still happens independently).
+     run to discuss. If no -> FORGET the cursory impressions and proceed (PB-2: do NOT carry the
+      cursory judgments into findings, the execution plan, or the report; the thorough Section-7
+      reconciliation runs INDEPENDENTLY from the full item list, so this glance leaves no residue and
+      cannot bias severity).
    - **Pending plans/prompts gate:** MUST ask about anything in `.agents/plans/pending/` and
      `.agents/prompts/pending/` (plus status/location mismatches), same ask -> ABORT-or-proceed
      shape.
@@ -102,7 +111,18 @@
    ONE bounded pre-flight prompt to minimize interruption, listing TODO candidates and pending
    plans/prompts together; the user answers once.)
 
+## Plan-review record (2026-07-12)
+
+Reviewed by `/plan-review` (its_direct/pt3-claude-opus-4.8-1m-us). Verdict: **APPROVE WITH REVISIONS
+APPLIED** (pending human sign-off). Evidence re-opened: Section 1 already inventories both signals
+(01-current-state.md:36-37, exit gate :98-99); the substantive policies live in 00-run-protocol.md
+(:170-182 TODO, :184-195 pending plans); the ask-user bounded exception (:166-168) is the precedent
+to mirror; no existing pre-flight gate exists to duplicate. Findings: PB-1 gate is serial/pre-lane
+(abort saves the run); PB-2 "forget and proceed" must leave no residue in findings/plan/report. OQ1-6
+leaned for confirmation. This is a prose-workflow change (no unit tests per the repo policy;
+validation is dogfooded). This IPD does not self-approve.
+
 ## Approval and execution gate
 
-Proposal (`draft`). Flesh out -> `to-review` -> `/plan-review` -> resolve OQs -> human approve ->
-execute -> validate -> commit (never push) -> `git mv` to executed/. Not auto-executed.
+`reviewed`. Next: human approve (confirm OQ1-6 leans), execute changes 1-5, validate (dogfood +
+suite green for any mechanical bits), commit (never push), `git mv` to executed/. Not auto-executed.
