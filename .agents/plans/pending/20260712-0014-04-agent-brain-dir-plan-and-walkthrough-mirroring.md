@@ -12,7 +12,7 @@
   a reference to the plan + walkthrough naming conventions. Docs/DECISIONS. The `.agents/docs/`
   tree + `walkthroughs/` scaffold and its README are NOT in this IPD - they are provided by IPD
   `20260712-0033-01` (this IPD DEPENDS on that home existing).
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -25,6 +25,13 @@
   `docs/research/2026-07-12-agent-instruction-file-discovery-survey.md`) means these rules must ride
   the SAME managed block that IPD 0030-01 mirrors into `CLAUDE.md`/`GEMINI.md`. This IPD is now just
   the RULES. Approach committed; promoted to to-review.
+- 2026-07-12 /plan-review-long (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED;
+  PB4-1 (survey citation -> note canonical .agents/docs/research archive), PB4-2 (added a ~6-8-line
+  combined AGENTS-block brevity budget across the three block-editing IPDs, overflow to docs), PB4-3
+  (name the AGENT-PLANS block + .agents/plans README as the doc home). All 5 OQs resolved
+  interactively with the maintainer (universal rule + example; prose-only enforcement; independent
+  walkthrough NN; 0033-01 -> 0030-01 -> this order). Evidence re-verified against source. No
+  BLOCKER/HIGH. Status -> reviewed (awaiting human approval to execute).
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -36,7 +43,9 @@
   default Gemini CLI (non-recognition). So these MUST-mirror rules only reliably reach those agents
   once IPD 0030-01 mirrors the block into an existing `CLAUDE.md`/`GEMINI.md`. HARD DEPENDENCY on
   0030-01 for full effect (the rules are still correct in AGENTS.md meanwhile; they just under-reach
-  Claude/Gemini until 0030-01 lands).
+  Claude/Gemini until 0030-01 lands). Survey archived canonically at
+  `.agents/docs/research/plan-review/` (the `docs/research/` copy is the pre-0033-01 location and is
+  superseded once 0033-01 lands).
 - Walkthrough HOME: `.agents/docs/walkthroughs/` is scaffolded (dir + Category-1 no-clobber README)
   by IPD 0033-01, which also defines the `YYYYMMDD-HHMM-NN-<slug>.md` naming. HARD DEPENDENCY: this
   IPD references that path/convention but does NOT create the dir or README (avoids the two IPDs both
@@ -74,30 +83,39 @@
    - Keep it SHORT (the block is a pointer, not a manual); phrase for "any agent that keeps private
      working state," with a parenthetical naming the known offenders ("e.g. Antigravity/Gemini",
      resolving OQ1 as: universal rule + a brief named example).
-2. **Reconcile the block with 0030-01 and 0014-... 0033-01.** All block edits (this IPD's rules,
-   0033-01's immortalize-research directive, and the workflow-pointer text) live in the SINGLE
-   `agents_pointer_block()`; whichever lands last integrates the others' text. Update this repo's
-   `AGENTS.md` to match (verify in sync via `aw install . --dry-run` -> "pointer already current").
-3. **Docs + DECISIONS.** README/ARCHITECTURE brief note that installed repos carry a brain-dir
-   mirroring contract; DECISIONS entry (Dnn) recording the MUST-mirror rules, the advisory-first
-   posture, the dependency on the `.agents/docs/walkthroughs/` home (0033-01) and on native-file
-   mirroring for Claude/Gemini reach (0030-01), and Antigravity/Gemini as the motivating case.
+2. **Reconcile the block with 0030-01 and 0033-01, under a brevity budget (PB4-2).** Three IPDs now
+   add prose to the SINGLE `agents_pointer_block()`: this IPD's brain-dir rules, 0033-01's
+   immortalize-research directive, and 0030-01's native-file mirroring (which changes WHERE the block
+   is written, not its text). The block is a POINTER, not a manual (P9). Governing constraint: after
+   all three land, the added contract prose (research + brain-dir MUST rules) totals AT MOST ~6-8
+   lines combined - terse MUST bullets that point at the conventions, not restate them. If it would
+   exceed that, move the detail into a referenced convention doc (e.g. the plans/docs READMEs from
+   0033-01) and keep only a one-line pointer in the block. Whichever IPD lands last integrates the
+   others' text within this budget. Update this repo's `AGENTS.md` to match and verify in sync via
+   `aw install . --dry-run` ("pointer already current").
+3. **Docs + DECISIONS.** Note the brain-dir mirroring contract where the plan lifecycle is already
+   documented: the AGENTS.md AGENT-PLANS block and the `.agents/plans` README (the same homes D52's
+   plan-status rules use), plus a one-liner in README/ARCHITECTURE if it fits without bloat. DECISIONS
+   entry (Dnn) recording the MUST-mirror rules, the advisory-first posture, the dependency on the
+   `.agents/docs/walkthroughs/` home (0033-01) and on native-file mirroring for Claude/Gemini reach
+   (0030-01), and Antigravity/Gemini as the motivating case.
 4. **Validation.** Prose-contract change (no unit test for instruction prose, per repo policy);
    validate that the block round-trips (`aw install . --dry-run` reports in-sync; suite green;
    `aw plan-names` still clean). If any test asserts block content/markers, keep it green.
 
-## Open questions (v1 leans for review)
+## Open questions (ALL RESOLVED with maintainer 2026-07-12 via /plan-review-long)
 
-1. Named callout: RESOLVED lean - universal MUST rule + a brief "(e.g. Antigravity/Gemini)"
-   parenthetical, not an Antigravity-only section. Confirm.
-2. Walkthrough home / `.agents/docs/` tree: RESOLVED - owned by IPD 0033-01 (dependency); this IPD
-   only references it. Confirm sequencing (0033-01 before or with this IPD).
-3. Enforcement level: RESOLVED lean - MUST prose only for v1 (advisory-first, D52); a brain-dir
-   detector is agent-specific and deferred. Confirm.
-4. Walkthrough `NN` sequencing: RESOLVED lean - same `YYYYMMDD-HHMM-NN` scheme, counter independent
-   within `walkthroughs/`. Confirm.
-5. Block length: the pointer block is meant to be small; adding two MUST bullets grows it. Confirm the
-   brevity target (2-4 lines) so the block stays a pointer, not a policy doc.
+1. Named callout: RESOLVED - universal MUST rule + a brief "(e.g. Antigravity/Gemini)" parenthetical,
+   NOT an Antigravity-only section.
+2. Sequencing / walkthrough home: RESOLVED - the `.agents/docs/` tree + `walkthroughs/` home is owned
+   by IPD 0033-01 (hard dependency). Confirmed execution order: 0033-01 -> 0030-01 -> this IPD.
+3. Enforcement level: RESOLVED - MUST prose only for v1 (advisory-first, D52); a brain-dir detector
+   is agent-specific and DEFERRED to a possible later follow-on.
+4. Walkthrough `NN` sequencing: RESOLVED - same `YYYYMMDD-HHMM-NN` scheme, with an INDEPENDENT
+   per-minute counter within `walkthroughs/` (separate area from plans; counters do not collide).
+5. Block brevity budget: RESOLVED - the combined contract prose across the three block-editing IPDs
+   (this, 0033-01, 0030-01) is AT MOST ~6-8 lines in the AGENTS pointer block; overflow moves to the
+   referenced convention docs so the block stays a pointer (P9). (See change #2.)
 
 ## Dependencies / sequencing
 
