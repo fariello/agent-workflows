@@ -18,6 +18,12 @@ Retire a plan by prepending a `RETIRED YYYY-MM-DD: <reason>; superseded by <path
 header and `git mv`ing it to `superseded/` or `not-executed/`. **Never silently delete a
 plan** - retiring preserves the record and the reason.
 
+**Private/brain-dir plans MUST be mirrored here.** If an agent keeps a plan/IPD in a
+private, hidden, or tool-internal "brain"/memory/scratch dir (e.g. Antigravity/Gemini), it
+MUST also keep an exact, conventions-compliant copy under `.agents/plans/` and move THAT copy
+through the lifecycle; the tracked copy is the source of truth, the private copy is
+disposable. (Also stated in the always-loaded `AGENT-WORKFLOWS` block.)
+
 ## Readiness status (front-matter)
 
 The DIRECTORY records a plan's disposition (above); the plan's front-matter `Status:` line

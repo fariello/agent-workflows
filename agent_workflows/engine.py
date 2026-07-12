@@ -566,7 +566,12 @@ def agents_pointer_block() -> str:
         "1. Immortalize research/analysis you rely on for a decision to `.agents/docs/research/` "
         "using `YYYYMMDD-HHMM-NN-<slug>.md`.\n"
         "2. Save narrative walkthroughs to `.agents/docs/walkthroughs/` with "
-        "`...-walkthrough.md`.\n\n"
+        "`...-walkthrough.md`.\n"
+        "3. If you keep plans/IPDs or walkthroughs in a private, hidden, or tool-internal "
+        '"brain"/memory/scratch dir (e.g. Antigravity/Gemini), you MUST also keep an exact, '
+        "conventions-compliant copy under `.agents/plans/` (moved through the lifecycle) and "
+        "`.agents/docs/walkthroughs/`; the tracked copy is the source of truth, the private copy "
+        "is disposable.\n\n"
         "### Agent execution contract\n"
         "When you execute a task or plan here you MUST: commit ONLY files you changed, path-scoped "
         "(`git commit -m msg -- <path>`), never `git add -A`/bare/`-a`, and never push; when you "
