@@ -21,6 +21,12 @@
   Ctrl-C propagates to abort), PR-2 (base BUG-1 fix on the existing `shim_body` generator, verified
   at engine.py:392, per command+tool), PR-3 (the drift-guard test must GENERATE shims from the
   manifest, not hardcode them). All 4 OQs resolved interactively. No BLOCKER/HIGH. Status -> reviewed.
+- 2026-07-12 /plan-review-long (its_direct/pt3-claude-opus-4.8-1m-us): independent modular re-review
+  (A/B dogfood). Confirmed PR-1/2/3 sound; 2 new low-risk findings FIXED: PL-1 (stale-delete path has
+  no manifest Workflow -> cannot render shim_body; use a structural check for stale shims), PL-2
+  (validation should also cover an old-but-generated shim - detector must distinguish "current
+  generated" from "not current" and offer the diff). No new open questions; no BLOCKER/HIGH. Remains
+  reviewed. GO for execution (unchanged).
 
 ## Plan-review record (2026-07-12)
 
@@ -70,6 +76,13 @@ Does not self-approve.
    the generated output count as customization. Callers pass the command + workflow + tool so the
    right expected shim is rendered. Keep `is_shim_customized` as a thin back-compat wrapper only if a
    call site cannot supply that context; prefer the context-aware comparison everywhere it is reachable.
+   - PL-1 (stale-shim edge case, found by /plan-review-long): the STALE-delete path (engine.py:~940)
+     runs for a command REMOVED from the manifest, so there is no `Workflow` to render `shim_body`
+     from - template-truth is impossible there. For a stale shim, fall back to a STRUCTURAL check: is
+     the file still a recognizable generated shim (has the `Read and execute @.agents/workflows/...`
+     line and only generated-shape content)? If yes, treat as not-customized and safe to prune; if it
+     carries extra human content, treat as customized and warn. Do NOT call `shim_body` for a command
+     with no manifest row.
 2. **Ctrl-C aborts the whole install cleanly (BUG 2).** At every interactive prompt, `KeyboardInterrupt`
    must ABORT the run (propagate to the `main()` guard -> clean "Cancelled.", exit 130), NOT set
    `choice="n"` and continue. At the four sites (:759, :960, :1348, :1699), STOP catching
@@ -116,7 +129,10 @@ Does not self-approve.
 
 ## Approval and execution gate
 
-`to-review`. Next: `/plan-review` (two-commit per D52), resolve OQs interactively (D60), human
-approve, execute changes 1-5, validate (suite green + a real re-install of this repo showing NO false
-"manual modifications" warning and a clean Ctrl-C abort), commit (never push), `git mv` to executed/.
-Not auto-executed.
+`reviewed`. Next: human approve, execute changes 1-5, validate (suite green + a real re-install of
+this repo showing NO false "manual modifications" warning on the current-format shims, and a clean
+Ctrl-C abort). PL-2: the validation should also cover the "old-but-generated" case - a shim produced
+by a PRIOR template version. Confirm the detector still flags it as differing (so the human is
+offered the diff), i.e. the fix distinguishes "current generated" (never warn) from "not current"
+(warn + offer diff), and never silently overwrites. Commit (never push), `git mv` to executed/. Not
+auto-executed.
