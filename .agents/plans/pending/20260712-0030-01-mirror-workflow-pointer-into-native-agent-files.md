@@ -24,6 +24,12 @@
 - 2026-07-12 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED;
   PR-B (uninstall already strips the block -> generalize remove_agents_pointer), PR-C (native writes
   inherit backup+stage+no-commit via the shared helper). No BLOCKER/HIGH. Status -> reviewed.
+- 2026-07-12 hardened for path-only handoff (its_direct/pt3-claude-opus-4.8-1m-us): locked OQ1-3 to
+  RESOLVED (exactly CLAUDE.md+GEMINI.md, repo-root only, default-on for existing files only) and wrote
+  an explicit execution contract into the gate: a strong SCOPE FENCE (this is an engine.py refactor;
+  reuse the write contract verbatim, do not touch block text or unrelated code), no em/en dashes,
+  path-scoped commit, never push, and a hard MUST to paste real test output. Executable from its path
+  alone. Stays reviewed.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -88,16 +94,16 @@
 - Revisiting the D21 `.agents/AGENTS.md` fallback (survey: not a mainstream project-wide location;
   preserve-and-warn rather than treat-as-equivalent). Capture as its own decision/IPD.
 
-## Open questions (v1 leans for review)
+## Open questions (ALL RESOLVED with maintainer 2026-07-12; execute exactly as stated)
 
-1. Native file set: `CLAUDE.md` + `GEMINI.md` for v1 (the two confirmed non-readers). Add others
-   (e.g. `AGENT.md` singular for some Gemini Code Assist surfaces) later. (Lean: just the two.)
-2. Root-only, or also nested/`.claude/CLAUDE.md`/`~/.claude`? (Lean: repo-root only for v1; global/
-   nested are the user's domain, not ours to edit.)
-3. Should mirroring be default-on, or gated behind a flag? (Lean: default-on but ONLY for files that
-   already exist - zero new files, minimal intrusion, so default-on is safe and matches the goal.)
-4. Uninstall symmetry: RESOLVED (PR-B) - uninstall already strips the AGENTS block via
-   `remove_agents_pointer`; generalize it to the native files. Confirmed by source, not deferred.
+1. Native file set: RESOLVED - EXACTLY `("CLAUDE.md", "GEMINI.md")` at the repo root for v1. Do NOT
+   add `AGENT.md`, `.cursorrules`, or any other file in this IPD.
+2. Location: RESOLVED - repo-ROOT only. Do NOT touch nested files, `.claude/CLAUDE.md`, `~/.claude`,
+   `~/.gemini`, or any global/home path.
+3. Default-on vs. flag: RESOLVED - default-on, but ONLY for a native file that ALREADY EXISTS at the
+   repo root. NEVER create a native file that does not exist. No new flag.
+4. Uninstall symmetry: RESOLVED (PR-B) - generalize `remove_agents_pointer` to strip the managed
+   block from the native files too (block only; never delete the user's file).
 
 ## Plan-review record (2026-07-12)
 
@@ -117,5 +123,32 @@ No BLOCKER/HIGH findings; OQ1-4 leaned/resolved. This IPD does not self-approve.
 
 ## Approval and execution gate
 
-`reviewed`. Next: human approve (confirm OQ1-3 leans), execute changes 1-5, validate (suite green),
-commit (never push), `git mv` to executed/. Not auto-executed.
+`reviewed`. All OQs are RESOLVED above, so this IPD is executable from its path alone. Execution
+contract (follow EXACTLY; this is a code change, so the scope fence matters most):
+
+1. SCOPE FENCE. Implement ONLY changes 1-5 as written. Touch ONLY: `agent_workflows/engine.py`
+   (add `NATIVE_AGENT_FILES`; factor the INLINE marker-merge in `update_agents_pointer`
+   (engine.py:1026-1053) into ONE shared helper reused by AGENTS.md + the native files; generalize
+   `remove_agents_pointer`; the install summary line), the tests (`tests/test_installer.py` and/or
+   `tests/test_cli.py`), and docs (`README.md`/`ARCHITECTURE.md`, `DECISIONS.md`, and commit the
+   research survey/prompt). Do NOT edit `agents_pointer_block()`'s TEXT (this IPD changes WHERE the
+   block is written, not its content). Do NOT refactor, rename, reformat, or "improve" anything the
+   plan did not ask for; do NOT rewrite unrelated functions. If a change seems to need more than the
+   above, STOP and leave a note rather than expanding scope.
+2. REUSE the existing write contract VERBATIM (exactly-one-marker-pair replace-in-place; malformed or
+   none append; back up before first edit via `create_backup_path`; STAGE never commit; honor
+   --dry-run; idempotent). The native files inherit it through the shared helper. NEVER create a
+   native file that does not already exist.
+3. Authoring style: NO em dashes or en dashes in any Markdown you write (use a hyphen or reword).
+4. VALIDATE: run the FULL test suite. When you report that validation passed, you MUST paste the
+   ACTUAL test-runner output (the real command and its real summary line). Never report success you
+   did not run. Confirm `aw install . --dry-run` reports the pointer in sync.
+5. COMMIT only the files THIS IPD touches, PATH-SCOPED, message BEFORE the `--`:
+   `git commit -m "msg" -- <path> <path> ...`. NEVER `git add -A`, a bare `git commit`, or
+   `git commit -a` (another agent may have unrelated staged work). NEVER push.
+6. When implemented, verified, and tests ACTUALLY pass, `git mv` this file to
+   `.agents/plans/executed/`, set `Status:` to `executed`, append a `## Workflow history` line, and
+   commit that move path-scoped.
+
+HARD MUST (do not skip): report only what you actually ran; paste the real test output; stay inside
+the scope fence; never push. Not auto-executed; requires human approval to begin.
