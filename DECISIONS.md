@@ -1810,3 +1810,32 @@ both execute the (large) set well.
   publish an HTML/docs tree). Verified by a real wheel build that the hook runs and the metadata
   long-description is produced. The rewriter and version helpers are unit-tested (13 tests, network
   mocked).
+
+### D59. No per-tool instruction files (no CLAUDE.md / GEMINI.md); AGENTS.md + shims only (REVISIT)
+
+- **Context:** Claude Code reads `CLAUDE.md`, Gemini/Antigravity read `GEMINI.md`, in addition to the
+  cross-tool `AGENTS.md`. Question raised: should the installer generate `CLAUDE.md` / `GEMINI.md`
+  too? We already have Gemini/Antigravity-flavored guidance (the brain-dir mirroring concern, ITEM-08).
+- **Decision (for now): generate NEITHER.** Keep the framework's minimal, one-source-of-truth surface:
+  the workflow BODIES in `.agents/workflows/` are the single source; per-tool surfaces are thin
+  GENERATED pointers/shims (`.opencode/commands/`, `.claude/commands/`) plus the managed `AGENTS.md`
+  pointer block. Rationale:
+  - Every additional per-tool instruction FILE is a second source of truth and a drift/staleness
+    liability - the exact thing this architecture exists to avoid.
+  - The bar for adding a per-tool file is "this tool has a BEHAVIOR the generic AGENTS.md pointer
+    demonstrably fails to reach." Not met for Claude (Claude Code already reads AGENTS.md; no
+    Claude-specific behavior problem). Gemini/Antigravity DOES have a real gap (brain-dir mirroring),
+    but the fix is strong AGENTS.md rules, not duplicated content in a GEMINI.md.
+  - So Theme D (ITEM-08) delivers its MUST-mirror rules via AGENTS.md (root by default, D21), not a
+    GEMINI.md.
+- **OPEN QUESTION - REVISIT IF NEEDED (the reason this is not final):** "generate neither" governs
+  files WE create; it does NOT address a target repo that ALREADY HAS a `GEMINI.md` or `CLAUDE.md`.
+  Unknown and UNVERIFIED: does an existing `GEMINI.md` cause Gemini to IGNORE or SUBORDINATE
+  `AGENTS.md`? If a tool prefers its own `<TOOL>.md` over `AGENTS.md`, then putting our rules only in
+  AGENTS.md would be silently defeated in exactly the repos most likely to have the problem. Before
+  relying on this decision for Theme D enforcement, VERIFY the precedence rules (agents.md spec +
+  Gemini/Claude docs). If a tool subordinates AGENTS.md to its own file, revisit: options include
+  writing a managed pointer block INTO an existing `<TOOL>.md` (update-in-place, never create), or
+  detecting/ warning when a target has a `<TOOL>.md` that would shadow our AGENTS.md rules.
+- **Status:** provisional; revisit when the precedence facts are known or if a downstream repo shows
+  AGENTS.md being shadowed.
