@@ -1,4 +1,4 @@
-# IPD: Plan/walkthrough timestamp convention - reverse UTC to LOCAL time
+# IPD: Human-facing timestamp convention - reverse UTC to LOCAL time (plan filenames AND run-ids)
 
 - Date: 2026-07-11
 - Concern: developer UX / convention correctness. The plan filename convention
@@ -8,11 +8,14 @@
   justification (a monotonic global order for cross-timezone teams) does not fit this use; filenames
   are for humans first. Reverse the UTC directive to LOCAL time (the creating machine's local tz),
   keeping the same `YYYYMMDD-HHMM` shape (no offset suffix in the name).
-- Scope: the timestamp SEMANTICS only. Reverses the "UTC" portion of D48/D50; the shape
-  (`YYYYMMDD-HHMM-NN-<slug>`), the `NN` per-minute sequence, the `00`-orchestrator rule, and the
-  creation-time = earliest-evidence semantics are UNCHANGED - only the timezone flips UTC -> local.
-  Touches: `normalize_plan_names.py` date-derivation, and ~12 authored docs that state "UTC".
-- Status: to-review
+- Scope (BROADENED by plan-review): ALL human-facing timestamp NAMES flip UTC -> local - both plan
+  filenames (`YYYYMMDD-HHMM-NN-<slug>`) AND `workflow-artifacts/` RUN_IDs (`YYYYMMDD-HHMMSS`). Only
+  the timezone changes; shapes, `NN` sequence, `00`-orchestrator, and earliest-evidence creation
+  semantics are UNCHANGED. EXCLUDED (not filenames): log/telemetry timestamps (`logging-audit.md`
+  "prefer UTC" for logs; `bench_env.py` `captured_at_utc` ISO-8601 field) and the dev-version-string
+  date segment (`versioning.py:52`). Touches: `normalize_plan_names.py` date-derivation (real UTC
+  code) + ~24 authored docs stating "UTC" for plan/RUN_ID names.
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -22,6 +25,15 @@
   prior session). Decision: reverse to local time, no offset in the name, update everywhere, add a
   DECISIONS entry reversing the UTC part of D48/D50; leave historical UTC-named files as-is (P4).
   Complete proposal; born to-review.
+- 2026-07-11 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED.
+  Re-opened the evidence and found: (TL-1) RUN_ID timestamps (verify/benchmark/advise/release-review
+  `YYYYMMDD-HHMMSS`) are also UTC in PROSE - maintainer broadened scope to ALL human-facing timestamp
+  names; (TL-2) the run-id-generating CODE (`engine.py` x5) already uses `datetime.now()` = LOCAL, so
+  those docs are simply WRONG today and flipping the prose to "local" makes docs match code (no code
+  change there); (TL-3) `bench_env.py:625 captured_at_utc` and `logging-audit.md:32` are
+  telemetry/log timestamps, NOT filenames - EXCLUDED; (TL-4) `versioning.py:52 _utc_date()` is a
+  dev-VERSION-string segment, a distinct concern - EXCLUDED pending maintainer confirm. Status ->
+  reviewed.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -47,23 +59,32 @@
 
 ## Proposed changes (ordered, validatable)
 
-1. **Normalizer -> local time.** Remove the forced `TZ=UTC` (drop `_utc_env()` or make it a no-op
-   passing the ambient environment) so `git log --date=format-local` uses the machine's local tz; and
-   change `fs_stamp` to `datetime.datetime.fromtimestamp(min(epochs))` (naive local). Update the
-   module docstring + inline comments UTC -> local. Keep everything else (earliest-of semantics,
-   `--follow`, `NN`) identical.
-2. **Docs reconciliation.** In each authored doc, change the plan-filename timestamp description from
-   "UTC date and time" to "the creating machine's LOCAL date and time" (same `YYYYMMDD-HHMM` shape).
-   Leave any non-plan UTC guidance (e.g. log timestamps in `logging-audit.md`) untouched - verify each
-   hit is about the plan-filename convention before editing.
-3. **DECISIONS reversal entry (Dnn).** Add an entry that EXPLICITLY reverses the UTC portion of
-   D48/D50 with the UX rationale (human-readable filenames; solo/small-team; wall-clock match), states
-   the new rule (local tz, no offset in the name), notes the mixed-timezone caveat (names reflect the
-   creating machine's tz; acceptable for this use), and that historical UTC-named files are NOT
-   renamed (P4). D48/D50 remain as the historical record; this entry supersedes their tz clause.
-4. **Tests.** Update/extend the normalizer tests: `fs_stamp` returns local-time components for a known
-   epoch (compute the expected local `YYYYMMDD/HHMM` from the same epoch, tz-agnostic assertion); no
-   test asserts UTC. Add a guard that the module no longer forces `TZ=UTC`. Full suite green.
+1. **Normalizer -> local time (the only real UTC-forcing code).** Remove the forced `TZ=UTC` (drop
+   `_utc_env()` or make it a no-op passing the ambient environment) so `git log --date=format-local`
+   uses the machine's local tz; change `fs_stamp` to `datetime.datetime.fromtimestamp(min(epochs))`
+   (naive local). Update the module docstring + inline comments UTC -> local. Everything else
+   (earliest-of semantics, `--follow`, `NN`) identical.
+2. **RUN_ID generation - no code change needed (confirm).** VERIFIED the run-id-producing code
+   (`engine.py` x5) already uses `datetime.now()` = LOCAL; so RUN_IDs are ALREADY local. This change
+   is a DOC correction: the prose that says RUN_ID is "UTC" is wrong today. (If any new run-id helper
+   is added later it must use local too.)
+3. **Docs reconciliation (plans + RUN_IDs).** In each authored doc, change the timestamp description
+   from "UTC" to "the creating machine's LOCAL time" for BOTH the plan-filename convention and the
+   `workflow-artifacts/` RUN_ID (`YYYYMMDD-HHMMSS`). Docs to update include AGENTS.md, the IPD
+   template, assess/assess-all/setup-repo/verify/benchmark/advise/getting-started, the plans READMEs,
+   all release-review section files + templates/README/reference/MANIFEST, ARCHITECTURE.md, and the
+   prompts that mention RUN_ID. EXCLUDE and DO NOT edit: `logging-audit.md:32` (log timestamps -
+   "prefer UTC" is correct for telemetry) and any ISO-8601 `captured_at_utc`-style data fields.
+   Verify each hit is a NAME convention before editing.
+4. **DECISIONS reversal entry (Dnn).** Explicitly reverse the UTC portion of D48/D50 with the UX
+   rationale (human-readable, wall-clock-matching names; solo/small-team), state the new rule (local
+   tz, no offset in the name, for plan filenames AND RUN_IDs), note the mixed-tz caveat (names reflect
+   the creating machine's tz; acceptable here), the EXCLUSIONS (log/telemetry + version-string dates
+   stay UTC), and that historical UTC-named files are NOT renamed (P4). D48/D50 remain the historical
+   record; this supersedes their tz clause.
+5. **Tests.** Update/extend the normalizer tests: `fs_stamp` returns LOCAL components for a known
+   epoch (compute expected local `YYYYMMDD/HHMM` from the same epoch - tz-agnostic assertion); no test
+   asserts UTC; guard that the module no longer forces `TZ=UTC`. Full suite green.
 
 ## Deferred / out of scope
 
@@ -72,17 +93,32 @@
 - Renaming historical UTC-named plan files - NOT done (P4; they stay as the record).
 - Changing the filename SHAPE, `NN` rules, or creation-time semantics - unchanged.
 
-## Open questions (v1 leans for review)
+## Open questions
 
-1. Mixed-timezone contributors produce names in their own local tz, so global ordering across
-   machines is approximate. Accept for this use? (Lean: yes - single/small-team; ordering within one
-   machine is correct and that is what matters here.)
-2. `logging-audit.md` UTC mention: confirm it is about LOG timestamps (leave it) vs the plan
-   convention (change it). (Lean: leave log guidance; UTC for logs is a real best practice.)
-3. Should the normalizer's `--format json` output or any stamp be tz-annotated? (Lean: no; keep names
-   plain local, matching the human-facing goal.)
+1. **Mixed-tz ordering: RESOLVED lean - accept.** Names reflect the creating machine's local tz;
+   ordering within one machine is correct, which is what matters for solo/small-team use.
+2. **`logging-audit.md` / telemetry UTC: RESOLVED - leave untouched.** Confirmed it is LOG/telemetry
+   time guidance ("prefer UTC"), not a filename; `bench_env.py captured_at_utc` likewise. Excluded.
+3. **`versioning.py:52 _utc_date()` (dev-version-string date): OPEN for maintainer.** This is a
+   PEP 440 dev-version segment, not a filename. Lean: EXCLUDE (version strings are a distinct,
+   ordering-sensitive concern; leave UTC). Confirm, or include it if you want total local consistency.
+4. tz annotation in names/JSON: RESOLVED - no; keep names plain local (the human-facing goal).
+
+## Plan-review record (2026-07-11)
+
+Reviewed by `/plan-review` (its_direct/pt3-claude-opus-4.8-1m-us). Verdict: **APPROVE WITH REVISIONS
+APPLIED** (pending human sign-off). Findings, evidence re-opened against source:
+- TL-1 (scope gap): RUN_IDs are also UTC in prose -> maintainer broadened scope to all human-facing
+  timestamp names (plans + RUN_IDs).
+- TL-2 (accuracy): run-id CODE (`engine.py` x5 `datetime.now()`) is ALREADY local; the change there
+  is doc-only (the prose was wrong). Prevents a needless/incorrect "make code UTC->local" edit.
+- TL-3 (exclusion): `logging-audit.md:32` + `bench_env.py:625` are telemetry, not filenames -
+  excluded.
+- TL-4 (exclusion, needs confirm): `versioning.py:52` is a version-string date, not a filename -
+  excluded pending OQ3.
+No blocking findings; this IPD does not self-approve.
 
 ## Approval and execution gate
 
-`to-review`. Next: `/plan-review` (two-commit per D52), resolve OQs, human approve, execute changes
-1-4, validate (suite green), commit (never push), `git mv` to executed/. Not auto-executed.
+`reviewed`. Next: human approve (confirm OQ3), execute changes 1-5, validate (suite green), commit
+(never push), `git mv` to executed/. Not auto-executed.
