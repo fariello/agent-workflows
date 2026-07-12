@@ -9,10 +9,10 @@ files do NOT conform and what they would be renamed to; `--apply` performs the r
 `git mv` (staged, never committed) after the wizard has shown the preview and the user has
 agreed.
 
-Convention (unchanged from D48):
+Convention (shape from D48; timezone LOCAL per D55):
   YYYYMMDD-HHMM-NN-<slug>.md
-    YYYYMMDD  creation date (UTC)
-    HHMM      creation time, 24h (UTC)
+    YYYYMMDD  creation date (LOCAL time)
+    HHMM      creation time, 24h (LOCAL time)
     NN        two-digit sequence within that exact YYYYMMDD-HHMM. 00 is reserved (by
               convention, not enforced) for an orchestrator plan; ordinary plans use 01+.
     <slug>    lowercase kebab-case, [a-z0-9-]+, no leading/trailing hyphen.
@@ -20,7 +20,7 @@ Convention (unchanged from D48):
 Timestamp SEMANTICS (D50): the filename timestamp is CREATION/authoring time, stable for the
 plan's whole life (not execution, not last-modified). When a legacy file lacks a full
 timestamp we derive it from the EARLIEST EVIDENCE of the file's existence:
-  min(git-first-commit-time, st_birthtime, st_mtime), in UTC.
+  min(git-first-commit-time, st_birthtime, st_mtime), in the machine's LOCAL timezone (D55).
 A date embedded in the filename ALWAYS wins over the derived value. If the chosen date and
 the git-first-commit date differ by more than a day (the tell-tale of an imported/copied
 file, whose git-commit records when it entered THIS repo, not when it was authored), the
@@ -54,7 +54,6 @@ import argparse
 import datetime
 import fnmatch
 import json
-import os
 import re
 import subprocess
 from pathlib import Path
@@ -163,17 +162,13 @@ def is_conformant(filename: str) -> bool:
 # --------------------------------------------------------------------------------------
 
 
-def _utc_env() -> dict:
-    env = dict(os.environ)
-    env["TZ"] = "UTC"
-    return env
-
-
 def git_first_commit_stamp(repo_root: Path, rel_path: str) -> Optional[tuple]:
-    """Return (date, time) of the file's first commit (author time, UTC), or None.
+    """Return (date, time) of the file's first commit (author time, LOCAL), or None.
 
     Uses `--follow` so a file renamed by earlier migrations traces to its original add, and
-    takes the OLDEST such author time. None on any failure (non-git, untracked, git missing).
+    takes the OLDEST such author time. `--date=format-local` renders in the machine's local
+    timezone (we do NOT force TZ), matching the human-facing local-time convention (D55).
+    None on any failure (non-git, untracked, git missing).
     """
 
     try:
@@ -192,7 +187,6 @@ def git_first_commit_stamp(repo_root: Path, rel_path: str) -> Optional[tuple]:
             ],
             capture_output=True,
             text=True,
-            env=_utc_env(),
         )
     except (OSError, ValueError):
         return None
@@ -209,10 +203,12 @@ def git_first_commit_stamp(repo_root: Path, rel_path: str) -> Optional[tuple]:
 
 
 def fs_stamp(path: Path) -> Optional[tuple]:
-    """Return the earliest of the file's birthtime/mtime as a UTC (date, time), or None.
+    """Return the earliest of the file's birthtime/mtime as a LOCAL (date, time), or None.
 
     st_birthtime is used when the platform/FS exposes it (macOS/Windows-origin); absent on
     Linux ext4. st_ctime is NOT used as a value (Linux inode-change time is not creation).
+    Rendered in the machine's local timezone (naive fromtimestamp), per the human-facing
+    local-time convention (D55).
     """
 
     try:
@@ -227,7 +223,7 @@ def fs_stamp(path: Path) -> Optional[tuple]:
         epochs.append(st.st_mtime)
     if not epochs:
         return None
-    dt = datetime.datetime.fromtimestamp(min(epochs), datetime.timezone.utc)
+    dt = datetime.datetime.fromtimestamp(min(epochs))
     return (dt.strftime("%Y%m%d"), dt.strftime("%H%M"))
 
 

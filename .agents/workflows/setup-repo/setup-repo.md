@@ -97,7 +97,7 @@ these workflows:
   - `.agents/plans/reusable/` - recurring plans meant to be re-run repeatedly (e.g. a
     periodic audit or rollout runbook); they stay here rather than moving on after a run.
 
-  Plan files are named `YYYYMMDD-HHMM-NN-<slug>.md` (UTC date + time; `NN` a two-digit
+  Plan files are named `YYYYMMDD-HHMM-NN-<slug>.md` (local date + time; `NN` a two-digit
   per-minute sequence, `00` reserved by convention for an orchestrator plan and `01+` for
   ordinary/child plans; `<slug>` lowercase kebab-case). If the repo already uses a terminal
   dir named `done/` (or another), keep it - do not rename; just record which is canonical
@@ -120,7 +120,7 @@ these workflows:
   By default it scans `.agents/plans/` and `.agents/prompts/` and lists any file not matching
   `YYYYMMDD-HHMM-NN-<slug>.md` with its proposed `old -> new` name or a status. The date is the
   file's CREATION proxy: a date already in the name wins; otherwise the EARLIEST of its
-  git-first-commit / birthtime / mtime (UTC). Statuses to relay to the user:
+  git-first-commit / birthtime / mtime (local time). Statuses to relay to the user:
   - `to-rename` - ready; the tool will `git mv` it (staged, not committed).
   - `imported?` - the chosen date disagrees with the git-commit date by more than a day (a copied/
     imported file); held unless you pass `--assume-dates`. Confirm the date with the user first.

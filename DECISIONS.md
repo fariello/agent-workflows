@@ -1692,3 +1692,33 @@ both execute the (large) set well.
 - **Applied:** `agent_workflows/plans.py`; the `aw plans` verb + `_run_plans` in `cli.py` (help and
   no-arg hint updated); `tests/test_plans_board.py` (+ drift-guard refactor to share the vocabulary);
   README CLI section; this repo's own committed `.agents/plans/STATUS.md` (dogfood).
+
+### D55. Human-facing timestamps use LOCAL time, not UTC (reverses the UTC clause of D48/D50)
+
+- **Context:** D48 (filename convention) and D50 (derived-date semantics) specified UTC for plan
+  filenames. In practice UTC is poor UX for a solo/small-team tool where a human constantly reads
+  these names: a file created at 8:27pm local (EDT) is named `20260712-0027-...`, off by a day and
+  four hours from the wall clock. UTC's justification (a machine-independent global order for
+  cross-timezone teams) does not fit this use; the names are read by humans first. The UTC directive
+  was never a deliberate UX choice - it was inherited. Executed from
+  `.agents/plans/executed/20260711-2027-01-timestamp-convention-utc-to-local.md`.
+- **Decision:** all human-facing timestamp NAMES use the creating machine's LOCAL time, keeping the
+  same shapes. This covers plan/walkthrough filenames (`YYYYMMDD-HHMM-NN-<slug>`) AND
+  `workflow-artifacts/` RUN_IDs (`YYYYMMDD-HHMMSS`). No timezone offset is embedded in the name.
+  Only the timezone changes; the filename shape, the `NN` per-minute sequence, the `00`-orchestrator
+  rule, and the earliest-evidence creation semantics (D50) are UNCHANGED.
+- **Scope of change:** the plan-name normalizer was the only code forcing UTC - `_utc_env()` (dropped)
+  and `fs_stamp` (now naive-local `datetime.fromtimestamp`); its `git log --date=format-local` now
+  uses the ambient local tz. The RUN_ID-generating code (`engine.py`) ALREADY used
+  `datetime.now()` = local, so RUN_IDs were already local; the docs that called them "UTC" were simply
+  wrong and are corrected. ~12 authored docs updated (AGENTS.md, IPD template,
+  assess/setup-repo/verify/benchmark/advise, plans READMEs).
+- **Excluded (stay UTC, deliberately):** log/telemetry timestamps (`logging-audit.md` "prefer UTC" for
+  logs; `bench_env.py` `captured_at_utc` ISO-8601 field) - UTC is correct for telemetry - and the
+  dev-version-string date segment (`versioning.py:52 _utc_date()`), which is an
+  ordering-sensitive version identifier, not a human-facing name.
+- **Caveat / trade-off:** names now reflect the creating machine's local tz, so ordering across
+  machines in different timezones is approximate. Accepted: ordering within one machine is correct,
+  which is what matters for solo/small-team use.
+- **Backward compat:** historical UTC-named plan files are NOT renamed (P4); they remain as the
+  record. D48/D50 remain the historical record; this entry supersedes only their timezone clause.

@@ -1,7 +1,7 @@
 # .agents/plans/
 
 Your Implementation Plan Documents (IPDs), organized by lifecycle state. Plan files are
-named `YYYYMMDD-HHMM-NN-<slug>.md` (UTC date and time; `NN` is a two-digit per-minute
+named `YYYYMMDD-HHMM-NN-<slug>.md` (the creating machine's local date and time; `NN` is a two-digit per-minute
 sequence, with `00` reserved for an orchestrator plan and `01+` for ordinary/child plans;
 `<slug>` is lowercase kebab-case).
 

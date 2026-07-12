@@ -88,7 +88,7 @@ directory) and a run record (the evidence and report of this assessment, under
    record), `.agents/plans/not-executed/` (deliberately decided against, no replacement),
    and `.agents/plans/reusable/` (recurring plans meant to be re-run repeatedly, e.g. a
    periodic audit or rollout runbook - these stay here rather than moving on after a run).
-   Plan files are named `YYYYMMDD-HHMM-NN-<slug>.md` (UTC date+time; `NN` a two-digit
+   Plan files are named `YYYYMMDD-HHMM-NN-<slug>.md` (local date+time; `NN` a two-digit
    per-minute sequence, `00` reserved for an orchestrator, `01+` otherwise; lowercase-kebab
    slug). Never file an un-run plan in `executed/`;
    retire a plan by prepending `RETIRED YYYY-MM-DD: <reason>; superseded by <path/commit>`
@@ -125,7 +125,7 @@ Then read the selected lens file and adopt its focus, lead personas, and rubric.
    Flag over-scope (untraceable to a need - propose removal/deferral) and under-scope
    (a needed capability that is missing - propose adding it). Do not gold-plate.
 5. **Write the IPD** to the pending-plans directory using `templates/ipd.md`, named per
-   the project's filename convention (canonical: `YYYYMMDD-HHMM-NN-<slug>.md`, UTC
+   the project's filename convention (canonical: `YYYYMMDD-HHMM-NN-<slug>.md`, local
    date+time, `NN` a two-digit per-minute sequence with `00` reserved for an orchestrator),
    e.g. `<plans-pending>/YYYYMMDD-HHMM-NN-assess-<concern>.md`. Set the IPD's front-matter
    `Status: to-review` (assess produces a complete proposal, which is review-ready by

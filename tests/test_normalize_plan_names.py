@@ -171,9 +171,8 @@ class ScanTests(unittest.TestCase):
         self.assertEqual(len(done), 1)
         import datetime as _dt
 
-        june_date = _dt.datetime.fromtimestamp(june, _dt.timezone.utc).strftime(
-            "%Y%m%d"
-        )
+        # LOCAL time (D55): match fs_stamp's naive-local rendering of the same epoch.
+        june_date = _dt.datetime.fromtimestamp(june).strftime("%Y%m%d")
         self.assertTrue(Path(done[0].new).name.startswith(june_date + "-"))
 
     def test_bad_slug_new_format_is_normalized(self):
@@ -356,6 +355,26 @@ class RepoConformanceTests(unittest.TestCase):
                 if not NPN.is_conformant(f.name):
                     offenders.append(f.relative_to(REPO_ROOT).as_posix())
         self.assertEqual(offenders, [], f"nonconforming plan filenames: {offenders}")
+
+
+class LocalTimeTests(unittest.TestCase):
+    """D55: derived timestamps are LOCAL, and the module no longer forces TZ=UTC."""
+
+    def test_no_utc_forcing_helper(self):
+        # _utc_env was removed; the module must not force a UTC timezone anymore.
+        self.assertFalse(hasattr(NPN, "_utc_env"), "_utc_env should be gone (D55)")
+
+    def test_fs_stamp_is_local(self):
+        import datetime as _dt
+
+        with tempfile.TemporaryDirectory() as td:
+            f = Path(td) / "x.md"
+            f.write_text("x\n", encoding="utf-8")
+            epoch = f.stat().st_mtime
+            date, hm = NPN.fs_stamp(f)
+            local = _dt.datetime.fromtimestamp(epoch)  # naive local
+            self.assertEqual(date, local.strftime("%Y%m%d"))
+            self.assertEqual(hm, local.strftime("%H%M"))
 
 
 if __name__ == "__main__":
