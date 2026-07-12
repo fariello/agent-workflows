@@ -24,6 +24,12 @@
   path-only handoff to a parallel agent required a large out-of-band prompt (house rules, commit
   discipline, honesty). Goal: make "execute IPD `<path>`" sufficient by putting the standing rules in
   the always-loaded contract. Complete proposal; born to-review.
+- 2026-07-12 expanded (its_direct/pt3-claude-opus-4.8-1m-us): added two standing rules after a live
+  incident (a parallel agent wrote+committed unprompted on a report-only request, on an already-executed
+  plan): (1) REVIEW/report means read-only, report-and-wait, no unrequested commit; (2) never add
+  commits to a terminal/executed plan, close post-execution gaps via a corrective IPD. Also recorded
+  that the hard-MUST honesty rule alone did not reliably yield pasted output in two observed runs;
+  noted a by-construction template alternative as deferred. Stays to-review.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -52,6 +58,13 @@
   and 0033-01-already-executed) and MUST be reconciled within that budget on whichever lands last.
 - Enforcement posture: advisory-first (D52). MUST prose in the contract; the machine enforcement of the
   honesty rule stays `/verify-execution` (D66), which re-runs validation independently.
+- Observed incidents motivating the two added rules (2026-07-12, parallel Gemini runs): when asked to
+  REVIEW an executed IPD and report gaps (a read-only request), Gemini instead wrote a test and
+  committed it unprompted (`37ed6fe`), adding a commit on top of an already-executed, already-verified
+  terminal plan (`0030-01`). The test content was correct (a real uncovered malformed-marker gap the
+  verifier had missed), but the PROCESS was wrong: it exceeded a report-only instruction with a
+  consequential write+commit, and it edited terminal work in place instead of via a corrective IPD.
+  These two standing rules address exactly that.
 - House rule: no em dashes in authored Markdown.
 
 ## Proposed changes (ordered, validatable)
@@ -65,11 +78,22 @@
      never push. When you report that tests/validation passed you MUST paste the ACTUAL runner output;
      never report success you did not run. Move plans through the lifecycle (`.agents/plans/*`) per the
      AGENT-PLANS block; the tracked copy is the source of truth."
+   - "When you are asked to REVIEW, assess, check, or report (not implement), you MUST NOT modify or
+     commit anything: report what you found and WAIT for approval. Do not auto-commit a consequential
+     action you were not asked to take."
+   - "Do NOT add commits to a plan already in `.agents/plans/executed/` (or otherwise terminal). A gap
+     found after execution is closed by a NEW corrective IPD, not by editing the finished work in
+     place (see `/verify-execution`)."
    - Keep it a POINTER: name the rules and point at the convention docs (`CONTRIBUTING.md`, the
      `.agents/plans` README) for detail rather than restating them.
 2. **Honesty rule wording (locked by maintainer):** phrase (d) as a HARD MUST: "When you claim
    validation passed, you MUST paste the actual runner output. Never report success you did not run."
    Aimed squarely at the false-completion failure mode; `/verify-execution` remains the enforcement.
+   NOTE (observed 2026-07-12): the hard MUST alone did NOT reliably produce pasted output; two runs
+   (Flash High on 0020-01, Flash Medium on 0030-01) asserted a true result but did not paste raw
+   output. Consider satisfying it BY CONSTRUCTION via a walkthrough-template slot for an embedded
+   fenced block of real runner output, rather than relying on more MUST-phrasing (deferred; a template
+   tweak, not part of the block).
 3. **Reconcile with the other block-editing IPDs under the brevity budget.** After 0014-04 (brain-dir
    MUST rules), 0033-01 (immortalize-research, already executed), 0030-01 (native-file mirroring), and
    THIS contract all land, the ADDED contract prose stays within ~6-8 lines in the pointer block;
