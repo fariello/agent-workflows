@@ -291,3 +291,42 @@ def status(target: Optional[str], packaged: str) -> str:
     if cmp > 0:
         return "ahead"
     return "current"
+
+
+# --------------------------------------------------------------------------------------
+# PyPI published-version lookup (for release-review next-version >= published; D-PyPI)
+# --------------------------------------------------------------------------------------
+
+
+def latest_pypi_version(name: str, timeout: float = 5.0) -> Optional[str]:
+    """Return the latest version published on PyPI for ``name``, or None.
+
+    Uses the stdlib JSON API (``https://pypi.org/pypi/<name>/json``); zero deps. Returns
+    None on ANY failure - offline, timeout, 404 (unpublished), or a parse error - so callers
+    can degrade gracefully and never crash a release review on network state.
+    """
+
+    import json
+    import urllib.error
+    import urllib.request
+
+    url = f"https://pypi.org/pypi/{name}/json"
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:  # noqa: S310 (https only)
+            data = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, OSError, ValueError, TimeoutError):
+        return None
+    version = (data.get("info") or {}).get("version")
+    return version if isinstance(version, str) and version else None
+
+
+def next_version_ok(proposed: str, published: Optional[str]) -> bool:
+    """True if ``proposed`` is a valid next version: >= the ``published`` PyPI version.
+
+    When ``published`` is None (unpublished / lookup failed), any proposed version is allowed.
+    Uses this module's own comparator (no third-party ``packaging`` dep).
+    """
+
+    if not published:
+        return True
+    return compare(proposed, published) >= 0

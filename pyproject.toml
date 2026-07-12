@@ -4,9 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agent-workflows"
-dynamic = ["version"]
+# `readme` is dynamic: a custom metadata hook (hatch_build.py) sets the long-description to
+# README.md with relative links rewritten to absolute tag-pinned GitHub URLs so they work on
+# PyPI (D-PyPI). The source README.md is never modified. `version` is our git-tag resolver.
+dynamic = ["version", "readme"]
 description = "Reusable, tool-agnostic agent workflows (review, assess, advise, verify, setup) plus a CLI to install them into any repo."
-readme = "README.md"
 requires-python = ">=3.9"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
@@ -44,6 +46,12 @@ source = "code"
 path = "hatch_build.py"
 expression = "VERSION"
 search-paths = ["."]
+
+# Custom metadata hook (same hatch_build.py) computes the dynamic `readme` long-description:
+# README.md with relative links absolutized to the release tag. Stdlib only (no
+# hatch-fancy-pypi-readme build dep, per D46).
+[tool.hatch.metadata.hooks.custom]
+path = "hatch_build.py"
 
 [tool.hatch.build.targets.wheel]
 # The importable package.

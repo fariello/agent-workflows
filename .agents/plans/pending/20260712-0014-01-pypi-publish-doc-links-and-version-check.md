@@ -10,7 +10,9 @@
   source untouched), the packaging config that wires it, a PyPI latest-version lookup helper, and a
   `/release-review` hook that consumes it. Docs + DECISIONS. `.md` only (PyPI renders the
   long-description file; HTML/other docs are not published to PyPI - confirmed).
-- Status: reviewed
+- Status: approved
+- Approval: approved by maintainer 2026-07-12 (reviewed; OQ1-6 leans confirmed; spike PA-1 first).
+  Ready to execute changes 1-5.
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
