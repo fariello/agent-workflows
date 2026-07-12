@@ -10,7 +10,7 @@
   source untouched), the packaging config that wires it, a PyPI latest-version lookup helper, and a
   `/release-review` hook that consumes it. Docs + DECISIONS. `.md` only (PyPI renders the
   long-description file; HTML/other docs are not published to PyPI - confirmed).
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -23,6 +23,17 @@
   setup (hatchling; readme=README.md static; [project.urls] Repository; version resolver). Chose the
   hatchling metadata-hook mechanism + a testable pure-function rewriter. OQs leaned. Promoted to
   to-review.
+- 2026-07-12 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED.
+  Verified the mechanism against hatchling docs: `MetadataHookInterface.update(metadata)` mutates the
+  `project` table in-place and can set `readme` (registered via `[tool.hatch.metadata.hooks.custom]`
+  + a root `hatch_build.py` with `@hookimpl hatch_register_metadata_hook`). Findings: PA-1 the repo
+  ALREADY uses `hatch_build.py` as the version `code` source (exposes `VERSION`); the metadata hook
+  needs a registration hook in the SAME root file - verify the two coexist, else use a separate
+  hook module referenced by the custom metadata hook (spike this first in execution). PA-2 explicitly
+  REJECT the third-party `hatch-fancy-pypi-readme` (it would do this, but it is a build DEP, violating
+  D46 zero-deps) - use a stdlib custom hook. PA-3 the sdist README file is shipped verbatim (source
+  links); only the METADATA long-description is rewritten - fine, since PyPI renders the metadata, not
+  the shipped file. OQs leaned; none escalated. Status -> reviewed.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -72,11 +83,20 @@
    Leave untouched: absolute `http(s)://` links, `mailto:`, pure `#anchor` links, and protocol-
    relative `//` links. Normalize `./` and resolve `../` against the README's location; a link that
    escapes the repo root is left as-is and noted. Pure and side-effect-free -> unit-testable.
-2. **Hatchling metadata hook** (`MetadataHookInterface` in `hatch_build.py` or a sibling, registered
-   via `[tool.hatch.metadata.hooks.custom]`): set `readme`/long-description dynamically to
-   `rewrite_relative_links(read(README.md), owner, repo, ref="v"+VERSION)`. Owner/repo parsed from
-   `[project.urls] Repository`; `ref` from the resolved version's tag. The source README file is never
-   modified. Move `readme` into `[project] dynamic` accordingly.
+2. **Hatchling custom metadata hook** (stdlib only; NOT `hatch-fancy-pypi-readme`, which is a build
+   dep and violates D46 - PA-2). Implement `MetadataHookInterface.update(metadata)` to set
+   `metadata["readme"]` to the rewritten long-description
+   (`rewrite_relative_links(read(README.md), owner, repo, ref="v"+VERSION)`), registered via
+   `[tool.hatch.metadata.hooks.custom]` + `@hookimpl hatch_register_metadata_hook`. Owner/repo from
+   `[project.urls] Repository`; `ref` from the resolved version tag. Move `readme` into `[project]
+   dynamic`. The source README is never modified.
+   - PA-1: the repo already uses `hatch_build.py` as the version `code` source (exposes `VERSION`).
+     FIRST verify the version source and the metadata-hook registration can coexist in that one file;
+     if not, put the metadata hook in a separate module and reference it. Spike this before wiring
+     pyproject.
+   - PA-3: the sdist still ships `README.md` verbatim (source relative links); only the built METADATA
+     long-description is rewritten. That is correct - PyPI renders the metadata long-description, not
+     the shipped file.
 3. **PyPI latest-version helper** in `agent_workflows/versioning.py` (or a small `pypi.py`):
    `latest_pypi_version(name, timeout=...) -> Optional[str]` via stdlib `urllib` against
    `https://pypi.org/pypi/<name>/json`. Returns None on offline/404/timeout/parse-failure (never
@@ -111,7 +131,19 @@
 6. Should the rewriter also fix links in additional bundled `.md` if a project sets a multi-file long
    description? (Lean: v1 handles the single declared long-description file only; PyPI renders one.)
 
+## Plan-review record (2026-07-12)
+
+Reviewed by `/plan-review` (its_direct/pt3-claude-opus-4.8-1m-us). Verdict: **APPROVE WITH REVISIONS
+APPLIED** (pending human sign-off). Mechanism verified against hatchling docs (metadata hook
+`update(metadata)` can set `readme`). Findings: PA-1 verify version-source + metadata-hook coexist in
+`hatch_build.py` (spike first; separate module if needed); PA-2 reject `hatch-fancy-pypi-readme`
+(build dep vs D46) - use a stdlib custom hook; PA-3 sdist ships README verbatim, only metadata is
+rewritten (correct - PyPI renders metadata). The rewriter is a pure, unit-tested function; the PyPI
+lookup is stdlib urllib with graceful degradation. OQ1-6 leaned for confirmation. This IPD does not
+self-approve.
+
 ## Approval and execution gate
 
-Proposal (`draft`). Flesh out -> `to-review` -> `/plan-review` -> resolve OQs -> human approve ->
-execute -> validate (suite green) -> commit (never push) -> `git mv` to executed/. Not auto-executed.
+`reviewed`. Next: human approve (confirm OQ1-6 leans), execute changes 1-5 (spike PA-1 first),
+validate (suite green + a build smoke check), commit (never push), `git mv` to executed/. Not
+auto-executed.
