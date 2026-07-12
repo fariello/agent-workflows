@@ -6,7 +6,7 @@ Total: 36 plan/prompt file(s).
 
 ## pending/ (4)
 
-- **draft** (1)
+- **to-review** (1)
   - `.agents/plans/pending/20260712-0014-04-agent-brain-dir-plan-and-walkthrough-mirroring.md`
 - **reviewed** (3)
   - `.agents/plans/pending/20260712-0020-01-ux-and-data-modeling-principles-import.md`
