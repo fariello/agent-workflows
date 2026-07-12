@@ -23,6 +23,10 @@
 - 2026-07-12 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED;
   PR-A (assess-all areas are prose at assess-all.md:20, not a manifest group -> reframed OQ2; new
   assess- row auto-recognized as catalog). No BLOCKER/HIGH. Status -> reviewed.
+- 2026-07-12 hardened for path-only handoff (its_direct/pt3-claude-opus-4.8-1m-us): locked OQ1/3/4 to
+  RESOLVED (`data-modeling`; general provenance; sharpen-not-lengthen) and wrote an explicit execution
+  contract into the gate (scope fence, no em/en dashes, path-scoped commit, never push, and a hard MUST
+  to paste real test output) so the IPD is executable from its path alone. Stays reviewed.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -96,16 +100,17 @@
 - The generic docs' plan-lifecycle section (it conflicts with D45-D55: it omits `NN`, the 5-dir
   lifecycle, local time, and the Status vocabulary; NOT imported).
 
-## Open questions (v1 leans for review)
+## Open questions (ALL RESOLVED with maintainer 2026-07-12; execute exactly as stated)
 
-1. Lens name: `data-modeling` vs `schema-design` vs `object-modeling`. (Lean: `data-modeling` -
-   broadest, covers objects+tables+schemas+config.)
+1. Lens name: RESOLVED - **`data-modeling`** (broadest; covers objects+tables+schemas+config). The
+   manifest row is `assess-data-modeling`. Do NOT use `schema-design` or `object-modeling`.
 2. assess-all grouping: RESOLVED (PR-A) - there is no manifest "group" field; areas are prose at
    `assess-all.md:20`. Add `data-modeling` to the "product/design" area there so rollups group it.
-3. How much provenance/historical-truth to include without drifting into DB/regulatory territory.
-   (Lean: keep to the general "don't rewrite history; preserve provenance; version when
-   reconstruction matters" - 3-4 bullets, project-agnostic.)
-4. Confirm the P6/P7/P3 edits SHARPEN rather than lengthen (keep GUIDING_PRINCIPLES tight).
+3. Provenance/historical-truth scope: RESOLVED - keep it GENERAL and project-agnostic: "don't rewrite
+   history; preserve provenance; version when reconstruction matters" - 3-4 bullets only, NO
+   DB/regulatory specifics.
+4. GUIDING_PRINCIPLES edits: RESOLVED - the P6/P7/P3 edits MUST SHARPEN, not lengthen. Add the
+   one-liners specified in change #3 and nothing more; keep the file tight (10 principles).
 
 ## Plan-review record (2026-07-12)
 
@@ -128,6 +133,20 @@ APPLIED** (pending human sign-off). Evidence re-opened against source:
 
 ## Approval and execution gate
 
-`reviewed`. Next: human approve (confirm OQ1/3/4 leans + the lens name), execute changes 1-5,
-validate (suite green + shims regenerated), commit (never push), `git mv` to executed/. Not
-auto-executed.
+`reviewed`. All OQs are RESOLVED above, so this IPD is executable from its path alone (no further
+human input needed to disambiguate scope). Execution contract (follow exactly):
+
+1. Execute changes 1-5 as written. Do NOT touch any file outside those targets; in particular do NOT
+   edit `engine.py`'s `agents_pointer_block()` or any other Bucket A IPD's files.
+2. Authoring style: NO em dashes or en dashes in any Markdown you write (use a hyphen or reword).
+3. Validate: run the FULL test suite. When you report that validation passed, you MUST paste the
+   ACTUAL test-runner output. Never report success you did not run. Also regenerate shims and confirm
+   they are in sync.
+4. Commit ONLY the files THIS IPD touches, PATH-SCOPED, with the message BEFORE the `--`:
+   `git commit -m "msg" -- <path> <path> ...`. NEVER `git add -A`, a bare `git commit`, or
+   `git commit -a` (another agent may have unrelated staged work). NEVER push.
+5. When implemented, verified, and tests actually pass, `git mv` this file to
+   `.agents/plans/executed/` and commit that move (path-scoped). Update `Status:` to `executed` and
+   append a `## Workflow history` line.
+
+Not auto-executed; requires human approval to begin.
