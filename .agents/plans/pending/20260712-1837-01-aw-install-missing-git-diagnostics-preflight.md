@@ -13,7 +13,7 @@
   of truth per P8); reconcile the other install entry points that call `install_into_repo`
   (`_install_all`, and the `setup` flow) for consistency; a regression test asserting the CLI path
   invokes diagnostics; docs/DECISIONS. Patch release 1.2.1.
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -22,6 +22,32 @@
   live post-1.2.0 publish. Root-caused: `_run_install` (cli.py:327-345) calls `engine.install_into_repo`
   directly with its own `_preflight_warnings` + plain `_confirm`, never calling `run_git_diagnostics`.
   Complete proposal; born to-review.
+- 2026-07-12 /plan-review-long (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED;
+  PB-1, PB-2. All cited path:line claims verified accurate against source (engine.py:2591-2592/1339/
+  1437-1439; cli.py:233/267/300/339/359/426/674/279-283/271). PB-1 (MEDIUM, test completeness): require
+  a test that `--yes`/non-interactive install is NOT blocked/prompted by the routed pre-flight (the
+  highest regression risk of this change) - added to change #4. PB-2 (MEDIUM, executability): added
+  concrete interaction ACCEPTANCE CRITERIA to change #1 (clean/dirty/non-interactive), resolving OQ1
+  so an executor cannot pick a divergent prompt shape. OQ2 resolved by maintainer (full parity, all 3
+  paths); OQ3 resolved by evidence. Verified test_cli runs in-process (patchable). Surfaced the ROOT
+  CAUSE (two orchestrators) and recorded it as a separate 1.3.0 follow-on IPD, keeping 1837-01 the
+  minimal 1.2.1 patch. No BLOCKER/HIGH. Status -> reviewed.
+
+## Plan-review record (2026-07-12)
+
+Reviewed by `/plan-review-long` (its_direct/pt3-claude-opus-4.8-1m-us). Verdict: **APPROVE WITH
+REVISIONS APPLIED** (pending human sign-off).
+- PB-1 (MEDIUM, rubric F, FIXED): the test plan checked "diagnostics called" + "False aborts" but not
+  the `--yes`/non-interactive-not-blocked case, which is this change's highest regression risk
+  (routing a network-fetching pre-flight into the primary CLI path). Added to change #4. RR: Low.
+- PB-2 (MEDIUM, rubric A/G, FIXED): the final interaction shape was left as an OQ lean; added concrete
+  acceptance criteria (clean = one confirm; dirty/behind = menu then confirm; non-interactive = no
+  prompts) so both entry points match and an executor cannot diverge. RR: Low.
+- Verified accurate (no finding): all cited path:line refs; `install_into_repo` returns a dict and does
+  NOT itself call diagnostics/summary/commit (each caller re-adds them - the drift root cause);
+  `test_cli` is in-process so `run_git_diagnostics` is patchable. Rubric B/C/H largely N/A (zero-dep
+  CLI parity fix; no data-integrity/authz/ops surface). Security lens: no regression (adds a pre-flight
+  gate, never weakens one). No BLOCKER/HIGH. Does not self-approve.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -62,6 +88,16 @@
    AFTER a proceed, OR fold the install confirmation into the diagnostics outcome - decide during
    implementation to AVOID a double "are you sure" (see Step-0 double-prompt note). Recommended:
    diagnostics first (handles dirty/behind), then the single install `_confirm`.
+   ACCEPTANCE CRITERIA (PB-2, the concrete interaction the executor must produce; resolves OQ1 so both
+   entry points match):
+   - CLEAN + synced repo, interactive: exactly ONE prompt - the install `_confirm` ("Install ... into
+     <repo>?"). No diagnostics menu (it returns True silently).
+   - DIRTY or BEHIND repo, interactive: the 3-option diagnostics menu ([1] pull-rebase / [2] proceed /
+     [3] abort) FIRST; on [3] abort -> skip repo, no install `_confirm`, no install; on [1]/[2] ->
+     then the single install `_confirm`. No repeated "are you sure".
+   - `--yes` or non-interactive (any repo): NO prompts at all; diagnostics warnings (if dirty/behind)
+     go to stderr and the install proceeds - identical to today's engine/`install-workflows.py`
+     behavior.
 2. **Remove the redundant lighter dirty-repo warning from `_preflight_warnings`** (cli.py:279-283):
    the dirty-repo case is now owned by `run_git_diagnostics` (single source of truth, P8). KEEP the
    not-a-git-repo and would-downgrade warnings in `_preflight_warnings` (diagnostics does not cover
@@ -73,10 +109,17 @@
    non-interactive). If parity for `_install_all`/`setup` proves to add risk (e.g. a fetch per repo in
    a large batch), scope it to `_run_install` for 1.2.1 and file the batch paths as a follow-on - decide
    with evidence during implementation, do not silently skip.
-4. **Regression test.** In `tests/test_cli.py`, assert the CLI install path invokes the diagnostics
-   pre-flight (e.g. monkeypatch/spy `engine.run_git_diagnostics` and assert it was called for a normal
-   `aw install <dir>`; and that a False return aborts that repo without calling `install_into_repo`).
-   This is the guard that would have caught the regression.
+4. **Regression test.** In `tests/test_cli.py` (which runs the CLI IN-PROCESS via `cli.main(argv)`,
+   verified, so `engine.run_git_diagnostics` is patchable with `mock.patch`). Assert:
+   (a) a normal `aw install <dir>` CALLS `engine.run_git_diagnostics` (the guard that would have caught
+   this regression);
+   (b) a False return (user chose Abort) skips that repo WITHOUT calling `install_into_repo`;
+   (c) PB-1 (MEDIUM, test completeness): a NON-interactive `aw install <dir> --yes` still installs and
+   is NOT blocked - patch `run_git_diagnostics` to assert it is invoked but, in the real function,
+   `--yes`/non-interactive returns True without prompting (this is the highest regression risk of this
+   change: routing a network-fetching pre-flight into the primary CLI path must not make `--yes`/CI
+   installs prompt or hang). Prefer asserting the real non-interactive behavior (no stdin read, install
+   proceeds), not only the spy.
 5. **Docs + DECISIONS + release.** DECISIONS entry (next free number, likely D75) recording the
    entry-point-parity bug and the single-source-of-truth fix. This is a user-facing behavior fix ->
    patch release **1.2.1** (cut via release-review Section 9 from a clean `v1.2.1` tag, per RELEASING.md
@@ -89,19 +132,27 @@
 - The pre-existing cosmetic items from the release-review (A8 old EXECUTED vocab, A9 discovery symlink
   guard, A10 roadmaps, CI-2 lint) - unrelated to this bug.
 
-## Open questions (v1 leans for review)
+## Open questions (ALL RESOLVED via /plan-review-long 2026-07-12)
 
-1. Diagnostics-first then install-`_confirm`, or fold them into one prompt? (Lean: diagnostics first;
-   keep the single install `_confirm` after a proceed - clean repos see only the install confirm, dirty
-   repos see the diagnostics menu then the install confirm. Avoid a redundant "are you sure" pair; if
-   it reads as double, drop the install `_confirm` when diagnostics already returned an explicit
-   proceed.)
-2. Parity scope: fix all three paths (`_run_install`, `_install_all`, `setup`) in 1.2.1, or just
-   `_run_install` now and batch paths as a follow-on? (Lean: all three if low-risk; the batch fetch
-   cost is bounded and diagnostics no-ops non-interactively. Confirm with evidence.)
-3. Does a behind-remote repo in a NON-interactive `aw install --yes` change behavior? (Lean: no -
-   run_git_diagnostics prints warnings to stderr and proceeds when non-interactive, matching today's
-   engine behavior; verify.)
+1. Diagnostics-first vs. one prompt: RESOLVED - diagnostics first, then a single install `_confirm`.
+   Codified as the ACCEPTANCE CRITERIA in change #1 (clean = one confirm; dirty/behind = menu then
+   confirm; --yes/non-interactive = no prompts). No redundant "are you sure" pair.
+2. Parity scope: RESOLVED (maintainer) - fix ALL THREE interactive paths in 1.2.1 (`_run_install`,
+   `_install_all`, `setup`) for full parity. The batch/CI concern is bounded (run_git_diagnostics
+   no-ops non-interactively). Each path gets the diagnostics pre-flight.
+3. Non-interactive behavior: RESOLVED (evidence) - a behind/dirty repo under `--yes`/non-interactive
+   does NOT prompt or block: `run_git_diagnostics` prints warnings to stderr and returns True, matching
+   today's engine/`install-workflows.py` behavior. PB-1 requires a test asserting this.
+
+## Related follow-on (root cause)
+
+This IPD fixes the SYMPTOM (the missing diagnostics call in the CLI paths). The ROOT CAUSE, surfaced
+during review, is that `engine.main()` and `cli._run_install` are two hand-maintained orchestrators
+wrapping the same core (`install_into_repo` returns a dict; diagnostics/summary/commit-prompt are
+re-added by each caller), which is how this drift arose and violates P8. A SEPARATE IPD (raised
+2026-07-12, targeting 1.3.0) will unify them behind ONE canonical install orchestrator so drift
+becomes structurally impossible. 1837-01 remains the minimal, low-risk 1.2.1 patch and does NOT
+attempt the refactor.
 
 ## Approval and execution gate
 
