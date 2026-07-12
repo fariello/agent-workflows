@@ -24,7 +24,7 @@
   only; NO installer machine gate (enforcement stays `/verify-execution` + the interactive review).
   The review half is the practice we validated this session by hand-writing the same gated contract
   into 0020-01/0030-01/1307-01; codifying it removes that per-IPD duplication (P8, single source).
-- Status: reviewed
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -52,7 +52,16 @@
   (`:5-18`). Corrected to area A + noted the differing letter scheme, so the executor edits the right
   section. PR-001 - verified `plan-review.md:226-233` (Step 4) and `:313-324` (rubric G) citations are
   accurate; `plans-README.md` is template-generated (confirmed). No BLOCKER; no unresolved OQs (OQ2-4
-  remain reasonable leans). Status -> reviewed (awaiting human approval).
+   remain reasonable leans). Status -> reviewed (awaiting human approval).
+- 2026-07-12 executed (its_direct/pt3-claude-opus-4.8-1m-us): implemented changes 1-7. Added the
+  "Agent execution contract" sub-section to `agents_pointer_block()` (engine.py) + synced this repo's
+  `AGENTS.md` (block "pointer already current"); documented the required gate contract in
+  `templates/plans-README.md` + regenerated `.agents/plans/README.md` (identical); added the verify/
+  inject obligation to `plan-review.md` (Step 4 + rubric G) and `plan-review-long` (review-rubric.md
+  area A + 02-review-and-revise.md); `CONTRIBUTING.md` pointer; DECISIONS D69. Validated: full suite
+  `208 passed in 44.80s`; `aw plan-names` clean (0 to rename); em/en-dash sweep 0 across all changed
+  files. Committed path-scoped `5ce4788` (never pushed). Pre-existing `Term(<bool>)` LSP diagnostics in
+  engine.py left untouched (out of scope).
 
 ## Plan-review record (2026-07-12)
 
