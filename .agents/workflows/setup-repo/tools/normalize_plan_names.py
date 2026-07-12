@@ -60,7 +60,7 @@ from pathlib import Path
 from typing import NamedTuple, Optional
 
 AGENTS_DIR = ".agents"
-DEFAULT_AREAS = ("plans", "prompts")
+DEFAULT_AREAS = ("plans", "prompts", "docs")
 LIFECYCLE_SUBDIRS = (
     "pending",
     "executed",
@@ -68,6 +68,10 @@ LIFECYCLE_SUBDIRS = (
     "not-executed",
     "reusable",
     "done",
+)
+DOCS_SUBDIRS = (
+    "research",
+    "walkthroughs",
 )
 # The framework tree is never a rename target regardless of flags.
 NEVER_AREA = "workflows"
@@ -373,7 +377,9 @@ def scan(
             # Must live under a recognized lifecycle dir somewhere in its path.
             parts = md.relative_to(area_dir).parts
             # parts[0] is the lifecycle subdir; the file is an immediate child iff len==2.
-            if not parts or parts[0] not in LIFECYCLE_SUBDIRS:
+            if not parts or (
+                parts[0] not in LIFECYCLE_SUBDIRS and parts[0] not in DOCS_SUBDIRS
+            ):
                 continue
             immediate = len(parts) == 2
             name = md.name

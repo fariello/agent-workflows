@@ -560,7 +560,12 @@ def agents_pointer_block() -> str:
         "2. It is self-contained, so the user can select-all-and-copy it, or upload it and say "
         '"read and execute the attached prompt", with nothing to edit.\n'
         "3. It instructs the target AI to return its answer as a DOWNLOADABLE markdown (`.md`) file, "
-        "so the result can be handed back for consumption.\n"
+        "so the result can be handed back for consumption.\n\n"
+        "### Durable reference and walkthroughs documentation\n"
+        "1. Immortalize research/analysis you rely on for a decision to `.agents/docs/research/` "
+        "using `YYYYMMDD-HHMM-NN-<slug>.md`.\n"
+        "2. Save narrative walkthroughs to `.agents/docs/walkthroughs/` with "
+        "`...-walkthrough.md`.\n"
         f"{AGENTS_END}\n"
     )
 
@@ -2088,6 +2093,11 @@ PLAN_LIFECYCLE_SUBDIRS = (
     "not-executed",
     "reusable",
 )
+DOCS_DIR = ".agents/docs"
+DOCS_SUBDIRS = (
+    "research",
+    "walkthroughs",
+)
 GITLEAKSIGNORE_FILE = ".gitleaksignore"
 SECRET_SCAN_CI = ".github/workflows/secret-scan.yml"
 
@@ -2244,6 +2254,48 @@ def ensure_plans_readmes(
         installed.append(f"{rel_path} [install]")
 
 
+_DOCS_README_TARGETS = ((".agents/docs/README.md", "agents-docs-README.md"),)
+
+
+def ensure_docs_readmes(
+    plan: InstallPlan,
+    use_git: bool,
+    installed: list[str],
+    skipped: list[str],
+) -> None:
+    """Create a README.md in `.agents/docs/`, `.agents/docs/research/`, and `.agents/docs/walkthroughs/`.
+
+    No-clobber (a user's own README is never overwritten), staged, dry-run aware. Modeled
+    on `ensure_plans_readmes`. Templates live under the source `.agents/workflows/templates/`.
+    """
+
+    targets = list(_DOCS_README_TARGETS)
+    for bucket in DOCS_SUBDIRS:
+        targets.append(
+            (f"{DOCS_DIR}/{bucket}/README.md", f"agents-docs-{bucket}-README.md")
+        )
+
+    for rel_path, template_name in targets:
+        readme_path = plan.repo_root / rel_path
+        if readme_path.is_file():
+            skipped.append(f"{rel_path} [already current]")
+            continue
+        template_path = plan.source_root / "templates" / template_name
+        try:
+            content = template_path.read_text(encoding="utf-8")
+        except OSError:
+            # No template shipped for this target; skip rather than invent content.
+            continue
+        if plan.dry_run:
+            installed.append(f"{rel_path} [install, dry-run]")
+            continue
+        readme_path.parent.mkdir(parents=True, exist_ok=True)
+        readme_path.write_text(content, encoding="utf-8")
+        if use_git:
+            git_add_optional(plan.repo_root, rel_path)
+        installed.append(f"{rel_path} [install]")
+
+
 def create_setup_artifacts(
     repo_root: Path, use_git: bool, dry_run: bool = False
 ) -> list[str]:
@@ -2264,6 +2316,10 @@ def create_setup_artifacts(
             keep = f"{PLANS_DIR}/{sub}/.gitkeep"
             if not (repo_root / keep).exists():
                 created.append(keep + " [dry-run]")
+        for sub in DOCS_SUBDIRS:
+            keep = f"{DOCS_DIR}/{sub}/.gitkeep"
+            if not (repo_root / keep).exists():
+                created.append(keep + " [dry-run]")
         for rel in (GITLEAKSIGNORE_FILE, SECRET_SCAN_CI):
             if not (repo_root / rel).exists():
                 created.append(rel + " [dry-run]")
@@ -2273,6 +2329,8 @@ def create_setup_artifacts(
         _create_if_absent(
             repo_root, f"{PLANS_DIR}/{sub}/.gitkeep", "", use_git, created
         )
+    for sub in DOCS_SUBDIRS:
+        _create_if_absent(repo_root, f"{DOCS_DIR}/{sub}/.gitkeep", "", use_git, created)
     _create_if_absent(
         repo_root, GITLEAKSIGNORE_FILE, _GITLEAKSIGNORE_TEMPLATE, use_git, created
     )
@@ -2330,6 +2388,7 @@ def install_into_repo(
     ensure_workflow_artifacts_readme(plan, use_git, installed, skipped)
     artifacts = create_setup_artifacts(repo_root, use_git, dry_run=dry_run)
     ensure_plans_readmes(plan, use_git, installed, skipped)
+    ensure_docs_readmes(plan, use_git, installed, skipped)
 
     newly_created = [
         item.rsplit(" [", 1)[0] for item in installed if item.endswith(" [install]")
@@ -2432,6 +2491,7 @@ def run(args: argparse.Namespace) -> int:
         backups_ignore_status = ensure_backups_gitignored(plan, use_git)
         ensure_workflow_artifacts_readme(plan, use_git, installed, skipped)
         ensure_plans_readmes(plan, use_git, installed, skipped)
+        ensure_docs_readmes(plan, use_git, installed, skipped)
         artifacts = create_setup_artifacts(
             plan.repo_root, use_git, dry_run=plan.dry_run
         )

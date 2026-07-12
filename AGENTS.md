@@ -15,6 +15,10 @@ When asked to write a prompt to give to another AI (e.g. a research prompt for a
 1. It contains ONLY the prompt itself, addressed to that AI. Put NO instructions for the user inside it (no "copy this", no "paste below the line").
 2. It is self-contained, so the user can select-all-and-copy it, or upload it and say "read and execute the attached prompt", with nothing to edit.
 3. It instructs the target AI to return its answer as a DOWNLOADABLE markdown (`.md`) file, so the result can be handed back for consumption.
+
+### Durable reference and walkthroughs documentation
+1. Immortalize research/analysis you rely on for a decision to `.agents/docs/research/` using `YYYYMMDD-HHMM-NN-<slug>.md`.
+2. Save narrative walkthroughs to `.agents/docs/walkthroughs/` with `...-walkthrough.md`.
 <!-- AGENT-WORKFLOWS:END -->
 
 <!-- AGENT-PLANS:BEGIN -->

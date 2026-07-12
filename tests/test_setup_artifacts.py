@@ -50,6 +50,15 @@ class SetupArtifactTests(unittest.TestCase):
                 (self.repo / ".agents/plans" / sub / ".gitkeep").is_file(),
                 f"missing plan dir {sub}",
             )
+        for sub in ("research", "walkthroughs"):
+            self.assertTrue(
+                (self.repo / ".agents/docs" / sub / ".gitkeep").is_file(),
+                f"missing docs dir {sub}",
+            )
+        # Verify no-clobber READMEs
+        self.assertTrue((self.repo / ".agents/docs/README.md").is_file())
+        self.assertTrue((self.repo / ".agents/docs/research/README.md").is_file())
+        self.assertTrue((self.repo / ".agents/docs/walkthroughs/README.md").is_file())
         self.assertTrue((self.repo / ".gitleaksignore").is_file())
         self.assertTrue((self.repo / ".github/workflows/secret-scan.yml").is_file())
         # AC-16: guidance to run /setup-repo is emitted.
@@ -84,8 +93,9 @@ class SetupArtifactTests(unittest.TestCase):
         use_git = engine.git_available(self.repo)
         created = engine.create_setup_artifacts(self.repo, use_git)
         # 5 plan-dir gitkeeps (pending/executed/superseded/not-executed/reusable)
-        # + gitleaksignore + secret-scan CI = 7 on a fresh repo.
-        self.assertEqual(len(created), 7)
+        # + 2 docs-dir gitkeeps (research/walkthroughs)
+        # + gitleaksignore + secret-scan CI = 9 on a fresh repo.
+        self.assertEqual(len(created), 9)
 
     def test_dry_run_reports_without_writing(self):
         use_git = engine.git_available(self.repo)

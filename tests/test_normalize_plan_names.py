@@ -261,12 +261,24 @@ class ScopeExcludeNonNumericTests(unittest.TestCase):
 
     def test_prompts_scanned_by_default_area_narrows(self):
         self._mk(".agents/prompts/pending/20260711-note.md")
-        # Default (plans+prompts): the prompts file is found (to-rename).
+        # Default (plans+prompts+docs): the prompts file is found (to-rename).
         st = self._statuses()
         self.assertIn(".agents/prompts/pending/20260711-note.md", st)
         # --area plans: prompts excluded entirely (not reported).
         st2 = self._statuses(areas=["plans"])
         self.assertNotIn(".agents/prompts/pending/20260711-note.md", st2)
+
+    def test_docs_scanned_by_default_area_narrows(self):
+        self._mk(".agents/docs/research/20260711-note.md")
+        self._mk(".agents/docs/walkthroughs/20260711-walkthrough.md")
+        # Default: docs files are found (to-rename)
+        st = self._statuses()
+        self.assertIn(".agents/docs/research/20260711-note.md", st)
+        self.assertIn(".agents/docs/walkthroughs/20260711-walkthrough.md", st)
+        # --area plans: docs excluded entirely
+        st2 = self._statuses(areas=["plans"])
+        self.assertNotIn(".agents/docs/research/20260711-note.md", st2)
+        self.assertNotIn(".agents/docs/walkthroughs/20260711-walkthrough.md", st2)
 
     def test_workflows_tree_never_targeted_even_with_all(self):
         self._mk(".agents/workflows/assess/20260711-not-a-plan.md")

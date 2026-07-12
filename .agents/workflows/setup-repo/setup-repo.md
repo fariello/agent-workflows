@@ -48,11 +48,12 @@ Before proposing anything, determine and briefly report:
 2. Project type / stack (languages, package manager, frameworks, whether it has an app /
    library / CLI / UI / just docs). This tailors the .gitignore, CI, and hygiene steps.
 3. What is already present: `.agents/workflows/`, `.agents/plans/` (and its
-   `pending/` + `executed/` + `superseded/` + `not-executed/` + `reusable/` subdirs;
-   `done/` is an accepted alias for `executed/`), `.github/workflows/`,
-   `.pre-commit-config.yaml`, `.gitignore`, `.gitleaksignore`, `README`, `CONTRIBUTING`,
-   `AGENTS.md` (and whether it documents the plan lifecycle), `LICENSE`, `.editorconfig`,
-   lockfiles, `GUIDING_PRINCIPLES.md`.
+    `pending/` + `executed/` + `superseded/` + `not-executed/` + `reusable/` subdirs;
+    `done/` is an accepted alias for `executed/`), `.agents/docs/` (and its `research/` +
+    `walkthroughs/` subdirs), `.github/workflows/`,
+    `.pre-commit-config.yaml`, `.gitignore`, `.gitleaksignore`, `README`, `CONTRIBUTING`,
+    `AGENTS.md` (and whether it documents the plan lifecycle and docs rules), `LICENSE`,
+    `.editorconfig`, lockfiles, `GUIDING_PRINCIPLES.md`.
 4. Tool availability: run the helper in detect mode
    (`setup_tools.py`) and report which of gitleaks / pre-commit / detect-secrets exist.
 5. Drift check (for re-runs / post-update): is `.agents/workflows/` present but behind
@@ -102,8 +103,12 @@ these workflows:
   ordinary/child plans; `<slug>` lowercase kebab-case). If the repo already uses a terminal
   dir named `done/` (or another), keep it - do not rename; just record which is canonical
   for this repo.
+- **Reference & Walkthroughs Directories:** offer to create the canonical docs subdirectories, each with a committed `.gitkeep`:
+  - `.agents/docs/research/` - durable reference and research.
+  - `.agents/docs/walkthroughs/` - narrative execution walkthroughs.
+  Both follow the `YYYYMMDD-HHMM-NN-<slug>.md` naming norm (walkthroughs end in `-walkthrough.md`).
 - **Documented contract (this is the part that makes agents pick it up):** offer to add
-  a short, marker-delimited "Plan/IPD lifecycle" note to `AGENTS.md` (and/or
+  a short, marker-delimited "Plan/IPD lifecycle and docs" note to `AGENTS.md` (and/or
   `CONTRIBUTING.md`) stating: proposals are dated IPDs in `.agents/plans/pending/`; each
   carries a front-matter `Status:` recording readiness (`draft` -> `to-review` -> `reviewed`
   -> `approved`; then a terminal status mirroring the dir) and an appended `## Workflow
@@ -111,14 +116,16 @@ these workflows:
   EITHER executed (moved to `executed/` once implemented+verified), retired to `superseded/`
   (replaced) or `not-executed/` (deliberately not run) with a `RETIRED YYYY-MM-DD: <reason>;
   superseded by <path/commit>` header + `git mv` (never a silent delete; never file an un-run
-  plan in `executed/`), or kept in `reusable/` if recurring. Marker-delimited so re-running
-  updates it in place without duplicating (same discipline as the AGENTS workflow pointer).
+  plan in `executed/`), or kept in `reusable/` if recurring. Additionally, agents must
+  immortalize relied-on research to `.agents/docs/research/` and save narrative walkthroughs
+  to `.agents/docs/walkthroughs/` following their naming conventions. Marker-delimited so
+  re-running updates it in place without duplicating.
 - **Conformance:** if the dirs exist but the contract is undocumented, that is
   "partial" - offer to add the doc. If both exist, "conformant" - skip.
 - **Filename normalization:** run the deterministic checker
   `python3 .agents/workflows/setup-repo/tools/normalize_plan_names.py --repo .` (check mode).
-  By default it scans `.agents/plans/` and `.agents/prompts/` and lists any file not matching
-  `YYYYMMDD-HHMM-NN-<slug>.md` with its proposed `old -> new` name or a status. The date is the
+  By default it scans `.agents/plans/`, `.agents/prompts/`, and `.agents/docs/` and lists any file
+  not matching the canonical format with its proposed `old -> new` name or a status. The date is the
   file's CREATION proxy: a date already in the name wins; otherwise the EARLIEST of its
   git-first-commit / birthtime / mtime (local time). Statuses to relay to the user:
   - `to-rename` - ready; the tool will `git mv` it (staged, not committed).

@@ -13,7 +13,7 @@
   canonical names; add an AGENTS.md directive to immortalize relied-on research; docs + DECISIONS.
   ABSORBS Theme D's `.agents/docs/walkthroughs/` scaffold (Theme D then shrinks to just the brain-dir
   MUST-mirror RULES).
-- Status: reviewed
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -25,6 +25,7 @@
   PR-D (wire ensure_docs_readmes into the install flow at engine.py:2225), PR-E (README is the
   tracked placeholder), cross-plan note with 0030-01 (share ONE agents_pointer_block). Mechanism
   verified against source. No BLOCKER/HIGH. Status -> reviewed.
+- 2026-07-12 executed (Antigravity/Gemini): implemented .agents/docs/ scaffolding, templates, wired engine logic, migrated research files, and updated normalizer and AGENTS.md.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
