@@ -24,7 +24,7 @@
   only; NO installer machine gate (enforcement stays `/verify-execution` + the interactive review).
   The review half is the practice we validated this session by hand-writing the same gated contract
   into 0020-01/0030-01/1307-01; codifying it removes that per-IPD duplication (P8, single source).
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -46,6 +46,26 @@
   `/plan-review` + `/plan-review-long` verify/inject it. Also corrected a stale dependency (0030-01 and
   0033-01 have executed this session). Evidence basis recorded honestly as suggestive (n=1 High, n=1
   Medium; not a controlled A/B). Stays to-review.
+- 2026-07-12 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED;
+  PR-002 (HIGH, accuracy) - change #4 cited `plan-review-long` rubric "area G" for executability, but
+  that scheme's area G is UX/accessibility (`review-rubric.md:85`); executability is area A
+  (`:5-18`). Corrected to area A + noted the differing letter scheme, so the executor edits the right
+  section. PR-001 - verified `plan-review.md:226-233` (Step 4) and `:313-324` (rubric G) citations are
+  accurate; `plans-README.md` is template-generated (confirmed). No BLOCKER; no unresolved OQs (OQ2-4
+  remain reasonable leans). Status -> reviewed (awaiting human approval).
+
+## Plan-review record (2026-07-12)
+
+Reviewed by `/plan-review` (its_direct/pt3-claude-opus-4.8-1m-us). Verdict: **APPROVE WITH REVISIONS
+APPLIED** (pending human sign-off). Evidence re-opened against source:
+- PR-002 (HIGH, accuracy / G): the long-form rubric uses a different letter scheme than `plan-review.md`;
+  executability is `review-rubric.md` area A (`:5-18`), not area G (UX, `:85`). Change #4 corrected to
+  cite area A. Remediation Risk: Low (plan-prose edit).
+- PR-001 (verified, no finding): `plan-review.md:226-233`/`:313-324` citations accurate; the two-half
+  scope (always-loaded block + plan-review/template enforcement) is coherent and REDUCES duplication
+  (P8) rather than adding it; the evidence basis is stated honestly as suggestive, not proven (P2);
+  no over-scope (traceable to the maintainer request). No BLOCKER/HIGH remains unfixed. Does not
+  self-approve.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -122,11 +142,15 @@
 4. **Make `/plan-review` and `/plan-review-long` VERIFY and INJECT the contract.** Add a review
    obligation to both: as part of finalizing a `reviewed` IPD, confirm its gate carries the execution
    contract (i-v above); if any element is missing, ADD it (this is an in-place plan revision, exactly
-   what these workflows already do) and record it as a finding. Concrete edits: `plan-review.md`
-   Step 4 "Finalize state" (:226-233) gains a "gate carries the execution contract" confirmation, and
-   rubric area **G. Plan executability** (:313-324) gains a line requiring the scope-fenced contract;
-   `plan-review-long/review-rubric.md` area G + `plan-review-long/02-review-and-revise.md` gain the
-   matching check. This is advisory-first (D52) enforced by the reviewer, not a machine gate.
+   what these workflows already do) and record it as a finding. Concrete edits (line refs VERIFIED
+   2026-07-12, PR-002): `plan-review.md` Step 4 "Finalize state and commit" (:226-233) gains a "gate
+   carries the execution contract" confirmation, and rubric area **G. Plan executability** (:313-324)
+   gains a line requiring the scope-fenced contract. NOTE the long-form rubric uses a DIFFERENT letter
+   scheme: in `plan-review-long/review-rubric.md`, executability lives in **area A. Plan completeness**
+   (:5-18), NOT area G (which is UX/accessibility, :85) - add the contract-check line to area A; and
+   `plan-review-long/02-review-and-revise.md` (revise step, ~:67 "add missing guardrails...") gains
+   "inject the gate execution contract if missing". This is advisory-first (D52) enforced by the
+   reviewer, not a machine gate.
 5. **Reconcile with the other block-editing IPDs under the brevity budget.** 0033-01
    (immortalize-research) and 0030-01 (native-file mirroring) have ALREADY EXECUTED this session, so
    the remaining block-editing IPDs are THIS one and 0014-04 (brain-dir MUST rules). The ADDED contract
