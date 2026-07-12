@@ -19,7 +19,7 @@
   (`plan-review/plan-review.md`, `plan-review-long/plan-review-long.md`) gain the one-line no-verdict-leak
   principle. Docs/DECISIONS. Prose-only workflow change; the Section 8 terminal GO/NO-GO gate + 3-rung
   consent tree is UNCHANGED (it stays an unconditional interactive ask on every run).
-- Status: reviewed
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -35,6 +35,13 @@
   scope + change #5. OQ2 resolved (maintainer): HOIST the no-verdict-leak principle repo-wide (new
   change #6; plan-review Memory kernels added to scope). All cited path:line claims verified accurate.
   No BLOCKER/HIGH. Status -> reviewed.
+
+- 2026-07-12 executed (its_direct/pt3-claude-opus-4.8-1m-us): implemented changes 1-7. Pre-flight gate
+  reworded in `00-run-protocol.md` (conditional-on-signal, verdict-free framing rule, found-nothing
+  skip); `01-current-state.md` pointer + exit gate updated; `README.md:68` summary synced; the
+  no-verdict-leak principle hoisted into both plan-review Memory kernels (item 9); DECISIONS D72.
+  Validated: full suite `212 passed in 44.34s`; `aw plan-names` clean; em/en-dash sweep 0. Committed
+  path-scoped `3250c98` (never pushed). Section 8 terminal gate + 3-rung tree untouched, as scoped.
 
 ## Plan-review record (2026-07-12)
 
