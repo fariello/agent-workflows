@@ -69,6 +69,7 @@ import shlex
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import NamedTuple
 
 from . import versioning as _VERSIONING
 from ._compat import packaged_source_root
@@ -1336,6 +1337,74 @@ def ensure_backups_gitignored(plan: InstallPlan, use_git: bool) -> str:
     return f"added {pattern} to .gitignore"
 
 
+class GitState(NamedTuple):
+    """Pure classification of a repo's pre-install git state (testable without a remote)."""
+
+    tracked_dirty: int  # count of tracked staged/worktree changes (NOT untracked)
+    untracked: (
+        int  # count of untracked files (harmless to a rebase and to the installer)
+    )
+    behind: int  # commits behind the tracking branch (a pull would help iff > 0)
+    has_tracking: bool
+    warnings: list[str]  # human-readable, ACTIONABLE warnings only
+    needs_prompt: (
+        bool  # True iff there is a real reason to interrupt (tracked-dirty or behind)
+    )
+    offer_pull: bool  # True iff pull is applicable (behind > 0)
+
+
+def classify_git_state(
+    porcelain: str, behind: int, has_tracking: bool, branch: str, tracking_branch: str
+) -> GitState:
+    """Classify git state for the install pre-flight. Pure: no subprocess, easy to test.
+
+    Key distinctions (the 2326-adjacent fix):
+    - UNTRACKED-only files are NOT a reason to prompt: `git pull --rebase` does not touch them
+      and the installer only writes its own no-clobber paths. Report them as info at most.
+    - A pull is only OFFERED when the branch is actually BEHIND (behind > 0). Offering a no-op
+      pull for an in-sync-but-dirty repo is the bug this replaces.
+    """
+
+    tracked_dirty = 0
+    untracked = 0
+    for line in porcelain.splitlines():
+        if not line.strip():
+            continue
+        # Porcelain marks untracked with a leading '?? '; anything else is a tracked change.
+        if line.startswith("??"):
+            untracked += 1
+        else:
+            tracked_dirty += 1
+
+    warnings: list[str] = []
+    if tracked_dirty:
+        warnings.append(
+            f"Repository has {tracked_dirty} uncommitted tracked change"
+            f"{'s' if tracked_dirty != 1 else ''} (dirty)."
+        )
+    if has_tracking and behind > 0:
+        warnings.append(
+            f"Branch '{branch}' is behind '{tracking_branch}' by {behind} "
+            f"commit{'s' if behind > 1 else ''} (needs pull)."
+        )
+    elif not has_tracking:
+        warnings.append(f"Branch '{branch}' has no tracking remote branch configured.")
+
+    # A prompt is warranted only for real risk: local tracked changes, or being behind.
+    # Untracked-only + in-sync proceeds silently. A missing tracking branch alone is a soft
+    # note, not a blocking prompt.
+    needs_prompt = bool(tracked_dirty) or (has_tracking and behind > 0)
+    return GitState(
+        tracked_dirty=tracked_dirty,
+        untracked=untracked,
+        behind=behind,
+        has_tracking=has_tracking,
+        warnings=warnings,
+        needs_prompt=needs_prompt,
+        offer_pull=(has_tracking and behind > 0),
+    )
+
+
 def run_git_diagnostics(plan: InstallPlan) -> bool:
     """Run Git pre-flight checks (dirty, sync).
 
@@ -1353,8 +1422,7 @@ def run_git_diagnostics(plan: InstallPlan) -> bool:
         text=True,
         shell=False,
     )
-    is_dirty = bool(status_proc.stdout.strip())
-    dirty_lines = status_proc.stdout.strip().split("\n") if is_dirty else []
+    porcelain = status_proc.stdout
 
     # 2. Run fast git fetch with a timeout
     try:
@@ -1403,51 +1471,54 @@ def run_git_diagnostics(plan: InstallPlan) -> bool:
                 _ahead = int(m.group(1))
                 behind = int(m.group(2))
 
-    # If clean and remote is synced, proceed silently
-    if not is_dirty and behind == 0:
+    state = classify_git_state(porcelain, behind, has_tracking, branch, tracking_branch)
+
+    # No real risk (untracked-only and/or in sync) -> proceed silently. Untracked files are
+    # not a reason to interrupt: a rebase does not touch them and the installer is no-clobber.
+    if not state.needs_prompt:
         return True
 
-    # If non-interactive, print warnings to stderr and proceed
+    # If non-interactive, print the actionable warnings to stderr and proceed.
     is_interactive = is_interactive_session(plan) and not plan.diff
-
-    warnings = []
-    if is_dirty:
-        warnings.append(
-            f"Repository has {len(dirty_lines)} uncommitted local files (dirty)."
-        )
-    if has_tracking and behind > 0:
-        warnings.append(
-            f"Branch '{branch}' is behind '{tracking_branch}' by {behind} commit{'s' if behind > 1 else ''} (needs pull)."
-        )
-    elif not has_tracking:
-        warnings.append(f"Branch '{branch}' has no tracking remote branch configured.")
-
     if not is_interactive:
-        for warn in warnings:
+        for warn in state.warnings:
             sys.stderr.write(f"Git Warning: {warn}\n")
         return True
 
     term = Term(color=False if plan.no_color else None)
     print()
     print(term.colorize("Git Diagnostics:", "yellow"))
-    for warn in warnings:
+    for warn in state.warnings:
         print(f"  - {warn}")
     print()
     print("What would you like to do?")
-    print("  [1] Pull latest changes (git pull --rebase) and proceed")
-    print("  [2] Proceed anyway (risk of merge/overwrite)")
-    print("  [3] Abort installation")
+
+    if state.offer_pull:
+        # Behind the remote: a pull genuinely helps, so offer it as the default.
+        print("  [1] Pull latest changes (git pull --rebase) and proceed")
+        print("  [2] Proceed anyway (risk of merge/overwrite)")
+        print("  [3] Abort installation")
+        prompt = "Select an option [1-3, default 1]: "
+        default = "1"
+    else:
+        # In sync but has local tracked changes: pulling is a no-op, so do not offer it.
+        # The install is no-clobber and stages-not-commits, so proceeding is the safe default.
+        print(
+            "  [1] Proceed (install stages changes; your local edits are not committed)"
+        )
+        print("  [2] Abort installation")
+        prompt = "Select an option [1-2, default 1]: "
+        default = "1"
 
     try:
-        val = input("Select an option [1-3, default 1]: ").strip()
+        val = input(prompt).strip()
     except EOFError:
         print()
         return False
-
     if not val:
-        val = "1"
+        val = default
 
-    if val == "1":
+    if state.offer_pull and val == "1":
         print("Running: git pull --rebase ...")
         pull_proc = subprocess.run(
             ["git", "pull", "--rebase"],
@@ -1460,7 +1531,9 @@ def run_git_diagnostics(plan: InstallPlan) -> bool:
             )
             return False
         return True
-    elif val == "2":
+    elif state.offer_pull and val == "2":
+        return True
+    elif (not state.offer_pull) and val == "1":
         return True
     else:
         print("Aborted.")
