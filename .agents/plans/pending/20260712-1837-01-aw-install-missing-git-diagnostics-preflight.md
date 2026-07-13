@@ -108,7 +108,19 @@ REVISIONS APPLIED** (pending human sign-off).
    path. Confirm non-interactive/`--yes` multi-repo runs stay quiet (run_git_diagnostics no-ops when
    non-interactive). If parity for `_install_all`/`setup` proves to add risk (e.g. a fetch per repo in
    a large batch), scope it to `_run_install` for 1.2.1 and file the batch paths as a follow-on - decide
-   with evidence during implementation, do not silently skip.
+   with evidence during implementation, do not silently skip. (Confirmed live: `aw install all` today
+   skips diagnostics entirely, exactly as this predicted.)
+5. **UX clarity (added after live use of `aw install all`).** Two small message fixes:
+   (a) NO-CHANGE case: `_install_all` (cli.py:433-437) and `_run_install` print "N file(s); version X"
+   even when N == 0, which reads like a no-op/failure. When nothing changed, say so plainly, e.g.
+   "already current at <version>; nothing to update" instead of "0 file(s); version X". Keep the
+   version in the message.
+   (b) "all" scope legibility: `aw install all` installs all CONFIGURED repos (`expanded_repos`), not
+   every repo on disk. The confirm/summary should make the count and its meaning obvious, e.g.
+   "Install/update into N CONFIGURED repo(s)?" and, when the config has few/one, a hint that more repos
+   are added via `aw setup` / `--search-root`. Do not change WHICH repos install (configured-only is
+   correct); only make the scope unambiguous so a user with many on-disk repos is not surprised that
+   "all" means "all configured".
 4. **Regression test.** In `tests/test_cli.py` (which runs the CLI IN-PROCESS via `cli.main(argv)`,
    verified, so `engine.run_git_diagnostics` is patchable with `mock.patch`). Assert:
    (a) a normal `aw install <dir>` CALLS `engine.run_git_diagnostics` (the guard that would have caught
@@ -159,10 +171,11 @@ attempt the refactor.
 `to-review`. Execution contract (follow EXACTLY):
 
 1. SCOPE FENCE. Edit ONLY `agent_workflows/cli.py` (the install pre-flight routing + `_preflight_warnings`
-   docstring/dirty-line removal; parity in `_install_all`/`setup` per OQ2), `tests/test_cli.py` (the
+   docstring/dirty-line removal; parity in `_install_all`/`setup` per OQ2; the change #5 UX message
+   wording for the no-change case and the "N configured repo(s)" scope), `tests/test_cli.py` (the
    regression test), `CHANGELOG.md`, and `DECISIONS.md` (next free number). Do NOT modify
-   `run_git_diagnostics` itself or `install-workflows.py`. If a change seems to need more, STOP and
-   report.
+   `run_git_diagnostics` itself (that is IPD 2146-01's territory) or `install-workflows.py`. If a change
+   seems to need more, STOP and report.
 2. Authoring style: NO em dashes or en dashes in any Markdown you write.
 3. VALIDATE: run the FULL test suite; paste the ACTUAL runner output. Manually verify BOTH entry points
    now show the same 3-option menu on a dirty scratch repo, and that a clean repo + `--yes` is silent.
