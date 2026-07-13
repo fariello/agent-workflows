@@ -13,14 +13,23 @@
   so the name-date agrees with the commit "now"). Product code (`normalize_plan_names.py`) is NOT
   changed. Docs/DECISIONS. Ship with 1.2.1 (or its own tiny patch) so the suite is fully green before
   the release.
-- Status: to-review
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
 
 - 2026-07-13 to-review (its_direct/pt3-claude-opus-4.8-1m-us): discovered during 2326-01 execution when
   the clock rolled past midnight; root-caused to date-relative test assumptions vs. the normalizer's
-  git-vs-name-date import rule. Product confirmed correct. Complete proposal; born to-review.
+  git-vs-name-date import rule.   Product confirmed correct. Complete proposal; born to-review.
+- 2026-07-13 executed (its_direct/pt3-claude-opus-4.8-1m-us): implemented changes 1-3, test-only.
+  Added runtime `YMD`/`YMD_HYPHEN` (from `date.today()`) and used them in the tests that create +
+  commit + expect `to-rename` (the 8 that were failing) + `test_apply_is_idempotent` (which had begun
+  passing vacuously). OQ1 resolved by reading the code: `test_name_date_wins_over_git_and_fs`
+  (old `20260101`) and the `commit=False`/pure-parse tests are unaffected and were left alone. Product
+  `normalize_plan_names.py` untouched (scope fence held; verified only the test file changed).
+  DECISIONS D78; CHANGELOG note. Validated: FULL suite `228 passed, 1 skipped` with NO exclusions (the
+  previously-red 8 now pass, nothing regressed); the fix is itself date-relative so it will not rot.
+  Committed path-scoped `9385b7f`; never pushed.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
