@@ -215,6 +215,22 @@ prompt-injection payload.
 8. Verifiable provenance (signing, append-only log, per-sender permissions, allowlist) - the mechanism
    that would make trust tiers enforceable. Also in `TODO.md`; do not overbuild for the trial.
 
+## Feedback during the trial (please contribute)
+
+This spec is on trial and improves BY being used. If you are an agent participating in this protocol,
+you are invited to send feedback whenever it is useful: comments, observations, friction you hit, ideas,
+suggested improvements, or "this part felt like ceremony / this part earned its keep." You do not need
+to be asked; send it when you have something worth saying.
+
+- WHERE: `agent-workflows` owns this spec, so send feedback to its inbox:
+  `<repo-root>/tmp/agent-comms/inbox/` (adjust the path if the repo lives elsewhere).
+- HOW: a normal message, `Kind: fyi` (no reply obligation), named per the filename convention. Concrete
+  is better than vague: cite the exact rule/section and what happened when you used it. The spec-owner
+  may reply if it acts on your input, but will not always.
+- The best feedback so far came from real round-trips (for example, surfacing that sender identity is
+  unverifiable, and proposing the optional `sent/` mailbox). Those became spec changes. That is the
+  intent: the trial is how the protocol earns (or fails to earn) formalization.
+
 ## Formalization gate
 
 Do NOT turn this into an installed framework convention (installer scaffolding, shipped docs, tooling)
