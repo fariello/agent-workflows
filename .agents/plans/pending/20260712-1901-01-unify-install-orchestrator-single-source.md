@@ -15,7 +15,7 @@
   both entry points drive the identical sequence. Docs/DECISIONS. Internal refactor with NO intended
   user-facing behavior change; target a MINOR release (1.3.0) because it is a non-trivial internal
   change, not a patch.
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -25,6 +25,12 @@
   Root-caused the opposite: they are duplicated orchestrators (not separate enough), which is the P8
   violation that produced the drift. 1837-01 patches the symptom for 1.2.1; this IPD removes the root
   cause for 1.3.0. Complete proposal; born to-review.
+- 2026-07-12 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE (no revisions). Verified
+  against source: `install_into_repo` returns a dict and does NOT call diagnostics/summary/commit (each
+  caller re-adds them - the drift root cause is real). Cross-plan check: touches engine.py + cli.py
+  orchestration, lands AFTER and SUPERSEDES 1837-01's CLI wiring (correctly stated); no edit overlap
+  with the 1.2.1 plans. Scope, deferrals (no behavior change; STOP-and-report if one is needed), and
+  the single-orchestrator tests are sound. No BLOCKER/HIGH; no findings. Status -> reviewed.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 

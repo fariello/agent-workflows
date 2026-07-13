@@ -16,7 +16,7 @@
   (`RELEASING.md` + release-review `09-release-execution.md`) so the baked file can never again ship
   out of sync with the tag, INCLUDING resolving the bake-vs-tag ordering (below). Docs/DECISIONS.
   Ships in the 1.2.1 patch with IPDs `20260712-1837-01` and `20260712-2146-01`.
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -24,6 +24,14 @@
 - 2026-07-12 to-review (its_direct/pt3-claude-opus-4.8-1m-us): raised after `aw install all` stamped
   1.1.0 post-1.2.0-release. Root-caused against source + the v1.2.0 tag. Complete proposal; born
   to-review.
+- 2026-07-12 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED
+  (PB-5). Verified: `read_version` prefers the resolver but the installer copies the BAKED VERSION file
+  into targets; `git show v1.2.0:.agents/workflows/VERSION` = 1.1.0 (stale at the tag); hatch uses the
+  resolver so the WHEEL was correct. The bug and the ordering-paradox analysis are sound. PB-5 (MEDIUM,
+  clarity): added an explicit note that the published 1.2.0 GitHub Release + PyPI wheel are NOT wrong
+  and must NOT be recalled/re-issued - only the baked file + process are fixed, forward, in 1.2.1.
+  Cross-plan: owns VERSION/Makefile/RELEASING/09; no overlap with the cli.py/engine.py fixes. Status ->
+  reviewed.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -88,6 +96,10 @@
 - The wheel/pyproject version path (already correct via the resolver; untouched).
 - Retroactively fixing the `v1.2.0` TAG's tree (immutable release; the fix lands in 1.2.1, and 1.2.0
   installs stamping 1.1.0 is documented as a known issue fixed in 1.2.1).
+- CLARIFICATION (PB-5, at review): the published `v1.2.0` GitHub Release and the PyPI wheel are NOT
+  wrong and must NOT be re-issued or recalled. The wheel's version was computed correctly by the
+  resolver (1.2.0). The ONLY defect is the baked `.agents/workflows/VERSION` file that the INSTALLER
+  copies into targets. Do not yank or re-upload 1.2.0; ship the fix forward in 1.2.1.
 
 ## Open questions (v1 leans for review)
 

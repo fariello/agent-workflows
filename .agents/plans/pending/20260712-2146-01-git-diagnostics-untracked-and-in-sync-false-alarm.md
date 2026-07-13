@@ -15,13 +15,20 @@
   `20260712-1837-01` (both are install pre-flight bugs); coordinate the two (1837-01's scope fence
   currently says "do not modify run_git_diagnostics" - that carve-out is lifted for THIS IPD, which
   owns the diagnostics logic; 1837-01 still only ROUTES the CLI through it).
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
 
 - 2026-07-12 to-review (its_direct/pt3-claude-opus-4.8-1m-us): raised after the maintainer hit it in
   `pubrun`. Root-caused against source (engine.py:1356-1448). Complete proposal; born to-review.
+- 2026-07-12 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE (no revisions). Verified the
+  cited logic against source: the proceed-silently guard (:1407 `not is_dirty and behind == 0`), the
+  default-to-pull (:1447-48), and porcelain-includes-untracked as `is_dirty` (:1356) all confirmed - so
+  defects A (no-op pull default) and B (untracked counted as dirty) are real. Fix (split tracked vs
+  untracked; offer pull only when behind>0; adapt the menu) is Low risk and testable. Cross-plan:
+  owns `run_git_diagnostics` internals; 1837-01 only ROUTES into it (no overlap). No findings.
+  Status -> reviewed.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 

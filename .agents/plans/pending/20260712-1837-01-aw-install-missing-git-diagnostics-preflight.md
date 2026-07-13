@@ -30,8 +30,14 @@
   concrete interaction ACCEPTANCE CRITERIA to change #1 (clean/dirty/non-interactive), resolving OQ1
   so an executor cannot pick a divergent prompt shape. OQ2 resolved by maintainer (full parity, all 3
   paths); OQ3 resolved by evidence. Verified test_cli runs in-process (patchable). Surfaced the ROOT
-  CAUSE (two orchestrators) and recorded it as a separate 1.3.0 follow-on IPD, keeping 1837-01 the
-  minimal 1.2.1 patch. No BLOCKER/HIGH. Status -> reviewed.
+   CAUSE (two orchestrators) and recorded it as a separate 1.3.0 follow-on IPD, keeping 1837-01 the
+   minimal 1.2.1 patch. No BLOCKER/HIGH. Status -> reviewed.
+- 2026-07-12 re-review (its_direct/pt3-claude-opus-4.8-1m-us): after the first review, scope was
+  EXPANDED (change #3 note on the live `aw install all` diagnostics gap; new change #5 UX: no-change
+  message + "N configured repo(s)" clarity). Re-reviewed the delta: PB-3 (MEDIUM, testing) - the added
+  UX changes lacked a test; added test item #4(d). Fixed the change-#5 numbering collision (docs/release
+  is now #6). Cross-plan overlap re-checked: none (owns cli.py routing + messages; 2146-01 owns
+  run_git_diagnostics; 2326-01 owns VERSION). Remains reviewed.
 
 ## Plan-review record (2026-07-12)
 
@@ -132,10 +138,14 @@ REVISIONS APPLIED** (pending human sign-off).
    change: routing a network-fetching pre-flight into the primary CLI path must not make `--yes`/CI
    installs prompt or hang). Prefer asserting the real non-interactive behavior (no stdin read, install
    proceeds), not only the spy.
-5. **Docs + DECISIONS + release.** DECISIONS entry (next free number, likely D75) recording the
-   entry-point-parity bug and the single-source-of-truth fix. This is a user-facing behavior fix ->
-   patch release **1.2.1** (cut via release-review Section 9 from a clean `v1.2.1` tag, per RELEASING.md
-   / D74). Note in CHANGELOG.
+   (d) PB-3 (MEDIUM, testing, added at re-review): assert the change #5 UX wording - a no-change
+   install prints the "already current ... nothing to update" form (NOT "0 file(s)"), and the
+   `install all` confirm/summary states the CONFIGURED-repo count. Keep it a light string assertion.
+6. **Docs + DECISIONS + release.** DECISIONS entry (next free number) recording the entry-point-parity
+   bug and the single-source-of-truth fix. This is a user-facing behavior fix -> patch release
+   **1.2.1** (cut via release-review Section 9 from a clean `v1.2.1` tag, per RELEASING.md / D74). Note
+   in CHANGELOG. Coordinates with 2146-01 (diagnostics internals) and 2326-01 (VERSION) in the same
+   1.2.1 bundle; those own their own files, no edit overlap with this IPD (verified at re-review).
 
 ## Deferred / out of scope
 
