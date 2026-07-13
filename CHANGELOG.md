@@ -16,6 +16,8 @@ Patch release fixing install-path bugs found by using 1.2.0. Not yet cut.
 - (Pending in this patch) `aw install` now runs the full git-diagnostics pre-flight (parity with the
   deprecated installer), and the diagnostics no longer offer a no-op "git pull" for a repo that is
   merely dirty from untracked files and already in sync.
+- Internal: fixed wall-clock-proximity flakiness in the plan-filename normalizer tests (they now use
+  today-relative dates); no product behavior change.
 
 ## 1.2.0 - first PyPI publish
 

@@ -2,11 +2,22 @@
 
 from __future__ import annotations
 
+import datetime
 import tempfile
 import unittest
 from pathlib import Path
 
 from tests.support import REPO_ROOT, load_module, init_repo, git
+
+# Tests that create a file, commit it "now", and expect status "to-rename" must use a date
+# CLOSE TO NOW: the normalizer flags a file as "imported" (held from auto-rename) when its
+# name-date differs from its git-first-commit date by > 1 day. A hardcoded past date rots into
+# an "imported" classification once the clock advances. So derive today's date at runtime.
+_TODAY = datetime.date.today()
+YMD = _TODAY.strftime(
+    "%Y%m%d"
+)  # compact form used in canonical filenames, e.g. 20260713
+YMD_HYPHEN = _TODAY.strftime("%Y-%m-%d")  # hyphenated legacy form, e.g. 2026-07-13
 
 NPN = load_module(
     "normalize_plan_names",
@@ -70,22 +81,23 @@ class ScanTests(unittest.TestCase):
         self.assertEqual([r for r in renames if r.old != r.new], [])
 
     def test_legacy_file_gets_renamed(self):
-        self._add("20260711-my-plan.md")
+        self._add(f"{YMD}-my-plan.md")
         renames = [r for r in NPN.scan(self.repo) if r.old != r.new]
         self.assertEqual(len(renames), 1)
         new = renames[0].new
-        self.assertRegex(Path(new).name, r"^20260711-\d{4}-01-my-plan\.md$")
+        self.assertRegex(Path(new).name, rf"^{YMD}-\d{{4}}-01-my-plan\.md$")
         self.assertEqual(renames[0].reason, "to-rename")
 
     def test_legacy_shapes_all_normalize(self):
         # date-only, NN-only, time-only, hyphenated, hyphenated+NN (committed today so the
-        # name-date agrees with git and none is flagged imported).
+        # name-date agrees with git and none is flagged imported). Dates are today-relative so
+        # the name-date always agrees with the commit "now" regardless of the calendar day.
         for name in (
-            "20260711-date-only.md",
-            "20260711-07-with-nn.md",
-            "20260711-1430-with-time.md",
-            "2026-07-11-hyphenated.md",
-            "2026-07-11-09-hyphenated-nn.md",
+            f"{YMD}-date-only.md",
+            f"{YMD}-07-with-nn.md",
+            f"{YMD}-1430-with-time.md",
+            f"{YMD_HYPHEN}-hyphenated.md",
+            f"{YMD_HYPHEN}-09-hyphenated-nn.md",
         ):
             self._add(name)
         renames = [r for r in NPN.scan(self.repo) if r.reason == "to-rename"]
@@ -94,13 +106,13 @@ class ScanTests(unittest.TestCase):
             self.assertTrue(NPN.is_conformant(Path(r.new).name), r.new)
         by_old = {Path(r.old).name: Path(r.new).name for r in renames}
         # Present time/NN preserved.
-        self.assertIn("-1430-", by_old["20260711-1430-with-time.md"])
-        self.assertRegex(by_old["20260711-07-with-nn.md"], r"-07-with-nn\.md$")
+        self.assertIn("-1430-", by_old[f"{YMD}-1430-with-time.md"])
+        self.assertRegex(by_old[f"{YMD}-07-with-nn.md"], r"-07-with-nn\.md$")
         self.assertRegex(
-            by_old["2026-07-11-09-hyphenated-nn.md"], r"^20260711-\d{4}-09-"
+            by_old[f"{YMD_HYPHEN}-09-hyphenated-nn.md"], rf"^{YMD}-\d{{4}}-09-"
         )
         # Hyphenated date compacted to YYYYMMDD (N-1 regression: did not raise + no hyphens in date).
-        self.assertTrue(by_old["2026-07-11-hyphenated.md"].startswith("20260711-"))
+        self.assertTrue(by_old[f"{YMD_HYPHEN}-hyphenated.md"].startswith(f"{YMD}-"))
 
     def test_nn_vs_hhmm_disambiguation(self):
         p2 = NPN.parse_name("20260709-01-foo.md")
@@ -112,8 +124,8 @@ class ScanTests(unittest.TestCase):
 
     def test_same_minute_legacy_files_get_sequential_nn(self):
         # Two files committed together -> same first-commit minute -> 01, 02.
-        self._add("20260711-alpha.md", commit=False)
-        self._add("20260711-beta.md", commit=False)
+        self._add(f"{YMD}-alpha.md", commit=False)
+        self._add(f"{YMD}-beta.md", commit=False)
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", "both")
         renames = sorted(
@@ -177,7 +189,7 @@ class ScanTests(unittest.TestCase):
 
     def test_bad_slug_new_format_is_normalized(self):
         # A canonical prefix but a bad slug is not conformant -> normalized slug.
-        self._add("20260711-1430-01-Bad_Slug.md")
+        self._add(f"{YMD}-1430-01-Bad_Slug.md")
         renames = [r for r in NPN.scan(self.repo) if r.reason == "to-rename"]
         self.assertEqual(len(renames), 1)
         self.assertIn("bad-slug", Path(renames[0].new).name)
@@ -193,7 +205,7 @@ class ApplyTests(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_apply_renames_tracked_file_staged_not_committed(self):
-        p = self.repo / ".agents/plans/executed/20260711-thing.md"
+        p = self.repo / ".agents/plans/executed" / f"{YMD}-thing.md"
         p.write_text("# t\n", encoding="utf-8")
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", "add")
@@ -212,7 +224,7 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual(len(log), 1)
 
     def test_apply_is_idempotent(self):
-        p = self.repo / ".agents/plans/executed/20260711-thing.md"
+        p = self.repo / ".agents/plans/executed" / f"{YMD}-thing.md"
         p.write_text("# t\n", encoding="utf-8")
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", "add")
@@ -224,7 +236,7 @@ class ApplyTests(unittest.TestCase):
     def test_apply_never_clobbers_existing_target(self):
         # Plant a legacy file AND a file already occupying its computed target name.
         d = self.repo / ".agents/plans/executed"
-        (d / "20260711-thing.md").write_text("# legacy\n", encoding="utf-8")
+        (d / f"{YMD}-thing.md").write_text("# legacy\n", encoding="utf-8")
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", "add legacy")
         # Precompute the target and create a conflicting file there.
@@ -260,42 +272,42 @@ class ScopeExcludeNonNumericTests(unittest.TestCase):
         return {r.old: r.reason for r in NPN.scan(self.repo, **kw)}
 
     def test_prompts_scanned_by_default_area_narrows(self):
-        self._mk(".agents/prompts/pending/20260711-note.md")
+        self._mk(f".agents/prompts/pending/{YMD}-note.md")
         # Default (plans+prompts+docs): the prompts file is found (to-rename).
         st = self._statuses()
-        self.assertIn(".agents/prompts/pending/20260711-note.md", st)
+        self.assertIn(f".agents/prompts/pending/{YMD}-note.md", st)
         # --area plans: prompts excluded entirely (not reported).
         st2 = self._statuses(areas=["plans"])
-        self.assertNotIn(".agents/prompts/pending/20260711-note.md", st2)
+        self.assertNotIn(f".agents/prompts/pending/{YMD}-note.md", st2)
 
     def test_docs_scanned_by_default_area_narrows(self):
-        self._mk(".agents/docs/research/20260711-note.md")
-        self._mk(".agents/docs/walkthroughs/20260711-walkthrough.md")
+        self._mk(f".agents/docs/research/{YMD}-note.md")
+        self._mk(f".agents/docs/walkthroughs/{YMD}-walkthrough.md")
         # Default: docs files are found (to-rename)
         st = self._statuses()
-        self.assertIn(".agents/docs/research/20260711-note.md", st)
-        self.assertIn(".agents/docs/walkthroughs/20260711-walkthrough.md", st)
+        self.assertIn(f".agents/docs/research/{YMD}-note.md", st)
+        self.assertIn(f".agents/docs/walkthroughs/{YMD}-walkthrough.md", st)
         # --area plans: docs excluded entirely
         st2 = self._statuses(areas=["plans"])
-        self.assertNotIn(".agents/docs/research/20260711-note.md", st2)
-        self.assertNotIn(".agents/docs/walkthroughs/20260711-walkthrough.md", st2)
+        self.assertNotIn(f".agents/docs/research/{YMD}-note.md", st2)
+        self.assertNotIn(f".agents/docs/walkthroughs/{YMD}-walkthrough.md", st2)
 
     def test_workflows_tree_never_targeted_even_with_all(self):
-        self._mk(".agents/workflows/assess/20260711-not-a-plan.md")
-        self._mk(".agents/plans/pending/20260711-real.md")
+        self._mk(f".agents/workflows/assess/{YMD}-not-a-plan.md")
+        self._mk(f".agents/plans/pending/{YMD}-real.md")
         st = self._statuses(all_areas=True)
-        self.assertNotIn(".agents/workflows/assess/20260711-not-a-plan.md", st)
-        self.assertIn(".agents/plans/pending/20260711-real.md", st)
+        self.assertNotIn(f".agents/workflows/assess/{YMD}-not-a-plan.md", st)
+        self.assertIn(f".agents/plans/pending/{YMD}-real.md", st)
 
     def test_nested_reported_not_renamed_without_include(self):
-        self._mk(".agents/plans/pending/suite/sources/20260711-input.md")
+        self._mk(f".agents/plans/pending/suite/sources/{YMD}-input.md")
         st = self._statuses()
         self.assertEqual(
-            st[".agents/plans/pending/suite/sources/20260711-input.md"], "nested"
+            st[f".agents/plans/pending/suite/sources/{YMD}-input.md"], "nested"
         )
         st2 = self._statuses(include_nested=True)
         self.assertEqual(
-            st2[".agents/plans/pending/suite/sources/20260711-input.md"], "to-rename"
+            st2[f".agents/plans/pending/suite/sources/{YMD}-input.md"], "to-rename"
         )
 
     def test_readme_excluded_by_default(self):
@@ -305,11 +317,11 @@ class ScopeExcludeNonNumericTests(unittest.TestCase):
         self.assertNotEqual(st.get(".agents/plans/pending/README.md"), "to-rename")
 
     def test_custom_exclude_pattern(self):
-        self._mk(".agents/plans/pending/20260711-keep.md")
-        self._mk(".agents/plans/pending/20260711-skip.md")
-        st = self._statuses(excludes=["*/20260711-skip.md"])
-        self.assertEqual(st[".agents/plans/pending/20260711-skip.md"], "excluded")
-        self.assertEqual(st[".agents/plans/pending/20260711-keep.md"], "to-rename")
+        self._mk(f".agents/plans/pending/{YMD}-keep.md")
+        self._mk(f".agents/plans/pending/{YMD}-skip.md")
+        st = self._statuses(excludes=[f"*/{YMD}-skip.md"])
+        self.assertEqual(st[f".agents/plans/pending/{YMD}-skip.md"], "excluded")
+        self.assertEqual(st[f".agents/plans/pending/{YMD}-keep.md"], "to-rename")
 
     def test_non_numeric_off_by_default_then_opt_in(self):
         self._mk(".agents/plans/pending/free-form-name.md")
