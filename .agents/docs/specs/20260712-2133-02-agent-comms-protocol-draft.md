@@ -16,15 +16,24 @@ share a filesystem (for example, sibling worktrees under `a local checkout dir/`
 tmp/agent-comms/
   inbox/     # messages addressed TO an agent working in THIS project (outstanding)
   archive/   # messages this project's agent has consumed (read/actioned)
+  sent/      # OPTIONAL: this agent's own copy of messages it has SENT (its outbound record)
 ```
 
 - Sender writes a message into the RECIPIENT project's `tmp/agent-comms/inbox/`.
 - Recipient, on consuming it, MOVES the file to its own `tmp/agent-comms/archive/`. The move is the
   read-receipt: `inbox/` at a glance shows exactly what is outstanding (mirrors the plan lifecycle
   pending -> executed idea).
+- **`sent/` is RECOMMENDED but OPTIONAL** (for the sender's own benefit, not required for correctness).
+  A sender MAY drop a copy of each outgoing message into its OWN `tmp/agent-comms/sent/` when it writes
+  to a recipient's inbox. Rationale: an outgoing message otherwise lives ONLY in the recipient's inbox
+  (then their archive), so a sender keeping no copy has no local record of what it asked, and cannot
+  reconstruct its own side of a thread without reading another repo's directories. A `sent/` copy gives
+  each agent a self-contained record of BOTH sides of every thread it took part in. It is optional so
+  the protocol stays minimal: skipping it does not break anything, and a message is considered "sent"
+  when it lands in the recipient's inbox regardless of whether a `sent/` copy was kept.
 - `tmp/` is gitignored, so agent-comms is EPHEMERAL by default. Decision-grade exchanges are PROMOTED
-  deliberately to a tracked home (`.agents/docs/research/` or a dedicated docs bucket) - the archive is
-  disposable; promotion is a conscious act.
+  deliberately to a tracked home (`.agents/docs/research/` or a dedicated docs bucket) - the archive
+  and `sent/` are disposable; promotion is a conscious act.
 
 ## Filename convention
 
@@ -65,9 +74,11 @@ location (location is the fast signal; the header is the durable record).
 
 ## Lifecycle
 
-1. Sender composes the message, writes it to the recipient's `tmp/agent-comms/inbox/`.
-2. Recipient reads it, acts (or replies by writing a `reply` back to the SENDER's inbox with `Re:` set),
-   then moves the original to its own `archive/` (optionally updating `Status:` to `actioned`).
+1. Sender composes the message, writes it to the recipient's `tmp/agent-comms/inbox/`, and OPTIONALLY
+   drops a copy in its own `sent/` for its outbound record.
+2. Recipient reads it, acts (or replies by writing a `reply` back to the SENDER's inbox with `Re:` set,
+   optionally copying that reply to its own `sent/`), then moves the original to its own `archive/`
+   (optionally updating `Status:` to `actioned`).
 3. If the exchange is decision-grade, either party PROMOTES a copy to a tracked docs home and notes it.
 
 ## Inbox check routine (what "check your inbox" means)
