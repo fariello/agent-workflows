@@ -15,7 +15,7 @@
   `20260712-1837-01` (both are install pre-flight bugs); coordinate the two (1837-01's scope fence
   currently says "do not modify run_git_diagnostics" - that carve-out is lifted for THIS IPD, which
   owns the diagnostics logic; 1837-01 still only ROUTES the CLI through it).
-- Status: reviewed
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -27,10 +27,17 @@
   default-to-pull (:1447-48), and porcelain-includes-untracked as `is_dirty` (:1356) all confirmed - so
   defects A (no-op pull default) and B (untracked counted as dirty) are real. Fix (split tracked vs
   untracked; offer pull only when behind>0; adapt the menu) is Low risk and testable. Cross-plan:
-  owns `run_git_diagnostics` internals; 1837-01 only ROUTES into it (no overlap). No findings.
-  Status -> reviewed.
-
-## Project conventions discovered (Step 0, VERIFIED against source)
+   owns `run_git_diagnostics` internals; 1837-01 only ROUTES into it (no overlap). No findings.
+   Status -> reviewed.
+- 2026-07-13 executed (its_direct/pt3-claude-opus-4.8-1m-us): implemented changes 1-4. Extracted a
+  pure `classify_git_state` helper + `GitState` NamedTuple (split tracked-dirty vs untracked via the
+  porcelain `??` marker); rewired `run_git_diagnostics` to proceed silently when no real risk
+  (untracked-only and/or in sync), and to offer/default a pull ONLY when behind>0 (adaptive menu:
+  pull/proceed/abort when behind; proceed/abort when in-sync-but-tracked-dirty, OQ2 proceed-default;
+  no menu for untracked-only, OQ1 fully-silent). New `tests/test_git_diagnostics.py` (7 tests incl. the
+  exact pubrun untracked-only-in-sync case). DECISIONS D76. Validated: 194 passed + 1 skipped with the
+  pre-existing (unrelated, date-flakiness) `test_normalize_plan_names.py` excluded; the 7 new
+  diagnostics tests green. Committed path-scoped `65754d9`; never pushed. Ships in 1.2.1 (not cut yet).
 
 - `run_git_diagnostics` (engine.py:1339) computes `is_dirty = bool(git status --porcelain output)`
   (:1356) - which INCLUDES untracked files (porcelain marks them with a leading `?? `). It computes
