@@ -16,7 +16,7 @@
   (`RELEASING.md` + release-review `09-release-execution.md`) so the baked file can never again ship
   out of sync with the tag, INCLUDING resolving the bake-vs-tag ordering (below). Docs/DECISIONS.
   Ships in the 1.2.1 patch with IPDs `20260712-1837-01` and `20260712-2146-01`.
-- Status: reviewed
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -32,6 +32,18 @@
   and must NOT be recalled/re-issued - only the baked file + process are fixed, forward, in 1.2.1.
   Cross-plan: owns VERSION/Makefile/RELEASING/09; no overlap with the cli.py/engine.py fixes. Status ->
   reviewed.
+- 2026-07-13 executed (its_direct/pt3-claude-opus-4.8-1m-us): implemented changes 1-4. OQ1 resolved
+  (maintainer): bake-then-tag via an explicit `make version-file VERSION=<x.y.z>` override (validated;
+  falls back to the resolver when omitted). Re-baked `.agents/workflows/VERSION` to the intended `1.2.1`
+  (OQ2: bake to the coming release, not a 1.2.0 stopgap). Added the required re-bake-before-tag step to
+  `09-release-execution.md` Step 1 and `RELEASING.md`. Added `BakedVersionGuardTests` in
+  `tests/test_versioning.py`. DECISIONS D75; CHANGELOG 1.2.1 (pending) section. Validated: full suite
+  passes EXCEPT a PRE-EXISTING, unrelated flakiness in `test_normalize_plan_names.py` (8 tests) that
+  fails on clean HEAD too - caused by the system clock rolling past midnight (date-relative
+  classification: `20260711` files now read "imported" not "to-rename"); confirmed NOT this change via
+  stash-and-retest. With that file excluded: 187 passed, 1 skipped (the baked-vs-tag guard, correctly
+  skipping since HEAD is not a tag). Committed path-scoped `d5f905c`; never pushed. Did NOT cut 1.2.1
+  (holding before release). Filed the normalizer date-flakiness as a separate finding.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
