@@ -83,6 +83,64 @@ class InstallVerbTests(CliTestBase):
         self.assertEqual(code, 1)
         self.assertIn("No repos", out)
 
+
+class InstallDiagnosticsTests(CliTestBase):
+    """1837-01: the CLI install path must run the shared git-diagnostics pre-flight
+    (parity with engine.main()/install-workflows.py), and must not be blocked/prompted on a
+    clean repo under --yes."""
+
+    def test_install_invokes_git_diagnostics(self):
+        from unittest import mock
+
+        repo = self._repo("solo")
+        with mock.patch(
+            "agent_workflows.engine.run_git_diagnostics", return_value=True
+        ) as spy:
+            code, out = _run(["install", str(repo), "--yes"])
+        self.assertEqual(code, 0, out)
+        self.assertTrue(
+            spy.called, "install must run run_git_diagnostics (entry-point parity)"
+        )
+
+    def test_install_aborts_when_diagnostics_returns_false(self):
+        from unittest import mock
+
+        repo = self._repo("solo")
+        with mock.patch(
+            "agent_workflows.engine.run_git_diagnostics", return_value=False
+        ):
+            with mock.patch("agent_workflows.engine.install_into_repo") as installer:
+                code, out = _run(["install", str(repo), "--yes"])
+        self.assertFalse(
+            installer.called, "a False pre-flight must skip the repo without installing"
+        )
+        self.assertIn("pre-flight", out.lower())
+
+    def test_yes_install_on_clean_repo_is_not_blocked(self):
+        # A clean, in-sync repo under --yes must install with no prompt/hang: the real
+        # run_git_diagnostics no-ops silently. (Highest regression risk of routing the
+        # pre-flight into the primary CLI path.)
+        repo = self._repo("clean")
+        code, out = _run(["install", str(repo), "--yes"])
+        self.assertEqual(code, 0, out)
+        self.assertTrue((repo / ".agents/workflows/VERSION").is_file())
+
+    def test_no_change_reinstall_says_already_current(self):
+        repo = self._repo("solo")
+        _run(["install", str(repo), "--yes"])  # first install
+        code, out = _run(["install", str(repo), "--yes"])  # second: nothing to change
+        self.assertEqual(code, 0, out)
+        self.assertIn("already current", out)
+        self.assertNotIn("0 file(s)", out)
+
+    def test_install_all_confirm_names_configured_count(self):
+        a = self._repo("a")
+        cfg = CFG.default_config()
+        cfg["repos"] = [str(a)]
+        CFG.save(cfg)
+        code, out = _run(["install", "all", "--yes"])
+        self.assertIn("configured", out)
+
     def test_install_multiple_repos_yes(self):
         repo1 = self._repo("multi1")
         repo2 = self._repo("multi2")

@@ -268,18 +268,14 @@ def _preflight_warnings(repo_root: Path, packaged: str) -> List[str]:
     """Return preflight WARN messages for a target (ex-`doctor`; D6).
 
     Warns on: not a git repo; a would-downgrade (installed is 'ahead' of the packaged
-    version). Uncommitted-changes warning is left to the interactive path.
+    version). The dirty/behind git state is owned by `engine.run_git_diagnostics` (single
+    source of truth), which every interactive install path runs; it is NOT duplicated here.
     """
 
     warnings: List[str] = []
     if not (repo_root / ".git").exists():
         warnings.append(
             f"{repo_root} is not a git repository (install will still write files)."
-        )
-    elif _has_uncommitted_changes(repo_root):
-        warnings.append(
-            f"{repo_root} has uncommitted changes; install stages more changes on top "
-            "(nothing is committed, but review before you commit)."
         )
     installed = engine.read_installed_version(repo_root)
     if installed is not None:
@@ -290,6 +286,38 @@ def _preflight_warnings(repo_root: Path, packaged: str) -> List[str]:
                 "installing would DOWNGRADE it."
             )
     return warnings
+
+
+def _diagnostics_ok(repo_root: Path, args: argparse.Namespace) -> bool:
+    """Run the shared engine git-diagnostics pre-flight for one repo before installing.
+
+    Returns True to proceed, False to skip/abort this repo. Builds a minimal InstallPlan so
+    the CLI runs the SAME pre-flight as engine.main()/install-workflows.py (entry-point
+    parity, 1837-01). run_git_diagnostics is no-op-silent when the repo is clean+in-sync or
+    non-interactive, and only prompts on real risk (tracked-dirty or behind).
+    """
+
+    import copy
+
+    engine_args = copy.copy(args)
+    engine_args.repo_root = repo_root
+    engine_args.version = False
+    engine_args.diff = False
+    engine_args.undo = False
+    # Different callers (install, install-all, setup) carry different arg shapes; ensure the
+    # attributes build_install_plan reads are present with safe defaults.
+    for attr, default in (
+        ("dry_run", False),
+        ("no_backup", False),
+        ("no_prune", False),
+        ("source_root", None),
+        ("yes", False),
+        ("no_color", False),
+    ):
+        if not hasattr(engine_args, attr):
+            setattr(engine_args, attr, default)
+    plan = engine.build_install_plan(engine_args)
+    return engine.run_git_diagnostics(plan)
 
 
 # --------------------------------------------------------------------------------------
@@ -331,6 +359,14 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
 
         for w in _preflight_warnings(repo_root, packaged):
             term.status("warn", w)
+        # Git diagnostics pre-flight FIRST (dirty/behind handling, shared with the engine);
+        # an abort here skips the repo before the install confirm.
+        if not _diagnostics_ok(repo_root, args):
+            term.status(
+                "skip", f"{repo_root}: aborted at git pre-flight; nothing changed."
+            )
+            returncode = 1
+            continue
         if not _confirm(term, f"Install agent-workflows into {repo_root}?", args.yes):
             term.status("skip", f"{repo_root}: aborted; nothing changed.")
             continue
@@ -372,10 +408,16 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
         )
 
         n = len(result["installed"])
-        term.status(
-            "ok",
-            f"{repo_root}: installed/updated {n} file(s); version {result['version']}.",
-        )
+        if n == 0:
+            term.status(
+                "ok",
+                f"{repo_root}: already current at version {result['version']}; nothing to update.",
+            )
+        else:
+            term.status(
+                "ok",
+                f"{repo_root}: installed/updated {n} file(s); version {result['version']}.",
+            )
 
         engine.prompt_and_run_commit(
             plan=plan,
@@ -410,17 +452,28 @@ def _install_all(args: argparse.Namespace, term: Term) -> int:
         term.status("fail", str(exc))
         return 1
 
+    # "all" means every CONFIGURED repo (the allowlist), not every repo on disk. Make that
+    # explicit so a user with many on-disk repos is not surprised by the count.
     if not _confirm(
-        term, f"Install/update agent-workflows into {len(repos)} repo(s)?", args.yes
+        term,
+        f"Install/update agent-workflows into {len(repos)} configured repo(s)?",
+        args.yes,
     ):
         term.status("skip", "aborted; nothing changed.")
         return 1
 
     ok = 0
     failed = 0
+    aborted = 0
     for repo in repos:
         if not repo.is_dir():
             term.status("skip", f"{repo}: not a directory")
+            continue
+        # Same git diagnostics pre-flight as the single-repo path (entry-point parity).
+        # No-op-silent when clean/in-sync/non-interactive; an abort skips just this repo.
+        if not _diagnostics_ok(repo, args):
+            term.status("skip", f"{repo}: aborted at git pre-flight")
+            aborted += 1
             continue
         try:
             result = engine.install_into_repo(
@@ -430,11 +483,13 @@ def _install_all(args: argparse.Namespace, term: Term) -> int:
                 backup=not args.no_backup,
                 prune=not args.no_prune,
             )
-            term.status(
-                "ok",
-                f"{repo}: {len(result['installed'])} file(s); "
-                f"version {result['version']}",
-            )
+            n = len(result["installed"])
+            if n == 0:
+                term.status(
+                    "ok", f"{repo}: already current at version {result['version']}"
+                )
+            else:
+                term.status("ok", f"{repo}: {n} file(s); version {result['version']}")
             ok += 1
         except (
             Exception
@@ -443,7 +498,11 @@ def _install_all(args: argparse.Namespace, term: Term) -> int:
             failed += 1
 
     term.line()
-    term.kv("Summary", f"{ok} installed, {failed} failed, {len(repos)} total")
+    summary = f"{ok} installed, {failed} failed"
+    if aborted:
+        summary += f", {aborted} aborted"
+    summary += f", {len(repos)} configured total"
+    term.kv("Summary", summary)
     if ok:
         _teach(term)
     return 1 if failed else 0
@@ -670,6 +729,10 @@ def _run_setup(args: argparse.Namespace, term: Term) -> int:
             term.status("fail", str(exc))
             return 1
         for repo in found.targets:
+            # Same git diagnostics pre-flight as the other install paths (parity).
+            if not _diagnostics_ok(repo, args):
+                term.status("skip", f"{repo}: aborted at git pre-flight")
+                continue
             try:
                 result = engine.install_into_repo(repo, source_root)
                 term.status("ok", f"{repo}: version {result['version']}")
