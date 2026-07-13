@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "message_type": "task.result",
+  "task_id": "tsk_example_001",
+  "correlation_id": "cor_example_001",
+  "idempotency_key": "sha256:example",
+  "sender": {
+    "principal_id": "agent:reviewer",
+    "instance_id": "oci_sender"
+  },
+  "target": {
+    "principal_id": "agent:builder",
+    "instance_id": "oci_receiver",
+    "project_id": "git:sha256:example",
+    "worktree": "/srv/worktrees/project-peer-001"
+  },
+  "issued_at": "2026-07-13T17:30:00Z",
+  "expires_at": "2026-07-13T17:45:00Z",
+  "nonce": "replace-with-random-192-bit-value",
+  "sequence": 1,
+  "requested_action": "review_folder",
+  "scope": {
+    "read_roots": [
+      "src/module"
+    ],
+    "write_roots": [],
+    "network": false,
+    "shell": false,
+    "delegate": false
+  },
+  "approval": {
+    "required": true,
+    "risk": "medium"
+  },
+  "body": {
+    "content_type": "text/markdown",
+    "text": "Review completed. No changes were made."
+  },
+  "attachments": [],
+  "reply_to": "broker://results/tsk_example_001",
+  "auth": {
+    "algorithm": "HMAC-SHA256",
+    "key_id": "example-key",
+    "signature": "replace-after-canonical-signing"
+  }
+}

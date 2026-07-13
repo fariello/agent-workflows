@@ -1,9 +1,16 @@
+# Cited external research artifacts under .agents/docs/research/ are kept VERBATIM (their own
+# formatting/punctuation is intentional). Content-MUTATING hooks (whitespace/eof fixers, ruff
+# lint+format) are excluded for that path so they never rewrite as-delivered artifacts. SAFETY
+# hooks (gitleaks, large-file check) still apply everywhere, including research, so secrets or
+# oversized blobs cannot slip in via a research directory.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
       - id: trailing-whitespace
+        exclude: '^\.agents/docs/research/'
       - id: end-of-file-fixer
+        exclude: '^\.agents/docs/research/'
       - id: check-yaml
       - id: check-added-large-files
         args: ['--maxkb=500']
@@ -18,4 +25,6 @@ repos:
     hooks:
       - id: ruff
         args: [--fix]
+        exclude: '^\.agents/docs/research/'
       - id: ruff-format
+        exclude: '^\.agents/docs/research/'

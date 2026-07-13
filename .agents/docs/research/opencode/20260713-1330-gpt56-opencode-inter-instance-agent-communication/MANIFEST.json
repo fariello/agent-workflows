@@ -1,0 +1,90 @@
+{
+  "package": "20260713-1330-opencode-inter-instance-agent-communication",
+  "created": "2026-07-13T13:30:00-04:00",
+  "baseline": {
+    "opencode_version": "1.17.18",
+    "commit": "b1fc811"
+  },
+  "files": [
+    {
+      "path": "00-executive-summary.md",
+      "sha256": "81a7efdbbd5228a1c463c0910118ada9fa7e0e9aa9adad855afa21d6bac14f07",
+      "bytes": 8522
+    },
+    {
+      "path": "01-native-capabilities-and-runtime.md",
+      "sha256": "d5ecc862ea1eab86d364329fe6086a19984dd2bfd766b0f51a4d532a679a0dbc",
+      "bytes": 11544
+    },
+    {
+      "path": "02-communication-methods-comparison.md",
+      "sha256": "1a8c50f6073f1c707966b69725e2f0b3c90df21ea1731572ef2d2657a3714335",
+      "bytes": 10256
+    },
+    {
+      "path": "03-provenance-and-security.md",
+      "sha256": "078f6a353e75428e5d98d935bd394c2e349ad3545a4eeeb286078dd599b4980d",
+      "bytes": 11927
+    },
+    {
+      "path": "04-plugin-feasibility-and-design.md",
+      "sha256": "01c690bde03004056741eeade5145bb87e9f15931bbd1e6dfb7028c45b03e634",
+      "bytes": 9442
+    },
+    {
+      "path": "05-core-enhancement-proposal.md",
+      "sha256": "60bfac409bad91e8167ca9b4b1115c73920ac3ee5c0f00742cc341c0ece5367c",
+      "bytes": 5954
+    },
+    {
+      "path": "06-implementation-roadmap.md",
+      "sha256": "c797b78c4b35310655c6fa58e4a9c72daf76ccd65b0a8442ff6935423964769b",
+      "bytes": 6688
+    },
+    {
+      "path": "README.md",
+      "sha256": "9a5607af3ed54f4b72f06fc81fef6a5820371771684d96e1e3c129fa56f2bc96",
+      "bytes": 1632
+    },
+    {
+      "path": "prototype/README.md",
+      "sha256": "e8ed0e2cadf4040bba6985e8ddf5f1224f22f5080b2ce5bba77db89c0a72040d",
+      "bytes": 1136
+    },
+    {
+      "path": "prototype/broker/broker.py",
+      "sha256": "21f279f224342a5572738bc5272b9bbb74a03f39201de3282feede2e40669d6e",
+      "bytes": 3936
+    },
+    {
+      "path": "prototype/examples/message.request.json",
+      "sha256": "241f21176323d14b0ab4b8b32341c5808513243b1f2973593d4ada4f9b5c2b1a",
+      "bytes": 1175
+    },
+    {
+      "path": "prototype/examples/message.response.json",
+      "sha256": "6317c03618f771eb4315ed0a3c8f329f66a11d6adf2c567fd682bc8c79d33fb7",
+      "bytes": 1149
+    },
+    {
+      "path": "prototype/plugin/opencode-peer.ts",
+      "sha256": "17a242f8879ef67a140c850914f4372d8b5cad677ca70e3b9bd6ea05e763f498",
+      "bytes": 3261
+    },
+    {
+      "path": "prototype/schemas/peer-message.schema.json",
+      "sha256": "c2b2d2b1d2d33e7b081c48fb9465a92f067e1bbc22330d398d1d491a76519ffb",
+      "bytes": 4308
+    },
+    {
+      "path": "prototype/tests/test_broker.py",
+      "sha256": "3325229d18df0fe15e32f169fb01e7c4240b1b53987bc562eeca2f5239cf1cdd",
+      "bytes": 1064
+    },
+    {
+      "path": "sources.md",
+      "sha256": "b8b4c093e4af18b4c3de9bb047f62da06afd87e11a21c5cdc633f4c05ba830d3",
+      "bytes": 6590
+    }
+  ]
+}
