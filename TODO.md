@@ -23,6 +23,20 @@ these without an approved IPD.
   enforceable: signed messages, an append-only log, per-sender inbox permissions, or a per-project
   allowlist of trusted senders. Today `From:`/filenames are self-asserted and unverifiable. Deferred;
   do not overbuild for the trial. Same source/spec as above.
+- **Inter-agent-comms helper tool (discuss with the maintainer first).** A possible `aw comms`-style
+  helper that makes the filesystem agent-comms convention easier to operate rather than doing it by
+  hand or with ad hoc scripts. NOT yet designed or committed - flagged here to DISCUSS scope and shape
+  with the maintainer before any IPD. Candidate capabilities to discuss (subset, not a spec): `check`
+  (list this repo's inbox with message age, per the "check your inbox" routine); `send` (write a
+  well-formed message to a recipient's inbox with the correct filename + header, optionally keeping a
+  `sent/` copy); `archive` (move a consumed message); `sweep`/`status` across sibling repos (a hub view
+  of all outstanding inboxes and their ages, like the ephemeral broadcast script trialed 2026-07-12);
+  `promote` (copy a decision-grade exchange to a durable docs home). Open design questions to settle
+  together: is this an `aw` subcommand vs. a standalone script vs. a workflow; does it ship in the
+  framework or stay a local convenience; how it relates to the deferred formalization gate and the
+  trust-tier/provenance items above (a tool must not imply the protocol is more trusted/verified than
+  it is). Source: agent-comms protocol trial + the manual broadcast/check scripting on 2026-07-12.
+  See `.agents/docs/specs/20260712-2133-02-agent-comms-protocol-draft.md` (open question 5, `aw comms`).
 
 ## Notes
 
