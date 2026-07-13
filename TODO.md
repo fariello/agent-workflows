@@ -5,6 +5,18 @@ Tracked backlog for `agent-workflows`. Concrete, planned work lives as IPDs unde
 backlog notes and ideas that are not yet (and may never become) plans. The release-review workflow
 triages this file against each release.
 
+## Known bugs to fix
+
+- **`test_normalize_plan_names.py` is date-relative and flaky across midnight.** 8 tests in this file
+  use hardcoded dates (e.g. `20260711-...`) and the normalizer classifies files by age relative to
+  "today"; once the system clock rolls a couple of days past those dates, files expected to be
+  `to-rename` are classified `imported` (and the apply/exclude tests fail accordingly). The tests were
+  green earlier on 2026-07-12 and began failing after midnight (2026-07-13) with NO code change (verified
+  by stash-and-retest against clean HEAD). Fix direction: inject "today"/reference-date into the
+  normalizer for deterministic tests (like `parse_describe` already accepts a `date=` override), or make
+  the test dates relative to now. Discovered 2026-07-13 during 2326-01 execution; it is NOT caused by any
+  1.2.1 install-path work. Own IPD.
+
 ## Consider and possibly implement (not committed, may be declined)
 
 Ideas worth revisiting; each needs a real decision before it becomes a plan. Do not implement any of
