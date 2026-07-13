@@ -191,5 +191,59 @@ class StatusTests(unittest.TestCase):
         self.assertEqual(VER.status("0.0.0+gd644d2d", "1.0.0"), "unknown")
 
 
+class BakedVersionGuardTests(unittest.TestCase):
+    """Guard against the stale/dirty baked VERSION bug (the installer copies this file
+    verbatim into every target, so it must be a clean release version, never a .dev/local
+    string and never lagging the tag)."""
+
+    import re as _re
+
+    _RELEASE_RE = _re.compile(r"^\d+\.\d+\.\d+(rc\d+)?$")
+
+    def _repo_root(self) -> Path:
+        # tests/ -> repo root
+        return Path(__file__).resolve().parent.parent
+
+    def test_baked_version_is_a_clean_release_string(self):
+        # The tracked .agents/workflows/VERSION must be a plain release (X.Y.Z or X.Y.Zrc N),
+        # NOT a .devN / +local string. A dev/local value here means it was baked from a
+        # dirty/ahead tree and would stamp a dev version into every install.
+        vpath = self._repo_root() / ".agents" / "workflows" / "VERSION"
+        baked = vpath.read_text(encoding="utf-8").strip()
+        self.assertRegex(
+            baked,
+            self._RELEASE_RE,
+            f"baked VERSION {baked!r} is not a clean release version "
+            "(no .dev/+local allowed; re-bake with `make version-file VERSION=<x.y.z>`)",
+        )
+
+    def test_baked_version_matches_tag_when_head_is_a_release_tag(self):
+        # When HEAD is exactly an annotated release tag, the baked VERSION must equal it
+        # (bake-then-tag). If HEAD is not a clean tag, this check is skipped (dev/ahead trees
+        # legitimately carry the intended next release in the baked file).
+        import subprocess
+
+        root = self._repo_root()
+        proc = subprocess.run(
+            ["git", "describe", "--tags", "--exact-match"],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            self.skipTest("HEAD is not exactly a release tag; baked-vs-tag check N/A")
+        tag = proc.stdout.strip().lstrip("v")
+        baked = (
+            (root / ".agents" / "workflows" / "VERSION")
+            .read_text(encoding="utf-8")
+            .strip()
+        )
+        self.assertEqual(
+            baked,
+            VER._normalize_tag("v" + tag),
+            "baked VERSION must equal the release tag it is committed under (bake-then-tag)",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

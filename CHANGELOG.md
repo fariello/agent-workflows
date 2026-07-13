@@ -4,6 +4,19 @@ All notable changes to `agent-workflows` are recorded here. Versions are git-tag
 semantic versioning (see `RELEASING.md`); the authoritative "why" for decisions lives in
 `DECISIONS.md`.
 
+## 1.2.1 (pending) - install pre-flight and versioning fixes
+
+Patch release fixing install-path bugs found by using 1.2.0. Not yet cut.
+
+- Fixed: the installer stamped the wrong version into target repos. `.agents/workflows/VERSION`
+  was baked at `1.1.0` even in the `v1.2.0` release, and the installer copies that file into each
+  target. The baked VERSION is now re-baked from the intended release version and committed before
+  tagging (bake-then-tag), and a test guards against a stale/dev baked value. (The 1.2.0 PyPI wheel
+  was unaffected; its version is resolver-computed.)
+- (Pending in this patch) `aw install` now runs the full git-diagnostics pre-flight (parity with the
+  deprecated installer), and the diagnostics no longer offer a no-op "git pull" for a repo that is
+  merely dirty from untracked files and already in sync.
+
 ## 1.2.0 - first PyPI publish
 
 This is the first release of `agent-workflows` published to PyPI. The project has been
