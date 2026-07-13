@@ -13,7 +13,7 @@
   of truth per P8); reconcile the other install entry points that call `install_into_repo`
   (`_install_all`, and the `setup` flow) for consistency; a regression test asserting the CLI path
   invokes diagnostics; docs/DECISIONS. Patch release 1.2.1.
-- Status: reviewed
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -38,6 +38,18 @@
   UX changes lacked a test; added test item #4(d). Fixed the change-#5 numbering collision (docs/release
   is now #6). Cross-plan overlap re-checked: none (owns cli.py routing + messages; 2146-01 owns
   run_git_diagnostics; 2326-01 owns VERSION). Remains reviewed.
+- 2026-07-13 executed (its_direct/pt3-claude-opus-4.8-1m-us): implemented changes 1-6. Added a shared
+  `_diagnostics_ok(repo, args)` helper (builds a minimal InstallPlan, tolerant of the three arg
+  shapes) and wired it into `_run_install`, `_install_all`, and the `setup` install loop (diagnostics
+  first, then the single install confirm; abort skips the repo). Removed the duplicate dirty-repo
+  warning from `_preflight_warnings` (single source = run_git_diagnostics). UX: no-change ->
+  "already current at <version>; nothing to update"; `install all` confirm/summary now names the
+  CONFIGURED-repo count. Added `InstallDiagnosticsTests` (invokes diagnostics; False aborts without
+  installing; `--yes` clean not blocked; no-change message; configured-count). DECISIONS D77.
+  Validated: 199 passed + 1 skipped (pre-existing normalizer date-flakiness excluded); 24/24
+  test_cli green; manual end-to-end confirmed the untracked-only-in-sync repo no longer triggers the
+  diagnostics menu (the pubrun bug), and stamps 1.2.1. Committed path-scoped `a010671`/`b87bedd`;
+  never pushed. Ships in 1.2.1 (not cut yet).
 
 ## Plan-review record (2026-07-12)
 
