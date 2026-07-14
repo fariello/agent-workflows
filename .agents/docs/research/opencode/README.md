@@ -44,8 +44,13 @@ the human as the backstop, and holding sender identity as unverified are the cor
 prototype is a candidate future upgrade transport, not a commitment; formalization remains gated per the
 spec.
 
-## Not here
+## Also here (reference, written for ocman)
 
-OpenCode filesystem/runtime-artifacts research produced FOR the `ocman` project (SQLite backup safety,
-config-layer merging, path discovery) is ocman's, not this repo's, and belongs under ocman's own
-`.agents/docs/research/`.
+- `20260713-1254-...-filesystem-runtime-artifacts-research-prompt.md` (the prompt, verbatim) and
+  `20260713-1319-gpt56-...-filesystem-runtime-artifacts-reference-research.md` (the report): a deep
+  reference on OpenCode's on-disk model (SQLite storage/WAL, layered config merge, snapshot repos,
+  data/config/cache/state paths). This report was written FOR the `ocman` project and recommends ocman
+  changes; it is archived here only as useful OpenCode-internals REFERENCE (it informs this framework's
+  thinking, e.g. the agent-comms trial). A framing header at the top of the report says so. The
+  authoritative copy for ocman lives in the ocman project; read its "ocman should ..." items as
+  ocman-directed, not agent-workflows tasks.
