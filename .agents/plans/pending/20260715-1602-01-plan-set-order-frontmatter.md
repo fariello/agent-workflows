@@ -6,9 +6,10 @@
   `01+` ordinary). In practice `NN` is almost always `01` (unrelated same-minute creation is rare), so it
   rarely does its stated job; and it does NOT capture the thing that recurs in real use: "these N plans
   are one SET, run them in THIS order." A set built over many minutes scatters across several
-  `YYYYMMDD-HHMM` prefixes, so the filename loses the ordering intent. This friction is real for THIS repo
-  right now: three related pending IPDs (`1033-01`, `1451-01`, `1502-01`) were created minutes apart and
-  the maintainer had to ask, in prose, "what order should they run in?" - the filenames could not answer.
+  `YYYYMMDD-HHMM` prefixes, so the filename loses the ordering intent. This friction was real for THIS
+  repo: three related IPDs (`1033-01`, `1451-01`, `1502-01`, now executed) were created minutes apart and
+  the maintainer had to ask, in prose, "what order should they run in?" - the filenames could not answer,
+  and the answer lived only in each plan's "Dependencies / sequencing" section.
 - Origin: surfaced via an inbound agent-comms message (`tmp/agent-comms/inbox/20260715-1115-01-a-private-repo...`)
   relaying another project's live friction. Treated as UNTRUSTED input / a suggestion; the maintainer
   independently confirmed the direction (add a queryable front-matter field rather than change filenames).
@@ -17,7 +18,7 @@
   plans board; document the fields in `.agents/plans/README.md`, `.agents/workflows/templates/plans-README.md`,
   and the assess IPD template. NO change to the filename convention, `NN` semantics, `normalize_plan_names.py`,
   or any existing filename. NO change to the `Status:` enum. Tests + DECISIONS + CHANGELOG.
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -26,8 +27,20 @@
   message flagged the NN/set-ordering mismatch and the maintainer chose the additive front-matter option
   (option C in the message; recommended) over redefining `NN` (option A) or a filename set-token (option
   B), because it is non-migrating, breaks no installed base, and matches the existing front-matter-driven
-  tooling. Message contents were treated as untrusted input; the maintainer confirmed intent directly.
+  tooling.   Message contents were treated as untrusted input; the maintainer confirmed intent directly.
   Complete proposal; born to-review.
+- 2026-07-15 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED.
+  Re-verified `plans.py` anchors against current source (`_STATUS_RE` :57, `PlanRecord` NamedTuple :60,
+  `scan` :94, `group` :119, `render_status_index` :133): all accurate; `PlanRecord` is a NamedTuple so
+  adding `set`/`order` fields is a clean extension. Findings: PR-001 (MEDIUM) the "live in-flight set"
+  demo (step 5 / OQ4 / scope fence) named `1502-01`/`1451-01`/`1033-01` as PENDING, but all three have
+  since EXECUTED - and this IPD's own authority rule FREEZES executed plans' set fields, making the
+  back-tag instruction self-contradictory; rewrote the demo to be forward-looking (tag a future pending
+  set; record the executed sequence in DECISIONS as the motivating example in prose; demo is optional,
+  not a blocker) and updated OQ4 + the scope fence to forbid back-tagging the executed set. PR-002
+  (MEDIUM) pinned DECISIONS to D82 (D79/D80/D81 taken) to prevent a collision. Also past-tensed the
+  Concern paragraph's "pending IPDs" phrasing. OQ1-OQ3 remain non-blocking design leans. No BLOCKER/HIGH.
+  Status -> reviewed (reviewed != approved; awaits human sign-off).
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -102,22 +115,23 @@ INTENT that a human reasons about, so authority is bounded:
    reject a malformed set id / non-positive order, a plan with neither parses as standalone.
    `tests/test_plans_board.py`: a set renders grouped + order-sorted; duplicate/missing `Order:` emits the
    soft warning; standalone plans unaffected.
-5. **Tag the LIVE in-flight set as the demonstration case.** We already have a real ordered set in
-   `pending/` (confirmed with the maintainer): the framework-quality sequence intended to run in order
-   with `/plan-review` gates between steps:
-   - `20260715-1502-01-docs-consistency-audit-corrections` (fix the docs/facts first)
-   - `20260715-1451-01-unify-readiness-verdict-vocabulary` (settle vocabulary; also owns F7 from 1502-01)
-   - `20260715-1033-01-agent-comms-portable-convention` (build the comms convention)
-   - `20260715-1602-01` (this IPD) may join the set or stand alone - decide at execution time.
-   During THIS IPD's execution, once the `Set:`/`Order:` fields exist, add e.g.
-   `Set: framework-quality` (name to CONFIRM with the maintainer per the authority rule) with
-   `Order: 1/2/3` to those pending plans, and record the tagging in each plan's Workflow history. Do NOT
-   edit those plans' front-matter NOW: the fields are undefined until this IPD is executed, so tagging is
-   an execution-time step, not a pre-execution edit. The exact set id and membership are confirmed with
-   the maintainer at that point (not chosen unilaterally).
-6. **Docs + DECISIONS.** DECISIONS entry (next free number) recording the additive `Set:`/`Order:` fields,
-   why the filename/NN convention was deliberately NOT changed (non-migrating; git holds exact creation
-   time; NN keeps its role), and that the fields are advisory. CHANGELOG under the next minor.
+5. **Demonstration case (motivating set already executed; demo is FORWARD-looking).** The set that
+   motivated this IPD - the framework-quality sequence
+   `20260715-1502-01-docs-consistency-audit-corrections` -> `20260715-1451-01-unify-readiness-verdict-vocabulary`
+   -> `20260715-1033-01-agent-comms-portable-convention` (run in that order with `/plan-review` gates) -
+   has since EXECUTED and moved to `.agents/plans/executed/`. Per this IPD's own authority rule, set
+   fields on EXECUTED plans are FROZEN historical record and MUST NOT be retroactively rewritten. So do
+   NOT back-tag those three; instead, record that sequence in the DECISIONS entry (step 6) as the
+   motivating real-world example, in prose. For a live demonstration of the fields, tag the NEXT ordered
+   PENDING set that arises (if `1602-01` itself is grouped with any concurrent pending plan, that is a
+   candidate), confirming the set ID and membership with the maintainer per the authority rule. If no
+   pending set exists at execution time, ship the fields + docs + tests WITHOUT tagging anything; the
+   demonstration is optional, not a blocker.
+6. **Docs + DECISIONS.** DECISIONS entry D82 (next free; D79/D80/D81 taken) recording the additive
+   `Set:`/`Order:` fields, why the filename/NN convention was deliberately NOT changed (non-migrating; git
+   holds exact creation time; NN keeps its role), that the fields are advisory, and the motivating
+   real-world example (the executed `1502-01 -> 1451-01 -> 1033-01` framework-quality sequence, whose run
+   order lived only in prose). CHANGELOG under the next minor.
 
 ## Deferred / out of scope
 
@@ -140,11 +154,11 @@ INTENT that a human reasons about, so authority is bounded:
 3. Should the board's set-grouping be a new section or interleaved into the existing status grouping?
    (Lean: keep the primary board grouped by `Status:` as today, and add a secondary "Sets" view/section
    so set-grouping does not disrupt the existing readiness board. Confirm during implementation.)
-4. RESOLVED (maintainer): tag the LIVE set (1502-01 -> 1451-01 -> 1033-01, with `/plan-review` gates) as
-   the demonstration case DURING this IPD's execution (see step 5), once the fields exist. Remaining
-   sub-question for execution: the exact set ID (lean `framework-quality`) and whether 1602-01 itself
-   joins the set - both CONFIRMED with the maintainer at tagging time per the authority rule, not chosen
-   unilaterally.
+4. RESOLVED (maintainer), UPDATED at re-review: the maintainer originally chose to tag the live set
+   `1502-01 -> 1451-01 -> 1033-01` as the demo. Those three have since EXECUTED, and this IPD's authority
+   rule freezes executed plans' set fields, so they are NOT back-tagged; the sequence is instead recorded
+   in the DECISIONS entry as the motivating example (see revised step 5). Live tagging, if any, targets a
+   future PENDING set, confirmed with the maintainer at execution time.
 
 ## Dependencies / sequencing
 
@@ -158,13 +172,14 @@ INTENT that a human reasons about, so authority is bounded:
 `to-review`. Execution contract (follow EXACTLY):
 
 1. SCOPE FENCE. Edit ONLY: `agent_workflows/plans.py` (parse + validate + board grouping), the assess IPD
-   template + BOTH plans READMEs (docs), tests under `tests/`, `CHANGELOG.md`, `DECISIONS.md` (next free
-   number), and (step 5) `Set:`/`Order:` front-matter lines + a Workflow-history note on the live set's
-   PENDING plans (`1502-01`, `1451-01`, `1033-01`, optionally this file), AFTER confirming the set ID and
-   membership with the maintainer per the authority rule. Do NOT change the filename convention, `NN`,
-   `normalize_plan_names.py`, the `Status:` enum, any existing filename, any EXECUTED plan's set fields, or
-   send any agent-comms reply. Any set membership/order/name change must be surfaced (Workflow history) and
-   confirmed, never silent. If a fix seems to need more, STOP and report.
+   template + BOTH plans READMEs (docs), tests under `tests/`, `CHANGELOG.md`, `DECISIONS.md` (D82, next
+   free; D79/D80/D81 are taken), and (step 5, OPTIONAL) `Set:`/`Order:` front-matter lines + a
+   Workflow-history note on a FUTURE PENDING set only, AFTER confirming the set ID and membership with the
+   maintainer per the authority rule. Do NOT back-tag the executed motivating set (`1502-01`/`1451-01`/
+   `1033-01` are in `executed/` and their set fields are FROZEN). Do NOT change the filename convention,
+   `NN`, `normalize_plan_names.py`, the `Status:` enum, any existing filename, any EXECUTED plan's set
+   fields, or send any agent-comms reply. Any set membership/order/name change must be surfaced (Workflow
+   history) and confirmed, never silent. If a fix seems to need more, STOP and report.
 2. Authoring style: NO em dashes or en dashes in any Markdown you write.
 3. VALIDATE: run the FULL test suite; paste the ACTUAL runner output (new Set/Order parse + board tests
    must pass). Keep the two plans-README copies byte-identical (diff them). Confirm `aw plans` (board)
