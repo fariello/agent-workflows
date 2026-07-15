@@ -12,7 +12,7 @@
   and does NOT rewrite append-only DECISIONS history in place (the duplicate-D fix is an ADDITIVE erratum
   entry plus fixing the live references). One shipped Python tool constant is corrected. No product code
   logic beyond that constant; the shim generator is untouched.
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -24,6 +24,19 @@
   filing. Confirmed-clean areas (mirror parity, byte-identical baked AGENT-WORKFLOWS block and
   plans/docs templates, no authored em/en dashes, no stale tmp/agent-comms refs, roadmaps-not-in-DOCS_SUBDIRS
   is by-design per D73) are recorded so they are not re-litigated. Complete proposal; born to-review.
+- 2026-07-15 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED.
+  Independently re-verified EVERY finding's path:line against source (F1 RELEASING.md:57, F2 index.md:3-4
+  vs VERSION=1.2.1, F3 normalize_plan_names.py:72-75, F4 duplicate D22/D23/D24 at :456/481/508 and
+  :534/557/589, F5 CONTRIBUTING.md:93-95 tag-then-rebake, F6 auto-approved in ipd.md:19 absent from both
+  plans-READMEs, F7 CONDITIONAL-GO, F8 report-template.md:15, F9 research/README.md:13-16 vs executed IPD,
+  F10 roadmaps README absent, F11 index.md:203/209, F13 CONTRIBUTING.md:79); all accurate. Findings:
+  PR-001 (MEDIUM) corrected F5 line cite (91-94 -> 93-95) and tied it to F2 (re-bake stamps index.md);
+  PR-002 (MEDIUM) resolved F3's embedded question by evidence (single hand-maintained copy loaded live by
+  cli.py:833-836, so the drift is a real functional bug; require a DOCS_SUBDIRS drift-guard test);
+  PR-003 (LOW) strengthened the validation step to concretely check the F4 erratum + preserved original
+  headings + resolvable ARCHITECTURE refs. Resolved OQ2 from evidence; OQ1 (D-suffix style) and OQ3
+  (version-example rendering) remain lean-recorded, non-GO-blocking style choices. No BLOCKER/HIGH left
+  unfixed. Status -> reviewed (reviewed != approved; awaits human sign-off).
 
 ## Findings to correct (VERIFIED against source)
 
@@ -42,20 +55,25 @@ Severity in brackets. Each line cites evidence and the minimal fix.
   recurrence; capture as a follow-up note, not necessarily code here.)
 - F3 [HIGH] `.agents/workflows/setup-repo/tools/normalize_plan_names.py:72-75` `DOCS_SUBDIRS =
   ("research","walkthroughs")` is drifted from `agent_workflows/engine.py:2285-2290`
-  (`research,walkthroughs,specs,prompts`) and from DECISIONS D73. `aw plan-names` run from the installed
-  workflow tree will not recognize `.agents/docs/specs/` and `.agents/docs/prompts/`. FIX: add `specs`
-  and `prompts`; correct the pre-D73 docstring (line ~29) that says it scans `.agents/prompts/`. Confirm
-  whether this file is maintained or mirror-generated; if mirrored, fix the source.
+  (`research,walkthroughs,specs,prompts`) and from DECISIONS D73. VERIFIED (this review): there is exactly
+  ONE copy of this file (not generated, not duplicated), and `agent_workflows/cli.py:833-836` loads and
+  executes it LIVE for `aw plan-names` - so the drift is a real FUNCTIONAL bug (the live `aw plan-names`
+  does not recognize `.agents/docs/specs/` or `.agents/docs/prompts/`), not cosmetic. FIX: (a) add
+  `specs` and `prompts` to its `DOCS_SUBDIRS`; (b) correct the pre-D73 docstring (line ~29) that says it
+  scans `.agents/prompts/`; (c) add a drift-guard assertion to the existing `tests/test_normalize_plan_names.py`
+  that its `DOCS_SUBDIRS` equals `agent_workflows.engine.DOCS_SUBDIRS`, so the two cannot silently diverge
+  again.
 - F4 [HIGH] Duplicate DECISIONS numbers: `DECISIONS.md:456/481/508` are D22/D23/D24, and
   `:534/557/589` REPEAT D22/D23/D24 for different decisions. Five live `ARCHITECTURE.md` cross-refs
   (`:165,:175,:247,:259,:406`) become ambiguous. FIX (append-only-safe): add a dated ERRATUM entry at the
   end of DECISIONS.md recording the collision and assigning disambiguating IDs to the second occurrences
   (e.g. D22b/D23b/D24b, or next-free numbers with an "originally mislabeled" note), then update the five
   ARCHITECTURE.md references to the disambiguated IDs. Do NOT rewrite the historical headings in place.
-- F5 [MEDIUM] `CONTRIBUTING.md:91-94` describes tag-then-rebake ("create a tag ... then regenerate
-  VERSION"), contradicting the bake-then-tag order mandated by DECISIONS D75 and `RELEASING.md:42-48`.
-  FIX: rewrite to `make version-file VERSION=<X.Y.Z>` -> commit -> `git tag -a vX.Y.Z`, and refresh the
-  stale `1.0.0` example.
+- F5 [MEDIUM] `CONTRIBUTING.md:93-95` describes tag-then-rebake ("create an annotated tag ... then
+  regenerate `VERSION` and the `index.md` stamp"), contradicting the bake-then-tag order mandated by
+  DECISIONS D75 and `RELEASING.md:42-48`. FIX: rewrite to `make version-file VERSION=<X.Y.Z>` -> commit
+  (VERSION and the `index.md` stamp) -> `git tag -a vX.Y.Z`, and refresh the stale `1.0.0` example. This
+  also ties to F2: state that the re-bake stamps `index.md` from VERSION, so the two cannot drift again.
 - F6 [MEDIUM] Status lifecycle enum: `auto-approved` (D65, actively set by verify-execution) appears in
   `.agents/workflows/assess/templates/ipd.md:19-21` but is ABSENT from both `.agents/plans/README.md` and
   `.agents/workflows/templates/plans-README.md` (which are byte-identical and claim to be the canonical
@@ -117,9 +135,10 @@ Severity in brackets. Each line cites evidence and the minimal fix.
    second occurrences? (Lean: suffix form `D22b` etc. via an erratum entry, because the SECOND occurrences
    are the newer ones and downstream text already cites both numbers; a suffix preserves intent with
    least churn. Confirm.)
-2. F3: is `normalize_plan_names.py` hand-maintained or generated from engine.py? (Lean: appears
-   hand-maintained; fix in place AND add a test/guard so its `DOCS_SUBDIRS` cannot silently drift from
-   engine's again. Confirm during execution.)
+2. RESOLVED (this review, evidence): `normalize_plan_names.py` is hand-maintained, single-copy, and
+   loaded live by `cli.py:833-836` for `aw plan-names`. Fix in place AND add the `DOCS_SUBDIRS`
+   drift-guard test in `tests/test_normalize_plan_names.py` (assert equality with
+   `agent_workflows.engine.DOCS_SUBDIRS`). No source/mirror duplication to reconcile.
 3. F12: refresh version examples to `1.2.1` vs annotate as illustrative? (Lean: annotate "example only"
    AND bump to a current number, so it neither goes stale again nor misleads.)
 
@@ -141,10 +160,14 @@ Severity in brackets. Each line cites evidence and the minimal fix.
    DECISIONS headings in place, edit workflow-artifacts/ or executed/superseded plans, or change the shim
    generator. If a fix seems to need more, STOP and report.
 2. Authoring style: NO em dashes or en dashes in any Markdown you write.
-3. VALIDATE: run the FULL test suite; paste the ACTUAL runner output. Re-grep to confirm: zero
-   `WORKFLOWS-VERSION: 1.1.0` in index.md, zero remaining `first PyPI release is 1.1.0`, `DOCS_SUBDIRS`
-   in normalize_plan_names.py matches engine.py, no `NOT ELIGIBLE:` in plan-review-long. Keep the two
-   plans-README copies byte-identical (diff them). Confirm `aw plan-names` clean.
+3. VALIDATE: run the FULL test suite; paste the ACTUAL runner output (the new F3 drift-guard test must
+   pass). Re-grep to confirm: zero `WORKFLOWS-VERSION: 1.1.0` in index.md, zero remaining `first PyPI
+   release is 1.1.0`, `normalize_plan_names.py` `DOCS_SUBDIRS` equals `engine.DOCS_SUBDIRS`, no
+   `NOT ELIGIBLE:` in plan-review-long. For F4: confirm the original `### D22./### D23./### D24.` headings
+   (both occurrences) are UNCHANGED, a new dated erratum entry exists at the end of DECISIONS.md, and the
+   five ARCHITECTURE.md references (`:165,:175,:247,:259,:406`) now cite disambiguated IDs that resolve to
+   exactly one entry each. Keep the two plans-README copies byte-identical (diff them). Confirm
+   `aw plan-names` clean.
 4. COMMIT only this IPD's touched files, PATH-SCOPED (new files need `git add <path>` first); never
    `git add -A`/bare/`-a`; never push.
 5. When implemented and tests actually pass, `git mv` this file to `.agents/plans/executed/`, set
