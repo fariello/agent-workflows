@@ -1,16 +1,19 @@
 # IPD: Unify the two install orchestrators behind one canonical path (root cause of the CLI drift)
 
 - Date: 2026-07-12
-- Concern: architecture / single-source-of-truth (P8) / drift prevention. `engine.main()` and
-  `cli._run_install` are TWO hand-maintained orchestrators of the SAME install operation. The shared
-  core `install_into_repo` returns a result dict and does NOT itself run the pre-flight
-  (`run_git_diagnostics`), the summary (`print_summary`), or the commit prompt
-  (`prompt_and_run_commit`) - each caller re-adds those around it. That is exactly how the 1.2.1 bug
-  (IPD 1837-01: `aw install` missing `run_git_diagnostics`) arose: a step added to one orchestrator was
-  never mirrored into the other. As long as two orchestrators exist, this class of drift will recur.
+- Concern: architecture / single-source-of-truth (P8) / drift prevention. `engine.run()` (behind the
+  thin `engine.main()` wrapper, used by `install-workflows.py`) and `cli._run_install` are TWO
+  hand-maintained orchestrators of the SAME install operation: `run()` inlines the sequence (calling
+  `install_all` directly), while the CLI path calls the shared core `install_into_repo`. That core
+  returns a result dict and does NOT itself run the pre-flight (`run_git_diagnostics`), the summary
+  (`print_summary`), or the commit prompt (`prompt_and_run_commit`) - each caller re-adds those around
+  it. That is exactly how the 1.2.1 bug (IPD 1837-01: `aw install` missing `run_git_diagnostics`) arose:
+  a step added to one orchestrator was never mirrored into the other. As long as two orchestrators
+  exist, this class of drift will recur (this session's comms scaffolding went into a shared LEAF,
+  `create_setup_artifacts`, so it did not add new drift - but the orchestration split remains).
 - Scope: `agent_workflows/engine.py` + `agent_workflows/cli.py`: extract ONE canonical install
   orchestrator (a single function that runs pre-flight -> install_into_repo -> summary -> commit prompt,
-  with parameters for interactivity/dry-run/yes) that BOTH `engine.main()` (used by the deprecated
+  with parameters for interactivity/dry-run/yes) that BOTH `engine.run()` (behind `engine.main()` /
   `install-workflows.py`) and `cli._run_install` / `_install_all` / the `setup` flow call. Tests proving
   both entry points drive the identical sequence. Docs/DECISIONS. Internal refactor with NO intended
   user-facing behavior change; target a MINOR release (1.3.0) because it is a non-trivial internal
@@ -31,32 +34,54 @@
   orchestration, lands AFTER and SUPERSEDES 1837-01's CLI wiring (correctly stated); no edit overlap
   with the 1.2.1 plans. Scope, deferrals (no behavior change; STOP-and-report if one is needed), and
   the single-orchestrator tests are sound. No BLOCKER/HIGH; no findings. Status -> reviewed.
+- 2026-07-15 /plan-review RE-REVIEW (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS
+  APPLIED. Triggered by heavy repo change since 2026-07-12 (this session executed D79-D82; engine.py grew
+  comms scaffolding). Core thesis RE-VERIFIED still valid: `install_into_repo` (now engine.py:2645) is
+  still a pure dict core, and TWO orchestrations still exist - `engine.run()` (engine.py:2704, inlines
+  `install_all`) behind the thin `engine.main()` wrapper, vs. the CLI's `install_into_repo` path (cli.py
+  :375/:479/:737). Findings: PR-001 (HIGH) ALL line anchors stale (install_into_repo 2471->2645,
+  main 2654->2828, _run_install 300->328, etc.) - refreshed throughout. PR-002 (HIGH) the plan framed
+  `engine.main()` as the inlined orchestrator, but `main()` is now a thin wrapper and the orchestration
+  moved to `run()`; also 1837-01 has SHIPPED (executed), so its `_diagnostics_ok` wiring (cli.py:291) is
+  LIVE and this IPD now SUBSUMES it (dependency satisfied) rather than "lands after" - reframed. PR-003
+  (MEDIUM) pinned DECISIONS to D83 (D79-D82 taken) and refreshed test count 215->253. PR-004 (LOW)
+  em -> em/en dashes. OQ1-OQ3 remain reasonable non-blocking implementation leans (OQ2 updated for the
+  main/run split). No BLOCKER/HIGH left unfixed. Status stays reviewed (awaits human sign-off).
 
-## Project conventions discovered (Step 0, VERIFIED against source)
+## Project conventions discovered (Step 0, RE-VERIFIED against source at re-review 2026-07-15)
 
-- `install_into_repo` (engine.py:2471) does file writes + returns a dict; it does NOT call
-  `run_git_diagnostics`, `print_summary`, or `prompt_and_run_commit` (verified: none appear in its
-  body 2471-2517). Its docstring even says it "reuses the exact same engine steps as the single-repo
-  `run()` path" - acknowledging a parallel path exists.
-- `engine.main()` (engine.py:2654; install loop ~2585-2650) orchestrates: `run_git_diagnostics` ->
-  inlined install steps (install_all/prune_stale/update_agents_pointer/gitignore/three README
-  ensurers/create_setup_artifacts/save_created_files_record/prune_old_backups) -> `print_summary` ->
-  `prompt_and_run_commit`. This INLINES the sequence rather than calling `install_into_repo`.
-- `cli._run_install` (cli.py:300) orchestrates: `_preflight_warnings` (NOT run_git_diagnostics) +
-  `_confirm` -> `install_into_repo` -> `print_summary` -> `prompt_and_run_commit`.
-- So there are effectively TWO install sequences: engine.main's inlined one, and the
-  install_into_repo + CLI-wrapper one. They share leaf helpers but not orchestration. Divergences found
-  so far: the pre-flight (run_git_diagnostics vs _preflight_warnings) and, subtly, engine.main inlines
-  create_setup_artifacts/README-ensurers while install_into_repo does its own set (must be reconciled
-  to confirm they are actually identical - a review-time TODO for this IPD).
-- 1837-01 (reviewed, 1.2.1) will add run_git_diagnostics to the CLI paths as a SYMPTOM patch. This IPD
-  supersedes that patch's approach by making a single orchestrator, so after this lands the CLI's
-  bespoke pre-flight wiring is replaced by the shared path. Sequencing: 1837-01 ships first (fast fix);
-  this refactor lands on top and should PRESERVE 1837-01's behavior (and its tests) while removing the
-  duplication.
-- Zero-dep, stdlib-only project; 215 tests; the install path is the most-tested surface
-  (test_installer.py, test_cli.py, test_setup_artifacts.py) - a good safety net for a refactor.
-- House rule: no em dashes in authored Markdown.
+NOTE: all line anchors below were REFRESHED at re-review; the original 2026-07-12 anchors had shifted
+(this session's `engine.py` edits + earlier changes moved everything down, and `engine.main` was
+thinned). The two-orchestrator DRIFT the plan targets is confirmed STILL PRESENT.
+
+- `install_into_repo` (engine.py:2645) does file writes + returns a dict; it does NOT call
+  `run_git_diagnostics`, `print_summary`, or `prompt_and_run_commit` (re-verified: none appear in its
+  body). Pure batch-friendly core.
+- `engine.main()` (engine.py:2828) is now a THIN wrapper: `return run(parse_args(argv))` + CTRL-C/EOF
+  handling. The real orchestrator is `engine.run()` (engine.py:2704), which orchestrates:
+  `run_git_diagnostics` -> `install_all` (INLINED, NOT via `install_into_repo`) -> the install steps ->
+  `print_summary` -> `prompt_and_run_commit`. So the `install-workflows.py`/`aw run` path still INLINES
+  the sequence rather than calling `install_into_repo`. (The plan originally named this path
+  `engine.main`; the orchestration has since moved into `run()`, which `main()` merely wraps.)
+- `cli._run_install` (cli.py:328) orchestrates: `_diagnostics_ok` (cli.py:291, the 1837-01 wrapper that
+  runs `run_git_diagnostics`) + `_confirm` -> `install_into_repo` (cli.py:375) -> `print_summary` ->
+  `prompt_and_run_commit`. `cli._install_all` (cli.py:434) and the `setup` flow (cli.py:737) are the
+  other two `install_into_repo` call sites.
+- So there are STILL effectively TWO install orchestrations: `engine.run()`'s inlined one (calls
+  `install_all` directly), and the CLI's `install_into_repo`+wrapper one (three call sites). They share
+  leaf helpers but not orchestration - the drift root cause is intact. Divergence to reconcile: the
+  inlined `run()` steps vs. `install_into_repo`'s own set (confirm they are identical - a review-time
+  TODO for execution).
+- 1837-01 has SHIPPED (executed; `.agents/plans/executed/20260712-1837-01-...`). Its symptom fix is LIVE:
+  `_diagnostics_ok` (cli.py:291) wires `run_git_diagnostics` into all three CLI install paths
+  (`_run_install`/`_install_all`/`setup`). This IPD now SUBSUMES that live wiring: after unification the
+  CLI's bespoke `_diagnostics_ok`/pre-flight/commit wiring is replaced by the shared orchestrator, while
+  PRESERVING 1837-01's behavior and its `InstallDiagnosticsTests`. (The original "1837-01 ships first"
+  dependency is therefore already SATISFIED.)
+- Zero-dep, stdlib-only project; 253 tests; the install path is the most-tested surface
+  (test_installer.py, test_cli.py, test_setup_artifacts.py, test_git_diagnostics.py) - a good safety net
+  for a refactor.
+- House rule: no em or en dashes in authored Markdown.
 
 ## Proposed changes (ordered, validatable)
 
@@ -65,11 +90,12 @@
    `install_into_repo` to optionally run the full sequence) that performs: pre-flight
    (`run_git_diagnostics` when interactive) -> the install steps -> `print_summary` ->
    `prompt_and_run_commit`. It must reproduce today's `engine.main()` single-repo behavior EXACTLY.
-2. **Route ALL entry points through it.** `engine.main()` (and thus `install-workflows.py`),
+2. **Route ALL entry points through it.** `engine.run()` (behind `engine.main()` / `install-workflows.py`),
    `cli._run_install`, `cli._install_all`, and the `setup` install flow all call the one orchestrator.
-   Remove the CLI's bespoke pre-flight/commit wiring in favor of the shared path (subsuming 1837-01's
-   change once this lands). Keep the CLI-only concerns that are genuinely CLI-specific
-   (multi-repo loop, per-repo isolation, `_preflight_warnings` would-downgrade/not-a-repo notices).
+   Remove the CLI's bespoke pre-flight/commit wiring - including the now-LIVE `_diagnostics_ok`
+   (cli.py:291, from shipped 1837-01) - in favor of the shared path, PRESERVING that behavior. Keep the
+   CLI-only concerns that are genuinely CLI-specific (multi-repo loop, per-repo isolation,
+   `_preflight_warnings` would-downgrade/not-a-repo notices).
 3. **Reconcile any latent step differences** between engine.main's inlined sequence and
    install_into_repo (e.g. confirm both run the same README-ensurers / setup-artifacts / backup-prune
    steps). Any real difference found is itself a drift bug to fix here (record each).
@@ -77,10 +103,11 @@
    path) produce the same install result + invoke the same pre-flight/summary/commit sequence (spy the
    orchestrator or assert on observable effects). This is the structural guard against future drift.
    Preserve all 1837-01 tests (diagnostics called; abort; non-interactive not blocked).
-5. **Docs + DECISIONS.** DECISIONS entry (next free number) recording the two-orchestrators root cause,
-   the unification, and that it supersedes 1837-01's symptom wiring. Note in ARCHITECTURE if the install
-   flow is described there. Ship in 1.3.0 (internal refactor, no user-facing behavior change intended,
-   but non-trivial -> MINOR, cut via release-review Section 9 from a clean tag).
+5. **Docs + DECISIONS.** DECISIONS entry D83 (next free; D79-D82 taken this session) recording the
+   two-orchestrators root cause, the unification, and that it subsumes 1837-01's (already-shipped)
+   `_diagnostics_ok` symptom wiring. Note in ARCHITECTURE if the install flow is described there. Ship in
+   1.3.0 (internal refactor, no user-facing behavior change intended, but non-trivial -> MINOR, cut via
+   release-review Section 9 from a clean tag).
 
 ## Deferred / out of scope
 
@@ -95,27 +122,30 @@
    pre-flight/summary/commit params) vs. a NEW `install_orchestrated()` that wraps it? (Lean: a new
    wrapper `install_orchestrated()` so `install_into_repo` stays the pure, batch-friendly, dict-returning
    core; the wrapper adds the interactive shell. Cleaner separation.)
-2. Does `engine.main()` keep existing (delegating to the wrapper) or is it thinned to just argv-parsing
-   + delegate? (Lean: thin it to parse -> delegate, so `install-workflows.py` and `aw` are provably the
-   same path.)
+2. `engine.main()` is ALREADY thinned to `return run(parse_args(argv))` (verified at re-review). The
+   real question is whether `engine.run()` (engine.py:2704) delegates to the new canonical orchestrator
+   or is itself refactored into it. (Lean: make `run()` call the shared orchestrator so
+   `install-workflows.py` and `aw` are provably the same path.)
 3. Confirm there is NO intended behavior change; if reconciling step 3 surfaces a real difference (e.g.
    one path prunes backups and the other does not), is fixing it in-scope here? (Lean: yes - it is the
    same drift class; fix and record.)
 
 ## Dependencies / sequencing
 
-- Depends on IPD `20260712-1837-01` shipping FIRST (1.2.1 symptom fix). This refactor lands after and
-  preserves its behavior + tests while removing the duplication. Target 1.3.0.
+- Dependency SATISFIED: IPD `20260712-1837-01` has EXECUTED (it is in `.agents/plans/executed/`; its
+  `_diagnostics_ok` wiring is live in cli.py). This refactor subsumes that wiring while preserving its
+  behavior + `InstallDiagnosticsTests`, removing the duplication. Target 1.3.0. No remaining
+  cross-plan ordering blocker.
 
 ## Approval and execution gate
 
 `to-review`. Execution contract (follow EXACTLY):
 
 1. SCOPE FENCE. Edit ONLY `agent_workflows/engine.py`, `agent_workflows/cli.py`, the install tests
-   (`tests/test_cli.py`, `tests/test_installer.py`, `tests/test_setup_artifacts.py` as needed),
-   `ARCHITECTURE.md` (if it describes the install flow), `CHANGELOG.md`, and `DECISIONS.md` (next free
-   number). Do NOT change the leaf helpers' behavior or `install-workflows.py`. NO user-facing behavior
-   change; if one seems required, STOP and report.
+   (`tests/test_cli.py`, `tests/test_installer.py`, `tests/test_setup_artifacts.py`,
+   `tests/test_git_diagnostics.py` as needed), `ARCHITECTURE.md` (if it describes the install flow),
+   `CHANGELOG.md`, and `DECISIONS.md` (D83, next free). Do NOT change the leaf helpers' behavior or
+   `install-workflows.py`. NO user-facing behavior change; if one seems required, STOP and report.
 2. Authoring style: NO em dashes or en dashes in any Markdown you write.
 3. VALIDATE: run the FULL test suite; paste the ACTUAL runner output. Manually verify BOTH entry points
    (`aw install <dir>` and `install-workflows.py`) produce identical behavior on clean / dirty /
