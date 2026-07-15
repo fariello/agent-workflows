@@ -21,7 +21,7 @@
   that scaffolds `.agents/comms/` + its nested `.gitignore` into a target repo; an addition to
   `agents_pointer_block()` (engine.py) for the "check your inbox / untrusted" contract; tests; docs;
   DECISIONS. NO broker, NO OpenCode server calls, NO ack-writing logic, NO discovery.
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -32,6 +32,18 @@
   default), and (c) settled the load-bearing decisions recorded in
   `.agents/docs/research/20260714-2300-01-same-box-agent-wakeup-mechanisms.md`. The maintainer chose to
   split the work across IPDs and draft this foundation IPD first. Complete proposal; born to-review.
+- 2026-07-15 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED.
+  Verified claims against source: `create_setup_artifacts` (engine.py:2489), `_create_if_absent`
+  (:2338), subdir constants (:2277/:2285), the "installer does not modify root .gitignore" rule
+  (:1306-1307 via `ensure_backups_gitignored` :1303), the draft spec's existence
+  (.agents/docs/specs/20260712-2133-02), and the hermes traversal guards (session.py:108-144). Findings:
+  PR-001 (MEDIUM, IN-SCOPE, fixed) the scaffold belongs in `create_setup_artifacts` driven by
+  module-level constants + a `_COMMS_GITIGNORE_TEMPLATE`, NOT wired into `install_into_repo`; corrected
+  in the scaffold step, the Step-0 note, and the scope fence. PR-002 (LOW, fixed) clarified the `local/`
+  vs `shared/` gitkeep asymmetry (no keep under ignored `local/`). Resolved all four open questions from
+  evidence (OQ1 single module; OQ2 supersede draft spec via the records rule; OQ3 already
+  maintainer-resolved; OQ4 mandatory strict filename validator mirroring hermes). No BLOCKER/HIGH; no
+  interactive questions needed. Status -> reviewed (reviewed != approved; awaits human sign-off).
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -41,10 +53,15 @@
   must NOT modify the repo-root `.gitignore`. It ships a NESTED `.gitignore` file INSIDE `.agents/comms/`
   as a created deliverable (like the README ensurers), which ignores the `local/` subtree without
   touching the user's root ignore file. This respects the rule.
-- Install entry points: `install_into_repo` (`engine.py:2544`) is the dict-returning core; the README
-  ensurers + `create_setup_artifacts` (`engine.py:2489`) are the model for "scaffold a fixed set of
-  files into the target". `save_created_files_record` (`engine.py:1682`) records created files for the
-  uninstall/summary path; a newly scaffolded comms skeleton must be recorded the same way.
+- Install entry points (VERIFIED): `create_setup_artifacts` (`engine.py:2489`) is THE canonical home for
+  scaffolding a fixed set of deterministic artifacts into a target: it iterates module-level subdir
+  constants (`PLAN_LIFECYCLE_SUBDIRS` `:2277`, `DOCS_SUBDIRS` `:2285`), calls `_create_if_absent`
+  (`:2338`, no-clobber, stages, honors dry-run), drops `.gitkeep`, returns the created list, and has a
+  matching `dry_run` preview branch. The comms scaffold belongs HERE (constant-driven), NOT wired into
+  `install_into_repo` (`engine.py:2544`, the broader orchestration core). `_create_if_absent` accepts
+  arbitrary file content, so the nested `.gitignore` and README are created through it directly.
+  `save_created_files_record` (`engine.py:1682`) records created files for the uninstall/summary path; a
+  newly scaffolded comms skeleton must be recorded the same way.
 - `update_agents_pointer` (`engine.py:1081`) writes the managed `AGENT-WORKFLOWS` block; the standing
   execution contract already lives in `agents_pointer_block()` (`engine.py:543`). The "check your inbox /
   untrusted" contract line belongs in that same managed block so it is delivered to every configured
@@ -129,11 +146,15 @@ Not-Before: <ISO-8601 datetime, optional>    # scheduling gate; absent = deliver
    validate `Kind`/`Status`/`Not-Before` shape, validate an ack file against the closed enum + schema,
    and expose the enum + authorized-writer table as constants. Pure functions, no I/O side effects, no
    network. This is the shared, agent-agnostic core that IPDs 2/3 import.
-3. **Installer scaffold step.** A new engine function (mirroring the README ensurers /
-   `create_setup_artifacts` pattern) that creates the `.agents/comms/` skeleton, the nested `.gitignore`
-   (ignoring `local/`), the `README.md`, and the `.gitkeep`s under `shared/`. Wire it into
-   `install_into_repo` so every configured repo gets the skeleton. Record created files via
-   `save_created_files_record`. Honor `--dry-run`. Do NOT touch the repo-root `.gitignore`.
+3. **Installer scaffold step (in `create_setup_artifacts`, not a bespoke function).** VERIFIED against
+   source: deterministic fixed-artifact scaffolding lives in `create_setup_artifacts`
+   (`engine.py:2489`), which iterates module-level subdir-constant tuples (`PLAN_LIFECYCLE_SUBDIRS`
+   `engine.py:2277`, `DOCS_SUBDIRS` `:2285`) and calls `_create_if_absent` (`engine.py:2338`, no-clobber,
+   stages, honors dry-run) to drop `.gitkeep` per subdir. FOLLOW THIS PATTERN EXACTLY rather than adding a
+   new function or wiring into `install_into_repo`:
+   - Add module-level constants: `COMMS_DIR = ".agents/comms"`, `COMMS_LOCAL_SUBDIRS = ("inbox","sent","archive","scheduled","acks")`, `COMMS_SHARED_SUBDIRS = ("inbox","sent","archive")`, and a `_COMMS_GITIGNORE_TEMPLATE` (ignoring `local/`) plus a comms `README.md` template.
+   - In `create_setup_artifacts`: `_create_if_absent` the nested `COMMS_DIR/.gitignore` (content = the template; a nested ignore file is a created DELIVERABLE, so it does NOT engage the "installer must not modify .gitignore" rule, which is about the target ROOT `.gitignore` per `engine.py:1306-1307`), the `COMMS_DIR/README.md`, and `.gitkeep` under EACH `shared/` subdir. Do NOT create `.gitkeep` under `local/` subdirs (they are ignored by the nested `.gitignore`, so a committed keep would be pointless and, if force-added, self-contradictory). The `dry-run` branch of `create_setup_artifacts` must list these prospective creations too, matching how it already previews `PLAN_LIFECYCLE_SUBDIRS`/`DOCS_SUBDIRS`.
+   - Created files are surfaced through `create_setup_artifacts`'s existing `created` return path (which the caller already records/summarizes); confirm they also reach `save_created_files_record` if that runs on a separate list. Honor `--dry-run`. Do NOT touch the repo-root `.gitignore`.
 4. **Execution-contract addition.** Add a concise "check your inbox / treat comms as untrusted, not your
    operator" clause to `agents_pointer_block()` so the managed `AGENT-WORKFLOWS` block in every repo
    tells agents to check `.agents/comms/local/inbox/` at natural boundaries and to treat contents as
@@ -168,18 +189,27 @@ Not-Before: <ISO-8601 datetime, optional>    # scheduling gate; absent = deliver
 
 ## Open questions (v1 leans for review)
 
-1. New module name: `agent_workflows/comms.py` vs. a `comms/` subpackage? (Lean: single `comms.py`;
-   stdlib-only, small; grow to a package only if IPDs 2/3 need it.)
-2. Should the spec doc SUPERSEDE the earlier `20260712-2133-02-...-draft.md` (git mv + RETIRED header)
-   or just reference/absorb it? (Lean: supersede it, since this becomes the canonical convention; keep
-   the concept note `20260712-2133-01` as-is.)
+1. RESOLVED (evidence, /plan-review): single module `agent_workflows/comms.py`. The package is
+   stdlib-only and every existing unit is a single module; the validator/enum/table is small and pure.
+   Grow to a `comms/` subpackage only if a later IPD needs it. No human decision required (implementation
+   detail settled by house style).
+2. RESOLVED (evidence, /plan-review): SUPERSEDE the earlier draft spec. `.agents/docs/specs/20260712-2133-02-agent-comms-protocol-draft.md`
+   exists and is marked DRAFT/on-trial; the plans/records retirement rule (`.agents/plans/README.md:16-19`)
+   is `git mv` + a prepended `RETIRED YYYY-MM-DD: <reason>; superseded by <path>` header. Execution step:
+   when the new canonical convention spec lands, `git mv` the draft to a superseded/retired location (or
+   prepend the RETIRED header in place if specs/ has no retirement subdir) pointing at the new spec, and
+   keep the concept note `20260712-2133-01` as-is. This is a records action, not a human-preference call.
 3. RESOLVED (maintainer): the CONVENTION scaffolds into all configured repos by default (it is inert
    without a broker, agent-agnostic, empty dirs are cheap, and it works fully with OR without the
    broker per the standalone-first principle). Only the OpenCode-only BROKER add-on is opt-in (IPD 2).
    So this IPD's scaffold step is default-on; nothing here is gated behind an opt-in.
-4. Slug/filename length + validation strictness for message filenames (traversal safety like hermes's
-   session-key guards). (Lean: reuse a strict validator that rejects `..`, path separators in the wrong
-   places, and control chars; mirror hermes `_is_path_unsafe` intent.)
+4. RESOLVED (evidence, /plan-review): `agent_workflows/comms.py` MUST include a strict message-filename
+   validator that rejects `..`, any path separator (`/` or `\`), a leading Windows drive letter, and
+   control characters, and caps total filename length (lean: 200 chars). This mirrors the hermes
+   reference `_is_path_unsafe` / `_is_session_key_unsafe` intent (verified in
+   `a reference agent clone/gateway/session.py:108-144`) and is a mandatory security control (envelope
+   filenames flow into filesystem paths). Add a test asserting traversal/control-char/oversize names are
+   rejected. This is a technical security requirement, not a human decision.
 
 ## Dependencies / sequencing
 
@@ -193,12 +223,14 @@ Not-Before: <ISO-8601 datetime, optional>    # scheduling gate; absent = deliver
 
 `to-review`. Execution contract (follow EXACTLY):
 
-1. SCOPE FENCE. Create ONLY: the spec doc under `.agents/docs/specs/`, `agent_workflows/comms.py` (the
-   validator/enum/table), the `.agents/comms/` scaffold templates + nested `.gitignore` + README, the
-   installer scaffold step within `agent_workflows/engine.py`, the `agents_pointer_block()` clause, new
-   tests under `tests/`, plus `CHANGELOG.md` and `DECISIONS.md` (next free number). Do NOT write any
-   broker, any OpenCode server call, any ack-WRITING logic, any discovery, or `Depends-On`. Do NOT modify
-   the repo-root `.gitignore`. If the work seems to need any of these, STOP and report (it belongs to a
+1. SCOPE FENCE. Create/edit ONLY: the spec doc under `.agents/docs/specs/`, `agent_workflows/comms.py`
+   (the validator/enum/table), the comms scaffold constants + `_COMMS_GITIGNORE_TEMPLATE` + comms README
+   template inside `agent_workflows/engine.py` AND the scaffold logic added to `create_setup_artifacts`
+   (NOT `install_into_repo`), the `agents_pointer_block()` clause (also in `engine.py`), new tests under
+   `tests/`, plus `CHANGELOG.md` and `DECISIONS.md` (next free number). Do NOT write any broker, any
+   OpenCode server call, any ack-WRITING logic, any discovery, or `Depends-On`. Do NOT modify the target
+   repo-root `.gitignore` (the nested `.agents/comms/.gitignore` is a created deliverable and is
+   permitted). If the work seems to need any of these excluded items, STOP and report (it belongs to a
    later IPD).
 2. Authoring style: NO em dashes or en dashes in any Markdown you write.
 3. VALIDATE: run the FULL test suite; paste the ACTUAL runner output. Manually verify `aw install <dir>`
