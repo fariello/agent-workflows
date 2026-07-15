@@ -9,6 +9,14 @@
   NO daemon and NO OpenCode-specific code; the payload-blind broker, the agent-side ack write behavior +
   aggregation, and discovery/registry are IPDs 2, 3, and 4. This IPD is independently useful: any agent
   (OpenCode or not) can use the convention manually with zero runtime.
+- STANDALONE-FIRST PRINCIPLE (governs the whole 4-IPD line): `.agents/comms/` MUST work fully WITH OR
+  WITHOUT the message broker. Without a broker, messages still arrive on disk, agents pick them up via
+  the "check your inbox" cooperative check-in, and a `Not-Before` message simply waits in `scheduled/`
+  until an agent (or a later broker) processes it. The broker (IPD 2) is a pure ACCELERATOR that adds
+  real-time wake-up on OpenCode; removing it degrades latency, never correctness. Therefore this IPD
+  introduces NO code path that requires a broker, and later IPDs MUST NOT make the convention depend on
+  one. The broker itself is an OPTIONAL, OpenCode-only add-on (opt-in; see IPD 2), never installed or
+  launched for Codex / Claude Code / Hermes / other agents.
 - Scope: NEW files under `.agents/comms/` (scaffold templates) and a NEW spec doc; a NEW installer step
   that scaffolds `.agents/comms/` + its nested `.gitignore` into a target repo; an addition to
   `agents_pointer_block()` (engine.py) for the "check your inbox / untrusted" contract; tests; docs;
@@ -143,7 +151,16 @@ Not-Before: <ISO-8601 datetime, optional>    # scheduling gate; absent = deliver
 ## Deferred / out of scope (belongs to later IPDs)
 
 - The payload-blind broker: inotify watch, header-only reads, fixed nudge, mode-aware delivery,
-  `Not-Before` ENFORCEMENT, broker-authored delivery acks. (IPD 2.)
+  `Not-Before` ENFORCEMENT, broker-authored delivery acks. (IPD 2.) IPD 2 charter (recorded here so this
+  IPD builds nothing that presumes otherwise): the broker is an OPTIONAL, OpenCode-only ADD-ON, never
+  installed or launched for non-OpenCode agents. Opt-in model: `aw install` ALWAYS scaffolds the
+  convention, and SEPARATELY offers the broker add-on; it may AUTO-DETECT an OpenCode environment (e.g.
+  the `OPENCODE` env var) and REPORT that as a soft signal in the offer ("it looks like you are using or
+  may have used OpenCode ..."), but it still ASKS every time and never gates the offer or auto-installs
+  on detection. Auto-start is a SEPARATE gate: even once the add-on is installed, an OpenCode startup
+  plugin only check-and-starts the singleton broker (lockfile-guarded, one per box) when a config flag
+  (e.g. `comms.autostart`) is ON; default OFF, manual start otherwise. The plugin loads only under
+  OpenCode, so the launch is structurally gated to the right agent.
 - Agent-side ack WRITING (read/in-progress/done/executed/...) and the status-view aggregation. (IPD 3.)
 - Discovery/registry (mDNS/attach vs. filesystem descriptor), cross-instance reachability. (IPD 4.)
 - Conditional scheduling (`Depends-On`), Telegram/Signal transports, cross-box. (Future IPDs.)
@@ -156,9 +173,10 @@ Not-Before: <ISO-8601 datetime, optional>    # scheduling gate; absent = deliver
 2. Should the spec doc SUPERSEDE the earlier `20260712-2133-02-...-draft.md` (git mv + RETIRED header)
    or just reference/absorb it? (Lean: supersede it, since this becomes the canonical convention; keep
    the concept note `20260712-2133-01` as-is.)
-3. Do we scaffold `.agents/comms/` into ALL configured repos by default, or make it opt-in? (Lean:
-   default-on, like the other scaffolded artifacts; it is inert until a broker/agent uses it, and empty
-   dirs are cheap. Revisit if noise complaints.)
+3. RESOLVED (maintainer): the CONVENTION scaffolds into all configured repos by default (it is inert
+   without a broker, agent-agnostic, empty dirs are cheap, and it works fully with OR without the
+   broker per the standalone-first principle). Only the OpenCode-only BROKER add-on is opt-in (IPD 2).
+   So this IPD's scaffold step is default-on; nothing here is gated behind an opt-in.
 4. Slug/filename length + validation strictness for message filenames (traversal safety like hermes's
    session-key guards). (Lean: reuse a strict validator that rejects `..`, path separators in the wrong
    places, and control chars; mirror hermes `_is_path_unsafe` intent.)
