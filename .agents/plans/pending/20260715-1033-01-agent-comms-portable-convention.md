@@ -44,6 +44,19 @@
   evidence (OQ1 single module; OQ2 supersede draft spec via the records rule; OQ3 already
   maintainer-resolved; OQ4 mandatory strict filename validator mirroring hermes). No BLOCKER/HIGH; no
   interactive questions needed. Status -> reviewed (reviewed != approved; awaits human sign-off).
+- 2026-07-15 /plan-review RE-REVIEW (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS
+  APPLIED. Triggered by "repo changed since last review" - IPDs 1502-01 and 1451-01 executed in between.
+  Re-verified every engine line anchor this plan cites (agents_pointer_block :543, create_setup_artifacts
+  :2489, _create_if_absent :2338, install_into_repo :2544, PLAN_LIFECYCLE_SUBDIRS :2277, DOCS_SUBDIRS
+  :2285, gitignore-rule :112/:1306, ensure_backups_gitignored :1303, save_created_files_record :1682):
+  ALL still accurate (the two intervening IPDs did not touch engine.py's scaffolder or the plans
+  lifecycle). Findings: PR-001 (MEDIUM) `DOCS_SUBDIRS` now holds research,walkthroughs,specs,prompts (per
+  1502-01 F3) - noted so the executor copies the CURRENT tuple pattern for COMMS_*_SUBDIRS; PR-002
+  (MEDIUM) pinned the DECISIONS entry to D81 explicitly (D79=1502-01, D80=1451-01 now taken) to prevent a
+  repeat of the very D-number-collision bug 1502-01 fixed; PR-003 (LOW) test count ~228 -> ~229. Confirmed
+  NO conflict with the two executed IPDs: this plan does not edit `.agents/plans/README.md` (only cites
+  its retirement rule) and its scope is an entirely new `.agents/comms/` namespace. All four prior open
+  questions remain resolved. No BLOCKER/HIGH. Status stays reviewed (awaits human sign-off).
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -53,9 +66,12 @@
   must NOT modify the repo-root `.gitignore`. It ships a NESTED `.gitignore` file INSIDE `.agents/comms/`
   as a created deliverable (like the README ensurers), which ignores the `local/` subtree without
   touching the user's root ignore file. This respects the rule.
-- Install entry points (VERIFIED): `create_setup_artifacts` (`engine.py:2489`) is THE canonical home for
+- Install entry points (RE-VERIFIED at re-review; all line anchors below still hold after IPDs 1502-01
+  and 1451-01 executed): `create_setup_artifacts` (`engine.py:2489`) is THE canonical home for
   scaffolding a fixed set of deterministic artifacts into a target: it iterates module-level subdir
-  constants (`PLAN_LIFECYCLE_SUBDIRS` `:2277`, `DOCS_SUBDIRS` `:2285`), calls `_create_if_absent`
+  constants (`PLAN_LIFECYCLE_SUBDIRS` `:2277`; `DOCS_SUBDIRS` `:2285`, which now holds
+  `research,walkthroughs,specs,prompts` after 1502-01's F3 fix - follow the CURRENT tuple as the copy
+  pattern), calls `_create_if_absent`
   (`:2338`, no-clobber, stages, honors dry-run), drops `.gitkeep`, returns the created list, and has a
   matching `dry_run` preview branch. The comms scaffold belongs HERE (constant-driven), NOT wired into
   `install_into_repo` (`engine.py:2544`, the broader orchestration core). `_create_if_absent` accepts
@@ -66,7 +82,7 @@
   execution contract already lives in `agents_pointer_block()` (`engine.py:543`). The "check your inbox /
   untrusted" contract line belongs in that same managed block so it is delivered to every configured
   repo and stays in one canonical place.
-- Zero-dep, stdlib-only project; ~228 tests; install path is the most-tested surface (test_installer.py,
+- Zero-dep, stdlib-only project; ~229 tests; install path is the most-tested surface (test_installer.py,
   test_cli.py, test_setup_artifacts.py). Good safety net.
 - House rule: no em dashes or en dashes in authored Markdown.
 - Design source of truth for the decisions below:
@@ -164,7 +180,8 @@ Not-Before: <ISO-8601 datetime, optional>    # scheduling gate; absent = deliver
    closed-enum rejection of unknown/free-text states; installer scaffold creates the exact skeleton +
    nested .gitignore + does NOT modify root .gitignore (assert root unchanged); dry-run writes nothing;
    `agents_pointer_block()` contains the new clause; packaging test still green.
-6. **Docs + DECISIONS.** DECISIONS entry (next free number) recording: the `.agents/comms/` home
+6. **Docs + DECISIONS.** DECISIONS entry D81 (next free; D79 = 1502-01 erratum, D80 = 1451-01 readiness
+   vocabulary, both executed) recording: the `.agents/comms/` home
    (retiring the `tmp/agent-comms/` sketch), the local/shared tracking split, the payload-blind
    invariant (as the governing principle the later broker IPD implements), `Not-Before` v1, and the
    closed-enum ack model with authorized-writer-per-token. CHANGELOG under the next minor.
@@ -227,7 +244,7 @@ Not-Before: <ISO-8601 datetime, optional>    # scheduling gate; absent = deliver
    (the validator/enum/table), the comms scaffold constants + `_COMMS_GITIGNORE_TEMPLATE` + comms README
    template inside `agent_workflows/engine.py` AND the scaffold logic added to `create_setup_artifacts`
    (NOT `install_into_repo`), the `agents_pointer_block()` clause (also in `engine.py`), new tests under
-   `tests/`, plus `CHANGELOG.md` and `DECISIONS.md` (next free number). Do NOT write any broker, any
+   `tests/`, plus `CHANGELOG.md` and `DECISIONS.md` (D81, next free; D80 was taken by executed IPD 1451-01). Do NOT write any broker, any
    OpenCode server call, any ack-WRITING logic, any discovery, or `Depends-On`. Do NOT modify the target
    repo-root `.gitignore` (the nested `.agents/comms/.gitignore` is a created deliverable and is
    permitted). If the work seems to need any of these excluded items, STOP and report (it belongs to a
