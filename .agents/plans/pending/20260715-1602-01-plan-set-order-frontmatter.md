@@ -66,6 +66,26 @@ Semantics:
 
 Filenames stay exactly `YYYYMMDD-HHMM-NN-<slug>.md`. Git still records exact per-file creation.
 
+### Agent authority over sets (grouping, ordering, renaming)
+
+Because `Set:`/`Order:` are plain front-matter, an agent CAN edit them, but a set encodes execution-order
+INTENT that a human reasons about, so authority is bounded:
+
+- An agent MAY GROUP existing PENDING plans by adding `Set:`/`Order:` (this is ordinary front-matter
+  editing on non-executed plans, already permitted). Recognizing "these related pending plans are one
+  ordered sequence" and tagging them is a legitimate, useful agent action.
+- Any change to a set's MEMBERSHIP (adding/removing a plan), ORDER, or set ID ("renaming") MUST be
+  surfaced, never silent: record it in the affected plan's `## Workflow history`, and - for anything
+  beyond an obvious typo/spelling fix - CONFIRM with the human before applying (the standing "never guess
+  a human decision" rule; set boundaries and order ARE such a decision). "Rename a set" is therefore NOT
+  a special first-class operation; it is careful front-matter editing under this surface-and-confirm rule.
+- Set fields on plans in `executed/` (or any terminal dir) are FROZEN historical record; an agent must
+  not rewrite them when regrouping or renaming a still-active set (consistent with the no-edit-executed /
+  append-only rules).
+- `Set:`/`Order:` remain ADVISORY: grouping a set never authorizes executing it in that order; the human
+  still approves each plan. Grouping organizes and makes intent queryable; it does not gate or drive
+  execution.
+
 ## Proposed changes (ordered, validatable)
 
 1. **Parse the fields.** In `agent_workflows/plans.py`, add read-only parsing of `- Set:` and `- Order:`
@@ -82,9 +102,19 @@ Filenames stay exactly `YYYYMMDD-HHMM-NN-<slug>.md`. Git still records exact per
    reject a malformed set id / non-positive order, a plan with neither parses as standalone.
    `tests/test_plans_board.py`: a set renders grouped + order-sorted; duplicate/missing `Order:` emits the
    soft warning; standalone plans unaffected.
-5. **Optionally tag the in-flight set.** As a live demonstration, add `Set: agent-comms` / `Order:` to the
-   existing comms IPD `20260715-1033-01` (and any sibling comms IPDs) - ONLY if the maintainer wants it;
-   this edits pending (not executed) plans, which is allowed. Flag as optional; do not do it silently.
+5. **Tag the LIVE in-flight set as the demonstration case.** We already have a real ordered set in
+   `pending/` (confirmed with the maintainer): the framework-quality sequence intended to run in order
+   with `/plan-review` gates between steps:
+   - `20260715-1502-01-docs-consistency-audit-corrections` (fix the docs/facts first)
+   - `20260715-1451-01-unify-readiness-verdict-vocabulary` (settle vocabulary; also owns F7 from 1502-01)
+   - `20260715-1033-01-agent-comms-portable-convention` (build the comms convention)
+   - `20260715-1602-01` (this IPD) may join the set or stand alone - decide at execution time.
+   During THIS IPD's execution, once the `Set:`/`Order:` fields exist, add e.g.
+   `Set: framework-quality` (name to CONFIRM with the maintainer per the authority rule) with
+   `Order: 1/2/3` to those pending plans, and record the tagging in each plan's Workflow history. Do NOT
+   edit those plans' front-matter NOW: the fields are undefined until this IPD is executed, so tagging is
+   an execution-time step, not a pre-execution edit. The exact set id and membership are confirmed with
+   the maintainer at that point (not chosen unilaterally).
 6. **Docs + DECISIONS.** DECISIONS entry (next free number) recording the additive `Set:`/`Order:` fields,
    why the filename/NN convention was deliberately NOT changed (non-migrating; git holds exact creation
    time; NN keeps its role), and that the fields are advisory. CHANGELOG under the next minor.
@@ -110,14 +140,17 @@ Filenames stay exactly `YYYYMMDD-HHMM-NN-<slug>.md`. Git still records exact per
 3. Should the board's set-grouping be a new section or interleaved into the existing status grouping?
    (Lean: keep the primary board grouped by `Status:` as today, and add a secondary "Sets" view/section
    so set-grouping does not disrupt the existing readiness board. Confirm during implementation.)
-4. Do step 5 (tag the live agent-comms set) now, or leave all in-flight IPDs untagged until the fields
-   exist? (Lean: tag them in the SAME execution as a dogfood demonstration, since they are a real ordered
-   set; but only if the maintainer says yes - it is optional.)
+4. RESOLVED (maintainer): tag the LIVE set (1502-01 -> 1451-01 -> 1033-01, with `/plan-review` gates) as
+   the demonstration case DURING this IPD's execution (see step 5), once the fields exist. Remaining
+   sub-question for execution: the exact set ID (lean `framework-quality`) and whether 1602-01 itself
+   joins the set - both CONFIRMED with the maintainer at tagging time per the authority rule, not chosen
+   unilaterally.
 
 ## Dependencies / sequencing
 
 - Independent of the other pending IPDs; additive and non-breaking. No ordering constraint against
-  `1033-01` / `1451-01` / `1502-01` (though step 5 would annotate `1033-01`'s set if chosen).
+  `1033-01` / `1451-01` / `1502-01`. Step 5 ANNOTATES that live set with `Set:`/`Order:` at execution
+  time (surface-and-confirm per the authority rule); it does not depend on those IPDs having executed.
 - Target the next MINOR (new user-visible optional convention + board behavior).
 
 ## Approval and execution gate
@@ -126,9 +159,12 @@ Filenames stay exactly `YYYYMMDD-HHMM-NN-<slug>.md`. Git still records exact per
 
 1. SCOPE FENCE. Edit ONLY: `agent_workflows/plans.py` (parse + validate + board grouping), the assess IPD
    template + BOTH plans READMEs (docs), tests under `tests/`, `CHANGELOG.md`, `DECISIONS.md` (next free
-   number), and - ONLY if the maintainer approved step 5 - `Set:`/`Order:` lines in pending comms IPD(s).
-   Do NOT change the filename convention, `NN`, `normalize_plan_names.py`, the `Status:` enum, any existing
-   filename, or send any agent-comms reply. If a fix seems to need more, STOP and report.
+   number), and (step 5) `Set:`/`Order:` front-matter lines + a Workflow-history note on the live set's
+   PENDING plans (`1502-01`, `1451-01`, `1033-01`, optionally this file), AFTER confirming the set ID and
+   membership with the maintainer per the authority rule. Do NOT change the filename convention, `NN`,
+   `normalize_plan_names.py`, the `Status:` enum, any existing filename, any EXECUTED plan's set fields, or
+   send any agent-comms reply. Any set membership/order/name change must be surfaced (Workflow history) and
+   confirmed, never silent. If a fix seems to need more, STOP and report.
 2. Authoring style: NO em dashes or en dashes in any Markdown you write.
 3. VALIDATE: run the FULL test suite; paste the ACTUAL runner output (new Set/Order parse + board tests
    must pass). Keep the two plans-README copies byte-identical (diff them). Confirm `aw plans` (board)
