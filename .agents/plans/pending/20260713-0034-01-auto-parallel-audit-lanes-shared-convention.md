@@ -16,7 +16,7 @@
   files) to inherit the convention for multi-plan review; `.agents/workflows/plan-review/plan-review.md`
   to DOCUMENT that the single-file portable variant stays serial by design. Docs/DECISIONS. Prose-only
   workflow change; no code.
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -25,6 +25,18 @@
   was single-threaded; the maintainer asked for automatic parallel fan-out gated on 2+ plans, with
   corrective actions handed to the coordinator, and extended the same idea to release-review as a named
   trial mode. Complete proposal; born to-review.
+- 2026-07-15 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED (first
+  review). RE-VERIFIED all anchors against current source (this file targets `00-run-protocol.md`, which
+  this session's D80 readiness-vocab work did NOT touch, so the anchors aged well): "Optional controlled
+  parallel audit mode" is at :346-379 with the read-only lane rules (2-9), coordinator-owns-synthesis/
+  IDs/registers/commits (11-12), and serial 7/8/9 (13-15) exactly as the plan characterizes;
+  `plan-review.md:10-11` and `plan-review-long.md` sibling refs to `00-run-protocol.md` confirmed, so a
+  convention defined there is inherited without duplication (P8 sound). Architecture/security lens: the
+  plan preserves all lane SAFETY rules and only makes them auto-engage; mutation/ship phases stay serial;
+  no BLOCKER/HIGH. Findings: PR-001 (MEDIUM) pinned DECISIONS to D84 (D79-D83 taken this session); PR-002
+  (LOW) em -> em/en dashes. Added a real-world-validation note (this session's 4-lane repo-wide .md audit
+  and the earlier release-review both exercised the convention successfully). OQ1-OQ4 are legitimate
+  trial-tuning leans, non-blocking. Status -> reviewed (awaits human sign-off).
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -45,7 +57,13 @@
   resolution is one-human-serial and cannot be fanned out.
 - Subagents run in parallel with EACH OTHER but the coordinator blocks until they return (not
   fire-and-forget). The win is concurrent analysis, not background async.
-- House rule: no em dashes in authored Markdown.
+- REAL-WORLD VALIDATION (this session): the convention was exercised by hand and worked well - a
+  repo-wide `.md` consistency audit fanned out 4 read-only `explore` lanes (root docs / workflows+manifest
+  / mirrors+skills / engine-baked strings), each returning findings, with the coordinator synthesizing,
+  deduping, and making all path-scoped commits; and an earlier release-review used 4 parallel audit lanes
+  the same way. This is evidence the >=2 auto-engage rule + coordinator-owns-mutations is sound in
+  practice, not just in theory.
+- House rule: no em or en dashes in authored Markdown.
 
 ## Proposed changes (ordered, validatable)
 
@@ -82,9 +100,9 @@
    single-file variant does NOT auto-fan-out (a lone portable file spawning subagents is awkward and not
    universally available); it reviews serially and points at plan-review-long for the parallel batch
    mode. Preserve the deliberate parity note between the two.
-5. **Docs + DECISIONS.** DECISIONS entry (next free number) recording the auto-parallel convention, the
-   >=2 trigger, the coordinator-owns-mutations rule, the serial mutation/ship phases, and that it is a
-   TRIAL. Note it builds on the existing lane rules rather than inventing them.
+5. **Docs + DECISIONS.** DECISIONS entry D84 (next free; D79-D83 taken) recording the auto-parallel
+   convention, the >=2 trigger, the coordinator-owns-mutations rule, the serial mutation/ship phases,
+   and that it is a TRIAL. Note it builds on the existing lane rules rather than inventing them.
 
 ## Deferred / out of scope
 
@@ -123,8 +141,8 @@
 1. SCOPE FENCE. Edit ONLY: `.agents/workflows/release-review/00-run-protocol.md` (the canonical
    convention), `.agents/workflows/release-review/README.md` + the minimal Section-file framing needed
    to name the trial mode, `.agents/workflows/plan-review-long/plan-review-long.md` (+ its step files if
-   needed), `.agents/workflows/plan-review/plan-review.md` (the serial-by-design note), and
-   `DECISIONS.md` (next free number). Do NOT change the lane SAFETY rules (read-only, coordinator owns
+   needed),    `.agents/workflows/plan-review/plan-review.md` (the serial-by-design note), and
+   `DECISIONS.md` (D84, next free). Do NOT change the lane SAFETY rules (read-only, coordinator owns
    mutations, 7/8/9 serial) - only make them auto-engage. If a change seems to need more, STOP and
    report.
 2. Authoring style: NO em dashes or en dashes in any Markdown you write.
