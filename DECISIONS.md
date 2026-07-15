@@ -531,7 +531,7 @@ both execute the (large) set well.
   absolute policy; scoped to one self-owned line, idempotent, staged-not-committed, and
   documented, so the risk is negligible.
 
-### D22. assess-* workflows persist a run record to workflow-artifacts/
+### D22b. assess-* workflows persist a run record to workflow-artifacts/
 
 - **Gap found:** the `assess-*` workflows produced only the IPD (in the pending-plans
   dir); their report and evidence trail were shown in chat and then lost. This was
@@ -554,7 +554,7 @@ both execute the (large) set well.
 - Target repos that already installed the assess workflows must re-run the installer
   to pick up the updated harness and the two new templates.
 
-### D23. Committed-secrets/PII scanning: a deterministic tool + a lens + a release-review step
+### D23b. Committed-secrets/PII scanning: a deterministic tool + a lens + a release-review step
 
 - **Gap found:** the workflows treated secrets as a *design habit* ("don't hardcode
   secrets", in the `security` lens) and outward *leakage* (`data-exfiltration`), but
@@ -586,7 +586,7 @@ both execute the (large) set well.
   release-review Section 02**. Installer preserves the executable bit for tools/scripts.
 - Target repos already installed need a re-install to get the tool, lens, and shims.
 
-### D24. Guided wizard workflows: setup-repo and scaffold (interactive, may change files)
+### D24b. Guided wizard workflows: setup-repo and scaffold (interactive, may change files)
 
 - **Request:** (1) a `setup-repo` "command" that walks the user through best-practices
   and security setup wizard-style, including installing useful tools; (2) a wizard-style
@@ -2083,3 +2083,16 @@ both execute the (large) set well.
 - **Context:** 8 tests in `tests/test_normalize_plan_names.py` created a file named with a hardcoded past date (e.g. `20260711-...`), committed it "now", and expected status `to-rename`. The normalizer correctly flags a file as `imported` (held from auto-rename) when its name-date differs from its git-first-commit date by > 1 day (`normalize_plan_names.py:297`). Once the clock advanced > 1 day past the hardcoded date (2026-07-13), those files were correctly classified `imported`, so the tests failed. Test-only flakiness; the product rule is correct and intended.
 - **Decision:** Make the affected tests date-relative: derive `YMD`/`YMD_HYPHEN` from `datetime.date.today()` at runtime and use them for files that are created-committed-and-expected-`to-rename`, so the name-date always agrees with the commit "now" on any calendar day. Product code (`normalize_plan_names.py`) is NOT changed. Left the date-agnostic pure-parse tests and the never-committed/`commit=False` tests alone (they do not touch the git import rule). Also relativized `test_apply_is_idempotent` (which had started passing vacuously) so it tests the real rename-then-idempotent path.
 - **Applied:** `tests/test_normalize_plan_names.py` only. Full suite green (228 passed, 1 skipped) with no exclusions. Executed from `.agents/plans/executed/20260713-1419-01-normalize-plan-names-test-date-flakiness.md`.
+
+### D79. Erratum: disambiguate the duplicate D22/D23/D24 numbers
+
+- **Context (2026-07-15):** A repo-wide docs-consistency audit found that the numbers D22, D23, and D24 were each used TWICE in this append-only log. The FIRST occurrences are: D22 "Generalization/productization review adopted as a lens" (this file, the earlier D22), D23 "Installer updates framework files by default; `--force` removed", D24 "Installer skips Python build cruft and ignores its own backups dir". The SECOND occurrences (added later, out of sequence) are: D22 "assess-* workflows persist a run record to workflow-artifacts/", D23 "Committed-secrets/PII scanning: a deterministic tool + a lens + a release-review step", D24 "Guided wizard workflows: setup-repo and scaffold". This made every "D22/D23/D24" cross-reference ambiguous.
+- **Decision:** Preserve the append-only history (do NOT renumber the original entries in place). Disambiguate by assigning the SECOND occurrences the suffixed IDs **D22b**, **D23b**, **D24b** (their headings are updated to carry the suffix; their bodies are unchanged). Canonical mapping going forward:
+  - D22 = generalization/productization lens (first occurrence).
+  - D22b = assess-* persist a run record to workflow-artifacts/ (second occurrence).
+  - D23 = installer updates framework files by default; `--force` removed (first occurrence).
+  - D23b = committed-secrets/PII scanning tool + lens + release-review step (second occurrence).
+  - D24 = installer skips Python build cruft and ignores its own backups dir (first occurrence).
+  - D24b = guided wizard workflows setup-repo and scaffold (second occurrence).
+  Future decisions continue from D79 (this erratum) onward; the `b` suffix is a one-time collision repair, not a new numbering scheme.
+- **Applied:** headings of the three second-occurrence entries suffixed to D22b/D23b/D24b; the five ambiguous `ARCHITECTURE.md` cross-references updated to the disambiguated IDs (secret-scanning -> D23b, setup-repo/scaffold wizards -> D24b; the generalization-lens, prune-scope, and build-cruft references already pointed at the first occurrences and are unchanged). No historical entry body was rewritten. Executed from `.agents/plans/executed/20260715-1502-01-docs-consistency-audit-corrections.md`.

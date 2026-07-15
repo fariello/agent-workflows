@@ -18,6 +18,14 @@ Patch release fixing install-path bugs found by using 1.2.0. Not yet cut.
   merely dirty from untracked files and already in sync.
 - Internal: fixed wall-clock-proximity flakiness in the plan-filename normalizer tests (they now use
   today-relative dates); no product behavior change.
+- Docs/consistency pass (repo-wide `.md` audit): corrected `RELEASING.md` first-PyPI-release fact
+  (`1.2.0`, not `1.1.0`); synced the `.agents/workflows/index.md` version stamp to `VERSION` (`1.2.1`);
+  fixed `aw plan-names` to recognize the `specs`/`prompts` doc buckets (the shipped
+  `normalize_plan_names.py` `DOCS_SUBDIRS` had drifted from the engine's; added a drift-guard test);
+  added a DECISIONS erratum (D79) disambiguating duplicate `D22/D23/D24` numbers as `D22b/D23b/D24b` and
+  fixed the affected `ARCHITECTURE.md` references; corrected `CONTRIBUTING.md` to the bake-then-tag
+  release order; documented the `auto-approved` status in the plans READMEs; and assorted small
+  reference/label fixes. No product behavior change except the `aw plan-names` bucket fix.
 
 ## 1.2.0 - first PyPI publish
 

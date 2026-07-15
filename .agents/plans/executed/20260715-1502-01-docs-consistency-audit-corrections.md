@@ -12,7 +12,8 @@
   and does NOT rewrite append-only DECISIONS history in place (the duplicate-D fix is an ADDITIVE erratum
   entry plus fixing the live references). One shipped Python tool constant is corrected. No product code
   logic beyond that constant; the shim generator is untouched.
-- Status: reviewed
+- Status: executed
+- Approval: approved by Gabriele 2026-07-15 (interactive)
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -37,6 +38,19 @@
   headings + resolvable ARCHITECTURE refs. Resolved OQ2 from evidence; OQ1 (D-suffix style) and OQ3
   (version-example rendering) remain lean-recorded, non-GO-blocking style choices. No BLOCKER/HIGH left
   unfixed. Status -> reviewed (reviewed != approved; awaits human sign-off).
+- 2026-07-15 approved by Gabriele (interactive), then EXECUTED (its_direct/pt3-claude-opus-4.8-1m-us).
+  Applied F1 (RELEASING first-PyPI-release -> 1.2.0), F2 (index.md stamp -> 1.2.1), F3
+  (normalize_plan_names DOCS_SUBDIRS += specs,prompts + docstring + `DocsSubdirsDriftGuard` test), F4
+  (DECISIONS D79 erratum; second-occurrence headings suffixed D22b/D23b/D24b; ARCHITECTURE.md :247->D23b,
+  :406->D24b; first-occurrence refs unchanged; originals not rewritten), F5 (CONTRIBUTING bake-then-tag),
+  F6 (auto-approved added to BOTH plans-READMEs, verified byte-identical), F8 (report-template NOT
+  ELIGIBLE -> NOT REVIEWED), F9 (research README past-tensed), F10 (new roadmaps/README.md), F11
+  (index.md install-workflows.py -> aw/engine.py), F12 (README version examples annotated + aw --version),
+  F13 (CONTRIBUTING em -> em or en dashes), CHANGELOG bullet. F7 correctly deferred to 1451-01.
+  VALIDATION (actual): `python -m pytest -q` -> "229 passed, 1 skipped in 49.47s" (includes the new
+  drift-guard test); all targeted greps passed (0 stale stamps, DOCS_SUBDIRS equal, 0 NOT ELIGIBLE,
+  READMEs byte-identical, D-headings disambiguated, ARCHITECTURE refs resolve); `aw plan-names` and
+  `aw --version` run; 0 em/en dashes in all 14 touched files. Status -> executed; git mv to executed/.
 
 ## Findings to correct (VERIFIED against source)
 

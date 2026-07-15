@@ -11,6 +11,7 @@ authored framework Markdown does not apply to a cited external artifact.
 Subdirectories group a body of research by topic (for example `plan-review/`).
 
 Note: the formal `.agents/docs/` convention (this README's generated form, plus a
-`walkthroughs/` sibling and installer scaffolding) is defined by the pending IPD
-`20260712-0033-01-agents-docs-research-and-walkthroughs-convention`. This directory was created
-early to hold the plan-review evaluation record; reconcile with that IPD when it executes.
+`walkthroughs/` sibling and installer scaffolding) was defined by the IPD
+`20260712-0033-01-agents-docs-research-and-walkthroughs-convention`, now executed (see
+`.agents/plans/executed/`). This directory was created early to hold the plan-review evaluation
+record and has since been reconciled with that convention.

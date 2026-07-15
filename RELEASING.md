@@ -54,4 +54,5 @@ On a `NO-GO`, no rungs are offered.
 
 Publishing to PyPI is a separate, credentialed, user-gated `twine upload` step, performed
 only under rung C with authorized credentials, or handed off to the maintainer with exact
-steps. The first PyPI release is `1.1.0` (DECISIONS D51); `1.0.0` was git-tag only.
+steps. The first PyPI release is `1.2.0` (DECISIONS D74; D51 originally planned `1.1.0`, revised by
+D74); `1.0.0` and `1.1.0` were git-tag only.

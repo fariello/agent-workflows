@@ -244,7 +244,7 @@ read-only, redacting scanner - `assess/tools/scan_secrets.py` - over the working
 AND git history to find committed secrets/keys and PII/PHI without relying on the LLM
 to crawl millions of lines; it recommends installing a mature scanner
 (gitleaks/trufflehog/detect-secrets) and merges their results if present, and the
-proposed remediation is rotate-first, then purge-history, then prevent (DECISIONS D23).
+proposed remediation is rotate-first, then purge-history, then prevent (DECISIONS D23b).
 Because those regimes are mostly organizational rather than code, the
 compliance-readiness lens is deliberately constrained: it assesses only the
 repo-visible technical slice, classifies every control as repo-verifiable vs.
@@ -403,7 +403,7 @@ testing/verification bar (DECISIONS D36).
 
 Two guided, wizard-style workflows differ in kind from the reviewers: they are
 interactive and MAY change files (with per-step confirmation), rather than only
-proposing (DECISIONS D24). `setup-repo` walks a repo owner through best-practices and
+proposing (DECISIONS D24b). `setup-repo` walks a repo owner through best-practices and
 security setup - detecting state, then ask-before-each-change to install tools (via the
 deterministic helper `setup-repo/tools/setup_tools.py`, which detects and, only on
 request, installs gitleaks/pre-commit/detect-secrets via the platform's own package

@@ -12,7 +12,7 @@ Verdict: <APPROVE | APPROVE WITH REVISIONS APPLIED | REVIEWED - OPEN QUESTIONS |
 ELIGIBLE:
 - <plan file>
 
-NOT ELIGIBLE:
+NOT REVIEWED:
 - <plan file>: <reason>
 
 ### Findings

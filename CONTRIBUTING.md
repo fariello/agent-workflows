@@ -76,7 +76,7 @@ instruction prose (prose is reviewed by `/assess prose`, not unit-tested).
   (`GUIDING_PRINCIPLES.md` P2).
 - Keep each policy or rule in exactly one canonical place and link to it, rather than
   duplicating it (P8).
-- Do not use em dashes in authored Markdown; use hyphens or parenthetical dashes.
+- Do not use em or en dashes in authored Markdown; use hyphens or parenthetical dashes.
 - The standing agent execution contract (commit only your own files path-scoped, never
   `git add -A`/bare/`-a`, never push; paste the actual runner output when you claim tests
   passed; review-means-read-only; no in-place edits to a plan already in `executed/`) lives
@@ -88,10 +88,13 @@ instruction prose (prose is reviewed by `/assess prose`, not unit-tested).
 The framework uses git-tag-driven semantic versioning (baseline `v1.0.0`; DECISIONS
 D44/D46). `.agents/workflows/VERSION` is a DERIVED artifact generated from the git tag by
 `agent_workflows/versioning.py` (a top-level `versioning.py` re-export shim preserves the
-old import path) - do NOT hand-edit it. To bake the version after tagging, run
-`make version-file` on a clean, tagged tree (it writes the resolved semver, e.g.
-`1.0.0`). To cut a new release, create an annotated tag (`git tag -a vX.Y.Z -m ...`) on a
-clean tree, then regenerate `VERSION` and the `index.md` stamp. See `RELEASING.md` for the
+old import path) - do NOT hand-edit it. To cut a new release, use the BAKE-THEN-TAG order
+(DECISIONS D75): on a clean tree run `make version-file VERSION=<X.Y.Z>` to write the
+resolved semver into `VERSION` (e.g. `1.2.1`) and stamp the `.agents/workflows/index.md`
+version header from it, COMMIT that, and THEN create the annotated tag
+(`git tag -a vX.Y.Z -m ...`) so the tagged tree already carries a `VERSION` matching its
+tag. Do NOT tag first and regenerate afterward (that leaves the tagged tree stamped with the
+previous version, the bug D75 fixed). See `RELEASING.md` for the
 full release policy: the close-out / release-candidate / full-release consent tree, the
 `vX.Y.Z-rc.N` pre-release convention (a bare `vX.Y.Z` means "intended for the registry"),
 draft GitHub Releases, and the never-tag/release/publish-outside-Section-9 rule. A dirty or

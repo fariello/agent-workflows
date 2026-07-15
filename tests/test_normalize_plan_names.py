@@ -415,5 +415,22 @@ class LocalTimeTests(unittest.TestCase):
                 self.assertIsNone(res)
 
 
+class DocsSubdirsDriftGuard(unittest.TestCase):
+    """DOCS_SUBDIRS in normalize_plan_names.py must not silently drift from the engine's
+    canonical set (D73). The tool is loaded and run live by `aw plan-names`
+    (agent_workflows.cli), so a drift means the live command stops recognizing real doc
+    buckets. Keep the two in lockstep."""
+
+    def test_docs_subdirs_matches_engine(self):
+        from agent_workflows import engine
+
+        self.assertEqual(
+            set(NPN.DOCS_SUBDIRS),
+            set(engine.DOCS_SUBDIRS),
+            "normalize_plan_names.DOCS_SUBDIRS drifted from engine.DOCS_SUBDIRS; "
+            "keep them in sync (D73).",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

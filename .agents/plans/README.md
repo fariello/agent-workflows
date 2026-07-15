@@ -35,6 +35,9 @@ records its READINESS within the lifecycle:
   later" stub.
 - `reviewed` - `/plan-review` done and revisions applied; awaiting human sign-off.
 - `approved` - a human signed off; ready to execute.
+- `auto-approved` - ready to execute, cleared by an automated checker (e.g. `/verify-execution`)
+  rather than a human; used for low-complexity mechanical correctives (D65). NOT human approval;
+  set only by an automated checker, never by an executor fast-tracking its own work.
 - Terminal (`executed` / `superseded` / `not-executed`) mirrors the directory; `reusable` is
   standing.
 
