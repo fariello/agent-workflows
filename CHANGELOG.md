@@ -4,6 +4,19 @@ All notable changes to `agent-workflows` are recorded here. Versions are git-tag
 semantic versioning (see `RELEASING.md`); the authoritative "why" for decisions lives in
 `DECISIONS.md`.
 
+## 1.3.0 (pending) - internal install-orchestrator unification
+
+Not yet cut. Internal refactor; the release scoping of the pending features below vs. this is a
+release-review decision.
+
+- Changed (internal, no user-facing behavior change except two intended fixes): unified the install
+  orchestration on the single shared `install_into_repo` core (DECISIONS D83). `engine.run()` (the
+  `install-workflows.py` / `aw run` path) now drives `install_into_repo` for the install STEPS instead
+  of re-inlining a parallel sequence, so the two entry points can no longer drift. Intended fixes that
+  fall out: the CLI install summary now lists migrated files (it silently omitted them before), and
+  `aw install --yes` now overwrites a customized shim to match `install-workflows.py --yes`. The
+  deliberately-terse `aw install all` batch path is unchanged.
+
 ## 1.2.1 (pending) - install pre-flight and versioning fixes
 
 Patch release fixing install-path bugs found by using 1.2.0. Not yet cut.

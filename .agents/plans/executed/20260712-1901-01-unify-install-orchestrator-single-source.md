@@ -18,7 +18,8 @@
   both entry points drive the identical sequence. Docs/DECISIONS. Internal refactor with NO intended
   user-facing behavior change; target a MINOR release (1.3.0) because it is a non-trivial internal
   change, not a patch.
-- Status: reviewed
+- Status: executed
+- Approval: approved by Gabriele 2026-07-15 (interactive)
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -47,6 +48,21 @@
   (MEDIUM) pinned DECISIONS to D83 (D79-D82 taken) and refreshed test count 215->253. PR-004 (LOW)
   em -> em/en dashes. OQ1-OQ3 remain reasonable non-blocking implementation leans (OQ2 updated for the
   main/run split). No BLOCKER/HIGH left unfixed. Status stays reviewed (awaits human sign-off).
+- 2026-07-15 approved by Gabriele (interactive), then EXECUTED (its_direct/pt3-claude-opus-4.8-1m-us).
+  Hit a STOP-and-report at the study phase (the plan's "route ALL through ONE orchestrator" was too
+  blunt: `_install_all` is intentionally terse); maintainer approved the refined narrower approach
+  (recorded in the "Execution refinement" + "As-built" sections). Implemented D83: `install_into_repo`
+  is the single step core (canonical README-then-artifacts order; returns `migrated`; accepts+forwards
+  `yes`/`no_color`); `run()` now calls it; the 3 CLI sites forward the flags. Found + fixed a THIRD
+  drift during execution (CLI path did not forward `yes`, so `aw install --yes` silently preserved
+  customized shims - a real regression my first pass also re-triggered, caught by
+  `test_customization_protection`, then fixed by threading `yes` through). Added
+  `SingleSourceOrchestratorTests`. VALIDATION (actual): `python -m pytest -q` -> "254 passed, 1 skipped
+  in 55.62s". Manual: `aw install` vs `install-workflows.py` on a clean repo -> IDENTICAL filesets;
+  both proceed non-interactively on a dirty repo (exit 0); `aw install --yes` now overwrites a
+  customized shim (D83 fix confirmed). 0 em/en dashes; scope fence held (engine.py, cli.py,
+  test_installer.py + docs). DECISIONS D83 + CHANGELOG 1.3.0 (pending) + IPD as-built section. Status ->
+  executed; git mv to executed/. Ship in 1.3.0 via release-review Section 9.
 
 ## Project conventions discovered (Step 0, RE-VERIFIED against source at re-review 2026-07-15)
 
@@ -83,6 +99,28 @@ thinned). The two-orchestrator DRIFT the plan targets is confirmed STILL PRESENT
   for a refactor.
 - House rule: no em or en dashes in authored Markdown.
 
+## Execution refinement (2026-07-15, recorded before implementing per STOP-and-report)
+
+Studying the real code at execution revealed the plan's "route ALL entry points through ONE
+orchestrator" wording was too blunt, and pinpointed the actual drift precisely. Refined (maintainer
+approved) approach, which achieves the plan's GOAL (one shared orchestration core, no drift) without a
+user-facing behavior change:
+
+- `install_into_repo` (engine.py:2645) is ALREADY the single shared source of the install STEPS. The
+  real drift is that `engine.run()` (engine.py:2704) RE-INLINES those same steps instead of calling it.
+  Fix: make `run()` call `install_into_repo` for the steps, then do its own summary/commit shell from the
+  returned dict. This removes the duplicate step sequence (the drift root cause).
+- Two concrete drifts found + fixed HERE (per Step 3): (a) `run()` runs the README-ensurers BEFORE
+  `create_setup_artifacts` while `install_into_repo` did the reverse (same filesystem outcome - disjoint
+  no-clobber paths - but divergent); canonicalize on the `run()` order (READMEs then artifacts) in the
+  ONE place (`install_into_repo`). (b) `install_into_repo` never returned `migrated`, yet
+  `cli._run_install` reads `result.get("migrated")` (so the CLI summary silently omitted migrated files
+  while `run()` showed them); make `install_into_repo` return `migrated` so both summaries match.
+- Presentation shells are INTENTIONALLY different and are preserved (NOT forced identical): `run()` and
+  `cli._run_install` show the full summary + per-repo commit prompt; `cli._install_all` is deliberately
+  TERSE (one status line per repo, no full summary, no per-repo commit prompt) - a batch-UX choice, not
+  drift. This is documented so it is not mistaken for drift later.
+
 ## Proposed changes (ordered, validatable)
 
 1. **Extract one canonical orchestrator.** Introduce a single function (e.g.
@@ -108,6 +146,22 @@ thinned). The two-orchestrator DRIFT the plan targets is confirmed STILL PRESENT
    `_diagnostics_ok` symptom wiring. Note in ARCHITECTURE if the install flow is described there. Ship in
    1.3.0 (internal refactor, no user-facing behavior change intended, but non-trivial -> MINOR, cut via
    release-review Section 9 from a clean tag).
+
+## As-built (2026-07-15 execution)
+
+Implemented per the refinement above (D83):
+- `install_into_repo` (engine.py): canonical step order (README-ensurers THEN `create_setup_artifacts`),
+  now returns `migrated`, and accepts + forwards `yes`/`no_color` onto its internal `InstallPlan`.
+- `engine.run()`: replaced its re-inlined step sequence with a call to `install_into_repo`, then drives
+  its own summary/commit shell from the returned dict (using run()'s richer plan for the interactive UX).
+- `cli._run_install` / `_install_all` / `setup`: forward `yes`/`no_color` into `install_into_repo`.
+- Tests: `SingleSourceOrchestratorTests` (run() vs install_into_repo -> same fileset; `migrated` key
+  present). 1837-01's `InstallDiagnosticsTests` and `test_customization_protection` preserved + green.
+- A THIRD drift was found + fixed during execution (recorded in D83): the CLI path did not forward `yes`
+  to the step core, so `aw install --yes` silently preserved customized shims (vs. `install-workflows.py
+  --yes` which overwrote); now consistent.
+- `_install_all` intentionally kept terse (no full summary/commit) - documented as a deliberate UX
+  difference, NOT drift.
 
 ## Deferred / out of scope
 

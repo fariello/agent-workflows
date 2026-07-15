@@ -378,6 +378,8 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                 dry_run=args.dry_run,
                 backup=not args.no_backup,
                 prune=not args.no_prune,
+                yes=getattr(args, "yes", False),
+                no_color=getattr(args, "no_color", False),
             )
         except SystemExit as exc:
             term.status("fail", f"{repo_root}: {exc}")
@@ -482,6 +484,8 @@ def _install_all(args: argparse.Namespace, term: Term) -> int:
                 dry_run=args.dry_run,
                 backup=not args.no_backup,
                 prune=not args.no_prune,
+                yes=getattr(args, "yes", False),
+                no_color=getattr(args, "no_color", False),
             )
             n = len(result["installed"])
             if n == 0:
@@ -734,7 +738,12 @@ def _run_setup(args: argparse.Namespace, term: Term) -> int:
                 term.status("skip", f"{repo}: aborted at git pre-flight")
                 continue
             try:
-                result = engine.install_into_repo(repo, source_root)
+                result = engine.install_into_repo(
+                    repo,
+                    source_root,
+                    yes=getattr(args, "yes", False),
+                    no_color=getattr(args, "no_color", False),
+                )
                 term.status("ok", f"{repo}: version {result['version']}")
             except Exception as exc:
                 term.status("fail", f"{repo}: {exc}")

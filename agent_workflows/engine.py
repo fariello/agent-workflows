@@ -2649,12 +2649,22 @@ def install_into_repo(
     dry_run: bool = False,
     backup: bool = True,
     prune: bool = True,
+    yes: bool = False,
+    no_color: bool = False,
 ) -> dict:
     """Install/update the framework into a single repo. Returns a structured result.
 
-    This is the multi-repo-friendly entry the CLI's `install all` drives per repo, so a
-    failure in one repo can be isolated and reported without aborting the batch. It reuses
-    the exact same engine steps as the single-repo `run()` path.
+    This is the single shared source of the install STEPS (D83): both the single-repo `run()`
+    path and the CLI (`_run_install`/`_install_all`/`setup`) drive it, so a failure in one repo
+    can be isolated and the step sequence can never drift between entry points.
+
+    ``yes`` and ``no_color`` are forwarded onto the internal ``InstallPlan`` so behavior that
+    depends on them is consistent across entry points. In particular ``yes`` gates the
+    customization-overwrite decision inside ``install_all`` (engine.py:804/:1005): with
+    ``yes=True`` a customized shim is overwritten back to the standard template; with
+    ``yes=False`` a customized file is preserved. Before D83 only the `run()` path forwarded
+    ``yes`` here, so the CLI path silently preserved customizations even under `--yes`; unifying
+    on this core fixes that drift.
     """
 
     plan = InstallPlan(
@@ -2663,23 +2673,28 @@ def install_into_repo(
         dry_run=dry_run,
         backup=backup,
         prune=prune,
+        yes=yes,
+        no_color=no_color,
     )
     use_git = git_available(plan.repo_root)
     workflows = parse_manifest(plan.source_root)
     body_members = collect_source_members(plan.source_root)
     shim_members = generate_shim_members(workflows, plan.source_root)
 
-    migrate_legacy_layout(plan, use_git)
+    migrated = migrate_legacy_layout(plan, use_git)
     installed, skipped, _ = install_all(plan, body_members, shim_members, use_git)
     pruned = prune_stale(plan, body_members, shim_members, use_git)
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     agents_status = update_agents_pointer(plan, use_git, timestamp)
     gitignore_status = check_gitignore(plan)
     backups_ignore_status = ensure_backups_gitignored(plan, use_git)
+    # Canonical step order (D83): README-ensurers BEFORE create_setup_artifacts. This matches the
+    # single-repo run() path; both operate on disjoint no-clobber paths so the filesystem outcome is
+    # order-independent, but a single canonical order removes the last orchestration divergence.
     ensure_workflow_artifacts_readme(plan, use_git, installed, skipped)
-    artifacts = create_setup_artifacts(repo_root, use_git, dry_run=dry_run)
     ensure_plans_readmes(plan, use_git, installed, skipped)
     ensure_docs_readmes(plan, use_git, installed, skipped)
+    artifacts = create_setup_artifacts(repo_root, use_git, dry_run=dry_run)
 
     newly_created = [
         item.rsplit(" [", 1)[0] for item in installed if item.endswith(" [install]")
@@ -2692,6 +2707,7 @@ def install_into_repo(
         "installed": installed,
         "skipped": skipped,
         "pruned": pruned,
+        "migrated": migrated,
         "artifacts": artifacts,
         "use_git": use_git,
         "version": read_installed_version(repo_root),
@@ -2767,41 +2783,36 @@ def run(args: argparse.Namespace) -> int:
             returncode = 1
             continue
 
-        use_git = git_available(plan.repo_root)
-
+        # Single source of the install STEPS (D83): call the shared core rather than re-inlining
+        # the sequence here. This removes the two-orchestrator drift. `run()` keeps its own
+        # presentation shell below (summary + commit prompt), driven by the returned result, using
+        # its own richer `plan` (which carries no_color/yes/diff for the interactive UX).
         workflows = parse_manifest(plan.source_root)
-        body_members = collect_source_members(plan.source_root)
-        shim_members = generate_shim_members(workflows, plan.source_root)
-
-        run_timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        migrated = migrate_legacy_layout(plan, use_git)
-        installed, skipped, _ = install_all(plan, body_members, shim_members, use_git)
-        pruned = prune_stale(plan, body_members, shim_members, use_git)
-        agents_status = update_agents_pointer(plan, use_git, run_timestamp)
-        gitignore_status = check_gitignore(plan)
-        backups_ignore_status = ensure_backups_gitignored(plan, use_git)
-        ensure_workflow_artifacts_readme(plan, use_git, installed, skipped)
-        ensure_plans_readmes(plan, use_git, installed, skipped)
-        ensure_docs_readmes(plan, use_git, installed, skipped)
-        artifacts = create_setup_artifacts(
-            plan.repo_root, use_git, dry_run=plan.dry_run
+        result = install_into_repo(
+            plan.repo_root,
+            plan.source_root,
+            dry_run=plan.dry_run,
+            backup=plan.backup,
+            prune=plan.prune,
+            yes=plan.yes,
+            no_color=plan.no_color,
         )
-
-        newly_created = [
-            item.rsplit(" [", 1)[0] for item in installed if item.endswith(" [install]")
-        ]
-        save_created_files_record(plan.repo_root, run_timestamp, newly_created)
-        prune_old_backups(plan.repo_root)
+        installed = result["installed"]
+        pruned = result["pruned"]
+        agents_status = result["agents_status"]
+        backups_ignore_status = result["backups_ignore_status"]
+        use_git = result["use_git"]
+        artifacts = result["artifacts"]
 
         print_summary(
             plan=plan,
             workflows=workflows,
-            migrated=migrated,
+            migrated=result["migrated"],
             installed=installed,
-            skipped=skipped,
+            skipped=result["skipped"],
             pruned=pruned,
             agents_status=agents_status,
-            gitignore_status=gitignore_status,
+            gitignore_status=result["gitignore_status"],
             backups_ignore_status=backups_ignore_status,
             use_git=use_git,
         )

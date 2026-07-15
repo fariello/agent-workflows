@@ -580,5 +580,61 @@ class InstallerEndToEndTests(unittest.TestCase):
         self.assertEqual(txt.count("<!-- AGENT-WORKFLOWS:END -->"), 1)
 
 
+class SingleSourceOrchestratorTests(unittest.TestCase):
+    """Structural anti-drift guard (D83): the single-repo `run()` path and the shared
+    `install_into_repo` core must produce the SAME install result, because `run()` now drives
+    `install_into_repo` for the steps instead of re-inlining a parallel sequence. If the two ever
+    diverge (a step added to one path only), this test fails."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    @staticmethod
+    def _tracked_files(repo: Path) -> set[str]:
+        # Exclude .git/ and the installer's own timestamped backup scratch dir (its dir name is a
+        # wall-clock stamp that legitimately differs between two runs a second apart; it is gitignored
+        # churn, not part of the installed file set).
+        out = set()
+        for p in repo.rglob("*"):
+            if not p.is_file():
+                continue
+            rel = p.relative_to(repo).as_posix()
+            if rel.startswith(".git/") or rel.startswith(
+                ".agent-workflows-installer-backups/"
+            ):
+                continue
+            out.add(rel)
+        return out
+
+    def test_run_and_install_into_repo_produce_same_fileset(self):
+        source_root = REPO_ROOT / ".agents" / "workflows"
+
+        # Path A: engine.run() from a parsed namespace (the install-workflows.py / `aw run` path).
+        repo_a = init_repo(self.base / "a")
+        args = INS.parse_args(["--repo", str(repo_a), "--yes", "--no-color"])
+        self.assertEqual(INS.run(args), 0)
+
+        # Path B: the shared install_into_repo core directly (the CLI path's engine call).
+        repo_b = init_repo(self.base / "b")
+        INS.install_into_repo(repo_b, source_root, yes=True, no_color=True)
+
+        self.assertEqual(
+            self._tracked_files(repo_a),
+            self._tracked_files(repo_b),
+            "engine.run() and install_into_repo() produced different file sets (orchestrator drift)",
+        )
+
+    def test_install_into_repo_returns_migrated_key(self):
+        # cli._run_install reads result.get('migrated'); it must exist so the CLI summary can list
+        # migrated files (parity with run()'s summary). Regression guard for the D83 fix.
+        repo = init_repo(self.base / "m")
+        result = INS.install_into_repo(repo, REPO_ROOT / ".agents" / "workflows")
+        self.assertIn("migrated", result)
+
+
 if __name__ == "__main__":
     unittest.main()
