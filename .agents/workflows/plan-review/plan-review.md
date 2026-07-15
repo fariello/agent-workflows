@@ -361,13 +361,22 @@ Use one verdict:
 - **`REJECT - NEEDS REPLAN`** - approach is unsound and not repairable with
   bounded edits.
 
-Readiness:
-- **GO:** verdict is `APPROVE` or `APPROVE WITH REVISIONS APPLIED`, all
-  questions are resolved, and no unfixed BLOCKER or HIGH remains.
-- **NO-GO:** any open question or unfixed BLOCKER/HIGH remains, or verdict is
-  `REVIEWED - OPEN QUESTIONS` or `REJECT - NEEDS REPLAN`.
+Readiness (human approval is a SEPARATE step from the review verdict; a reviewed,
+clean plan is `GO - PENDING HUMAN APPROVAL`, never a bare `NO-GO`; reserve `NO-GO`
+for genuine not-ready conditions):
+- **GO:** verdict is `APPROVE` or `APPROVE WITH REVISIONS APPLIED`, all questions
+  are resolved, no unfixed BLOCKER or HIGH remains, AND the human has approved
+  (`Status: approved`). Cleared to proceed.
+- **GO - PENDING HUMAN APPROVAL:** same clean bar as GO (right verdict, no open
+  questions, no unfixed BLOCKER/HIGH) but the human sign-off has not happened yet.
+  This is the positive, correct readiness for a plan that passed review and only
+  awaits approval. It is NOT a failure state.
+- **NO-GO:** genuine not-ready: any open question, any unfixed BLOCKER/HIGH, or a
+  `REVIEWED - OPEN QUESTIONS` / `REJECT - NEEDS REPLAN` verdict. NOT used merely
+  because a clean plan lacks a signature.
 
-A plan may be `Status: reviewed` and still be `NO-GO`.
+A plan may be `Status: reviewed` and be `GO - PENDING HUMAN APPROVAL` (passed,
+awaiting sign-off); it is only `NO-GO` when a genuine not-ready condition remains.
 
 ---
 ## Required final report
@@ -410,7 +419,7 @@ NOT REVIEWED:
 
 ### Plans reviewed and not reviewed
 REVIEWED:
-- `<plan file>`: <GO | NO-GO> - <reason>.
+- `<plan file>`: <GO | GO - PENDING HUMAN APPROVAL | NO-GO> - <reason>.
   Verdict: <verdict>.
   Open questions: all resolved interactively | <N open, blocks GO>.
   Required next step: <approval | decision | replan | other>.

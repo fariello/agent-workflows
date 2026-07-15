@@ -14,7 +14,8 @@
   DECISIONS entry (D80; D79 was taken by the executed IPD 1502-01) and CHANGELOG. NO code logic change (the shim generator `shim_body` is untouched;
   only the manifest description string it copies changes). Historical records under `workflow-artifacts/`
   and `.agents/plans/executed/` are NOT touched.
-- Status: reviewed
+- Status: executed
+- Approval: approved by Gabriele 2026-07-15 (interactive)
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -39,6 +40,20 @@
   IPD edits the plan-review workflow's OWN readiness rubric (redefines NO-GO, adds GO - PENDING HUMAN
   APPROVAL); that is the intended effect and is a conscious change to the reviewer's contract, not an
   accident. No BLOCKER/HIGH left unfixed. Status -> reviewed (reviewed != approved; awaits human sign-off).
+- 2026-07-15 approved by Gabriele (interactive), then EXECUTED (its_direct/pt3-claude-opus-4.8-1m-us).
+  Applied the unified readiness vocabulary + `GO - PENDING HUMAN APPROVAL` to `plan-review/plan-review.md`
+  (readiness rubric + REVIEWED report line) and `plan-review-long/03-resolve-and-finalize.md` +
+  `report-template.md` (parity); fixed `CONDITIONAL-GO` -> `CONDITIONAL GO` in `verify/verify.md:93` and
+  `release-review/08-final-ship-review.md:53`; added DECISIONS D80 and a CHANGELOG bullet. DEVIATIONS
+  (recorded, per OQ1 and the plan's own step notes, NOT silent): verify-execution KEEPS its own binary
+  "truly executed?" GO/NO-GO (different axis) so it, its `index.md` manifest description, and its shims
+  were left UNCHANGED and NO shim regeneration was needed; release-review's release DECISION block and the
+  README/ARCHITECTURE `GO/NO-GO` mentions are release-context (already consent-separated) so they received
+  only the spelling fix / no change; the plans-READMEs' open-question=NO-GO clause was already correct and
+  left byte-identical. VALIDATION (actual): `python -m pytest -q` -> "229 passed, 1 skipped in 51.16s"
+  (includes packaging/shim tests, which pass, confirming no shim drift). Greps: 0 `CONDITIONAL-GO`, 0
+  clean-plan-NO-GO phrasing, new token present in both plan-review rubrics, plans-READMEs byte-identical,
+  D80 latest, 0 em/en dashes in edited files. Status -> executed; git mv to executed/.
 
 ## Project conventions discovered (Step 0, VERIFIED via explore inventory + source)
 

@@ -18,6 +18,13 @@ Patch release fixing install-path bugs found by using 1.2.0. Not yet cut.
   merely dirty from untracked files and already in sync.
 - Internal: fixed wall-clock-proximity flakiness in the plan-filename normalizer tests (they now use
   today-relative dates); no product behavior change.
+- Review workflows: unified the readiness verdict vocabulary and added a positive
+  `GO - PENDING HUMAN APPROVAL` state so a plan that passed review but only awaits human sign-off is no
+  longer reported as a scary `NO-GO`. `NO-GO` is now reserved for genuine not-ready conditions (open
+  questions, unfixed BLOCKER/HIGH, REJECT/REPLAN). Also standardized `CONDITIONAL GO` spelling (removed
+  the `CONDITIONAL-GO` hyphen variant). Applies to plan-review, plan-review-long, verify, and
+  release-review; verify-execution keeps its own binary "truly executed?" GO/NO-GO (a different axis).
+  See DECISIONS D80.
 - Docs/consistency pass (repo-wide `.md` audit): corrected `RELEASING.md` first-PyPI-release fact
   (`1.2.0`, not `1.1.0`); synced the `.agents/workflows/index.md` version stamp to `VERSION` (`1.2.1`);
   fixed `aw plan-names` to recognize the `specs`/`prompts` doc buckets (the shipped
