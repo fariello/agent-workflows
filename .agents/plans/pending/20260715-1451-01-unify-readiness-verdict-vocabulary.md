@@ -11,10 +11,10 @@
 - Scope: workflow-body Markdown that DEFINES or EMITS the readiness verdict across plan-review,
   plan-review-long, verify-execution, verify, release-review, plus shared templates and plans-README;
   the one manifest description that carries GO/NO-GO text (`index.md`) and its regenerated shims; a
-  DECISIONS entry (D79) and CHANGELOG. NO code logic change (the shim generator `shim_body` is untouched;
+  DECISIONS entry (D80; D79 was taken by the executed IPD 1502-01) and CHANGELOG. NO code logic change (the shim generator `shim_body` is untouched;
   only the manifest description string it copies changes). Historical records under `workflow-artifacts/`
   and `.agents/plans/executed/` are NOT touched.
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -26,6 +26,19 @@
   drift, and that release-review ALREADY uses the preferred model (verdict + separate human consent).
   Maintainer chose: unify across all workflows; standard positive value = `GO - PENDING HUMAN APPROVAL`.
   Complete proposal; born to-review.
+- 2026-07-15 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED.
+  Re-verified claims against CURRENT source (line anchors plan-review.md:353, verify-execution.md:118/155,
+  release-review final-response DECISION block all hold). Findings driven by the fact that IPD 1502-01
+  EXECUTED between this plan's drafting and review: PR-001 (HIGH) the plan claimed DECISIONS `D79`, but
+  1502-01's erratum now OWNS D79 (DECISIONS.md:2087); corrected all three references to D80 (next free)
+  to avoid re-creating the exact duplicate-number bug. PR-002 (MEDIUM) the plan listed three
+  `CONDITIONAL-GO` hyphen sites incl. `cold-start-orientation.md:47`, but only TWO remain
+  (`verify/verify.md:93`, `08-final-ship-review.md:53`); corrected the list and instructed a fresh grep at
+  execution. Resolved OQ1 (verify-execution does NOT adopt the new token; different axis) and OQ2 (dash
+  form is canonical) from evidence/principle; OQ3 (release timing) is a non-blocking lean. META NOTE: this
+  IPD edits the plan-review workflow's OWN readiness rubric (redefines NO-GO, adds GO - PENDING HUMAN
+  APPROVAL); that is the intended effect and is a conscious change to the reviewer's contract, not an
+  accident. No BLOCKER/HIGH left unfixed. Status -> reviewed (reviewed != approved; awaits human sign-off).
 
 ## Project conventions discovered (Step 0, VERIFIED via explore inventory + source)
 
@@ -34,7 +47,10 @@
   verify-execution (`verify-execution.md:105-119,:155`), verify (`verify.md:92-93`), release-review
   (`08-final-ship-review.md:149` et al.), plus a 6th NO-GO clause in `templates/plans-README.md:50`.
 - Pre-existing inconsistencies to fix while here: `CONDITIONAL GO` (space, dominant) vs `CONDITIONAL-GO`
-  (hyphen, in `verify.md:92`, `08-final-ship-review.md:53`, `cold-start-orientation.md:47`); two-way
+  (hyphen). RE-VERIFIED at review time (after IPD 1502-01 executed): exactly TWO hyphen occurrences
+  remain, `verify/verify.md:93` and `release-review/08-final-ship-review.md:53`; the previously-listed
+  `cold-start-orientation.md:47` occurrence is GONE (now the space form). The executor MUST grep fresh for
+  `CONDITIONAL-GO` rather than trust these line numbers. Also: two-way
   (GO/NO-GO) vs three-way (GO/CONDITIONAL GO/NO-GO) scales; and the crux, that plan-review(-long) fold
   "reviewed but unapproved" into NO-GO while release-review keeps the verdict separate from human consent
   (the 3-rung tree, `08-final-ship-review.md:155-163`). release-review's model is the target to align to.
@@ -83,17 +99,19 @@ verdict-plus-consent separation.
    `verify-execution.md:155,:176`; release-review `templates/final-response.md` (DECISION block,
    `:129,:158,` etc.) and `08-final-ship-review.md` report-assembly; `cold-start-orientation.md:47`;
    `execution-plan.md:32`; `MANIFEST.md:29,:69`; `release-review/README.md:15,:67,:104,:108`.
-3. **Fix the CONDITIONAL GO spelling drift**: standardize on the SPACE form everywhere; replace
-   `CONDITIONAL-GO` at `verify.md:92`, `08-final-ship-review.md:53`, `cold-start-orientation.md:47`.
+3. **Fix the CONDITIONAL GO spelling drift**: standardize on the SPACE form everywhere. Grep fresh for
+   `CONDITIONAL-GO` and replace every hit; as of this review the hits are `verify/verify.md:93` and
+   `release-review/08-final-ship-review.md:53` (the earlier `cold-start-orientation.md` hit is already
+   fixed). Validation (gate step 3) requires zero remaining hyphen occurrences.
 4. **Manifest + shims**: reword the verify-execution description at `index.md:31` to use the unified
    vocabulary, then regenerate shims via `aw install` (updates `.opencode/commands/verify-execution.md`
    and `.claude/commands/verify-execution.md`). Do NOT hand-edit the shims.
 5. **Optional consistency in user docs** (only if they describe the verdict): `README.md:133`,
    `ARCHITECTURE.md:95`. Do NOT change `engine.py:584` (the baked AGENTS "after an explicit human GO"
    contract) - the word GO there means the human's go-ahead and is unaffected.
-6. **Docs + DECISIONS.** DECISIONS entry D79 recording the unified readiness vocabulary, the new
-   `GO - PENDING HUMAN APPROVAL` value, the CONDITIONAL-GO spelling fix, and that approval is a step
-   separate from the verdict. CHANGELOG under the next minor.
+6. **Docs + DECISIONS.** DECISIONS entry D80 (next free; D79 is the 1502-01 erratum) recording the
+   unified readiness vocabulary, the new `GO - PENDING HUMAN APPROVAL` value, the CONDITIONAL-GO spelling
+   fix, and that approval is a step separate from the verdict. CHANGELOG under the next minor.
 
 ## Deferred / out of scope
 
@@ -106,14 +124,16 @@ verdict-plus-consent separation.
 
 ## Open questions (v1 leans for review)
 
-1. Should `GO - PENDING HUMAN APPROVAL` also appear in verify-execution, whose GO means "truly executed
-   as approved" (a different axis than pre-execution sign-off)? (Lean: verify-execution keeps GO/NO-GO on
-   "truly executed"; the new value is a PRE-execution readiness state, so verify-execution likely does
-   NOT need it. Confirm during edit; if it does not apply there, say so explicitly rather than forcing
-   it.)
-2. Exact rendering: `GO - PENDING HUMAN APPROVAL` vs `GO (pending human approval)`? (Lean: the dash form
-   as the canonical enum token in rubric text; report lines may render the parenthetical for prose. Keep
-   ONE canonical token so it is greppable.)
+1. RESOLVED (this review): verify-execution does NOT adopt `GO - PENDING HUMAN APPROVAL`. Its GO/NO-GO is
+   on a DIFFERENT axis, "was this plan truly executed as approved?" (post-execution;
+   `verify-execution.md:118,:155`), whereas the new value is a PRE-execution readiness state (passed
+   review, awaiting sign-off). Forcing it there would conflate two axes. Execution note: for
+   verify-execution, only normalize `CONDITIONAL-GO` spelling if present and add the shared "approval is
+   separate from the verdict" principle where relevant; do NOT introduce the new token into its verdict.
+2. RESOLVED (this review, from the plan's own greppability principle): the CANONICAL enum token is the
+   dash form `GO - PENDING HUMAN APPROVAL` (used in rubric definitions and the machine-readable readiness
+   line). Prose MAY render it as "GO (pending human approval)" for readability, but the canonical token
+   is the single greppable form. Every rubric/definition/report-template site uses the dash form.
 3. Does this warrant its own minor release soon, or ride the next scheduled cut? (Lean: ride the next
    cut; it is a docs/workflow clarity change, no code logic, and VERSION is tag-derived.)
 
@@ -128,7 +148,7 @@ verdict-plus-consent separation.
 
 1. SCOPE FENCE. Edit ONLY the workflow-body Markdown files enumerated in "Proposed changes" steps 1-3
    (under `.agents/workflows/`), the manifest `index.md:31` (step 4), `README.md`/`ARCHITECTURE.md` only
-   if they describe the verdict (step 5), `CHANGELOG.md`, and `DECISIONS.md` (D79). Regenerate the
+   if they describe the verdict (step 5), `CHANGELOG.md`, and `DECISIONS.md` (D80, next free). Regenerate the
    verify-execution shims via `aw install` (do NOT hand-edit shim files). Do NOT change `shim_body` logic,
    the lifecycle `Status:` enum, `engine.py:584`, or any historical/executed record. If the work seems to
    need more, STOP and report.
