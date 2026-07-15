@@ -10,6 +10,12 @@ This workflow shares these sibling policies:
 - `../release-review/fix-decision-policy.md`
 - `../release-review/00-run-protocol.md`
 
+This portable single-file variant is SERIAL BY DESIGN: it does not auto-fan-out into parallel audit
+lanes (a lone portable file spawning subagents is awkward and not universally available). For a
+multi-plan batch that should review plans in parallel, use `../plan-review-long/plan-review-long.md`,
+which auto-engages the read-only audit-lane convention (`../release-review/00-run-protocol.md`) when the
+scope ledger has 2 or more eligible plans. The two variants are otherwise kept in deliberate parity.
+
 If either is absent, apply these rules from memory:
 - Fix findings by default.
 - Defer only when the fix itself has Medium-High or High Remediation Risk on

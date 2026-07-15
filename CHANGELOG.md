@@ -9,6 +9,13 @@ semantic versioning (see `RELEASING.md`); the authoritative "why" for decisions 
 Not yet cut. Internal refactor; the release scoping of the pending features below vs. this is a
 release-review decision.
 
+- Workflows: parallel read-only audit lanes now AUTO-ENGAGE (TRIAL) when a review has 2 or more
+  independent units - a plan-review-long batch with 2+ eligible plans, or a release-review with 2+
+  independent audit surfaces (DECISIONS D84). Defined once in `00-run-protocol.md` and inherited by both
+  plan-review variants; the single-file `plan-review` stays serial by design. Lane safety rules are
+  unchanged (read-only lanes; the coordinator is the sole writer and does synthesis, cross-unit conflict
+  pass, interactive resolution, edits, and commits serially; release-review Sections 7/8/9 never
+  parallelize). A `--parallel`/`--no-parallel` instruction can override the auto rule.
 - Changed (internal, no user-facing behavior change except two intended fixes): unified the install
   orchestration on the single shared `install_into_repo` core (DECISIONS D83). `engine.run()` (the
   `install-workflows.py` / `aw run` path) now drives `install_into_repo` for the install STEPS instead

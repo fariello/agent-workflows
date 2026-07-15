@@ -16,7 +16,8 @@
   files) to inherit the convention for multi-plan review; `.agents/workflows/plan-review/plan-review.md`
   to DOCUMENT that the single-file portable variant stays serial by design. Docs/DECISIONS. Prose-only
   workflow change; no code.
-- Status: reviewed
+- Status: executed
+- Approval: approved by Gabriele 2026-07-15 (interactive)
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -37,6 +38,17 @@
   (LOW) em -> em/en dashes. Added a real-world-validation note (this session's 4-lane repo-wide .md audit
   and the earlier release-review both exercised the convention successfully). OQ1-OQ4 are legitimate
   trial-tuning leans, non-blocking. Status -> reviewed (awaits human sign-off).
+- 2026-07-15 approved by Gabriele (interactive), then EXECUTED (its_direct/pt3-claude-opus-4.8-1m-us).
+  Promoted `00-run-protocol.md`'s "Optional controlled parallel audit mode" into the canonical
+  "Auto-parallel read-only audit lanes" convention (>=2-unit auto-engage trigger, `--parallel`/
+  `--no-parallel` override, coordinator-owns-mutations + cross-unit conflict pass made explicit, serial
+  7/8/9, marked TRIAL) with ALL lane safety rules kept intact; named the trial mode in release-review
+  `README.md`; had `plan-review-long.md` inherit the convention for >=2 eligible plans; added the
+  serial-by-design note to the single-file `plan-review.md` pointing at plan-review-long. DECISIONS D84 +
+  CHANGELOG 1.3.0 (pending). Prose-only; no code, no manifest/shim change. VALIDATION (actual):
+  `python -m pytest -q` -> "254 passed, 1 skipped in 54.22s"; `index.md` unchanged (no shim regen); 0
+  em/en dashes; scope fence held (only the four workflow files + DECISIONS + CHANGELOG). Status ->
+  executed; git mv to executed/.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
