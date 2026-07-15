@@ -21,7 +21,8 @@
   that scaffolds `.agents/comms/` + its nested `.gitignore` into a target repo; an addition to
   `agents_pointer_block()` (engine.py) for the "check your inbox / untrusted" contract; tests; docs;
   DECISIONS. NO broker, NO OpenCode server calls, NO ack-writing logic, NO discovery.
-- Status: reviewed
+- Status: executed
+- Approval: approved by Gabriele 2026-07-15 (interactive)
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -57,6 +58,21 @@
   NO conflict with the two executed IPDs: this plan does not edit `.agents/plans/README.md` (only cites
   its retirement rule) and its scope is an entirely new `.agents/comms/` namespace. All four prior open
   questions remain resolved. No BLOCKER/HIGH. Status stays reviewed (awaits human sign-off).
+- 2026-07-15 approved by Gabriele (interactive), then EXECUTED (its_direct/pt3-claude-opus-4.8-1m-us).
+  Created `agent_workflows/comms.py` (pure stdlib: KINDS, ack enum + ACK_WRITER table, envelope/ack
+  validators, parse_not_before, is_filename_safe); added comms scaffold constants +
+  `_COMMS_GITIGNORE_TEMPLATE` + `_COMMS_README_TEMPLATE` + scaffold logic to `create_setup_artifacts`
+  (real + dry-run branches) in `engine.py`; added the "check your inbox / untrusted" clause to
+  `agents_pointer_block()`; wrote the canonical spec `.agents/docs/specs/20260715-1722-01-agent-comms-convention.md`
+  and RETIRED-in-place the draft `20260712-2133-02` (superseded header); added `tests/test_comms.py` and
+  extended `tests/test_setup_artifacts.py` (created-count 11 -> 16, comms skeleton assertions, a
+  root-.gitignore-untouched test); DECISIONS D81 + CHANGELOG. VALIDATION (actual): `python -m pytest -q`
+  -> "248 passed, 1 skipped in 52.50s". Manual: `aw install` on a throwaway repo created the comms
+  skeleton with the nested `.gitignore`, left the target ROOT .gitignore untouched, `local/` correctly
+  ignored (not staged even under git add -A), the AGENTS block carries the inbox clause; `--dry-run`
+  wrote nothing; 0 em/en dashes in authored files. Scope fence held (no broker/ack-writing/discovery/
+  OpenCode calls). The pre-existing engine.py:1884 `list[str]=None` LSP annotation is out-of-scope and
+  untouched. Status -> executed; git mv to executed/.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 

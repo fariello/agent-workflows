@@ -1,3 +1,8 @@
+RETIRED 2026-07-15: superseded by the canonical convention spec
+`20260715-1722-01-agent-comms-convention.md` (DECISIONS D81), which was formalized and scaffolded by
+IPD `20260715-1033-01`. Kept for the record; do NOT use this draft as the convention. The concept
+note `../research/20260712-2133-01-filesystem-inter-project-agent-comms-concept.md` remains as-is.
+
 # DRAFT spec: filesystem agent-comms protocol (v0, on trial)
 
 Status: DRAFT / ON TRIAL. NOT yet an installed framework convention. Do not scaffold or enforce via

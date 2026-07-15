@@ -61,6 +61,21 @@ class SetupArtifactTests(unittest.TestCase):
         self.assertTrue((self.repo / ".agents/docs/walkthroughs/README.md").is_file())
         self.assertTrue((self.repo / ".gitleaksignore").is_file())
         self.assertTrue((self.repo / ".github/workflows/secret-scan.yml").is_file())
+        # Inter-agent comms skeleton (D81): nested .gitignore, README, shared/ gitkeeps.
+        self.assertTrue((self.repo / ".agents/comms/.gitignore").is_file())
+        self.assertTrue((self.repo / ".agents/comms/README.md").is_file())
+        for sub in ("inbox", "sent", "archive"):
+            self.assertTrue(
+                (self.repo / ".agents/comms/shared" / sub / ".gitkeep").is_file(),
+                f"missing comms shared dir {sub}",
+            )
+        # `local/` is ignored by the nested .gitignore, so it gets NO committed .gitkeep.
+        self.assertFalse((self.repo / ".agents/comms/local/inbox/.gitkeep").exists())
+        # The nested .gitignore ignores local/ and does NOT touch the target root .gitignore.
+        self.assertIn(
+            "local/",
+            (self.repo / ".agents/comms/.gitignore").read_text(encoding="utf-8"),
+        )
         # AC-16: guidance to run /setup-repo is emitted.
         self.assertIn("/setup-repo", out)
 
@@ -94,8 +109,21 @@ class SetupArtifactTests(unittest.TestCase):
         created = engine.create_setup_artifacts(self.repo, use_git)
         # 5 plan-dir gitkeeps (pending/executed/superseded/not-executed/reusable)
         # + 4 docs-dir gitkeeps (research/walkthroughs/specs/prompts)
-        # + gitleaksignore + secret-scan CI = 11 on a fresh repo.
-        self.assertEqual(len(created), 11)
+        # + gitleaksignore + secret-scan CI
+        # + comms .gitignore + comms README + 3 comms shared/ gitkeeps (inbox/sent/archive) = 16.
+        self.assertEqual(len(created), 16)
+
+    def test_install_does_not_touch_target_root_gitignore(self):
+        # The comms nested .gitignore is a created deliverable; the ROOT .gitignore must not be
+        # created/modified by comms scaffolding. (ensure_backups_gitignored is a separate path.)
+        root_gi = self.repo / ".gitignore"
+        before = root_gi.read_text(encoding="utf-8") if root_gi.exists() else None
+        use_git = engine.git_available(self.repo)
+        engine.create_setup_artifacts(self.repo, use_git)
+        after = root_gi.read_text(encoding="utf-8") if root_gi.exists() else None
+        self.assertEqual(
+            before, after, "create_setup_artifacts must not touch the root .gitignore"
+        )
 
     def test_dry_run_reports_without_writing(self):
         use_git = engine.git_available(self.repo)
