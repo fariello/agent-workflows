@@ -18,6 +18,12 @@ Patch release fixing install-path bugs found by using 1.2.0. Not yet cut.
   merely dirty from untracked files and already in sync.
 - Internal: fixed wall-clock-proximity flakiness in the plan-filename normalizer tests (they now use
   today-relative dates); no product behavior change.
+- Added: optional `Set:` / `Order:` plan front-matter for ordered plan SETS (DECISIONS D82). Tag
+  related plans that should run in sequence with a shared `Set:` id and a 1-based `Order:`; the
+  `aw plans` board renders a "Sets" section grouped and order-sorted (with a soft warning on duplicate
+  or partial ordering). Advisory only: it does not auto-execute, gate approval, or change the `Status:`
+  lifecycle, and it leaves the filename convention and `NN` untouched (orthogonal). Parsed read-only by
+  `agent_workflows/plans.py`.
 - Added: inter-agent comms convention `.agents/comms/` (DECISIONS D81). A portable, agent-agnostic,
   default-on filesystem convention for messages between agents (and agent/human): a gitignored `local/`
   lane and a tracked `shared/` lane, a header envelope with an optional `Not-Before` scheduling gate, a

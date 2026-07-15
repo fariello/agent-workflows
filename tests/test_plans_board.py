@@ -15,11 +15,20 @@ from agent_workflows import plans as plans_mod
 from agent_workflows.term import Term
 
 
-def _write(path: Path, status: str | None) -> None:
+def _write(
+    path: Path,
+    status: str | None,
+    set_id: str | None = None,
+    order: str | None = None,
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     body = "# IPD: x\n\n"
     if status is not None:
         body += f"- Status: {status}\n"
+    if set_id is not None:
+        body += f"- Set: {set_id}\n"
+    if order is not None:
+        body += f"- Order: {order}\n"
     body += "\n## Goal\n\nx\n"
     path.write_text(body, encoding="utf-8")
 
@@ -102,6 +111,86 @@ class BoardRenderTests(unittest.TestCase):
             for rec in plans_mod.scan(root):
                 term.line(f"{term.colorize(rec.status or 'x', 'bold')} {rec.path.name}")
             self.assertNotIn("\033[", buf.getvalue())
+
+
+class SetOrderTests(unittest.TestCase):
+    def test_set_id_and_order_validation(self):
+        self.assertTrue(plans_mod.is_set_id_valid("editor-workflow"))
+        self.assertTrue(plans_mod.is_set_id_valid("agent-comms2"))
+        self.assertFalse(
+            plans_mod.is_set_id_valid("Editor_Workflow")
+        )  # uppercase/underscore
+        self.assertFalse(plans_mod.is_set_id_valid("-leading"))
+        self.assertFalse(plans_mod.is_set_id_valid("x" * 41))
+        self.assertFalse(plans_mod.is_set_id_valid(""))
+        self.assertEqual(plans_mod.parse_order("2"), 2)
+        self.assertIsNone(plans_mod.parse_order("0"))
+        self.assertIsNone(plans_mod.parse_order("-1"))
+        self.assertIsNone(plans_mod.parse_order("two"))
+        self.assertIsNone(plans_mod.parse_order(None))
+
+    def test_scan_reads_set_order_and_standalone_default(self):
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            plans = root / ".agents" / "plans"
+            _write(
+                plans / "pending" / "20260101-0000-01-s1.md",
+                "approved",
+                "editor-workflow",
+                "1",
+            )
+            _write(
+                plans / "pending" / "20260101-0001-01-s2.md",
+                "reviewed",
+                "editor-workflow",
+                "2",
+            )
+            _write(
+                plans / "pending" / "20260101-0002-01-lone.md", "draft"
+            )  # standalone
+            _write(
+                plans / "pending" / "20260101-0003-01-bad.md", "draft", "Bad_ID", "1"
+            )  # invalid set id
+            recs = {r.path.name: r for r in plans_mod.scan(root)}
+            self.assertEqual(recs["20260101-0000-01-s1.md"].set_id, "editor-workflow")
+            self.assertEqual(recs["20260101-0000-01-s1.md"].order, 1)
+            self.assertIsNone(recs["20260101-0002-01-lone.md"].set_id)  # standalone
+            self.assertIsNone(recs["20260101-0002-01-lone.md"].order)
+            self.assertIsNone(
+                recs["20260101-0003-01-bad.md"].set_id
+            )  # malformed -> None
+
+    def test_board_renders_sets_section_and_warnings(self):
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            plans = root / ".agents" / "plans"
+            _write(
+                plans / "pending" / "20260101-0000-01-a.md", "approved", "myset", "2"
+            )
+            _write(
+                plans / "pending" / "20260101-0001-01-b.md", "approved", "myset", "1"
+            )
+            _write(
+                plans / "pending" / "20260101-0002-01-c.md", "approved", "myset", "1"
+            )  # dup order
+            out = plans_mod.render_status_index(root, plans_mod.scan(root))
+            self.assertIn("## Sets", out)
+            self.assertIn("**myset**", out)
+            self.assertIn("WARNING", out)  # duplicate Order
+            # Within the Sets section, Order-1 members render before the Order-2 member
+            # (grouped + order-sorted). Scope the check to the Sets section, since the primary
+            # status board above lists the same files by filename order.
+            sets = out[out.index("## Sets") :]
+            self.assertLess(
+                sets.index("20260101-0001-01-b.md"), sets.index("20260101-0000-01-a.md")
+            )
+
+    def test_no_sets_section_when_no_set_declared(self):
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            _fixture(root)  # none of these declare Set:
+            out = plans_mod.render_status_index(root, plans_mod.scan(root))
+            self.assertNotIn("## Sets", out)
 
 
 if __name__ == "__main__":

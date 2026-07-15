@@ -18,7 +18,8 @@
   plans board; document the fields in `.agents/plans/README.md`, `.agents/workflows/templates/plans-README.md`,
   and the assess IPD template. NO change to the filename convention, `NN` semantics, `normalize_plan_names.py`,
   or any existing filename. NO change to the `Status:` enum. Tests + DECISIONS + CHANGELOG.
-- Status: reviewed
+- Status: executed
+- Approval: approved by Gabriele 2026-07-15 (interactive)
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -41,6 +42,19 @@
   (MEDIUM) pinned DECISIONS to D82 (D79/D80/D81 taken) to prevent a collision. Also past-tensed the
   Concern paragraph's "pending IPDs" phrasing. OQ1-OQ3 remain non-blocking design leans. No BLOCKER/HIGH.
   Status -> reviewed (reviewed != approved; awaits human sign-off).
+- 2026-07-15 approved by Gabriele (interactive), then EXECUTED (its_direct/pt3-claude-opus-4.8-1m-us).
+  Added `Set:`/`Order:` support to `agent_workflows/plans.py` (`_SET_RE`/`_ORDER_RE`, `is_set_id_valid`,
+  `parse_order`, `read_set`, `PlanRecord.set_id`/`.order`, `group_sets`/`set_warnings`, and a secondary
+  "Sets" section in `render_status_index` with soft warnings for duplicate/partial `Order`); documented
+  the fields in the assess IPD template and BOTH byte-identical plans READMEs; added `SetOrderTests` to
+  `tests/test_plans_board.py`; DECISIONS D82 + CHANGELOG. Did NOT back-tag the executed motivating set
+  (frozen); recorded it as the motivating example in D82. No pending set existed to live-tag, so no demo
+  tagging was done (optional, per the plan). VALIDATION (actual): `python -m pytest -q` -> "252 passed,
+  1 skipped in 53.16s" (one self-inflicted test-assertion bug found + fixed during the run: the ordering
+  check now scopes to the Sets section, since the primary status board lists the same files by
+  filename). Manual: byte-identical READMEs confirmed; a temp `Set: demo` rendered grouped + order-sorted
+  with disposition tags; `aw plans` shows no Sets section (no repo plan declares a Set yet, correct); 0
+  em/en dashes. Scope fence held (no filename/NN/Status changes). Status -> executed; git mv to executed/.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
@@ -179,7 +193,7 @@ INTENT that a human reasons about, so authority is bounded:
    `1033-01` are in `executed/` and their set fields are FROZEN). Do NOT change the filename convention,
    `NN`, `normalize_plan_names.py`, the `Status:` enum, any existing filename, any EXECUTED plan's set
    fields, or send any agent-comms reply. Any set membership/order/name change must be surfaced (Workflow
-   history) and confirmed, never silent. If a fix seems to need more, STOP and report.
+   history) and   confirmed, never silent. If a fix seems to need more, STOP and report.
 2. Authoring style: NO em dashes or en dashes in any Markdown you write.
 3. VALIDATE: run the FULL test suite; paste the ACTUAL runner output (new Set/Order parse + board tests
    must pass). Keep the two plans-README copies byte-identical (diff them). Confirm `aw plans` (board)

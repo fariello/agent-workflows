@@ -56,12 +56,46 @@ LEGACY_GROUP = "legacy/unknown"
 
 _STATUS_RE = re.compile(r"^- Status:\s*(?P<val>\S+)", re.MULTILINE)
 
+# Optional ordered-SET metadata (D82). ADVISORY only: `Set:`/`Order:` group related plans and make
+# their intended run order queryable/visible; they do NOT auto-execute, do not gate approval, and do
+# not change the `Status:` lifecycle. They are ORTHOGONAL to the filename convention and `NN` (which
+# keep their same-minute-disambiguator role). `Set:` is a lowercase-kebab id shared by a set's
+# members; `Order:` is the 1-based position within the set (meaningful only alongside `Set:`).
+_SET_RE = re.compile(r"^- Set:\s*(?P<val>\S+)", re.MULTILINE)
+_ORDER_RE = re.compile(r"^- Order:\s*(?P<val>\S+)", re.MULTILINE)
+_SET_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+MAX_SET_ID_LEN = 40
+
+
+def is_set_id_valid(value: Optional[str]) -> bool:
+    """Return True if ``value`` is a valid ``Set:`` id (lowercase-kebab, 1..MAX_SET_ID_LEN chars)."""
+    if not value or not isinstance(value, str):
+        return False
+    if len(value) > MAX_SET_ID_LEN:
+        return False
+    return bool(_SET_ID_RE.match(value))
+
+
+def parse_order(value: Optional[str]) -> Optional[int]:
+    """Parse an ``Order:`` value into a positive int (1-based), or None if absent/invalid."""
+    if value is None:
+        return None
+    raw = str(value).strip()
+    if not raw.isdigit():
+        return None
+    n = int(raw)
+    return n if n >= 1 else None
+
 
 class PlanRecord(NamedTuple):
     path: Path
     area: str  # "plans" or "prompts"
     disposition: str  # the directory name (pending/executed/... or "" if top-level)
     status: Optional[str]  # canonical readiness, LEGACY_GROUP, or None (no status)
+    set_id: Optional[str] = (
+        None  # advisory ordered-set id (D82), or None if not in a set
+    )
+    order: Optional[int] = None  # 1-based position within the set, or None
 
 
 def normalize_status(raw: Optional[str]) -> Optional[str]:
@@ -91,6 +125,25 @@ def read_status(md: Path) -> Optional[str]:
     return normalize_status(m.group("val")) if m else None
 
 
+def read_set(md: Path) -> "tuple[Optional[str], Optional[int]]":
+    """Return the advisory ``(set_id, order)`` from a file's front-matter (D82).
+
+    ``set_id`` is None when absent or malformed (not a valid lowercase-kebab id); ``order`` is None
+    when absent or not a positive integer. Reads front-matter only; writes nothing.
+    """
+
+    try:
+        text = md.read_text(encoding="utf-8")
+    except OSError:
+        return (None, None)
+    sm = _SET_RE.search(text)
+    om = _ORDER_RE.search(text)
+    raw_set = sm.group("val") if sm else None
+    set_id = raw_set if is_set_id_valid(raw_set) else None
+    order = parse_order(om.group("val")) if om else None
+    return (set_id, order)
+
+
 def scan(root: Path, include_prompts: bool = True) -> List[PlanRecord]:
     """Scan ``<root>/.agents/plans`` (and ``.agents/prompts``) for plan/prompt records.
 
@@ -112,7 +165,8 @@ def scan(root: Path, include_prompts: bool = True) -> List[PlanRecord]:
             for f in sorted(d.glob("*.md")):
                 if f.name == "README.md":
                     continue
-                records.append(PlanRecord(f, area, disp, read_status(f)))
+                set_id, order = read_set(f)
+                records.append(PlanRecord(f, area, disp, read_status(f), set_id, order))
     return records
 
 
@@ -128,6 +182,37 @@ def group(records: List[PlanRecord]) -> "Dict[str, Dict[str, List[PlanRecord]]]"
 
 def _status_sort_key(status: str):
     return (_READINESS_ORDER.get(status, len(_READINESS_ORDER) + 1), status)
+
+
+def group_sets(records: List[PlanRecord]) -> "Dict[str, List[PlanRecord]]":
+    """Group records that carry a ``Set:`` by set id (D82). Records without a set are excluded."""
+
+    by_set: Dict[str, List[PlanRecord]] = {}
+    for rec in records:
+        if rec.set_id:
+            by_set.setdefault(rec.set_id, []).append(rec)
+    return by_set
+
+
+def _set_member_sort_key(rec: PlanRecord):
+    # Ordered members first (by Order), then unordered members by filename. `order is None` sorts last.
+    return (rec.order is None, rec.order if rec.order is not None else 0, rec.path.name)
+
+
+def set_warnings(set_id: str, members: List[PlanRecord]) -> List[str]:
+    """Return soft-warning strings for a set: duplicate `Order:` values, or a mix of ordered and
+    unordered members. Empty when the set is cleanly ordered (or cleanly unordered)."""
+
+    warnings: List[str] = []
+    orders = [m.order for m in members if m.order is not None]
+    if len(orders) != len(set(orders)):
+        warnings.append(f"set `{set_id}`: duplicate Order values")
+    n_ordered = len(orders)
+    if 0 < n_ordered < len(members):
+        warnings.append(
+            f"set `{set_id}`: some members have Order and some do not (partial ordering)"
+        )
+    return warnings
 
 
 def render_status_index(root: Path, records: List[PlanRecord]) -> str:
@@ -159,5 +244,29 @@ def render_status_index(root: Path, records: List[PlanRecord]) -> str:
             lines.append(f"- **{status}** ({len(recs)})")
             for rec in sorted(recs, key=lambda r: r.path.name):
                 lines.append(f"  - `{rec.path.relative_to(root).as_posix()}`")
+        lines.append("")
+
+    # Secondary "Sets" view (D82): advisory ordered-set grouping. Kept separate from the primary
+    # status board above so set-grouping never disrupts the readiness view. Omitted entirely when no
+    # plan declares a `Set:`.
+    by_set = group_sets(records)
+    if by_set:
+        lines.append(f"## Sets ({len(by_set)})")
+        lines.append("")
+        lines.append(
+            "Advisory ordered groupings (`Set:`/`Order:` front-matter). ADVISORY only: they do not "
+            "auto-execute or gate approval; the human still approves each plan."
+        )
+        lines.append("")
+        for set_id in sorted(by_set):
+            members = by_set[set_id]
+            lines.append(f"- **{set_id}** ({len(members)})")
+            for rec in sorted(members, key=_set_member_sort_key):
+                order = rec.order if rec.order is not None else "-"
+                lines.append(
+                    f"  - {order}. `{rec.path.relative_to(root).as_posix()}` [{rec.disposition}]"
+                )
+            for warn in set_warnings(set_id, members):
+                lines.append(f"  - WARNING: {warn}")
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
