@@ -13,6 +13,32 @@ FIXED 2026-07-13: `test_normalize_plan_names.py` date-relative flakiness (tests 
 dates; product unchanged). See DECISIONS D78 and
 `.agents/plans/executed/20260713-1419-01-normalize-plan-names-test-date-flakiness.md`.
 
+## Planned next (designed, deferred; not yet drafted as IPDs)
+
+The agent-comms convention (D81) was IPD 1 of a designed 4-IPD split; IPDs 2-4 are intended future work
+(not "maybe" ideas). They are OPTIONAL and OpenCode-specific, and the convention works standalone without
+them, so none is release-gating. Full design + the load-bearing unknowns are in
+`.agents/docs/research/20260714-2300-01-same-box-agent-wakeup-mechanisms.md`. Each still needs its own IPD
+and human approval before any build.
+
+- **IPD 2 - the payload-blind broker (OpenCode-only, opt-in).** A long-lived per-box notifier that
+  watches `.agents/comms/local/inbox/` (inotify), enforces `Not-Before`, delivers a FIXED content-free
+  "check your inbox" nudge to the target OpenCode instance via its server API, and writes the
+  broker-authored delivery acks (scheduled/queued/delivered/agent-not-running/agent-not-responding/
+  expired). HARD INVARIANT: the broker is payload-BLIND (reads envelope headers only, never the payload;
+  carries no attacker-controlled text). Attended TUIs get a gentle nudge (never a forced turn); headless
+  targets can be woken. FEASIBILITY UNVERIFIED against a live OpenCode binary (can a plugin run a detached
+  listener + originate a turn? cross-instance reachability? the unauthenticated-by-default server) - must
+  be confirmed (OpenCode-repo agent / live test) BEFORE this IPD is drafted for real.
+- **IPD 3 - agent-side ack writing + status aggregation.** The target agent writes its own
+  read/in-progress/done/not-done/executed/not-executed acks; a status view aggregates ack files into a
+  per-message lifecycle board. Depends on IPD 1 (format) + IPD 2 (broker acks to interleave).
+- **IPD 4 - discovery/registry.** How the broker finds live targets + their mode/endpoint: prefer
+  OpenCode's own mDNS/`attach`, with a filesystem descriptor as fallback; stale-entry reaping. Depends on
+  IPD 2. Cross-box is out of scope for this line.
+- Deferred beyond the split: conditional scheduling (`Depends-On` marker files), Telegram/Signal and
+  other transports, cross-box comms.
+
 ## Consider and possibly implement (not committed, may be declined)
 
 Ideas worth revisiting; each needs a real decision before it becomes a plan. Do not implement any of
