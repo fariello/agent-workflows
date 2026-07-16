@@ -3,7 +3,9 @@
 Status: agent-executable runbook (hand this to an OpenCode/other coding agent to run the verification and emit a report)
 Date: 2026-07-16
 Author: agent-workflows session (opencode)
-Human companion: `20260716-1342-01-opencode-cross-user-verification-protocol.md` (read that for rationale).
+Home: `.agents/prompts/reusable/` (a reusable, run-once verification prompt; may be re-run by the hosted-service owner).
+Human companion: `20260716-1342-01-opencode-cross-user-verification-protocol.md` (same directory; read that for rationale).
+Results destination: file the completed RESULTS report under `.agents/docs/research/opencode-security/` (durable analysis home), not here.
 Target: OpenCode CLI/TUI. Findings so far verified same-user on v1.18.2 (source refs at commit `70b56a0a9`).
 
 ---
@@ -67,7 +69,7 @@ Show this:
 > - Everything cross-user is currently an UNVERIFIED prediction; my run will confirm or refute it.
 >
 > OUTPUT
-> - I will write a results report to `.agents/docs/research/20260716-1342-03-...-RESULTS.md` (or a path you give me) and hand it back for your security report.
+> - I will write a results report to `.agents/docs/research/opencode-security/20260716-1342-03-...-RESULTS.md` (or a path you give me) and hand it back for your security report.
 
 Then ask INTERACTIVELY (use your question/prompt tool if you have one; otherwise ask in chat and wait):
 
@@ -84,7 +86,7 @@ Only after an explicit choice do you continue to Step 0. Record the operator's e
 
 ## STEP 0: set up the report file
 
-Create the output report at: `.agents/docs/research/20260716-1342-03-opencode-cross-user-verification-RESULTS.md` (or a path the operator gives you). Start it with this header and fill each section as you go:
+Create the output report at: `.agents/docs/research/opencode-security/20260716-1342-03-opencode-cross-user-verification-RESULTS.md` (or a path the operator gives you; create the `opencode-security/` dir if absent). Start it with this header and fill each section as you go:
 
     # OpenCode shared-host security: verification RESULTS
     Run date: <fill>

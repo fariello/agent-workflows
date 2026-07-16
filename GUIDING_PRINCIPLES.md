@@ -39,6 +39,28 @@ For multi-step work, the authoritative record lives in files, not in conversatio
 memory or ephemeral task lists. This makes work recoverable, auditable, and robust to
 context degradation.
 
+Then prefer LOCATION over CONTENTS for state that is surveyed across many items. When
+you need to see the state of many artifacts at once (which plans are pending, which
+prompts are queued to run), encode that state in the filesystem itself (directory
+placement and filename) rather than only in a line inside each file. A directory listing
+reveals the state of every item in one cheap glance; reading a status line inside each
+file requires opening every file (costly for a human, and many tokens for an agent).
+Location-encoded state also resists rot: the state changes by the act of moving the
+file, which cannot be half-done or forgotten the way an in-file marker can, and it is
+tool-agnostic (a file tree works everywhere; parsing file contents needs a parser that
+can drift). This is why the plan lifecycle uses directories for disposition.
+
+Boundaries (when an in-file marker or a stable path is still right):
+- One primary axis per tree. A file lives in exactly one directory, so encode only the
+  ONE primary lifecycle axis in the path. Orthogonal or secondary attributes
+  (readiness, grouping, ordering) stay as in-file fields. This is why plans keep
+  disposition in the directory but `Status:`, `Set:`, and `Order:` in the file.
+- Do not move artifacts that are cited by a stable path. Durable knowledge (research
+  analysis notes, specs) is referenced by path; there, citation stability outweighs
+  glanceability, so keep the path stable and let an in-file `Status:` carry the rare
+  state change (for example current vs superseded).
+- If the file must be opened anyway for the task, an in-file marker is fine.
+
 ## 6. KISS, and guard against scope creep
 
 Prefer the simplest design that meets the need. Because "fix by default" invites
