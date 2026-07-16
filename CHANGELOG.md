@@ -52,6 +52,17 @@ pending and un-cut. Final release scoping is confirmed at release-review.)
 
 Pure bug-fix patch for install-path issues found by using 1.2.0. Not yet cut.
 
+- Fixed (install correctness, from an `/assess bugs` pass): (1) `install-workflows.py` / `engine.run()`
+  now returns its computed exit code instead of always `0`, so a failed/aborted target repo makes the
+  process exit non-zero. (2) `--undo` rollback now removes the installer's setup-artifact files
+  (`.gitleaksignore`, the secret-scan CI workflow, and the `.agents/comms/` skeleton), which were
+  previously left behind because they were not recorded in `.created-files.json`. (3) `aw install all`
+  and `aw setup` now isolate a per-repo `SystemExit` (e.g. a directory conflict), so one failing repo no
+  longer aborts the whole batch. Also: fixed an `Optional` type annotation, a preserved-customized-shim
+  status tag (now `[preserved]` instead of the misleading `[no change]`), a silent install-record write
+  failure (now warns), CSV outputs opened with `newline=""` (no double blank rows on Windows), a dead
+  Makefile meta-target skip in the check runner, and short-secret redaction (short secrets are no longer
+  nearly fully revealed in scan output).
 - Fixed: the installer stamped the wrong version into target repos. `.agents/workflows/VERSION`
   was baked at `1.1.0` even in the `v1.2.0` release, and the installer copies that file into each
   target. The baked VERSION is now re-baked from the intended release version and committed before

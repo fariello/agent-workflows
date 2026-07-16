@@ -496,8 +496,11 @@ def _install_all(args: argparse.Namespace, term: Term) -> int:
                 term.status("ok", f"{repo}: {n} file(s); version {result['version']}")
             ok += 1
         except (
-            Exception
-        ) as exc:  # isolate: one repo failing must not stop the batch (R-4)
+            Exception,
+            SystemExit,
+        ) as exc:  # isolate: one repo failing must not stop the batch (R-4). install_into_repo ->
+            # install_all can raise SystemExit (dir-conflict / git failure), which is BaseException,
+            # NOT Exception - catch it too or one repo aborts the whole batch (D85 F8).
             term.status("fail", f"{repo}: {exc}")
             failed += 1
 
@@ -745,7 +748,11 @@ def _run_setup(args: argparse.Namespace, term: Term) -> int:
                     no_color=getattr(args, "no_color", False),
                 )
                 term.status("ok", f"{repo}: version {result['version']}")
-            except Exception as exc:
+            except (
+                Exception,
+                SystemExit,
+            ) as exc:  # SystemExit from install_all must not abort the
+                # remaining repos in the setup loop either (D85 F8).
                 term.status("fail", f"{repo}: {exc}")
 
     _orient(term)

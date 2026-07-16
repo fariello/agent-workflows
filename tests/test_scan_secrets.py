@@ -26,6 +26,19 @@ class ScannerUnitTests(unittest.TestCase):
         self.assertNotIn(FAKE_AWS_KEY, redacted)
         self.assertIn("*", redacted)
 
+    def test_redaction_of_short_secret_reveals_few_chars(self):
+        # D85 F-tools: a short (9-15 char) secret must NOT be nearly fully revealed. The old
+        # head4+tail4 preview exposed 8 of 9 chars; the fix caps revealed chars at first2+last2.
+        secret = "abcdefghi"  # 9 chars
+        redacted = SS.redact(secret)
+        # Count only the alphanumeric leak in the preview, not the "(len=..)" suffix digits.
+        preview = redacted.split(" (len=")[0]
+        leaked = sum(1 for ch in preview if ch != "*")
+        self.assertLessEqual(
+            leaked, 4, f"short-secret redaction revealed too much: {redacted!r}"
+        )
+        self.assertNotIn(secret, redacted)
+
     def test_detects_aws_key_in_text(self):
         findings = SS.scan_text(
             f"aws_key = {FAKE_AWS_KEY}",

@@ -802,7 +802,10 @@ def write_file(
                                 continue
                             break
                     if not plan.yes and choice not in ("y", "yes"):
-                        skipped.append(relative_posix + " [already current]")
+                        # A deliberately-preserved customized file is NOT "already current" (it
+                        # differs from the template); tag it distinctly so the summary does not
+                        # report it identically to an untouched file (D85 F6).
+                        skipped.append(relative_posix + " [preserved]")
                         return
             except OSError:
                 pass
@@ -1699,8 +1702,14 @@ def save_created_files_record(
     record_path = backup_dir / ".created-files.json"
     try:
         record_path.write_text(json.dumps(newly_created, indent=2), encoding="utf-8")
-    except OSError:
-        pass
+    except OSError as exc:
+        # Non-fatal, but warn: without this record, a later `--undo` cannot know which files to
+        # remove, so rollback fidelity is silently degraded (D85 F14).
+        print(
+            f"Warning: could not write install record {record_path} ({exc}); "
+            "`--undo` rollback may be incomplete for this install.",
+            file=sys.stderr,
+        )
 
 
 def prune_old_backups(repo_root: Path) -> None:
@@ -1881,7 +1890,7 @@ def prompt_and_run_commit(
     agents_status: dict[str, str],
     backups_ignore_status: str,
     use_git: bool,
-    artifacts: list[str] = None,
+    artifacts: list[str] | None = None,
 ) -> None:
     """Offer to commit only the installer-modified files."""
     if not use_git or plan.dry_run:
@@ -2027,6 +2036,9 @@ def format_output_item(item: str, term: Term) -> str:
     elif action == "already current":
         tag = "[no change]"
         color = "yellow"
+    elif action == "preserved":
+        tag = "[preserved]"
+        color = "cyan"
     elif action in ("git rm", "rm"):
         tag = "[removed  ]"
         color = "red"
@@ -2699,6 +2711,12 @@ def install_into_repo(
     newly_created = [
         item.rsplit(" [", 1)[0] for item in installed if item.endswith(" [install]")
     ]
+    # Record the create_setup_artifacts files too, so `--undo` rollback removes them (D85 F5).
+    # These are the .gitleaksignore / secret-scan CI / .agents/comms/ skeleton files; the README
+    # ensurers already appear in `installed` with a ` [install]` tag (captured above), so we add
+    # ONLY the create_setup_artifacts set here (no double-record). The suffix-strip is a no-op on the
+    # real-branch bare paths and defensive against any ` [dry-run]` entry.
+    newly_created.extend(item.rsplit(" [", 1)[0] for item in artifacts)
     save_created_files_record(plan.repo_root, timestamp, newly_created)
     prune_old_backups(plan.repo_root)
 
@@ -2833,7 +2851,7 @@ def run(args: argparse.Namespace) -> int:
             use_git=use_git,
             artifacts=artifacts,
         )
-    return 0
+    return returncode
 
 
 def main(argv=None) -> int:

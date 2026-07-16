@@ -83,6 +83,37 @@ class InstallVerbTests(CliTestBase):
         self.assertEqual(code, 1)
         self.assertIn("No repos", out)
 
+    def test_install_all_isolates_systemexit(self):
+        # F8 (D85): install_into_repo -> install_all can raise SystemExit (BaseException, not
+        # Exception). `install all` must isolate it per-repo (R-4): one repo raising SystemExit must
+        # NOT abort the batch; the second repo must still be attempted.
+        from unittest import mock
+
+        a = self._repo("a")
+        b = self._repo("b")
+        cfg = CFG.default_config()
+        cfg["repos"] = [str(a), str(b)]
+        CFG.save(cfg)
+
+        calls = []
+
+        def fake_install(repo, *args, **kwargs):
+            calls.append(Path(repo).name)
+            if Path(repo).name == "a":
+                raise SystemExit("simulated dir-conflict in repo a")
+            return {"installed": [], "version": "test", "migrated": []}
+
+        with mock.patch(
+            "agent_workflows.engine.install_into_repo", side_effect=fake_install
+        ):
+            with mock.patch(
+                "agent_workflows.engine.run_git_diagnostics", return_value=True
+            ):
+                code, out = _run(["install", "all", "--yes"])
+        # Both repos were attempted despite a raising SystemExit (isolation held).
+        self.assertEqual(sorted(calls), ["a", "b"])
+        self.assertIn("fail", out.lower())
+
 
 class InstallDiagnosticsTests(CliTestBase):
     """1837-01: the CLI install path must run the shared git-diagnostics pre-flight

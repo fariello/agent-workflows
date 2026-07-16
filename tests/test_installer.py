@@ -636,5 +636,46 @@ class SingleSourceOrchestratorTests(unittest.TestCase):
         self.assertIn("migrated", result)
 
 
+class InstallCorrectnessTests(unittest.TestCase):
+    """Regression tests for the D85 bug fixes (F4 exit code, F5 rollback completeness, F6 tag)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_run_returns_nonzero_when_a_repo_is_not_a_directory(self):
+        # F4: run() must propagate its computed returncode, not hardcode 0. A nonexistent target is
+        # skipped with returncode=1; the whole run must therefore exit non-zero.
+        good = init_repo(self.base / "good")
+        missing = self.base / "does-not-exist"
+        args = INS.parse_args(
+            ["--repo", str(good), str(missing), "--yes", "--no-color"]
+        )
+        self.assertEqual(INS.run(args), 1)
+
+    def test_rollback_removes_create_setup_artifacts_files(self):
+        # F5: files created by create_setup_artifacts (e.g. .gitleaksignore, .agents/comms/README.md)
+        # must be recorded in .created-files.json so --undo removes them.
+        repo = init_repo(self.base / "r")
+        INS.install_into_repo(
+            repo, REPO_ROOT / ".agents" / "workflows", yes=True, no_color=True
+        )
+        gitleaks = repo / ".gitleaksignore"
+        comms_readme = repo / ".agents" / "comms" / "README.md"
+        self.assertTrue(gitleaks.is_file())
+        self.assertTrue(comms_readme.is_file())
+        INS.run_rollback(repo, no_color=True)
+        self.assertFalse(
+            gitleaks.exists(), "rollback left .gitleaksignore behind (F5 regression)"
+        )
+        self.assertFalse(
+            comms_readme.exists(),
+            "rollback left .agents/comms/README.md behind (F5 regression)",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
