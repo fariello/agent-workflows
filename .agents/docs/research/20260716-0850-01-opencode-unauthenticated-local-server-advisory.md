@@ -3,25 +3,25 @@
 Status: security advisory (authored analysis, verified against OpenCode source and a live self-test on this host)
 Date: 2026-07-16
 Author: agent-workflows session (opencode)
-Affected: OpenCode CLI/TUI, verified on v1.18.2 (source refs at commit `70b56a0a9`)
-Scope: SHARED / MULTI-USER hosts (HPC login nodes, shared dev servers, multi-tenant CI). NEGLIGIBLE on a single-user machine (the attacker and victim are the same user).
+Affected: OpenCode CLI/TUI, verified on v1.18.2; the no-listener-on-plain-TUI behavior re-confirmed on a fresh-install v1.18.3 (source refs at commit `70b56a0a9`)
+Scope: SHARED / MULTI-USER hosts (HPC login nodes, shared dev servers, multi-tenant CI) WHERE A USER RUNS A LISTENING OPENCODE SERVER. NEGLIGIBLE on a single-user machine (the attacker and victim are the same user), and NOT APPLICABLE to a plain attended TUI that runs no server (see "Precondition" below).
 Disclosure posture: COORDINATED. Notify OpenCode maintainers privately first with this repro and a fix proposal; hold public disclosure until they respond or a 30-45 day deadline elapses. This file is an internal record, not a public post.
 
 ## Summary
 
-On a shared host, while any user is running OpenCode (the TUI or `opencode serve`), any OTHER local user on the same machine can take full control of that user's agent, including running arbitrary shell commands as the victim, with:
+On a shared host, while a user is running a LISTENING OpenCode server (`opencode serve`, `opencode web`, or a TUI/config that opens a server) with no password, any OTHER local user on the same machine can take full control of that user's agent, including running arbitrary shell commands as the victim, with:
 
 - no authentication (OpenCode does not require a password by default),
 - no permission prompt (a tool call injected over the API executes without the interactive approval gate), and
-- no visibility for the victim (the attacker creates a NEW session, which the victim's TUI does not display; demonstrated).
+- no visibility for the victim (the attacker creates a NEW session, which the victim's TUI does not display; demonstrated same-user).
 
-This is a cross-user, stealth, remote-code-execution-as-the-victim condition on any multi-user box. The stealth is inherent to the attacker creating their own session rather than reusing the victim's, and was demonstrated directly. It is mitigable today (see the companion hardening how-to) but the default posture is unsafe on shared systems. (One NARROWER sub-claim - invisibility of injecting into the victim's OWN attended session - is left unproven and is called out precisely below; it is not needed for the finding.)
+This is a cross-user, stealth, remote-code-execution-as-the-victim condition on any multi-user box WHEN THE PRECONDITION (a listening server) holds. It is mitigable today (see the companion hardening how-to) but the default posture of a server is unsafe on shared systems. (One NARROWER sub-claim - invisibility of injecting into the victim's OWN attended session - is left unproven and is called out precisely below; it is not needed for the finding.)
 
-## The listener: the OpenCode TUI itself
+## Precondition: a LISTENING server must exist (verified cross-user 2026-07-16)
 
-There is no separate daemon. The `opencode` TUI embeds an HTTP server on the same code path as `opencode serve`, bound to `127.0.0.1` on an ephemeral port. Running the interactive tool IS starting the control port. Therefore, for as long as a user has an OpenCode TUI open on a shared host, an unauthenticated control surface for their agent exists.
+The exposure requires an actual listening HTTP server. This is NOT automatic for the interactive tool. Verified by a real two-account test on this host: a second user (`victim-user`) running a fresh-install v1.18.3 plain `opencode` TUI (no config, launched from a non-home directory) owned ZERO listening sockets, was not reachable on any port, and its `/proc/<pid>/cwd` and `/proc/<pid>/environ` were Permission-denied to another non-root user. So a plain attended TUI is NOT cross-user reachable and cannot be probed or driven by another local user. The attack surface appears specifically when a user runs a server: `opencode serve` / `opencode web` (or a configuration that opens one). Earlier wording in this advisory that "the TUI itself embeds the server, so running the tool IS opening the port" was an over-generalization from same-user serve tests and is corrected here: the embedded-server code path exists, but a default interactive TUI does not open a listening TCP port.
 
-For contrast, on the same test host the Antigravity IDE server and VS Code remote servers both enforce a connection token / CSRF token. OpenCode's no-auth-by-default is a specific design choice, not a platform norm.
+For contrast, on the same test host the Antigravity IDE server and VS Code remote servers both enforce a connection token / CSRF token. OpenCode's no-auth-by-default (for the server it DOES open) is a specific design choice, not a platform norm.
 
 ## Verified facts
 
