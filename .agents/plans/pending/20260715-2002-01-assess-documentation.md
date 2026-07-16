@@ -13,7 +13,7 @@
   change. NO change to the versioning MECHANISM (git-tag-driven / bake-then-tag) - only CHANGELOG content
   re-scoping. The version-scoping is a release-scoping RECOMMENDATION the human decides at approval (or
   defers to release-review Section 8).
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -23,6 +23,20 @@
   audit lanes (dogfooding D84: lane 1 CHANGELOG/versioning, lane 2 broader docs), coordinator synthesized.
   The two highest-severity findings (CHANGELOG mis-scoping; TODO calling comms "on trial") were
   independently re-verified against source before filing.
+- 2026-07-15 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED
+  (self-review of the assess output, applied with extra skepticism). Independently re-verified all 8
+  findings against current source (F5 zero comms mentions in README/ARCHITECTURE; F6 CONTRIBUTING:54
+  module list; F7 ARCHITECTURE test inventory; F8 .agents/README.md children; F1-F4 earlier) - all
+  accurate. Findings: PR-004 (HIGH) the F3 fix as written (`aw install .`) triggers a "would DOWNGRADE"
+  warning in this repo (VERSION 1.2.1 vs installed dev build) and re-syncs the whole framework (verified
+  by dry-run); changed F3 to regenerate ONLY the block via `engine.update_agents_pointer` with a
+  STOP-and-report guard. PR-001 (MEDIUM) STATUS.md (F4) must regenerate LAST, after this IPD's git-mv to
+  executed/, or it re-lists this IPD as pending; added an explicit commit/move ORDER to the gate. PR-002
+  (MEDIUM) scoped the AGENTS-block regeneration to avoid an unexpected broad diff. PR-003 (LOW) noted 8
+  findings map to 7 proposed-change steps (F6/F7/F8 combined). Verified the current block lacks "check
+  your inbox" while the generator includes it (so the fix is warranted). OQ1 (accept re-scope now vs
+  defer) and OQ2 (F1c bucket) are release-scoping decisions left for the approver with leans, not
+  guessed. No unfixed BLOCKER/HIGH. Status -> reviewed (awaits human sign-off).
 
 ## Project conventions discovered (Step 0)
 
@@ -93,11 +107,20 @@ workflow bodies + plans README; no `tmp/agent-comms` leakage into current author
    items (trust tiers, verifiable provenance, `aw comms` helper) at the canonical spec
    `20260715-1722-01-agent-comms-convention.md`, not the retired draft `20260712-2133-02`. Keep `aw comms`
    as a legitimately-open idea but drop the false "gated on the trial / would be its own IPD" framing.
-4. **[F3] Re-sync this repo's `AGENTS.md` block (REGENERATE, do not hand-edit).** Run `aw install .` so the
-   managed `AGENT-WORKFLOWS` block picks up the D81 "check your inbox" clause. This is a generated artifact;
-   regenerate it, do not author it by hand. Verify the block then contains the clause.
+4. **[F3] Re-sync this repo's `AGENTS.md` managed block (REGENERATE, do not hand-edit).** The block
+   currently lacks the D81 "check your inbox" clause; the generator emits it (`engine.py:576-582`).
+   MECHANISM CAVEAT (verified at review): a plain `aw install .` in this repo triggers a "would DOWNGRADE"
+   warning (repo VERSION `1.2.1` vs the installed dev build) and re-syncs the whole framework. To avoid
+   that, regenerate ONLY the block: call `engine.update_agents_pointer` against this repo (or write
+   `engine.agents_pointer_block()` output through the managed-block merge) so the sole change is the
+   `AGENT-WORKFLOWS` block. Verify the block then contains "check your inbox" AND that NO other file
+   changed as a side effect (if a broader re-sync is unavoidable, STOP and report before committing a
+   large diff). Do not hand-author the block.
 5. **[F4] Regenerate `.agents/plans/STATUS.md`** via `aw plans --write-index` (generated artifact; do not
-   hand-edit). Confirm it then reads 0 pending / 60 executed (or whatever is current at execution time).
+   hand-edit). ORDERING (important): regenerate STATUS.md LAST, AFTER this IPD has been `git mv`d to
+   `executed/` (gate step 5), so the board does not list this very IPD as pending and immediately go
+   stale again. Confirm it then reads 0 pending (or whatever is current post-move) and the correct
+   executed count.
 6. **[F5] Surface `.agents/comms/` in a top-level doc.** Add a short subsection + a repo-tree line to
    ARCHITECTURE.md (near the distribution/setup-artifacts discussion) and a brief mention in README's
    "What's in this repo", pointing at `.agents/comms/README.md` and the canonical spec. Keep it concise
@@ -140,19 +163,25 @@ workflow bodies + plans README; no `tmp/agent-comms` leakage into current author
 `to-review`. Execution contract (follow EXACTLY):
 
 1. SCOPE FENCE. Edit ONLY: CHANGELOG.md, TODO.md, ARCHITECTURE.md, README.md, CONTRIBUTING.md,
-   `.agents/README.md`. REGENERATE (do not hand-edit) `.agents/plans/STATUS.md` (via `aw plans
-   --write-index`) and this repo's `AGENTS.md` managed block (via `aw install .`). Do NOT change product
-   code, the versioning mechanism, any DECISIONS entry, or cut/tag/push a release. If a fix seems to need
-   more, STOP and report.
+   `.agents/README.md`. REGENERATE (do not hand-edit): this repo's `AGENTS.md` managed block via
+   `engine.update_agents_pointer` (NOT a full `aw install .`, which warns "would DOWNGRADE" and re-syncs
+   everything - see step 4; if a broader re-sync is the only path, STOP and report), and
+   `.agents/plans/STATUS.md` via `aw plans --write-index` (LAST, after the git-mv - see step 4/5). Do NOT
+   change product code, the versioning mechanism, any DECISIONS entry, or cut/tag/push a release. If a fix
+   seems to need more, STOP and report.
 2. Authoring style: NO em dashes or en dashes in any Markdown you write.
 3. VALIDATE: run the FULL test suite; paste the ACTUAL runner output. Confirm: CHANGELOG 1.2.1 holds only
    D75/D76/D77/D78 (+ the F1c-decided docs line) and 1.3.0 holds D79-D84 features; TODO no longer says
    comms is "on trial"/"gated"; this repo's AGENTS.md now contains the "check your inbox" clause; STATUS.md
    shows the current 0-pending count; `aw plan-names` clean; the two plans-README copies remain
    byte-identical if touched (not expected here).
-4. COMMIT only this IPD's touched/regenerated files, PATH-SCOPED; never `git add -A`/bare/`-a`; never push.
-5. When implemented and tests actually pass, `git mv` this file to `.agents/plans/executed/`, set
-   `Status:` to `executed`, append a `## Workflow history` line, commit path-scoped.
+4. COMMIT/MOVE ORDER (matters for STATUS.md accuracy): (a) commit the doc edits + the regenerated AGENTS
+   block, path-scoped; (b) set this IPD `Status: executed`, append a `## Workflow history` line, and
+   `git mv` it to `.agents/plans/executed/`; (c) NOW regenerate `.agents/plans/STATUS.md` via
+   `aw plans --write-index` (so it reflects this IPD as executed, not pending) and commit it. All commits
+   PATH-SCOPED; never `git add -A`/bare/`-a`; never push.
+5. (Superseded by step 4's explicit order.) The lifecycle move to `.agents/plans/executed/` happens in
+   step 4(b), before the STATUS.md regeneration.
 
 HARD MUST: paste the real test output; regenerate (never hand-edit) STATUS.md and the AGENTS block; stay
 inside the scope fence; do not cut/tag/push a release; never push. Not auto-executed; requires human
