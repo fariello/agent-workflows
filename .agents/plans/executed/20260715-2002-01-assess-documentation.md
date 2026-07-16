@@ -13,7 +13,10 @@
   change. NO change to the versioning MECHANISM (git-tag-driven / bake-then-tag) - only CHANGELOG content
   re-scoping. The version-scoping is a release-scoping RECOMMENDATION the human decides at approval (or
   defers to release-review Section 8).
-- Status: reviewed
+- Status: executed
+- Approval: approved by Gabriele 2026-07-15 (interactive). OQ1 resolved: ACCEPT the 1.2.1/1.3.0 re-scope
+  now (move D80/D81/D82 features to 1.3.0). OQ2 resolved: keep D79's `aw plan-names` bucket line in 1.2.1
+  as a bug fix. OQ3: concise pointer for F5 (no fuller section).
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -37,6 +40,21 @@
   your inbox" while the generator includes it (so the fix is warranted). OQ1 (accept re-scope now vs
   defer) and OQ2 (F1c bucket) are release-scoping decisions left for the approver with leans, not
   guessed. No unfixed BLOCKER/HIGH. Status -> reviewed (awaits human sign-off).
+- 2026-07-15 approved by Gabriele (interactive; OQ1 accept re-scope now, OQ2 keep bucket line in 1.2.1,
+  OQ3 concise F5 pointer), then EXECUTED (its_direct/pt3-claude-opus-4.8-1m-us). F1: CHANGELOG re-scoped -
+  moved the comms (D81), Set/Order (D82), and readiness-vocab (D80) feature bullets from 1.2.1 into
+  1.3.0; split D79's `aw plan-names` bucket fix into its own 1.2.1 bug-fix bullet and made the rest of the
+  docs pass documentation-only; revised the 1.3.0 header/note. F2: TODO updated (comms formalized in D81;
+  repointed to the canonical spec `20260715-1722-01`; dropped the "on trial/gated" framing while keeping
+  trust-tiers/provenance/`aw comms` as open follow-ups). F5: surfaced `.agents/comms/` in ARCHITECTURE
+  (new subsection + repo-tree line) and README. F6/F7/F8: CONTRIBUTING module list (+comms/plans/
+  pypi_links), ARCHITECTURE test inventory (+comms/plans-board tests), `.agents/README.md` (+docs/comms
+  bullets). F3: regenerated ONLY this repo's AGENTS block via `engine.update_agents_pointer` (NOT
+  `aw install .`) - verified the sole file changed was AGENTS.md and it now carries the "check your
+  inbox" clause; no downgrade warning, no broad re-sync. VALIDATION (actual): `python -m pytest -q` ->
+  "254 passed, 1 skipped in 56.12s"; greps confirmed (features in 1.3.0; 0 "on trial"/"gated" in TODO;
+  AGENTS clause present; 0 em/en dashes). Committed doc edits + AGENTS block (76145c0). F4 (STATUS.md
+  regen) done LAST, after this git-mv, per the reviewed ordering. Status -> executed.
 
 ## Project conventions discovered (Step 0)
 
