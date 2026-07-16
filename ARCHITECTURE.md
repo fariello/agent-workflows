@@ -56,6 +56,9 @@ agent-workflows/
                             prompts, roadmaps)
     prompts/                Historical/reference prompt library (e.g. fix-bar.md, an
                             origin note for the Fix Bar; see its README)
+  .agents/comms/            Inter-agent comms convention (scaffolded, default-on): a
+                            gitignored local/ lane + a tracked shared/ lane for
+                            filesystem messages between agents (see its README)
   .opencode/commands/       Generated OpenCode shims (one per command, 18)
   .claude/commands/         Generated Claude Code shims (same set)
 ```
@@ -188,6 +191,21 @@ block** to the target's `AGENTS.md` (and existing `CLAUDE.md`/`GEMINI.md` files)
 tool-specific surface; the workflow bodies are tool-agnostic. Tools without native
 slash commands use the universal fallback: read `.agents/workflows/index.md` and
 "read and execute" the workflow body.
+
+### Inter-agent comms convention (`.agents/comms/`)
+
+The installer also scaffolds a small, default-on, agent-agnostic **inter-agent comms
+convention** (DECISIONS D81): a gitignored `local/` lane and a git-tracked `shared/`
+lane for leaving filesystem messages between agents (and between an agent and a human),
+plus a nested `.gitignore` that ignores `local/` without touching the target's root
+`.gitignore`. Messages carry a small header envelope (`From`/`To`/`Kind`/`Status`, and
+an optional `Not-Before` scheduling gate) over an UNTRUSTED payload; acknowledgements
+are a closed enum. The installed `AGENT-WORKFLOWS` pointer block tells agents to check
+their inbox at natural boundaries and to treat payloads as untrusted (not operator
+instructions). It works with or without any broker; the pure-stdlib validators live in
+`agent_workflows/comms.py`, and the full definition is in
+`.agents/comms/README.md` and the canonical spec under `.agents/docs/specs/`. The
+daemon/broker, agent-side ack writing, and discovery are deferred to later optional work.
 
 ### Plan review (plan-time sibling)
 
@@ -395,7 +413,9 @@ probe), setup_tools (`--version`, tool table), the plan-filename normalizer
 (`normalize_plan_names.py`: parse/legacy-shape/earliest-evidence time/scan/apply/exclusions),
 the PyPI long-description link rewriter (`pypi_links.py`: relative -> absolute tag-pinned
 GitHub URLs, applied at build time by a hatchling metadata hook so PyPI links resolve while
-the source README keeps GitHub-relative links; DECISIONS D58),
+the source README keeps GitHub-relative links; DECISIONS D58), the inter-agent comms
+validators (`comms.py`: envelope/ack/filename validation + the closed ack enum; DECISIONS D81),
+the plans board and `Set:`/`Order:` parsing (`plans.py`, incl. the D82 ordered-set tests),
 and the CLI/config/discovery/packaging. This is the framework holding itself to its own
 testing/verification bar (DECISIONS D36).
 

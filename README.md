@@ -279,8 +279,11 @@ your code.
   from `.agents/workflows/`).
 - `.opencode/commands/`, `.claude/commands/` - generated slash-command shims.
 - `AGENTS.md` (and existing `CLAUDE.md`/`GEMINI.md` files) - a managed pointer block to the workflow index.
-- `.agents/docs/prompts/` - a historical/reference prompt library (independent of the workflows;
-  origin material, see `.agents/docs/prompts/README.md`).
+- `.agents/docs/` - durable reference docs, organized into buckets (research, walkthroughs, specs,
+  prompts, roadmaps; see `.agents/docs/README.md`). The `prompts/` bucket is a historical/reference
+  prompt library (origin material).
+- `.agents/comms/` - the scaffolded inter-agent comms convention (a gitignored `local/` inbox lane and a
+  tracked `shared/` lane for filesystem messages between agents; see `.agents/comms/README.md`).
 
 ## Understanding this project
 

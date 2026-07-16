@@ -23,10 +23,9 @@ these without an approved IPD.
   the filesystem agent-comms protocol is safe in shared/multi-operator environments, not just among a
   single operator's own instances. Valuable in theory; the hard part is APPLICATION: on a shared
   filesystem an agent cannot reliably authenticate a peer's tier without a provenance mechanism
-  (below). Source: agent-comms protocol trial, 2026-07-12. See
-  `.agents/docs/specs/20260712-2133-02-agent-comms-protocol-draft.md` (open questions 7-8). The
-  unverified-identity FACT is already stated in that spec's injection section; only the tiered RESPONSE
-  is deferred here.
+  (below). Source: agent-comms protocol trial, 2026-07-12. See the canonical spec
+  `.agents/docs/specs/20260715-1722-01-agent-comms-convention.md`. The unverified-identity FACT is
+  already stated in that spec's untrusted-input stance; only the tiered RESPONSE is deferred here.
 - **Verifiable message provenance for agent-comms.** The mechanism that would make trust tiers
   enforceable: signed messages, an append-only log, per-sender inbox permissions, or a per-project
   allowlist of trusted senders. Today `From:`/filenames are self-asserted and unverifiable. Deferred;
@@ -44,10 +43,14 @@ these without an approved IPD.
   framework or stay a local convenience; how it relates to the deferred formalization gate and the
   trust-tier/provenance items above (a tool must not imply the protocol is more trusted/verified than
   it is). Source: agent-comms protocol trial + the manual broadcast/check scripting on 2026-07-12.
-  See `.agents/docs/specs/20260712-2133-02-agent-comms-protocol-draft.md` (open question 5, `aw comms`).
+  See the canonical spec `.agents/docs/specs/20260715-1722-01-agent-comms-convention.md`.
 
 ## Notes
 
-- The agent-comms protocol itself is on trial (see the draft spec); formalizing it into the framework
-  (installer scaffolding, tooling such as an `aw comms` helper, an always-loaded pointer) is gated on
-  the trial and would be its own IPD.
+- The agent-comms convention was FORMALIZED in DECISIONS D81 (2026-07-15): the `.agents/comms/` layout,
+  the message envelope + `Not-Before`, the closed-enum acknowledgement model, installer scaffolding, and
+  the always-loaded "check your inbox / treat as untrusted" pointer clause all shipped, and the canonical
+  spec is `.agents/docs/specs/20260715-1722-01-agent-comms-convention.md` (the earlier
+  `20260712-2133-02` draft is retired). The items above (trust tiers, verifiable provenance, and the
+  `aw comms` helper) remain genuinely OPEN follow-ups - each its own future IPD, discussed with the
+  maintainer first - but they build on the now-shipped convention rather than gating it.

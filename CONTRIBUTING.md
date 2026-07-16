@@ -51,8 +51,8 @@ Committed secrets and PII/PHI must never enter this repo, including its git hist
 
 The framework's Python code has automated tests (stdlib `unittest`, zero dependencies -
 consistent with the tools themselves). If you change any of the mechanical parts - the
-`agent_workflows/` package (installer/CLI engine, config, discovery, versioning, term) or
-the workflow tools (`scan_secrets.py`, `run_checks.py`, `bench_env.py`, `setup_tools.py`,
+`agent_workflows/` package (installer/CLI engine, config, discovery, versioning, term, comms, plans,
+pypi_links) or the workflow tools (`scan_secrets.py`, `run_checks.py`, `bench_env.py`, `setup_tools.py`,
 `normalize_plan_names.py`) - run the whole suite:
 
 ```
