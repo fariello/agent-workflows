@@ -101,7 +101,20 @@ class InstallVerbTests(CliTestBase):
             calls.append(Path(repo).name)
             if Path(repo).name == "a":
                 raise SystemExit("simulated dir-conflict in repo a")
-            return {"installed": [], "version": "test", "migrated": []}
+            # Full result shape: the shared _install_one shell now runs print_summary +
+            # prompt_and_run_commit, which read all these keys (D85 install parity).
+            return {
+                "installed": [],
+                "skipped": [],
+                "pruned": [],
+                "migrated": [],
+                "artifacts": [],
+                "agents_status": {},
+                "gitignore_status": "",
+                "backups_ignore_status": "",
+                "use_git": False,
+                "version": "test",
+            }
 
         with mock.patch(
             "agent_workflows.engine.install_into_repo", side_effect=fake_install
@@ -113,6 +126,31 @@ class InstallVerbTests(CliTestBase):
         # Both repos were attempted despite a raising SystemExit (isolation held).
         self.assertEqual(sorted(calls), ["a", "b"])
         self.assertIn("fail", out.lower())
+
+    def test_install_all_yes_commits_and_leaves_no_dirty(self):
+        # D85 root-cause regression: `aw install all --yes` must COMMIT each repo and leave NO
+        # staged-but-uncommitted files (the bug left a 30-repo fleet silently dirty).
+        from tests.support import git
+
+        a = self._repo("a")
+        b = self._repo("b")
+        cfg = CFG.default_config()
+        cfg["repos"] = [str(a), str(b)]
+        CFG.save(cfg)
+
+        code, out = _run(["install", "all", "--yes"])
+        self.assertEqual(code, 0, out)
+        for repo in (a, b):
+            self.assertTrue((repo / ".agents/workflows/VERSION").is_file(), out)
+            staged = git(repo, "diff", "--cached", "--name-only").stdout.strip()
+            self.assertEqual(
+                staged,
+                "",
+                f"{repo} left staged-but-uncommitted after install all --yes: {staged}",
+            )
+            # And the install landed as a commit.
+            log = git(repo, "log", "-1", "--pretty=%s").stdout
+            self.assertIn("agent-workflows", log)
 
 
 class InstallDiagnosticsTests(CliTestBase):

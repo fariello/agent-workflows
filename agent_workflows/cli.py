@@ -325,6 +325,99 @@ def _diagnostics_ok(repo_root: Path, args: argparse.Namespace) -> bool:
 # --------------------------------------------------------------------------------------
 
 
+def _install_one(
+    repo_root: Path,
+    source_root: Path,
+    args: argparse.Namespace,
+    term: Term,
+) -> str:
+    """Install into ONE repo through the single shared shell, then summarize and offer to commit.
+
+    This is the ONE per-repo orchestration all entry points use (D85: `aw install <dir>`,
+    `aw install all`, `aw setup`, and the engine `run()` path), so none can drift into
+    staging-without-committing. It runs: install_into_repo (steps) -> print_summary -> a status line
+    -> prompt_and_run_commit (auto-commits under --yes, prompts otherwise, and on decline prints the
+    "left staged; commit with git commit -- ..." line so a repo is NEVER left SILENTLY dirty). It is
+    SystemExit-isolated so a dir-conflict/git failure in one repo cannot abort a batch (R-4).
+
+    Returns one of "ok", "nochange", or "failed" for the caller's tally.
+    """
+
+    import copy
+
+    try:
+        result = engine.install_into_repo(
+            repo_root,
+            source_root,
+            dry_run=getattr(args, "dry_run", False),
+            backup=not getattr(args, "no_backup", False),
+            prune=not getattr(args, "no_prune", False),
+            yes=getattr(args, "yes", False),
+            no_color=getattr(args, "no_color", False),
+        )
+    except (
+        Exception,
+        SystemExit,
+    ) as exc:  # isolate one repo's failure from a batch (R-4).
+        term.status("fail", f"{repo_root}: {exc}")
+        return "failed"
+
+    workflows = engine.parse_manifest(source_root)
+    engine_args = copy.copy(args)
+    engine_args.repo_root = repo_root
+    engine_args.version = False
+    engine_args.diff = False
+    engine_args.undo = False
+    # The `setup` / `install all` arg namespaces do not carry the `install`-verb flags, but
+    # build_install_plan reads them as hard attributes. Fill the same defaults install_into_repo
+    # used above so the shared plan is well-formed for every entry point (behavior-preserving:
+    # the single-repo `install` path already has these, so getattr returns its real values).
+    engine_args.dry_run = getattr(args, "dry_run", False)
+    engine_args.no_backup = getattr(args, "no_backup", False)
+    engine_args.no_prune = getattr(args, "no_prune", False)
+    plan = engine.build_install_plan(engine_args)
+
+    engine.print_summary(
+        plan=plan,
+        workflows=workflows,
+        migrated=result.get("migrated") or [],
+        installed=result["installed"],
+        skipped=result["skipped"],
+        pruned=result["pruned"],
+        agents_status=result["agents_status"],
+        gitignore_status=result["gitignore_status"],
+        backups_ignore_status=result["backups_ignore_status"],
+        use_git=result["use_git"],
+    )
+
+    n = len(result["installed"])
+    if n == 0:
+        term.status(
+            "ok",
+            f"{repo_root}: already current at version {result['version']}; nothing to update.",
+        )
+        outcome = "nochange"
+    else:
+        term.status(
+            "ok",
+            f"{repo_root}: installed/updated {n} file(s); version {result['version']}.",
+        )
+        outcome = "ok"
+
+    # Offer to commit (auto under --yes; prompt otherwise; on decline it prints how to commit, so
+    # nothing is left SILENTLY staged). This is the step batch paths previously skipped (the bug).
+    engine.prompt_and_run_commit(
+        plan=plan,
+        installed=result["installed"],
+        pruned=result["pruned"],
+        agents_status=result["agents_status"],
+        backups_ignore_status=result["backups_ignore_status"],
+        use_git=result["use_git"],
+        artifacts=result.get("artifacts") or [],
+    )
+    return outcome
+
+
 def _run_install(args: argparse.Namespace, term: Term) -> int:
     targets = args.targets if getattr(args, "targets", None) else []
     if "all" in targets:
@@ -371,65 +464,9 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
             term.status("skip", f"{repo_root}: aborted; nothing changed.")
             continue
 
-        try:
-            result = engine.install_into_repo(
-                repo_root,
-                source_root,
-                dry_run=args.dry_run,
-                backup=not args.no_backup,
-                prune=not args.no_prune,
-                yes=getattr(args, "yes", False),
-                no_color=getattr(args, "no_color", False),
-            )
-        except SystemExit as exc:
-            term.status("fail", f"{repo_root}: {exc}")
+        # Shared per-repo shell (install + summary + commit-offer, SystemExit-isolated).
+        if _install_one(repo_root, source_root, args, term) == "failed":
             returncode = 1
-            continue
-
-        workflows = engine.parse_manifest(source_root)
-        import copy
-
-        engine_args = copy.copy(args)
-        engine_args.repo_root = repo_root
-        engine_args.version = False
-        engine_args.diff = False
-        engine_args.undo = False
-        plan = engine.build_install_plan(engine_args)
-
-        engine.print_summary(
-            plan=plan,
-            workflows=workflows,
-            migrated=result.get("migrated") or [],
-            installed=result["installed"],
-            skipped=result["skipped"],
-            pruned=result["pruned"],
-            agents_status=result["agents_status"],
-            gitignore_status=result["gitignore_status"],
-            backups_ignore_status=result["backups_ignore_status"],
-            use_git=result["use_git"],
-        )
-
-        n = len(result["installed"])
-        if n == 0:
-            term.status(
-                "ok",
-                f"{repo_root}: already current at version {result['version']}; nothing to update.",
-            )
-        else:
-            term.status(
-                "ok",
-                f"{repo_root}: installed/updated {n} file(s); version {result['version']}.",
-            )
-
-        engine.prompt_and_run_commit(
-            plan=plan,
-            installed=result["installed"],
-            pruned=result["pruned"],
-            agents_status=result["agents_status"],
-            backups_ignore_status=result["backups_ignore_status"],
-            use_git=result["use_git"],
-            artifacts=result.get("artifacts") or [],
-        )
     return returncode
 
 
@@ -477,32 +514,13 @@ def _install_all(args: argparse.Namespace, term: Term) -> int:
             term.status("skip", f"{repo}: aborted at git pre-flight")
             aborted += 1
             continue
-        try:
-            result = engine.install_into_repo(
-                repo,
-                source_root,
-                dry_run=args.dry_run,
-                backup=not args.no_backup,
-                prune=not args.no_prune,
-                yes=getattr(args, "yes", False),
-                no_color=getattr(args, "no_color", False),
-            )
-            n = len(result["installed"])
-            if n == 0:
-                term.status(
-                    "ok", f"{repo}: already current at version {result['version']}"
-                )
-            else:
-                term.status("ok", f"{repo}: {n} file(s); version {result['version']}")
-            ok += 1
-        except (
-            Exception,
-            SystemExit,
-        ) as exc:  # isolate: one repo failing must not stop the batch (R-4). install_into_repo ->
-            # install_all can raise SystemExit (dir-conflict / git failure), which is BaseException,
-            # NOT Exception - catch it too or one repo aborts the whole batch (D85 F8).
-            term.status("fail", f"{repo}: {exc}")
+        # Shared per-repo shell: installs AND offers to commit (auto under --yes), SystemExit-isolated.
+        # Before D85 this batch path staged files and never committed -> a fleet left silently dirty.
+        outcome = _install_one(repo, source_root, args, term)
+        if outcome == "failed":
             failed += 1
+        else:
+            ok += 1
 
     term.line()
     summary = f"{ok} installed, {failed} failed"
@@ -740,20 +758,9 @@ def _run_setup(args: argparse.Namespace, term: Term) -> int:
             if not _diagnostics_ok(repo, args):
                 term.status("skip", f"{repo}: aborted at git pre-flight")
                 continue
-            try:
-                result = engine.install_into_repo(
-                    repo,
-                    source_root,
-                    yes=getattr(args, "yes", False),
-                    no_color=getattr(args, "no_color", False),
-                )
-                term.status("ok", f"{repo}: version {result['version']}")
-            except (
-                Exception,
-                SystemExit,
-            ) as exc:  # SystemExit from install_all must not abort the
-                # remaining repos in the setup loop either (D85 F8).
-                term.status("fail", f"{repo}: {exc}")
+            # Shared per-repo shell: installs AND offers to commit (auto under --yes),
+            # SystemExit-isolated. Before D85 setup staged files and never committed.
+            _install_one(repo, source_root, args, term)
 
     _orient(term)
     return 0

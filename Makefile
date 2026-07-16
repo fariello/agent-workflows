@@ -32,4 +32,9 @@ sys.exit('error: VERSION=%r is not a valid release version (expected X.Y.Z or X.
 p = pathlib.Path('.agents/workflows/VERSION'); \
 v = override if override else versioning.resolve_version(pathlib.Path('.')); \
 p.write_text(v + '\n', encoding='utf-8'); \
-print('wrote', p, '->', v)"
+idx = pathlib.Path('.agents/workflows/index.md'); \
+t = idx.read_text(encoding='utf-8') if idx.is_file() else None; \
+t2 = (re.sub(r'<!-- WORKFLOWS-VERSION: [^>]*-->', '<!-- WORKFLOWS-VERSION: %s -->' % v, t, count=1) if t else t); \
+t2 = (re.sub(r'(?m)^Version: \`[^\`]*\`', 'Version: \`%s\`' % v, t2, count=1) if t2 else t2); \
+idx.write_text(t2, encoding='utf-8') if (t2 is not None and t2 != t) else None; \
+print('wrote', p, '->', v, '(+ synced index.md stamp)' if (t2 is not None and t2 != t) else '')"

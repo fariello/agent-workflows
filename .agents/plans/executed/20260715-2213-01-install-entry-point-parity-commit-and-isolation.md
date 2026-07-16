@@ -15,7 +15,8 @@
   (`run()` isolation; the shared commit/summary shell) + tests; plus the release-review report-only Lows
   (REL-003/004/006/007) which are the same "finish the job" cleanup. NO change to install no-clobber/
   backup/staging safety. NO release cut.
-- Status: reviewed
+- Status: executed
+- Approval: approved by Gabriele 2026-07-15 (interactive)
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -40,6 +41,22 @@
   report otherwise; PR-003 (LOW) fixed a stray non-ASCII char in the DECISIONS bullet. OQ2 (batch prompt
   UX) resolved by the strengthened invariant; OQ1/OQ3 non-blocking leans. No unfixed BLOCKER/HIGH.
   Status -> reviewed (awaits human sign-off).
+- 2026-07-15 approved by Gabriele (interactive), then EXECUTED (its_direct/pt3-claude-opus-4.8-1m-us).
+  P-1: extracted `cli._install_one` (shared per-repo shell: install_into_repo -> print_summary -> status
+  -> prompt_and_run_commit, SystemExit-isolated) and routed `_run_install` (behavior preserved),
+  `_install_all`, and the `setup` loop through it - the two batch paths now commit/summarize instead of
+  silently staging. P-2: wrapped `engine.run()`'s install_into_repo in except (Exception, SystemExit).
+  P-3: run_rollback catches (OSError, ValueError) + warns. P-4: NOTICE dashes removed. P-5: _compat.py
+  3.8->3.9 wording (tests.yml already accurate, left as-is). P-6: `make version-file` now syncs the
+  index.md stamp (verified idempotent at 1.2.1). DECISIONS D85 + CHANGELOG 1.2.1. Fixed one
+  behavior-preservation regression the tests caught (build_install_plan needs dry_run/no_backup/no_prune
+  attrs the setup/install-all namespaces lack - filled with getattr defaults in _install_one) and updated
+  the pre-existing isolation test's mock to the full result shape. Added regression tests:
+  test_install_all_yes_commits_and_leaves_no_dirty (the headline bug), test_run_multi_repo_isolates_
+  systemexit, test_rollback_survives_corrupt_created_files_record, NoticeStyleTests. VALIDATION (actual):
+  `python -m pytest -q` -> "262 passed, 1 skipped in 61.22s". Manual: `aw install all --yes` on a
+  throwaway 2-repo config COMMITTED both and left staged=0 (the exact bug, now fixed); non-interactive
+  no-yes cleanly aborts (no silent-dirty). 0 em/en dashes. Status -> executed; git mv to executed/.
 
 ## Findings this IPD fixes (VERIFIED against source)
 

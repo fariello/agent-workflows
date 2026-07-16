@@ -52,6 +52,16 @@ pending and un-cut. Final release scoping is confirmed at release-review.)
 
 Pure bug-fix patch for install-path issues found by using 1.2.0. Not yet cut.
 
+- Fixed (HIGH, install parity - DECISIONS D85): `aw install all` and `aw setup` previously STAGED the
+  framework files in every configured repo but never offered to commit them, silently leaving a whole
+  fleet dirty. All install entry points (`aw install`, `aw install all`, `aw setup`,
+  `install-workflows.py`) now share one per-repo orchestration shell that installs, summarizes, AND
+  offers to commit (auto-commits under `--yes`; prompts otherwise; on decline it tells you what is left
+  staged and how to commit) - so no path leaves a repo silently dirty. Also finished the batch
+  SystemExit-isolation fix in the legacy `engine.run()` multi-repo path (one bad repo no longer aborts
+  the batch), made `--undo` rollback survive a corrupt install record, removed em dashes from `NOTICE`,
+  corrected stale "3.8 floor" wording to the declared 3.9, and made `make version-file` sync the
+  `index.md` version stamp.
 - Fixed (install correctness, from an `/assess bugs` pass): (1) `install-workflows.py` / `engine.run()`
   now returns its computed exit code instead of always `0`, so a failed/aborted target repo makes the
   process exit non-zero. (2) `--undo` rollback now removes the installer's setup-artifact files

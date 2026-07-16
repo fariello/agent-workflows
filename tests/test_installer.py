@@ -676,6 +676,58 @@ class InstallCorrectnessTests(unittest.TestCase):
             "rollback left .agents/comms/README.md behind (F5 regression)",
         )
 
+    def test_run_multi_repo_isolates_systemexit(self):
+        # D85 P-2 (REL-001): engine.run()'s multi-repo loop must isolate a per-repo SystemExit so
+        # one bad repo does not abort the whole `--repo A B` batch.
+        from unittest import mock
+
+        good = init_repo(self.base / "good")
+        other = init_repo(self.base / "other")
+        args = INS.parse_args(["--repo", str(good), str(other), "--yes", "--no-color"])
+        seen = []
+        real = INS.install_into_repo
+
+        def flaky(repo_root, *a, **k):
+            seen.append(Path(repo_root).name)
+            if Path(repo_root).name == "good":
+                raise SystemExit("simulated dir-conflict in good")
+            return real(repo_root, *a, **k)
+
+        with mock.patch.object(INS, "install_into_repo", side_effect=flaky):
+            rc = INS.run(args)
+        self.assertEqual(
+            sorted(seen), ["good", "other"], "batch did not continue past SystemExit"
+        )
+        self.assertEqual(rc, 1, "a repo failing must make run() return non-zero")
+        self.assertTrue((other / ".agents/workflows/VERSION").is_file())
+
+    def test_rollback_survives_corrupt_created_files_record(self):
+        # D85 P-3 (REL-003): a corrupt .created-files.json must not crash run_rollback.
+        import json
+
+        repo = init_repo(self.base / "c")
+        INS.install_into_repo(
+            repo, REPO_ROOT / ".agents" / "workflows", yes=True, no_color=True
+        )
+        # Corrupt the most recent record.
+        backups = sorted(
+            (repo / ".agent-workflows-installer-backups").glob("*/.created-files.json")
+        )
+        self.assertTrue(backups, "no created-files record written")
+        backups[-1].write_text("{ this is not valid json", encoding="utf-8")
+        # Must not raise.
+        try:
+            INS.run_rollback(repo, no_color=True)
+        except json.JSONDecodeError as exc:  # the exact bug
+            self.fail(f"run_rollback crashed on corrupt record: {exc}")
+
+
+class NoticeStyleTests(unittest.TestCase):
+    def test_notice_has_no_em_or_en_dashes(self):
+        # D85 P-4: NOTICE ships in the wheel and must obey the repo's no-dash rule.
+        text = (REPO_ROOT / "NOTICE").read_text(encoding="utf-8")
+        self.assertEqual(text.count("\u2014") + text.count("\u2013"), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

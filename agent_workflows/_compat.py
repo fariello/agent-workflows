@@ -1,15 +1,16 @@
-"""Compatibility helpers, notably a 3.8-safe locator for the shipped workflow tree.
+"""Compatibility helpers, notably a version-robust locator for the shipped workflow tree.
 
 The framework ships `.agents/workflows/` as package data. From an installed wheel it
 lives at `agent_workflows/_data/.agents/workflows/`; from a source checkout it lives at
-the repo root. We must find it without a runtime third-party dependency and while
-honoring the 3.8 floor.
+the repo root. We must find it without a runtime third-party dependency and across
+supported Python versions.
 
-`importlib.resources.files()` (the clean traversable API) was ADDED IN PYTHON 3.9, but
-the floor is 3.8 (DECISIONS D44/spec). So we prefer `files()` when present (3.9+) and
-otherwise fall back to a `__file__`-relative path, which is 3.8-safe and correct for a
-normal (non-zip) wheel install. The wheel is built non-zip-safe so `__file__` is a real
-filesystem path (IPD-2 R-1).
+The declared floor is Python 3.9 (`pyproject.toml`; DECISIONS D44/spec).
+`importlib.resources.files()` (the clean traversable API) is available on 3.9+, so we
+prefer it, and otherwise fall back to a `__file__`-relative path. That fallback keeps
+the locator working for a normal (non-zip) wheel install and remains best-effort on an
+older interpreter (3.8) even though 3.8 is below the supported floor and not covered by
+CI. The wheel is built non-zip-safe so `__file__` is a real filesystem path (IPD-2 R-1).
 """
 
 from __future__ import annotations
@@ -45,10 +46,10 @@ def packaged_source_root() -> Optional[Path]:
         except (ModuleNotFoundError, FileNotFoundError, TypeError):
             pass
     except ImportError:
-        # Python 3.8: importlib.resources.files does not exist; use the fallback below.
+        # Below 3.9 importlib.resources.files does not exist; use the fallback below.
         pass
 
-    # 3.8-safe fallback (and belt-and-suspenders for 3.9+ non-zip installs): resolve the
+    # Fallback (and belt-and-suspenders for 3.9+ non-zip installs): resolve the
     # data dir relative to this module's file. Works whenever the package is unpacked on
     # disk (our wheel is non-zip-safe).
     here = Path(__file__).resolve().parent

@@ -1843,8 +1843,14 @@ def run_rollback(repo_root: Path, no_color: bool) -> int:
     if created_record.is_file():
         try:
             created_files = json.loads(created_record.read_text(encoding="utf-8"))
-        except OSError:
-            pass
+        except (OSError, ValueError):
+            # ValueError covers json.JSONDecodeError: a corrupt/truncated record must not crash the
+            # rollback (D85 REL-003); warn and fall through to restoring whatever backups exist.
+            print(
+                f"Warning: install record {created_record} is unreadable; "
+                "rollback will restore backups only (created-files list skipped).",
+                file=sys.stderr,
+            )
 
     for rel in created_files:
         target = repo_root / rel
@@ -2806,15 +2812,23 @@ def run(args: argparse.Namespace) -> int:
         # presentation shell below (summary + commit prompt), driven by the returned result, using
         # its own richer `plan` (which carries no_color/yes/diff for the interactive UX).
         workflows = parse_manifest(plan.source_root)
-        result = install_into_repo(
-            plan.repo_root,
-            plan.source_root,
-            dry_run=plan.dry_run,
-            backup=plan.backup,
-            prune=plan.prune,
-            yes=plan.yes,
-            no_color=plan.no_color,
-        )
+        try:
+            result = install_into_repo(
+                plan.repo_root,
+                plan.source_root,
+                dry_run=plan.dry_run,
+                backup=plan.backup,
+                prune=plan.prune,
+                yes=plan.yes,
+                no_color=plan.no_color,
+            )
+        except (Exception, SystemExit) as exc:
+            # Isolate one repo's failure from a multi-repo `--repo A B C` batch (D85 REL-001):
+            # install_into_repo -> install_all can raise SystemExit (dir-conflict / git failure),
+            # which is BaseException, not Exception; one bad repo must not abort the whole run.
+            print(f"Error: {plan.repo_root}: {exc}", file=sys.stderr)
+            returncode = 1
+            continue
         installed = result["installed"]
         pruned = result["pruned"]
         agents_status = result["agents_status"]
