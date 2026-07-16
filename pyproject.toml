@@ -12,7 +12,7 @@ description = "Reusable, tool-agnostic agent workflows (review, assess, advise, 
 requires-python = ">=3.9"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
-authors = [{ name = "Gabriele Fariello", email = "gabriele.fariello@gmail.com" }]
+authors = [{ name = "Gabriele Fariello", email = "gfariello@fariel.com" }]
 keywords = ["agent", "workflows", "code-review", "llm", "cli", "developer-tools"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",

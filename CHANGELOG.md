@@ -52,6 +52,8 @@ pending and un-cut. Final release scoping is confirmed at release-review.)
 
 Pure bug-fix patch for install-path issues found by using 1.2.0. Not yet cut.
 
+- Fixed (metadata): the author email now matches across `pyproject.toml` and `CITATION.cff`
+  (`gfariello@fariel.com`); they previously disagreed (release-review REL-002).
 - Fixed (HIGH, install parity - DECISIONS D85): `aw install all` and `aw setup` previously STAGED the
   framework files in every configured repo but never offered to commit them, silently leaving a whole
   fleet dirty. All install entry points (`aw install`, `aw install all`, `aw setup`,
