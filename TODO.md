@@ -13,6 +13,19 @@ FIXED 2026-07-13: `test_normalize_plan_names.py` date-relative flakiness (tests 
 dates; product unchanged). See DECISIONS D78 and
 `.agents/plans/executed/20260713-1419-01-normalize-plan-names-test-date-flakiness.md`.
 
+## Security follow-ups (OpenCode shared-host finding, D86/D87)
+
+Not framework bugs; external-tool finding with coordinated-disclosure obligations. See advisory
+`.agents/docs/research/20260716-0850-01-opencode-unauthenticated-local-server-advisory.md`.
+
+- **Coordinated disclosure to OpenCode maintainers (OPEN).** Send the private report (repro + fix proposal:
+  UNIX 0700 socket / require-auth config key / UID check / redact secrets from `/config` / honor permission
+  policy on API-injected tool calls). Start the 30-45 day clock; go public only if unfixed by the deadline.
+  Human owns whether/when it is sent.
+- **HPC user warning (guidance ready).** Circulate the hardening how-to
+  (`20260716-0850-02-...`). Consider a LOUD shared-host warning in the framework installer only if we decide
+  the framework should carry it (would cite D86/D87); not yet committed.
+
 ## Planned next (designed, deferred; not yet drafted as IPDs)
 
 The agent-comms convention (D81) was IPD 1 of a designed 4-IPD split; IPDs 2-4 are intended future work
@@ -27,9 +40,12 @@ and human approval before any build.
   broker-authored delivery acks (scheduled/queued/delivered/agent-not-running/agent-not-responding/
   expired). HARD INVARIANT: the broker is payload-BLIND (reads envelope headers only, never the payload;
   carries no attacker-controlled text). Attended TUIs get a gentle nudge (never a forced turn); headless
-  targets can be woken. FEASIBILITY UNVERIFIED against a live OpenCode binary (can a plugin run a detached
-  listener + originate a turn? cross-instance reachability? the unauthenticated-by-default server) - must
-  be confirmed (OpenCode-repo agent / live test) BEFORE this IPD is drafted for real.
+  targets can be woken. FEASIBILITY NOW CONFIRMED (live test + source-grounded consult, 2026-07-16; see
+  `.agents/docs/research/20260716-0850-03-broker-feasibility-confirmation.md`): cross-instance
+  delivery/wake works; there is NO discovery API (port must be injected / scraped / enumerated); a plugin
+  and an external daemon share the same HTTP-client channel (external daemon is cleaner); `OPENCODE_SERVER_PASSWORD`
+  Basic auth (user `opencode`) works. This IPD can now be drafted. HARD INVARIANT reinforced by the D86
+  security finding: the broker is payload-BLIND (reads envelope headers only; never a filesystem-to-injection path).
 - **IPD 3 - agent-side ack writing + status aggregation.** The target agent writes its own
   read/in-progress/done/not-done/executed/not-executed acks; a status view aggregates ack files into a
   per-message lifecycle board. Depends on IPD 1 (format) + IPD 2 (broker acks to interleave).
