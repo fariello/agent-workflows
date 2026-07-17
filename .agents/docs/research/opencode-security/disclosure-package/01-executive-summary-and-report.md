@@ -55,6 +55,7 @@ Contained changes that preserve legitimate server/IPC use:
 - Authorize filesystem roots server-side rather than trusting a caller-supplied `directory` (including `/`).
 - Route `/session/{id}/shell` through the same permission planner the shell tool uses, with deterministic headless behavior.
 - A shared server-startup policy across every listener path (serve/web/attach/embedded) that can fail closed and refuse insecure non-loopback startup by default.
+- Operator-enforced auth via OpenCode's EXISTING managed-config tier (PR F). OpenCode already ships a cross-platform admin-authoritative config tier (`/etc/opencode`, `%ProgramData%\opencode`, macOS managed dir + MDM plist) that overrides user config; it just does not reach the server-startup path and has no auth key. Adding a `server.require_server_password` key, making startup read the managed tier, and enforcing it in one shared pre-listen guard would let a cluster operator centrally forbid unsecured (or non-loopback) servers - a small extension of OpenCode's own admin mechanism, not a new philosophy, and the single most useful control for shared/HPC hosts (it removes reliance on every user setting an env var, which fails open silently).
 - Defense in depth: UNIX-domain socket + peer credentials, HTTP access logging, timing-safe password comparison, and deprecating the query-string auth token.
 
 We are glad to help produce real, tested patches if the maintainers wish, and we will follow whatever format and disclosure timeline they prefer.

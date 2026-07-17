@@ -57,6 +57,23 @@ Direction:
 - Deprecate the `?auth_token=` query parameter in favor of the `Authorization: Basic` header (query tokens leak into `cmdline`, history, proxy logs).
 - Stronger non-loopback safeguards: refuse (or require an explicit acknowledgement flag for) a non-loopback bind with no auth; escalate the warning.
 
+### PR F - Operator-enforced auth via the EXISTING managed-config tier (the strongest lever for shared/HPC)
+
+This is the highest-value item for operators and, importantly, it EXTENDS an admin mechanism OpenCode already ships rather than introducing a new philosophy. It was source-validated (fork `dev` `08fb47373`); re-pin before disclosure.
+
+Established facts (source):
+- OpenCode ALREADY has a cross-platform, admin-authoritative config tier that overrides user/project config on scalar keys: the managed directory `/etc/opencode` on Linux (and any non-darwin/win32), `%ProgramData%\opencode` on Windows, `/Library/Application Support/opencode` on macOS, plus a macOS MDM `.mobileconfig` plist whose own code comment says it "override[s] everything" (`config/managed.ts:20-69`, merged last in `config/config.ts:516-534`). So "operator overrides user" is an existing, in-code stance - NOT a new philosophy, and consistent with SECURITY.md's coexistence of "users control their own config" with the MDM override.
+- THE GAP (identical on every OS): the server startup/network path does NOT read the managed tier. `serve`/`web` resolve options via `Config.getGlobal()` -> `loadGlobal`, which merges ONLY `~/.config/opencode/*` (`cli/network.ts:56-60`, `config.ts:246-260`); the managed tier is merged only in `loadInstanceState` (`config.ts:516-534`), which startup does not use (`serve`/`web` run `instance: false`). And there is NO `server.requireAuth`/`server.password` key in the schema (`core/src/v1/config/server.ts:6-18` is `port`/`hostname`/`mdns`/`mdnsDomain`/`cors` only); the password is env-var-only (`server/auth.ts:18`). Net: today a sysadmin CANNOT, via config alone, set/require a password, lock the bind address, or disable mDNS - the exposure-relevant controls are exactly the ones `/etc/opencode` cannot currently constrain.
+
+Direction (small-to-medium, ~1 focused PR; mostly wiring):
+- Add `server.require_server_password: boolean` (and optionally `server.allow_non_loopback_bind: boolean`) to the server schema (`core/src/v1/config/server.ts`) - small, mandatory (unknown keys drop on decode until added).
+- Make the startup path READ the operator tier: a dedicated `resolveStartupPolicy()` beside `resolveNetworkOptions` that reads global + managed (`/etc/opencode` etc.) + MDM (reuse `ConfigManaged.managedConfigDir()`/`readManagedPreferences()` as `config.ts:516-534` does), returning the resolved policy. Preferred over merging managed into `getGlobal` (which would change global-config semantics everywhere).
+- Enforce in ONE shared pre-listen guard at the `Server.listen()` choke point (`server/server.ts:73`), which every listener path (`serve`, `web`, TUI/attach) passes through - this is also the clean fix for the "serve.ts-only patch misses web.ts" gap. Refuse to start when the operator has locked `require_server_password` and `OPENCODE_SERVER_PASSWORD` is empty (and, with the bind key, when a non-loopback bind is locked off).
+- Interim stopgap (service/launcher only, NOT multi-user enforcement): an `OPENCODE_REQUIRE_SERVER_PASSWORD` env flag checked at the same seam - trivial, but a shell user can `unset` it, so it is not enforcement on a shared host. Ship both, OR-ed at the guard, so the interim keeps working after the key lands.
+- Policy decision for maintainers (the only genuinely new bit): whether a managed lock should also beat explicit CLI flags (`cli/network.ts:62-79` currently has CLI flags override config). Without that, `--hostname 0.0.0.0`/`--mdns`/`--port` on the command line still win. A true operator "lock" needs managed values to take precedence over CLI for the locked keys.
+
+Why this is the compelling ask: it lets an operator centrally enforce "no unsecured (or non-loopback) OpenCode server on this cluster," which directly answers the shared/HPC concern and removes reliance on every user setting an env var correctly (which fails open silently). And it is a small extension of OpenCode's OWN existing cross-platform admin-config tier, not a new concept.
+
 ## What no single change fixes (do not overstate)
 
 - A fail-closed startup change does not fix secret return to authenticated clients, caller-selected filesystem roots, the direct-shell permission inconsistency, missing access logs, query-string credential exposure, or per-user socket isolation.
