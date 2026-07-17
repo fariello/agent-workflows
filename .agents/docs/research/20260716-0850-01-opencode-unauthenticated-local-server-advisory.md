@@ -80,16 +80,14 @@ Net: T1-T3 and the filesystem-read finding jointly demonstrate, across real Unix
 
 Severity is HIGH specifically on shared / multi-user hosts running an unsecured server (unauthenticated cross-user file read + shell execution as the victim, API-key disclosure when configured, network-reachable with `0.0.0.0`/`--mdns`, and non-auditable), escalating toward CRITICAL when bound non-loopback on a routable/internet-reachable host. On a single-user machine the finding is negligible (same-user); a plain TUI that opens no server is not affected.
 
-## Precise scope of the stealth claim (what IS and is NOT proven)
+## Precise scope of the stealth claim (both cases now verified)
 
-Two distinct stealth claims must not be conflated:
+Two distinct stealth claims, BOTH now resolved (T6, 2026-07-16):
 
-- PROVEN and load-bearing: an attacker-CREATED session (or any session the victim's TUI did not launch) does not appear in the victim's attended TUI. This is inherent to how the TUI scopes what it displays, and we observed it directly. This alone supports "stealth cross-user code execution on a shared host."
-- NOT proven (and less important): whether injecting a turn into the EXACT session the human is actively attached to, on the SAME embedded server their TUI talks to, is invisible to that human. Our earlier "no TUI indication" observations do NOT establish this, because that activity was in a different session and/or a different embedded-server instance (OpenCode runs one embedded server per TUI process; a dropped/reconnected TUI yields a new server). This sub-claim is not needed for the finding and should not be asserted without the test below.
+- STEALTHY - attacker-CREATED session: a session the victim's TUI did not launch does NOT appear in the victim's attended TUI. Inherent to how the TUI scopes what it displays; observed directly. This is the load-bearing stealth vector and supports "stealth cross-user code execution on a shared host."
+- NOT stealthy - injection into the victim's ACTIVE attended session: VERIFIED VISIBLE. In T6 the victim (`victim-user`) attached a TUI to a serve via `opencode attach http://127.0.0.1:4096`, opened a session ("Greeting request", `ses_09271ec3...`), and watched. The attacker (`attacker-user`) POSTed both a `/message` and a `/shell` (harmless echo) to that exact session id through the same server. BOTH rendered LIVE in the victim's TUI with no keypress: the injected prompt appeared, the agent's turn appeared, and the shell command showed as `$ echo AW-T6-INJECTED-SHELL-...` with its output. NO permission prompt appeared. The shell action was attributed to "the user" in both the on-screen render and the stored message history. CONCLUSION: injecting into the attended session is observable to an attentive human, so a real attacker prefers a NEW session (silent). The stealth claim is thus correctly bounded: new session = invisible; attended session = visible.
 
-### Test that would settle the remaining (narrower) sub-claim
-
-On a single machine, one user: start `opencode` in the TUI, identify the exact `ses_...` that TUI is driving and the port of that TUI's own embedded server, then from another shell `POST /session/{that-exact-id}/message` THROUGH THAT SAME SERVER and watch whether the turn appears in the live TUI. This only settles the attended-session sub-claim; it does not affect the proven attacker-created-session stealth above.
+Incidental confirmations from T6: no permission gate even with a live human attached; injected actions are attributed to the victim in storage and on screen; the injected turns are recorded in the session history (verified via `GET /session/{id}/message`).
 
 ## Reproduction (minimal)
 
