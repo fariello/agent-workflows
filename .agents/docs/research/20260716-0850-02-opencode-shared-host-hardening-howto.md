@@ -52,6 +52,18 @@ Option B, systemd user service with `PrivateNetwork=`:
 
 If the first curl returns 200, you have NO password set and are exposed to every user on the box. Set `OPENCODE_SERVER_PASSWORD` and restart OpenCode.
 
+## Reference architecture for a hosted / multi-user OpenCode service (operator-side)
+
+If you OPERATE a hosted OpenCode offering (many users, shared infrastructure), the per-user advice above is not enough; harden at the platform level. A real deployment we verified (`opencode.its.uri.aws`) uses a two-layer pattern that both enforces auth and prevents users from creating an unsecured server. Recommended pattern (findings note: `research/opencode-security/20260716-2108-01-...`):
+
+1. Wrap the binary. Ship a wrapper as `opencode` on `PATH` that, for ordinary users (not in a tightly-controlled allow-group, not root), BLOCKS `serve`, `web`, `acp`, `attach`, and `--port`/`--hostname`, and directs them to the managed web interface. Keep the real binary non-world-executable (for example `0750 root:<exec-group>`). This removes the "user starts an unsecured server" path entirely.
+2. Inject a per-spawn password. Launch every managed server via a helper that generates a per-spawn random password (for example 32 chars from `/dev/urandom`) and passes it through the ENVIRONMENT (`OPENCODE_SERVER_PASSWORD=...`), NOT on the command line (argv is visible in `ps`/`/proc/<pid>/cmdline`; the environment is owner-readable only). Bind `127.0.0.1` and set a CORS allowlist for the real web origin. Result: every server returns 401 without credentials.
+3. Guard the allow-group. Whoever can bypass the wrapper (the allow-group, and root) can start an unauthenticated server. Keep that group EMPTY/minimal, document it, and monitor membership changes; it is the crown jewel.
+4. Log at the gateway. OpenCode writes no HTTP access log, so put request logging at the reverse proxy / gateway and record the authenticated principal per request for attribution.
+5. Isolate the network for the durable fix. Password auth still leaves loopback ports enumerable (`/proc/net/tcp`) and reachable/brute-forceable and NOT UID-isolated. For true isolation use per-user network namespaces (`PrivateNetwork=` in a per-user systemd unit, `unshare -rn`, or per-user containers), which removes cross-user reachability entirely.
+
+Verified same-user + by launch-path inspection on the production host; the cross-user attack was (correctly) not run on production. The sound safety argument is that the attack chain is broken at step 0 (no unsecured server obtainable, every server authenticated), not that a cross-user exploit was tried and failed.
+
 ## What we cannot do
 
-We cannot stop other people on a shared system from running OpenCode unprotected. This how-to protects YOUR sessions and is the guidance to circulate; the durable fix is upstream (UNIX socket / require-auth-by-default), tracked in advisory `20260716-0850-01`.
+We cannot stop other people on a shared system from running OpenCode unprotected (unless, as above, you control the host and wrap the binary). This how-to protects YOUR sessions and is the guidance to circulate; the durable fix is upstream (UNIX socket / require-auth-by-default), tracked in advisory `20260716-0850-01`.
