@@ -101,6 +101,18 @@ staging concept is already blessed by D50 / IPD `20260712-1544-01` but is not sc
 Ideas worth revisiting; each needs a real decision before it becomes a plan. Do not implement any of
 these without an approved IPD.
 
+- **Repo exclude-globs for `aw setup` / `aw install all`.** Add a config-file list of wildcard globs
+  identifying repos to EXCLUDE from batch install/setup (so `aw setup` -> "install all" and
+  `aw install all` skip matching repos rather than installing into every configured/discovered repo).
+  Motivation: the batch paths currently act on every repo in scope; an operator needs a way to
+  permanently carve out repos (vendored/third-party clones, throwaways, sensitive repos) without
+  hand-picking each run. Design questions for the IPD: where the list lives (the same config the
+  installer already reads), glob semantics (path globs relative to the search root; case sensitivity),
+  precedence vs. explicit targets (an explicit `aw install <dir>` on an excluded repo - honor or warn?),
+  and whether exclusion is reported in the batch summary (list what was skipped and why). Pairs with the
+  D85 batch-install work (all entry points share one shell) - exclusion would be applied in the batch
+  enumeration, before the per-repo install shell.
+
 - **Agent-comms trust tiers.** Distinguish message senders by origin/trust
   (same-operator-same-host vs. cross-operator vs. external/unknown) and escalate gating accordingly, so
   the filesystem agent-comms protocol is safe in shared/multi-operator environments, not just among a
