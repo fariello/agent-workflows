@@ -95,11 +95,37 @@ staging concept is already blessed by D50 / IPD `20260712-1544-01` but is not sc
   create the `.agents/prompts/` skeleton (closing the current "agent-workflows does not manage a prompts dir;
   set it up by hand" gap from IPD `0501-03`), the way it now scaffolds `.agents/comms/`. Needs a decision
   before implementation. Depends on Order 2.
+- **`/handoff` workflow (session-handoff generator; human request 2026-07-17).** Produces a DETAILED
+  cold-start handoff document on demand (facts PLUS a working-style/preferences/nuance layer) so a fresh
+  session resumes with full continuity. NOW HAS A FULL IPD (Status: to-review):
+  `.agents/plans/pending/20260717-2000-01-handoff-workflow-session-continuity.md` (Set:
+  agent-continuity-workflows, Order 3, with `/whatnext`=Order 1 and `/research`=Order 2). The hand-authored
+  `.agents/plans/pending/20260717-1950-01-session-handoff-resume-here.md` is the golden-output example. Needs
+  `/plan-review` -> approval before building; 1.3.0-era. (This bullet is now tracked by that IPD.)
 
 ## Consider and possibly implement (not committed, may be declined)
 
 Ideas worth revisiting; each needs a real decision before it becomes a plan. Do not implement any of
 these without an approved IPD.
+
+- **Extract the push-then-verify CI loop into its own instruction file (from vistab.agent, 2026-07-17;
+  verified against source).** The push -> watch CI -> diagnose -> fix -> commit -> repush -> until-green
+  loop currently lives ONLY inside `release-review/09-release-execution.md` section 3 (`:62`), which is
+  explicitly post-approval and "MUST NOT run" earlier (`:83`). So agents file "make CI green" as a
+  release-only, approval-gated action and stall during ordinary DEVELOPMENT iteration when CI is red.
+  Proposal: extract the loop into a small referenced file (e.g. `release-review/ci-verify-loop.md`),
+  reference it from 09 section 3, AND add an earlier hook so it is invocable whenever the agent pushes
+  during a review/iteration after the human has authorized pushing. Core fix = distinguish "authorized to
+  push and iterate CI" (a development action) from "authorized to publish/tag/deploy" (Section 9 release
+  action). Include honesty MUSTs ("CI green" only assertable for the actually-pushed SHA after a completed
+  green run; local-only success is not CI-green) and a CROSS-VERSION note (local single-interpreter success
+  != matrix success; PEP 649 annotation-eval on 3.14 vs eager eval on <=3.13, and locale/encoding
+  differences, are matrix-only failure classes; the vistab case was a real `NameError: name 'Set' is not
+  defined` that passed locally on 3.14 but broke the whole 3.9-3.13 matrix). Verified: the claim is accurate
+  (loop is only in 09; `final-response.md` also references it). Message archived at
+  `.agents/comms/shared/archive/20260717-1946-01-vistab.agent--to--agent-workflows.agent-ask-extract-ci-verify-loop.md`.
+  Needs its own IPD -> `/plan-review` -> approval. NOTE: relevant to the imminent 1.2.1/1.3.0 release work
+  (it is about making CI-green iteration a first-class, correctly-authorized practice).
 
 - **Repo exclude-globs for `aw setup` / `aw install all`.** Add a config-file list of wildcard globs
   identifying repos to EXCLUDE from batch install/setup (so `aw setup` -> "install all" and
