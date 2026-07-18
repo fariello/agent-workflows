@@ -4,12 +4,13 @@ All notable changes to `agent-workflows` are recorded here. Versions are git-tag
 semantic versioning (see `RELEASING.md`); the authoritative "why" for decisions lives in
 `DECISIONS.md`.
 
-## 1.3.0 (pending) - new conventions/features + internal install unification
+## 1.3.0 (pending) - new conventions/features, internal install unification, and install-path fixes
 
 Not yet cut. This MINOR collects the new user-facing conventions and features of this development cycle
-(agent-comms, plan sets, readiness vocabulary, auto-parallel audit lanes) plus an internal
-behavior-preserving install refactor. (The lower `1.2.1` section below is a pure bug-fix patch; both are
-pending and un-cut. Final release scoping is confirmed at release-review.)
+(agent-comms, plan sets, readiness vocabulary, auto-parallel audit lanes), an internal
+behavior-preserving install refactor, and the bug-fix / install-path corrections found by using 1.2.0
+(previously staged for a separate 1.2.1 patch, now folded into this single release). Final release
+scoping is confirmed at release-review.
 
 - Added: inter-agent comms convention `.agents/comms/` (DECISIONS D81). A portable, agent-agnostic,
   default-on filesystem convention for messages between agents (and agent/human): a gitignored `local/`
@@ -47,11 +48,6 @@ pending and un-cut. Final release scoping is confirmed at release-review.)
   fall out: the CLI install summary now lists migrated files (it silently omitted them before), and
   `aw install --yes` now overwrites a customized shim to match `install-workflows.py --yes`. The
   deliberately-terse `aw install all` batch path is unchanged.
-
-## 1.2.1 (pending) - install pre-flight and versioning fixes
-
-Pure bug-fix patch for install-path issues found by using 1.2.0. Not yet cut.
-
 - Fixed (metadata): the author email now matches across `pyproject.toml` and `CITATION.cff`
   (`gfariello@fariel.com`); they previously disagreed (release-review REL-002).
 - Fixed (HIGH, install parity - DECISIONS D85): `aw install all` and `aw setup` previously STAGED the
@@ -80,7 +76,7 @@ Pure bug-fix patch for install-path issues found by using 1.2.0. Not yet cut.
   target. The baked VERSION is now re-baked from the intended release version and committed before
   tagging (bake-then-tag), and a test guards against a stale/dev baked value. (The 1.2.0 PyPI wheel
   was unaffected; its version is resolver-computed.)
-- (Pending in this patch) `aw install` now runs the full git-diagnostics pre-flight (parity with the
+- (Pending) `aw install` now runs the full git-diagnostics pre-flight (parity with the
   deprecated installer), and the diagnostics no longer offer a no-op "git pull" for a repo that is
   merely dirty from untracked files and already in sync.
 - Internal: fixed wall-clock-proximity flakiness in the plan-filename normalizer tests (they now use

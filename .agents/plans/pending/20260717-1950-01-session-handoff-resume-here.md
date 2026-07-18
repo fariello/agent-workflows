@@ -1,10 +1,10 @@
 # Session handoff: resume here
 
-Status: draft
-Kind: session-handoff (cold-start orientation for a fresh session; NOT an IPD to execute)
-Date: 2026-07-17
-Author: agent-workflows session (opencode)
-Purpose: let a new session pick up exactly where the previous one left off. Read this first, then confirm the OPEN DECISION below with the human before doing product work.
+- Status: draft
+- Kind: session-handoff (cold-start orientation for a fresh session; NOT an IPD to execute)
+- Date: 2026-07-17
+- Author: agent-workflows session (opencode)
+- Purpose: let a new session pick up exactly where the previous one left off. Read this first, then confirm the OPEN DECISION below with the human before doing product work.
 
 ## How to use this
 
@@ -46,20 +46,15 @@ Other artifacts to be aware of:
 - Untracked `.agents/docs/roadmaps/20260712-1426-...-roadmap-for-consideration.md` is NOT ours; leave it alone.
 - House rules: no em/en dashes in authored Markdown; commit ONLY your own files, path-scoped (`git commit -m msg -- <path>`), never `git add -A`, never push unless asked; pre-commit (ruff/whitespace/eof/gitleaks) may reformat+abort, re-stage+re-commit.
 
-## OPEN DECISION to settle first (this is why the previous session stalled)
+## RESOLVED DECISION (settled 2026-07-17; was the reason the previous session stalled)
 
-Release scope. The prior recorded decision was: cut 1.2.1 = PATCH now (install-safety fixes, already implemented + green), and 1.3.0 = FEATURE minor later (blocked on the broker). CHANGELOG.md is structured with BOTH a `1.2.1 (pending)` and a `1.3.0 (pending)` section. The human indicated they believe we agreed to do ONLY 1.3.0 (fold everything into one minor release, skip cutting a separate 1.2.1 patch).
+Release scope. RESOLVED: fold everything into a single `1.3.0` release; do NOT cut a separate `1.2.1` patch. The install-path / bug-fix work that was staged for `1.2.1` now ships as part of `1.3.0`. Recorded as DECISIONS D90. CHANGELOG.md has been updated: the `1.2.1 (pending)` bullets are merged into `1.3.0 (pending)` and the separate `1.2.1` section removed.
 
-ACTION FOR THE NEW SESSION: ask the human to confirm which of these is the plan, then proceed accordingly:
-- (A) Keep the split: cut 1.2.1 patch now, 1.3.0 later. OR
-- (B) Only 1.3.0: do NOT cut 1.2.1 separately; the install-safety fixes ship as part of 1.3.0. This means merging the CHANGELOG `1.2.1 (pending)` bullets up into `1.3.0 (pending)` (a docs edit) and dropping the separate patch.
-
-Do not relitigate; just get the human's call and record it (a short DECISIONS entry if it changes the prior one).
+Do not relitigate this; it is settled (D90). The next release is `1.3.0`.
 
 ## Release state
 
-- `1.2.1 (pending)` in CHANGELOG: install-path + versioning bug fixes. IMPLEMENTED and green (executed IPDs D85 + assess-bugs/assess-docs passes). One dangling sub-item marked "(Pending in this patch)": `aw install` running the FULL git-diagnostics pre-flight (parity with the deprecated installer). Confirm whether that is done or still needs a small IPD before any release.
-- `1.3.0 (pending)` in CHANGELOG: accumulates already-done work (D80 readiness vocab, D81 agent-comms convention, D82 Set/Order, D83 install-orchestrator unification, D84 auto-parallel lanes, D85 install parity) PLUS unbuilt features (below). Blocked on the broker.
+- `1.3.0 (pending)` in CHANGELOG (single release; D90 folded the former `1.2.1` patch into it): accumulates already-done work (D80 readiness vocab, D81 agent-comms convention, D82 Set/Order, D83 install-orchestrator unification, D84 auto-parallel lanes, D85 install parity, plus the install-path/versioning bug fixes and the D79 docs pass that were staged for `1.2.1`) PLUS unbuilt features (below). One dangling sub-item marked "(Pending)": `aw install` running the FULL git-diagnostics pre-flight (parity with the deprecated installer). Confirm whether that is done or still needs a small IPD before the release. Feature work is blocked on the broker.
 
 ## The designed-but-unbuilt 1.3.0 work (ordered Set in TODO.md)
 
@@ -94,11 +89,12 @@ Context so a new session does not redo it. We found + verified (two real account
 ## Recommended first moves for the new session
 
 1. Check the comms inbox; read DECISIONS/TODO/CHANGELOG.
-2. Ask the human to settle the OPEN DECISION (split 1.2.1+1.3.0 vs only-1.3.0). Record it.
-3. Based on that, either: (A) close the dangling git-diagnostics pre-flight item and cut 1.2.1, or (B) fold 1.2.1 bullets into 1.3.0 and proceed to the 1.3.0 feature work.
+2. Release scope is SETTLED (D90): single `1.3.0`, no separate `1.2.1`. CHANGELOG already folded. Nothing to relitigate.
+3. Close the dangling git-diagnostics pre-flight item ("(Pending)" bullet) if still needed, then the release is a `1.3.0` cut via release-review Section 9 on explicit human GO.
 4. For 1.3.0 feature work, start the ordered Set at item 2 (scaffold `.agents/prompts/` + convention) as its own IPD through `/plan-review`; the broker (IPD 2) is the larger parallel track.
-5. Decide with the human whether to push the 11 local commits.
+5. Decide with the human whether to push the local commits.
 
 ## Workflow history
 
 - 2026-07-17: handoff authored to resume after the OpenCode security detour; release-scope decision left open for the human.
+- 2026-07-17: resumed; human confirmed release scope = single `1.3.0` (fold the former `1.2.1` patch in). Recorded D90; CHANGELOG/TODO/DECISIONS updated; this handoff's OPEN DECISION marked RESOLVED.

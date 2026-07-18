@@ -58,7 +58,7 @@ and human approval before any build.
 ### Research-prompt pipeline + surveyor/producer workflows (ordered Set; all 1.3.0-era)
 
 An ordered Set of future IPDs that came out of the 2026-07-16 discussion on where run-once/research
-prompts and their results live. They sit BEHIND the OpenCode security disclosure and the 1.2.1 patch.
+prompts and their results live. They sit BEHIND the OpenCode security disclosure and the 1.3.0 release.
 Each needs its own IPD + `/plan-review` + human approval before any build. Order matters (later items
 consume earlier ones). Grounding: DECISION D88 (filesystem-encoded state, extends P5); the `.agents/prompts/`
 staging concept is already blessed by D50 / IPD `20260712-1544-01` but is not scaffolded in this repo.
@@ -124,7 +124,7 @@ these without an approved IPD.
   defined` that passed locally on 3.14 but broke the whole 3.9-3.13 matrix). Verified: the claim is accurate
   (loop is only in 09; `final-response.md` also references it). Message archived at
   `.agents/comms/shared/archive/20260717-1946-01-vistab.agent--to--agent-workflows.agent-ask-extract-ci-verify-loop.md`.
-  Needs its own IPD -> `/plan-review` -> approval. NOTE: relevant to the imminent 1.2.1/1.3.0 release work
+  Needs its own IPD -> `/plan-review` -> approval. NOTE: relevant to the imminent 1.3.0 release work
   (it is about making CI-green iteration a first-class, correctly-authorized practice).
 
 - **Repo exclude-globs for `aw setup` / `aw install all`.** Add a config-file list of wildcard globs
