@@ -3,7 +3,7 @@
 - Date: 2026-07-17
 - Concern: framework capability (operational prompt staging) + convention consistency
 - Scope: the `.agents/prompts/` operational-staging area: lifecycle buckets, per-bucket READMEs, installer scaffolding parity with `.agents/plans/` and `.agents/docs/`, the research-prompt -> results convention, and the doc updates that describe it
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Set: agent-continuity-workflows
 - Order: 2
@@ -16,6 +16,7 @@ Orders 3-5 (/whatnext, /research, /handoff) consume the convention this plan est
 ## Workflow history
 
 - 2026-07-17 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored as Order 2 of the agent-continuity-workflows Set after the human confirmed the full 1.3.0 backlog is in scope and chose to wire prompts staging into the installer. Grounded in an explore-agent survey of the plans/docs scaffold pattern, D50, D88, and IPD 1544-01.
+- 2026-07-17 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 all FIXED. Verified all engine.py/plans.py/packaging claims against source; added dry-run parity test, single-source wiring note (install_into_repo covers both entry points, D83), pinned DECISIONS D91, noted normalizer already recognizes the buckets, corrected the docstring-accuracy pitfall. Resolved OQ1 (rename+commit the stray file) and OQ2 (defer AGENTS.md pointer) with the human; OQ3 resolved from evidence. Status -> reviewed.
 
 ## Goal
 
@@ -48,6 +49,7 @@ Severity is impact if left alone; Remediation Risk is the Fix-Bar gate for wheth
 | P3 | Medium | Medium | operator | installer | The installer scaffolds `.agents/plans/` and `.agents/docs/` into every target repo but not `.agents/prompts/`, so downstream repos never get the area even though `aw plans`/normalizer/release-review expect it. | `engine.py:2621-2626` (plans+docs scaffolded; no prompts); no `PROMPTS_DIR` constant |
 | P4 | Low | Low | maintainer | convention | The one staged file `.agents/prompts/pending/20260717-1450-ses_<redacted>.compacted.md` does not follow `YYYYMMDD-HHMM-NN-<slug>.md` (no `NN`, non-kebab slug) that the normalizer scans `.agents/prompts/` for; it is also untracked. | on-disk filename; normalizer `normalize_plan_names.py:29` |
 | P5 | Low | Low | maintainer | consistency | `.agents/prompts/` has no per-repo `.gitignore` decision documented (unlike comms `local/`). Prompts staging is tracked (like plans), which is the intended default, but that is nowhere stated. | comms precedent `engine.py:2633-2644`; plans are tracked |
+| P6 | Low | Low | maintainer | architecture | The `ensure_docs_readmes` docstring (engine.py:2546) is stale (claims research/walkthroughs only, but the code loops ALL `DOCS_SUBDIRS`). The new `ensure_prompts_readmes` must NOT copy that error; its docstring should state it loops every bucket and skips any without a template. | `engine.py:2540-2556` |
 
 ## Proposed changes (ordered, validatable)
 
@@ -56,12 +58,12 @@ Fix by default; each item should be safe, well-scoped, and verifiable.
 | Step | Source finding IDs | Change | Files | Remediation Risk | Validation |
 |------|--------------------|--------|-------|------------------|------------|
 | 1 | P1,P3 | Add `PROMPTS_DIR = ".agents/prompts"` and `PROMPT_LIFECYCLE_SUBDIRS = ("pending", "executed", "superseded", "not-executed", "reusable")` engine constants, mirroring the plans constants. | `agent_workflows/engine.py` | Low | new unit test asserts the constants exist and match the plans bucket tuple ordering |
-| 2 | P3 | Extend `create_setup_artifacts` (and its dry-run branch) to create a `.gitkeep` per prompts bucket, no-clobber and idempotent, exactly like the plans/docs loops; record created files for `--undo`. | `agent_workflows/engine.py` | Medium | new test: fresh scaffold into a temp repo creates all 5 prompts buckets with `.gitkeep`; re-run is idempotent; `--undo` removes them |
+| 2 | P3 | Extend `create_setup_artifacts` BOTH branches - the real branch (engine.py:2621-2626 region) AND the dry-run branch (engine.py:2598-2619 region) - to create/report a `.gitkeep` per prompts bucket, no-clobber and idempotent, exactly like the plans/docs loops; the real branch's created paths flow into `newly_created` (engine.py:2725) for `--undo`. | `agent_workflows/engine.py` | Medium | new test: fresh scaffold into a temp repo creates all 5 prompts buckets with `.gitkeep`; re-run is idempotent; `--undo` removes them; AND a dry-run scaffold REPORTS the 5 buckets without writing them (dry-run/real parity) |
 | 3 | P2 | Add installer source templates: `.agents/workflows/templates/prompts-README.md` (area overview + prompt->results convention) and `prompts-{pending,executed,superseded,not-executed,reusable}-README.md` (per-bucket), mirroring the plans templates' tone/length. | `.agents/workflows/templates/prompts-*.md` (new) | Low | files exist; content-lint (no em/en dashes) passes; packaging test still sees them bundled under `_data` |
-| 4 | P2 | Add `ensure_prompts_readmes` driven by `PROMPT_LIFECYCLE_SUBDIRS` (mirroring `ensure_plans_readmes`), wire it into the install ordering BEFORE `create_setup_artifacts`, and add its fixed target `.agents/prompts/README.md` + per-bucket targets. | `agent_workflows/engine.py` | Medium | new test: scaffold writes `.agents/prompts/README.md` + 5 bucket READMEs from templates; idempotent; recorded for `--undo` |
+| 4 | P2,P6 | Add `ensure_prompts_readmes` driven by `PROMPT_LIFECYCLE_SUBDIRS` (mirroring `ensure_plans_readmes`), with an accurate docstring (it loops ALL buckets, skipping any without a template - the `ensure_docs_readmes` docstring at engine.py:2546 is stale on this point; do not copy that error). Add a `_PROMPTS_README_TARGETS` fixed target for `.agents/prompts/README.md`. Wire the call into `install_into_repo` (engine.py:2713-2715 region) in the canonical order (README-ensurers BEFORE `create_setup_artifacts`, D83). Because `run()` (the `install-workflows.py` path) delegates to `install_into_repo` (engine.py:2816), wiring it there covers BOTH entry points with no drift. | `agent_workflows/engine.py` | Medium | new test: scaffold writes `.agents/prompts/README.md` + 5 bucket READMEs from templates; idempotent; recorded for `--undo` (READMEs are auto-captured in `newly_created` at engine.py:2717-2718 via the `[install]` tag) |
 | 5 | P1,P2 | Scaffold THIS repo to match: create the missing `.agents/prompts/{executed,superseded,not-executed}/` buckets and all prompts READMEs (from the new templates) so the reference repo is exemplary. | `.agents/prompts/**` | Low | `aw plans` renders prompts buckets without error; `ls .agents/prompts/` shows 5 buckets + README |
-| 6 | P2 | Document the convention in the durable record: a DECISIONS entry (next free D-number, pin explicitly) capturing the prompt->results convention (queued prompts stage in `.agents/prompts/<bucket>/`; RESULTS land under `.agents/docs/research/<topic>/`; the evergreen library stays `.agents/docs/prompts/`); update `.agents/README.md` to mention the sibling staging area and cross-reference the two prompt homes; add a CHANGELOG 1.3.0 bullet. | `DECISIONS.md`, `.agents/README.md`, `.agents/docs/README.md`, `CHANGELOG.md` | Low | links resolve; no em/en dashes; DECISIONS D-number is unique |
-| 7 | P4 | Normalize the one staged file to `YYYYMMDD-HHMM-NN-<slug>.md` (via `aw plan-names` / normalizer, or `git mv` if untracked), OR file it to the correct bucket. Decide tracked-vs-ignored disposition explicitly (see OQ1). | `.agents/prompts/pending/*` | Low | filename matches the convention; normalizer reports no rename-eligible offenders in `.agents/prompts/` |
+| 6 | P2 | Document the convention in the durable record: DECISIONS **D91** (pinned; current max is D90) capturing the prompt->results convention (queued prompts stage in `.agents/prompts/<bucket>/`; RESULTS land under `.agents/docs/research/<topic>/`; the evergreen library stays `.agents/docs/prompts/`); update `.agents/README.md` to mention the sibling staging area and cross-reference the two prompt homes; add a CHANGELOG 1.3.0 bullet. | `DECISIONS.md`, `.agents/README.md`, `.agents/docs/README.md`, `CHANGELOG.md` | Low | links resolve; no em/en dashes; DECISIONS D91 does not collide (re-check max at execution time) |
+| 7 | P4 | Per OQ1 (resolved): normalize the one staged file to `YYYYMMDD-HHMM-NN-<slug>.md` and commit it to `.agents/prompts/pending/` (tracked). `git add` the renamed file. No normalizer CODE change is needed: `normalize_plan_names.py:64` `LIFECYCLE_SUBDIRS` and `DEFAULT_AREAS` (line 63) already recognize all 5 prompts buckets. | `.agents/prompts/pending/*` | Low | filename matches the convention; `aw plan-names` (dry-run) reports no rename-eligible offenders in `.agents/prompts/`; file is tracked |
 | 8 | P5 | State the tracked-by-default decision for prompts staging in the `prompts-README.md` (prompts staging is tracked like plans; it is NOT gitignored like comms `local/`), and confirm no `.gitignore` is emitted for it. | `.agents/workflows/templates/prompts-README.md` | Low | README states it; `create_setup_artifacts` emits no prompts `.gitignore` |
 
 ## Deferred / out of scope (with reason)
@@ -74,34 +76,35 @@ Fix by default; each item should be safe, well-scoped, and verifiable.
 
 ## Scope check
 
-- Over-scope (untraceable to a need; propose removal/deferral): none identified. Every step traces to P1-P5. The installer wiring (Steps 1-4) is explicitly in scope per the human's decision (Order-5 open question resolved: installer scaffolds it).
-- Under-scope (needed capability missing; propose adding): confirm release-review's staged-prompt checks (it reads `.agents/prompts/pending/`) still behave with the fuller bucket set; if the ship-review references a bucket that now exists, no change is needed, but Step 5's validation should eyeball `release-review/08-final-ship-review.md` expectations.
+- Over-scope (untraceable to a need; propose removal/deferral): none identified. Every step traces to P1-P6. The installer wiring (Steps 1-4) is explicitly in scope per the human's decision (Order-5 open question resolved: installer scaffolds it).
+- Under-scope (needed capability missing; propose adding): Step 5's validation should eyeball `release-review/08-final-ship-review.md` staged-prompt expectations (it reads `.agents/prompts/pending/`); the fuller bucket set is additive so no change is expected, but confirm. NOTE (plan-review PR-001): `ensure_prompts_readmes` must be wired into `install_into_repo` (not a per-entry-point copy), because `run()` delegates there (engine.py:2816); this keeps the two install entry points single-sourced (D83).
 
 ## Required tests / validation
 
 - New unit tests (stdlib unittest, zero runtime deps, to keep the suite green on the full 3.9-3.14 matrix):
   1. constants: `PROMPT_LIFECYCLE_SUBDIRS` exists and equals the plans bucket tuple.
-  2. scaffold: fresh install into a temp git repo creates `.agents/prompts/` with all 5 buckets + `.gitkeep` + README (from templates) + the 5 bucket READMEs; re-run is idempotent (no clobber); `--undo` removes exactly the created files.
-  3. no-gitignore: `create_setup_artifacts` emits no `.gitignore` under `.agents/prompts/` (prompts staging is tracked).
-  4. packaging: `tests/test_packaging.py` still asserts the source `.agents/prompts/` target tree does NOT ship in the wheel, and that the new `prompts-*` TEMPLATES DO ship under `_data`.
-  5. board: `plans.scan(..., include_prompts=True)` over a repo with the new buckets returns records with `area == "prompts"` and does not error on the empty buckets.
+  2. scaffold (real): fresh install into a temp git repo creates `.agents/prompts/` with all 5 buckets + `.gitkeep` + README (from templates) + the 5 bucket READMEs; re-run is idempotent (no clobber); `--undo` removes exactly the created files.
+  3. scaffold (dry-run): a dry-run scaffold REPORTS the 5 prompts buckets (and READMEs, via the ensurer's dry-run path) WITHOUT writing them - guards dry-run/real parity for the new dry-run branch code (PR-002).
+  4. no-gitignore: `create_setup_artifacts` emits no `.gitignore` under `.agents/prompts/` (prompts staging is tracked).
+  5. packaging: `tests/test_packaging.py` still asserts the source `.agents/prompts/` target tree does NOT ship in the wheel, and that the new `prompts-*` TEMPLATES DO ship under `_data`.
+  6. board: `plans.scan(..., include_prompts=True)` over a repo with the new buckets returns records with `area == "prompts"` and does not error on the empty buckets.
 - Full-suite regression: `python -m pytest -q` must stay green (paste actual output; current baseline 262 passed, 1 skipped, so expect a higher passed count with the new tests).
 - Manual: `aw install` into a throwaway temp repo, confirm `.agents/prompts/` scaffolds with READMEs and offers the commit prompt; `aw install --undo` rolls it back.
 
 ## Spec / documentation sync
 
-- `DECISIONS.md`: new entry (pin the D-number) for the prompts-staging convention + prompt->results destination.
+- `DECISIONS.md`: new entry **D91** (pinned) for the prompts-staging convention + prompt->results destination.
 - `.agents/README.md`: add the `.agents/prompts/` sibling staging area to the overview; cross-reference `.agents/docs/prompts/` (library) vs `.agents/prompts/` (staging).
 - `.agents/docs/README.md`: cross-reference note so the two prompt homes are not confused.
 - `CHANGELOG.md`: 1.3.0 "Added" bullet for the prompts-staging scaffold + installer support.
 - The new `prompts-*-README.md` templates ARE the shipped spec for the convention in downstream repos.
-- `AGENTS.md` "Writing prompts for another AI" block: consider (OQ2) adding one sentence pointing at `.agents/prompts/` as the staging home for queued research/handoff prompts.
+- `AGENTS.md` "Writing prompts for another AI" block: OUT OF SCOPE per OQ2 (deferred to a later IPD; revisit with `/research` or `/whatnext`).
 
 ## Open questions
 
-- OQ1 (disposition of the existing staged file): the untracked `20260717-1450-ses_...compacted.md` is a session-recovery compaction, not a normal queued prompt. Options: (a) normalize its name and commit it to `pending/`, (b) `git mv` it to a `reusable/` or an `executed/`-equivalent once consumed, or (c) leave it untracked and add a note. Assumption pending confirmation: rename-and-commit to `pending/` is lowest-surprise, but a human should confirm whether session-recovery dumps belong in `prompts/` at all or under a different home.
-- OQ2 (AGENTS.md block): should the managed `AGENT-WORKFLOWS` block or `AGENTS.md` guidance mention `.agents/prompts/` as the staging home? Leaning yes (one sentence) for discoverability, but it touches the installed block rendered by `engine.py:557`, so flag it for review rather than assume.
-- OQ3 (bucket set): confirm prompts should mirror ALL FIVE plans buckets (`pending/executed/superseded/not-executed/reusable`). Assumption: yes, for board/normalizer parity. `reusable/` is already in use (the OpenCode verification runbook lives there), which supports full parity.
+- OQ1 (disposition of the existing staged file): RESOLVED (human, 2026-07-17 /plan-review). Normalize `20260717-1450-ses_<redacted>.compacted.md` to the `YYYYMMDD-HHMM-NN-<slug>.md` convention and commit it to `.agents/prompts/pending/` (tracked). Encoded in Step 7.
+- OQ2 (AGENTS.md block): RESOLVED (human, 2026-07-17 /plan-review). DEFER the AGENTS.md / managed-block pointer to a later IPD (revisit when `/research` or `/whatnext` land). This IPD documents the convention only in `.agents/README.md`, `.agents/docs/README.md`, and the new prompts READMEs. The `AGENTS.md` "consider" note is removed from Spec/documentation sync.
+- OQ3 (bucket set): RESOLVED from repo evidence (plan-review, no human needed). Prompts mirror ALL FIVE buckets (`pending/executed/superseded/not-executed/reusable`) because the tooling already assumes them: `plans.py:31-38` `DISPOSITION_DIRS`, `normalize_plan_names.py:64` `LIFECYCLE_SUBDIRS`, and `reusable/` is already populated (the OpenCode verification runbook). `done/` is a board-only alias (`plans.py`), NOT scaffolded (matches plans; a repo already using `done/` keeps it). Steps 1-5 already encode the 5-bucket set; this OQ is closed.
 
 ## Approval and execution gate
 
