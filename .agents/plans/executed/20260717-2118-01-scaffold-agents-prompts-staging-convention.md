@@ -3,7 +3,8 @@
 - Date: 2026-07-17
 - Concern: framework capability (operational prompt staging) + convention consistency
 - Scope: the `.agents/prompts/` operational-staging area: lifecycle buckets, per-bucket READMEs, installer scaffolding parity with `.agents/plans/` and `.agents/docs/`, the research-prompt -> results convention, and the doc updates that describe it
-- Status: reviewed
+- Status: executed
+- Approval: approved by the human (repo maintainer) 2026-07-17
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Set: agent-continuity-workflows
 - Order: 2
@@ -17,6 +18,8 @@ Orders 3-5 (/whatnext, /research, /handoff) consume the convention this plan est
 
 - 2026-07-17 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored as Order 2 of the agent-continuity-workflows Set after the human confirmed the full 1.3.0 backlog is in scope and chose to wire prompts staging into the installer. Grounded in an explore-agent survey of the plans/docs scaffold pattern, D50, D88, and IPD 1544-01.
 - 2026-07-17 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 all FIXED. Verified all engine.py/plans.py/packaging claims against source; added dry-run parity test, single-source wiring note (install_into_repo covers both entry points, D83), pinned DECISIONS D91, noted normalizer already recognizes the buckets, corrected the docstring-accuracy pitfall. Resolved OQ1 (rename+commit the stray file) and OQ2 (defer AGENTS.md pointer) with the human; OQ3 resolved from evidence. Status -> reviewed.
+- 2026-07-17 human approval (repo maintainer): approved for execution. Status -> approved.
+- 2026-07-17 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): all 8 steps implemented; new prompts scaffold + installer wiring + templates + this-repo scaffold + docs (D91). Validation: `python -m pytest -q` = 266 passed, 1 skipped; manual `install_into_repo` + `run_rollback` on a temp repo confirmed scaffold and clean undo; no prompts `.gitignore`. Committed path-scoped (`72134bf` impl, `d673858` normalized staged file). Status -> executed; git mv to executed/.
 
 ## Goal
 
