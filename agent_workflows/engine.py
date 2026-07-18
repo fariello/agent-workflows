@@ -2313,6 +2313,18 @@ DOCS_SUBDIRS = (
     "specs",
     "prompts",
 )
+# Operational staging for run-once / research prompts that are QUEUED to be executed (D91),
+# distinct from `.agents/docs/prompts/` (the evergreen copy-paste prompt LIBRARY). Mirrors the
+# plan lifecycle buckets so the `aw plans` board and the name-normalizer treat it on par with
+# `.agents/plans/`. Prompts staging is TRACKED (like plans), NOT gitignored like comms `local/`.
+PROMPTS_DIR = ".agents/prompts"
+PROMPT_LIFECYCLE_SUBDIRS = (
+    "pending",
+    "executed",
+    "superseded",
+    "not-executed",
+    "reusable",
+)
 # Inter-agent comms convention (D81). Scaffolded skeleton for `.agents/comms/`. `local/` is
 # box-local, ephemeral routing and is gitignored via a NESTED `.gitignore` (a created deliverable,
 # NOT a modification of the target root `.gitignore`, so it respects the firm no-touch-root rule).
@@ -2576,13 +2588,59 @@ def ensure_docs_readmes(
         installed.append(f"{rel_path} [install]")
 
 
+_PROMPTS_README_TARGETS = ((f"{PROMPTS_DIR}/README.md", "prompts-README.md"),)
+
+
+def ensure_prompts_readmes(
+    plan: InstallPlan,
+    use_git: bool,
+    installed: list[str],
+    skipped: list[str],
+) -> None:
+    """Create a README.md in `.agents/prompts/` and each prompts lifecycle bucket.
+
+    Loops EVERY bucket in PROMPT_LIFECYCLE_SUBDIRS (not a hardcoded subset), using the
+    `prompts-<bucket>-README.md` template; a bucket with no shipped template is skipped
+    defensively rather than inventing content. No-clobber (a user's own README is never
+    overwritten), staged, dry-run aware. Modeled on `ensure_plans_readmes`. Templates live
+    under the source `.agents/workflows/templates/`.
+    """
+
+    targets = list(_PROMPTS_README_TARGETS)
+    for bucket in PROMPT_LIFECYCLE_SUBDIRS:
+        targets.append(
+            (f"{PROMPTS_DIR}/{bucket}/README.md", f"prompts-{bucket}-README.md")
+        )
+
+    for rel_path, template_name in targets:
+        readme_path = plan.repo_root / rel_path
+        if readme_path.is_file():
+            skipped.append(f"{rel_path} [already current]")
+            continue
+        template_path = plan.source_root / "templates" / template_name
+        try:
+            content = template_path.read_text(encoding="utf-8")
+        except OSError:
+            # No template shipped for this target; skip rather than invent content.
+            continue
+        if plan.dry_run:
+            installed.append(f"{rel_path} [install, dry-run]")
+            continue
+        readme_path.parent.mkdir(parents=True, exist_ok=True)
+        readme_path.write_text(content, encoding="utf-8")
+        if use_git:
+            git_add_optional(plan.repo_root, rel_path)
+        installed.append(f"{rel_path} [install]")
+
+
 def create_setup_artifacts(
     repo_root: Path, use_git: bool, dry_run: bool = False
 ) -> list[str]:
     """Create the deterministic setup artifacts in a target repo (no-clobber, idempotent).
 
     Creates (only when absent): the plan lifecycle dirs with .gitkeep, the docs bucket dirs with
-    .gitkeep, a .gitleaksignore baseline, the secret-scan CI workflow, and the inter-agent comms
+    .gitkeep, the prompts staging lifecycle dirs with .gitkeep (tracked, like plans), a
+    .gitleaksignore baseline, the secret-scan CI workflow, and the inter-agent comms
     skeleton (`.agents/comms/` with a nested .gitignore, a README, and .gitkeep under each `shared/`
     subdir; `local/` subdirs get NO .gitkeep since the nested .gitignore ignores `local/`). Returns
     the list of created paths (empty on a re-run where everything already exists, so it is quiet and
@@ -2605,6 +2663,10 @@ def create_setup_artifacts(
             keep = f"{DOCS_DIR}/{sub}/.gitkeep"
             if not (repo_root / keep).exists():
                 created.append(keep + " [dry-run]")
+        for sub in PROMPT_LIFECYCLE_SUBDIRS:
+            keep = f"{PROMPTS_DIR}/{sub}/.gitkeep"
+            if not (repo_root / keep).exists():
+                created.append(keep + " [dry-run]")
         for rel in (GITLEAKSIGNORE_FILE, SECRET_SCAN_CI):
             if not (repo_root / rel).exists():
                 created.append(rel + " [dry-run]")
@@ -2624,6 +2686,10 @@ def create_setup_artifacts(
         )
     for sub in DOCS_SUBDIRS:
         _create_if_absent(repo_root, f"{DOCS_DIR}/{sub}/.gitkeep", "", use_git, created)
+    for sub in PROMPT_LIFECYCLE_SUBDIRS:
+        _create_if_absent(
+            repo_root, f"{PROMPTS_DIR}/{sub}/.gitkeep", "", use_git, created
+        )
     _create_if_absent(
         repo_root, GITLEAKSIGNORE_FILE, _GITLEAKSIGNORE_TEMPLATE, use_git, created
     )
@@ -2712,6 +2778,7 @@ def install_into_repo(
     ensure_workflow_artifacts_readme(plan, use_git, installed, skipped)
     ensure_plans_readmes(plan, use_git, installed, skipped)
     ensure_docs_readmes(plan, use_git, installed, skipped)
+    ensure_prompts_readmes(plan, use_git, installed, skipped)
     artifacts = create_setup_artifacts(repo_root, use_git, dry_run=dry_run)
 
     newly_created = [

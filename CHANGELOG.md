@@ -12,6 +12,15 @@ behavior-preserving install refactor, and the bug-fix / install-path corrections
 (previously staged for a separate 1.2.1 patch, now folded into this single release). Final release
 scoping is confirmed at release-review.
 
+- Added: `.agents/prompts/` operational staging convention (DECISIONS D91). A run queue for run-once
+  and research prompts, mirroring the plan lifecycle buckets (`pending/`, `executed/`, `superseded/`,
+  `not-executed/`, `reusable/`) and tracked like plans. Distinct from the evergreen `.agents/docs/prompts/`
+  library; a staged prompt's durable RESULTS are filed under `.agents/docs/research/<topic>/` (the
+  prompt -> results convention, extending the filesystem-encoded-state principle P5/D88). The installer
+  now scaffolds `.agents/prompts/` (buckets + READMEs) into every target repo alongside `.agents/plans/`
+  and `.agents/docs/`, via the shared `install_into_repo` core so both entry points get it, with
+  `--undo` support. The source staging tree never ships in the wheel; the new `prompts-*` README
+  templates ship under the bundled workflow data.
 - Added: inter-agent comms convention `.agents/comms/` (DECISIONS D81). A portable, agent-agnostic,
   default-on filesystem convention for messages between agents (and agent/human): a gitignored `local/`
   lane and a tracked `shared/` lane, a header envelope with an optional `Not-Before` scheduling gate, a
