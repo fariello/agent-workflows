@@ -4,10 +4,19 @@
 #   <commit-sha>:<file-path>:<rule-id>:<line-number>
 # It is printed in gitleaks' report/output for each finding.
 #
-# As of 2026-07-03, `gitleaks detect` over the full history reports NO leaks, so this
-# baseline is intentionally empty. When a confirmed false positive appears (e.g. a test
-# fixture or example value), paste its fingerprint on its own line below to suppress it.
+# When a confirmed false positive appears (e.g. a test fixture or example value), paste
+# its fingerprint on its own line below to suppress it.
 # Do NOT suppress a real secret - rotate it, then purge it from history instead.
 #
 # Example (commented out):
 # 0a1b2c3d4e5f6a7b8c9d:tests/fixtures/sample.env:generic-api-key:12
+#
+# 2026-07-17: two confirmed false positives from the `curl-auth-user` rule. The OpenCode
+# cross-user security-verification docs contain the example line
+# `curl ... -u opencode:verifypw http://127.0.0.1:.../app`, where `opencode:verifypw` is a
+# documented THROWAWAY test credential (the disposable password created for the local
+# server auth test), not a real secret. The files were later relocated to
+# `.agents/prompts/reusable/`, but gitleaks scans full history so the original commit
+# `1efe57d` still trips the rule.
+1efe57d82823b4895d931791d4da5a62338d66d2:.agents/docs/research/20260716-1342-01-opencode-cross-user-verification-protocol.md:curl-auth-user:60
+1efe57d82823b4895d931791d4da5a62338d66d2:.agents/docs/research/20260716-1342-02-opencode-cross-user-verification-agent-runbook.md:curl-auth-user:136
