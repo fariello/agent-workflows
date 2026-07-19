@@ -47,6 +47,19 @@ Committed secrets and PII/PHI must never enter this repo, including its git hist
   it at the provider first, then purge it from history (`git filter-repo`/BFG).
 - For a deeper pass, run `/assess secrets`.
 
+## No personal paths in tracked files (DECISIONS D92)
+
+This is a public package and repo. No tracked file may embed the maintainer's local
+filesystem layout, other local accounts, private repo names, or personal handles - use a
+portable placeholder, a repo-relative path, or `$HOME`/a config value instead. The only
+tolerated personal identifiers are the public author email and the public repo origin URL.
+
+- **Enforced:** a pre-commit hook and `tests/test_no_personal_paths.py` run
+  `tools/check_personal_paths.py`, which scans the tracked tree and
+  fails on a personal-path/identity token.
+- **Allowlist:** genuinely public identifiers are allowlisted in the scanner; add to it only
+  with justification, never to hide a real leak.
+
 ## Self-tests (run before pushing tool changes)
 
 The framework's Python code has automated tests (stdlib `unittest`, zero dependencies -

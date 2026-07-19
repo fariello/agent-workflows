@@ -2,8 +2,8 @@
 
 Date: 2026-07-12
 Plans Executed:
-* [.agents/plans/executed/20260712-0959-01-assess-bugs-in-scripts.md](file://<repo-root>/.agents/plans/executed/20260712-0959-01-assess-bugs-in-scripts.md)
-* [.agents/plans/executed/20260712-1005-01-assess-tests.md](file://<repo-root>/.agents/plans/executed/20260712-1005-01-assess-tests.md)
+* [.agents/plans/executed/20260712-0959-01-assess-bugs-in-scripts.md](./.agents/plans/executed/20260712-0959-01-assess-bugs-in-scripts.md)
+* [.agents/plans/executed/20260712-1005-01-assess-tests.md](./.agents/plans/executed/20260712-1005-01-assess-tests.md)
 Status: EXECUTED
 
 ---

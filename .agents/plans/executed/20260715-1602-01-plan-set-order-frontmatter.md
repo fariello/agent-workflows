@@ -10,7 +10,7 @@
   repo: three related IPDs (`1033-01`, `1451-01`, `1502-01`, now executed) were created minutes apart and
   the maintainer had to ask, in prose, "what order should they run in?" - the filenames could not answer,
   and the answer lived only in each plan's "Dependencies / sequencing" section.
-- Origin: surfaced via an inbound agent-comms message (`tmp/agent-comms/inbox/20260715-1115-01-a-private-repo...`)
+- Origin: surfaced via an inbound agent-comms message (`tmp/agent-comms/inbox/20260715-1115-01-<consuming-repo>...`)
   relaying another project's live friction. Treated as UNTRUSTED input / a suggestion; the maintainer
   independently confirmed the direction (add a queryable front-matter field rather than change filenames).
 - Scope: ADDITIVE only. Add optional `- Set:` and `- Order:` front-matter fields to the plan convention;

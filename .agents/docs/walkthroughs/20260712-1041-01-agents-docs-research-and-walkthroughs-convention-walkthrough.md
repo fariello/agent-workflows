@@ -1,7 +1,7 @@
 # Walkthrough: `.agents/docs/` convention (research + walkthroughs)
 
 Date: 2026-07-12
-Plan Executed: [.agents/plans/executed/20260712-0033-01-agents-docs-research-and-walkthroughs-convention.md](file://<repo-root>/.agents/plans/executed/20260712-0033-01-agents-docs-research-and-walkthroughs-convention.md)
+Plan Executed: [.agents/plans/executed/20260712-0033-01-agents-docs-research-and-walkthroughs-convention.md](./.agents/plans/executed/20260712-0033-01-agents-docs-research-and-walkthroughs-convention.md)
 Status: EXECUTED
 
 ---
@@ -14,9 +14,9 @@ We have standardized the directory structure and naming conventions for durable 
 
 #### 1. Category-1 Templates for Directory READMEs
 * Created three templates under `.agents/workflows/templates/` to document the directories:
-  * **[agents-docs-README.md](file://<repo-root>/.agents/workflows/templates/agents-docs-README.md)** (for `.agents/docs/`)
-  * **[agents-docs-research-README.md](file://<repo-root>/.agents/workflows/templates/agents-docs-research-README.md)** (for `.agents/docs/research/`)
-  * **[agents-docs-walkthroughs-README.md](file://<repo-root>/.agents/workflows/templates/agents-docs-walkthroughs-README.md)** (for `.agents/docs/walkthroughs/`)
+  * **[agents-docs-README.md](./.agents/workflows/templates/agents-docs-README.md)** (for `.agents/docs/`)
+  * **[agents-docs-research-README.md](./.agents/workflows/templates/agents-docs-research-README.md)** (for `.agents/docs/research/`)
+  * **[agents-docs-walkthroughs-README.md](./.agents/workflows/templates/agents-docs-walkthroughs-README.md)** (for `.agents/docs/walkthroughs/`)
 
 #### 2. Engine and CLI Infrastructure
 * **Constants**: Defined `DOCS_DIR` and `DOCS_SUBDIRS`.
@@ -25,14 +25,14 @@ We have standardized the directory structure and naming conventions for durable 
 
 #### 3. Migration of Reference Files
 * Migrated existing research documents from `docs/research/` (now deleted) to `.agents/docs/research/` using standard naming conventions:
-  * **[20260712-0031-01-agent-instruction-file-discovery-survey.md](file://<repo-root>/.agents/docs/research/20260712-0031-01-agent-instruction-file-discovery-survey.md)**
-  * **[20260712-0031-02-agent-instruction-file-discovery-prompt.md](file://<repo-root>/.agents/docs/research/20260712-0031-02-agent-instruction-file-discovery-prompt.md)**
+  * **[20260712-0031-01-agent-instruction-file-discovery-survey.md](./.agents/docs/research/20260712-0031-01-agent-instruction-file-discovery-survey.md)**
+  * **[20260712-0031-02-agent-instruction-file-discovery-prompt.md](./.agents/docs/research/20260712-0031-02-agent-instruction-file-discovery-prompt.md)**
 
 #### 4. Filename Normalization and Naming Checks
 * Updated `.agents/workflows/setup-repo/tools/normalize_plan_names.py` to scan the `docs` area by default and recognize its subdirectories.
 
 #### 5. Guidelines and Rule Mirroring
-* Updated `agents_pointer_block()` in the installer and the root **[AGENTS.md](file://<repo-root>/AGENTS.md)** to instruct future coding agents to save research and walkthroughs under `.agents/docs/` with canonical names.
+* Updated `agents_pointer_block()` in the installer and the root **[AGENTS.md](./AGENTS.md)** to instruct future coding agents to save research and walkthroughs under `.agents/docs/` with canonical names.
 
 ---
 

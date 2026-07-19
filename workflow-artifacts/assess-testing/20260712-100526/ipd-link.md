@@ -1,2 +1,0 @@
-- IPD: [.agents/plans/pending/20260712-1005-01-assess-tests.md](file://<repo-root>/.agents/plans/pending/20260712-1005-01-assess-tests.md)
-- Summary: Proposes 4 test additions to address testing gaps in error-handling pathways, PyPI format limits, skip status outputs, and secrets line reporting.

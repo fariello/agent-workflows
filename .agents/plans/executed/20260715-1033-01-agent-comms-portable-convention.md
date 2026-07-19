@@ -28,7 +28,7 @@
 ## Workflow history
 
 - 2026-07-15 to-review (its_direct/pt3-claude-opus-4.8-1m-us): drafted after a design session that
-  (a) studied a-reference-agent as a reference (transport adapter -> handle_message -> turn), (b) VERIFIED the
+  (a) studied a reference agent implementation (transport adapter -> handle_message -> turn), (b) VERIFIED the
   OpenCode server API by live self-test (serve/doc/session-create/message/tui/mdns/acp; unsecured by
   default), and (c) settled the load-bearing decisions recorded in
   `.agents/docs/research/20260714-2300-01-same-box-agent-wakeup-mechanisms.md`. The maintainer chose to
@@ -240,7 +240,7 @@ Not-Before: <ISO-8601 datetime, optional>    # scheduling gate; absent = deliver
    validator that rejects `..`, any path separator (`/` or `\`), a leading Windows drive letter, and
    control characters, and caps total filename length (lean: 200 chars). This mirrors the hermes
    reference `_is_path_unsafe` / `_is_session_key_unsafe` intent (verified in
-   `a reference agent clone/gateway/session.py:108-144`) and is a mandatory security control (envelope
+   a reference agent's session-key guard) and is a mandatory security control (envelope
    filenames flow into filesystem paths). Add a test asserting traversal/control-char/oversize names are
    rejected. This is a technical security requirement, not a human decision.
 

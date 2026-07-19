@@ -1,7 +1,7 @@
 # Walkthrough: Installer Shim False-Positive, Ctrl-C Abort, and Unified Diff on Conflict
 
 Date: 2026-07-12
-Plan Executed: [.agents/plans/executed/20260712-0954-01-installer-shim-detection-ctrlc-and-diff.md](file://<repo-root>/.agents/plans/executed/20260712-0954-01-installer-shim-detection-ctrlc-and-diff.md)
+Plan Executed: [.agents/plans/executed/20260712-0954-01-installer-shim-detection-ctrlc-and-diff.md](./.agents/plans/executed/20260712-0954-01-installer-shim-detection-ctrlc-and-diff.md)
 Status: EXECUTED
 
 ---
@@ -28,7 +28,7 @@ We have successfully resolved the command-shim false positive customization warn
 
 ## Part 2: Verification & Testing
 
-Added 5 regression tests in **[tests/test_installer.py](file://<repo-root>/tests/test_installer.py)**:
+Added 5 regression tests in **[tests/test_installer.py](./tests/test_installer.py)**:
 * `test_shim_expected_does_not_warn`: Asserts that all manifest-generated shims are recognized as non-customized.
 * `test_hand_edited_and_legacy_shims`: Verifies that hand-edited shims and prior template versions are correctly flagged as customized.
 * `test_ctrl_c_aborts_install`: Asserts `KeyboardInterrupt` at the prompt propagates and exits with 130.

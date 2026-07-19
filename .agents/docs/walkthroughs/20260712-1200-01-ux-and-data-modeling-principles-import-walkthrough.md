@@ -1,7 +1,7 @@
 # Walkthrough: Import sharpened UX and data-modeling principles
 
 Date: 2026-07-12
-Plan Executed: [.agents/plans/executed/20260712-0020-01-ux-and-data-modeling-principles-import.md](file://<repo-root>/.agents/plans/executed/20260712-0020-01-ux-and-data-modeling-principles-import.md)
+Plan Executed: [.agents/plans/executed/20260712-0020-01-ux-and-data-modeling-principles-import.md](./.agents/plans/executed/20260712-0020-01-ux-and-data-modeling-principles-import.md)
 Status: EXECUTED
 
 ---

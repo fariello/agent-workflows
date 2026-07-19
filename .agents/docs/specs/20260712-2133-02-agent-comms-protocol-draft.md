@@ -12,7 +12,7 @@ to formalize it (future IPD). Concept + rationale: `../research/20260712-2133-01
 ## Scope
 
 A minimal, filesystem-based convention for passing structured messages between independent agents that
-share a filesystem (for example, sibling worktrees under `a local checkout dir/`). It is the universal-floor transport
+share a filesystem (for example, sibling worktrees under a shared parent directory). It is the universal-floor transport
 (see the concept note); richer transports may carry the same message shape.
 
 ## Directory layout (per project/repo)

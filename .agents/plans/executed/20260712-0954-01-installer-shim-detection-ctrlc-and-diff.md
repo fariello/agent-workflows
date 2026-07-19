@@ -1,7 +1,7 @@
 # IPD: Fix installer shim false-positive, Ctrl-C abort, and add a diff view on conflict
 
 - Date: 2026-07-12
-- Concern: installer correctness + UX. Three bugs observed installing into `a consuming repo clone`:
+- Concern: installer correctness + UX. Three bugs observed installing into `<a-consuming-repo>`:
   (1) the installer flagged its OWN freshly-generated `plan-review` command shims as having "manual
   modifications" (false positive); (2) Ctrl-C at the overwrite prompt was swallowed and the install
   CONTINUED instead of aborting; (3) there is no way to SEE what differs when a file is flagged, which
@@ -15,7 +15,7 @@
 ## Workflow history
 
 - 2026-07-12 to-review (its_direct/pt3-claude-opus-4.8-1m-us): three bugs root-caused from a real
-  a-consuming-repo install log; verified against source. Complete proposal; born to-review.
+  a consuming repo install log; verified against source. Complete proposal; born to-review.
 - 2026-07-12 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED;
   PR-1 (reconcile EOF vs Ctrl-C with the existing main() guard - dedicated per-prompt EOF decline,
   Ctrl-C propagates to abort), PR-2 (base BUG-1 fix on the existing `shim_body` generator, verified
@@ -43,7 +43,7 @@ Does not self-approve.
 
 ## Project conventions discovered (Step 0, VERIFIED against source)
 
-- Observed log (a-consuming-repo, via the deprecated `install-workflows.py` shim -> engine): two
+- Observed log (a consuming repo, via the deprecated `install-workflows.py` shim -> engine): two
   `Warning: .claude/.opencode/commands/plan-review.md has manual modifications.` prompts, each
   answered by Ctrl-C, after which the install printed COMPLETE (staged, not committed). It did NOT
   overwrite the flagged files (correct no-clobber), but the warning was FALSE and Ctrl-C did not

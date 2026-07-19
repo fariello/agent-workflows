@@ -7,7 +7,7 @@
   but the INSTALLER copies the baked `VERSION` file verbatim into each target repo (`read_version` /
   install flow), so every `aw install` and `aw install all` stamps targets with `1.1.0` and currency
   checks compare against the wrong number. Observed live: `aw install all` reported
-  "version 1.1.0" installing into a-consuming-repo after 1.2.0 was released. Root cause: the release cut the
+  "version 1.1.0" installing into a consuming repo after 1.2.0 was released. Root cause: the release cut the
   `v1.2.0` tag WITHOUT re-baking + committing `VERSION` from the tag, so the tracked file drifted from
   the tag. This is TWO defects: (X) the stale artifact on `main`/at the tag, and (Y) the release process
   that permits the drift.

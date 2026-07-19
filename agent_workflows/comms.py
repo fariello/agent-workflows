@@ -8,7 +8,7 @@ machine-checkable pieces:
 - the acknowledgement closed enum, its authorized-writer table (which party may legitimately assert
   each state), and an ack-file schema validator;
 - a strict message-filename validator (traversal / control-char / oversize safety), mirroring the
-  a-reference-agent session-key guards.
+  session-key safety guards used in a reference agent implementation.
 
 It is a foundation module (IPD 20260715-1033-01). It contains NO daemon, NO OpenCode server calls,
 and does NOT itself write acks, deliver messages, act on ``Not-Before``, or perform discovery; those
@@ -71,8 +71,8 @@ ACK_WRITER.update({state: "agent" for state in AGENT_ACK_STATES})
 SENDER_INITIAL_STATES = frozenset({"queued", "scheduled"})
 
 # --- Filename safety ---------------------------------------------------------------------------
-# Envelope filenames flow into filesystem paths, so they are a trust boundary. Mirror the intent of
-# a-reference-agent's `_is_path_unsafe` / `_is_session_key_unsafe` guards: reject parent-traversal, any
+# Envelope filenames flow into filesystem paths, so they are a trust boundary. Mirror the intent of a
+# reference agent's path / session-key safety guards: reject parent-traversal, any
 # path separator, a leading Windows drive letter, control characters, and cap the length.
 MAX_FILENAME_LEN = 200
 _CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")

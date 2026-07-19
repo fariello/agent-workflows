@@ -5,17 +5,17 @@
 - Scope: `.agents/workflows/install-workflows.py` (source-file collection, prune walker,
   and gitignore handling), plus doc/decision sync (`README.md`, `ARCHITECTURE.md`,
   `DECISIONS.md`). Also this repo's own `.gitignore` for the backups dir.
-- Status: EXECUTED (approved 2026-07-01; all steps applied and validated on scratch repos + a-consuming-repo dry-run)
+- Status: EXECUTED (approved 2026-07-01; all steps applied and validated on scratch repos + a consuming repo dry-run)
 - Author: OpenCode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Goal
 
-Two related installer hygiene fixes surfaced while updating `a consuming repo clone`:
+Two related installer hygiene fixes surfaced while updating `<a-consuming-repo>`:
 
 1. **Do not propagate Python build cruft.** The installer copies every file under the
    source `.agents/workflows/` via `rglob("*")`. A stray `__pycache__/…​.pyc` (e.g. from
    running `python3 -m py_compile install-workflows.py`) would be installed into every
-   target. Observed live: a `.pyc` appeared in the a-consuming-repo dry-run and had to be
+   target. Observed live: a `.pyc` appeared in the a consuming repo dry-run and had to be
    manually removed from the source to avoid polluting the target.
 2. **Keep the installer's own backups out of version control.** The installer writes
    overwrite/prune backups to `.agent-workflows-installer-backups/` in the target. That
@@ -55,7 +55,7 @@ Two related installer hygiene fixes surfaced while updating `a consuming repo cl
   writes `.gitignore` (the claim is at `ARCHITECTURE.md:144-146`: "The installer does
   not modify `.gitignore`; it only warns if the target repo ignores
   `workflow-artifacts/`...").
-- Live repro: a-consuming-repo dry-run listed
+- Live repro: a consuming repo dry-run listed
   `.agents/workflows/__pycache__/install-workflows.cpython-314.pyc [install, dry-run]`
   and, after the real run, `.agent-workflows-installer-backups/` was untracked and not
   ignored.
@@ -66,7 +66,7 @@ Two related installer hygiene fixes surfaced while updating `a consuming repo cl
 |----|----------|------------------|---------|------|---------|----------|
 | P1 | High | Low | Operator / QA | `.pyc`/`__pycache__` propagates to targets | `collect_source_members` copies any file under the source, including `__pycache__/*.pyc`. Installs build cruft into every target and pollutes their git status. | `install-workflows.py:233-240` |
 | P2 | Medium | Low | Maintainer (P8) | Prune walker shares the same gap, causing accidental deletion | If only the source-collect site is fixed, a stray `.pyc` in a target under `.agents/workflows/` is excluded from `desired` (source) but still included in `present` (prune walk `:448-455`), so `orphans = present - desired` (`prune_stale:477-479`) marks it stale and **deletes it** (the `in_framework_namespace` defense-in-depth at `:485` does not stop it - a `.pyc` there IS in-namespace). The exclusion must be applied at BOTH `rglob` sites via one shared rule so a `.pyc` is neither installed nor pruned. | `:448-455`, `:477-479,485` vs `:233-240` |
-| P3 | Medium | Low | Operator | Installer backups can be committed | `.agent-workflows-installer-backups/` is untracked and not ignored in the target; `git add -A` would commit local backup scratch. | `:315-316`; live on a-consuming-repo |
+| P3 | Medium | Low | Operator | Installer backups can be committed | `.agent-workflows-installer-backups/` is untracked and not ignored in the target; `git add -A` would commit local backup scratch. | `:315-316`; live on a consuming repo |
 | P4 | Low | Low | Maintainer | This repo does not ignore the backups dir either | Running the installer against `ai-coding` itself (self-install) would also leave an untracked backups dir. | `ai-coding/.gitignore` |
 
 ## Proposed changes (ordered, validatable)
@@ -115,7 +115,7 @@ Exercise on a throwaway git repo under `/tmp/opencode/`; do NOT test against a r
    by `prune_stale`; post-fix (prune walk excludes it) it is left untouched.
 7. `python3 -m py_compile install-workflows.py` and `sh -n install-workflows.sh` pass;
    no em dashes in changed Markdown.
-8. Final dry-run against `a consuming repo clone` shows no `.pyc` and would add the backups
+8. Final dry-run against `<a-consuming-repo>` shows no `.pyc` and would add the backups
    ignore line (report-only; do not apply here as part of testing).
 
 ## Spec / documentation sync

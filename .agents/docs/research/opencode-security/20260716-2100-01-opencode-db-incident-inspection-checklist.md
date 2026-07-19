@@ -4,7 +4,7 @@ Status: operational checklist (queries verified read-only against a live opencod
 Date: 2026-07-16
 Author: agent-workflows session (opencode)
 Related: advisory `20260716-0850-01`; the `--hostname 0.0.0.0` exposure during the T5 test.
-Run as: the AFFECTED user (for example `victim-user`) or root. The DB lives under that user's home and is mode 0600, so another non-root user cannot read it.
+Run as: the AFFECTED user (for example `<affected-user>`) or root. The DB lives under that user's home and is mode 0600, so another non-root user cannot read it.
 
 ## What this can and cannot tell you (read first)
 
@@ -76,7 +76,7 @@ Note: `strftime('%s',...)` interprets the window strings as UTC. If your window 
 
 ## How to read the output
 
-- Sessions created in the window that you do NOT recognize (especially ones you did not open in a TUI) are the strongest signal of an attacker-created session. Note: our own T3 test created stealth sessions on `victim-user`'s server, so some unfamiliar sessions in this window may be OURS from testing; correlate against the test log before alarming.
+- Sessions created in the window that you do NOT recognize (especially ones you did not open in a TUI) are the strongest signal of an attacker-created session. Note: our own T3 test created stealth sessions on `<affected-user>`'s server, so some unfamiliar sessions in this window may be OURS from testing; correlate against the test log before alarming.
 - Shell/tool commands you did not run are direct evidence of code execution via the server. Look for anything not matching your own activity (unexpected `curl`, `id`, reads of `~/.ssh`, `.env`, `env`, credential paths, network calls).
 - Prompts in `session_input` you did not type indicate agent-driving via `/session/{id}/message`.
 - REMEMBER the blind spot: file READS via `/file/content` leave nothing here. If the box was internet-reachable during the window, treat everything the user could read as potentially exfiltrated regardless of what the DB shows.
@@ -97,5 +97,5 @@ If there is no network-layer logging, you cannot determine whether a remote part
 ## After inspecting
 
 - If you find only your own and the known test activity: interactive abuse is unlikely, but a silent file read cannot be excluded (see blind spot).
-- If you find unexplained sessions/commands: treat as a potential compromise of everything `victim-user` could access; rotate any credentials reachable from that account (SSH keys, tokens, provider API keys, cloud creds) and review the network evidence.
+- If you find unexplained sessions/commands: treat as a potential compromise of everything `<affected-user>` could access; rotate any credentials reachable from that account (SSH keys, tokens, provider API keys, cloud creds) and review the network evidence.
 - Going forward: never run an unsecured server, never bind `0.0.0.0`/`--mdns` on a networked host, and put HTTP access logging at a reverse proxy since opencode provides none (advisory `20260716-0850-01`, hardening how-to `20260716-0850-02`).

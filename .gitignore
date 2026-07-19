@@ -43,3 +43,11 @@ tmp/
 
 # agent-workflows installer local backups
 .agent-workflows-installer-backups/
+
+# Session-recovery transcripts / dumps: machine-local, may contain personal paths
+# and session ids; never track (D92).
+opencode-recovery/
+
+# Ephemeral workflow run records (release-review / assess run logs). They embed
+# machine-absolute paths; kept local, not tracked (D92).
+workflow-artifacts/

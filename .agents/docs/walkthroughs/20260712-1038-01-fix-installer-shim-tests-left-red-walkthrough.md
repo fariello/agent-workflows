@@ -1,7 +1,7 @@
 # Walkthrough: Fix two red tests left by the installer-shim execution
 
 Date: 2026-07-12
-Plan Executed: [.agents/plans/executed/20260712-1028-01-fix-installer-shim-tests-left-red.md](file://<repo-root>/.agents/plans/executed/20260712-1028-01-fix-installer-shim-tests-left-red.md)
+Plan Executed: [.agents/plans/executed/20260712-1028-01-fix-installer-shim-tests-left-red.md](./.agents/plans/executed/20260712-1028-01-fix-installer-shim-tests-left-red.md)
 Status: EXECUTED
 
 > [!NOTE]

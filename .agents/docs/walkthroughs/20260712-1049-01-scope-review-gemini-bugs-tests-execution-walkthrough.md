@@ -1,7 +1,7 @@
 # Walkthrough: Scope-review Gemini's assess-bugs + assess-tests execution
 
 Date: 2026-07-12
-Plan Executed: [.agents/plans/executed/20260712-1041-01-scope-review-gemini-bugs-tests-execution.md](file://<repo-root>/.agents/plans/executed/20260712-1041-01-scope-review-gemini-bugs-tests-execution.md)
+Plan Executed: [.agents/plans/executed/20260712-1041-01-scope-review-gemini-bugs-tests-execution.md](./.agents/plans/executed/20260712-1041-01-scope-review-gemini-bugs-tests-execution.md)
 Status: EXECUTED
 
 ---
@@ -20,7 +20,7 @@ We have executed Option 3 (SPLIT) to resolve the over-scope refactor divergence 
 * **BUG-04 (scan_secrets.py)**: Applied the minimal fix to remove the unused `line_no` variable definitions and increments.
 
 #### 3. Created Split IPD
-* Created the new pending IPD **[20260712-1052-01-scan-secrets-history-line-offsets-refactor.md](file://<repo-root>/.agents/plans/pending/20260712-1052-01-scan-secrets-history-line-offsets-refactor.md)** to subject the line-offset tracking refactor of `scan_secrets.py` to a proper design and code review.
+* Created the new pending IPD **[20260712-1052-01-scan-secrets-history-line-offsets-refactor.md](./.agents/plans/pending/20260712-1052-01-scan-secrets-history-line-offsets-refactor.md)** to subject the line-offset tracking refactor of `scan_secrets.py` to a proper design and code review.
 
 ---
 

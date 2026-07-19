@@ -24,19 +24,19 @@ Correct logic errors, potential runtime crashes, and dead code in the framework'
 
 ## Project conventions discovered (Step 0)
 
-- Guiding principles: [GUIDING_PRINCIPLES.md](file://<repo-root>/GUIDING_PRINCIPLES.md) (specifically Principle 1: Fix by default; Principle 6: KISS; Principle 10: Safety and reversibility)
+- Guiding principles: [GUIDING_PRINCIPLES.md](./GUIDING_PRINCIPLES.md) (specifically Principle 1: Fix by default; Principle 6: KISS; Principle 10: Safety and reversibility)
 - Pending-plans location/format used: `.agents/plans/pending/` using `YYYYMMDD-HHMM-NN-<slug>.md` local time naming convention.
-- Contributor/spec-sync contract: [AGENTS.md](file://<repo-root>/AGENTS.md)
+- Contributor/spec-sync contract: [AGENTS.md](./AGENTS.md)
 - Stack / relevant context: Python 3.8+ zero-dependency environment.
 
 ## Findings
 
 | ID | Severity | Remediation Risk | Persona | Area | Finding | Evidence (file:line) |
 |----|----------|------------------|---------|------|---------|----------------------|
-| BUG-01 | Low | Low | Software engineer | verify/tools | Dead code pattern (`and False`) in `run_checks.py` | [run_checks.py:590](file://<repo-root>/.agents/workflows/verify/tools/run_checks.py#L590) |
-| BUG-02 | Medium | Low | Software engineer | setup-repo/tools | Uncaught ValueError/OverflowError in `datetime.datetime.fromtimestamp` call | [normalize_plan_names.py:226](file://<repo-root>/.agents/workflows/setup-repo/tools/normalize_plan_names.py#L226) |
-| BUG-03 | Medium | Low | Software engineer | core package | Uncaught AttributeError in PyPI latest version lookup if response JSON is not a dictionary | [versioning.py:319](file://<repo-root>/agent_workflows/versioning.py#L319) |
-| BUG-04 | Low | Low | QA engineer | assess/tools | Unused variable `line_no` and default `:1` line reporting in `scan_secrets.py` history scans | [scan_secrets.py:311](file://<repo-root>/.agents/workflows/assess/tools/scan_secrets.py#L311) |
+| BUG-01 | Low | Low | Software engineer | verify/tools | Dead code pattern (`and False`) in `run_checks.py` | [run_checks.py:590](./.agents/workflows/verify/tools/run_checks.py#L590) |
+| BUG-02 | Medium | Low | Software engineer | setup-repo/tools | Uncaught ValueError/OverflowError in `datetime.datetime.fromtimestamp` call | [normalize_plan_names.py:226](./.agents/workflows/setup-repo/tools/normalize_plan_names.py#L226) |
+| BUG-03 | Medium | Low | Software engineer | core package | Uncaught AttributeError in PyPI latest version lookup if response JSON is not a dictionary | [versioning.py:319](./agent_workflows/versioning.py#L319) |
+| BUG-04 | Low | Low | QA engineer | assess/tools | Unused variable `line_no` and default `:1` line reporting in `scan_secrets.py` history scans | [scan_secrets.py:311](./.agents/workflows/assess/tools/scan_secrets.py#L311) |
 
 ## Proposed changes (ordered, validatable)
 
@@ -44,10 +44,10 @@ Fix by default: all 4 findings carry Low Remediation Risk and should be fixed.
 
 | Step | Source finding IDs | Change | Files | Remediation Risk | Validation |
 |------|--------------------|--------|-------|------------------|------------|
-| 1 | BUG-01 | Remove the dead TERM `and args.yes and False` entirely and drop the unreachable `"declined"` literal, so the expression reduces to `"unclassified; not run" if not c.category else "declined by user"`. This PRESERVES current behavior (PL-2). Do NOT merely delete `and False` (that would ACTIVATE a new "declined" reason for `--yes` + unclassified commands, a behavior change). | [run_checks.py](file://<repo-root>/.agents/workflows/verify/tools/run_checks.py) | Low | Regression test pins the skip-reason unchanged before/after (PL-2). |
-| 2 | BUG-02 | Add a try-except block around `fromtimestamp` in `normalize_plan_names.py` to gracefully handle ValueError, OSError, and OverflowError. | [normalize_plan_names.py](file://<repo-root>/.agents/workflows/setup-repo/tools/normalize_plan_names.py) | Low | Run unit tests; verify it compiles and runs. |
-| 3 | BUG-03 | In `versioning.py`, verify `isinstance(data, dict)` before checking PyPI metadata keys to prevent `AttributeError`. | [versioning.py](file://<repo-root>/agent_workflows/versioning.py) | Low | Run unit tests; verify no crash if mock PyPI returns non-dict structures. |
-| 4 | BUG-04 | Clean up the unused `line_no` variable in `scan_secrets.py` to prevent linter warnings. | [scan_secrets.py](file://<repo-root>/.agents/workflows/assess/tools/scan_secrets.py) | Low | Run unit tests. |
+| 1 | BUG-01 | Remove the dead TERM `and args.yes and False` entirely and drop the unreachable `"declined"` literal, so the expression reduces to `"unclassified; not run" if not c.category else "declined by user"`. This PRESERVES current behavior (PL-2). Do NOT merely delete `and False` (that would ACTIVATE a new "declined" reason for `--yes` + unclassified commands, a behavior change). | [run_checks.py](./.agents/workflows/verify/tools/run_checks.py) | Low | Regression test pins the skip-reason unchanged before/after (PL-2). |
+| 2 | BUG-02 | Add a try-except block around `fromtimestamp` in `normalize_plan_names.py` to gracefully handle ValueError, OSError, and OverflowError. | [normalize_plan_names.py](./.agents/workflows/setup-repo/tools/normalize_plan_names.py) | Low | Run unit tests; verify it compiles and runs. |
+| 3 | BUG-03 | In `versioning.py`, verify `isinstance(data, dict)` before checking PyPI metadata keys to prevent `AttributeError`. | [versioning.py](./agent_workflows/versioning.py) | Low | Run unit tests; verify no crash if mock PyPI returns non-dict structures. |
+| 4 | BUG-04 | Clean up the unused `line_no` variable in `scan_secrets.py` to prevent linter warnings. | [scan_secrets.py](./.agents/workflows/assess/tools/scan_secrets.py) | Low | Run unit tests. |
 
 ## Deferred / out of scope (with reason)
 

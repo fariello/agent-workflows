@@ -16,7 +16,7 @@
 
 ## Motivation (survey evidence)
 
-A read-only survey of all 23 `a local checkout dir/*/.agents` trees (plans/ + prompts/, `*.md`, excl README) found
+A read-only survey of all 23 sibling `.agents` trees (plans/ + prompts/, `*.md`, excl README) found
 391 files. With a loose leading-number regex `^[0-9][^A-Za-z]*`:
 
 - 381 start with a numeric blob, across shapes: `YYYYMMDD-HHMM-` (213), `YYYYMMDD-` (96),
@@ -189,7 +189,7 @@ reported `non-numeric (needs --rename-non-numeric)`. On: rename it to canonical.
 if the name contains a parseable `YYYYMMDD` anywhere, use it for the date and take only HHMM from the
 git/fs fallback; otherwise take BOTH date and time from the git/fs fallback (change #1). SLUG: derived
 from the old stem, lowercased-kebab, with the consumed date removed
-(`MASTER-CONTEXT-a-private-repo-20260711` -> `master-context-a-private-repo`; empty -> `untitled`). Never
+(`MASTER-CONTEXT-<consuming-repo>-20260711` -> `master-context-<consuming-repo>`; empty -> `untitled`). Never
 touch excluded or nested files even with this flag (nesting needs `--include-nested` too).
 
 ### 6. `/setup-repo` prose + docs

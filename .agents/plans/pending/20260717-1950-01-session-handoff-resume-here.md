@@ -23,8 +23,8 @@ Human's working preferences:
 - Efficiency of tokens/context is a stated value in general - do the thing that gets the same result for fewer tokens.
 
 Repo-boundary rules (operationally important):
-- Do NOT `cd` into or work inside `a local opencode clone` or `a local ocman clone`. You MAY write a single file into another repo (e.g. deliver a comms message) when the human authorizes it - it triggers a permission prompt the human approves; stay strictly in-lane (only the message file, no roaming, no commits there).
-- You CAN consult the `a local opencode clone` repo agent for source-grounded OpenCode questions by leaving it a message (see inter-agent comms below). Its answers are authoritative-but-verify.
+- Do NOT `cd` into or work inside a local `opencode` or `ocman` clone. You MAY write a single file into another repo (e.g. deliver a comms message) when the human authorizes it - it triggers a permission prompt the human approves; stay strictly in-lane (only the message file, no roaming, no commits there).
+- You CAN consult the a local `opencode` clone repo agent for source-grounded OpenCode questions by leaving it a message (see inter-agent comms below). Its answers are authoritative-but-verify.
 
 Inter-agent comms lever (this exists and is powerful; a new session should know it):
 - `.agents/comms/` is a filesystem inter-agent message convention (D81 / spec under `.agents/docs/specs/`). We drove three agents this session: the `opencode` repo agent (source-grounded), this `agent-workflows` agent (same site), and an off-site `gpt56` agent (independent review). They cross-reviewed each other adversarially and caught real errors.

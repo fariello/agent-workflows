@@ -1,8 +1,0 @@
-id,source_finding_ids,section,status,description,remediation_risk,files_changed,commit,validation,reason_not_done,recommended_next_step
-20260706-112559-S7-A1,S2-B1;S2-M2,7,completed,"scan_secrets.py skip workflow-artifacts+lockfiles (shared is_skipped_path); single entropy calc",Low,".agents/workflows/assess/tools/scan_secrets.py; tests/test_scan_secrets.py",a3b7c22,"52 tests pass; candidate 518->289",n/a,none
-20260706-112559-S7-A2,S2-M1,7,completed,"setup_tools.py --version + _framework_version",Low,".agents/workflows/setup-repo/tools/setup_tools.py; tests/test_setup_tools.py",a3b7c22,"--version prints VERSION; tests pass",n/a,none
-20260706-112559-S7-A3,S3-T1,7,completed,"capture_hpc parse test",Low,tests/test_bench_env.py,a3b7c22,"52 tests pass",n/a,none
-20260706-112559-S7-A4,S4-D1;S4-D2;S4-D3,7,completed,"ARCHITECTURE shim count 15->16, three tools->four; getting-started benchmark route",Low,"ARCHITECTURE.md; .agents/workflows/getting-started/getting-started.md",pending,"em-dash 0; grep confirms",n/a,none
-20260706-112559-S7-A5,S6-CI1;S3-T2,7,completed,"tests.yml CI (3.9/3.11/3.13) + Makefile test target (verify now discovers 3 checks)",Low,".github/workflows/tests.yml; Makefile",pending,"make test green; run_checks --list finds 3","(CI runs once pushed)",none
-20260706-112559-S7-A6,S6-P1,7,completed,"README Python 3.7+ -> 3.9+ (CI-verified floor, honest note)",Low,README.md,pending,"grep confirms",n/a,none
-20260706-112559-S7-A7,S5-F1,7,deferred,"benchmark not yet run end-to-end on a real repo",Medium,none,n/a,"n/a - validation action","functionality: forcing a redesign without a live run's evidence is the risk; action is to RUN it, not change code","user runs /benchmark on a real repo"

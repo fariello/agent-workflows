@@ -126,6 +126,31 @@ class PackagingTests(unittest.TestCase):
             self.assertIn(script, text)
         self.assertIn("agent_workflows.cli:main", text)
 
+    def test_wheel_has_no_personal_path_leak(self):
+        # D92: no maintainer-specific path/identity token may ship in the wheel. Tokens are
+        # assembled at runtime so this test file itself carries no literal leak.
+        z = zipfile.ZipFile(self.wheel)
+        tokens = (
+            "/home/" + "attacker-user",
+            "a local checkout dir",
+            "hermes" + "-agent",
+            "uri" + "-ai-info",
+            "rhody" + "-pact",
+            "test_" + "user_1",
+        )
+        leaked = []
+        for n in self.names:
+            try:
+                data = z.read(n).decode("utf-8", "replace")
+            except Exception:
+                continue
+            for t in tokens:
+                if t in data:
+                    leaked.append(f"{t} in {n}")
+        self.assertEqual(
+            leaked, [], f"personal-path token(s) leaked into the wheel: {leaked}"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

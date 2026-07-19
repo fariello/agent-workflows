@@ -1,5 +1,0 @@
-id,severity,remediation_risk,remediation_risk_axis,persona,area,finding,evidence,proposed_action,disposition
-BUG-01,low,low,complexity,software_engineer,verify/tools,Dead code pattern ('and False') in run_checks.py,verify/tools/run_checks.py:590,Remove 'and False' condition,proposed
-BUG-02,medium,low,complexity,software_engineer,setup-repo/tools,Uncaught ValueError/OverflowError in fromtimestamp call,setup-repo/tools/normalize_plan_names.py:226,Add try-except block around fromtimestamp,proposed
-BUG-03,medium,low,complexity,software_engineer,core_package,Uncaught AttributeError in PyPI latest version lookup,agent_workflows/versioning.py:319,Verify response is dict before checking keys,proposed
-BUG-04,low,low,complexity,qa_engineer,assess/tools,Unused line_no variable in scan_secrets.py history scans,assess/tools/scan_secrets.py:311,Remove unused line_no variable,proposed

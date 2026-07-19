@@ -23,9 +23,9 @@ The important reframing that came out of verification: the wake-up-capable agent
 
 Everything else (signals, tty writes, shared memory, D-Bus) either cannot be safely consumed by a turn-based process or reduces to one of these three.
 
-## Reference implementation: how a-reference-agent implements the daemon model
+## Reference implementation: how a mature reference agent implements the daemon model
 
-a-reference-agent (`a reference agent clone`, Nous Research, MIT) was cloned into this workspace SOLELY as a reference implementation: a worked example of a mature agentic system that supports transport-driven wake-up, and of how it does it. It is not a dependency of agent-workflows, and there is no upstream maintainer for us to coordinate with. The value here is the PATTERN in the source, which we study and selectively adopt. Verified by reading the source, not inferring:
+A mature open-source agentic system (MIT-licensed) was cloned locally SOLELY as a reference implementation: a worked example of a system that supports transport-driven wake-up, and of how it does it. It is not a dependency of agent-workflows, and there is no upstream maintainer for us to coordinate with. The value here is the PATTERN in the source, which we study and selectively adopt. Verified by reading the source, not inferring:
 
 - It is a long-lived async gateway (`gateway/`) with pluggable platform adapters (`gateway/platforms/`: telegram, signal, discord/slack, whatsapp, weixin, qqbot, msgraph webhook, bluebubbles, ...). Each adapter connects to its transport and, on an inbound message, calls `self.handle_message(event)` to dispatch into the gateway. That call IS the wake-up: the transport's own async listener unblocks the loop. (Source: `gateway/platforms/ADDING_A_PLATFORM.md`, "Key patterns to follow".)
 - Adding a new transport is a zero-core-change plugin: a `plugin.yaml` + `adapter.py` under `~/.hermes/plugins/` that subclasses `BasePlatformAdapter` and calls `ctx.register_platform()`. (Source: same file, "Plugin Path".) A filesystem-inbox adapter (inotify -> `handle_message`) would be the same shape as the Telegram adapter.
@@ -101,7 +101,7 @@ These are the load-bearing decisions the IPD will implement.
 
 ## Provenance and caveats
 
-- a-reference-agent is used here strictly as a cloned REFERENCE implementation (a worked example), not as a dependency or a running service to integrate with. a-reference-agent and ACP facts are read from source (`a reference agent clone`) and the ACP site; the live `ps`/`ss` observation is incidental.
+- the reference agent is used here strictly as a cloned REFERENCE implementation (a worked example), not as a dependency or a running service to integrate with. Its behavior and ACP facts are read from a local source clone and the ACP site; the live `ps`/`ss` observation is incidental.
 - The OpenCode server API facts (serve/doc/session-create/message/tui/mdns/acp, unsecured-by-default) were VERIFIED by live self-test on this box against OpenCode 1.18.1 on 2026-07-15: a self-started `opencode serve` on a throwaway port, read-only `/doc` + `/session` probes, one `POST /session` + `POST /session/{id}/message` self-send that returned the expected sentinel, then the test server disposed. No other instance or human session was touched. Cross-instance reachability and mDNS behavior remain unverified.
 - This is a discuss-first / research artifact. Nothing was built. Any implementation requires an IPD and explicit human approval per the repo contract.
 - Related artifacts: `research/20260712-2133-01-filesystem-inter-project-agent-comms-concept.md`, `docs/specs/20260712-2133-02-agent-comms-protocol-draft.md`, and `research/opencode/` (OpenCode inter-instance comms + runtime-artifacts references).

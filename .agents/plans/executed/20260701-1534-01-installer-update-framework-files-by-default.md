@@ -50,7 +50,7 @@ idempotent handling (D21) and are unaffected.
   (the `.agents/workflows/` tree, lines 417-421) and `shim_members` (the generated
   `.opencode/commands/` and `.claude/commands/` shims, lines 423-424). No user-owned
   file flows through it; `AGENTS.md` is handled by a separate, marker-based updater.
-- Confirmed live against `a consuming repo clone`: a routine update (only the new
+- Confirmed live against `<a-consuming-repo>`: a routine update (only the new
   `generalization` manifest row differs) is refused with "Run again with --force".
 
 ## Findings
@@ -59,7 +59,7 @@ Severity is impact if left alone; Remediation Risk is the Fix-Bar gate.
 
 | ID | Severity | Remediation Risk | Persona | Area | Finding | Evidence |
 |----|----------|------------------|---------|------|---------|----------|
-| I1 | Medium | Low | Operator / Novice (P3) | Update requires `--force` | The normal update path (target has an older framework file) is refused unless `--force` is passed, aborting the whole sync. Updating should be the default behavior of an updater. | `install-workflows.py:383-385,426-436`; live repro on a-consuming-repo |
+| I1 | Medium | Low | Operator / Novice (P3) | Update requires `--force` | The normal update path (target has an older framework file) is refused unless `--force` is passed, aborting the whole sync. Updating should be the default behavior of an updater. | `install-workflows.py:383-385,426-436`; live repro on a consuming repo |
 | I2 | Medium | Low | Maintainer (consistency) | Internal inconsistency with D15 | The installer *prunes* (deletes) stale framework files by default but *refuses to overwrite* them by default, though the same mitigations (namespace scope, backups, dry-run, git staging, escape hatch) apply and overwriting is safer than deleting. | `DECISIONS.md` D15 vs. `:383-385` |
 | I3 | High | Low | Security-minded operator | `--force` is an over-broad hammer | Because the only way to update is `--force`, users learn to always pass it. If a future change routes any user-owned file through `write_file`, `--force` would silently clobber it. Making framework overwrite the default keeps `--force` unnecessary for normal use, so it is not habitual. | `:383` (single global gate) |
 | I4 | Low | Low | Operator | `--force` semantics will be vestigial | If framework files overwrite by default, `--force` has little left to gate (all current write_file inputs are framework-owned). It should either be removed or redefined to only cover a genuine future user-owned case. Leaving it as a no-op would confuse. | `:141` (arg), `:383,387,393` |
@@ -98,7 +98,7 @@ gate (1b) would ship the I5 silent-data-loss bug. No em dashes.
 ## Required tests / validation
 
 Installer-behavior change; validate by exercising it against a scratch target (not a
-real repo) plus a dry-run on a-consuming-repo:
+real repo) plus a dry-run on a consuming repo:
 
 1. Create a throwaway git repo under `/tmp/opencode/`, install the framework, then
    modify one framework file (e.g. delete a manifest row from `index.md`) to simulate
@@ -114,7 +114,7 @@ real repo) plus a dry-run on a-consuming-repo:
    prose is preserved.
 6. Prune scope unchanged: a stale framework file (renamed upstream) is still pruned;
    nothing outside the framework namespace is touched.
-7. Dry-run against `a consuming repo clone` now shows the `generalization` update as
+7. Dry-run against `<a-consuming-repo>` now shows the `generalization` update as
    `[overwrite]`/install with no conflict abort and no `--force`.
 8. No em dashes in changed Markdown; `python3 -m py_compile install-workflows.py` and
    `sh -n install-workflows.sh` pass.
@@ -145,6 +145,6 @@ and it is NOT auto-executed. Recommended next steps:
 1. Review this IPD (optionally run the `plan-review` workflow to harden it).
 2. On approval, execute the ordered changes, run the validation, and sync docs.
 3. Only then move this IPD out of `pending/` (this project uses `.agents/plans/done/`).
-4. After this ships and is committed/pushed, update `a consuming repo clone` by simply
+4. After this ships and is committed/pushed, update `<a-consuming-repo>` by simply
    re-running the installer (no `--force` needed) - the original task that surfaced
    this finding.

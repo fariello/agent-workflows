@@ -1,2 +1,0 @@
-- IPD: [.agents/plans/pending/20260712-0959-01-assess-bugs-in-scripts.md](file://<repo-root>/.agents/plans/pending/20260712-0959-01-assess-bugs-in-scripts.md)
-- Summary: Proposes 4 fixes for logic correctness issues (dead code, unhandled datetime/PyPI JSON exceptions, and unused linting variables) in python scripts and core package files.

@@ -12,6 +12,14 @@ behavior-preserving install refactor, and the bug-fix / install-path corrections
 (previously staged for a separate 1.2.1 patch, now folded into this single release). Final release
 scoping is confirmed at release-review.
 
+- Fixed (privacy/correctness, DECISIONS D92): removed maintainer-specific references (local
+  filesystem paths, private repo names, a second local test account, and captured session ids)
+  from tracked files, including one that had shipped inside a packaged reference doc. Added a
+  durable guard (`tools/check_personal_paths.py`, a pre-commit hook, and
+  `tests/test_no_personal_paths.py`) that fails when a tracked file embeds a personal-path or
+  identity token, with an allowlist for the public author email and repo origin. Ephemeral run
+  records (`workflow-artifacts/`) and session-recovery dumps (`opencode-recovery/`) are now
+  gitignored.
 - Added: `.agents/prompts/` operational staging convention (DECISIONS D91). A run queue for run-once
   and research prompts, mirroring the plan lifecycle buckets (`pending/`, `executed/`, `superseded/`,
   `not-executed/`, `reusable/`) and tracked like plans. Distinct from the evergreen `.agents/docs/prompts/`

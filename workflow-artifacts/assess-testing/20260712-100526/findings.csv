@@ -1,5 +1,0 @@
-id,severity,remediation_risk,remediation_risk_axis,persona,area,finding,evidence,proposed_action,disposition
-TEST-01,medium,low,complexity,qa_engineer,verify/tests,No test coverage for skip/decline behaviors and explicit skip reasons in run_checks.py,tests/test_run_checks.py:50,Add regression test for skip/decline,proposed
-TEST-02,medium,low,complexity,testing_expert,setup-repo/tests,No test coverage for fs_stamp handling out-of-range/invalid file timestamp values,tests/test_normalize_plan_names.py:22,Add unit test for out-of-range timestamp,proposed
-TEST-03,medium,low,complexity,testing_expert,core/tests,No test coverage for latest_pypi_version with non-dict JSON responses,tests/test_pypi_links.py:78,Add unit test for non-dict response,proposed
-TEST-04,low,low,complexity,qa_engineer,assess/tests,No verification of line number formatting in scan_secrets history scans,tests/test_scan_secrets.py:62,Add assertion for finding location formatting,proposed

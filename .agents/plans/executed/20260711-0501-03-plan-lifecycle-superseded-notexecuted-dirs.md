@@ -33,7 +33,7 @@ Give the plan lifecycle an honest home for plans that were **drafted but never r
    - `not-executed/` - we **deliberately decided not to run it**, with no replacement (explored, rejected, or overtaken by events).
 3. **Never silently delete process history.** Retiring a plan should preserve it with a recorded reason, `git mv`'d (history intact), not `rm`'d.
 4. **Orientation in target repos (addressed by the split-out follow-on).** The installer creates empty `.gitkeep`-only lifecycle dirs today; a developer/agent browsing `.agents/plans/superseded/` has no in-repo explanation of what belongs there or how to retire a plan into it. A one-screen README per dir fixes that (mirrors the 2026-07-09 target-directory-READMEs precedent); that work is the separate follow-on IPD, not this one. Meanwhile the `/setup-repo` AGENT-PLANS prose (change #2) documents the buckets.
-5. **Real, demonstrated need.** The consuming project `a-private-repo` hit exactly this: a reshaped IPD (`build-07`) was superseded by two successors and had nowhere honest to go; its AGENTS.md already had to describe both `superseded` and `not-executed` by hand. This IPD lifts that ad-hoc need into the framework's installed convention.
+5. **Real, demonstrated need.** A consuming project hit exactly this: a reshaped IPD (`build-07`) was superseded by two successors and had nowhere honest to go; its AGENTS.md already had to describe both `superseded` and `not-executed` by hand. This IPD lifts that ad-hoc need into the framework's installed convention.
 
 ## Project conventions discovered (Step 0)
 
@@ -182,7 +182,7 @@ line, imperative). Each ~6-10 lines:
 
 Five dirs may look like scope creep; each earns its place: `pending`/`executed`/`reusable` exist;
 `superseded` vs `not-executed` are genuinely distinct not-run outcomes and are already needed in the
-wild (a-private-repo). The maintainer chose two dirs over one merged `retired/` for `ls`-level clarity
+the wild. The maintainer chose two dirs over one merged `retired/` for `ls`-level clarity
 (decision 1). After splitting out the READMEs (decision 2), THIS IPD is a one-tuple edit + doc
 reconciliation + a `/setup-repo` prose update + a DECISIONS entry - no new code paths, no template
 plumbing, no new subsystem. General-case: nothing project-specific; the prose is neutral.
