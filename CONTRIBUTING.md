@@ -47,18 +47,24 @@ Committed secrets and PII/PHI must never enter this repo, including its git hist
   it at the provider first, then purge it from history (`git filter-repo`/BFG).
 - For a deeper pass, run `/assess secrets`.
 
-## No personal paths in tracked files (DECISIONS D92)
+## No local leaks in tracked files (DECISIONS D92, D93)
 
 This is a public package and repo. No tracked file may embed the maintainer's local
-filesystem layout, other local accounts, private repo names, or personal handles - use a
-portable placeholder, a repo-relative path, or `$HOME`/a config value instead. The only
-tolerated personal identifiers are the public author email and the public repo origin URL.
+filesystem layout, other local accounts, private repo names, hostnames, session ids, or
+personal handles - use a portable placeholder, a repo-relative path, or `$HOME`/a config
+value instead. The only tolerated personal identifiers are the public author email and the
+public repo origin URL. This class of leak is NOT caught by secret scanners (gitleaks etc.).
 
-- **Enforced:** a pre-commit hook and `tests/test_no_personal_paths.py` run
-  `tools/check_personal_paths.py`, which scans the tracked tree and
-  fails on a personal-path/identity token.
-- **Allowlist:** genuinely public identifiers are allowlisted in the scanner; add to it only
-  with justification, never to hide a real leak.
+- **Check it yourself:** `aw check-local-leaks .` (working tree),
+  `aw check-local-leaks . --history` (git history, bounded with `--max-commits N`),
+  `aw check-local-leaks . --wheel dist/<built>.whl` (the shipped surface). Without the CLI:
+  `python3 -m agent_workflows check-local-leaks .`. For an interactive pass that enumerates
+  emails/usernames and asks which are intended-public, run `/assess local-leaks`.
+- **Enforced:** a pre-commit hook and `tests/test_local_leaks.py` run the same
+  `agent_workflows.local_leaks` engine; the `local-leaks` CI workflow is the push-time backstop.
+- **Allowlist:** add genuinely-public values to `.agents/local-leaks-allowlist.toml` (committed,
+  travels, CI-deterministic). Your own machine-specific tokens go in the never-committed
+  `~/.config/agent-workflows/local-leaks-hints.json`. Never weaken the patterns to hide a real leak.
 
 ## Self-tests (run before pushing tool changes)
 

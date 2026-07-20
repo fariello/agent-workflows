@@ -12,6 +12,14 @@ behavior-preserving install refactor, and the bug-fix / install-path corrections
 (previously staged for a separate 1.2.1 patch, now folded into this single release). Final release
 scoping is confirmed at release-review.
 
+- Added: `aw check-local-leaks` and the `/assess local-leaks` lens (DECISIONS D93). A first-class
+  detector for maintainer/machine identifying info that must not appear in a public artifact
+  (home paths, usernames, other local accounts, private repo names, hostnames, session ids) - the
+  class ordinary secret scanners miss. One shippable engine (`agent_workflows/local_leaks.py`) feeds
+  the CLI, the pre-commit hook, the tests, and the interactive lens; it scans the working tree, git
+  history (bounded), or a built wheel, auto-derives candidate tokens (advisory), and reads a
+  repo-committed allowlist plus a never-committed user-level hints file. A `local-leaks` CI workflow
+  is the push-time backstop.
 - Fixed (privacy/correctness, DECISIONS D92): removed maintainer-specific references (local
   filesystem paths, private repo names, a second local test account, and captured session ids)
   from tracked files, including one that had shipped inside a packaged reference doc. Added a
