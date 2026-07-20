@@ -216,6 +216,32 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Output format.",
     )
 
+    p_leaks = sub.add_parser(
+        "check-local-leaks",
+        parents=[common],
+        help="Detect identifying info (home paths, usernames, private repo names, "
+        "hostnames, session ids) that must not appear in a public artifact (D93).",
+    )
+    p_leaks.add_argument(
+        "dir", nargs="?", default=".", help="Repo root (default: current directory)."
+    )
+    p_leaks.add_argument(
+        "--history",
+        action="store_true",
+        help="Scan git history (bounded) instead of the tree.",
+    )
+    p_leaks.add_argument(
+        "--max-commits", type=int, default=None, help="Bound --history to N commits."
+    )
+    p_leaks.add_argument(
+        "--wheel", default=None, help="Scan a built wheel/zip at this path instead."
+    )
+    p_leaks.add_argument(
+        "--warn",
+        action="store_true",
+        help="Also report advisory auto-derived candidates (for /assess review).",
+    )
+
     return parser
 
 
@@ -893,6 +919,22 @@ def _run_plan_names(args: argparse.Namespace, term: Term) -> int:
     return normalizer.main(passthrough)
 
 
+def _run_check_local_leaks(args: argparse.Namespace, term: Term) -> int:
+    """Detect local leaks (D93). Delegates to the packaged agent_workflows.local_leaks engine."""
+    from . import local_leaks
+
+    passthrough = [getattr(args, "dir", None) or "."]
+    if getattr(args, "history", False):
+        passthrough.append("--history")
+    if getattr(args, "max_commits", None) is not None:
+        passthrough += ["--max-commits", str(args.max_commits)]
+    if getattr(args, "wheel", None):
+        passthrough += ["--wheel", args.wheel]
+    if getattr(args, "warn", False):
+        passthrough.append("--warn")
+    return local_leaks.main(passthrough)
+
+
 def _dispatch(argv: Optional[Sequence[str]]) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -915,7 +957,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         term.line()
         term.line(
             "Commands: install <dir>|all, setup, uninstall <dir>, list, status, plans, "
-            "plan-names. See 'aw --help'."
+            "plan-names, check-local-leaks. See 'aw --help'."
         )
         return 0
 
@@ -933,6 +975,8 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return _run_plans(args, term)
     if args.command == "plan-names":
         return _run_plan_names(args, term)
+    if args.command == "check-local-leaks":
+        return _run_check_local_leaks(args, term)
 
     parser.print_help()
     return 2

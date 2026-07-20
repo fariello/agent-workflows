@@ -201,5 +201,31 @@ class AutoDeriveTests(unittest.TestCase):
                     os.environ[k] = v
 
 
+class CliTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.repo = _init_repo(Path(self._tmp.name) / "r")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_cli_exit_zero_on_clean_tree(self):
+        from agent_workflows import cli
+
+        _commit(self.repo, "ok.md", "nothing to see\n", "add")
+        self.assertEqual(
+            cli.main(["check-local-leaks", str(self.repo), "--no-color"]), 0
+        )
+
+    def test_cli_exit_one_on_leak(self):
+        from agent_workflows import cli
+
+        leak = "/home/" + "cliuser" + "/x"
+        _commit(self.repo, "bad.md", f"{leak}\n", "add")
+        self.assertEqual(
+            cli.main(["check-local-leaks", str(self.repo), "--no-color"]), 1
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
