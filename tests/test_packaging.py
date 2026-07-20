@@ -80,6 +80,8 @@ class PackagingTests(unittest.TestCase):
         self.assertIn("agent_workflows/cli.py", self.names)
         self.assertIn("agent_workflows/engine.py", self.names)
         self.assertIn("agent_workflows/versioning.py", self.names)
+        # D93: the local-leaks engine must ship so `aw check-local-leaks` works post-install.
+        self.assertIn("agent_workflows/local_leaks.py", self.names)
 
     def test_wheel_bundles_workflow_tree_under_data(self):
         # AC-2/AC-8: the shipped tree is mapped under agent_workflows/_data/.

@@ -29,14 +29,14 @@ repos:
       - id: ruff-format
         exclude: '^\.agents/docs/research/'
 
-  # Local guard (D92): no personal-path / identity leaks in TRACKED files. Scans the whole
-  # tracked tree (not just staged files) via git ls-files, so it cannot be bypassed by staging
-  # a subset; runs once per commit.
+  # Local guard (D92/D93): no local leaks (identifying info) in TRACKED files. Scans the whole
+  # tracked tree (not just staged files) via the packaged agent_workflows.local_leaks engine,
+  # so it cannot be bypassed by staging a subset; runs once per commit.
   - repo: local
     hooks:
-      - id: no-personal-paths
-        name: no personal paths in tracked files
-        entry: python3 tools/check_personal_paths.py
+      - id: local-leaks
+        name: no local leaks in tracked files
+        entry: python3 -m agent_workflows check-local-leaks
         language: system
         pass_filenames: false
         always_run: true
