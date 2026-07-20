@@ -3,7 +3,7 @@
 - Date: 2026-07-19
 - Concern: privacy / identity-leak detection (durable, reusable) + regression prevention
 - Scope: promote the one-off personal-path guard into a first-class, reusable capability: a shippable scanner module in `agent_workflows/`, an `aw check-local-leaks` subcommand, an `/assess local-leaks` lens, a CI workflow, working-tree + git-history + built-wheel scan modes, and auto-derived tokens + a repo-committed allowlist + a user-level personal-hints file. Does NOT re-run the one-time cleanup (D92) or touch PyPI/history.
-- Status: approved
+- Status: executed
 - Approval: approved by the human (repo maintainer) 2026-07-19
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
@@ -11,6 +11,8 @@
 
 - 2026-07-19 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored after the D92 cleanup, when the human asked for a durable way to detect/mitigate this class of leak (which secret scanners miss). Human decisions captured at design time: name = `local-leaks`; promote to an assess lens AND an `aw` command (options 1+2); include a thin CI backstop; auto-derive tokens + split config (small repo-committed allowlist that travels + CI-deterministic, PLUS a never-committed user-level personal-hints file under `~/.config/agent-workflows/`); the lens should cover usernames + emails (enumerate emails and ask which to keep), not just paths. Grounded in an explore survey of the scanner, cli/config/assess/packaging structure.
 - 2026-07-19 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed. Verified the load-bearing claims against source (config `normalize()` drops unknown keys -> justifies the separate hints file; `scan_secrets` `scan_text`/`scan_history` history parser + email rule; CLI dispatch pattern; packaging boundary; CI runs on ubuntu+macos+windows). Added LL7 (cross-platform: optional derivation sources, Windows paths) and LL8 (CI history-scan boundedness); pinned OQ3 as warn-only auto-derive + fail-only-on-structural/curated/hints so CI stays deterministic; set CI to working-tree default with bounded/manual `--history`; added checkpointed execution (PR-005). Resolved OQ1-OQ4 with the human. Status -> reviewed.
+- 2026-07-19 human approval (repo maintainer): "Approved. Go." Status -> approved.
+- 2026-07-19 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): all 6 checkpoints implemented and committed path-scoped (no push): CP1 engine `agent_workflows/local_leaks.py` + config split + `tests/test_local_leaks.py` (`3a56f2c`); CP2 `aw check-local-leaks` subcommand (`d424b9a`); CP3 guard migration - pre-commit repointed to `python -m agent_workflows check-local-leaks`, packaging test asserts the module ships, `tools/` shim + old test deleted (`650b650`); CP4 `/assess local-leaks` lens + manifest row (`70870bf`); CP5 `.github/workflows/local-leaks.yml` backstop (`03dae87`); CP6 DECISIONS D93 + CONTRIBUTING + CHANGELOG (`d367ca4`). During execution the new `windows-home` pattern caught the plan's own literal `C:` path examples (reworded) and the pre-commit `local-leaks` hook validated every commit. Validation (actual): `python -m pytest -q` = 282 passed, 1 skipped (was 271; +15 new local-leaks tests, -4 from the superseded old test); `aw check-local-leaks .` exit 0; wheel greps token-free. Status -> executed; git mv to executed/.
 
 ## Goal
 
