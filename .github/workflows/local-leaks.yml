@@ -1,0 +1,32 @@
+name: local-leaks
+
+# Backstop for the pre-commit "local-leaks" guard (DECISIONS D92/D93): fail the build if a
+# tracked file embeds maintainer/machine identifying info (home paths, usernames, other local
+# accounts, private repo names, hostnames, session ids) that ordinary secret scanners miss.
+# Pre-commit hooks are bypassable (--no-verify) and machine-local; this is the push-time net.
+#
+# WORKING-TREE mode by default (fast, deterministic). A full-history scan is O(all commits)
+# and is run manually / at release time (`aw check-local-leaks . --history`), not on every push.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  local-leaks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Scan tracked files for local leaks
+        run: python -m agent_workflows check-local-leaks .
