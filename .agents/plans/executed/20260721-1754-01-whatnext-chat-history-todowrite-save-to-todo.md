@@ -3,11 +3,13 @@
 - Date: 2026-07-21
 - Concern: workflow behavior (the /whatnext surveyor) matching the maintainer's intent
 - Scope: `.agents/workflows/whatnext/whatnext.md` (the runbook) + its `README.md` blurb if the summary changes. Prose workflow files; no product code. Depends on nothing; the argument-hint shim UX is a SEPARATE IPD (20260721-1754-02).
-- Status: reviewed
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-07-21, human ("Approved. Go.") after /plan-review (APPROVE WITH REVISIONS APPLIED; W5 BLOCKER + W6 fixed; OQ1-OQ3 resolved).
 
 ## Workflow history
 
+- 2026-07-21 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): applied all 5 steps to `whatnext.md`: `## Before you start` todowrite instruction (W2); chat-history as a labeled ephemeral Step 1 source + reframed kernel rule 2 + graceful degradation (W1/W6); Step 3 restructured into a "what to consider" list + a 1-3 capped ranked recommendation (W3); new `## Step 4` opt-in/confirmed/additive/section-aware/de-duplicated(TODO+plans+comms)/diff-shown save with the untrusted-content guard (W4/W5); kernel + top blurb + Reminders reconciled to "read-only survey, one confirmed TODO save." Updated `whatnext/README.md` and the `index.md` manifest one-liner. Validation: no em/en dashes, `aw check-local-leaks .` clean, `python -m pytest -q` = 310 passed, 1 skipped (dir-README test still green). Status approved -> executed; moved to `executed/`.
 - 2026-07-21 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; W1-W4 verified accurate against `whatnext.md` (`:17` memory-exclusion, `:8-10`/`:86` read-only, `:71-82` uncapped, no todowrite); W5 (BLOCKER, FIXED) added the untrusted-input guard - the Step 4 save must write only neutral finding text + header-only comms pointers, never a comms payload or raw untrusted content verbatim into TODO.md; W6 (LOW, FIXED) chat-history graceful degradation + de-dupe widened to TODO+plans+comms. No open questions (OQ1-OQ3 pre-resolved by human; no new ones). Readiness: GO - PENDING HUMAN APPROVAL.
 - 2026-07-21 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored after the maintainer test-ran /whatnext and found four gaps vs intent. Decisions captured interactively this session (see Open questions, all RESOLVED).
 
