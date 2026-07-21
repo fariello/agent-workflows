@@ -1,7 +1,7 @@
 # Concept: filesystem-based inter-project agent communication
 
 Status: concept note (durable). Trial in progress. NOT yet a framework feature.
-Related spec: `.agents/docs/specs/20260712-2133-02-agent-comms-protocol-draft.md`.
+Related spec: `.agents/docs/specs/20260715-1722-01-agent-comms-convention.md` (the canonical convention; the earlier `-2133-02-` draft it grew from has been removed).
 
 ## Problem
 

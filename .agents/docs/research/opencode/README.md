@@ -1,7 +1,7 @@
 # .agents/docs/research/opencode/
 
 OpenCode-capability research that grounds this framework's design, especially the filesystem
-agent-comms protocol trial (see `../../specs/20260712-2133-02-agent-comms-protocol-draft.md`).
+agent-comms protocol trial (now the canonical convention `../../specs/20260715-1722-01-agent-comms-convention.md`).
 
 ## Provenance and status
 

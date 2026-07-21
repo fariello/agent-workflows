@@ -1,6 +1,6 @@
 # Spec: inter-agent comms convention (`.agents/comms/`)
 
-Status: canonical (supersedes the draft `20260712-2133-02-agent-comms-protocol-draft.md`).
+Status: canonical (supersedes and replaces the earlier draft, now removed).
 Date: 2026-07-15
 Decision: DECISIONS D81. Design source: `.agents/docs/research/20260714-2300-01-same-box-agent-wakeup-mechanisms.md`.
 
