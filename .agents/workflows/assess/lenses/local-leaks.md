@@ -73,7 +73,9 @@ Severity model the engine uses (D93, preserved through the unification):
 1. **Intended-public identifiers** (the author email in package metadata, the public repo
    origin URL): confirm and ADD them to the repo-committed allowlist
    `.agents/local-leaks-allowlist.toml` (`allow_line_substrings = [...]`). This travels
-   with the repo and keeps CI deterministic.
+   with the repo and keeps CI deterministic. `aw sanitize --configure` authors this file (and
+   the personal hints + the IP/hostname toggles) interactively with a diff and confirmation,
+   rather than hand-editing the TOML.
 2. **Advisory (warn) auto-derived candidates:** confirm interactively. If a derived token
    is a real leak, add it to the fail set (a repo `fail_patterns` entry, or the operator's
    never-committed `~/.config/agent-workflows/local-leaks-hints.json` if it is machine-wide).

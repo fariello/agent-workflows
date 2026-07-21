@@ -27,6 +27,12 @@ scoping is confirmed at release-review.
   area, or path...") instead of the generic "target path(s) and/or flags", and omits the arguments
   line entirely for commands that take none (`arg-hint: none`). Backward-compatible: workflows with
   no hint render exactly as before. Target repos pick up the new wording on the next `aw install`.
+- Added: `aw sanitize --configure` interactive config wizard (DECISIONS D98). Walks you through
+  the leak-sanitizer's allowlist, the IP and hostname toggles, and your never-committed personal
+  hints, explains each control, shows a diff, and writes only on confirmation (re-runnable, safe,
+  needs a terminal). Also hardened the minimal TOML parser it builds on: a config value containing
+  a `]` (e.g. a `[a-z]` regex character class) is no longer silently dropped, a pre-existing bug
+  that also affected hand-authored configs.
 - Added: unified `agent_workflows.leak_sanitizer` engine and the `aw sanitize` alias (DECISIONS D96).
   One deterministic stdlib engine now backs every leak surface: it adds `--fix` (opt-in, interactive,
   never in the hook), an `--agent` machine-parseable mode, an off-by-default IP ruleset, a staged-blob

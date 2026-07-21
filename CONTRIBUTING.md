@@ -69,6 +69,9 @@ public repo origin URL. This class of leak is NOT caught by secret scanners (git
 - **Allowlist:** add genuinely-public values to `.agents/local-leaks-allowlist.toml` (committed,
   travels, CI-deterministic). Your own machine-specific tokens go in the never-committed
   `~/.config/agent-workflows/local-leaks-hints.json`. Never weaken the patterns to hide a real leak.
+- **Configure interactively:** `aw sanitize --configure` walks you through both files (allowlist,
+  the IP and hostname toggles, and your personal hints), explains each control, shows a diff, and
+  writes only on confirmation. Re-runnable and safe; needs an interactive terminal.
 
 ## Self-tests (run before pushing tool changes)
 
