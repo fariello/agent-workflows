@@ -85,6 +85,9 @@ class PackagingTests(unittest.TestCase):
         # leak-sanitizer Set (IPD 20260721-1353-01): the unified engine that local_leaks now
         # re-exports must also ship, or the shim import breaks post-install.
         self.assertIn("agent_workflows/leak_sanitizer.py", self.names)
+        # leak-sanitizer Set Order 2 (IPD 20260721-1851-01): the config wizard module is
+        # imported by `aw sanitize --configure`, so it must ship too.
+        self.assertIn("agent_workflows/leak_sanitizer_config.py", self.names)
 
     def test_wheel_bundles_workflow_tree_under_data(self):
         # AC-2/AC-8: the shipped tree is mapped under agent_workflows/_data/.

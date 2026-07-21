@@ -270,6 +270,12 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="With --fix, show what would change without writing.",
     )
+    p_leaks.add_argument(
+        "--configure",
+        action="store_true",
+        help="Launch the interactive wizard to author the leak-sanitizer config "
+        "(allowlist, IP/hostname toggles, personal hints) instead of scanning.",
+    )
 
     return parser
 
@@ -964,9 +970,45 @@ def _run_plan_names(args: argparse.Namespace, term: Term) -> int:
     return normalizer.main(passthrough)
 
 
+def _run_leaks_configure(args: argparse.Namespace, term: Term) -> int:
+    """Interactive leak-sanitizer config wizard (`--configure`, D98). Reads/writes the
+    tracked allowlist + the gitignored user hints; never scans."""
+    from pathlib import Path
+    from . import leak_sanitizer_config as lsc
+
+    # An interview needs a real terminal. Unlike --fix, there is no meaningful "accept
+    # defaults" batch mode for authoring config (blindly confirming every toggle would flip
+    # them ON), so --configure always requires an interactive TTY.
+    if not sys.stdin.isatty():
+        term.status(
+            "warn",
+            "sanitize --configure needs an interactive terminal. To configure "
+            "non-interactively, edit .agents/local-leaks-allowlist.toml directly. Nothing changed.",
+        )
+        return 2
+
+    repo_root = Path(getattr(args, "dir", None) or ".").resolve()
+
+    def _confirm_q(question: str) -> bool:
+        # assume_yes is intentionally NOT honored here: each toggle must reflect a real
+        # choice, and the final write is a deliberate confirmation.
+        return _confirm(term, question, assume_yes=False)
+
+    summary = lsc.configure(repo_root, prompt=input, confirm=_confirm_q, emit=term.line)
+    if summary["wrote"]:
+        term.status(
+            "ok",
+            "Config updated. Re-run 'aw sanitize --configure' any time; it is safe.",
+        )
+    return 0
+
+
 def _run_check_local_leaks(args: argparse.Namespace, term: Term) -> int:
     """Detect local leaks (D92/D93). Delegates to the unified agent_workflows.leak_sanitizer
-    engine (local_leaks re-exports it)."""
+    engine (local_leaks re-exports it). With --configure, launches the config wizard instead."""
+    if getattr(args, "configure", False):
+        return _run_leaks_configure(args, term)
+
     from . import leak_sanitizer
 
     passthrough = [getattr(args, "dir", None) or "."]

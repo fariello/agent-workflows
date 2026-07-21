@@ -419,5 +419,49 @@ class PlanNamesVerbTests(CliTestBase):
         self.assertEqual(code, 0)
 
 
+class LeaksConfigTests(CliTestBase):
+    """`aw sanitize --configure` wizard wiring (IPD 20260721-1851-01 CP3)."""
+
+    def test_configure_writes_config_via_forced_tty(self):
+        import builtins
+
+        from agent_workflows import leak_sanitizer as ls
+
+        class _FakeTTY:
+            def isatty(self):
+                return True
+
+        repo = self._repo("cfg-root")
+        # allow_line_substrings: add one then blank; fail_patterns blank; tokens blank; patterns blank.
+        answers = iter(["PUBLIC-OK", "", "", "", ""])
+        confirms = iter(["n", "n", "y"])  # ip off, hostname off, write yes
+        real_input, real_stdin = builtins.input, __import__("sys").stdin
+
+        def _fake_input(prompt=""):
+            # confirm() prompts contain "[y/N]"; other prompts are list-editing questions.
+            if "[y/N]" in prompt:
+                return next(confirms, "n")
+            return next(answers, "")
+
+        builtins.input = _fake_input
+        __import__("sys").stdin = _FakeTTY()
+        try:
+            code, out = _run(["sanitize", str(repo), "--configure", "--no-color"])
+        finally:
+            builtins.input = real_input
+            __import__("sys").stdin = real_stdin
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            ls.load_repo_allowlist(Path(repo))["allow_line_substrings"], ["PUBLIC-OK"]
+        )
+
+    def test_configure_non_interactive_without_yes_refuses(self):
+        # stdin is not a TTY under the test harness; without --yes it must refuse (exit 2).
+        repo = self._repo("cfg-root2")
+        code, out = _run(["sanitize", str(repo), "--configure", "--no-color"])
+        self.assertEqual(code, 2)
+        self.assertFalse((Path(repo) / ".agents/local-leaks-allowlist.toml").exists())
+
+
 if __name__ == "__main__":
     unittest.main()
