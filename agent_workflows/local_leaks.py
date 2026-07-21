@@ -460,7 +460,7 @@ def main(argv: list[str] | None = None) -> int:
         for w in warns:
             print(f"  [warn] {w.location}: {w.rule}: {w.snippet}", file=sys.stderr)
     if fails:
-        print("Local-leak(s) found (D92/D93):", file=sys.stderr)
+        print("Local-leak(s) found:", file=sys.stderr)
         for f in fails:
             print(f"  {f.location}: {f.rule}: {f.snippet}", file=sys.stderr)
         print(
@@ -469,6 +469,9 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
+    # Positive confirmation on the clean path so a passing run is not silent
+    # (assess-self-documentation S4). One line to stderr, always.
+    print("No local leaks found.", file=sys.stderr)
     return 0
 
 

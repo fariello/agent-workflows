@@ -3,13 +3,16 @@
 - Date: 2026-07-20
 - Concern: self-documentation
 - Scope: the in-product learn-as-you-go surface, i.e. the `aw` (`agent-workflows`) CLI: `--help`/usage text, first-run/onboarding, error messages, and discoverability. Excludes repository prose docs (that is the `documentation` lens) and the framework's own `.agents/workflows/` content.
-- Status: reviewed
+- Status: executed
+- Approval: approved by the human (repo maintainer) 2026-07-20
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
 
 - 2026-07-20 /assess self-documentation (opencode its_direct/pt3-claude-opus-4.8-1m-us): assessed; proposed 4 changes.
 - 2026-07-20 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 fixed. Verified all S1-S4 claims against source (`--status` has no `choices=` and `normalize_status` maps unknowns to `LEGACY_GROUP`; `(D93)` in the check-local-leaks help; `local_leaks.main` clean path silent). Broadened S2's sweep + test to include the runtime `print(...)` jargon at `local_leaks.py:463` (PR-001/002). Resolved OQ2 from evidence (handler-side validation, not `choices=`, to preserve legacy-token tolerance). Resolved OQ1 with the human (always print the clean-path confirmation, one line to stderr). Status -> reviewed.
+- 2026-07-20 human approval (repo maintainer): "Approved. Go." Status -> approved.
+- 2026-07-20 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): all 4 changes implemented in `agent_workflows/cli.py` + `agent_workflows/local_leaks.py`. S1: `aw plans --status <bad>` now warns with the valid readiness set (from `plans.RECOGNIZED`) and exits 2 instead of silently returning empty; valid statuses still filter. S2: stripped `(D93)` from the check-local-leaks help and `(D92/D93)` from the local_leaks fail message; no `(D<n>)` remains in user-facing help/messages. S3: top-level `install` help now mentions `install all`. S4: clean `check-local-leaks` run prints "No local leaks found." (one line to stderr) and exits 0. Added 6 tests (SelfDocClarityTests) to `tests/test_local_leaks.py`. README needed no sync (already documents `install all`; no `(D93)` present). Validation (actual): `python -m pytest -q` = 288 passed, 1 skipped (was 282); leak scanner clean. Status -> executed; git mv to executed/.
 
 ## Goal
 

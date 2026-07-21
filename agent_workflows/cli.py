@@ -54,7 +54,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_install = sub.add_parser(
         "install",
         parents=[common],
-        help="Install or update the framework in a repo (idempotent).",
+        help="Install or update the framework in a repo (idempotent); 'install all' does every configured repo.",
     )
     p_install.add_argument(
         "targets",
@@ -220,7 +220,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "check-local-leaks",
         parents=[common],
         help="Detect identifying info (home paths, usernames, private repo names, "
-        "hostnames, session ids) that must not appear in a public artifact (D93).",
+        "hostnames, session ids) that must not appear in a public artifact.",
     )
     p_leaks.add_argument(
         "dir", nargs="?", default=".", help="Repo root (default: current directory)."
@@ -817,6 +817,23 @@ def _run_plans(args: argparse.Namespace, term: Term) -> int:
         else Path.cwd()
     )
 
+    # Validate --status up front so a typo teaches the valid set instead of silently
+    # returning an empty board (assess-self-documentation S1). Handler-side (not argparse
+    # choices=) to preserve normalize_status's legacy/alias tolerance.
+    status_filter = getattr(args, "status_filter", None)
+    if (
+        status_filter
+        and plans_mod.normalize_status(status_filter) not in plans_mod.RECOGNIZED
+    ):
+        valid = ", ".join(
+            plans_mod.PRE_TERMINAL + plans_mod.TERMINAL + plans_mod.STANDING
+        )
+        term.status(
+            "warn",
+            f"Unrecognized --status '{status_filter}'. Valid readiness statuses: {valid}.",
+        )
+        return 2
+
     if not (root / ".agents" / "plans").is_dir():
         term.status("skip", f"No plans found (no .agents/plans/ under {root}).")
         return 0
@@ -825,7 +842,6 @@ def _run_plans(args: argparse.Namespace, term: Term) -> int:
 
     if getattr(args, "pending", False):
         records = [r for r in records if r.disposition == "pending"]
-    status_filter = getattr(args, "status_filter", None)
     if status_filter:
         want = plans_mod.normalize_status(status_filter)
         records = [r for r in records if r.status == want]

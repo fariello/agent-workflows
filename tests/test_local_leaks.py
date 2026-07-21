@@ -227,5 +227,77 @@ class CliTests(unittest.TestCase):
         )
 
 
+class SelfDocClarityTests(unittest.TestCase):
+    """assess-self-documentation S1-S4: the aw CLI teaches at the point of use."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.repo = _init_repo(Path(self._tmp.name) / "r")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _capture(self, argv):
+        import contextlib
+        import io
+        from agent_workflows import cli
+
+        out, err = io.StringIO(), io.StringIO()
+        code = None
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            try:
+                code = cli.main(argv)
+            except SystemExit as exc:  # argparse --help / usage errors
+                code = exc.code
+        return code, out.getvalue() + err.getvalue()
+
+    def test_s1_bad_status_teaches_valid_set(self):
+        (self.repo / ".agents" / "plans" / "pending").mkdir(parents=True)
+        code, text = self._capture(
+            ["plans", str(self.repo), "--status", "pendign", "--no-color"]
+        )
+        self.assertEqual(code, 2)
+        # names at least one real status; does not silently succeed
+        for s in ("draft", "approved", "executed"):
+            self.assertIn(s, text)
+
+    def test_s1_valid_status_still_works(self):
+        (self.repo / ".agents" / "plans" / "pending").mkdir(parents=True)
+        code, _ = self._capture(
+            ["plans", str(self.repo), "--status", "approved", "--no-color"]
+        )
+        self.assertEqual(code, 0)
+
+    def test_s2_no_decision_ids_in_help(self):
+        import re
+
+        for argv in (["--help"], ["check-local-leaks", "--help"]):
+            _, text = self._capture(argv)
+            self.assertIsNone(
+                re.search(r"\(D\d+", text),
+                f"decision-id jargon in help for {argv}: leaked",
+            )
+
+    def test_s2_no_decision_ids_in_local_leaks_messages(self):
+        import re
+
+        leak = "/home/" + "s2user" + "/x"
+        _commit(self.repo, "bad.md", f"{leak}\n", "add")
+        _, text = self._capture(["check-local-leaks", str(self.repo), "--no-color"])
+        self.assertIsNone(
+            re.search(r"\(D\d+", text), f"decision-id jargon in message: {text}"
+        )
+
+    def test_s3_install_all_discoverable_in_top_level_help(self):
+        _, text = self._capture(["--help"])
+        self.assertIn("install all", text)
+
+    def test_s4_clean_run_prints_confirmation(self):
+        _commit(self.repo, "ok.md", "nothing to see\n", "add")
+        code, text = self._capture(["check-local-leaks", str(self.repo), "--no-color"])
+        self.assertEqual(code, 0)
+        self.assertIn("No local leaks found.", text)
+
+
 if __name__ == "__main__":
     unittest.main()
