@@ -1,9 +1,13 @@
 # .agents/prompts/
 
-Operational STAGING for run-once and research prompts that are QUEUED to be executed, organized by
-lifecycle state. Prompt files are named `YYYYMMDD-HHMM-NN-<slug>.md` (the creating machine's local date
-and time; `NN` is a two-digit per-minute sequence; `<slug>` is lowercase kebab-case), the same
-convention as plans.
+Operational STAGING for prompts, organized by lifecycle state. Prompt files are named
+`YYYYMMDD-HHMM-NN-<slug>.md` (the creating machine's local date and time; `NN` is a two-digit
+per-minute sequence; `<slug>` is lowercase kebab-case), the same convention as plans.
+
+Recognized prompt kinds (front-matter `Kind:`): run-once / research prompts QUEUED to be executed
+(the original staging use), and `Kind: session-handoff` resume prompts produced by `/handoff` (a
+prompt for the NEXT session rather than a task to run now). Handoff drafts are written to the
+gitignored `local/` lane (below) and promoted only after review.
 
 This is NOT the same as `.agents/docs/prompts/`. The two prompt homes are:
 

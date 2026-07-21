@@ -3,7 +3,8 @@
 - Date: 2026-07-17
 - Concern: agent workflow / session continuity (cold-start after context loss, compaction, or a deliberate fresh start)
 - Scope: add one new portable workflow under `.agents/workflows/handoff/`; docs/manifest wiring; no product/package code required for v1
-- Status: reviewed
+- Status: executed
+- Approval: approved by the human (repo maintainer) 2026-07-21
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Set: agent-continuity-workflows
 - Order: 3
@@ -28,7 +29,7 @@ Legacy phrasing (still true, secondary): the document also records WHAT the stat
 
 Why it matters: this project is long-running, decision-dense, and frequently spans context-window limits and multiple agents. A generic "summary" loses the tacit layer (preferences, direction, nuance) that is expensive to relearn and easy to get wrong. A first-class handoff generator makes continuity a deliberate, repeatable act rather than an ad-hoc scramble, and it dogfoods the project's own "durable knowledge for cold-start" principle (GUIDING_PRINCIPLES P4) and "externalize state" principle (P5/D88).
 
-Concrete reference: the hand-authored `20260717-1950-01-session-handoff-resume-here.md` is the worked example this workflow should be able to (re)produce, INCLUDING its "Working style, preferences, and nuance" section. Treat that file as the golden-output shape for v1.
+Concrete reference: the hand-authored `.agents/prompts/pending/20260717-1950-01-session-handoff-resume-here.md` is the worked example this workflow should be able to (re)produce, INCLUDING its "Working style, preferences, and nuance" section. Treat that file as the golden-output shape for v1.
 
 ## Project conventions discovered (Step 0, to VERIFY against source during /plan-review)
 
@@ -113,7 +114,7 @@ A handoff's primary input is the RAW SESSION CONVERSATION, which is the most sen
 6. RESOLVED (human): the handoff document lives in `.agents/prompts/` - it IS a resume prompt for the next session. Consequences the executor must handle:
    - The generated file goes to `.agents/prompts/pending/YYYYMMDD-HHMM-NN-session-handoff-<slug>.md`, `Kind: session-handoff`, `Status: draft`. (When consumed/superseded it can move through the prompts lifecycle buckets like any staged prompt.)
    - BROADEN the `.agents/prompts/` convention (D91) so it explicitly covers resume/handoff prompts, not only "run-once/research prompts queued to run." Update `.agents/prompts/README.md` (and the `prompts-README.md` template + the `.agents/docs/README.md` cross-reference note) so a session-handoff is a recognized prompt kind. This keeps the dir's meaning honest rather than shoehorning a mismatch.
-   - RELOCATE the golden example `20260717-1950-01-session-handoff-resume-here.md` from `.agents/plans/pending/` to `.agents/prompts/` (it is a handoff/resume prompt mis-filed as a plan). `git mv` it, normalize the name to the prompts convention, and update any references (this IPD, and any tracked mentions).
+   - RELOCATE the golden example from `.agents/plans/pending/` to `.agents/prompts/pending/` (DONE at execution) (it is a handoff/resume prompt mis-filed as a plan). `git mv` it, normalize the name to the prompts convention, and update any references (this IPD, and any tracked mentions).
    - Note: the `.agents/prompts/pending/` file `20260717-1450-01-ses-...compacted.md` is a related session-recovery artifact already in prompts; the handoff convention should acknowledge that family.
 
 ## Dependencies / sequencing
@@ -135,3 +136,8 @@ Execution contract (added at /plan-review, PR-008; per `.agents/plans/README.md`
 Recommended next steps:
 1. On human approval, set `Status: approved` (+ the `Approval:` line), execute the ordered changes, run the validation, sync docs; commit path-scoped (no push).
 2. Set the terminal `Status: executed` and `git mv` this IPD from `.agents/plans/pending/` to `.agents/plans/executed/`. Plan files are named `YYYYMMDD-HHMM-NN-<slug>.md`.
+
+## Workflow history (execution)
+
+- 2026-07-21 human approval (repo maintainer): approved (/handoff is in 1.3.0 scope, a release blocker). Status -> approved.
+- 2026-07-21 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): all 7 steps done. Authored `.agents/workflows/handoff/handoff.md` (session-context PRIMARY; nuance contract; MANDATORY sensitivity/privacy gate = classify -> omit/reframe-and-confirm-via-question-tool/never-raw-secrets; writes to the gitignored `.agents/prompts/local/` lane; NEVER auto-commits; runs `aw check-local-leaks`; terminal exit-gate checklist) + `README.md`. Registered the `handoff` manifest row in `index.md` + a narrative mention. Cross-linked `whatnext.md` <-> `/handoff`. Broadened the `.agents/prompts/` convention (README + template) to recognize `Kind: session-handoff` as a prompt kind (D94 local lane). Relocated the golden example to `.agents/prompts/pending/20260717-1950-01-session-handoff-resume-here.md` (git mv; it was a session-handoff mis-filed as a plan). Validation (actual): manifest parses the row; `tests/test_dir_readmes.py` + `tests/test_installer.py` pass (41); temp install generated `.opencode/commands/handoff.md` + `.claude/commands/handoff.md`; `python -m pytest -q` = 295 passed, 1 skipped; scanner clean. Status -> executed; git mv IPD to executed/.
