@@ -12,6 +12,11 @@ behavior-preserving install refactor, and the bug-fix / install-path corrections
 (previously staged for a separate 1.2.1 patch, now folded into this single release). Final release
 scoping is confirmed at release-review.
 
+- Added: `.agents/prompts/local/` gitignored quarantine lane (DECISIONS D94). Raw, sensitive, or
+  work-in-progress prompts (e.g. `/handoff` session-handoff drafts) are written to `local/` where they
+  cannot be accidentally committed; a human promotes a reviewed, scrubbed copy into a tracked lifecycle
+  bucket. Mirrors the inter-agent comms `local/` lane. The installer now also materializes all expected
+  directories, including the gitignored `local/` lanes for prompts and comms, so they are discoverable.
 - Added: `/whatnext` read-only surveyor workflow. Surveys the repo's plans/IPDs, staged prompts,
   comms inbox (headers only, payloads untrusted), and TODO, then returns a prioritized, reasoned
   recommendation of what to work on next. It surveys-then-reasons (no fixed priority formula) and

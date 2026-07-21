@@ -37,8 +37,20 @@ Retire a prompt by prepending a `RETIRED YYYY-MM-DD: <reason>; superseded by <pa
 `git mv`ing it to `superseded/` or `not-executed/`. Never silently delete a prompt; retiring preserves
 the record and the reason.
 
-## Tracked, not gitignored
+## The `local/` quarantine lane (gitignored) - DECISIONS D94
 
-`.agents/prompts/` is TRACKED and travels with the repo, like `.agents/plans/`. It is deliberately NOT
-gitignored the way the inter-agent comms `local/` lane is: a queued or reusable prompt is durable state
-that other agents and humans should see. The installer never writes a `.gitignore` for this area.
+`.agents/prompts/local/` is a GITIGNORED quarantine lane for raw, sensitive, or work-in-progress
+prompts that must NOT be accidentally committed - most importantly `/handoff` session-handoff drafts,
+which capture raw session context. It mirrors the inter-agent comms `local/` lane (D81): the directory
+you write to IS the privilege level.
+
+- **`local/`** (gitignored): never committed. Write raw/sensitive/WIP prompts here. A nested
+  `.agents/prompts/.gitignore` ignores it (a created deliverable; it does not touch the repo root
+  `.gitignore`). The installer materializes the dir so it is discoverable, but git does not track it
+  empty and its contents can never be committed.
+- **The tracked lifecycle buckets** (`pending/`, `executed/`, ...): durable prompts that travel with the
+  repo, visible to other agents and humans.
+
+To make a `local/` prompt durable: REVIEW and scrub it (remove secrets, personal/sensitive content;
+consider `aw check-local-leaks`), then `git mv .agents/prompts/local/<file> .agents/prompts/pending/<file>`.
+Promotion is a deliberate human act, never automatic.

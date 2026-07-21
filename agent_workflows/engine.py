@@ -2325,6 +2325,19 @@ PROMPT_LIFECYCLE_SUBDIRS = (
     "not-executed",
     "reusable",
 )
+# Quarantine lane for raw/sensitive/WIP prompts (D94, mirrors the comms local/ lane). `local/`
+# is gitignored via a NESTED `.agents/prompts/.gitignore` (a created deliverable, NOT a change to
+# the target root `.gitignore`). Its contents are never committable; a human promotes a reviewed,
+# scrubbed copy up into a tracked lifecycle bucket. The installer materializes the dir so it is
+# discoverable, but git does not track it empty.
+PROMPTS_LOCAL_SUBDIR = "local"
+_PROMPTS_GITIGNORE_TEMPLATE = """\
+# agent-workflows prompts staging: ignore the box-local, quarantine lane.
+# `local/` holds raw/sensitive/work-in-progress prompts (e.g. session-handoff drafts); it is
+# never committed. Promote a reviewed, scrubbed copy into a tracked lifecycle bucket (pending/, ...)
+# with `git mv`. The tracked buckets (siblings of this file) travel with the repo.
+local/
+"""
 # Inter-agent comms convention (D81). Scaffolded skeleton for `.agents/comms/`. `local/` is
 # box-local, ephemeral routing and is gitignored via a NESTED `.gitignore` (a created deliverable,
 # NOT a modification of the target root `.gitignore`, so it respects the firm no-touch-root rule).
@@ -2667,6 +2680,10 @@ def create_setup_artifacts(
             keep = f"{PROMPTS_DIR}/{sub}/.gitkeep"
             if not (repo_root / keep).exists():
                 created.append(keep + " [dry-run]")
+        # Prompts quarantine lane (D94): the nested .gitignore is a created FILE (counted); the
+        # local/ dir is materialized as a side effect (mkdir), not a tracked/counted artifact.
+        if not (repo_root / f"{PROMPTS_DIR}/.gitignore").exists():
+            created.append(f"{PROMPTS_DIR}/.gitignore [dry-run]")
         for rel in (GITLEAKSIGNORE_FILE, SECRET_SCAN_CI):
             if not (repo_root / rel).exists():
                 created.append(rel + " [dry-run]")
@@ -2690,6 +2707,19 @@ def create_setup_artifacts(
         _create_if_absent(
             repo_root, f"{PROMPTS_DIR}/{sub}/.gitkeep", "", use_git, created
         )
+    # Prompts quarantine lane (D94). The nested .gitignore ignores `local/` and is a created
+    # DELIVERABLE (counted, staged, no-clobber), NOT a change to the target root .gitignore. The
+    # `local/` dir itself is materialized so it is discoverable (installer creates all expected
+    # dirs), but git does not track it empty and its contents are uncommittable; it is NOT added to
+    # `created` (side-effect only, not `--undo`-recorded - a user may have written into it).
+    _create_if_absent(
+        repo_root,
+        f"{PROMPTS_DIR}/.gitignore",
+        _PROMPTS_GITIGNORE_TEMPLATE,
+        use_git,
+        created,
+    )
+    (repo_root / PROMPTS_DIR / PROMPTS_LOCAL_SUBDIR).mkdir(parents=True, exist_ok=True)
     _create_if_absent(
         repo_root, GITLEAKSIGNORE_FILE, _GITLEAKSIGNORE_TEMPLATE, use_git, created
     )
@@ -2712,6 +2742,10 @@ def create_setup_artifacts(
         _create_if_absent(
             repo_root, f"{COMMS_DIR}/shared/{sub}/.gitkeep", "", use_git, created
         )
+    # Materialize the comms `local/` lane too so it is discoverable (D94: installer creates all
+    # expected dirs). Side-effect only: gitignored, not tracked, not added to `created`.
+    for sub in COMMS_LOCAL_SUBDIRS:
+        (repo_root / COMMS_DIR / "local" / sub).mkdir(parents=True, exist_ok=True)
     return created
 
 

@@ -3,7 +3,8 @@
 - Date: 2026-07-21
 - Concern: privacy / safety (prevent accidental commit of raw/sensitive staged prompts) + convention consistency
 - Scope: amend the `.agents/prompts/` staging convention (D91) to add a gitignored `local/` quarantine lane alongside the tracked lifecycle buckets, mirroring the shipped `.agents/comms/` `local/`(gitignored)+`shared/`(tracked) split (D81). Installer scaffold (nested `.gitignore` + `mkdir` the `local/` lane) + README/template + a DECISIONS note. ALSO (human decision at review): make the installer create ALL expected dirs uniformly, which means retrofitting `.agents/comms/` so `create_setup_artifacts` `mkdir`s its `local/` subdirs too (currently it does not). No behavior change to the tracked buckets or to comms messaging.
-- Status: reviewed
+- Status: executed
+- Approval: approved by the human (repo maintainer) 2026-07-21
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -86,3 +87,8 @@ Recommended next steps:
 2. On human approval, set `Status: approved` (+ `Approval:`), execute, run validation, sync docs; commit path-scoped (no push).
 3. Set terminal `Status: executed` and `git mv` to `.agents/plans/executed/`.
 4. Then the `/handoff` IPD can execute, defaulting its output to `.agents/prompts/local/`.
+
+## Workflow history (execution)
+
+- 2026-07-21 human approval (repo maintainer): "Approved. Go." Status -> approved.
+- 2026-07-21 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): all steps done. engine.py: `PROMPTS_LOCAL_SUBDIR` + `_PROMPTS_GITIGNORE_TEMPLATE`; `create_setup_artifacts` (real + dry-run) now creates `.agents/prompts/.gitignore` and `mkdir`s the prompts + comms `local/` lanes (Step 1/1b). Docs: prompts README + `prompts-README.md` template + `.agents/docs/README.md` describe the lane. This repo scaffolded (`.agents/prompts/.gitignore` + `local/`). Tests updated (count 21 -> 22; new `test_local_quarantine_lane` + `test_dry_run_reports_prompts_gitignore`). DECISIONS D94 + CHANGELOG. Validation (actual): `python -m pytest -q` = 295 passed, 1 skipped (was 293); a temp install materializes `.agents/prompts/local/` + `.agents/comms/local/inbox`, `git check-ignore` confirms `local/` content is ignored, count = 22, `--undo` removes the `.gitignore`; scanner clean. Status -> executed; git mv to executed/. Unblocks the `/handoff` IPD (20260717-2000-01).

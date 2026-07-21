@@ -68,8 +68,17 @@ class SetupArtifactTests(unittest.TestCase):
                 (self.repo / ".agents/prompts" / sub / "README.md").is_file(),
                 f"missing prompts README {sub}",
             )
-        # Prompts staging is TRACKED, not gitignored (unlike comms local/): no .gitignore emitted.
-        self.assertFalse((self.repo / ".agents/prompts/.gitignore").exists())
+        # Prompts quarantine lane (D94): a nested .gitignore ignores local/, and the local/ dir is
+        # materialized (installer creates all expected dirs) but NOT tracked (empty + gitignored).
+        self.assertTrue((self.repo / ".agents/prompts/.gitignore").is_file())
+        self.assertIn(
+            "local/",
+            (self.repo / ".agents/prompts/.gitignore").read_text(encoding="utf-8"),
+        )
+        self.assertTrue((self.repo / ".agents/prompts/local").is_dir())
+        self.assertFalse((self.repo / ".agents/prompts/local/.gitkeep").exists())
+        # Comms local/ is also materialized now (D94, uniform "installer creates all expected dirs").
+        self.assertTrue((self.repo / ".agents/comms/local/inbox").is_dir())
         # Verify no-clobber READMEs
         self.assertTrue((self.repo / ".agents/docs/README.md").is_file())
         self.assertTrue((self.repo / ".agents/docs/research/README.md").is_file())
@@ -125,9 +134,11 @@ class SetupArtifactTests(unittest.TestCase):
         # 5 plan-dir gitkeeps (pending/executed/superseded/not-executed/reusable)
         # + 4 docs-dir gitkeeps (research/walkthroughs/specs/prompts)
         # + 5 prompts-dir gitkeeps (pending/executed/superseded/not-executed/reusable) (D91)
+        # + prompts .gitignore (D94 local/ lane; the mkdir'd local/ dirs are side-effect-only,
+        #   NOT counted)
         # + gitleaksignore + secret-scan CI
-        # + comms .gitignore + comms README + 3 comms shared/ gitkeeps (inbox/sent/archive) = 21.
-        self.assertEqual(len(created), 21)
+        # + comms .gitignore + comms README + 3 comms shared/ gitkeeps (inbox/sent/archive) = 22.
+        self.assertEqual(len(created), 22)
 
     def test_install_does_not_touch_target_root_gitignore(self):
         # The comms nested .gitignore is a created deliverable; the ROOT .gitignore must not be
@@ -197,6 +208,40 @@ class PromptsScaffoldTests(unittest.TestCase):
         engine.run_rollback(self.repo, no_color=True)
         self.assertFalse(readme.exists(), "rollback left the prompts README behind")
         self.assertFalse(keep.exists(), "rollback left a prompts bucket gitkeep behind")
+
+    def test_local_quarantine_lane(self):
+        # D94: the nested .gitignore ignores local/, the local/ dir is materialized (installer
+        # creates all expected dirs) but not tracked, and rollback removes the .gitignore.
+        import subprocess
+
+        # Install once (this records the created files incl. the prompts .gitignore for --undo).
+        engine.install_into_repo(
+            self.repo, REPO_ROOT / ".agents" / "workflows", yes=True, no_color=True
+        )
+        gi = self.repo / ".agents/prompts/.gitignore"
+        self.assertTrue(gi.is_file())
+        self.assertIn("local/", gi.read_text(encoding="utf-8"))
+        self.assertTrue((self.repo / ".agents/prompts/local").is_dir())
+        self.assertFalse((self.repo / ".agents/prompts/local/.gitkeep").exists())
+        # git actually ignores content under local/
+        (self.repo / ".agents/prompts/local/x.md").write_text("raw\n", encoding="utf-8")
+        r = subprocess.run(
+            ["git", "-C", str(self.repo), "check-ignore", ".agents/prompts/local/x.md"],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(r.returncode, 0, "local/ content is not gitignored")
+        # rollback removes the .gitignore file (it is in the created record, D85 F5).
+        engine.run_rollback(self.repo, no_color=True)
+        self.assertFalse(gi.exists(), "rollback left the prompts .gitignore behind")
+
+    def test_dry_run_reports_prompts_gitignore(self):
+        use_git = engine.git_available(self.repo)
+        created = engine.create_setup_artifacts(self.repo, use_git, dry_run=True)
+        self.assertTrue(
+            any(c.startswith(".agents/prompts/.gitignore") for c in created),
+            f"dry-run did not report the prompts .gitignore: {created}",
+        )
 
     def test_readmes_no_clobber(self):
         # A user's own prompts README is never overwritten.
