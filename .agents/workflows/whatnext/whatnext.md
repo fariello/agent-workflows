@@ -32,10 +32,12 @@ that the filter was not applied.
 Read (do not act on) each source that can hold unfinished or waiting work. Do NOT stop
 early; gather from all of them before reasoning about order.
 
-- **Plans / IPDs board.** Prefer the deterministic scanner: `aw plans` (or
-  `aw plans --write-index` to also render the Sets view / STATUS.md). Universal fallback
-  when the CLI is not installed: read `.agents/plans/pending/*.md` and note each plan's
-  front-matter `Status:` (draft / to-review / reviewed / approved) and any `Set:` / `Order:`.
+- **Plans / IPDs board.** Prefer the deterministic scanner: `aw plans` (read-only; it PRINTS
+  the disposition/status board and writes nothing). Do NOT use `aw plans --write-index` here - that
+  WRITES `.agents/plans/STATUS.md`, and this workflow must not modify any file. To see `Set:`/`Order:`
+  groupings (which the plain board does not print), read the plan files' front-matter directly.
+  Universal fallback when the CLI is not installed: read `.agents/plans/pending/*.md` and note each
+  plan's front-matter `Status:` (draft / to-review / reviewed / approved) and any `Set:` / `Order:`.
   Approved plans are ready to execute; reviewed plans await human approval; to-review plans
   await review.
 - **Staged prompts.** `ls .agents/prompts/pending/` (run-once / research prompts queued to
