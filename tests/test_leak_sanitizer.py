@@ -355,6 +355,100 @@ class ConfigWriterTests(unittest.TestCase):
         self.assertTrue((ls._config_dir() / ls.USER_HINTS_FILENAME).is_file())
 
 
+class WizardCoreTests(unittest.TestCase):
+    """The interactive wizard core via injected prompt/confirm (IPD 20260721-1851-01 CP2)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.repo = Path(self._tmp.name) / "r"
+        self.repo.mkdir(parents=True)
+        self._old_xdg = os.environ.get("XDG_CONFIG_HOME")
+        os.environ["XDG_CONFIG_HOME"] = str(Path(self._tmp.name) / "cfg")
+        from agent_workflows import leak_sanitizer_config as lsc
+
+        self.lsc = lsc
+
+    def tearDown(self):
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CONFIG_HOME", None)
+        else:
+            os.environ["XDG_CONFIG_HOME"] = self._old_xdg
+        self._tmp.cleanup()
+
+    def _run(self, prompt_answers, confirm_answers):
+        pa = iter(prompt_answers)
+        ca = iter(confirm_answers)
+        return self.lsc.configure(
+            self.repo,
+            prompt=lambda q: next(pa, ""),
+            confirm=lambda q: next(ca, False),
+            emit=lambda line: None,
+        )
+
+    def test_add_allowlist_entry_and_write(self):
+        # Add one allowlist substring; keep everything else empty/off; confirm the write.
+        # Prompt order: allow_line_substrings loop, fail_patterns loop, tokens loop, patterns loop.
+        summary = self._run(
+            prompt_answers=["PUBLIC-OK", "", "", "", ""],
+            confirm_answers=[False, False, True],  # ip off, hostname off, write yes
+        )
+        self.assertTrue(summary["changed"])
+        self.assertTrue(summary["wrote"])
+        self.assertEqual(
+            ls.load_repo_allowlist(self.repo)["allow_line_substrings"], ["PUBLIC-OK"]
+        )
+
+    def test_flip_ip_toggle(self):
+        summary = self._run(
+            prompt_answers=["", "", "", ""],
+            confirm_answers=[True, False, True],  # ip ON, hostname off, write yes
+        )
+        self.assertTrue(summary["changed"])
+        self.assertTrue(ls.load_repo_config_bools(self.repo)["ip_enabled"])
+
+    def test_add_personal_token_writes_hints_not_repo(self):
+        summary = self._run(
+            prompt_answers=["", "", "MyCodename", ""],  # add one token
+            confirm_answers=[False, False, True],
+        )
+        self.assertTrue(summary["changed"])
+        self.assertEqual(ls.load_user_hints().get("tokens"), ["MyCodename"])
+        # personal hints never land in the repo
+        self.assertFalse((self.repo / ls.USER_HINTS_FILENAME).exists())
+
+    def test_decline_writes_nothing(self):
+        summary = self._run(
+            prompt_answers=["PUBLIC-OK", "", "", ""],
+            confirm_answers=[False, False, False],  # decline the final write
+        )
+        self.assertEqual(summary["wrote"], [])
+        self.assertFalse((self.repo / ls.REPO_ALLOWLIST_REL).exists())
+
+    def test_no_change_run_writes_nothing(self):
+        # Everything blank/kept and toggles unchanged -> no diff -> no write, no confirm needed.
+        summary = self._run(
+            prompt_answers=["", "", "", ""],
+            confirm_answers=[False, False],  # ip off, hostname off (both already off)
+        )
+        self.assertFalse(summary["changed"])
+        self.assertEqual(summary["wrote"], [])
+
+    def test_bracket_pattern_round_trips_through_wizard(self):
+        summary = self._run(
+            prompt_answers=[
+                "",
+                "/home/[a-z]+/secret",
+                "",
+                "",
+            ],  # add a char-class fail pattern
+            confirm_answers=[False, False, True],
+        )
+        self.assertTrue(summary["wrote"])
+        self.assertEqual(
+            ls.load_repo_allowlist(self.repo)["fail_patterns"], ["/home/[a-z]+/secret"]
+        )
+
+
 class ConfigReconciliationTests(unittest.TestCase):
     def test_one_canonical_tracked_config_no_competing_file(self):
         # PR-003: the tracked config is .agents/local-leaks-allowlist.toml and there is NO
