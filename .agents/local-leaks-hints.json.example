@@ -1,0 +1,10 @@
+{
+  "_comment": "Per-user, NEVER-committed leak-sanitizer hints. Copy this to <config_dir>/local-leaks-hints.json (config_dir is XDG-aware, e.g. ~/.config/agent-workflows/). Adds machine/personal FAIL rules on top of the tracked .agents/local-leaks-allowlist.toml. Both files are additive and optional.",
+  "tokens": [
+    "my-machine-hostname",
+    "my-internal-codename"
+  ],
+  "patterns": [
+    "/srv/[a-z]+/private"
+  ]
+}

@@ -1,0 +1,24 @@
+# Leak-sanitizer repo allowlist (tracked, travels with the repo, CI-deterministic).
+#
+# This is the ONE canonical tracked config for the unified leak-sanitizer engine
+# (agent_workflows/leak_sanitizer.py; agent_workflows/local_leaks.py re-exports it).
+# It is read by a minimal TOML reader (3.9-safe, no tomllib), so keep entries to flat
+# string arrays and flat booleans.
+#
+# The never-committed, per-user layer lives at <config_dir>/local-leaks-hints.json
+# (see local-leaks-hints.json.example). Neither file is required; both are additive.
+
+# Lines containing any of these public substrings are never flagged (public-OK-here).
+allow_line_substrings = []
+
+# Extra repo-specific FAIL regex patterns (added to the built-in structural rules).
+fail_patterns = []
+
+# --- toggles (booleans) ---
+# Enable the IP ruleset (IPv4/IPv6). OFF by default: IPs are permissive and rarely identifying
+# on their own; loopback and private/doc ranges are never flagged even when enabled.
+ip_enabled = false
+
+# Promote the auto-derived hostname tokens from advisory WARN to hard FAIL. OFF by default so a
+# shared CI-runner hostname does not fail every build (the D93 warn/fail split, plan OQ4).
+hostname_fail = false
