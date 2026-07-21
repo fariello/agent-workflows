@@ -46,6 +46,102 @@ class InstallerUnitTests(unittest.TestCase):
         # assess-all is a real command despite the assess- prefix (exception).
         self.assertFalse(INS.is_concern_catalog_row(mk("assess-all")))
 
+
+class ArgHintShimTests(unittest.TestCase):
+    """Per-workflow argument hint in generated shims (IPD 20260721-1754-02)."""
+
+    # The historical generic arguments line the unset path MUST reproduce byte-for-byte,
+    # or is_shim_customized_vs_expected would flag every installed no-hint shim as customized.
+    GENERIC_LINE = (
+        "If the user provided arguments, treat them as the target path(s) and/or flags "
+        "for this workflow: $ARGUMENTS"
+    )
+
+    def _wf(self, arg_hint=""):
+        return INS.Workflow(
+            command="demo",
+            body=".agents/workflows/demo/demo.md",
+            description="demo",
+            arg_hint=arg_hint,
+        )
+
+    def test_parse_five_column_row_sets_arg_hint(self):
+        # A 5-column row parses and populates arg_hint (real manifest is unaffected here).
+        block = (
+            f"{INS.MANIFEST_BEGIN}\n"
+            "| command | body | lens | description | arg-hint |\n"
+            "|---|---|---|---|---|\n"
+            "| demo | .agents/workflows/demo/demo.md | - | d | narrow the scope, e.g. `x` |\n"
+            f"{INS.MANIFEST_END}\n"
+        )
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        src = Path(tmp.name)
+        (src / "index.md").write_text(block, encoding="utf-8")
+        wfs = {w.command: w for w in INS.parse_manifest(src)}
+        self.assertIn("demo", wfs)
+        self.assertEqual(wfs["demo"].arg_hint, "narrow the scope, e.g. `x`")
+
+    def test_three_and_four_column_rows_default_arg_hint_empty(self):
+        block = (
+            f"{INS.MANIFEST_BEGIN}\n"
+            "| command | body | lens | description |\n"
+            "|---|---|---|---|\n"
+            "| four | .agents/workflows/four/four.md | - | d |\n"
+            "| three | .agents/workflows/three/three.md | d |\n"
+            f"{INS.MANIFEST_END}\n"
+        )
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        src = Path(tmp.name)
+        (src / "index.md").write_text(block, encoding="utf-8")
+        wfs = {w.command: w for w in INS.parse_manifest(src)}
+        self.assertEqual(wfs["four"].arg_hint, "")
+        self.assertEqual(wfs["three"].arg_hint, "")
+
+    def test_unset_hint_renders_generic_line_byte_identical(self):
+        for tool in ("opencode", "claude"):
+            body = INS.shim_body("demo", self._wf(arg_hint=""), tool)
+            self.assertIn(self.GENERIC_LINE, body, tool)
+            self.assertTrue(
+                body.endswith(
+                    "Treat the referenced file as the controlling instruction "
+                    "and follow it fully.\n"
+                ),
+                tool,
+            )
+
+    def test_hint_renders_specific_clause(self):
+        hint = (
+            "narrow the survey to a concern, e.g. `security`; omit to survey everything"
+        )
+        for tool in ("opencode", "claude"):
+            body = INS.shim_body("demo", self._wf(arg_hint=hint), tool)
+            self.assertIn(f"If the user provided arguments, {hint}: $ARGUMENTS", body)
+            self.assertNotIn(self.GENERIC_LINE, body)
+        # Claude frontmatter carries the hint too.
+        claude = INS.shim_body("demo", self._wf(arg_hint=hint), "claude")
+        self.assertIn(f'argument-hint: "[{hint}]"', claude)
+
+    def test_none_sentinel_omits_arguments_line(self):
+        for tool in ("opencode", "claude"):
+            body = INS.shim_body("demo", self._wf(arg_hint="none"), tool)
+            self.assertNotIn("If the user provided arguments", body)
+        # Claude frontmatter omits argument-hint entirely.
+        claude = INS.shim_body("demo", self._wf(arg_hint="none"), "claude")
+        self.assertNotIn("argument-hint:", claude)
+        # OpenCode frontmatter is unchanged.
+        oc = INS.shim_body("demo", self._wf(arg_hint="none"), "opencode")
+        self.assertIn("agent: build", oc)
+
+    def test_real_manifest_drops_no_workflow_after_arg_hints(self):
+        # Guard against the silent-drop trap (PR-001): populating 5-column rows must not
+        # make any workflow disappear from the real manifest.
+        source = REPO_ROOT / ".agents" / "workflows"
+        commands = {w.command for w in INS.parse_manifest(source)}
+        for expected in ("whatnext", "list-workflows", "assess", "advise", "handoff"):
+            self.assertIn(expected, commands)
+
     def test_shim_generation_collapses_catalog(self):
         source = REPO_ROOT / ".agents" / "workflows"
         workflows = INS.parse_manifest(source)

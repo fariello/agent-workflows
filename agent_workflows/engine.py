@@ -182,6 +182,10 @@ class Workflow:
     body: str
     description: str
     lens: str = ""  # optional: a lens file applied on top of a shared body
+    arg_hint: str = ""  # optional: a per-workflow argument hint for the generated shim.
+    # "" = keep the generic arguments line (backward-compatible default);
+    # "none" = the command takes no arguments, so the shim omits the arguments line;
+    # any other text = a workflow-specific clause ("If the user provided arguments, <arg_hint>: $ARGUMENTS").
 
 
 @dataclass(frozen=True)
@@ -350,9 +354,16 @@ def parse_manifest(source_root: Path) -> list[Workflow]:
         if not line.startswith("|"):
             continue
         cells = [c.strip() for c in line.strip("|").split("|")]
-        # Support both 3-column (command|body|description) and 4-column
-        # (command|body|lens|description) manifest rows.
-        if len(cells) == 4:
+        # Support 3-column (command|body|description), 4-column
+        # (command|body|lens|description), and 5-column
+        # (command|body|lens|description|arg-hint) manifest rows. A row with any other
+        # cell count is skipped; note that a 5-column row is handled EXPLICITLY here so it
+        # is never silently dropped by the fall-through (a dropped row would delete the
+        # workflow from the manifest with no error).
+        arg_hint = ""
+        if len(cells) == 5:
+            command, body, lens, description, arg_hint = cells
+        elif len(cells) == 4:
             command, body, lens, description = cells
         elif len(cells) == 3:
             command, body, description = cells
@@ -362,8 +373,15 @@ def parse_manifest(source_root: Path) -> list[Workflow]:
         if command in ("command", "") or set(command) <= {"-"}:
             continue  # header or separator row
         lens = "" if lens.strip() in ("", "-") else lens.strip()
+        arg_hint = "" if arg_hint.strip() in ("", "-") else arg_hint.strip()
         workflows.append(
-            Workflow(command=command, body=body, description=description, lens=lens)
+            Workflow(
+                command=command,
+                body=body,
+                description=description,
+                lens=lens,
+                arg_hint=arg_hint,
+            )
         )
 
     if not workflows:
@@ -457,11 +475,23 @@ def shim_body(command: str, workflow: Workflow, tool: str) -> str:
     #   - Claude Code (.claude/commands, which still works) does NOT use `agent:`; it
     #     uses fields like `argument-hint`. Emitting OpenCode's `agent:` there is
     #     meaningless, so we tailor the frontmatter per tool.
+    # Per-workflow argument hint (manifest 5th column). Three cases:
+    #   arg_hint == ""     -> keep the historical generic arguments line (byte-identical,
+    #                         so is_shim_customized_vs_expected does not flag existing shims);
+    #   arg_hint == "none" -> the command takes no arguments; omit the arguments line;
+    #   otherwise          -> a workflow-specific arguments clause.
+    hint = workflow.arg_hint.strip()
     if tool == "claude":
+        if hint == "none":
+            claude_arg_hint = ""
+        elif hint:
+            claude_arg_hint = f'argument-hint: "[{hint}]"\n'
+        else:
+            claude_arg_hint = 'argument-hint: "[optional target path or flags]"\n'
         frontmatter = (
             "---\n"
             f"description: {workflow.description}\n"
-            'argument-hint: "[optional target path or flags]"\n'
+            f"{claude_arg_hint}"
             "---\n"
         )
     else:  # opencode
@@ -469,12 +499,21 @@ def shim_body(command: str, workflow: Workflow, tool: str) -> str:
             "---\n" f"description: {workflow.description}\n" "agent: build\n" "---\n"
         )
 
+    if hint == "none":
+        arguments_line = ""
+    elif hint:
+        arguments_line = f"If the user provided arguments, {hint}: $ARGUMENTS\n\n"
+    else:
+        arguments_line = (
+            "If the user provided arguments, treat them as the target path(s) and/or flags "
+            "for this workflow: $ARGUMENTS\n\n"
+        )
+
     return (
         f"{frontmatter}\n"
         f"Read and execute @{workflow.body}.{planning_note}\n"
         f"{lens_note}\n"
-        "If the user provided arguments, treat them as the target path(s) and/or flags "
-        "for this workflow: $ARGUMENTS\n\n"
+        f"{arguments_line}"
         "Treat the referenced file as the controlling instruction and follow it fully.\n"
     )
 
@@ -1599,9 +1638,14 @@ def is_stale_shim_customized(content: str) -> bool:
         "---",
         "description:",
         "agent: build",
-        'argument-hint: "[optional target path or flags]"',
+        # Claude argument-hint frontmatter: the generic default AND any per-workflow hint
+        # (arg-hint manifest column) both start with this prefix.
+        'argument-hint: "[',
         "Read and execute @.agents/workflows/",
-        "If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS",
+        # The generated arguments line: the generic default AND any per-workflow arg-hint
+        # clause both start with this prefix, so recognize the prefix rather than the exact
+        # generic sentence (a workflow with an arg-hint is still a generated, non-customized shim).
+        "If the user provided arguments,",
         "Treat the referenced file as the controlling instruction and follow it fully.",
         # Parameterized / lens helper prefixes:
         "The first argument names the CONCERN to assess",

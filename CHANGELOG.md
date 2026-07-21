@@ -21,6 +21,12 @@ scoping is confirmed at release-review.
   comms inbox (headers only, payloads untrusted), and TODO, then returns a prioritized, reasoned
   recommendation of what to work on next. It surveys-then-reasons (no fixed priority formula) and
   recommends without ever acting. Prose-only runbook, portable to any agent.
+- Added: per-workflow argument hints in generated command shims (DECISIONS D97). An optional 5th
+  manifest column (`arg-hint`) lets each workflow declare what its argument means, so the generated
+  slash-command shim shows a specific line (e.g. for `/whatnext`: "narrow the survey to a concern,
+  area, or path...") instead of the generic "target path(s) and/or flags", and omits the arguments
+  line entirely for commands that take none (`arg-hint: none`). Backward-compatible: workflows with
+  no hint render exactly as before. Target repos pick up the new wording on the next `aw install`.
 - Added: unified `agent_workflows.leak_sanitizer` engine and the `aw sanitize` alias (DECISIONS D96).
   One deterministic stdlib engine now backs every leak surface: it adds `--fix` (opt-in, interactive,
   never in the hook), an `--agent` machine-parseable mode, an off-by-default IP ruleset, a staged-blob
