@@ -3,7 +3,8 @@
 - Date: 2026-07-21
 - Concern: bug (release-blocking) - git-tag-driven version resolution
 - Scope: `agent_workflows/versioning.py` `_git_describe` + a regression test. Corrective fix for a latent resolver bug exposed by the `v1.2.0-recreated` tag. Does NOT touch any git tag or release.
-- Status: reviewed
+- Status: executed
+- Approval: approved by the human (repo maintainer) 2026-07-21
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -87,3 +88,8 @@ Recommended next steps:
 1. Review this IPD (optionally `/plan-review`). Resolve OQ1 (rc glob) at review or execution.
 2. On human approval, set `Status: approved` (+ `Approval:`), execute, run validation, sync CHANGELOG; commit path-scoped (no push).
 3. Set terminal `Status: executed` and `git mv` to `.agents/plans/executed/`.
+
+## Workflow history (execution)
+
+- 2026-07-21 human approval (repo maintainer): "Approved. Go." Status -> approved.
+- 2026-07-21 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Steps 1-5 done in `agent_workflows/versioning.py` (`_git_describe --match 'v[0-9]*' --exclude '*-recreated'`; parser guard `_is_release_tag` so a non-release tag degrades to `0.0.0+g<sha>`; docstring) + `tests/test_versioning.py` (NonReleaseTagGuardTests) + CHANGELOG. Validation (actual): `git describe` now = `v1.1.0-230-g...` (skips `v1.2.0-recreated`); `python -m agent_workflows --version` = `1.1.1.dev230+g2734544.d20260721` (PEP 440 valid); `python -m build --wheel` SUCCEEDS; `python -m pytest -q` = 293 passed, 1 skipped (was 1 failed, 281 passed, 7 skipped: the CLI test now passes and the 6 wheel tests un-skipped). Committed path-scoped; git mv to executed/.

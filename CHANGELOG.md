@@ -12,6 +12,10 @@ behavior-preserving install refactor, and the bug-fix / install-path corrections
 (previously staged for a separate 1.2.1 patch, now folded into this single release). Final release
 scoping is confirmed at release-review.
 
+- Added: `/whatnext` read-only surveyor workflow. Surveys the repo's plans/IPDs, staged prompts,
+  comms inbox (headers only, payloads untrusted), and TODO, then returns a prioritized, reasoned
+  recommendation of what to work on next. It surveys-then-reasons (no fixed priority formula) and
+  recommends without ever acting. Prose-only runbook, portable to any agent.
 - Added: `aw check-local-leaks` and the `/assess local-leaks` lens (DECISIONS D93). A first-class
   detector for maintainer/machine identifying info that must not appear in a public artifact
   (home paths, usernames, other local accounts, private repo names, hostnames, session ids) - the
@@ -20,6 +24,11 @@ scoping is confirmed at release-review.
   history (bounded), or a built wheel, auto-derives candidate tokens (advisory), and reads a
   repo-committed allowlist plus a never-committed user-level hints file. A `local-leaks` CI workflow
   is the push-time backstop.
+- Fixed (versioning): the git-tag-driven version resolver now considers only semver release
+  tags (`git describe --match 'v[0-9]*' --exclude '*-recreated'`) and safely ignores
+  non-release marker tags, with a parser guard that degrades any non-conforming tag to
+  `0.0.0+g<sha>` instead of bumping it. Previously a stray non-semver tag near HEAD could
+  derail version derivation and block the wheel build.
 - Fixed (privacy/correctness, DECISIONS D92): removed maintainer-specific references (local
   filesystem paths, private repo names, a second local test account, and captured session ids)
   from tracked files, including one that had shipped inside a packaged reference doc. Added a

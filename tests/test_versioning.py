@@ -245,5 +245,71 @@ class BakedVersionGuardTests(unittest.TestCase):
         )
 
 
+class NonReleaseTagGuardTests(unittest.TestCase):
+    """Only semver release tags drive the version; non-release tags degrade safely (D44 fix)."""
+
+    def test_recreated_tag_degrades_not_bumped(self):
+        # A non-semver tag (v1.2.0-recreated, the history-rewrite marker) must NOT be bumped
+        # into an invalid `1.3.0-recreated.dev...`; it degrades to the no-tag 0.0.0+g<sha>.
+        self.assertEqual(
+            VER.parse_describe("v1.2.0-recreated-3-gabc1234", date=DATE),
+            "0.0.0+gabc1234",
+        )
+
+    def test_recreated_tag_dirty_degrades(self):
+        self.assertEqual(
+            VER.parse_describe("v1.2.0-recreated-3-gabc1234-dirty", date=DATE),
+            "0.0.0+gabc1234.d" + DATE,
+        )
+
+    def test_release_tags_still_resolve(self):
+        # Normal, rc, and multi-digit-patch release tags are unaffected by the guard.
+        self.assertEqual(
+            VER.parse_describe("v1.1.0-2-g49f2bdc", date=DATE), "1.1.1.dev2+g49f2bdc"
+        )
+        self.assertEqual(
+            VER.parse_describe("v1.2.0-rc.1-4-gbdc3fdc", date=DATE),
+            "1.2.0rc2.dev4+gbdc3fdc",
+        )
+        self.assertEqual(
+            VER.parse_describe("v1.10.20-2-gabc1234", date=DATE),
+            "1.10.21.dev2+gabc1234",
+        )
+
+    def test_is_release_tag_predicate(self):
+        for good in ("1.0.0", "1.10.20", "1.2.0rc1", "2.3"):
+            self.assertTrue(VER._is_release_tag(good), good)
+        for bad in ("1.2.0-recreated", "nightly", "backup", "1.2.0-rc.1"):
+            # note: `1.2.0-rc.1` is the RAW (un-normalized) spelling; _normalize_tag turns it
+            # into `1.2.0rc1` before this predicate sees it, so the raw hyphenated form is
+            # correctly NOT a release core.
+            self.assertFalse(VER._is_release_tag(bad), bad)
+
+    def test_git_describe_filters_to_release_tags(self):
+        # _git_describe must ask git to match only version tags and exclude recreated markers.
+        import unittest.mock as mock
+
+        captured = {}
+
+        def fake_run(argv, **kwargs):
+            captured["argv"] = argv
+
+            class R:
+                returncode = 0
+                stdout = "v1.1.0-230-g2734544\n"
+
+            return R()
+
+        with mock.patch(
+            "agent_workflows.versioning.subprocess.run", side_effect=fake_run
+        ):
+            VER._git_describe(Path("."))
+        argv = captured["argv"]
+        self.assertIn("--match", argv)
+        self.assertIn("v[0-9]*", argv)
+        self.assertIn("--exclude", argv)
+        self.assertIn("*-recreated", argv)
+
+
 if __name__ == "__main__":
     unittest.main()

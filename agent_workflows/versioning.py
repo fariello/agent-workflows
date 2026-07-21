@@ -17,8 +17,13 @@ Design (IPD-1, DECISIONS D44):
   on the third-party ``packaging`` library, preserving the zero-runtime-dependency rule.
   The ``+local`` segment (gsha, optional ``.dDATE``) is compared as presence only.
 
-The real ``git describe --tags --always --dirty --long`` forms this parses (verified
-live against git):
+The resolver runs ``git describe --tags --always --dirty --long --match 'v[0-9]*'
+--exclude '*-recreated'`` so ONLY semver release tags (``vX.Y.Z``, ``vX.Y.ZZ``,
+``vX.Y.Z-rc.N``) drive the version; non-release marker tags (e.g. a ``v1.2.0-recreated``
+history-rewrite marker) are ignored, and a non-conforming tag that still reaches the
+parser degrades safely to ``0.0.0+g<sha>`` rather than being bumped.
+
+The real describe forms this parses (verified live against git):
 
 - ``v1.0.0-0-gd644d2d``        exact tag, clean        -> ``1.0.0``
 - ``v1.0.0-0-gd644d2d-dirty``  exact tag, dirty        -> ``1.0.1.dev0+gd644d2d.dYYYYMMDD``
@@ -56,6 +61,22 @@ def _utc_date() -> str:
 # Accepts the SemVer spelling (`-rc.N`) and the PEP 440 spelling (`rcN`); e.g.
 # `v1.2.0-rc.1`, `1.2.0-rc.1`, `1.2.0rc1` all parse to core=1.2.0, rc=1.
 _RC_TAG_RE = re.compile(r"^(?P<core>\d+(?:\.\d+)*)-?rc\.?(?P<rc>\d+)$")
+
+# A conforming RELEASE tag (already `v`-stripped): a numeric `X.Y.Z...` core, OR that core
+# followed by an rc identifier. Anything else (e.g. `1.2.0-recreated`, a bookmark, junk) is
+# NOT a release tag and must not drive the version. This is the second-layer guard behind
+# the `git describe --match/--exclude` filter: even if a non-release tag reaches the parser,
+# it degrades safely to the no-tag `0.0.0+g<sha>` branch instead of being bumped.
+_RELEASE_CORE_RE = re.compile(r"^\d+(?:\.\d+)*$")
+
+
+def _is_release_tag(normalized_tag: str) -> bool:
+    """True if a `v`-stripped tag is a conforming release version (`X.Y.Z` or `X.Y.ZrcN`)."""
+
+    return bool(
+        _RELEASE_CORE_RE.match(normalized_tag)
+        or _NORMALIZED_RC_RE.match(normalized_tag)
+    )
 
 
 def _normalize_tag(tag: str) -> str:
@@ -126,7 +147,7 @@ def parse_describe(describe: str, *, date: Optional[str] = None) -> str:
     date = date or _utc_date()
 
     match = _DESCRIBE_LONG_RE.match(describe)
-    if match:
+    if match and _is_release_tag(_normalize_tag(match.group("tag"))):
         tag = _normalize_tag(match.group("tag"))
         distance = int(match.group("distance"))
         sha = match.group("sha")
@@ -143,6 +164,18 @@ def parse_describe(describe: str, *, date: Optional[str] = None) -> str:
         if dirty:
             local += f".d{date}"
         return f"{base}.dev{distance}{local}"
+
+    # Second-layer guard: the describe HAS the `<tag>-<distance>-g<sha>` shape but the tag
+    # is NOT a conforming release version (e.g. `v1.2.0-recreated`). Do not bump a
+    # non-release core; treat it as "no usable release tag" and degrade to `0.0.0+g<sha>`
+    # using the sha the describe already gave us (plus the dirty flag).
+    if match:
+        sha = match.group("sha")
+        dirty = match.group("dirty") is not None
+        local = f"+g{sha}"
+        if dirty:
+            local += f".d{date}"
+        return f"0.0.0{local}"
 
     # No tags: git describe --always degrades to a bare short sha, plus a trailing
     # "-dirty" when the tree is dirty (e.g. "9042038-dirty"). Strip/detect it.
@@ -163,7 +196,23 @@ def _git_describe(repo_root: Path) -> Optional[str]:
 
     try:
         proc = subprocess.run(
-            ["git", "describe", "--tags", "--always", "--dirty", "--long"],
+            [
+                "git",
+                "describe",
+                "--tags",
+                "--always",
+                "--dirty",
+                "--long",
+                # Only real semver RELEASE tags drive the version (D44). A broad `v[0-9]*`
+                # match admits `vX.Y.Z`, multi-digit `vX.Y.ZZ`, and `vX.Y.Z-rc.N`; the
+                # `*-recreated` exclude drops history-rewrite marker tags (e.g.
+                # `v1.2.0-recreated`) that are not release versions. A tag that still slips
+                # through is caught by the parser guard in parse_describe.
+                "--match",
+                "v[0-9]*",
+                "--exclude",
+                "*-recreated",
+            ],
             cwd=str(repo_root),
             capture_output=True,
             text=True,
