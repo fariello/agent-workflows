@@ -251,6 +251,110 @@ def load_user_hints() -> dict[str, list[str]]:
     return out
 
 
+# --- Config writers (used by the interactive wizard; schema-cohesive with the loaders) -------
+class ConfigValueError(ValueError):
+    """A config value cannot be represented by the minimal TOML parser and was rejected."""
+
+
+def _toml_quote(value: str) -> str:
+    """Return ``value`` as a TOML-parser-round-trippable quoted string, or raise.
+
+    The minimal reader (``_parse_simple_toml_lists``) has no escape syntax, so a value is
+    delimited by the quote char it does NOT contain (dual-quote selection, DECISIONS D98).
+    A value containing BOTH a single and a double quote cannot round-trip and is rejected
+    with a named error rather than written and silently mis-read. ``]`` and other regex
+    metacharacters are fine (the reader now respects quoting).
+    """
+    has_dq = '"' in value
+    has_sq = "'" in value
+    if has_dq and has_sq:
+        raise ConfigValueError(
+            "value contains both single and double quotes, which the leak-sanitizer config "
+            f"format cannot store: {value!r}"
+        )
+    if has_dq:
+        return "'" + value + "'"
+    return '"' + value + '"'
+
+
+def _atomic_write(path: Path, payload: str) -> Path:
+    """Write ``payload`` to ``path`` atomically (temp in same dir + os.replace), mkdir parents.
+
+    Mirrors ``config.save`` so a crash mid-write cannot corrupt an existing config file.
+    """
+    import tempfile
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        dir=str(path.parent), prefix=".leaks-cfg.", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(payload)
+        os.replace(tmp_name, str(path))
+    except BaseException:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+    return path
+
+
+def _render_toml_array(key: str, values: list[str]) -> str:
+    """Render ``key = ["a", "b"]`` (or ``key = []``) round-trippable by the minimal reader."""
+    if not values:
+        return f"{key} = []\n"
+    quoted = ", ".join(_toml_quote(v) for v in values)
+    return f"{key} = [{quoted}]\n"
+
+
+def write_repo_allowlist(
+    repo_root: Path,
+    *,
+    allow_line_substrings: list[str],
+    fail_patterns: list[str],
+    ip_enabled: bool,
+    hostname_fail: bool,
+) -> Path:
+    """Write the tracked ``.agents/local-leaks-allowlist.toml`` atomically.
+
+    Emits only shapes the minimal reader round-trips (flat string arrays + flat booleans).
+    Raises ``ConfigValueError`` (before writing anything) if any list value cannot be stored.
+    """
+    # Validate every value first so we never write a partially-representable file.
+    for v in list(allow_line_substrings) + list(fail_patterns):
+        _toml_quote(v)  # raises ConfigValueError on an unrepresentable value
+    header = (
+        "# Leak-sanitizer repo allowlist (tracked, travels with the repo, CI-deterministic).\n"
+        "# Managed by `aw sanitize --configure`; hand-edits are fine but keep values on one\n"
+        "# line and avoid a value containing BOTH ' and \" (the minimal reader has no escape).\n\n"
+    )
+    body = (
+        _render_toml_array("allow_line_substrings", allow_line_substrings)
+        + _render_toml_array("fail_patterns", fail_patterns)
+        + "\n"
+        + f"ip_enabled = {'true' if ip_enabled else 'false'}\n"
+        + f"hostname_fail = {'true' if hostname_fail else 'false'}\n"
+    )
+    return _atomic_write(repo_root / REPO_ALLOWLIST_REL, header + body)
+
+
+def write_user_hints(tokens: list[str], patterns: list[str]) -> Path:
+    """Write the never-committed user-hints JSON to the config dir atomically (never the repo)."""
+    import json
+
+    payload = (
+        json.dumps(
+            {"tokens": list(tokens), "patterns": list(patterns)},
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+    return _atomic_write(_config_dir() / USER_HINTS_FILENAME, payload)
+
+
 def derive_warn_tokens(repo_root: Path) -> dict[str, str]:
     """Auto-derive advisory (warn-only) personal tokens from the environment.
 

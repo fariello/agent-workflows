@@ -271,6 +271,90 @@ class TomlParserTests(unittest.TestCase):
         self.assertEqual(got, {"allow_line_substrings": ["it" + chr(39) + "s fine"]})
 
 
+class ConfigWriterTests(unittest.TestCase):
+    """Round-trip + rejection for the config writers (IPD 20260721-1851-01 CP1)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.repo = Path(self._tmp.name) / "r"
+        self.repo.mkdir(parents=True)
+        self._old_xdg = os.environ.get("XDG_CONFIG_HOME")
+        os.environ["XDG_CONFIG_HOME"] = str(Path(self._tmp.name) / "cfg")
+
+    def tearDown(self):
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CONFIG_HOME", None)
+        else:
+            os.environ["XDG_CONFIG_HOME"] = self._old_xdg
+        self._tmp.cleanup()
+
+    def test_repo_allowlist_round_trips_including_brackets(self):
+        ls.write_repo_allowlist(
+            self.repo,
+            allow_line_substrings=["see [docs]", "MY-OK"],
+            fail_patterns=["/home/[a-z]+/x", "ses_[0-9A-Za-z]{8,}"],
+            ip_enabled=True,
+            hostname_fail=False,
+        )
+        lists = ls.load_repo_allowlist(self.repo)
+        bools = ls.load_repo_config_bools(self.repo)
+        self.assertEqual(lists["allow_line_substrings"], ["see [docs]", "MY-OK"])
+        self.assertEqual(
+            lists["fail_patterns"], ["/home/[a-z]+/x", "ses_[0-9A-Za-z]{8,}"]
+        )
+        self.assertTrue(bools["ip_enabled"])
+        self.assertFalse(bools["hostname_fail"])
+
+    def test_empty_lists_round_trip(self):
+        ls.write_repo_allowlist(
+            self.repo,
+            allow_line_substrings=[],
+            fail_patterns=[],
+            ip_enabled=False,
+            hostname_fail=False,
+        )
+        lists = ls.load_repo_allowlist(self.repo)
+        self.assertEqual(lists.get("allow_line_substrings"), [])
+        self.assertEqual(lists.get("fail_patterns"), [])
+
+    def test_value_with_one_quote_uses_other_delimiter(self):
+        val = (
+            "it" + chr(39) + "s a /home/[x]/p"
+        )  # contains a single quote AND a bracket
+        ls.write_repo_allowlist(
+            self.repo,
+            allow_line_substrings=[val],
+            fail_patterns=[],
+            ip_enabled=False,
+            hostname_fail=False,
+        )
+        self.assertEqual(
+            ls.load_repo_allowlist(self.repo)["allow_line_substrings"], [val]
+        )
+
+    def test_value_with_both_quotes_is_rejected_before_writing(self):
+        bad = "has " + chr(34) + " and " + chr(39)  # both a double and a single quote
+        with self.assertRaises(ls.ConfigValueError):
+            ls.write_repo_allowlist(
+                self.repo,
+                allow_line_substrings=[bad],
+                fail_patterns=[],
+                ip_enabled=False,
+                hostname_fail=False,
+            )
+        # Nothing was written (rejected before the atomic write).
+        self.assertFalse((self.repo / ls.REPO_ALLOWLIST_REL).exists())
+
+    def test_user_hints_round_trip_and_lands_in_config_dir_not_repo(self):
+        ls.write_user_hints(tokens=["MyCodename"], patterns=["/srv/[a-z]+/private"])
+        hints = ls.load_user_hints()
+        self.assertEqual(hints.get("tokens"), ["MyCodename"])
+        self.assertEqual(hints.get("patterns"), ["/srv/[a-z]+/private"])
+        # It must NOT be written into the repo tree.
+        self.assertFalse((self.repo / ls.USER_HINTS_FILENAME).exists())
+        self.assertTrue((ls._config_dir() / ls.USER_HINTS_FILENAME).is_file())
+
+
 class ConfigReconciliationTests(unittest.TestCase):
     def test_one_canonical_tracked_config_no_competing_file(self):
         # PR-003: the tracked config is .agents/local-leaks-allowlist.toml and there is NO
