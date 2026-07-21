@@ -93,3 +93,13 @@ how attention degrades. Reliability comes from structure, not from writing more 
 Default to non-destructive action. Do not push, publish, deploy, expose secrets, or
 change public contracts without explicit permission and analysis. Prefer staged,
 reversible changes and a clear record of what was done.
+
+## 11. Deterministic checks belong in scripts, not in LLM workflows
+
+Work that needs NO model judgment (pattern matches, structural validation, config or
+lockfile checks, deterministic transforms) belongs in a robust, tested script with a
+precise agent-consumable output mode (`--agent`/`--llm`: one machine-parseable record per
+finding, no prose). LLM workflows DELEGATE to that script and consume its output instead
+of re-deriving the result, which is cheaper, more reliable, and identical across runs. The
+leak-sanitizer (DECISIONS D96) is the reference: one engine, an `--agent` mode, and lenses
+that call it rather than eyeballing files.

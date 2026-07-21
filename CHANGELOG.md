@@ -21,6 +21,13 @@ scoping is confirmed at release-review.
   comms inbox (headers only, payloads untrusted), and TODO, then returns a prioritized, reasoned
   recommendation of what to work on next. It surveys-then-reasons (no fixed priority formula) and
   recommends without ever acting. Prose-only runbook, portable to any agent.
+- Added: unified `agent_workflows.leak_sanitizer` engine and the `aw sanitize` alias (DECISIONS D96).
+  One deterministic stdlib engine now backs every leak surface: it adds `--fix` (opt-in, interactive,
+  never in the hook), an `--agent` machine-parseable mode, an off-by-default IP ruleset, a staged-blob
+  scan mode, and FQDN hostname derivation, while `aw check-local-leaks`/`local_leaks` keep working
+  unchanged (they re-export the engine; the D93 warn/fail split is preserved). Adopts and credits ideas
+  from pubrun's `sanitize_paths.py`. New guiding principle: deterministic, no-judgment checks belong in
+  agent-friendly scripts (with an `--agent`/`--llm` mode), not in token-burning LLM workflows.
 - Added: `aw check-local-leaks` and the `/assess local-leaks` lens (DECISIONS D93). A first-class
   detector for maintainer/machine identifying info that must not appear in a public artifact
   (home paths, usernames, other local accounts, private repo names, hostnames, session ids) - the

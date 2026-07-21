@@ -96,6 +96,15 @@ Two DISTINCT ordered Sets came out of the 2026-07-16 discussion, reconciled 2026
 Ideas worth revisiting; each needs a real decision before it becomes a plan. Do not implement any of
 these without an approved IPD.
 
+- **Audit all workflows for deterministic work that can move into agent-friendly scripts (from
+  GUIDING_PRINCIPLES P11 / DECISIONS D96).** The leak-sanitizer established the pattern: deterministic,
+  no-judgment checks belong in a robust script with an `--agent`/`--llm` output mode that LLM surfaces
+  DELEGATE to, rather than re-deriving in prose and burning tokens. Sweep the workflows (release-review
+  sections, assess lenses, verify, scaffold) for pattern matches / structural validation / config checks
+  currently done by the model, and list candidates to extract into scripts. One audit, then per-candidate
+  IPDs. Also on the roadmap: the leak-sanitizer Set Order 2 (re-runnable config wizard) and Order 3
+  (agent/workflow rewire consuming `--agent` output + OPTIONAL setup-repo install of the hook/CI, off by
+  default, with agents made AWARE of the script even without hooks) are designed follow-ups to D96.
 - **Extract the push-then-verify CI loop into its own instruction file (from vistab.agent, 2026-07-17;
   verified against source).** The push -> watch CI -> diagnose -> fix -> commit -> repush -> until-green
   loop currently lives ONLY inside `release-review/09-release-execution.md` section 3 (`:62`), which is
