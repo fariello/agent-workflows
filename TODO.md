@@ -55,53 +55,41 @@ and human approval before any build.
 - Deferred beyond the split: conditional scheduling (`Depends-On` marker files), Telegram/Signal and
   other transports, cross-box comms.
 
-### Research-prompt pipeline + surveyor/producer workflows (ordered Set; all 1.3.0-era)
+### Two reconciled 1.3.0-era Sets (prompt pipeline + agent-continuity workflows)
 
-An ordered Set of future IPDs that came out of the 2026-07-16 discussion on where run-once/research
-prompts and their results live. They sit BEHIND the OpenCode security disclosure and the 1.3.0 release.
-Each needs its own IPD + `/plan-review` + human approval before any build. Order matters (later items
-consume earlier ones). Grounding: DECISION D88 (filesystem-encoded state, extends P5); the `.agents/prompts/`
-staging concept is already blessed by D50 / IPD `20260712-1544-01` but is not scaffolded in this repo.
+Two DISTINCT ordered Sets came out of the 2026-07-16 discussion, reconciled 2026-07-20 (IPD
+`20260717-2317-01` Step 5) so their `Order:` numbers no longer collide. Each item needs its own IPD +
+`/plan-review` + human approval before any build. Grounding: D88 (filesystem-encoded state, extends P5);
+`.agents/prompts/` staging is blessed by D50 / IPD `20260712-1544-01`.
 
-- **Order 1 - DONE (D88).** Codify the filesystem-encoded-state principle (location over contents for
-  surveyed state, with boundaries) by extending GUIDING_PRINCIPLES P5. This is the rationale the rest cite.
-  Completed this session (`GUIDING_PRINCIPLES.md` P5 + D88); listed here for the Set's provenance.
-- **Order 2 - scaffold `.agents/prompts/` + document the research-prompt->results convention.** Create the
-  `.agents/prompts/` lifecycle buckets (mirroring the plan buckets: `pending/`, `reusable/`, `executed/`,
-  `superseded/`, `not-executed/`) in THIS repo, and document that run-once/research prompts stage there
-  (glanceable state via `ls .agents/prompts/pending/`), move through the buckets as they progress, and
-  their RESULTS are durable artifacts filed under `.agents/docs/research/<topic>/`; `.agents/docs/prompts/`
-  stays the evergreen reusable library (unchanged). DONE AHEAD (this session): the OpenCode verification
-  runbook (`20260716-1342-02`) and its human-protocol companion (`20260716-1342-01`) were `git mv`d from
-  `.agents/docs/research/` into `.agents/prompts/reusable/`, with the runbook's RESULTS destination pointed
-  at `.agents/docs/research/opencode-security/`; the advisory / hardening how-to / broker-feasibility
-  ANALYSIS notes stay in `research/`. STILL TO DO under this IPD: scaffold the full `.agents/prompts/`
-  bucket set + a `.agents/prompts/README.md` documenting the convention, and re-issue the corrected runbook
-  path (`.agents/prompts/reusable/...`) for the accompanying email. Depends on Order 1.
-- **Order 3 - `/whatnext` workflow (surveyor; read-only, recommend-don't-act).** A `.agents/workflows/whatnext/`
-  prose runbook that aggregates state by LISTING the tree (plans via Status/Set/Order, `.agents/prompts/pending/`,
-  comms inbox headers only + untrusted, TODO sections, pending research) and proposes an ordering WITH REASONS.
-  Never mutates, never acks, never moves anything. Portable to any agent; promote deterministic parts to an
-  `aw whatnext` CLI helper later if it proves useful. Consumes Order 2's tree. (You chose two separate IPDs
-  for this and the convention.)
-- **Order 4 - `/research [topic]` workflow (producer; prompt-authoring walk-through).** A walk-through that
-  clarifies the research question, drafts a house-conformant prompt into `.agents/prompts/pending/`
-  (ENFORCING the AGENTS.md handoff-prompt rules: upload-ready, self-contained, no user-instructions inside,
-  returns a downloadable `.md`), tells the operator how to run it (external LLM vs agent-run), and states
-  where results go (`research/<topic>/`). Scope is narrow-to-medium (prompt authoring + filing), NOT a
-  do-everything research blob overlapping `/assess` or `/spec`. Natural producer for the pipeline `/whatnext`
-  surveys. Depends on Order 2.
-- **Order 5 - OPEN: should the installer scaffold `.agents/prompts/`?** Decide whether `aw install` should
-  create the `.agents/prompts/` skeleton (closing the current "agent-workflows does not manage a prompts dir;
-  set it up by hand" gap from IPD `0501-03`), the way it now scaffolds `.agents/comms/`. Needs a decision
-  before implementation. Depends on Order 2.
-- **`/handoff` workflow (session-handoff generator; human request 2026-07-17).** Produces a DETAILED
-  cold-start handoff document on demand (facts PLUS a working-style/preferences/nuance layer) so a fresh
-  session resumes with full continuity. NOW HAS A FULL IPD (Status: to-review):
-  `.agents/plans/pending/20260717-2000-01-handoff-workflow-session-continuity.md` (Set:
-  agent-continuity-workflows, Order 3, with `/whatnext`=Order 1 and `/research`=Order 2). The hand-authored
-  `.agents/plans/pending/20260717-1950-01-session-handoff-resume-here.md` is the golden-output example. Needs
-  `/plan-review` -> approval before building; 1.3.0-era. (This bullet is now tracked by that IPD.)
+**Set `research-prompt-pipeline`** - where run-once/research prompts and their results live:
+
+- **Order 1 - DONE (D88).** Codify the filesystem-encoded-state principle (location over contents) by
+  extending GUIDING_PRINCIPLES P5. Listed for provenance.
+- **Order 2 - DONE (D91).** Scaffold `.agents/prompts/` lifecycle buckets + document the
+  research-prompt->results convention (prompts stage in `.agents/prompts/<bucket>/`; RESULTS under
+  `.agents/docs/research/<topic>/`; `.agents/docs/prompts/` stays the evergreen library). Executed via IPD
+  `20260717-2118-01` (now tagged this Set, Order 2).
+- **Order 3 - `/research [topic]` workflow (producer; prompt-authoring walk-through).** Clarifies the
+  research question, drafts a house-conformant prompt into `.agents/prompts/pending/` (ENFORCING the
+  AGENTS.md handoff-prompt rules: upload-ready, self-contained, no user-instructions inside, returns a
+  downloadable `.md`), tells the operator how to run it, and states where results go (`research/<topic>/`).
+  Narrow-to-medium scope, NOT a do-everything blob overlapping `/assess` or `/spec`. Depends on Order 2.
+- **Order 4 - OPEN: should the installer scaffold `.agents/prompts/`?** `aw install` already scaffolds it
+  as of D91, so this is largely RESOLVED; confirm and close. (Kept for the record.)
+
+**Set `agent-continuity-workflows`** - the surveyor/producer/snapshot command trio:
+
+- **Order 1 - `/whatnext` workflow (surveyor; read-only, recommend-don't-act).** DONE via IPD
+  `20260717-2317-01`: a `.agents/workflows/whatnext/` prose runbook that surveys plans/prompts/comms/TODO
+  and returns a prioritized, reasoned recommendation (survey-then-reason; never mutates/acks/moves).
+- **Order 2 - `/research`** is the pipeline producer above; it is cross-listed here as the natural producer
+  that `/whatnext` surveys, but its home Set is `research-prompt-pipeline`.
+- **Order 3 - `/handoff` workflow (session-handoff generator; human request 2026-07-17).** Produces a
+  DETAILED cold-start handoff document on demand (facts PLUS a working-style/preferences/nuance layer). HAS
+  A FULL IPD (Status: to-review): `.agents/plans/pending/20260717-2000-01-handoff-workflow-session-continuity.md`.
+  The hand-authored `.agents/plans/pending/20260717-1950-01-session-handoff-resume-here.md` is the
+  golden-output example. Needs `/plan-review` -> approval before building; 1.3.0-era.
 
 ## Consider and possibly implement (not committed, may be declined)
 

@@ -31,6 +31,7 @@ focusing on different concerns; leave it `-` when not used.
 | verify-execution | .agents/workflows/verify-execution/verify-execution.md | - | Post-execution cross-check: verify an EXECUTED plan (IPD) was actually done as written (read the diff, check each required change, re-run the repo's real validation via /verify), always write a run record, and EMIT a corrective IPD for any gap (never fixes in place; commits only its own files path-scoped, safe to run while another agent works). Verdict MATCHES/DIVERGES/INCOMPLETE + GO/NO-GO on "truly executed?". Used to cross-check another agent's or a past session's work. |
 | getting-started | .agents/workflows/getting-started/getting-started.md | - | Guided in-agent tour and router for newcomers: detect repo/toolkit context, explain the mental model briefly, ask the user's goal, and route to the right workflow (offering to run it with consent) with the exact invocation for their tool. Orients and routes; references `/list-workflows` for the full catalog. Read-only by default. |
 | list-workflows | .agents/workflows/list-workflows/list-workflows.md | - | Toolkit discovery: list what this toolkit can do (core workflows, the `/assess` concerns, any personas) and the installed framework version, read from the manifest. Optional filter argument (`/list-workflows security`, `/list-workflows assess`). Read-only. |
+| whatnext | .agents/workflows/whatnext/whatnext.md | - | Read-only surveyor and next-action recommender: survey the repo's plans/IPDs, staged prompts, comms inbox (headers only, payloads untrusted), and TODO, then return a prioritized, reasoned recommendation of what to work on next. Optional focus argument (`/whatnext release`). Recommends, never acts. |
 | verify | .agents/workflows/verify/verify.md | - | Proof, not prose: discover the repo's own test/lint/build/type-check commands (`run_checks.py`), run the approved ones (confirm-per-check by default, `--yes` for batch; hard denylist for network/deploy/publish/install), and capture real exit codes/metrics/logs as committed evidence. Honest about what could not be verified. Reused by release-review and assess. |
 | spec | .agents/workflows/spec/spec.md | - | Front of funnel: turn a fuzzy request into a reviewable specification (goals, non-goals, users, requirements, testable acceptance criteria, constraints, open questions). Guided/interactive; writes the spec to the repo's convention. Produces the artifact that `/advise spec-editor` interrogates and `plan-review` reviews. |
 | incident | .agents/workflows/incident/incident.md | - | Blameless post-mortem for a production incident: timeline, impact, systemic contributing factors, what went right/wrong, and follow-up actions emitted as IPDs into pending/. Reactive complement to the reliability/logging-audit/intrusion-detection lenses. Repo-scoped and honest about it (operator holds the real monitoring/on-call data). |
@@ -190,6 +191,12 @@ repo/toolkit context, explains the mental model briefly, asks the user's goal, a
 to the right workflow (offering to run it, with consent) with the exact invocation for
 their tool. It ORIENTS and ROUTES - read-only by default - and references `/list-workflows`
 for the full catalog rather than duplicating it or the README.
+
+**`whatnext`** is the returning-agent's orientation: a read-only surveyor that reads the
+repo's plans/IPDs, staged prompts, comms inbox (headers only), and TODO, then returns a
+prioritized, reasoned recommendation of what to work on next. It RECOMMENDS and never acts.
+Where `getting-started` onboards a newcomer, `whatnext` re-orients a session that already
+knows the toolkit.
 
 ## Notes
 

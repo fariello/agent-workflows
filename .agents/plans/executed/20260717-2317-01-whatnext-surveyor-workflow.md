@@ -3,7 +3,8 @@
 - Date: 2026-07-17
 - Concern: framework capability (agent orientation) + Set/Order housekeeping
 - Scope: a new prose-only `/whatnext` workflow (`whatnext.md` + `README.md` + one manifest row) that surveys the repo's plans, staged prompts, comms inbox, and TODO and RECOMMENDS a prioritized next-action list; plus reconciling the `Set:`/`Order:` collision between the prompt-pipeline and the workflow-command family
-- Status: reviewed
+- Status: executed
+- Approval: approved by the human (repo maintainer) 2026-07-20
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Set: agent-continuity-workflows
 - Order: 1
@@ -18,6 +19,8 @@ Set reconciliation (this IPD): `agent-continuity-workflows` is the workflow-comm
 
 - 2026-07-17 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored as Order 1 of the reconciled `agent-continuity-workflows` Set, after the human chose "build the full 1.3.0 backlog" and "split into two Sets" for the Set/Order collision. Grounded in an explore-agent survey of the workflow anatomy, manifest registration, `plans.py` scanner, comms/TODO/prompts sources, and the test guards.
 - 2026-07-20 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001/PR-002 fixed (stale D-number D92->D94-context; stale test baseline 266->288). Re-verified against current source: the Set collision (prompts-scaffold Order 2, handoff Order 3, this IPD Order 1 under `agent-continuity-workflows`) still EXISTS, so Step 5's reconciliation remains valid; exemplar flat workflows, engine registration functions, `test_dir_readmes` Category-2 rule, comms untrusted-payload line, and TODO's still-stale Order numbering all confirmed. No scope overlap with the pending documentation IPD (2354-01). Resolved OQ1 with the human (NOT prescriptive: survey-then-reason, default only as tie-breaker; agent may surface off-record priorities) and OQ2 (no new DECISIONS entry; Workflow-history note only). Rewrote Step 1's output contract accordingly. Status -> reviewed.
+- 2026-07-20 human approval (repo maintainer): "Approved. GO." Status -> approved.
+- 2026-07-21 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): all 7 steps done. Steps 1-4: authored `.agents/workflows/whatnext/whatnext.md` (non-prescriptive survey-then-reason runbook, read-only, payload-blind comms, off-record liberty) + `README.md`; registered the manifest row in `index.md`; added the discovery-workflow narrative mention. Step 5: reconciled the Sets - re-tagged the executed prompts-scaffold IPD (`20260717-2118-01`) from `agent-continuity-workflows`/Order 2 to `research-prompt-pipeline`/Order 2 with a correction note. Step 6: restructured TODO.md into the two clean Sets. Step 7: CHANGELOG 1.3.0 Added bullet. Validation (actual): manifest parses the row; `tests/test_dir_readmes.py` + `tests/test_installer.py` pass (41); temp `install_into_repo` generated `.opencode/commands/whatnext.md` + `.claude/commands/whatnext.md` pointing at the runbook; `python -m pytest -q` = 293 passed, 1 skipped. NOTE (STOP-and-report during execution): the full suite was initially red due to a PRE-EXISTING, out-of-scope versioning bug (the `v1.2.0-recreated` tag broke `git describe`); that was fixed first under corrective IPD `20260721-0920-01` (committed `0d3e66a`), after which this work is green. The CHANGELOG whatnext bullet was inadvertently committed with `0d3e66a` rather than this commit (content correct). Status -> executed; git mv to executed/.
 
 ## Goal
 

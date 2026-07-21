@@ -6,12 +6,15 @@
 - Status: executed
 - Approval: approved by the human (repo maintainer) 2026-07-17
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
-- Set: agent-continuity-workflows
+- Set: research-prompt-pipeline
 - Order: 2
 
 <!--
-Order 1 of this Set is DONE (D88, filesystem-encoded-state principle). This is Order 2.
-Orders 3-5 (/whatnext, /research, /handoff) consume the convention this plan establishes.
+Set-tag CORRECTION (2026-07-20, via IPD 20260717-2317-01 Step 5): this plan was originally
+tagged `agent-continuity-workflows`/Order 2, which collided with the workflow-command trio
+(/whatnext=1, /research=2, /handoff=3). It belongs to the DISTINCT prompt-pipeline Set, now
+`research-prompt-pipeline`. Prompt-pipeline Order 1 is DONE (D88, filesystem-encoded state);
+this is Order 2 (scaffold `.agents/prompts/`). See that IPD's W2 and DECISIONS D82.
 -->
 
 ## Workflow history
@@ -20,6 +23,7 @@ Orders 3-5 (/whatnext, /research, /handoff) consume the convention this plan est
 - 2026-07-17 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 all FIXED. Verified all engine.py/plans.py/packaging claims against source; added dry-run parity test, single-source wiring note (install_into_repo covers both entry points, D83), pinned DECISIONS D91, noted normalizer already recognizes the buckets, corrected the docstring-accuracy pitfall. Resolved OQ1 (rename+commit the stray file) and OQ2 (defer AGENTS.md pointer) with the human; OQ3 resolved from evidence. Status -> reviewed.
 - 2026-07-17 human approval (repo maintainer): approved for execution. Status -> approved.
 - 2026-07-17 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): all 8 steps implemented; new prompts scaffold + installer wiring + templates + this-repo scaffold + docs (D91). Validation: `python -m pytest -q` = 266 passed, 1 skipped; manual `install_into_repo` + `run_rollback` on a temp repo confirmed scaffold and clean undo; no prompts `.gitignore`. Committed path-scoped (`72134bf` impl, `d673858` normalized staged file). Status -> executed; git mv to executed/.
+- 2026-07-20 Set-tag correction (opencode its_direct/pt3-claude-opus-4.8-1m-us, via IPD 20260717-2317-01 Step 5): re-tagged `Set:` from `agent-continuity-workflows`/Order 2 to `research-prompt-pipeline`/Order 2 (this plan is the prompt-pipeline, not the /whatnext,/research,/handoff command trio). A metadata correction of a mis-tag, not a rewrite of the executed work; disposition (`executed/`) unchanged.
 
 ## Goal
 
