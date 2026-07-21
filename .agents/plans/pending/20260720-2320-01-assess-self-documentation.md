@@ -3,12 +3,13 @@
 - Date: 2026-07-20
 - Concern: self-documentation
 - Scope: the in-product learn-as-you-go surface, i.e. the `aw` (`agent-workflows`) CLI: `--help`/usage text, first-run/onboarding, error messages, and discoverability. Excludes repository prose docs (that is the `documentation` lens) and the framework's own `.agents/workflows/` content.
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
 
 - 2026-07-20 /assess self-documentation (opencode its_direct/pt3-claude-opus-4.8-1m-us): assessed; proposed 4 changes.
+- 2026-07-20 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 fixed. Verified all S1-S4 claims against source (`--status` has no `choices=` and `normalize_status` maps unknowns to `LEGACY_GROUP`; `(D93)` in the check-local-leaks help; `local_leaks.main` clean path silent). Broadened S2's sweep + test to include the runtime `print(...)` jargon at `local_leaks.py:463` (PR-001/002). Resolved OQ2 from evidence (handler-side validation, not `choices=`, to preserve legacy-token tolerance). Resolved OQ1 with the human (always print the clean-path confirmation, one line to stderr). Status -> reviewed.
 
 ## Goal
 
@@ -40,10 +41,10 @@ Fix by default; keep edits concise (Complexity axis - do not over-build).
 
 | Step | Source finding IDs | Change | Files | Remediation Risk | Validation |
 |------|--------------------|--------|-------|------------------|------------|
-| 1 | S1 | Make `aw plans --status` teach: when the given value is not a recognized readiness status, print a clear message naming the valid set (draft, to-review, reviewed, approved, auto-approved, executed, superseded, not-executed, reusable) via `term.status("warn", ...)` and exit without silently returning an empty board. Prefer surfacing the recognized vocabulary from `plans` (single source) over hardcoding. Consider `choices=` only if it does not break the legacy-token/alias handling; otherwise validate in the handler. | `agent_workflows/cli.py` | Low | `aw plans . --status bogus` prints the valid-status list; a valid status still filters correctly; unit/CLI test asserts the message |
-| 2 | S2 | Remove the internal `(D93)` reference from the user-facing `check-local-leaks` help/description; keep the plain-language capability sentence (decision provenance stays in DECISIONS.md/CHANGELOG, not in `--help`). Sweep for any other `(D<n>)` in user-facing `help=`/`description=`/`Term` message strings and strip them. | `agent_workflows/cli.py`, `agent_workflows/local_leaks.py` | Low | `aw --help` and `aw check-local-leaks --help` contain no `(D..)`; a test greps user-facing help for `(D<digits>)` and finds none |
+| 1 | S1 | Make `aw plans --status` teach: when the given value is not a recognized readiness status, print a clear message naming the valid set (draft, to-review, reviewed, approved, auto-approved, executed, superseded, not-executed, reusable) via `term.status("warn", ...)` and exit without silently returning an empty board. Surface the recognized vocabulary from `plans.RECOGNIZED` (single source, `plans.py:28`), not a hardcoded list. Validate HANDLER-SIDE (not argparse `choices=`), because `normalize_status` (`plans.py:101-114`) intentionally tolerates legacy/alias tokens and a hard `choices=` would regress that (OQ2, resolved from evidence). | `agent_workflows/cli.py` | Low | `aw plans . --status bogus` prints the valid-status list; a valid status still filters correctly; unit/CLI test asserts the message |
+| 2 | S2 | Remove the internal `(D93)` reference from the user-facing `check-local-leaks` help/description; keep the plain-language capability sentence (decision provenance stays in DECISIONS.md/CHANGELOG, not in `--help`). Sweep for any other `(D<n>)` in ALL user-facing strings: argparse `help=`/`description=`, `Term.status` messages, AND runtime `print(...)` messages - note the confirmed extra instance at `agent_workflows/local_leaks.py:463` ("Local-leak(s) found (D92/D93):") which is a `print`, not a `Term` string (plan-review PR-001). | `agent_workflows/cli.py`, `agent_workflows/local_leaks.py` | Low | `aw --help` and `aw check-local-leaks --help` contain no `(D..)`; the local-leaks fail-message and confirmation contain no `(D..)`; a test asserts no `(D<digits>)` in BOTH the parser help output AND the local_leaks user-facing message strings (plan-review PR-002) |
 | 3 | S3 | Add a short discoverability hint to the top-level `install` command description so `aw --help` reveals the batch form, e.g. "Install or update the framework in a repo (idempotent); `install all` does every configured repo." | `agent_workflows/cli.py` | Low | `aw --help` install line mentions `install all` |
-| 4 | S4 | Print a brief positive confirmation on the clean path of `check-local-leaks` (e.g. `term.status("ok", "No local leaks found.")` to stderr/stdout consistent with other commands), so a passing run is not silent. Keep exit code 0. | `agent_workflows/local_leaks.py` (and/or the CLI handler) | Low | `aw check-local-leaks .` on a clean repo prints a confirmation and exits 0; the pre-commit/CI invocation stays quiet-enough (confirm it does not break the hook's expectations) |
+| 4 | S4 | Print a brief positive confirmation on the clean path of `check-local-leaks`, ALWAYS, one line to stderr (OQ1 resolved: no TTY gating, no `--quiet`), e.g. `No local leaks found.`. Keep exit code 0. | `agent_workflows/local_leaks.py` (and/or the CLI handler) | Low | `aw check-local-leaks .` on a clean repo prints the one-line confirmation to stderr and exits 0; the pre-commit hook + CI still show a clean pass |
 
 ## Deferred / out of scope (with reason)
 
@@ -56,11 +57,11 @@ Scope note (Complexity axis): deliberately NOT proposing shell autocompletion, a
 ## Scope check
 
 - Over-scope: none. Each step traces to a found gap. Autocompletion/TUI explicitly excluded.
-- Under-scope: confirm Step 4's confirmation message does not make the pre-commit hook / CI output noisy in a way that hides the fail case; if quiet-by-default is preferred for the hook, gate the confirmation behind an interactive/TTY check or a `--quiet` default for the hook invocation (decide at review, OQ1).
+- Under-scope: none outstanding. Step 4's clean-path confirmation is one line to stderr, always (OQ1 resolved); it does not hide the fail case (fails still print findings + a nonzero exit).
 
 ## Required tests / validation
 
-- CLI/unit tests (stdlib unittest, run on the 3.9-3.14 matrix): `aw plans --status <bogus>` emits the valid-status list and does not silently return empty (S1); no `(D<n>)` remains in user-facing help strings (S2 - a grep-style test over the parser's help output); `aw --help` install description mentions `install all` (S3); `aw check-local-leaks .` on a clean temp repo prints a confirmation and exits 0 (S4).
+- CLI/unit tests (stdlib unittest, run on the 3.9-3.14 matrix): `aw plans --status <bogus>` emits the valid-status list and does not silently return empty (S1); no `(D<n>)` remains in user-facing strings (S2 - assert over BOTH the parser help output AND the `local_leaks` runtime message strings, per PR-002); `aw --help` install description mentions `install all` (S3); `aw check-local-leaks .` on a clean temp repo prints a confirmation and exits 0 (S4).
 - Manual: eyeball `aw --help`, `aw plans --help`, `aw check-local-leaks --help`, and the S1 error path for tone/clarity.
 - Full suite `python -m pytest -q` stays green; paste ACTUAL output (baseline 282 passed, 1 skipped; expect a few more from the new assertions).
 - `aw check-local-leaks .` stays clean on the edited sources (no new leaks).
@@ -71,8 +72,8 @@ Scope note (Complexity axis): deliberately NOT proposing shell autocompletion, a
 
 ## Open questions
 
-- OQ1 (S4 quietness): should the clean-path confirmation always print, or be suppressed when invoked non-interactively (pre-commit/CI) to keep those logs quiet? Lean: print to stderr and keep it one line; the hook already tolerates the warn/advisory lines. Confirm.
-- OQ2 (S1 mechanism): validate `--status` via argparse `choices=` (rejects before dispatch, uniform error) or in the handler (allows alias/legacy-token tolerance with a custom teaching message)? Lean: handler-side, to preserve any alias tolerance and give a friendlier message. Confirm.
+- OQ1 (S4 quietness): RESOLVED (human, 2026-07-20 /plan-review) - ALWAYS print the clean-path confirmation, one line to stderr, on every run (interactive and under pre-commit/CI). No TTY gating and no `--quiet` flag. Encoded in Step 4.
+- OQ2 (S1 mechanism): RESOLVED from repo evidence (plan-review, PR-003) - validate HANDLER-SIDE, not via argparse `choices=`. Evidence: `plans.normalize_status` (`agent_workflows/plans.py:101-114`) deliberately lowercases and legacy-maps a raw token, returning `LEGACY_GROUP` for unrecognized tokens; a hard `choices=` set would REJECT legacy/alias tokens that `aw plans` currently accepts, a behavior regression. So Step 1 validates in the handler against `plans.RECOGNIZED` (the single-source vocabulary, `plans.py:28`) and prints the valid set on a miss. No human decision needed; recorded here.
 
 ## Approval and execution gate
 
