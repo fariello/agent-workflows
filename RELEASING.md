@@ -12,7 +12,9 @@ Three separate, independently-gated things are often conflated. Keep them distin
 1. **A git tag** just labels a commit. It does not publish anything, reserve a name, or
    trigger an install.
 2. **A GitHub Release** is the visible entry on the repo's Releases tab that notifies
-   watchers. It is created only from rung C, and only as a DRAFT the human publishes.
+   watchers. It is created only from rung C, as its own separate default-NO confirmation;
+   when the human confirms it, it is created PUBLISHED and marked Latest (full release means
+   fully released), never left as a silent, invisible draft. Declining leaves no Release at all.
 3. **A PyPI publish** (`twine upload`) is the only step that puts the package on the index.
    It is a separate, credentialed, user-gated step.
 

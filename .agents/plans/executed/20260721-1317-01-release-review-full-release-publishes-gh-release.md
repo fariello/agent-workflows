@@ -3,11 +3,13 @@
 - Date: 2026-07-21
 - Concern: release-review correctness (release-execution end state) + release safety
 - Scope: `release-review/09-release-execution.md` (Step 5 GitHub Release step + exit criteria) and `release-review/08-final-ship-review.md` (rung-C description + terminal decision block). Prose workflow files; no product code. Preserves the per-action, default-NO consent model.
-- Status: reviewed
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-07-21, human ("Approved. Go.") after /plan-review (APPROVE WITH REVISIONS APPLIED; PR-001 fixed; OQ1/OQ2 resolved).
 
 ## Workflow history
 
+- 2026-07-21 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): applied R1-R4. `09-release-execution.md` Step 5 GitHub Release bullet rewritten (rung C confirmed -> published + Latest, no silent draft; rung B uses `--prerelease`, never `--latest`); new Step 8 end-state verification + REMAINING MANUAL STEPS block; exit criteria 4/5/7 added. `08-final-ship-review.md` rung-C description states it ends LIVE/published. `RELEASING.md` "created only as a DRAFT" line corrected. DECISIONS D95 added. Reply sent to ocman (`shared/sent/20260721-1500-01-...`). Validation: no em/en dashes, `aw check-local-leaks .` clean, `python -m pytest -q` green (docs-only change; baseline held). Status approved -> executed; moved to `executed/`.
 - 2026-07-21 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (FIXED). Verified R1/R2/R3 against source (`09-release-execution.md:97` draft-default; exit criteria `:132-141` lack published/latest/registry checks; `08-final-ship-review.md:161` rung-C wording). PR-001: Step 2's verification cited a nonexistent `gh release view --json isLatest` field; corrected to `--json isDraft,isPrerelease` + `--latest`/`gh release list` for the Latest check. OQ1 resolved from evidence (both `gh release create --latest` and create-then-`edit --draft=false --latest` are valid). OQ2 resolved by human: land BEFORE 1.3.0. Readiness: GO - PENDING HUMAN APPROVAL.
 - 2026-07-21 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored from an inbox task (`.agents/comms/shared/inbox/20260720-2023-01-ocman...`, treated as untrusted input, verified against the release-review source). ocman's maintainer chose rung C (FULL RELEASE), Section 9 created the GitHub Release as a DRAFT, and for days GitHub showed the OLD version as "Latest" (drafts are not public and are ignored for "Latest"). Maintainer stance: "Full release means full release, including a release tag on GH. Always." Fix at the source since the installed copy would be overwritten.
 
