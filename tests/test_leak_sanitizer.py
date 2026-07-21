@@ -218,6 +218,59 @@ class StagedScanTests(unittest.TestCase):
         self.assertTrue(any(f.rule == "home-path" for f in staged_fails), staged_fails)
 
 
+class TomlParserTests(unittest.TestCase):
+    """Characterization + C4 regression for the minimal TOML list parser (IPD 20260721-1851-01).
+
+    Step 0 hardened `_parse_simple_toml_lists` so a `]` (or the other quote char) inside a
+    quoted string is not mistaken for structure. These pin both the pre-existing valid shapes
+    and the bug class the wizard depends on.
+    """
+
+    def _p(self, text):
+        return ls._parse_simple_toml_lists(text)
+
+    # Characterization: shapes that worked before must still parse identically.
+    def test_empty_array(self):
+        self.assertEqual(
+            self._p("allow_line_substrings = []"), {"allow_line_substrings": []}
+        )
+
+    def test_two_values(self):
+        self.assertEqual(
+            self._p('fail_patterns = ["a", "b"]'), {"fail_patterns": ["a", "b"]}
+        )
+
+    def test_multiline_array(self):
+        self.assertEqual(
+            self._p('fail_patterns = [\n  "a",\n  "b",\n]'),
+            {"fail_patterns": ["a", "b"]},
+        )
+
+    def test_commented_key_is_ignored(self):
+        self.assertEqual(self._p('# fail_patterns = ["x"]'), {})
+
+    def test_bool_line_is_not_a_list(self):
+        self.assertEqual(self._p("ip_enabled = true"), {})
+
+    # C4 regression: bracket-containing values used to truncate to [] (the whole point).
+    def test_char_class_pattern_round_trips(self):
+        self.assertEqual(
+            self._p('fail_patterns = ["/home/[a-z]+/x"]'),
+            {"fail_patterns": ["/home/[a-z]+/x"]},
+        )
+
+    def test_bracket_substring_round_trips(self):
+        self.assertEqual(
+            self._p('allow_line_substrings = ["see [docs]"]'),
+            {"allow_line_substrings": ["see [docs]"]},
+        )
+
+    def test_value_may_contain_the_other_quote(self):
+        # A double-quoted value may contain a single quote (dual-quote-select writer, OQ4).
+        got = self._p('allow_line_substrings = ["it' + chr(39) + 's fine"]')
+        self.assertEqual(got, {"allow_line_substrings": ["it" + chr(39) + "s fine"]})
+
+
 class ConfigReconciliationTests(unittest.TestCase):
     def test_one_canonical_tracked_config_no_competing_file(self):
         # PR-003: the tracked config is .agents/local-leaks-allowlist.toml and there is NO

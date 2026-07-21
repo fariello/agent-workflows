@@ -161,12 +161,38 @@ def _parse_simple_toml_lists(text: str) -> dict[str, list[str]]:
     may span lines. Comments (``#``) and other keys are ignored. This avoids a dependency on
     tomllib (3.11+) while the support floor is 3.9. Section headers ([rules], [ip]) are ignored
     for key extraction; a bare ``ip_enabled = true`` / ``key = true`` boolean is also read.
+
+    String values may contain ``]`` (e.g. a regex character class ``[a-z]`` in
+    ``fail_patterns``): the array terminator ``]`` is only recognized OUTSIDE a quoted string.
+    A value delimited by one quote char may contain the other quote char. There is no escape
+    syntax; the config writer selects a delimiter that avoids embedding its own quote and
+    rejects a value containing both quote chars (DECISIONS D98 / OQ4).
     """
     result: dict[str, list[str]] = {}
-    for m in re.finditer(r"(?m)^\s*([A-Za-z0-9_-]+)\s*=\s*\[(.*?)\]", text, re.DOTALL):
-        key = m.group(1)
-        body = m.group(2)
-        values = re.findall(r"""["']([^"']*)["']""", body)
+    # Find each ``key = [`` opener, then scan the array body respecting quotes so a ``]`` or a
+    # delimiter char inside a quoted string is not mistaken for structure.
+    for opener in re.finditer(r"(?m)^\s*([A-Za-z0-9_-]+)\s*=\s*\[", text):
+        key = opener.group(1)
+        values: list[str] = []
+        i = opener.end()  # first char after the '['
+        n = len(text)
+        while i < n:
+            ch = text[i]
+            if ch in "\"'":
+                quote = ch
+                j = i + 1
+                while j < n and text[j] != quote:
+                    j += 1
+                # Unterminated quote: stop this array (malformed); keep what we have.
+                if j >= n:
+                    i = j
+                    break
+                values.append(text[i + 1 : j])
+                i = j + 1
+            elif ch == "]":
+                break  # end of the array (we are outside any quoted string here)
+            else:
+                i += 1
         result[key] = values
     return result
 
