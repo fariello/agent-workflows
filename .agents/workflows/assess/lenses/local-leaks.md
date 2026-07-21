@@ -24,20 +24,30 @@ paths, prevention), and the power user/operator running the published package.
 
 ## Do not eyeball it: run the deterministic engine
 
-Run the packaged scanner rather than reading files by hand. It is read-only, stdlib-only,
-and shares one engine with the pre-commit hook and CI (so the lens cannot drift from the
-gate):
+Run the packaged scanner rather than reading files by hand. It is read-only by default,
+stdlib-only, and is ONE unified engine (`agent_workflows/leak_sanitizer.py`, the
+`leak-sanitizer` Set) shared with the pre-commit hook and CI, so the lens cannot drift from
+the gate. `aw check-local-leaks` and its broader alias `aw sanitize` are the same command:
 
 ```
 aw check-local-leaks .                 # working tree (fast, default)
 aw check-local-leaks . --history       # git history (bounded; add --max-commits N)
 aw check-local-leaks . --wheel dist/<built>.whl   # the shipped surface
 aw check-local-leaks . --warn          # ALSO surface advisory auto-derived candidates
+aw check-local-leaks . --staged        # only STAGED blob content (what the hook checks)
+aw check-local-leaks . --agent         # machine-parseable output for an agent caller
+aw sanitize . --fix --dry-run          # preview home-style path rewrites (opt-in --fix)
 ```
+
+`--fix` rewrites home-style absolute paths to `~` and is INTERACTIVE per file by default
+(`--yes`/`--force` to batch, `--dry-run` to preview); identity/private-repo/session tokens
+have no safe generic rewrite, so they are reported for manual editing and never auto-changed.
+`--fix` is opt-in and is NOT wired into the pre-commit hook. The IP ruleset (v4/v6) is OFF by
+default; enable it per repo via `ip_enabled = true` in the tracked allowlist.
 
 Equivalent without the CLI installed: `python3 -m agent_workflows check-local-leaks .`.
 
-Severity model the engine uses (D93):
+Severity model the engine uses (D93, preserved through the unification):
 - **fail** (fails the non-interactive gate): STRUCTURAL patterns (home paths, the
   local-checkout dir style, session ids), the curated repo allowlist misses, and the
   user-level personal hints.

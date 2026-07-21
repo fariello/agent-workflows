@@ -218,9 +218,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_leaks = sub.add_parser(
         "check-local-leaks",
+        aliases=["sanitize"],
         parents=[common],
-        help="Detect identifying info (home paths, usernames, private repo names, "
-        "hostnames, session ids) that must not appear in a public artifact.",
+        help="Detect (and with --fix, rewrite) identifying info (home paths, usernames, "
+        "private repo names, hostnames, session ids) that must not appear in a public artifact.",
     )
     p_leaks.add_argument(
         "dir", nargs="?", default=".", help="Repo root (default: current directory)."
@@ -240,6 +241,34 @@ def _build_parser() -> argparse.ArgumentParser:
         "--warn",
         action="store_true",
         help="Also report advisory auto-derived candidates (for /assess review).",
+    )
+    p_leaks.add_argument(
+        "--staged",
+        action="store_true",
+        help="Scan STAGED blob content instead of the tree (for the pre-commit hook).",
+    )
+    p_leaks.add_argument(
+        "--agent",
+        action="store_true",
+        help="Machine-parseable output for an LLM caller (path\\trule\\tseverity, no prose).",
+    )
+    p_leaks.add_argument(
+        "--fix",
+        action="store_true",
+        help="Rewrite auto-fixable home-style paths to ~ (interactive per file unless --yes; "
+        "identity/private tokens are reported, never auto-rewritten).",
+    )
+    p_leaks.add_argument(
+        "--yes",
+        "--force",
+        dest="assume_yes",
+        action="store_true",
+        help="With --fix, apply changes without per-file confirmation.",
+    )
+    p_leaks.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="With --fix, show what would change without writing.",
     )
 
     return parser
@@ -936,8 +965,9 @@ def _run_plan_names(args: argparse.Namespace, term: Term) -> int:
 
 
 def _run_check_local_leaks(args: argparse.Namespace, term: Term) -> int:
-    """Detect local leaks (D93). Delegates to the packaged agent_workflows.local_leaks engine."""
-    from . import local_leaks
+    """Detect local leaks (D92/D93). Delegates to the unified agent_workflows.leak_sanitizer
+    engine (local_leaks re-exports it)."""
+    from . import leak_sanitizer
 
     passthrough = [getattr(args, "dir", None) or "."]
     if getattr(args, "history", False):
@@ -946,9 +976,19 @@ def _run_check_local_leaks(args: argparse.Namespace, term: Term) -> int:
         passthrough += ["--max-commits", str(args.max_commits)]
     if getattr(args, "wheel", None):
         passthrough += ["--wheel", args.wheel]
+    if getattr(args, "staged", False):
+        passthrough.append("--staged")
     if getattr(args, "warn", False):
         passthrough.append("--warn")
-    return local_leaks.main(passthrough)
+    if getattr(args, "agent", False):
+        passthrough.append("--agent")
+    if getattr(args, "fix", False):
+        passthrough.append("--fix")
+    if getattr(args, "assume_yes", False):
+        passthrough.append("--yes")
+    if getattr(args, "dry_run", False):
+        passthrough.append("--dry-run")
+    return leak_sanitizer.main(passthrough)
 
 
 def _dispatch(argv: Optional[Sequence[str]]) -> int:
@@ -991,7 +1031,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return _run_plans(args, term)
     if args.command == "plan-names":
         return _run_plan_names(args, term)
-    if args.command == "check-local-leaks":
+    if args.command in ("check-local-leaks", "sanitize"):
         return _run_check_local_leaks(args, term)
 
     parser.print_help()

@@ -696,13 +696,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     try:
+        # --agent stays fail-focused by default (deterministic, low-noise); pass --warn to
+        # also include advisory auto-derived candidates.
         fails, warns = run(
             repo_root,
             history=args.history,
             max_commits=args.max_commits,
             wheel=wheel,
             staged=args.staged,
-            include_warn=args.warn or args.agent,
+            include_warn=args.warn,
         )
     except subprocess.CalledProcessError:
         print(
