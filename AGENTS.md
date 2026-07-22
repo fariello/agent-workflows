@@ -26,6 +26,9 @@ If `.agents/comms/` exists, check `.agents/comms/local/inbox/` (and `shared/inbo
 
 ### Agent execution contract
 When you execute a task or plan here you MUST: commit ONLY files you changed, path-scoped (`git commit -m msg -- <path>`), never `git add -A`/bare/`-a`, and never push; when you report tests passed, paste the ACTUAL runner output (never claim success you did not run); write no em or en dashes in authored Markdown. When asked to REVIEW or report, do NOT modify or commit anything: report and wait. Do NOT add commits to a plan already in `.agents/plans/executed/`; close a post-execution gap with a new corrective IPD, not an in-place edit. Never create or push a git tag, a GitHub Release, or a registry/PyPI upload except inside release-review Section 9 after an explicit human GO (see `RELEASING.md`); no ad-hoc `git tag` or `git push --follow-tags`. See `CONTRIBUTING.md` and the `.agents/plans` README for detail.
+
+### Leak-sanitizer awareness
+A deterministic leak-sanitizer ships with this toolkit. Before you hand-judge whether a public artifact (tracked files, the built package, git history) contains maintainer or machine identifying info (home paths, usernames, hostnames, private repo names, session ids), RUN it and consume its output rather than eyeballing: `aw sanitize --agent` (alias of `aw check-local-leaks --agent`; without the CLI, `python3 -m agent_workflows check-local-leaks . --agent`). It prints one tab-separated `location\trule\tseverity` record per finding on stdout and exits nonzero on a `fail`. This holds even when no pre-commit hook or CI check is installed in the repo.
 <!-- AGENT-WORKFLOWS:END -->
 
 <!-- AGENT-PLANS:BEGIN -->
