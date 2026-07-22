@@ -2503,6 +2503,142 @@ jobs:
 """
 
 
+LOCAL_LEAKS_CI = ".github/workflows/local-leaks.yml"
+PRE_COMMIT_CONFIG = ".pre-commit-config.yaml"
+
+# Target-repo CI backstop for the local-leaks check (leak-sanitizer Set Order 3 / D99).
+# Unlike this toolkit's OWN local-leaks.yml, a target repo must INSTALL agent-workflows first
+# (it is not the package). Unpinned + a current Python (OQ3); an air-gapped or version-pinned
+# adopter should adjust the install line and the python-version.
+_LOCAL_LEAKS_CI_TEMPLATE = """\
+name: local-leaks
+
+# Scan tracked files for maintainer/machine identifying info that must not be public
+# (home paths, usernames, hostnames, private repo names, session ids). Created by
+# agent-workflows. This class of leak is NOT caught by ordinary secret scanners.
+#
+# This installs agent-workflows from PyPI (assumes it is reachable). An air-gapped or
+# version-pinned adopter should replace the install line with a pinned/vendored install,
+# and may change the python-version below.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  local-leaks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install agent-workflows
+        run: pip install agent-workflows
+
+      - name: Scan tracked files for local leaks
+        run: python -m agent_workflows check-local-leaks .
+"""
+
+# A standalone .pre-commit-config.yaml carrying ONLY the local-leaks hook, written when the
+# target repo has no pre-commit config yet. Whole-tree scan (OQ2), matching this toolkit's own
+# hook. NOTE: language: system runs the hook in the active environment, so agent_workflows must
+# be importable there (e.g. pip install agent-workflows in that env).
+_LOCAL_LEAKS_PRECOMMIT_TEMPLATE = """\
+# Pre-commit hooks (created by agent-workflows). If you already use pre-commit, MERGE the
+# local-leaks hook below into your existing .pre-commit-config.yaml instead of this file.
+repos:
+  # Local guard: no local leaks (identifying info) in TRACKED files. Scans the whole tracked
+  # tree (not just staged files) via the packaged agent_workflows engine, so it cannot be
+  # bypassed by staging a subset; runs once per commit. Requires agent_workflows importable in
+  # the hook environment (language: system uses the active Python).
+  - repo: local
+    hooks:
+      - id: local-leaks
+        name: no local leaks in tracked files
+        entry: python3 -m agent_workflows check-local-leaks
+        language: system
+        pass_filenames: false
+        always_run: true
+"""
+
+# The hook block to hand a user who ALREADY has a .pre-commit-config.yaml (we never edit theirs).
+_LOCAL_LEAKS_PRECOMMIT_BLOCK = """\
+  - repo: local
+    hooks:
+      - id: local-leaks
+        name: no local leaks in tracked files
+        entry: python3 -m agent_workflows check-local-leaks
+        language: system
+        pass_filenames: false
+        always_run: true
+"""
+
+
+def create_local_leaks_backstop(
+    repo_root: Path,
+    use_git: bool,
+    *,
+    install_ci: bool,
+    install_hook: bool,
+    dry_run: bool = False,
+) -> dict[str, list[str]]:
+    """Optionally write the local-leaks CI backstop and/or pre-commit hook into a TARGET repo.
+
+    This is a SEPARATE, opt-in writer (leak-sanitizer Set Order 3): it is NEVER called by the
+    default ``create_setup_artifacts`` path, so the backstop cannot be installed without an
+    explicit ``install_ci``/``install_hook`` request (which ``/setup-repo`` gates behind a
+    per-artifact interactive ask). No-clobber, dry-run aware, and returns lists suitable for
+    undo recording. Returns ``{"created": [...], "skipped": [...], "notes": [...]}``.
+    """
+    created: list[str] = []
+    skipped: list[str] = []
+    notes: list[str] = []
+
+    if install_ci:
+        ci_path = repo_root / LOCAL_LEAKS_CI
+        if ci_path.exists():
+            skipped.append(f"{LOCAL_LEAKS_CI} [already exists]")
+        elif dry_run:
+            notes.append(f"would create {LOCAL_LEAKS_CI}")
+        else:
+            _create_if_absent(
+                repo_root, LOCAL_LEAKS_CI, _LOCAL_LEAKS_CI_TEMPLATE, use_git, created
+            )
+
+    if install_hook:
+        pc_path = repo_root / PRE_COMMIT_CONFIG
+        if pc_path.exists():
+            # Never clobber or edit the user's existing pre-commit config; hand them the block.
+            skipped.append(
+                f"{PRE_COMMIT_CONFIG} [exists; add the local-leaks hook manually]"
+            )
+            notes.append(
+                "A .pre-commit-config.yaml already exists; add this hook block to it:\n"
+                + _LOCAL_LEAKS_PRECOMMIT_BLOCK
+            )
+        elif dry_run:
+            notes.append(f"would create {PRE_COMMIT_CONFIG}")
+        else:
+            _create_if_absent(
+                repo_root,
+                PRE_COMMIT_CONFIG,
+                _LOCAL_LEAKS_PRECOMMIT_TEMPLATE,
+                use_git,
+                created,
+            )
+
+    return {"created": created, "skipped": skipped, "notes": notes}
+
+
 def _create_if_absent(
     repo_root: Path, rel: str, content: str, use_git: bool, created: list[str]
 ) -> None:

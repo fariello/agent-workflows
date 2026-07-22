@@ -256,5 +256,78 @@ class PromptsScaffoldTests(unittest.TestCase):
         )
 
 
+class LocalLeaksBackstopTests(unittest.TestCase):
+    """The OFF-by-default local-leaks CI/hook writer (IPD 20260721-2005-01 Order 3)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.repo = init_repo(Path(self._tmp.name) / "r")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_default_setup_artifacts_unchanged_count_22(self):
+        # G6: the off-by-default backstop MUST NOT leak into the always-on path.
+        created = engine.create_setup_artifacts(self.repo, use_git=False)
+        self.assertEqual(len(created), 22)
+        # And neither backstop file is written by the default path.
+        self.assertFalse((self.repo / engine.LOCAL_LEAKS_CI).exists())
+        self.assertFalse((self.repo / engine.PRE_COMMIT_CONFIG).exists())
+
+    def test_neither_flag_writes_nothing(self):
+        res = engine.create_local_leaks_backstop(
+            self.repo, use_git=False, install_ci=False, install_hook=False
+        )
+        self.assertEqual(res["created"], [])
+        self.assertFalse((self.repo / engine.LOCAL_LEAKS_CI).exists())
+
+    def test_optin_creates_ci_and_hook(self):
+        res = engine.create_local_leaks_backstop(
+            self.repo, use_git=False, install_ci=True, install_hook=True
+        )
+        self.assertIn(engine.LOCAL_LEAKS_CI, res["created"])
+        self.assertIn(engine.PRE_COMMIT_CONFIG, res["created"])
+        ci = (self.repo / engine.LOCAL_LEAKS_CI).read_text(encoding="utf-8")
+        # G4: the target-repo CI must install agent-workflows and pick a current Python.
+        self.assertIn("pip install agent-workflows", ci)
+        self.assertIn('python-version: "3.12"', ci)
+        self.assertIn("python -m agent_workflows check-local-leaks", ci)
+        hook = (self.repo / engine.PRE_COMMIT_CONFIG).read_text(encoding="utf-8")
+        self.assertIn("id: local-leaks", hook)
+        self.assertIn("pass_filenames: false", hook)  # whole-tree (OQ2)
+
+    def test_no_clobber_existing_precommit_hands_back_block(self):
+        (self.repo / engine.PRE_COMMIT_CONFIG).write_text(
+            "repos: []\n", encoding="utf-8"
+        )
+        res = engine.create_local_leaks_backstop(
+            self.repo, use_git=False, install_ci=False, install_hook=True
+        )
+        self.assertEqual(res["created"], [])  # did not clobber
+        self.assertEqual(
+            (self.repo / engine.PRE_COMMIT_CONFIG).read_text(encoding="utf-8"),
+            "repos: []\n",
+        )
+        self.assertTrue(any("id: local-leaks" in n for n in res["notes"]))
+
+    def test_dry_run_writes_nothing(self):
+        res = engine.create_local_leaks_backstop(
+            self.repo, use_git=False, install_ci=True, install_hook=True, dry_run=True
+        )
+        self.assertEqual(res["created"], [])
+        self.assertFalse((self.repo / engine.LOCAL_LEAKS_CI).exists())
+        self.assertTrue(res["notes"])
+
+    def test_idempotent_rerun_no_clobber(self):
+        engine.create_local_leaks_backstop(
+            self.repo, use_git=False, install_ci=True, install_hook=True
+        )
+        res = engine.create_local_leaks_backstop(
+            self.repo, use_git=False, install_ci=True, install_hook=True
+        )
+        self.assertEqual(res["created"], [])
+        self.assertTrue(all("exists" in s or "manually" in s for s in res["skipped"]))
+
+
 if __name__ == "__main__":
     unittest.main()
