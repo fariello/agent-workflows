@@ -1,0 +1,92 @@
+# IPD: agent/workflow rewire to consume --agent + optional setup-repo install of the hook/CI (Set: leak-sanitizer, Order 3)
+
+- Date: 2026-07-21
+- Concern: token economy + adoption for the leak-sanitizer (D96/D98); make LLM surfaces DELEGATE to the deterministic engine (P11), and let a repo OPT IN to the hook/CI backstop
+- Scope: (a) rewire the `/assess local-leaks` lens (and other workflow surfaces that invoke the scanner) to CONSUME the engine's `--agent` output instead of re-deriving the severity classification in prose; (b) add an OPTIONAL, OFF-by-default `setup-repo` install of the `local-leaks` pre-commit hook + a CI backstop into a TARGET repo; (c) make agents AWARE the deterministic sanitizer exists (so they run it) even when no hook is installed. Prose workflow files + one deterministic no-clobber writer in `engine.py` + tests + docs. Order 3 (final) of the `leak-sanitizer` Set. Depends on Order 1 (D96, the `--agent` contract) and Order 2 (D98, the wizard/config), both executed.
+- Status: to-review
+- Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+
+## Workflow history
+
+- 2026-07-21 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored as Order 3 (final) of the leak-sanitizer Set, after Order 1 (D96 engine + `--agent`) and Order 2 (D98 wizard) executed. The human asked to pause after Order 2, reviewed, then approved authoring Order 3.
+
+## Goal
+
+Close the loop opened by GUIDING_PRINCIPLES P11 (deterministic checks belong in scripts; LLM surfaces DELEGATE to them): make the leak-sanitizer's LLM-facing surfaces actually consume the engine's `--agent` stream rather than re-deriving leak classification in prose, let a repo opt in to the hook/CI backstop through `setup-repo` (off by default, honoring the per-change-consent model), and ensure an agent knows the deterministic sanitizer exists so it runs it instead of eyeballing, even in a repo with no hook installed.
+
+Why it matters: (1) token economy - the `/assess local-leaks` lens today tells the agent to run `aw check-local-leaks` (prose output) and then re-state the fail/warn severity model in prose and re-derive the triage; the engine already emits a deterministic `path:line\trule\tseverity` record per finding, so the agent should parse THAT, not re-classify; (2) adoption - the hook + CI backstop that protects THIS repo (D92/D93) is not offered to the repos that install the toolkit; setup-repo installs a gitleaks hook/CI but not the local-leaks one; (3) awareness - outside `/assess local-leaks`, an agent has no standing instruction that a deterministic leak-sanitizer exists, so in a hook-less repo it may hand-judge identifying-info leaks instead of running `aw sanitize --agent`.
+
+## Project conventions discovered (Step 0)
+
+- Guiding principles: `GUIDING_PRINCIPLES.md` P11 (deterministic checks in scripts, LLM delegates, `--agent`/`--llm` mode), P8 single source of truth, P10 safety/reversibility (off-by-default, per-change consent). No em/en dashes.
+- The `--agent` contract (verified, D96): `leak_sanitizer.py:849-853` prints one `f"{location}\t{rule}\t{severity}"` per finding to STDOUT (prose paths go to stderr, `:855-873`), exit `1` if any fail else `0`; `2` on git-unavailable/usage error (`:839-847`). `severity` is literal `fail`/`warn` (`:129-134`). `location` is `path:line` (tree/staged), `commit:path:line` (history), `wheel!entry:line` (wheel). `--warn` adds `...\twarn` records (still exit 0 unless a fail exists); `--staged` scans staged blobs; default (no mode flag) is the working-tree check. CLI mirror: `aw check-local-leaks`/`aw sanitize` (`cli.py:220-278`).
+- `/assess local-leaks` lens today (`.agents/workflows/assess/lenses/local-leaks.md`): "Do not eyeball it: run the deterministic engine" (`:25-40`) lists `--agent` as ONE example bullet (`:38`) but the PRIMARY instruction (`:26-27`) tells the agent to run the prose form and then re-derive severity (`:50-56`) and triage (`:64-84`) in prose. The rewire changes the canonical invocation the agent RUNS to `--agent` (+ `--warn`) and reframes triage to parse the records.
+- Prior art for "call the tool, do not eyeball": the `assess-secrets` lens (`.agents/workflows/assess/lenses/secrets.md:15-25`) points at `scan_secrets.py`; the local-leaks lens already mirrors this shape.
+- Other surfaces that invoke the scanner (must stay correct): the `/handoff` workflow (`.agents/workflows/handoff/handoff.md:31`, `:135`) runs `aw check-local-leaks` on the finished file.
+- setup-repo (verified): `.agents/workflows/setup-repo/setup-repo.md`; Step 2 "Secret scanning (CI + local hook)" (`:147-156`) and Step 6 "Pre-commit framework" (`:183-189`) already OFFER a gitleaks CI workflow + a `.pre-commit-config.yaml`, but NEITHER includes the `local-leaks` hook. The deterministic writer is `engine.create_setup_artifacts` (`engine.py:2693-2784`), which writes `.gitleaksignore` + `.github/workflows/secret-scan.yml` NO-CLOBBER from templates (`engine.py:2453-2494`); it does NOT write a pre-commit config or a local-leaks CI today. `setup-repo` honors "ask before each change; a skip is always honored" (`setup-repo.md:25,37-38`).
+- Template sources for the optional install (this repo's own): the `local-leaks` pre-commit hook block (`.pre-commit-config.yaml:32-42`, whole-tree `check-local-leaks`, `pass_filenames: false`, `always_run: true`) and the CI backstop `.github/workflows/local-leaks.yml` (runs `python -m agent_workflows check-local-leaks .`). CAVEAT: this repo IS the package, so its CI has no install step; a target-repo CI template MUST add a `pip install agent-workflows` (or equivalent) step, and the pre-commit hook entry needs `agent_workflows` importable in the hook env.
+- Agent-awareness surfaces: `AGENTS.md` (top-level, always-read; execution-contract block for cross-cutting MUSTs); the manifest row `index.md:79` (`assess-local-leaks`).
+- Tests: setup-repo deterministic writer is covered by `tests/test_setup_artifacts.py` (created-set, no-clobber, dry-run, undo; `test_engine_returns_created_list` hardcodes count 22 - an OFF-by-default writer MUST NOT change that count). `tests/test_setup_tools.py` only if a `TOOLS` entry is added (local-leaks needs no external tool, so likely none).
+
+## Findings (drivers)
+
+| ID | Severity | Remediation Risk | Persona | Area | Finding | Evidence |
+|----|----------|------------------|---------|------|---------|----------|
+| G1 | MEDIUM | Low | agent / token economy | P11 delegation | The `/assess local-leaks` lens lists `--agent` but still instructs the agent to run the prose form and re-derive the fail/warn severity model + triage in prose, duplicating what the engine already emits deterministically. | `local-leaks.md:26-27,38,50-56,64-84` |
+| G2 | MEDIUM | Medium | maintainer / adopter | adoption / safety | setup-repo installs a gitleaks hook + CI but NOT the local-leaks hook/CI, so repos that adopt the toolkit do not get the D92/D93 identity-leak backstop. It must be OFFERED, OFF by default, per-change consent, and never auto-installed. | `setup-repo.md:147-156,183-189`; `engine.py:2693-2784` (no local-leaks writer) |
+| G3 | LOW | Low | agent | awareness | Outside `/assess local-leaks`, no standing instruction tells an agent the deterministic sanitizer exists; in a hook-less repo it may hand-judge identity leaks instead of running `aw sanitize --agent`. | `AGENTS.md` (no sanitizer note); `index.md:79` |
+| G4 | MEDIUM | Medium | adopter | correctness (portability) | The optional CI/hook templates installed into a TARGET repo must work THERE: the CI needs an `agent_workflows` install step (this repo's own `local-leaks.yml` has none because it IS the package), and the pre-commit hook needs `agent_workflows` importable in the hook env. A naive copy of this repo's templates would fail in a target repo. | `.github/workflows/local-leaks.yml` (no install step); `.pre-commit-config.yaml:32-42` |
+
+## Proposed changes (ordered, validatable; checkpointed)
+
+| Step | Source | Change | Files | Remediation Risk | Validation |
+|------|--------|--------|-------|------------------|------------|
+| 1 | G1 | Rewire the `/assess local-leaks` lens to CONSUME `--agent`: make the canonical invocation the agent RUNS be `aw check-local-leaks . --agent --warn` (plus `--wheel <whl> --agent` and `--history --agent` for those surfaces), and reframe the "run the engine" + triage sections to PARSE the `location\trule\tseverity` records and use the engine's own `fail`/`warn` field, rather than re-stating the severity model and re-deriving classification in prose. Keep the human-facing enumerate-and-ask step (which emails/usernames are intended-public) - that IS judgment and stays - but drive it from the parsed records. Preserve the untrusted-input and never-write-raw-leak rules. | `.agents/workflows/assess/lenses/local-leaks.md` | Low | the lens's primary RUN command is the `--agent` form; triage parses records + the engine's severity field; the judgment step (public-vs-leak) remains; no prose re-derivation of severity remains |
+| 2 | G3 | Add a concise agent-AWARENESS note so the sanitizer is used even without a hook: a one-liner in `AGENTS.md` (cross-cutting: "a deterministic leak-sanitizer exists; before hand-judging identifying-info leaks in a public artifact, run `aw sanitize --agent` and consume its output") and a nudge on the `index.md:79` `assess-local-leaks` row mentioning `--agent`. Keep it short (AGENTS.md deliberately does not inline workflow bodies). | `AGENTS.md`, `.agents/workflows/index.md` | Low | AGENTS.md carries the one-line awareness note; the manifest row mentions `--agent`; no workflow body is inlined into AGENTS.md |
+| 3 | G2,G4 | Add a deterministic, OFF-by-default writer for the local-leaks backstop, mirroring the secret-scan pattern but NOT auto-run: a `_LOCAL_LEAKS_CI_TEMPLATE` (a portable target-repo CI that INSTALLS `agent-workflows` then runs `python -m agent_workflows check-local-leaks .`, fixing G4) and a `.pre-commit-config.yaml` `local-leaks` hook block (entry `python3 -m agent_workflows check-local-leaks`, `pass_filenames: false`, `always_run: true`; document that the target needs `agent_workflows` importable). These are written ONLY when explicitly requested (a new opt-in parameter/function separate from `create_setup_artifacts`, which stays unconditional for secrets), NO-CLOBBER, dry-run aware, undo-recorded - matching the existing artifact contract. MUST NOT change the always-on created-count (22) since it is off by default. | `agent_workflows/engine.py` | Medium | opt-in writes the local-leaks CI + pre-commit hook block no-clobber; default (no opt-in) writes NOTHING new (count stays 22); dry-run reports without writing; templates carry the target-repo install step (G4) |
+| 4 | G2 | Wire the opt-in into `setup-repo`: add an EXPLICIT, default-SKIP offer under Step 6 (pre-commit) + Step 2/5 (CI) to install the local-leaks hook + CI backstop, calling the Step 3 writer only on consent, and stating plainly that it is off by default and why (some repos do not want the identity-leak gate). Honor the "a skip is always honored" principle. | `.agents/workflows/setup-repo/setup-repo.md` | Low | setup-repo offers the local-leaks hook/CI as a default-skip, per-change-consent step that calls the Step 3 writer; declining installs nothing |
+| 5 | G2,G4 | Tests: extend `tests/test_setup_artifacts.py` with (a) opt-in creates the local-leaks CI + pre-commit block no-clobber; (b) DEFAULT does not create them (created-count unchanged at 22); (c) dry-run reports without writing; (d) undo parity; (e) the generated CI template contains an `agent_workflows` install step and the hook entry references `agent_workflows` (G4). | `tests/test_setup_artifacts.py` | Low | full suite green; opt-in/default/no-clobber/dry-run/undo covered; the target-repo templates carry the install step; paste actual output |
+| 6 | G1,G2 | Docs/decision sync: DECISIONS entry (pin at execution) closing the leak-sanitizer Set - the lens consumes `--agent`, the optional off-by-default backstop install, the agent-awareness note; CHANGELOG 1.3.0; note the Set (Orders 1-3) is complete. | `DECISIONS.md`, `CHANGELOG.md` | Low | entries present; the Set is recorded complete; links resolve; no em/en dashes |
+
+## Deferred / out of scope (with reason)
+
+| Item | Remediation Risk | Axis | Reason | Recommended later step |
+|------|------------------|------|--------|------------------------|
+| Auto-installing the hook/CI by default, or into THIS repo again | Low | safety | Off-by-default + per-change consent is the whole point (G2/P10); this repo already has both (`.pre-commit-config.yaml`, `local-leaks.yml`). | n/a - deliberate. |
+| A slash-command surface for the wizard or a broader "sanitizer" workflow | Low | complexity | Not needed; the wizard is a CLI (D98) and the lens is the assess surface. | Only if a real need appears. |
+| Changing the engine's `--agent` format | Low | compatibility | The contract shipped in D96 and is now consumed; changing it is a separate, compatibility-gated decision. | n/a. |
+
+## Scope check
+
+- Over-scope: none. Rewire the lens (G1) + a short awareness note (G3) + an OFF-by-default optional installer (G2/G4) + tests + docs. No change to the engine's behavior or the `--agent` format; the wizard (Order 2) is untouched.
+- Under-scope: the optional CI/hook templates MUST be target-repo-portable (install `agent_workflows`, G4), not a naive copy of this repo's self-hosted templates; the installer MUST be OFF by default and per-change consent (G2/P10) and MUST NOT change the always-on created-count; the lens rewire MUST keep the human judgment step (public-vs-leak) and the untrusted-input / never-write-raw-leak rules.
+
+## Required tests / validation
+
+- `tests/test_setup_artifacts.py`: opt-in creates local-leaks CI + pre-commit block (no-clobber); default creates nothing new (count stays 22); dry-run reports without writing; undo parity; generated CI carries an `agent_workflows` install step + the hook entry references `agent_workflows` (G4).
+- Prose surfaces (lens, AGENTS.md, setup-repo, index) validated by review + consistency: the lens RUNs `--agent` and parses records (no prose severity re-derivation); AGENTS.md has the one-line awareness note; setup-repo's offer is default-skip + consent; index row mentions `--agent`.
+- Full suite `python -m pytest -q` GREEN; paste ACTUAL output (baseline this session 337 passed, 1 skipped; expect additions).
+- `aw check-local-leaks .` clean; no em/en dashes.
+
+## Spec / documentation sync
+
+- DECISIONS (the Set-closing entry: lens consumes `--agent`, optional off-by-default backstop, awareness note), CHANGELOG 1.3.0, the `/assess local-leaks` lens, `AGENTS.md`, `setup-repo.md`, `index.md`.
+
+## Open questions
+
+- OQ1 (installer opt-in shape): expose the optional backstop install as (a) a new parameter on the existing setup path that `setup-repo.md` calls with explicit consent, or (b) a small dedicated function/flag (e.g. an `aw` subcommand or a `create_setup_artifacts(..., local_leaks_backstop=False)` parameter)? Lean: a keyword-gated writer function reused by the setup-repo step (mirrors `create_setup_artifacts` structure), no new top-level `aw` command. Confirm at review.
+- OQ2 (hook scan mode in the TARGET): the installed pre-commit hook uses whole-tree `check-local-leaks` (`pass_filenames: false`, like this repo) vs the faster `--staged` mode. Lean: whole-tree for the stronger guarantee (matches this repo, catches a leak anywhere in tracked files), documenting the `--staged` alternative. Confirm at review.
+- OQ3 (CI Python/version + install pin): the target-repo CI template's Python version and how it installs `agent_workflows` (PyPI `pip install agent-workflows` vs a pinned version). Lean: `pip install agent-workflows` on a current Python, no hard pin, matching how the toolkit is normally consumed. Confirm at review.
+
+## Approval and execution gate
+
+This IPD is a proposal. It MUST be reviewed and approved by a human before execution, and it is NOT auto-executed. This is the FINAL order of the leak-sanitizer Set; on completion the Set (Orders 1-3) is done.
+
+Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY files changed by this plan, path-scoped (`git commit -m msg -- <path>`), never `git add -A`/`-a`, never push; `git add` new files first. When reporting tests, paste the ACTUAL runner output; never claim a pass not run. No em or en dashes in authored Markdown. STOP and report if execution exceeds this plan's scope. Never create or push a tag / Release / PyPI upload. The optional backstop installer MUST be OFF by default and never auto-install into any repo without explicit per-change consent.
+
+CHECKPOINTED EXECUTION: (1) lens rewire; (2) agent-awareness note; (3) the off-by-default writer + its tests; (4) setup-repo wiring; (5) docs/decision. Re-run the full suite at each code checkpoint; pause and report if a checkpoint's scope grows.
+
+Recommended next steps:
+1. Review (optionally `/plan-review`). Resolve OQ1-OQ3. Pin the DECISIONS number at execution.
+2. On human approval, set `Status: approved` (+ `Approval:`), execute in checkpoints, validate, sync docs; commit path-scoped (no push).
+3. Set terminal `Status: executed` and `git mv` to `.agents/plans/executed/`. The leak-sanitizer Set (Orders 1-3) is then complete.
