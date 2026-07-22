@@ -29,6 +29,9 @@ When you execute a task or plan here you MUST: commit ONLY files you changed, pa
 
 ### Leak-sanitizer awareness
 A deterministic leak-sanitizer ships with this toolkit. Before you hand-judge whether a public artifact (tracked files, the built package, git history) contains maintainer or machine identifying info (home paths, usernames, hostnames, private repo names, session ids), RUN it and consume its output rather than eyeballing: `aw sanitize --agent` (alias of `aw check-local-leaks --agent`; without the CLI, `python3 -m agent_workflows check-local-leaks . --agent`). It prints one tab-separated `location\trule\tseverity` record per finding on stdout and exits nonzero on a `fail`. This holds even when no pre-commit hook or CI check is installed in the repo.
+
+### Ask self-contained questions
+When you ask a human a decision through an interactive prompt, put the ENTIRE question set (the plain-language context needed to decide, the question, and the answer options) INSIDE the prompt itself, so a human answering from the prompt can decide from the prompt alone; never strand the required context in surrounding chat. Extra prose may precede a prompt, but for only ONE question at a time and only as a supplement (see GUIDING_PRINCIPLES P12).
 <!-- AGENT-WORKFLOWS:END -->
 
 <!-- AGENT-PLANS:BEGIN -->

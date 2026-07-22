@@ -103,3 +103,12 @@ finding, no prose). LLM workflows DELEGATE to that script and consume its output
 of re-deriving the result, which is cheaper, more reliable, and identical across runs. The
 leak-sanitizer (DECISIONS D96) is the reference: one engine, an `--agent` mode, and lenses
 that call it rather than eyeballing files.
+
+## 12. Ask self-contained questions
+
+When you ask a human to make a decision through an interactive prompt, the ENTIRE question
+set lives INSIDE the prompt: the plain-language context and information needed to decide, the
+actual question, and the answer options. A human answering from the prompt alone must be able
+to decide from the prompt alone; never strand the required context in surrounding chat. You
+MAY add supplementary prose in the message before a prompt, but for only ONE question at a
+time, and that prose is additive - never the sole home of information required to answer.

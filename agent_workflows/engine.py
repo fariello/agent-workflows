@@ -638,7 +638,13 @@ def agents_pointer_block() -> str:
         "`aw check-local-leaks --agent`; without the CLI, `python3 -m agent_workflows "
         "check-local-leaks . --agent`). It prints one tab-separated `location\\trule\\tseverity` "
         "record per finding on stdout and exits nonzero on a `fail`. This holds even when no "
-        "pre-commit hook or CI check is installed in the repo.\n"
+        "pre-commit hook or CI check is installed in the repo.\n\n"
+        "### Ask self-contained questions\n"
+        "When you ask a human a decision through an interactive prompt, put the ENTIRE question set "
+        "(the plain-language context needed to decide, the question, and the answer options) INSIDE "
+        "the prompt itself, so a human answering from the prompt can decide from the prompt alone; "
+        "never strand the required context in surrounding chat. Extra prose may precede a prompt, "
+        "but for only ONE question at a time and only as a supplement (see GUIDING_PRINCIPLES P12).\n"
         f"{AGENTS_END}\n"
     )
 

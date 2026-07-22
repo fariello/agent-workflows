@@ -27,6 +27,11 @@ scoping is confirmed at release-review.
   area, or path...") instead of the generic "target path(s) and/or flags", and omits the arguments
   line entirely for commands that take none (`arg-hint: none`). Backward-compatible: workflows with
   no hint render exactly as before. Target repos pick up the new wording on the next `aw install`.
+- Added: "ask self-contained questions" convention (DECISIONS D100, GUIDING_PRINCIPLES P12). When an
+  agent poses a decision through an interactive prompt, the entire question set - the context needed
+  to decide, the question, and the options - now belongs INSIDE the prompt, so a human can decide from
+  the prompt alone. Reminded in AGENTS.md (every repo) and referenced from the question-asking
+  workflows (plan-review, advise, spec, getting-started).
 - Added: optional local-leaks backstop install via `/setup-repo` and agent awareness (DECISIONS D99,
   completing the leak-sanitizer Set). `/setup-repo` now asks (never auto-installs) whether to add the
   `local-leaks` pre-commit hook (default yes) and a CI backstop (default no) to your repo; the

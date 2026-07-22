@@ -28,7 +28,9 @@ Name the file `YYYY-MM-DD-<slug>.md`. Confirm the location with the user before 
 
 1. **Understand the request.** Read `$ARGUMENTS` and any referenced material. Restate the
    request in one or two sentences and confirm you have it right before going further.
-2. **Interview for the essentials** (ask in small batches, not all at once):
+2. **Interview for the essentials** (ask in small batches, not all at once; when a question
+   is a picker/decision, put its full question set - context, question, options - inside the
+   interactive prompt itself, per GUIDING_PRINCIPLES P12):
    - The problem and the goal (the job to be done, and for whom).
    - Non-goals and explicit scope boundaries.
    - Users/actors and their key scenarios.

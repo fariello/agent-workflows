@@ -3,11 +3,13 @@
 - Date: 2026-07-21
 - Concern: agent UX / interaction quality - how agents ask a human for a decision
 - Scope: a new guiding principle + a cross-cutting agent rule, referenced from the workflows that ask interactive questions. Prose only; no product code. Standalone (not part of any Set).
-- Status: reviewed
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-07-21, human ("approved. Go.") after /plan-review (APPROVE WITH REVISIONS APPLIED; Q3/PR-001 + PR-002 fixed; OQ1/OQ2 resolved).
 
 ## Workflow history
 
+- 2026-07-21 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Steps 1-4. Added GUIDING_PRINCIPLES P12 "Ask self-contained questions"; added the matching "### Ask self-contained questions" section to the `agents_pointer_block()` installer template in `engine.py` and regenerated `AGENTS.md` to match verbatim (no drift, per Q3/PR-001 - edited the template, not AGENTS.md directly); referenced P12 (not restated, P8) from `plan-review` Step 3.2, `plan-review-long/03`, `advise`, `spec`, `getting-started`; DECISIONS D100 + CHANGELOG. Validation: no em/en dashes, AGENTS.md == template verbatim, `aw check-local-leaks .` clean, `python -m pytest -q` = 343 passed, 1 skipped (docs + one template string; no test change). Status approved -> executed; moved to `executed/`.
 - 2026-07-21 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; Q3 (MEDIUM, FIXED) + PR-002 (LOW, FIXED). Verified GP count is 11 (P12 correct), the named workflows all have real ask-sections to reference (plan-review 3.2, plan-review-long 03, advise, spec, getting-started), and no test asserts GP/AGENTS content by number. Q3: Step 2 targeted `AGENTS.md` directly, but that block is installer-stamped from `engine.py` `agents_pointer_block()` (a direct edit is clobbered on next install) - reworked Step 2 to edit the engine template + regenerate AGENTS.md verbatim (which also propagates the rule to adopter repos); this mirrors the Order 3 CP2 handling. PR-002: added the no-drift (AGENTS.md == template) validation. OQ1 resolved from precedent (own `###` section, like the D99 awareness section); OQ2 resolved from P8 (reference-only). No open questions remain. Readiness: GO - PENDING HUMAN APPROVAL.
 - 2026-07-21 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored after the maintainer observed that an agent (this session) stranded the decision CONTEXT in chat prose and put only the bare question + options inside the interactive question tool, so a human reading the interactive prompt could not make the decision from the prompt alone. The maintainer specified the desired convention and asked that it be made durable across all agent-workflows agents.
 
