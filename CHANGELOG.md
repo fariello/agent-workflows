@@ -27,6 +27,13 @@ scoping is confirmed at release-review.
   area, or path...") instead of the generic "target path(s) and/or flags", and omits the arguments
   line entirely for commands that take none (`arg-hint: none`). Backward-compatible: workflows with
   no hint render exactly as before. Target repos pick up the new wording on the next `aw install`.
+- Added: optional local-leaks backstop install via `/setup-repo` and agent awareness (DECISIONS D99,
+  completing the leak-sanitizer Set). `/setup-repo` now asks (never auto-installs) whether to add the
+  `local-leaks` pre-commit hook (default yes) and a CI backstop (default no) to your repo; the
+  generated CI installs `agent-workflows` and runs the check. The `/assess local-leaks` lens now
+  consumes the engine's machine-parseable `--agent` output instead of re-deriving findings in prose,
+  and AGENTS.md now tells any agent to run `aw sanitize --agent` before hand-judging identifying-info
+  leaks, even in a repo with no hook installed.
 - Added: `aw sanitize --configure` interactive config wizard (DECISIONS D98). Walks you through
   the leak-sanitizer's allowlist, the IP and hostname toggles, and your never-committed personal
   hints, explains each control, shows a diff, and writes only on confirmation (re-runnable, safe,
