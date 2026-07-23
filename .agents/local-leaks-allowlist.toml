@@ -9,7 +9,10 @@
 # (see local-leaks-hints.json.example). Neither file is required; both are additive.
 
 # Lines containing any of these public substrings are never flagged (public-OK-here).
-allow_line_substrings = []
+# Note: `hermes-agent-org/hermes` is the PUBLIC "Hermes Agent" coding-host GitHub org/repo,
+# cited in host-survey research; it is unrelated to the private sibling repo the built-in
+# `private-repo` rule guards (which still catches the bare private-repo token elsewhere).
+allow_line_substrings = ["hermes-agent-org/hermes"]
 
 # Extra repo-specific FAIL regex patterns (added to the built-in structural rules).
 fail_patterns = []
