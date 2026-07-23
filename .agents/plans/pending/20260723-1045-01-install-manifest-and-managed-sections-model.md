@@ -1,0 +1,93 @@
+# IPD: install manifest + ownership/managed-sections model (the safe-install foundation)
+
+- Date: 2026-07-23
+- Concern: installer correctness / write-safety / maintainability - a durable ownership ledger and a per-directive managed-section mechanism for shared instruction files, so agent-workflows content is identifiable, individually consented, updatable, removable, and drift-detectable across releases
+- Scope: introduce `.agents/agent-workflows/managed-sections.json` (a durable in-repo manifest), a sectioned managed-block mechanism for shared files (AGENTS.md and, when present, CLAUDE.md/GEMINI.md) using the decided marker scheme, and the read/write/drift helpers in `agent_workflows/engine.py` that install consumes. Product code + tests + docs. FOUNDATION IPD: the conservative `aw uninstall` (its own IPD), the interactive-questions AGENTS.md directive, and any host-adapter tier expansion BUILD ON this and are out of scope here.
+- Status: to-review
+- Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+
+## Workflow history
+
+- 2026-07-23 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored as the foundation the maintainer and two research docs converged on. Cites `.agents/docs/research/20260722-2241-01-agent-coding-system-file-discovery-and-write-safety.research.findings.md` (ownership ledger, per-file ownership, conservative writes) and `.agents/docs/research/20260722-2317-01-token-efficient-managed-sections-in-agent-instruction-files.gpt-56.research.finding.md` (per-directive marker regions, external manifest for hashes/consent, deferred-load reality, decline tombstones). Marker scheme decided with the maintainer this session (openers-only + single outer close; see Step 2).
+
+## Goal
+
+Give agent-workflows a durable, per-file, per-directive ownership model so that: (1) every file/block it writes is provably attributable to the installer (path + logical id + version + content hash), recorded in one tracked manifest; (2) shared instruction files it does not own (AGENTS.md, and existing CLAUDE.md/GEMINI.md) carry INDIVIDUALLY marked, individually consented, individually updatable directive sections rather than one monolithic all-or-nothing block; (3) the installer can detect whether a section or generated file was modified by the user (drift) and NEVER clobbers drift; (4) a declined directive stays declined across upgrades (a consent tombstone). This is the primitive a conservative uninstaller and future per-directive prompts require, and it directly answers the maintainer's requirement that our edits be "identifiable and re-editable in subsequent releases" without silently changing a user's agent behavior.
+
+Why it matters: today the AGENTS.md block is a single monolithic marker region (`AGENTS_BEGIN`/`AGENTS_END`, `engine.py:105-106`) stamped all-or-nothing; the only ownership record is `.created-files.json` under the PRUNED backups dir (`engine.py:1817-1827`, kept to the last 5, `:1840`), so it is ephemeral and not a durable manifest; uninstall hard-codes three namespaces (`engine.py:2321-2348`) rather than consulting a ledger. Both research docs independently prescribe an external ownership manifest + per-directive marked sections + conservative, drift-aware writes as the correct architecture.
+
+## Project conventions discovered (Step 0)
+
+- Guiding principles: `GUIDING_PRINCIPLES.md` P8 (single source of truth), P10 (safety/reversibility; never destroy user content), P11 (deterministic work in scripts). No em/en dashes. Zero runtime deps (stdlib only).
+- Current shared-file mechanism (verified): monolithic `AGENTS_BEGIN`/`AGENTS_END` block (`engine.py:105-106`); rendered by `agents_pointer_block()` (`:582`); written by `update_agents_pointer` (`:1211`), removed by `remove_agents_pointer` (`:2289`); resolved file via `resolve_agents_file` (`:1153`). The block is stamped whole; there is no per-directive section.
+- Current ownership record (verified): `save_created_files_record` writes `<repo>/<BACKUPS_DIR>/<timestamp>/.created-files.json` (`engine.py:1817-1827`); backups are pruned to 5 (`:1840`); consumed only by `--undo`, NOT by uninstall. It is a rollback aid, not a durable manifest.
+- Marker-scheme DECISION (maintainer, this session): outer wrapper `<!-- aw:block -->` ... `<!-- /aw:block -->`; inner sections use OPENERS ONLY, `<!-- aw:<slug> -->`; a section runs from one opener to the next opener, or to `/aw:block`, or to EOF. No per-section close tags. Parser is forgiving: a missing/corrupt `/aw:block` treats EOF as close but FLAGS drift (never silently rewrites). Never rely on host comment-stripping for correctness (markers are literal bytes on every host; only Claude Code is documented to drop HTML comments from context). Per-section identity/consent/drift live in the MANIFEST keyed by slug + normalized-content hash, never on marker adjacency.
+- Research (both tracked in `.agents/docs/research/`): the ownership manifest schema (logical id, path, host, sha256, version, consent, adapter kind), classification of file classes (canonical body / generated adapter / shared managed block / structured config / user artifact / workflow output), the collision + drift + uninstall rules, and the decline-tombstone lifecycle.
+- The manifest belongs IN-REPO (travels with the checkout, is diffable, and is what a later `aw install`/uninstall in that repo reads): `.agents/agent-workflows/managed-sections.json`. A per-user consent layer MAY be gitignored (`consent.local.json`), deferred here unless trivially needed.
+
+## Findings (drivers)
+
+| ID | Severity | Remediation Risk | Persona | Area | Finding | Evidence |
+|----|----------|------------------|---------|------|---------|----------|
+| M1 | HIGH | Medium | maintainer / adopter | write-safety / durability | No durable ownership manifest exists; `.created-files.json` lives under the pruned backups dir and is consumed only by `--undo`, so there is no reliable record of what the installer owns across releases. | `engine.py:1817-1827`, `:1840`; uninstall `:2321-2348` |
+| M2 | HIGH | Medium | adopter | consent / behavior | The AGENTS.md block is monolithic all-or-nothing; a user cannot accept some directives and decline others, and an upgrade re-stamps the whole block, risking silently (re)adding behavior the user did not want. | `engine.py:105-106`, `agents_pointer_block` `:582`, `update_agents_pointer` `:1211` |
+| M3 | MEDIUM | Medium | adopter | drift safety | There is no per-section/per-file drift detection; the installer cannot tell if a user hand-edited an owned section, so an update could clobber user edits. | no hash-per-section anywhere; `update_agents_pointer` replaces the whole block |
+| M4 | MEDIUM | Low | maintainer | token economy | The monolithic block inlines all directive prose, paid every turn; the research shows per-directive external files + a short marked trigger cut recurring cost. This IPD lays the marker+manifest groundwork so directive BODIES can move to owned files (done per-directive in their own IPDs). | research 2317; `agents_pointer_block` inlines prose |
+
+## Proposed changes (ordered, validatable; checkpointed)
+
+| Step | Source | Change | Files | Remediation Risk | Validation |
+|------|--------|--------|-------|------------------|------------|
+| 1 | M1 | Define the manifest: a small stdlib module (e.g. `agent_workflows/manifest.py`) that reads/writes `.agents/agent-workflows/managed-sections.json` ATOMICALLY (temp + os.replace, mirroring `config.save`). Schema (research 2317/2241): `schema_version`, `installer`, `installed_version`, `files` (path -> {kind, host, logical_id, sha256}), `managed_sections` (slug -> {target_file, sha256_of_normalized_content, source_version, consent: accepted|declined|kept-local, last_resolution}). Missing manifest = treated as a fresh install (back-compat). Include a normalization helper (strip trailing whitespace, normalize line endings) used for every hash so drift detection is stable. | `agent_workflows/manifest.py` (new), `agent_workflows/engine.py` (constants) | Medium | manifest round-trips; atomic write; normalized hashing is deterministic; absent manifest = fresh-install behavior |
+| 2 | M2,M3 | Implement the sectioned managed-block mechanism per the decided scheme: a parser that, given a shared file's text, returns the `aw:block` region and its ordered `aw:<slug>` sections (opener-to-next-opener/`/aw:block`/EOF), plus a writer that renders the block from a list of (slug, content) sections with the outer wrapper and openers-only. Forgiving parse: missing `/aw:block` -> EOF close + drift flag; foreign text before the first opener or after the block is preserved untouched. Replace the monolithic `agents_pointer_block()`/`update_agents_pointer` internals with this sectioned mechanism while keeping the SAME external install entry points. | `agent_workflows/engine.py` (`agents_pointer_block`, `update_agents_pointer`, `remove_agents_pointer`, + new section parse/render helpers) | Medium | parser returns correct sections for well-formed + degenerate inputs; writer round-trips; foreign content preserved; missing outer close flagged as drift not rewritten |
+| 3 | M2 | Wire per-directive CONSENT + drift into the install flow: on install, for each managed section, consult the manifest - if `declined`, do not write it (tombstone); if `accepted` and the on-disk section hash matches the manifest, update in place; if the on-disk hash DIFFERS (user drift), do NOT overwrite - report it and leave it. New (unknown-slug) sections are offered separately (the interactive per-directive prompt itself is exercised by the directive IPDs; here, provide the mechanism + a safe default of NOT auto-adding a brand-new optional directive without consent). Record every resolution (accepted/declined/kept-local) in the manifest. | `agent_workflows/engine.py` (install path), `agent_workflows/manifest.py` | Medium | declined section is not written; accepted-unchanged updates; drifted section is preserved + reported; resolutions recorded; created-count invariants for existing tests preserved |
+| 4 | M1,M2,M3 | Migrate the CURRENT monolithic AGENTS.md block to the new scheme WITHOUT changing what a user sees behaviorally: the existing `AGENT-WORKFLOWS:BEGIN/END` block becomes the `aw:block` wrapper containing the current always-on content as one or more `aw:<slug>` sections (e.g. `aw:pointer`), recorded in the manifest as accepted. A repo that already has the old block is upgraded in place (recognize the old markers, convert, record hashes) with no content loss. Regenerate this repo's AGENTS.md to the new form and confirm verbatim round-trip of the human-visible text. | `agent_workflows/engine.py`, `AGENTS.md` (regenerated) | Medium | old-block repos convert cleanly (no content loss); this repo's AGENTS.md human-visible text is unchanged; manifest records the converted sections; reinstall is idempotent (empty diff) |
+| 5 | M1,M2,M3 | Tests: manifest round-trip + atomic write + normalized-hash determinism; section parser (well-formed, missing outer close = drift, foreign text preserved, empty block); writer round-trip; consent (declined not written, accepted-unchanged updated, drift preserved+reported); old-monolithic-block migration with no content loss; reinstall idempotence (empty diff); the existing installer/AGENTS tests still pass (or are updated to the new markers with the human-visible content unchanged). | `tests/test_manifest.py` (new), `tests/test_installer.py`, `tests/test_setup_artifacts.py` | Medium | full suite green; paste actual output; the golden invariant "reinstall with identical inputs produces an empty git diff" holds |
+| 6 | M1,M2 | Docs/decision sync: a DECISIONS entry (pin at execution) recording the manifest + managed-sections model, the marker scheme (openers-only + outer close; never rely on comment stripping; manifest-keyed identity), the consent-tombstone + drift-never-clobber rules, and that it is the foundation for the uninstaller + per-directive AGENTS.md directives; CHANGELOG 1.3.0; a short `.agents/agent-workflows/README.md` (or a section in an existing doc) explaining the manifest + markers to a human. | `DECISIONS.md`, `CHANGELOG.md`, a manifest README | Low | entries present; the marker/manifest model is documented for humans; links resolve; no em/en dashes |
+
+## Deferred / out of scope (with reason)
+
+| Item | Remediation Risk | Axis | Reason | Recommended later step |
+|------|------------------|------|--------|------------------------|
+| Conservative `aw uninstall` that consumes the manifest (remove only hash-matched owned files, block-only edits, preserve plans/docs/comms/workflow-artifacts, count non-aw files, warn) | Medium | functionality | Its own IPD (Item 3 / IPD B); it is the primary CONSUMER of this manifest and large enough to review separately. | IPD B, after this. |
+| The interactive-questions AGENTS.md directive (the `aw:ask-user` section + its owned `directives/ask-user.md` body + per-directive prompt) | Low | scope | Depends on this mechanism; authored/executed as the interactive-questions IPD's AGENTS.md half (the reviewed D-item). | The interactive-questions IPD, after this. |
+| Host-adapter tier expansion (`.agents/skills/`, Copilot/Windsurf/Kiro adapters, path-scoped rules, hooks) | Medium | complexity | The research's larger roadmap; independent of the core manifest/section primitive. | Separate IPD(s) if pursued. |
+| Per-user gitignored `consent.local.json` (team vs local consent split) | Low | complexity | Add only if a real need appears; the in-repo manifest covers the core case. | Later, if wanted. |
+| Moving existing directive BODIES out of the inlined block into owned files (token-economy payoff) | Low | functionality | This IPD provides the MECHANISM; moving each body is done per-directive in that directive's IPD so each move is consented and reviewed. | Per-directive IPDs. |
+
+## Scope check
+
+- Over-scope: none. This is the manifest module + the sectioned managed-block mechanism + consent/drift wiring + the in-place migration of the current block + tests + docs. Uninstall, the ask-user directive, host-adapter tiers, and body-relocation are explicitly deferred.
+- Under-scope: the migration MUST NOT change the human-visible AGENTS.md content or lose any existing block content (M4/Step 4); reinstall MUST be idempotent (empty diff, a research golden invariant); drift MUST be reported never clobbered (M3); a declined directive MUST persist as a tombstone (M2); the manifest MUST be durable in-repo (not under the pruned backups dir, M1); existing installer/AGENTS/setup tests MUST stay green (updated only for new markers, human content unchanged).
+
+## Required tests / validation
+
+- `tests/test_manifest.py` (new): schema round-trip; atomic write (temp + replace); normalized-hash determinism across line-ending/whitespace variants; absent manifest = fresh install.
+- Section mechanism: parser on well-formed multi-section input, missing `/aw:block` (drift-flagged, not rewritten), foreign text before/after preserved, empty/absent block; writer round-trip; slug ordering stable.
+- Consent/drift: declined slug not written; accepted-unchanged updated; drifted section preserved + reported (not overwritten); resolutions recorded in the manifest.
+- Migration/idempotence: an old monolithic `AGENT-WORKFLOWS:BEGIN/END` repo converts with no content loss; a second identical install yields an EMPTY git diff (golden invariant); this repo's AGENTS.md human-visible text unchanged.
+- Full suite `python -m pytest -q` GREEN; paste ACTUAL output (baseline this session 351 passed, 1 skipped; expect additions and some AGENTS/installer test updates for the new markers).
+- `aw check-local-leaks .` clean; no em/en dashes.
+
+## Spec / documentation sync
+
+- DECISIONS (the model + marker scheme + consent/drift rules + foundation-for note), CHANGELOG 1.3.0, a human-facing manifest/markers README under `.agents/agent-workflows/`. Cross-reference both research docs.
+
+## Open questions
+
+- OQ1 (manifest location + tracked vs gitignored): `.agents/agent-workflows/managed-sections.json` TRACKED (travels, diffable, is what a teammate's reinstall reads) vs gitignored (local-only). Lean: TRACKED for the core manifest (a section a team accepted should travel), with an OPTIONAL later gitignored `consent.local.json` for personal overrides. Confirm at review.
+- OQ2 (migration of the current block): auto-convert the existing monolithic block to the sectioned form on the next install (recognizing the old `AGENT-WORKFLOWS:BEGIN/END` markers) vs require a one-time explicit migration. Lean: auto-convert in place, no content loss, recorded in the manifest (least user friction; the markers are recognizable). Confirm at review.
+- OQ3 (brand-new optional directive default): when an UPGRADE introduces a new optional directive, default to NOT adding it without consent (offer it), vs add-by-default for clearly-beneficial ones. Lean: never add a new optional directive without consent (matches "do not silently change agent behavior"); a genuinely required invariant can be a non-optional section. Confirm at review.
+
+## Approval and execution gate
+
+This IPD is a proposal. It MUST be reviewed and approved by a human before execution, and it is NOT auto-executed.
+
+Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY files changed by this plan, path-scoped (`git commit -m msg -- <path>`), never `git add -A`/`-a`, never push; `git add` new files first. When reporting tests, paste the ACTUAL runner output; never claim a pass not run. No em or en dashes in authored Markdown. STOP and report if execution exceeds this plan's scope. Never create or push a tag / Release / PyPI upload. The migration MUST preserve human-visible content and never clobber user drift.
+
+CHECKPOINTED EXECUTION: (1) manifest module + tests; (2) section parser/writer + tests; (3) consent/drift wiring + tests; (4) in-place migration of the current block + idempotence test; (5) docs/decision. Re-run the full suite at each checkpoint; pause and report if a checkpoint's scope grows (this touches shipped install/AGENTS behavior, so treat it as a risky refactor: characterization tests for the current AGENTS.md behavior FIRST).
+
+Recommended next steps:
+1. Review (optionally `/plan-review`). Resolve OQ1-OQ3. Pin the DECISIONS number at execution.
+2. On human approval, set `Status: approved` (+ `Approval:`), execute in checkpoints, validate, sync docs; commit path-scoped (no push).
+3. Set terminal `Status: executed` and `git mv` to `.agents/plans/executed/`. Then IPD B (uninstall) and the per-directive AGENTS.md directives build on this.
