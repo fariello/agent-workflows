@@ -4,6 +4,8 @@
 - Concern: agent interaction quality - HOW an agent composes an interactive question, extending the P12 self-contained rule with practical guidance
 - Scope: expand GUIDING_PRINCIPLES P12, its AGENTS.md installer-template block, and the existing P12 references so agents get the fuller "how to write the question" guidance. Prose only; no product code. Standalone.
 - Status: reviewed
+- Set: install-safety-and-ownership
+- Order: 5
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history

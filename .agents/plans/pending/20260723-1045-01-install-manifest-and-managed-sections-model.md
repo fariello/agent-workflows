@@ -4,6 +4,8 @@
 - Concern: installer correctness / write-safety / maintainability - a durable ownership ledger and a per-directive managed-section mechanism for shared instruction files, so agent-workflows content is identifiable, individually consented, updatable, removable, and drift-detectable across releases
 - Scope: introduce `.agents/agent-workflows/managed-sections.json` (a durable in-repo manifest), a sectioned managed-block mechanism for shared files (AGENTS.md and, when present, CLAUDE.md/GEMINI.md) using the decided marker scheme, and the read/write/drift helpers in `agent_workflows/engine.py` that install consumes. Product code + tests + docs. FOUNDATION IPD: the conservative `aw uninstall` (its own IPD), the interactive-questions AGENTS.md directive, and any host-adapter tier expansion BUILD ON this and are out of scope here.
 - Status: to-review
+- Set: install-safety-and-ownership
+- Order: 2
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history

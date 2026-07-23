@@ -4,6 +4,8 @@
 - Concern: let a user choose that agent-workflows artifact classes (plans/IPDs, prompts, research, docs) are NOT git-tracked, without breaking the lifecycle and workflows that assume tracking
 - Scope (intended): an install-time / config option to make some or all artifact classes untracked, and the workflow/instruction changes needed so the lifecycle still functions. Large, lifecycle-wide. Details TBD.
 - Status: draft
+- Set: install-safety-and-ownership
+- Order: 6
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 > DRAFT STUB - PRELIMINARY. Captures INTENT and OBJECTIVES only. NOT ready for /plan-review or

@@ -4,6 +4,8 @@
 - Concern: safe, complete, reversible removal of agent-workflows from a repo without destroying user content
 - Scope (intended): an `aw uninstall` that removes what the installer owns (per the manifest), strips only managed blocks from shared files, preserves user/workflow content by default, and offers a clearly-warned deeper `.agents/` cleanup. Details TBD.
 - Status: draft
+- Set: install-safety-and-ownership
+- Order: 3
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 > DRAFT STUB - PRELIMINARY. Captures INTENT and OBJECTIVES only. NOT ready for /plan-review or
