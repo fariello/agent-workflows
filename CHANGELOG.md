@@ -27,6 +27,11 @@ scoping is confirmed at release-review.
   area, or path...") instead of the generic "target path(s) and/or flags", and omits the arguments
   line entirely for commands that take none (`arg-hint: none`). Backward-compatible: workflows with
   no hint render exactly as before. Target repos pick up the new wording on the next `aw install`.
+- Changed: producing workflows (`/assess`, `/assess-all`, `/incident`, `/migrate`, `/spec`) now end
+  with a uniform closing report (DECISIONS D102): which artifact file(s) they created, with paths, or
+  that they created none and WHY, plus concrete next steps. `/assess` also now reports the run-record
+  path and handles the "assessed, nothing to propose" case explicitly. The shared convention lives at
+  `.agents/workflows/assess/templates/closing-report.md`.
 - Changed: the installer's interactive overwrite prompt is now clearer and stricter (DECISIONS D101).
   It reads `Do you want to overwrite it? [y/N/d/help]:` with a plain-English legend (Y = overwrite,
   N = do not, D = show differences, help), rejects unrecognized input and re-asks instead of silently

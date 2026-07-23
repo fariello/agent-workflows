@@ -3,11 +3,13 @@
 - Date: 2026-07-22
 - Concern: workflow UX / honest reporting - a user must know, at the end of a producing workflow, WHICH file(s) it created (or that it created none, and why) and what to do next
 - Scope: the closing report of the IPD/artifact-PRODUCING workflows - `assess` (and the `assess-all` rollup), `incident`, `migrate`, `spec`. Prose workflow files; no product code. Standalone (not part of a Set). Item 1 of four maintainer requests (the others: aw uninstall, external install, and the already-executed overwrite-prompt D101).
-- Status: reviewed
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-07-22, human ("approved. Go!") after /plan-review (APPROVE WITH REVISIONS APPLIED; R4/R5 fixed; OQ1/OQ2 resolved).
 
 ## Workflow history
 
+- 2026-07-22 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Steps 1-4. Created the canonical `.agents/workflows/assess/templates/closing-report.md` (created / none-and-why / next-steps, with both worked examples). Wired `assess.md` (Step 8 + fenced report gained a `Created:` IPD line + an always-present `Run record:` line + a not-created branch). Referenced the closing report from `assess-all`, `incident` (each action IPD), `migrate`, `spec`, each with its artifact(s) + a not-created branch. DECISIONS D102 + CHANGELOG. Validation: no em/en dashes, `aw check-local-leaks .` clean, `python -m pytest -q` green. Status approved -> executed; moved to `executed/`.
 - 2026-07-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; R1-R5 (R4/R5 added). Verified the end-steps of all five producers (assess `:141-143`/`:190-211`, assess-all `:48-59`, incident `:50-54`, migrate `:43-45`, spec `:46-48`). R4 (MEDIUM, FIXED): the first-draft OQ1 lean `.agents/workflows/templates/closing-report.md` is the INSTALLER's README-stamping dir (`engine.py:2795,2835,2880`), a wrong home; corrected OQ1 to a workflow-reference home. R5 (LOW, FIXED): added the `test_dir_readmes.py`/packaging no-break guard. OQ1 resolved by human (`.agents/workflows/assess/templates/closing-report.md`); OQ2 resolved from the honest-reporting driver (run-record line always present). No open questions remain. Readiness: GO - PENDING HUMAN APPROVAL.
 - 2026-07-22 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored from a maintainer request - "the /assess * workflows need to tell the user AT THE END which files (IPDs) were created (or not, and why), and suggested next steps." Generalized to the sibling producers for consistency (incident/migrate/spec), since they share the gap.
 
