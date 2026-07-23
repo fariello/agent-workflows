@@ -44,6 +44,55 @@ The maintainer has repeatedly hit a failure mode: sensitive IPDs/notes that shou
 
 - Best built ON the managed-sections/ownership model (IPD A) so the gitignore additions are identifiable/removable and any AGENTS.md guidance is a consented section. Could ship a minimal version independently, but coordinate to avoid two gitignore-management paths.
 
+## Reference implementation (maintainer-provided; adopt as the proposed content)
+
+The maintainer field-tested this exact block in another repo's `.gitignore`. Adopt it as the canonical content for the managed `.gitignore` section (note the markers are `#`-commented because `.gitignore` has no HTML-comment syntax; see the two-marker-syntax note below). Patterns: `*.untracked.*`, `*.untracked`, `**/*untracked*/` (this supersedes the earlier stub's narrower `*.untracked.*` + `*untracked*/`; it also catches an extensionless `scratch.untracked` and an `untracked`-containing dir nested anywhere).
+
+```
+# <!-- aw:block -->
+# --- Deliberately-untracked local artifacts (DO NOT REMOVE these patterns) ---
+#
+# Purpose: provide a RELIABLE way to keep a file or directory OUT of git even when it
+# lives inside a directory that agent directives would otherwise tell an agent to commit
+# (e.g. AGENTS.md / the .agents/plans lifecycle rules say IPDs live under .agents/plans/
+# and should be committed and moved pending -> executed). Some work is sensitive enough that
+# it must NOT be tracked or pushed (incident/remediation notes, scratch audits, local-only
+# working docs), yet it is convenient to keep it next to the related tracked files.
+#
+# Naming a file or directory with the "untracked" marker below makes git ignore it, so a
+# blanket `git add .`, `git add -A`, the pre-commit hooks, and the sanitizer never stage it.
+# This is a PASSIVE guard that works WITH the tooling: it does not rely on any agent
+# remembering a special rule or resisting a lifecycle directive.
+#
+# How to use:
+#   - A single file:      my-notes.untracked.md   audit.untracked.json   scratch.untracked
+#   - A whole directory:  put files under any dir whose name contains "untracked",
+#                         e.g. .agents/plans/pending/untracked/  or  foo.untracked/
+#
+# IMPORTANT LIMITS (so this is not over-trusted):
+#   - This only affects files that are NOT already tracked. Gitignoring a pattern does NOT
+#     untrack an already-committed file, and it does NOT remove a name from history. Name
+#     the file with the marker BEFORE it is ever `git add`ed.
+#   - `.gitignore` is advisory: `git add -f` bypasses it. "Untracked by default" is the goal,
+#     not an enforcement boundary.
+#
+# DO NOT delete or narrow these patterns to "clean up" the ignore file: they are a
+# deliberate safety mechanism, and removing them can cause sensitive local files to become
+# trackable (and then accidentally committed) by a later `git add`.
+*.untracked.*
+*.untracked
+**/*untracked*/
+# <!-- /aw:block -->
+```
+
+## Two-marker-syntax note (for the parser, ties to IPD 02)
+
+The managed-block markers must be rendered in the target file's OWN comment syntax: bare `<!-- aw:... -->` in Markdown, and `#`-prefixed `# <!-- aw:... -->` in `#`-comment config files (`.gitignore`, YAML, TOML). The IPD-02 managed-block parser/writer must therefore treat "the aw marker" as one logical construct with a per-file-syntax rendering, not assume HTML comments everywhere. This block is the first `#`-comment instance.
+
+## General policy this establishes (coordinate with IPD 02)
+
+Per the maintainer: EVERY agent-workflows-managed block we add to a shared config file (`.gitignore` and others) should carry (a) the `aw:block` markers in that file's comment syntax so it is identifiable and removable, and (b) a short "DO NOT REMOVE, this is deliberate" rationale. IPD 02 (managed-sections model) should establish this as the general rule; this IPD is the first concrete application.
+
 ## Approval and execution gate
 
 DRAFT STUB. Must be fleshed out into a full IPD (findings, ordered validatable steps, tests, docs sync, resolved open questions) and pass /plan-review + explicit human approval before any execution. Standard execution contract will apply when fleshed out: path-scoped commits, never push, paste real test output, no em/en dashes, STOP-and-report on scope growth.
