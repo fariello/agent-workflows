@@ -770,6 +770,67 @@ def _wants_executable(mode: int) -> bool:
     return bool(mode & 0o111)
 
 
+def prompt_choice(
+    question: str,
+    legend: list[str],
+    *,
+    default: str,
+    accept: dict[str, str],
+    on_diff=None,
+    input_fn=None,
+    print_fn=None,
+) -> str:
+    """Ask a self-documenting single-choice question and RETURN the normalized choice.
+
+    - ``question`` is the one-line prompt (e.g. ``"Do you want to overwrite it? [y/N/d/help]: "``).
+    - ``legend`` is the help text lines, shown on ``help``/``?`` and on ANY unrecognized input
+      (self-documenting; the user is never left guessing, GUIDING_PRINCIPLES P3).
+    - ``accept`` maps every accepted lowercased token to a normalized choice, e.g.
+      ``{"y": "yes", "yes": "yes", "n": "no", "no": "no", "d": "diff", "diff": "diff"}``.
+      ``h``/``help``/``?`` are always treated as help (show the legend, re-ask) and need not
+      be in ``accept``.
+    - ``default`` is returned for a blank line AND for EOF (a closed stdin), so a
+      non-interactive/piped stdin resolves to the safe default rather than looping forever.
+    - ``on_diff`` (optional callable) is invoked when the normalized choice is ``"diff"``,
+      then the question is re-asked (the diff is informational, not a final answer).
+
+    Invariants (do not weaken): ``KeyboardInterrupt`` PROPAGATES (never caught) so Ctrl-C
+    still aborts the run; ``EOFError`` returns ``default``; unrecognized input reprints the
+    legend and re-asks. Stdlib only.
+
+    ``input_fn``/``print_fn`` default to the builtins, resolved at CALL time (not bound as
+    default-arg values) so a test that patches ``builtins.input`` is honored.
+    """
+    if input_fn is None:
+        input_fn = input
+    if print_fn is None:
+        print_fn = print
+    while True:
+        try:
+            raw = input_fn(question).strip().lower()
+        except EOFError:
+            print_fn()
+            return default
+        # KeyboardInterrupt intentionally NOT caught: it must propagate to abort.
+        if raw == "":
+            return default
+        if raw in ("h", "help", "?"):
+            for line in legend:
+                print_fn(line)
+            continue
+        choice = accept.get(raw)
+        if choice is None:
+            print_fn(f"Unrecognized input: {raw!r}")
+            for line in legend:
+                print_fn(line)
+            continue
+        if choice == "diff":
+            if on_diff is not None:
+                on_diff()
+            continue
+        return choice
+
+
 def write_file(
     plan: InstallPlan,
     relative_posix: str,
@@ -833,29 +894,33 @@ def write_file(
                         )
                     )
                     is_interactive = is_interactive_session(plan)
-                    choice = "n"
+                    choice = "no"
                     if is_interactive:
-                        while True:
-                            try:
-                                choice = (
-                                    input("Do you want to overwrite it? [y/N/d]: ")
-                                    .strip()
-                                    .lower()
-                                )
-                            except EOFError:
-                                print()
-                                choice = "n"
-                                break
-                            if choice == "d":
-                                print_shim_diff(
-                                    relative_posix,
-                                    current_text,
-                                    expected_text,
-                                    plan.no_color,
-                                )
-                                continue
-                            break
-                    if not plan.yes and choice not in ("y", "yes"):
+                        choice = prompt_choice(
+                            "Do you want to overwrite it? [y/N/d/help]: ",
+                            [
+                                "  Y    = Yes, OVERWRITE this file with the framework version",
+                                "  N    = No, do not overwrite (keep your version) [default]",
+                                "  D    = Show me the differences, then ask again",
+                                "  help = show this help",
+                            ],
+                            default="no",
+                            accept={
+                                "y": "yes",
+                                "yes": "yes",
+                                "n": "no",
+                                "no": "no",
+                                "d": "diff",
+                                "diff": "diff",
+                            },
+                            on_diff=lambda: print_shim_diff(
+                                relative_posix,
+                                current_text,
+                                expected_text,
+                                plan.no_color,
+                            ),
+                        )
+                    if not plan.yes and choice != "yes":
                         # A deliberately-preserved customized file is NOT "already current" (it
                         # differs from the template); tag it distinctly so the summary does not
                         # report it identically to an untouched file (D85 F6).
@@ -1048,18 +1113,19 @@ def prune_stale(
                         )
                     )
                     is_interactive = is_interactive_session(plan)
-                    choice = "n"
+                    choice = "no"
                     if is_interactive:
-                        try:
-                            choice = (
-                                input("Do you want to delete it? [y/N]: ")
-                                .strip()
-                                .lower()
-                            )
-                        except EOFError:
-                            print()
-                            choice = "n"
-                    if not plan.yes and choice not in ("y", "yes"):
+                        choice = prompt_choice(
+                            "Do you want to delete it? [y/N/help]: ",
+                            [
+                                "  Y    = Yes, DELETE this stale file",
+                                "  N    = No, keep it [default]",
+                                "  help = show this help",
+                            ],
+                            default="no",
+                            accept={"y": "yes", "yes": "yes", "n": "no", "no": "no"},
+                        )
+                    if not plan.yes and choice != "yes":
                         continue
             except OSError:
                 pass

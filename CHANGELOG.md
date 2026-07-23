@@ -27,6 +27,12 @@ scoping is confirmed at release-review.
   area, or path...") instead of the generic "target path(s) and/or flags", and omits the arguments
   line entirely for commands that take none (`arg-hint: none`). Backward-compatible: workflows with
   no hint render exactly as before. Target repos pick up the new wording on the next `aw install`.
+- Changed: the installer's interactive overwrite prompt is now clearer and stricter (DECISIONS D101).
+  It reads `Do you want to overwrite it? [y/N/d/help]:` with a plain-English legend (Y = overwrite,
+  N = do not, D = show differences, help), rejects unrecognized input and re-asks instead of silently
+  treating it as "no", and accepts `y/yes`, `n/no`, `d/diff`, `h/help/?`. The stale-file delete prompt
+  got the same validation. The safe default (preserve/keep), Ctrl-C abort, and `--yes`/non-interactive
+  behavior are unchanged.
 - Added: "ask self-contained questions" convention (DECISIONS D100, GUIDING_PRINCIPLES P12). When an
   agent poses a decision through an interactive prompt, the entire question set - the context needed
   to decide, the question, and the options - now belongs INSIDE the prompt, so a human can decide from

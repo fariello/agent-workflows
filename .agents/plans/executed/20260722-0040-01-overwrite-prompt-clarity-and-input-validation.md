@@ -3,11 +3,13 @@
 - Date: 2026-07-22
 - Concern: installer UX / self-documenting + naive-user guidelines (the interactive overwrite prompt)
 - Scope: the interactive "overwrite?" prompt in the installer (`agent_workflows/engine.py` `write_file`), plus the sibling delete prompt, and tests. Product code. Standalone (not part of a Set).
-- Status: reviewed
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-07-22, human ("approved. Go!") after /plan-review (APPROVE WITH REVISIONS APPLIED; O4 added; OQ1/OQ2 resolved).
 
 ## Workflow history
 
+- 2026-07-22 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Steps 1-5. Added the shared `prompt_choice` helper to `engine.py` (validate/re-ask, legend on help + invalid, `EOFError` -> default, `KeyboardInterrupt` re-raised, `on_diff` callback); rewired the overwrite prompt to `[y/N/d/help]` and the stale-shim delete prompt to `[y/N/help]` to use it. During execution a real bug was caught by the existing prompt tests: binding `input_fn=input` as a DEFAULT ARG captured the real builtin, so `mock.patch("builtins.input")` was bypassed and the Ctrl-C/EOF/diff tests failed; fixed by defaulting `input_fn`/`print_fn` to None and resolving to the builtins at CALL time. Added `PromptChoiceTests` (8 cases incl. KeyboardInterrupt-propagates and EOF-default) + an end-to-end invalid-then-overwrite test. DECISIONS D101 + CHANGELOG. Validation: no em/en dashes, `aw check-local-leaks .` clean, `python -m pytest -q` = 351 passed, 1 skipped (was 343; +8). Status approved -> executed; moved to `executed/`.
 - 2026-07-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; O1-O4 (O4 added). Verified the prompt code (`engine.py:819-863`), the delete prompt (`:1040-1065`; confirmed it has NO loop today, single `input`), and the test harness (`test_installer.py:532-586`, incl. `test_diff_option_re_prompts`, `test_ctrl_c_aborts_install` exit 130, `test_eof_declines_install`). O4 (MEDIUM, FIXED): named the anti-regression invariant that the shared helper MUST re-raise `KeyboardInterrupt` (Ctrl-C aborts 130) and return the safe default on `EOFError` (never re-ask on EOF), so a naive catch-all does not break the two existing prompt tests; folded into Steps 3/4, Under-scope, and Required tests. O3 clarified (delete prompt has no loop today). OQ1/OQ2 resolved (accept `h`/`help`/`?` and `d`/`diff`; additive, no genuine trade-off, not escalated). No open questions remain. Readiness: GO - PENDING HUMAN APPROVAL.
 - 2026-07-22 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored from a maintainer request. The prompt `Do you want to overwrite it? [y/N/d]:` is unclear (what is `d`?), and any input other than blank/y/n/d is silently coerced to "no" instead of being rejected and re-asked - a self-documenting / intuitive / naive-user guideline violation.
 

@@ -610,6 +610,29 @@ class InstallerEndToEndTests(unittest.TestCase):
         # Declined: the customized content remains.
         self.assertIn("Customized lines here", shim_file.read_text(encoding="utf-8"))
 
+    @mock.patch("agent_workflows.engine.is_interactive_session", return_value=True)
+    @mock.patch("builtins.input")
+    def test_invalid_input_reasks_then_overwrites(self, mock_input, _mock_interactive):
+        # Garbage input must NOT be coerced to 'no'; it re-asks, then 'y' overwrites.
+        mock_input.side_effect = ["wat", "y"]
+        target = Path(self._tmp.name) / "plain_invalid"
+        target.mkdir()
+        run_installer(target)
+        shim_file = target / ".opencode/commands/assess.md"
+        shim_file.write_text(
+            "Read and execute @.agents/workflows/assess.md\nCustomized lines here\n",
+            encoding="utf-8",
+        )
+        import io
+        from contextlib import redirect_stdout
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            INS.main(["--repo", str(target)])
+        # The invalid token printed the legend / re-ask, and 'y' overwrote (no longer customized).
+        self.assertIn("Unrecognized input", buf.getvalue())
+        self.assertNotIn("Customized lines here", shim_file.read_text(encoding="utf-8"))
+
     def test_native_agent_files_mirroring(self):
         # 1. By default, absent CLAUDE.md/GEMINI.md are NOT created.
         proc = run_installer(self.repo)
@@ -823,6 +846,103 @@ class NoticeStyleTests(unittest.TestCase):
         # D85 P-4: NOTICE ships in the wheel and must obey the repo's no-dash rule.
         text = (REPO_ROOT / "NOTICE").read_text(encoding="utf-8")
         self.assertEqual(text.count("\u2014") + text.count("\u2013"), 0)
+
+
+class PromptChoiceTests(unittest.TestCase):
+    """Direct unit tests for the shared prompt_choice helper (IPD 20260722-0040-01)."""
+
+    LEGEND = ["  Y = yes", "  N = no", "  help = show help"]
+    ACCEPT = {
+        "y": "yes",
+        "yes": "yes",
+        "n": "no",
+        "no": "no",
+        "d": "diff",
+        "diff": "diff",
+    }
+
+    def _choice(self, answers, **kw):
+        it = iter(answers)
+        printed = []
+        kw.setdefault("default", "no")
+        kw.setdefault("accept", self.ACCEPT)
+        return (
+            INS.prompt_choice(
+                "q? ",
+                self.LEGEND,
+                input_fn=lambda _p: next(it),
+                print_fn=lambda *a: printed.append(" ".join(str(x) for x in a)),
+                **kw,
+            ),
+            printed,
+        )
+
+    def test_yes_and_aliases(self):
+        self.assertEqual(self._choice(["y"])[0], "yes")
+        self.assertEqual(self._choice(["yes"])[0], "yes")
+
+    def test_no_and_blank_default(self):
+        self.assertEqual(self._choice(["n"])[0], "no")
+        self.assertEqual(self._choice([""])[0], "no")
+
+    def test_invalid_then_valid_reasks_and_shows_legend(self):
+        choice, printed = self._choice(["nonsense", "y"])
+        self.assertEqual(choice, "yes")
+        self.assertTrue(any("Unrecognized input" in p for p in printed))
+        self.assertTrue(any("show help" in p for p in printed))
+
+    def test_help_shows_legend_then_reasks(self):
+        choice, printed = self._choice(["help", "n"])
+        self.assertEqual(choice, "no")
+        self.assertTrue(any("show help" in p for p in printed))
+        # '?' and 'h' are help aliases too.
+        self.assertEqual(self._choice(["?", "n"])[0], "no")
+        self.assertEqual(self._choice(["h", "y"])[0], "yes")
+
+    def test_diff_invokes_callback_then_reasks(self):
+        fired = []
+        it = iter(["d", "y"])
+        choice = INS.prompt_choice(
+            "q? ",
+            self.LEGEND,
+            default="no",
+            accept=self.ACCEPT,
+            on_diff=lambda: fired.append(1),
+            input_fn=lambda _p: next(it),
+            print_fn=lambda *a: None,
+        )
+        self.assertEqual(choice, "yes")
+        self.assertEqual(len(fired), 1)
+
+    def test_eof_returns_default_no_loop(self):
+        def raise_eof(_p):
+            raise EOFError
+
+        self.assertEqual(
+            INS.prompt_choice(
+                "q? ",
+                self.LEGEND,
+                default="no",
+                accept=self.ACCEPT,
+                input_fn=raise_eof,
+                print_fn=lambda *a: None,
+            ),
+            "no",
+        )
+
+    def test_keyboard_interrupt_propagates(self):
+        def raise_kbi(_p):
+            raise KeyboardInterrupt
+
+        with self.assertRaises(KeyboardInterrupt):
+            INS.prompt_choice(
+                "q? ",
+                self.LEGEND,
+                default="no",
+                accept=self.ACCEPT,
+                input_fn=raise_kbi,
+                print_fn=lambda *a: None,
+            )
 
 
 if __name__ == "__main__":
