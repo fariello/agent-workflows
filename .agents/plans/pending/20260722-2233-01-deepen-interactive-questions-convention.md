@@ -8,6 +8,7 @@
 
 ## Workflow history
 
+- 2026-07-22 wording locked (human): the maintainer supplied the EXACT P12 body text to use verbatim (embedded above under "EXACT P12 body to write"), seated under the existing `## 12. Ask self-contained questions` heading (drop the block's own `## Interactive questions` title). It carries the do-not-repeat-options rule and the options-vs-context distinction, so it also resolves I5/PR-001 in the maintainer's own words. Curly apostrophes are preserved (allowed; no em/en dashes present). Execution MUST write this text verbatim.
 - 2026-07-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; I1-I5 (I5 added). Verified P12 (`GUIDING_PRINCIPLES.md:107-114`) and both plan-review variants' six-part set with "Options" + the "present INSIDE the prompt" line. I5 (MEDIUM, FIXED): the do-not-repeat-options rule collided with P12's own "answer options ... INSIDE the prompt" wording and Step 3.2's "Options" item, readable as contradictory; fixed by clarifying at the source (Step 1: "answer options = the tool's rendered choices") and stating Step 3 as a concrete rule (the Options item is satisfied by the tool's choices, not narrated in context). OQ1 resolved from the lean-AGENTS.md convention (one-line pointer); OQ2 resolved from P8 (pre-flight lives in P12). No open questions remain. Readiness: GO - PENDING HUMAN APPROVAL.
 - 2026-07-22 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored from a maintainer instruction that deepens the P12/D100 self-contained-questions convention with concrete composition guidance (what facts to include vs omit, keep it screen-sized, do NOT repeat the tool's options in the context, and a pre-flight checklist). Same principle as D100; this adds the practical "how".
 
@@ -38,10 +39,36 @@ Why it matters: D100 fixed WHERE the question set lives (inside the prompt). But
 
 | Step | Source | Change | Files | Remediation Risk | Validation |
 |------|--------|--------|-------|------------------|------------|
-| 1 | I1,I2,I3,I4 | Expand GUIDING_PRINCIPLES P12 with the composition guidance (keeping the existing "whole question set lives in the prompt" core). RESOLVE THE OPTIONS AMBIGUITY AT THE SOURCE (plan-review PR-001): P12's phrase "the answer options" MUST be clarified to mean "the answer options, rendered as the interactive tool's selectable CHOICES" - the composed context is the situation, the tool's choices are the answers, and the two do not overlap. Then add, in the maintainer's terms: INCLUDE the relevant facts, what changed/was discovered (if applicable), the general reason a decision is needed, any essential constraint/dependency/consequence/tradeoff, and a recommendation with its main factual basis when you have one. OMIT chronology, investigation details, quotations, filenames, and exhaustive evidence unless important to the decision; prefer a compact synthesis in plain English. DO NOT repeat, preview, or separately summarize the options the tool will display - the context explains the situation, the tool's choices present the answers. Keep it SCREEN-SIZED; if too long, cut to the minimum facts; if extra detail is imperative, put it in chat as a LAST RESORT and say so in the prompt. Add a PRE-FLIGHT self-check: can the user answer without reopening other material? is every fact necessary? is the reason clear? have I avoided repeating the options? | `GUIDING_PRINCIPLES.md` (P12) | Low | P12 clarifies "answer options = the tool's rendered choices", covers include/omit, do-not-repeat-options, screen-length + last-resort-chat, and the 4-point pre-flight; the existing core is preserved; no em/en dashes |
+| 1 | I1,I2,I3,I4,I5 | Replace the BODY of GUIDING_PRINCIPLES P12 with the maintainer's EXACT text (below), keeping the existing numbered-principle heading `## 12. Ask self-contained questions` (drop the block's own `## Interactive questions` title line; the file uses `## N. Title` for every principle). The maintainer text is authoritative and must be written VERBATIM - do not paraphrase, reorder, or "improve" it. It already carries the do-not-repeat-options rule and the options-vs-context distinction ("The context should explain the situation; the tool options should present the possible answers"), which resolves the I5/PR-001 ambiguity without a separate edit. Preserve the maintainer's punctuation, including the curly apostrophes in "tool's choices"/"tool's main text" (apostrophes are allowed; only em/en dashes are forbidden, and the text has none). EXACT BODY: | `GUIDING_PRINCIPLES.md` (P12) | Low | P12 body equals the maintainer text verbatim under the `## 12. Ask self-contained questions` heading; do-not-repeat-options + options-vs-context present; no em/en dashes |
 | 2 | I1,I2 | Update the AGENTS.md installer TEMPLATE (`agents_pointer_block()` in `engine.py`) "Ask self-contained questions" section to add a one-line deepening pointer (compact synthesis; do NOT repeat the tool's options; keep it screen-sized; see P12), then REGENERATE `AGENTS.md` to match the template verbatim. Keep it short (AGENTS.md does not inline bodies) - the full guidance lives in P12. | `agent_workflows/engine.py`, `AGENTS.md` | Low | template + regenerated AGENTS.md carry the short deepening pointer; AGENTS.md matches the template verbatim (no drift); nothing inlined |
 | 3 | I2 | Reconcile `plan-review` Step 3.2 (and its parity sibling `plan-review-long/03`) with the clarified P12 (PR-001), stated as a concrete rule, not a vague "add a sentence": the six-part set (Decision needed / Context / Why it matters / Options / Trade-offs / Recommendation) names what the agent must CONVEY, but the "Options" item is satisfied by the interactive tool's rendered CHOICES - the agent supplies them AS the tool's answer options and does NOT also narrate/restate them in the composed context prose. Add exactly that clarifying sentence to both variants (they currently say "present this whole six-part question set INSIDE the interactive prompt", which alone could be read as putting the options in the prose) and cross-reference P12; do not remove the six-part content requirement. The other three references (advise/spec/getting-started) already point at P12 and inherit the deepening (P8); no change. | `.agents/workflows/plan-review/plan-review.md`, `.agents/workflows/plan-review-long/03-resolve-and-finalize.md` | Low | both plan-review variants state the Options item = the tool's rendered choices (not duplicated in context prose); cross-reference P12; six-part requirement preserved; no divergent restatement |
 | 4 | I1 | Docs/decision sync: a DECISIONS entry (pin at execution) recording the P12 deepening (compose compactly; include/omit lists; do-not-repeat-options; screen-length; pre-flight), noting it extends D100; CHANGELOG 1.3.0. | `DECISIONS.md`, `CHANGELOG.md` | Low | entries present; extends D100; no em/en dashes |
+
+### EXACT P12 body to write (maintainer-authoritative; verbatim, under the `## 12. Ask self-contained questions` heading)
+
+When user input is needed, ALWAYS prefer the interactive question tool if available.
+
+Within the question interface, provide clear, concise, self-contained context so the user can answer without rereading earlier messages or opening referenced files.
+
+Include things like:
+
+- The relevant facts.
+- What changed or was discovered, if applicable.
+- The general reason a decision or clarification is needed.
+- Any constraint, dependency, consequence, or tradeoff essential to the answer.
+- Your recommendation and its main factual basis, when you have one.
+
+Use your judgement. Use plain English. Prefer a compact synthesis. Do not include chronology, investigation details, quotations, filenames, or exhaustive evidence unless important to decision making.
+
+Do not repeat, preview, or separately summarize the choices that the interactive tool will display. The context should explain the situation; the tool options should present the possible answers.
+
+Keep the context short enough to fit comfortably on a terminal screen. If it is too long, reduce it to the minimum facts needed to make an informed choice. If additional detail is imperative, provide it in the chat (last resort) and say so clearly in the question tool's main text.
+
+Before asking, silently confirm:
+- Can the user answer without reopening other material?
+- Is every included fact necessary?
+- Is the reason for asking clear?
+- Have I avoided repeating the tool's choices?
 
 ## Deferred / out of scope (with reason)
 
