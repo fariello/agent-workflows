@@ -1,6 +1,7 @@
 # AGENTS
 
-<!-- AGENT-WORKFLOWS:BEGIN -->
+<!-- aw:block -->
+<!-- aw:pointer -->
 ## Agent workflows
 
 This repository includes reusable agent workflows under `.agents/workflows/`. They are invoked on demand and are NOT always-loaded context. See `.agents/workflows/index.md` for the list and how to run each (native `/commands` in OpenCode/Claude Code, or "read and execute <body path>" in any other agent).
@@ -32,7 +33,7 @@ A deterministic leak-sanitizer ships with this toolkit. Before you hand-judge wh
 
 ### Ask self-contained questions
 When you ask a human a decision through an interactive prompt, put the ENTIRE question set (the plain-language context needed to decide, the question, and the answer options) INSIDE the prompt itself, so a human answering from the prompt can decide from the prompt alone; never strand the required context in surrounding chat. Extra prose may precede a prompt, but for only ONE question at a time and only as a supplement (see GUIDING_PRINCIPLES P12).
-<!-- AGENT-WORKFLOWS:END -->
+<!-- /aw:block -->
 
 <!-- AGENT-PLANS:BEGIN -->
 ## Agent plans

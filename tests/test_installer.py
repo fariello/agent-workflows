@@ -1051,6 +1051,99 @@ class AwBlockParserWriterTests(unittest.TestCase):
         self.assertEqual(parsed.after, "AFTER")
 
 
+class AwBlockMigrationTests(unittest.TestCase):
+    """CP3: legacy convert-not-append + sibling-block safety + reinstall idempotence (IPD 02)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+        self.source = REPO_ROOT / ".agents" / "workflows"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    LEGACY_BEGIN = "<!-- AGENT-WORKFLOWS:BEGIN -->"
+    LEGACY_END = "<!-- AGENT-WORKFLOWS:END -->"
+
+    def test_legacy_block_converts_not_appends(self):
+        # A repo carrying the OLD monolithic block must be CONVERTED in place: no duplicate, no
+        # legacy markers re-emitted, human-visible prose preserved.
+        repo = init_repo(self.base / "legacy")
+        legacy = repo / "AGENTS.md"
+        legacy.write_text(
+            "# AGENTS\n\nUser preamble\n\n"
+            + INS.agents_pointer_block()
+            + "\nUser epilogue\n",
+            encoding="utf-8",
+        )
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        txt = legacy.read_text(encoding="utf-8")
+        self.assertEqual(
+            txt.count("<!-- aw:block -->"), 1, "exactly one sectioned block"
+        )
+        self.assertNotIn(
+            self.LEGACY_BEGIN, txt, "legacy markers must not be re-emitted"
+        )
+        self.assertNotIn(self.LEGACY_END, txt)
+        self.assertIn("User preamble", txt)
+        self.assertIn("User epilogue", txt)
+        self.assertIn("## Agent workflows", txt)
+
+    def test_legacy_native_mirror_converts(self):
+        repo = init_repo(self.base / "legacy-native")
+        (repo / "CLAUDE.md").write_text(
+            "User C\n\n" + INS.agents_pointer_block() + "\n", encoding="utf-8"
+        )
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        c = (repo / "CLAUDE.md").read_text(encoding="utf-8")
+        self.assertEqual(c.count("<!-- aw:block -->"), 1)
+        self.assertNotIn(self.LEGACY_BEGIN, c)
+        self.assertIn("User C", c)
+
+    def test_sibling_named_block_untouched_through_install(self):
+        # M9: a foreign AGENT-PLANS:BEGIN/END block must be byte-identical after install/convert.
+        repo = init_repo(self.base / "sibling")
+        sibling = "<!-- AGENT-PLANS:BEGIN -->\n## Agent plans\npolicy text here\n<!-- AGENT-PLANS:END -->\n"
+        (repo / "AGENTS.md").write_text(
+            "# AGENTS\n\n" + sibling + "\n" + INS.agents_pointer_block() + "\n",
+            encoding="utf-8",
+        )
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        txt = (repo / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn(
+            sibling, txt, "foreign AGENT-PLANS block must be byte-identical (M9)"
+        )
+        self.assertEqual(txt.count("<!-- AGENT-PLANS:BEGIN -->"), 1)
+        self.assertEqual(txt.count("<!-- aw:block -->"), 1)
+
+    def test_reinstall_is_empty_diff_on_target_file(self):
+        repo = init_repo(self.base / "idem")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        first = (repo / "AGENTS.md").read_text(encoding="utf-8")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        second = (repo / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertEqual(
+            first, second, "reinstall must be an empty diff on the target file"
+        )
+
+    def test_declined_section_not_written(self):
+        from agent_workflows import manifest as M
+
+        repo = init_repo(self.base / "declined")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        mpath = repo / ".agents" / "agent-workflows" / "managed-sections.json"
+        man = M.load(mpath)
+        man.mark_declined("AGENTS.md#aw:pointer", kind="section")
+        M.save(man, mpath)
+        # Rewrite AGENTS.md without the block, then reinstall: the declined section stays out.
+        (repo / "AGENTS.md").write_text("# AGENTS\n\nuser only\n", encoding="utf-8")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        txt = (repo / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertNotIn(
+            "<!-- aw:pointer -->", txt, "declined section must not be written"
+        )
+
+
 class MonolithicBlockCharacterizationTests(unittest.TestCase):
     """CP0 characterization for IPD 20260723-1100-02 (sectioned managed-block rewrite).
 
