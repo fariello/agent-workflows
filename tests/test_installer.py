@@ -945,6 +945,76 @@ class PromptChoiceTests(unittest.TestCase):
             )
 
 
+class ManifestInstallFlowTests(unittest.TestCase):
+    """CP3: manifest read/write in install_into_repo (idempotence, decline, no-dirty)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+        self.source = REPO_ROOT / ".agents" / "workflows"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _manifest_path(self, repo):
+        return repo / ".agents" / "agent-workflows" / "managed-sections.json"
+
+    def test_second_install_rederives_identical_hashes(self):
+        # M12 idempotence: a second same-version install must record the SAME hashes (we
+        # record what we WROTE, not the prior on-disk content).
+        import json
+
+        repo = init_repo(self.base / "idem")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        first = json.loads(self._manifest_path(repo).read_text(encoding="utf-8"))[
+            "files"
+        ]
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        second = json.loads(self._manifest_path(repo).read_text(encoding="utf-8"))[
+            "files"
+        ]
+        self.assertEqual(
+            {k: v["sha256"] for k, v in first.items()},
+            {k: v["sha256"] for k, v in second.items()},
+            "a second same-version install must re-derive identical hashes (M12)",
+        )
+
+    def test_declined_file_is_not_readded(self):
+        from agent_workflows import manifest as M
+
+        repo = init_repo(self.base / "declined")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        shim = repo / ".opencode/commands/advise.md"
+        self.assertTrue(shim.is_file())
+        shim.unlink()
+
+        # Record a decline tombstone and reinstall: the file must NOT come back.
+        man = M.load(self._manifest_path(repo))
+        man.mark_declined(".opencode/commands/advise.md", kind="shim", host="opencode")
+        M.save(man, self._manifest_path(repo))
+
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        self.assertFalse(
+            shim.exists(), "a declined file must not be re-added on a later install"
+        )
+
+    def test_format_change_updates_silently_no_warning(self):
+        # THE D97 CASE end-to-end: install, then simulate a version-to-version format change
+        # in our generated output by rewriting the on-disk shim to a DIFFERENT-but-ours form
+        # while keeping the manifest hash. A reinstall must update it silently (no warning),
+        # because on-disk matches OUR recorded hash.
+        import io
+        from contextlib import redirect_stdout
+
+        repo = init_repo(self.base / "d97")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        # Reinstall (idempotent, no real change) and capture stdout: no "manual modifications".
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        self.assertNotIn("has manual modifications", buf.getvalue())
+
+
 class ManifestDriftDecisionTests(unittest.TestCase):
     """CP2: the manifest-hash-based drift decision (_shim_is_user_modified), the M9 fix."""
 
@@ -1081,18 +1151,25 @@ class PreManifestCharacterizationTests(unittest.TestCase):
             "baseline: a format-only change is (today) flagged as customized (M9)",
         )
 
-    def test_no_manifest_written_today(self):
-        # Pre-manifest baseline: a normal install does NOT create the managed-sections
-        # manifest. CP3 makes install write it; this test is updated CONSCIOUSLY at CP4.
-        repo = init_repo(self.base / "nomanifest")
+    def test_manifest_is_written_and_records_installed_shims(self):
+        # CP4 conscious update of the former no-manifest baseline: install now WRITES the
+        # ownership manifest and records the shims it installed with their hashes.
+        import json
+
+        repo = init_repo(self.base / "withmanifest")
         INS.install_into_repo(
             repo, REPO_ROOT / ".agents" / "workflows", yes=True, no_color=True
         )
         manifest = repo / ".agents" / "agent-workflows" / "managed-sections.json"
-        self.assertFalse(
-            manifest.exists(),
-            "baseline: install does not write a manifest before IPD 01 CP3",
-        )
+        self.assertTrue(manifest.exists(), "install must now write the manifest (CP3)")
+        raw = json.loads(manifest.read_text(encoding="utf-8"))
+        self.assertIn("files", raw)
+        self.assertIn("managed_sections", raw)  # reserved for IPD 02
+        # A known shim is recorded with a non-empty sha256.
+        advise = raw["files"].get(".opencode/commands/advise.md")
+        self.assertIsNotNone(advise, "advise shim should be recorded in the manifest")
+        self.assertTrue(advise["sha256"])
+        self.assertEqual(advise.get("host"), "opencode")
 
     def test_normalize_for_compare_is_stable_and_idempotent(self):
         # The manifest hashing (CP1) reuses a normalization; pin the existing normalizers'

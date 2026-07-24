@@ -936,6 +936,14 @@ def write_file(
     """
 
     destination = plan.repo_root / relative_posix
+
+    # Honor a decline tombstone (IPD 20260723-1100-01): a file the user previously declined
+    # is not re-added on future installs. The interactive per-directive consent prompt that
+    # SETS a decline is a later IPD; this is the persisted decision being respected here.
+    if plan.manifest is not None and plan.manifest.is_declined(relative_posix):
+        skipped.append(relative_posix + " [declined]")
+        return
+
     content_current = False
     if destination.exists():
         if destination.is_dir():
@@ -3153,6 +3161,14 @@ def install_into_repo(
         yes=yes,
         no_color=no_color,
     )
+    # Load the ownership manifest (IPD 20260723-1100-01) and attach it to the plan so the
+    # write/prune paths make the drift decision against OUR last-installed hash. A missing
+    # manifest is treated as a fresh install. Location is path-parameterized (default
+    # .agents/agent-workflows/managed-sections.json); the module itself is git-independent.
+    manifest_path = plan.repo_root / manifest_mod.DEFAULT_MANIFEST_RELPATH
+    manifest = manifest_mod.load(manifest_path)
+    object.__setattr__(plan, "manifest", manifest)
+
     use_git = git_available(plan.repo_root)
     workflows = parse_manifest(plan.source_root)
     body_members = collect_source_members(plan.source_root)
@@ -3183,6 +3199,35 @@ def install_into_repo(
     # ONLY the create_setup_artifacts set here (no double-record). The suffix-strip is a no-op on the
     # real-branch bare paths and defensive against any ` [dry-run]` entry.
     newly_created.extend(item.rsplit(" [", 1)[0] for item in artifacts)
+
+    # Persist the ownership manifest (IPD 20260723-1100-01): the write/prune paths recorded
+    # the hash of what they JUST WROTE (M12) into plan.manifest; stamp the installed version
+    # and write atomically. Skipped on a dry run (nothing was written, so recording would be
+    # a lie). Non-fatal on failure: the manifest is an optimization for the NEXT install's
+    # drift decision, not required for this install to have succeeded. Done BEFORE the
+    # created-files record so a newly-created manifest is captured for `--undo` too.
+    if not dry_run:
+        manifest.installed_version = read_installed_version(repo_root) or ""
+        manifest_rel = manifest_path.relative_to(plan.repo_root).as_posix()
+        manifest_existed = manifest_path.exists()
+        try:
+            manifest_mod.save(manifest, manifest_path)
+            if use_git:
+                _stage_installed_file(plan.repo_root, manifest_rel)
+            # Add the manifest to the installed set so the commit step includes it and the
+            # repo is not left with a staged-but-uncommitted manifest (D85 no-silent-dirty).
+            installed.append(
+                f"{manifest_rel} [{'overwrite' if manifest_existed else 'install'}]"
+            )
+            if not manifest_existed:
+                newly_created.append(manifest_rel)
+        except OSError as exc:
+            print(
+                f"Warning: could not write install manifest {manifest_path} ({exc}); "
+                "the next install will re-adopt existing files structurally.",
+                file=sys.stderr,
+            )
+
     save_created_files_record(plan.repo_root, timestamp, newly_created)
     prune_old_backups(plan.repo_root)
 
