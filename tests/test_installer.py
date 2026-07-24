@@ -945,6 +945,103 @@ class PromptChoiceTests(unittest.TestCase):
             )
 
 
+class ManifestDriftDecisionTests(unittest.TestCase):
+    """CP2: the manifest-hash-based drift decision (_shim_is_user_modified), the M9 fix."""
+
+    from agent_workflows import manifest as _M
+
+    def _plan(self, manifest=None):
+        return INS.InstallPlan(
+            source_root=Path("/src"),
+            repo_root=Path("/repo"),
+            dry_run=False,
+            backup=True,
+            prune=True,
+            no_color=True,
+            yes=False,
+            manifest=manifest,
+        )
+
+    def test_format_only_change_matching_our_hash_is_not_modified(self):
+        # THE M9 REGRESSION: on-disk is what we last wrote; the new expected content differs
+        # only by a format change (added argument-hint). Because the manifest records OUR
+        # hash, this is NOT a user modification -> silent update, no warning.
+        on_disk = (
+            "---\ndescription: advise\nagent: build\n---\nRead and execute @advise\n"
+        )
+        new_expected = (
+            "---\ndescription: advise\nagent: build\nargument-hint: [x]\n---\n"
+            "Read and execute @advise\n"
+        )
+        man = self._M.Manifest()
+        man.record(
+            ".opencode/commands/advise.md", on_disk, kind="shim", host="opencode"
+        )
+        plan = self._plan(man)
+        self.assertFalse(
+            INS._shim_is_user_modified(
+                plan, ".opencode/commands/advise.md", on_disk, new_expected
+            ),
+            "a format-only change matching our recorded hash must NOT be flagged (M9 fix)",
+        )
+
+    def test_user_edit_differing_from_our_hash_is_modified(self):
+        our_output = "---\nagent: build\n---\nRead and execute @advise\n"
+        user_edited = our_output + "MY OWN CUSTOM NOTE\n"
+        man = self._M.Manifest()
+        man.record(".opencode/commands/advise.md", our_output, kind="shim")
+        plan = self._plan(man)
+        new_expected = (
+            our_output  # even if expected == our record, the on-disk edit wins
+        )
+        self.assertTrue(
+            INS._shim_is_user_modified(
+                plan, ".opencode/commands/advise.md", user_edited, new_expected
+            ),
+            "content differing from our recorded hash IS a user modification",
+        )
+
+    def test_pre_manifest_structurally_valid_shim_is_adopted(self):
+        # No manifest entry: a structurally-valid generated shim (only installer-owned lines)
+        # is adopted, not false-flagged (M10 / OQ4).
+        structural = (
+            "---\ndescription: advise\nagent: build\n---\n"
+            "Read and execute @.agents/workflows/advise\n"
+        )
+        new_expected = structural + "extra generated line\n"
+        plan = self._plan(manifest=self._M.Manifest())  # empty: no record for this path
+        self.assertFalse(
+            INS._shim_is_user_modified(
+                plan, ".opencode/commands/advise.md", structural, new_expected
+            ),
+            "a pre-manifest structurally-valid shim must be adopted, not flagged",
+        )
+
+    def test_pre_manifest_foreign_content_is_modified(self):
+        foreign = "This is entirely my own file with no generated structure.\n"
+        plan = self._plan(manifest=self._M.Manifest())
+        self.assertTrue(
+            INS._shim_is_user_modified(
+                plan, ".opencode/commands/advise.md", foreign, "expected\n"
+            ),
+            "pre-manifest foreign content is treated as user-modified",
+        )
+
+    def test_no_manifest_attached_falls_back_to_structural(self):
+        # plan.manifest is None (non-manifest-aware caller): structural fallback.
+        plan = self._plan(manifest=None)
+        foreign = "totally custom\n"
+        self.assertTrue(
+            INS._shim_is_user_modified(plan, ".opencode/commands/x.md", foreign, "e\n")
+        )
+        structural = "Read and execute @.agents/workflows/x\n"
+        self.assertFalse(
+            INS._shim_is_user_modified(
+                plan, ".opencode/commands/x.md", structural, "e\n"
+            )
+        )
+
+
 class PreManifestCharacterizationTests(unittest.TestCase):
     """CP0 characterization tests for IPD 20260723-1100-01 (install manifest + hash drift).
 

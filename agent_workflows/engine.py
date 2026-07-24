@@ -66,12 +66,13 @@ import subprocess
 import sys
 import os
 import shlex
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, Optional
 
 from . import versioning as _VERSIONING
+from . import manifest as manifest_mod
 from ._compat import packaged_source_root
 from .term import Term
 import json
@@ -200,6 +201,13 @@ class InstallPlan:
     no_color: bool = False
     yes: bool = False
     diff: bool = False
+    # The install ownership manifest (IPD 20260723-1100-01). Loaded by install_into_repo
+    # and attached here so write_file / prune_stale can answer "did the USER change this?"
+    # by comparing on-disk content to OUR last-installed hash rather than to the newly
+    # generated expected content. None means "not manifest-aware" (fall back to the
+    # structural is_shim_customized_* checks). Excluded from equality/hash (frozen dataclass
+    # stays hashable); set via object.__setattr__ after construction.
+    manifest: Optional[manifest_mod.Manifest] = field(default=None, compare=False)
 
 
 def parse_args(argv=None) -> argparse.Namespace:
@@ -831,6 +839,77 @@ def prompt_choice(
         return choice
 
 
+def _manifest_kind_and_host(relative_posix: str) -> tuple[str, str]:
+    """Classify a managed file for the manifest record. host is the shim's agent tool where
+    applicable ('opencode'/'claude'), else empty."""
+
+    for shim_dir in COMMAND_SHIM_DIRS:
+        if relative_posix.startswith(shim_dir + "/") and relative_posix.endswith(".md"):
+            host = shim_dir.split("/", 1)[0].lstrip(
+                "."
+            )  # ".opencode/commands" -> "opencode"
+            return "shim", host
+    return "file", ""
+
+
+def _record_written(plan: InstallPlan, relative_posix: str, data: bytes) -> None:
+    """Record, in the attached manifest, the sha256 of the content the installer JUST WROTE
+    for this path (the M12 rule): the hash reflects OUR current output, so the NEXT upgrade
+    compares against a fresh, correct hash and never a stale one. No-op when no manifest is
+    attached (non-manifest-aware caller) or in a dry run (nothing was written)."""
+
+    manifest = plan.manifest
+    if manifest is None or plan.dry_run:
+        return
+    kind, host = _manifest_kind_and_host(relative_posix)
+    logical_id = ""
+    if kind == "shim":
+        logical_id = relative_posix.rsplit("/", 1)[-1][: -len(".md")]
+    manifest.record(
+        relative_posix,
+        data.decode("utf-8", errors="replace"),
+        kind=kind,
+        host=host,
+        logical_id=logical_id,
+    )
+
+
+def _shim_is_user_modified(
+    plan: InstallPlan, relative_posix: str, current_text: str, expected_text: str
+) -> bool:
+    """Decide whether an existing shim differs from OUR output because the USER edited it
+    (True -> warn/preserve) versus because our own generated format merely changed between
+    versions (False -> update silently). This is the M9 fix.
+
+    Manifest-aware path (IPD 20260723-1100-01): when a manifest is attached and has a
+    recorded last-installed hash for this file, compare the on-disk content to OUR recorded
+    hash, NOT to the newly generated expected content:
+    - on-disk matches our recorded hash -> OURS, unchanged by the user -> NOT modified,
+      even when the new expected content differs (the D97 argument-hint format change is
+      exactly this case: we wrote it, so we own it, so we update it silently).
+    - on-disk differs from our recorded hash -> the user changed it -> modified.
+
+    Pre-manifest / unknown-file fallback (M10, OQ4 structural adoption): with no recorded
+    hash we cannot know what we last wrote, so adopt an existing STRUCTURALLY-VALID
+    generated shim (only installer-owned lines; is_stale_shim_customized == False) without
+    warning, and treat genuinely foreign content as user-modified. This keeps a pre-manifest
+    repo from being false-flagged on its first manifest-aware install while still catching a
+    real hand-edit. Note: on a match against new-expected the caller never reaches here
+    (content_current short-circuits), so this fallback only runs when the file already
+    differs from new-expected.
+    """
+
+    manifest = plan.manifest
+    if manifest is not None and manifest.recorded_hash(relative_posix) is not None:
+        # We have a record of what we last wrote: trust the hash, not the new template.
+        return not manifest.matches_recorded(relative_posix, current_text)
+
+    # No record: structural adoption. A structurally-valid generated shim is OURS (adopt);
+    # anything else is treated as user content. is_stale_shim_customized(True) == genuinely
+    # customized/foreign.
+    return is_stale_shim_customized(current_text)
+
+
 def write_file(
     plan: InstallPlan,
     relative_posix: str,
@@ -870,6 +949,9 @@ def write_file(
         current_exec = _wants_executable(destination.stat().st_mode)
         mode_differs = current_exec != executable
         if not mode_differs:
+            # Already our current output: adopt into the manifest so a pre-manifest repo
+            # gets a recorded hash for it (idempotent; the hash equals what we would write).
+            _record_written(plan, relative_posix, data)
             skipped.append(relative_posix + " [already current]")
             return
 
@@ -885,7 +967,9 @@ def write_file(
             try:
                 current_text = destination.read_text(encoding="utf-8")
                 expected_text = data.decode("utf-8", errors="replace")
-                if is_shim_customized_vs_expected(current_text, expected_text):
+                if _shim_is_user_modified(
+                    plan, relative_posix, current_text, expected_text
+                ):
                     term = Term(color=False if plan.no_color else None)
                     print(
                         term.colorize(
@@ -943,6 +1027,7 @@ def write_file(
     _apply_executable_bit(destination, executable)
     if use_git:
         _stage_installed_file(plan.repo_root, relative_posix)
+    _record_written(plan, relative_posix, data)
     installed.append(f"{relative_posix} [{action}]")
 
 
@@ -1104,7 +1189,20 @@ def prune_stale(
         if is_shim and not rel.endswith("README.md"):
             try:
                 current_text = destination.read_text(encoding="utf-8")
-                if is_shim_customized(current_text):
+                # Manifest-aware (IPD 01): a stale shim that still matches OUR last-installed
+                # hash is unmodified-by-the-user and safe to prune silently. Only fall back to
+                # the structural is_shim_customized check when we have no record (M11: genuine
+                # user edits on a stale shim are still detected and preserved).
+                manifest = plan.manifest
+                if (
+                    manifest is not None
+                    and manifest.recorded_hash(rel) is not None
+                    and manifest.matches_recorded(rel, current_text)
+                ):
+                    stale_is_customized = False
+                else:
+                    stale_is_customized = is_shim_customized(current_text)
+                if stale_is_customized:
                     term = Term(color=False if plan.no_color else None)
                     print(
                         term.colorize(
