@@ -945,6 +945,64 @@ class PromptChoiceTests(unittest.TestCase):
             )
 
 
+class MonolithicBlockCharacterizationTests(unittest.TestCase):
+    """CP0 characterization for IPD 20260723-1100-02 (sectioned managed-block rewrite).
+
+    Pins the CURRENT monolithic-block behavior the sectioned rewrite will replace, plus the
+    M9 sibling-block invariant (a foreign NAME:BEGIN/END block must be left untouched). These
+    are updated CONSCIOUSLY at CP4 once the aw:block scheme lands; they are a baseline, not a
+    spec to preserve verbatim (the markers WILL change).
+    """
+
+    BEGIN = "<!-- AGENT-WORKFLOWS:BEGIN -->"
+    END = "<!-- AGENT-WORKFLOWS:END -->"
+
+    def test_pointer_block_is_wrapped_in_current_markers(self):
+        block = INS.agents_pointer_block()
+        self.assertTrue(block.lstrip().startswith(self.BEGIN))
+        self.assertIn(self.END, block)
+        # Human-visible anchors that must survive the migration (content, not markers).
+        self.assertIn("## Agent workflows", block)
+        self.assertIn("Inter-agent comms", block)
+
+    def test_merge_actions_new_existing_refreshed_malformed(self):
+        block = INS.agents_pointer_block()
+        # new: empty file with a default header.
+        new_text, action = INS.merge_pointer_block("", block, default_header="# AGENTS")
+        self.assertEqual(action, "new")
+        self.assertIn("# AGENTS", new_text)
+        # existing: user content, no markers -> append.
+        new_text, action = INS.merge_pointer_block("User stuff\n", block)
+        self.assertEqual(action, "existing")
+        self.assertIn("User stuff", new_text)
+        # refreshed: one well-formed pair -> in-place replace, idempotent count == 1.
+        once, action = INS.merge_pointer_block("User stuff\n" + block, block)
+        self.assertEqual(action, "refreshed")
+        self.assertEqual(once.count(self.BEGIN), 1)
+        # malformed: a lone BEGIN -> safe append (count becomes 2), never destructive.
+        mal, action = INS.merge_pointer_block("Prose\n" + self.BEGIN + "\n", block)
+        self.assertEqual(action, "malformed")
+        self.assertEqual(mal.count(self.BEGIN), 2)
+        self.assertIn("Prose\n" + self.BEGIN, mal)
+
+    def test_sibling_named_block_is_untouched_by_merge(self):
+        # M9: a foreign NAME:BEGIN/END block (e.g. AGENT-PLANS) coexisting in the file must be
+        # left byte-identical when the agent-workflows pointer is merged/refreshed.
+        block = INS.agents_pointer_block()
+        sibling = (
+            "<!-- AGENT-PLANS:BEGIN -->\n"
+            "## Agent plans\nsome plan policy text\n"
+            "<!-- AGENT-PLANS:END -->\n"
+        )
+        existing = "# AGENTS\n\n" + sibling + "\n" + block
+        refreshed, action = INS.merge_pointer_block(existing, block)
+        self.assertEqual(action, "refreshed")
+        self.assertIn(
+            sibling, refreshed, "sibling AGENT-PLANS block must be untouched (M9)"
+        )
+        self.assertEqual(refreshed.count("<!-- AGENT-PLANS:BEGIN -->"), 1)
+
+
 class ManifestInstallFlowTests(unittest.TestCase):
     """CP3: manifest read/write in install_into_repo (idempotence, decline, no-dirty)."""
 
