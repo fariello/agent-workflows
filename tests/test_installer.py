@@ -945,5 +945,77 @@ class PromptChoiceTests(unittest.TestCase):
             )
 
 
+class PreManifestCharacterizationTests(unittest.TestCase):
+    """CP0 characterization tests for IPD 20260723-1100-01 (install manifest + hash drift).
+
+    These pin the CURRENT, pre-manifest behavior of the code the manifest change will
+    touch, so the refactor cannot silently alter it. They are deliberately written to
+    describe today's behavior (including the M9 bug), and CP4 updates them CONSCIOUSLY
+    once the manifest lands. Do not "fix" these in isolation; they are a baseline.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_m9_format_only_change_is_flagged_customized_today(self):
+        # M9 (the live bug): is_shim_customized_vs_expected compares on-disk content to the
+        # NEW expected content, so a mere version-to-version FORMAT change in our OWN
+        # generated output is (wrongly) reported as a user modification. This is the exact
+        # behavior the manifest hash-drift model will fix (own-hash match => not drift).
+        old_generated = (
+            "---\ndescription: advise\nagent: build\n---\n"
+            "Read and execute @.agents/workflows/advise\n"
+        )
+        new_generated_same_intent = (
+            "---\ndescription: advise\nagent: build\nargument-hint: [concern]\n---\n"
+            "Read and execute @.agents/workflows/advise\n"
+        )
+        # Today: TRUE (false-positive "customized"). CP2 replaces this comparison with a
+        # hash check against what we last WROTE, so an installer-authored format change
+        # no longer trips the warning.
+        self.assertTrue(
+            INS.is_shim_customized_vs_expected(
+                old_generated, new_generated_same_intent
+            ),
+            "baseline: a format-only change is (today) flagged as customized (M9)",
+        )
+
+    def test_no_manifest_written_today(self):
+        # Pre-manifest baseline: a normal install does NOT create the managed-sections
+        # manifest. CP3 makes install write it; this test is updated CONSCIOUSLY at CP4.
+        repo = init_repo(self.base / "nomanifest")
+        INS.install_into_repo(
+            repo, REPO_ROOT / ".agents" / "workflows", yes=True, no_color=True
+        )
+        manifest = repo / ".agents" / "agent-workflows" / "managed-sections.json"
+        self.assertFalse(
+            manifest.exists(),
+            "baseline: install does not write a manifest before IPD 01 CP3",
+        )
+
+    def test_normalize_for_compare_is_stable_and_idempotent(self):
+        # The manifest hashing (CP1) reuses a normalization; pin the existing normalizers'
+        # invariants so a shared helper cannot regress them.
+        raw = "  a  \r\n\r\n  b \n\n"
+        once = INS.normalize_text_for_compare(raw)
+        self.assertEqual(once, "a\nb")
+        self.assertEqual(
+            INS.normalize_text_for_compare(once), once, "normalization is idempotent"
+        )
+        # description-stripping normalization drops the description line and is idempotent.
+        withdesc = "---\ndescription: x\nagent: build\n---\nbody"
+        stripped = INS.strip_description_and_normalize(withdesc)
+        self.assertNotIn("description:", stripped)
+        self.assertEqual(
+            INS.strip_description_and_normalize(stripped),
+            stripped,
+            "description-stripping normalization is idempotent",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
