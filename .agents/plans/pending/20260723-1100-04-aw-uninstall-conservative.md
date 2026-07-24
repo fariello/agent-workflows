@@ -5,7 +5,7 @@
 - Scope (intended): an `aw uninstall` that removes what the installer owns (per the manifest), strips only managed blocks from shared files, preserves user/workflow content by default, and offers a clearly-warned deeper `.agents/` cleanup. Details TBD.
 - Status: draft
 - Set: install-safety-and-ownership
-- Order: 3
+- Order: 4
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 > DRAFT STUB - PRELIMINARY. Captures INTENT and OBJECTIVES only. NOT ready for /plan-review or
@@ -14,7 +14,7 @@
 
 ## Workflow history
 
-- 2026-07-23 created as a draft stub (opencode its_direct/pt3-claude-opus-4.8-1m-us): the maintainer's original "Item 3", now scoped to build on the install-manifest/ownership model (IPD A). Preliminary; to be fleshed out after A.
+- 2026-07-23 created as a draft stub (opencode its_direct/pt3-claude-opus-4.8-1m-us): the maintainer's original "Item 3", now scoped to build on the install-manifest/ownership model (IPD 01 manifest + IPD 02 managed-sections). Preliminary; to be fleshed out after 01/02.
 
 ## Intent and objectives
 
@@ -22,7 +22,7 @@ Today `aw uninstall` (`_run_uninstall` / `uninstall_repo`, engine) removes only 
 
 Behavior intended (per the write-safety research, `.agents/docs/research/20260722-2241-...`):
 
-- Remove only files whose current hash still matches the last-installed hash in the manifest (IPD A). A user-modified generated file is REPORTED and left, not deleted.
+- Remove only files whose current hash still matches the last-installed hash in the manifest (IPD 01). A user-modified generated file is REPORTED and left, not deleted.
 - Strip only the agent-workflows-managed BLOCKS/sections from shared files (AGENTS.md, CLAUDE.md, GEMINI.md); delete the containing file only if it becomes empty AND the manifest proves the installer created it.
 - PRESERVE by default: `.agents/plans/`, `.agents/docs/`, `.agents/comms/`, `workflow-artifacts/`, and anything not in the manifest. Never `rm -rf` a host directory (`.opencode/`, `.claude/`, `.github/`, `.agents/`, etc.).
 - OFFER a deeper `.agents/` cleanup as an explicit, warned, interactive choice (the maintainer's original ask): options along the lines of "remove only agent-workflows-created files/dirs" vs "remove more", with a show-and-confirm and a loud warning that this may permanently delete files.
@@ -32,7 +32,7 @@ Behavior intended (per the write-safety research, `.agents/docs/research/2026072
 
 ## Objectives / must-haves (intent, not implementation)
 
-- Manifest-driven: uninstall consults IPD A's manifest for ownership + hashes; no hard-coded namespace list as the source of truth.
+- Manifest-driven: uninstall consults the IPD 01 manifest for ownership + hashes; no hard-coded namespace list as the source of truth.
 - Never destroys user-authored content or workflow outputs by default; drift is reported, not clobbered.
 - The deeper-cleanup prompt is self-contained (P12), warned, show-and-confirm, with a non-agent-workflows file count.
 - Recognizes and removes the legacy format; does not keep it.
@@ -48,7 +48,7 @@ Behavior intended (per the write-safety research, `.agents/docs/research/2026072
 
 ## Dependencies
 
-- REQUIRES the install manifest + ownership/managed-sections model (IPD A). Should be authored/fleshed out after A is settled, since it is A's primary consumer. Also intersects the untracked-convention IPD (counting/handling untracked files).
+- REQUIRES the install manifest (IPD 01) + managed-sections model (IPD 02). Should be authored/fleshed out after 01/02 are settled, since it is their primary consumer. Also intersects the untracked-convention IPD (counting/handling untracked files).
 
 ## Approval and execution gate
 

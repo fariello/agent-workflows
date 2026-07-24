@@ -5,7 +5,7 @@
 - Scope (intended): a gitignore convention (`*.untracked.*` files and `*untracked*/` directories) the installer adds with an explanatory comment, plus an install-time warning about what gets tracked. Details TBD.
 - Status: draft
 - Set: install-safety-and-ownership
-- Order: 2
+- Order: 3
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 > DRAFT STUB - PRELIMINARY. This IPD captures INTENT and OBJECTIVES only. It is NOT ready for
@@ -27,7 +27,7 @@ The maintainer has repeatedly hit a failure mode: sensitive IPDs/notes that shou
 ## Objectives / must-haves (intent, not implementation)
 
 - A naming convention that is obvious and needs no lookup: seeing `foo.untracked.md` or `scratch-untracked/` should tell any agent "this is not tracked."
-- The gitignore entries are added in an identifiable, agent-workflows-managed, removable way (consistent with the managed-sections/ownership model, IPD A).
+- The gitignore entries are added in an identifiable, agent-workflows-managed, removable way (consistent with the managed-sections mechanism (IPD 02) on the manifest (IPD 01)).
 - Agent guidance explicitly authorizes and explains the convention so agents use it for sensitive/provisional content instead of committing it.
 - An honest, plain-language install-time warning about default tracking of IPDs/prompts/research, with the safety valves named.
 
@@ -35,14 +35,14 @@ The maintainer has repeatedly hit a failure mode: sensitive IPDs/notes that shou
 
 - The already-tracked-file CAVEAT: a `.gitignore` pattern only stops FUTURE tracking; a file already committed stays tracked even if renamed to match, absent `git rm --cached`. How (and whether) to detect/warn about that.
 - Exact patterns and case sensitivity (`*.untracked.*`, `*untracked*/`, upper/lower, nested).
-- Whether the warning is interactive (consent to proceed) or informational, and how it fits the per-directive consent model (IPD A / interactive-questions rule P12).
+- Whether the warning is interactive (consent to proceed) or informational, and how it fits the per-directive consent model (IPD 02 sections + the manifest IPD 01; interactive-questions rule P12).
 - Interaction with the existing comms `local/` (gitignored) and prompts `local/` lanes - is this convention additive, or should those be unified/cross-referenced?
-- Where the agent-facing explanation of the convention lives (AGENTS.md managed section? a directive file? both?) and how it is delivered token-efficiently (ties to IPD A markers/manifest).
+- Where the agent-facing explanation of the convention lives (AGENTS.md managed section? a directive file? both?) and how it is delivered token-efficiently (ties to IPD 02 markers on the IPD 01 manifest).
 - Whether a leak-sanitizer or install check should flag sensitive-looking tracked files.
 
 ## Dependencies
 
-- Best built ON the managed-sections/ownership model (IPD A) so the gitignore additions are identifiable/removable and any AGENTS.md guidance is a consented section. Could ship a minimal version independently, but coordinate to avoid two gitignore-management paths.
+- Best built ON the managed-sections mechanism (IPD 02) and the manifest (IPD 01) so the gitignore additions are identifiable/removable and any AGENTS.md guidance is a consented section. Could ship a minimal version independently, but coordinate to avoid two gitignore-management paths.
 
 ## Reference implementation (maintainer-provided; adopt as the proposed content)
 

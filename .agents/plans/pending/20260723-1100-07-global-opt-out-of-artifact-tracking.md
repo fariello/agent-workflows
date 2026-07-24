@@ -5,7 +5,7 @@
 - Scope (intended): an install-time / config option to make some or all artifact classes untracked, and the workflow/instruction changes needed so the lifecycle still functions. Large, lifecycle-wide. Details TBD.
 - Status: draft
 - Set: install-safety-and-ownership
-- Order: 6
+- Order: 7
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 > DRAFT STUB - PRELIMINARY. Captures INTENT and OBJECTIVES only. NOT ready for /plan-review or

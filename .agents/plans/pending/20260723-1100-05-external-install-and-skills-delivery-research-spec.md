@@ -5,7 +5,7 @@
 - Scope (intended): decide, from evidence, how much of agent-workflows can live OUTSIDE a given repo (e.g. the pip-packaged data, a home-dir location, or host-native `.agents/skills/`) and still be discovered/followed by each host; then spec the delivery model. Starts as research/spec, not a build. Details TBD.
 - Status: draft
 - Set: install-safety-and-ownership
-- Order: 4
+- Order: 5
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 > DRAFT STUB - PRELIMINARY. Captures INTENT and OBJECTIVES only. NOT ready for /plan-review or
@@ -33,7 +33,7 @@ The objective is to determine, per host, what can safely and reliably live outsi
 
 - Evidence-first: prove (or probe) per host whether out-of-repo / skills-based delivery is discovered AND followed, before building.
 - Do not reduce capability or reliability for hosts that need in-repo content; degrade to the current in-repo model where external delivery is unproven.
-- Coordinate with the ownership/manifest model (IPD A): whatever is installed where must still be identifiable, versioned, and removable.
+- Coordinate with the ownership/manifest model (IPD 01): whatever is installed where must still be identifiable, versioned, and removable.
 - Prefer host-native portable skills (`.agents/skills/`) where documented; keep a universal in-repo fallback.
 - Keep the token-economy goal in view (research 2317): out-of-repo bodies + short triggers, not inlined trees.
 
@@ -48,7 +48,7 @@ The objective is to determine, per host, what can safely and reliably live outsi
 
 ## Dependencies
 
-- Coordinates with the ownership/manifest model (IPD A) and the interactive-questions trigger pattern (IPD D). Independent enough to research in parallel, but any BUILD should follow A so external artifacts are still manifest-tracked. Sequenced after A/B in the believed order, but the research half can start anytime.
+- Coordinates with the ownership/manifest model (IPD 01) and the interactive-questions convention (IPD 06). Independent enough to research in parallel, but any BUILD should follow IPD 01 so external artifacts are still manifest-tracked. Sequenced after 01/02 in the settled order, but the research half can start anytime.
 
 ## Approval and execution gate
 

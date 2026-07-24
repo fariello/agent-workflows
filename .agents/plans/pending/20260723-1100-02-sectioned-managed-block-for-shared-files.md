@@ -5,7 +5,7 @@
 - Scope: replace the single `AGENT-WORKFLOWS:BEGIN/END` monolithic block with the decided sectioned marker scheme (`aw:block` wrapper + openers-only `aw:<slug>` sections, per-file comment syntax), including legacy-marker CONVERT-not-append migration and the native CLAUDE.md/GEMINI.md mirror path; wire per-section identity/consent/drift to the manifest from IPD 01. Product code + tests + docs. DEPENDS ON IPD 01 (the manifest + hash-drift model). Split from IPD 01 this session because it is a large, high-regression rewrite of shipped code with its real CONSUMERS being IPDs 02 (untracked directive) and 05 (interactive-questions AGENTS.md half).
 - Status: to-review
 - Set: install-safety-and-ownership
-- Order: 1.5
+- Order: 2
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -16,7 +16,7 @@
 
 Replace the single monolithic `AGENT-WORKFLOWS:BEGIN/END` block in shared instruction files with the decided sectioned marker scheme, so each agent-workflows directive is an INDIVIDUALLY identifiable, updatable, removable, and consent-able section, and per-section identity/consent/drift are tracked in the IPD-01 manifest by slug + normalized hash. Convert existing monolithic blocks (and the CLAUDE.md/GEMINI.md mirror) in place with no human-visible change and reinstall idempotence, recognizing but not re-emitting the legacy format.
 
-Why it matters: today the block is all-or-nothing (`agents_pointer_block`/`merge_pointer_block`/`update_agents_pointer`), so a user cannot accept some directives and decline others, and an upgrade re-stamps the whole block. The token-economy + per-directive-consent work (research 2317; IPDs 02, 05) needs per-section granularity. This IPD provides the sectioning MECHANISM those consumers require.
+Why it matters: today the block is all-or-nothing (`agents_pointer_block`/`merge_pointer_block`/`update_agents_pointer`), so a user cannot accept some directives and decline others, and an upgrade re-stamps the whole block. The token-economy + per-directive-consent work (research 2317; IPDs 03, 06) needs per-section granularity. This IPD provides the sectioning MECHANISM those consumers require.
 
 ## Marker scheme (decided with the maintainer, this session)
 
@@ -25,7 +25,7 @@ Why it matters: today the block is all-or-nothing (`agents_pointer_block`/`merge
 - Forgiving parse WITH the existing fail-safe preserved: missing `/aw:block` -> EOF close + drift flag; duplicate/ambiguous/mangled markers -> do NOT destructively rewrite; append or report (mirrors today's `merge_pointer_block` malformed behavior, `engine.py:1221-1222`).
 - Never rely on host comment-stripping for correctness (markers are literal bytes on every host; only Claude Code is documented to drop HTML comments from context).
 - Per-section identity/consent/drift live in the IPD-01 manifest keyed by slug + normalized-content hash, never on marker adjacency.
-- GENERAL POLICY: every agent-workflows-managed block in a shared config file carries the `aw:block` markers in that file's comment syntax + a short "DO NOT REMOVE, deliberate" rationale (IPD 02 ships the first `#`-comment instance in `.gitignore`).
+- GENERAL POLICY: every agent-workflows-managed block in a shared config file carries the `aw:block` markers in that file's comment syntax + a short "DO NOT REMOVE, deliberate" rationale (IPD 03, untracked-safety, ships the first `#`-comment instance in `.gitignore`).
 
 ## Findings (drivers)
 
@@ -52,8 +52,8 @@ Why it matters: today the block is all-or-nothing (`agents_pointer_block`/`merge
 
 | Item | Remediation Risk | Axis | Reason | Recommended later step |
 |------|------------------|------|--------|------------------------|
-| The interactive-questions `aw:ask-user` section + owned directive body + per-directive prompt | Low | scope | Consumer of this mechanism; the interactive-questions IPD's AGENTS.md half. | IPD 05, after this. |
-| The untracked-safety `.gitignore` managed block (first `#`-comment instance) | Low | scope | Consumer of this mechanism; IPD 02. | IPD 02, after this. |
+| The interactive-questions `aw:ask-user` section + owned directive body + per-directive prompt | Low | scope | Consumer of this mechanism; the interactive-questions IPD's AGENTS.md half. | IPD 06, after this. |
+| The untracked-safety `.gitignore` managed block (first `#`-comment instance) | Low | scope | Consumer of this mechanism; IPD 03. | IPD 03, after this. |
 | Host-adapter tier expansion (`.agents/skills/`, other host rules/hooks) | Medium | complexity | The research's larger roadmap; independent of the core sectioning primitive. | Separate IPD(s). |
 
 ## Scope check
@@ -75,7 +75,7 @@ Why it matters: today the block is all-or-nothing (`agents_pointer_block`/`merge
 
 ## Open questions
 
-- OQ1 (order relative to consumers): this IPD (01b) is sequenced right after IPD 01 and before its consumers (02, 05). Confirm 02/05 should reference this mechanism rather than each rebuilding sectioning. Lean: yes, single mechanism here (P8). Confirm at review.
+- OQ1 (order relative to consumers): this IPD (02) is sequenced right after IPD 01 and before its consumers (02, 05). Confirm 02/05 should reference this mechanism rather than each rebuilding sectioning. Lean: yes, single mechanism here (P8). Confirm at review.
 
 ## Approval and execution gate
 
