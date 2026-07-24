@@ -3,10 +3,11 @@
 - Date: 2026-07-23
 - Concern: per-directive consent + identifiability inside shared instruction files (AGENTS.md, and when present CLAUDE.md/GEMINI.md) - replace the monolithic managed block with individually marked, individually updatable/removable directive sections
 - Scope: replace the single `AGENT-WORKFLOWS:BEGIN/END` monolithic block with the decided sectioned marker scheme (`aw:block` wrapper + openers-only `aw:<slug>` sections, per-file comment syntax), including legacy-marker CONVERT-not-append migration and the native CLAUDE.md/GEMINI.md mirror path; wire per-section identity/consent/drift to the manifest from IPD 01. Product code + tests + docs. DEPENDS ON IPD 01 (the manifest + hash-drift model). Split from IPD 01 this session because it is a large, high-regression rewrite of shipped code with its real CONSUMERS being IPDs 02 (untracked directive) and 05 (interactive-questions AGENTS.md half).
-- Status: reviewed
+- Status: approved
 - Set: install-safety-and-ownership
 - Order: 2
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-07-23, human ("Approved. Go. Thanks.") after /plan-review (APPROVE WITH REVISIONS APPLIED; M2/M4/M5/M6/M7/M8/M9). IPD 01 (manifest) already executed. Executing in checkpoints, characterization tests first.
 
 ## Workflow history
 
@@ -18,6 +19,10 @@
 Replace the single monolithic `AGENT-WORKFLOWS:BEGIN/END` block in shared instruction files with the decided sectioned marker scheme, so each agent-workflows directive is an INDIVIDUALLY identifiable, updatable, removable, and consent-able section, and per-section identity/consent/drift are tracked in the IPD-01 manifest by slug + normalized hash. Convert existing monolithic blocks (and the CLAUDE.md/GEMINI.md mirror) in place with no human-visible change and reinstall idempotence, recognizing but not re-emitting the legacy format.
 
 Why it matters: today the block is all-or-nothing (`agents_pointer_block`/`merge_pointer_block`/`update_agents_pointer`), so a user cannot accept some directives and decline others, and an upgrade re-stamps the whole block. The token-economy + per-directive-consent work (research 2317; IPDs 03, 06) needs per-section granularity. This IPD provides the sectioning MECHANISM those consumers require.
+
+## First-conversion granularity (decided with the maintainer at execution, 2026-07-23)
+
+- On this first conversion the ENTIRE current monolithic block becomes ONE section `<!-- aw:pointer -->` inside the `<!-- aw:block -->` wrapper. Human-visible text stays byte-for-byte identical; the mechanism (wrapper + opener parsing + per-section manifest slug+hash) is fully in place and exercised by the one section. Consumers (IPD 03 untracked-safety, IPD 06 interactive-questions) add new sibling sections; per-directive splitting of the EXISTING prose is deferred to its own later IPD. This is the minimal faithful change matching this IPD's "mechanism only" scope.
 
 ## Marker scheme (decided with the maintainer, this session)
 
