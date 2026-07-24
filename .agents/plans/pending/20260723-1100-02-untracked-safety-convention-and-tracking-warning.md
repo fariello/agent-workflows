@@ -5,7 +5,7 @@
 - Scope (intended): a gitignore convention (`*.untracked.*` files and `*untracked*/` directories) the installer adds with an explanatory comment, plus an install-time warning about what gets tracked. Details TBD.
 - Status: draft
 - Set: install-safety-and-ownership
-- Order: 1
+- Order: 2
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 > DRAFT STUB - PRELIMINARY. This IPD captures INTENT and OBJECTIVES only. It is NOT ready for
