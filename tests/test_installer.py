@@ -652,13 +652,17 @@ class InstallerEndToEndTests(unittest.TestCase):
         claude_txt = claude_file.read_text(encoding="utf-8")
         gemini_txt = gemini_file.read_text(encoding="utf-8")
 
+        # IPD 02: the installer now writes the SECTIONED aw:block form (not the legacy
+        # AGENT-WORKFLOWS:BEGIN/END markers). Human-visible content is unchanged.
         self.assertIn("User CLAUDE content", claude_txt)
-        self.assertIn("<!-- AGENT-WORKFLOWS:BEGIN -->", claude_txt)
-        self.assertIn("<!-- AGENT-WORKFLOWS:END -->", claude_txt)
+        self.assertIn("<!-- aw:block -->", claude_txt)
+        self.assertIn("<!-- aw:pointer -->", claude_txt)
+        self.assertIn("<!-- /aw:block -->", claude_txt)
+        self.assertIn("## Agent workflows", claude_txt)
 
         self.assertIn("User GEMINI content", gemini_txt)
-        self.assertIn("<!-- AGENT-WORKFLOWS:BEGIN -->", gemini_txt)
-        self.assertIn("<!-- AGENT-WORKFLOWS:END -->", gemini_txt)
+        self.assertIn("<!-- aw:block -->", gemini_txt)
+        self.assertIn("<!-- /aw:block -->", gemini_txt)
 
         # 3. Dry-run does not write to them.
         claude_file.write_text("User CLAUDE content\n", encoding="utf-8")
@@ -671,7 +675,7 @@ class InstallerEndToEndTests(unittest.TestCase):
         # 4. Re-running is idempotent.
         run_installer(self.repo)
         txt_after = claude_file.read_text(encoding="utf-8")
-        self.assertEqual(txt_after.count("<!-- AGENT-WORKFLOWS:BEGIN -->"), 1)
+        self.assertEqual(txt_after.count("<!-- aw:block -->"), 1)
 
         # 5. Uninstall removes only the block.
         INS.uninstall_repo(self.repo, use_git=True)
@@ -680,23 +684,32 @@ class InstallerEndToEndTests(unittest.TestCase):
         self.assertTrue(claude_file.is_file())
         self.assertTrue(gemini_file.is_file())
         self.assertIn("User CLAUDE content", claude_file.read_text(encoding="utf-8"))
-        self.assertNotIn(
-            "<!-- AGENT-WORKFLOWS:BEGIN -->", claude_file.read_text(encoding="utf-8")
-        )
+        self.assertNotIn("<!-- aw:block -->", claude_file.read_text(encoding="utf-8"))
         self.assertIn("User GEMINI content", gemini_file.read_text(encoding="utf-8"))
-        self.assertNotIn(
-            "<!-- AGENT-WORKFLOWS:BEGIN -->", gemini_file.read_text(encoding="utf-8")
-        )
+        self.assertNotIn("<!-- aw:block -->", gemini_file.read_text(encoding="utf-8"))
 
-        # 6. Malformed markers present: safe append.
-        claude_file.write_text(
-            "User prose\n<!-- AGENT-WORKFLOWS:BEGIN -->\n", encoding="utf-8"
-        )
+        # 6a. A lone aw:block opener (missing close) is DRIFT: the parser closes it at EOF and
+        # the installer refreshes it in place (non-destructive), preserving the user's prose.
+        # This is stronger than the legacy append-duplicate behavior.
+        claude_file.write_text("User prose\n<!-- aw:block -->\n", encoding="utf-8")
         run_installer(self.repo)
         txt = claude_file.read_text(encoding="utf-8")
-        self.assertIn("User prose\n<!-- AGENT-WORKFLOWS:BEGIN -->\n", txt)
-        self.assertEqual(txt.count("<!-- AGENT-WORKFLOWS:BEGIN -->"), 2)
-        self.assertEqual(txt.count("<!-- AGENT-WORKFLOWS:END -->"), 1)
+        self.assertIn("User prose", txt)
+        self.assertEqual(txt.count("<!-- aw:block -->"), 1)
+        self.assertEqual(txt.count("<!-- /aw:block -->"), 1)
+
+        # 6b. Duplicated wrapper markers ARE ambiguous: safe append, never a destructive rewrite.
+        gemini_file.write_text(
+            "User prose\n<!-- aw:block -->\nx\n<!-- /aw:block -->\n"
+            "<!-- aw:block -->\ny\n<!-- /aw:block -->\n",
+            encoding="utf-8",
+        )
+        run_installer(self.repo)
+        gtxt = gemini_file.read_text(encoding="utf-8")
+        self.assertIn("User prose", gtxt)
+        self.assertEqual(
+            gtxt.count("<!-- aw:block -->"), 3
+        )  # 2 pre-existing + 1 appended
 
 
 class SingleSourceOrchestratorTests(unittest.TestCase):

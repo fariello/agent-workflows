@@ -598,11 +598,15 @@ def generate_shim_members(
     return shims
 
 
-def agents_pointer_block() -> str:
-    """The managed AGENTS.md pointer block (pointer only, never the payload)."""
+def agents_pointer_prose() -> str:
+    """The human-visible prose of the managed pointer (WITHOUT any wrapper markers).
+
+    This is the single source of the pointer content. `agents_pointer_block()` wraps it in
+    the LEGACY `AGENT-WORKFLOWS:BEGIN/END` markers (kept for back-compat helpers and tests);
+    the sectioned writer wraps the SAME prose as an `aw:pointer` section (IPD 02).
+    """
 
     return (
-        f"{AGENTS_BEGIN}\n"
         "## Agent workflows\n\n"
         "This repository includes reusable agent workflows under `.agents/workflows/`. "
         "They are invoked on demand and are NOT always-loaded context. See "
@@ -663,9 +667,19 @@ def agents_pointer_block() -> str:
         "(the plain-language context needed to decide, the question, and the answer options) INSIDE "
         "the prompt itself, so a human answering from the prompt can decide from the prompt alone; "
         "never strand the required context in surrounding chat. Extra prose may precede a prompt, "
-        "but for only ONE question at a time and only as a supplement (see GUIDING_PRINCIPLES P12).\n"
-        f"{AGENTS_END}\n"
+        "but for only ONE question at a time and only as a supplement (see GUIDING_PRINCIPLES P12)."
     )
+
+
+def agents_pointer_block() -> str:
+    """The managed pointer wrapped in the LEGACY `AGENT-WORKFLOWS:BEGIN/END` markers.
+
+    Retained for back-compat helpers/tests and for building the legacy form during migration.
+    The installer now writes the SECTIONED form (`agents_managed_block()`); this legacy form is
+    recognized on install/uninstall but no longer emitted into a target file.
+    """
+
+    return f"{AGENTS_BEGIN}\n" + agents_pointer_prose() + f"\n{AGENTS_END}\n"
 
 
 # --- Sectioned managed-block mechanism (IPD 20260723-1100-02) ---------------------------
@@ -822,6 +836,152 @@ def render_aw_block(
             out.append(body)
     out.append(style.render(AW_BLOCK_CLOSE_BODY))
     return "\n".join(out) + "\n"
+
+
+def agents_managed_sections() -> list[AwSection]:
+    """The agent-workflows-managed sections written into a shared instruction file.
+
+    On this first conversion the whole pointer prose is a single `aw:pointer` section
+    (maintainer decision, IPD 02); consumer IPDs add sibling sections. Keeping this as the one
+    source lets the manifest key per-section identity/drift by slug + normalized hash.
+    """
+
+    return [AwSection(slug=AW_POINTER_SLUG, lines=agents_pointer_prose().splitlines())]
+
+
+def agents_managed_block(style: AwCommentStyle = AW_STYLE_MARKDOWN) -> str:
+    """The sectioned managed block the installer writes (wrapper + `aw:pointer`)."""
+
+    return render_aw_block(agents_managed_sections(), style=style)
+
+
+def merge_aw_block(
+    existing: str,
+    sections: list[AwSection],
+    *,
+    style: AwCommentStyle = AW_STYLE_MARKDOWN,
+    default_header: str = "",
+    manifest: Optional[manifest_mod.Manifest] = None,
+    file_key: str = "",
+) -> tuple[str, str]:
+    """Merge the sectioned managed block into `existing`, returning (new_text, action).
+
+    Legacy-first (M6): a LEGACY `AGENT-WORKFLOWS:BEGIN/END` block is CONVERTED in place to the
+    sectioned form (never duplicated, never re-emitted). Then the sectioned rules apply:
+    - ambiguous aw:block markers (M7) -> append a fresh block, action `malformed` (no rewrite).
+    - a well-formed aw:block present -> replace it with the re-rendered sections, preserving
+      foreign before/after text, action `refreshed`.
+    - no block, existing content -> append, action `existing`.
+    - empty file -> header + block, action `new`.
+
+    Per-section consent/drift via the IPD-01 manifest (M2), keyed by `file_key` + slug: a
+    section the user DECLINED (tombstone) is omitted; a section whose on-disk body differs from
+    OUR recorded hash is PRESERVED (user drift) rather than overwritten. With no manifest the
+    behavior is the plain refresh (back-compat).
+    """
+
+    # Legacy conversion first: fold an old BEGIN..END block into the sectioned form.
+    legacy_begins = existing.count(AGENTS_BEGIN)
+    legacy_ends = existing.count(AGENTS_END)
+    if (
+        legacy_begins == 1
+        and legacy_ends == 1
+        and existing.find(AGENTS_BEGIN) < existing.find(AGENTS_END)
+    ):
+        # Convert to the sectioned form. No prior sectioned on-disk sections exist, so consent
+        # simply writes our sections (and records their hashes).
+        final = _apply_section_consent(
+            sections, [], manifest=manifest, file_key=file_key
+        )
+        block = render_aw_block(final, style=style)
+        converted = re.sub(
+            re.escape(AGENTS_BEGIN) + r".*?" + re.escape(AGENTS_END),
+            lambda _m: block.strip("\n"),
+            existing,
+            count=1,
+            flags=re.DOTALL,
+        )
+        return converted, "converted"
+    if legacy_begins or legacy_ends:
+        # Malformed legacy markers: do not rewrite; append the sectioned block (record hashes).
+        final = _apply_section_consent(
+            sections, [], manifest=manifest, file_key=file_key
+        )
+        block = render_aw_block(final, style=style)
+        return existing.rstrip("\n") + "\n\n" + block, "malformed"
+
+    parsed = parse_aw_block(existing, style=style)
+    if parsed.found and parsed.ambiguous:
+        final = _apply_section_consent(
+            sections, [], manifest=manifest, file_key=file_key
+        )
+        block = render_aw_block(final, style=style)
+        return existing.rstrip("\n") + "\n\n" + block, "malformed"
+
+    if parsed.found:
+        # Per-section consent/drift against the manifest.
+        final_sections = _apply_section_consent(
+            sections, parsed.sections, manifest=manifest, file_key=file_key
+        )
+        rendered = render_aw_block(final_sections, style=style)
+        before = parsed.before
+        after = parsed.after
+        pieces = []
+        if before.strip("\n"):
+            pieces.append(before.rstrip("\n"))
+        pieces.append(rendered.rstrip("\n"))
+        if after.strip("\n"):
+            pieces.append(after.lstrip("\n").rstrip("\n"))
+        new_text = "\n\n".join(pieces) + "\n"
+        return new_text, "refreshed"
+
+    # No block present: record hashes for what we are about to write.
+    final = _apply_section_consent(sections, [], manifest=manifest, file_key=file_key)
+    block = render_aw_block(final, style=style)
+    if existing.strip():
+        return existing.rstrip("\n") + "\n\n" + block, "existing"
+
+    header = (default_header + "\n\n") if default_header else ""
+    return header + block, "new"
+
+
+def _apply_section_consent(
+    desired: list[AwSection],
+    on_disk: list[AwSection],
+    *,
+    manifest: Optional[manifest_mod.Manifest],
+    file_key: str,
+) -> list[AwSection]:
+    """Decide, per desired section, whether to write our version, preserve the user's, or omit.
+
+    - declined tombstone (manifest) -> omit the section.
+    - on-disk body differs from OUR recorded hash for that slug -> user drift -> preserve the
+      on-disk section body.
+    - otherwise -> write our (desired) version.
+    Records the written section's hash back into the manifest (M12: hash what we WROTE).
+    With no manifest, always writes the desired version (back-compat).
+    """
+
+    on_disk_by_slug = {s.slug: s for s in on_disk}
+    result: list[AwSection] = []
+    for sec in desired:
+        key = f"{file_key}#aw:{sec.slug}" if file_key else f"aw:{sec.slug}"
+        if manifest is not None and manifest.is_declined(key):
+            continue  # user declined this directive
+        disk = on_disk_by_slug.get(sec.slug)
+        if (
+            manifest is not None
+            and disk is not None
+            and manifest.recorded_hash(key) is not None
+            and not manifest.matches_recorded(key, disk.body)
+        ):
+            # User edited this section: preserve their body, do not clobber.
+            result.append(disk)
+            continue
+        result.append(sec)
+        if manifest is not None:
+            manifest.record(key, sec.body, kind="section", host="", logical_id=sec.slug)
+    return result
 
 
 def is_interactive_session(plan: InstallPlan) -> bool:
@@ -1496,7 +1656,7 @@ def update_agents_pointer(
     - Backs up the existing file before the first modification (unless --no-backup).
     """
 
-    block = agents_pointer_block()
+    sections = agents_managed_sections()
     results: dict[str, str] = {}
 
     # 1. Handle AGENTS file (create if absent)
@@ -1506,11 +1666,17 @@ def update_agents_pointer(
         agents_path.read_text(encoding="utf-8") if agents_path.exists() else ""
     )
 
-    new_agents, action = merge_pointer_block(
-        existing_agents, block, default_header="# AGENTS"
+    new_agents, action = merge_aw_block(
+        existing_agents,
+        sections,
+        default_header="# AGENTS",
+        manifest=plan.manifest,
+        file_key=rel_agents,
     )
     if action == "refreshed":
         verb = f"refreshed pointer in {rel_agents}"
+    elif action == "converted":
+        verb = f"converted legacy pointer to sectioned block in {rel_agents}"
     elif action == "malformed":
         verb = f"appended pointer to {rel_agents} (left existing malformed marker untouched)"
     elif action == "existing":
@@ -1541,12 +1707,18 @@ def update_agents_pointer(
             continue
 
         existing_native = native_path.read_text(encoding="utf-8")
-        new_native, action = merge_pointer_block(
-            existing_native, block, default_header=""
+        new_native, action = merge_aw_block(
+            existing_native,
+            sections,
+            default_header="",
+            manifest=plan.manifest,
+            file_key=native_rel,
         )
 
         if action == "refreshed":
             verb = f"refreshed pointer in {native_rel}"
+        elif action == "converted":
+            verb = f"converted legacy pointer to sectioned block in {native_rel}"
         elif action == "malformed":
             verb = f"appended pointer to {native_rel} (left existing malformed marker untouched)"
         elif action == "existing" or action == "new":
@@ -2559,74 +2731,67 @@ def print_summary(
         print("   conformance check, and stages changes without committing.)")
 
 
-def remove_agents_pointer(repo_root: Path, use_git: bool) -> list[str]:
-    """Remove the managed pointer block from AGENTS and native files; leave other content.
+def _strip_managed_block(existing: str) -> Optional[str]:
+    """Remove a single agent-workflows-managed block (sectioned `aw:block` OR legacy
+    `AGENT-WORKFLOWS:BEGIN/END`) from `existing`, leaving all other content (including any
+    foreign `NAME:BEGIN/END` sibling block) untouched. Returns the new text, or None when no
+    well-formed managed block is present (nothing to remove).
 
-    Only strips a single well-formed BEGIN..END block. Returns human-readable status strings.
+    Only a single well-formed block is stripped (mirrors the legacy fail-safe: a malformed or
+    duplicated marker set is left in place rather than risking a destructive rewrite).
     """
+
+    # Sectioned form first.
+    parsed = parse_aw_block(existing, style=AW_STYLE_MARKDOWN)
+    if parsed.found and not parsed.ambiguous:
+        pieces = []
+        if parsed.before.strip("\n"):
+            pieces.append(parsed.before.rstrip("\n"))
+        if parsed.after.strip("\n"):
+            pieces.append(parsed.after.lstrip("\n").rstrip("\n"))
+        return ("\n\n".join(pieces).rstrip("\n") + "\n") if pieces else ""
+
+    # Legacy form.
+    begins = existing.count(AGENTS_BEGIN)
+    ends = existing.count(AGENTS_END)
+    well_formed = (
+        begins == 1
+        and ends == 1
+        and existing.find(AGENTS_BEGIN) < existing.find(AGENTS_END)
+    )
+    if well_formed:
+        new_text = re.sub(
+            re.escape(AGENTS_BEGIN) + r".*?" + re.escape(AGENTS_END),
+            "",
+            existing,
+            count=1,
+            flags=re.DOTALL,
+        )
+        return re.sub(r"\n{3,}", "\n\n", new_text).rstrip("\n") + "\n"
+
+    return None
+
+
+def remove_agents_pointer(repo_root: Path, use_git: bool) -> list[str]:
+    """Remove the managed block (sectioned or legacy) from AGENTS and native files; leave all
+    other content (including any foreign sibling block) intact."""
 
     results: list[str] = []
 
-    # 1. Resolved AGENTS file
-    rel_agents = resolve_agents_file(repo_root)
-    agents_path = repo_root / rel_agents
-    if not agents_path.is_file():
-        results.append(f"{rel_agents} absent (no pointer to remove)")
-    else:
-        existing = agents_path.read_text(encoding="utf-8")
-        begins = existing.count(AGENTS_BEGIN)
-        ends = existing.count(AGENTS_END)
-        well_formed = (
-            begins == 1
-            and ends == 1
-            and existing.find(AGENTS_BEGIN) < existing.find(AGENTS_END)
-        )
-        if not well_formed:
-            results.append(f"{rel_agents} pointer not found (nothing removed)")
-        else:
-            new_text = re.sub(
-                re.escape(AGENTS_BEGIN) + r".*?" + re.escape(AGENTS_END),
-                "",
-                existing,
-                count=1,
-                flags=re.DOTALL,
-            )
-            new_text = re.sub(r"\n{3,}", "\n\n", new_text).rstrip("\n") + "\n"
-            agents_path.write_text(new_text, encoding="utf-8")
-            if use_git and git_is_tracked(repo_root, rel_agents):
-                git_add_optional(repo_root, rel_agents)
-            results.append(f"removed pointer block from {rel_agents}")
-
-    # 2. Native agent files (only if present)
-    for native_rel in NATIVE_AGENT_FILES:
-        native_path = repo_root / native_rel
-        if not native_path.is_file():
-            results.append(f"{native_rel} absent (no pointer to remove)")
+    for idx, rel in enumerate([resolve_agents_file(repo_root), *NATIVE_AGENT_FILES]):
+        path = repo_root / rel
+        if not path.is_file():
+            results.append(f"{rel} absent (no pointer to remove)")
             continue
-
-        existing = native_path.read_text(encoding="utf-8")
-        begins = existing.count(AGENTS_BEGIN)
-        ends = existing.count(AGENTS_END)
-        well_formed = (
-            begins == 1
-            and ends == 1
-            and existing.find(AGENTS_BEGIN) < existing.find(AGENTS_END)
-        )
-        if not well_formed:
-            results.append(f"{native_rel} pointer not found (nothing removed)")
-        else:
-            new_text = re.sub(
-                re.escape(AGENTS_BEGIN) + r".*?" + re.escape(AGENTS_END),
-                "",
-                existing,
-                count=1,
-                flags=re.DOTALL,
-            )
-            new_text = re.sub(r"\n{3,}", "\n\n", new_text).rstrip("\n") + "\n"
-            native_path.write_text(new_text, encoding="utf-8")
-            if use_git and git_is_tracked(repo_root, native_rel):
-                git_add_optional(repo_root, native_rel)
-            results.append(f"removed pointer block from {native_rel}")
+        existing = path.read_text(encoding="utf-8")
+        new_text = _strip_managed_block(existing)
+        if new_text is None:
+            results.append(f"{rel} pointer not found (nothing removed)")
+            continue
+        path.write_text(new_text, encoding="utf-8")
+        if use_git and git_is_tracked(repo_root, rel):
+            git_add_optional(repo_root, rel)
+        results.append(f"removed pointer block from {rel}")
 
     return results
 
