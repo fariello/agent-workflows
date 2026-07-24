@@ -27,6 +27,16 @@ scoping is confirmed at release-review.
   area, or path...") instead of the generic "target path(s) and/or flags", and omits the arguments
   line entirely for commands that take none (`arg-hint: none`). Backward-compatible: workflows with
   no hint render exactly as before. Target repos pick up the new wording on the next `aw install`.
+- Fixed: the installer no longer false-warns "has manual modifications" on its own generated files when
+  our output FORMAT changes between versions (DECISIONS D103). It previously compared each on-disk shim
+  to the newly generated expected content, so a format-only change (such as the D97 `argument-hint` line)
+  made every prior shim look user-edited. The installer now keeps a self-contained per-file ownership
+  manifest (`.agents/agent-workflows/managed-sections.json`, tracked) recording the sha256 of what it
+  LAST WROTE, and decides drift against THAT hash: a file matching our record updates silently even when
+  the new template differs, while a genuinely user-edited file is still reported and preserved (the
+  overwrite prompt is unchanged). A repo with no manifest yet is adopted, not false-flagged. The manifest
+  also lays the groundwork for a conservative uninstaller and per-directive consent (a reserved decline
+  tombstone). Existing repos gain the manifest on their next `aw install`.
 - Changed: producing workflows (`/assess`, `/assess-all`, `/incident`, `/migrate`, `/spec`) now end
   with a uniform closing report (DECISIONS D102): which artifact file(s) they created, with paths, or
   that they created none and WHY, plus concrete next steps. `/assess` also now reports the run-record
