@@ -106,6 +106,17 @@ NATIVE_AGENT_FILES: tuple[str, ...] = ("CLAUDE.md", "GEMINI.md")
 AGENTS_BEGIN = "<!-- AGENT-WORKFLOWS:BEGIN -->"
 AGENTS_END = "<!-- AGENT-WORKFLOWS:END -->"
 
+# Sectioned managed-block scheme (IPD 20260723-1100-02). An outer wrapper delimits the whole
+# agent-workflows-managed region; inner sections use OPENERS ONLY (a section runs from one
+# opener to the next opener, or to the wrapper close, or to EOF). The marker BODIES below are
+# rendered into a target file's own comment syntax by the AwCommentStyle helpers, so the same
+# logical construct is `<!-- aw:block -->` in Markdown and `# <!-- aw:block -->` in a
+# `#`-comment file (.gitignore/YAML/TOML). The default first-conversion section slug is
+# `pointer` (the whole legacy monolithic pointer becomes one `aw:pointer` section).
+AW_BLOCK_OPEN_BODY = "aw:block"
+AW_BLOCK_CLOSE_BODY = "/aw:block"
+AW_POINTER_SLUG = "pointer"
+
 ARTIFACTS_DIR = "workflow-artifacts/"
 LEGACY_ARTIFACTS_DIR = "repository-review/"  # pre-D19 name; migrated on install
 
@@ -655,6 +666,162 @@ def agents_pointer_block() -> str:
         "but for only ONE question at a time and only as a supplement (see GUIDING_PRINCIPLES P12).\n"
         f"{AGENTS_END}\n"
     )
+
+
+# --- Sectioned managed-block mechanism (IPD 20260723-1100-02) ---------------------------
+#
+# The agent-workflows-managed region of a shared instruction file is delimited by an outer
+# wrapper and split into individually identifiable sections, each introduced by an opener-only
+# marker. A section runs from its opener to the next opener, or to the wrapper close, or to
+# EOF. There are no per-section close tags. Per-section identity/consent/drift are tracked in
+# the IPD-01 manifest by slug + normalized-content hash (never by marker adjacency).
+#
+# Markers render in the TARGET file's own comment syntax via AwCommentStyle: bare HTML in
+# Markdown (`<!-- aw:block -->`), `#`-prefixed in a `#`-comment file (`# <!-- aw:block -->`).
+
+
+@dataclass(frozen=True)
+class AwCommentStyle:
+    """How the `<!-- ... -->` marker is wrapped for a given target file's comment syntax.
+
+    `prefix` is prepended to each marker line (e.g. `# ` for a `#`-comment config file);
+    Markdown uses an empty prefix (bare HTML comment).
+    """
+
+    prefix: str = ""
+
+    def render(self, body: str) -> str:
+        return f"{self.prefix}<!-- {body} -->"
+
+    def match_body(self, line: str) -> Optional[str]:
+        """If `line` is an aw marker in this style, return its inner body, else None."""
+
+        stripped = line.strip()
+        if self.prefix:
+            pfx = self.prefix.strip()
+            if not stripped.startswith(pfx):
+                return None
+            stripped = stripped[len(pfx) :].strip()
+        if stripped.startswith("<!--") and stripped.endswith("-->"):
+            inner = stripped[len("<!--") : -len("-->")].strip()
+            return inner
+        return None
+
+
+AW_STYLE_MARKDOWN = AwCommentStyle(prefix="")
+AW_STYLE_HASH = AwCommentStyle(prefix="# ")
+
+
+@dataclass
+class AwSection:
+    """One `aw:<slug>` section: its slug and its body lines (marker line excluded)."""
+
+    slug: str
+    lines: list[str] = field(default_factory=list)
+
+    @property
+    def body(self) -> str:
+        return "\n".join(self.lines)
+
+
+@dataclass
+class AwBlockParse:
+    """Result of parsing a file for the aw:block region.
+
+    - `found`: a well-formed opener was found.
+    - `before` / `after`: text outside the block, preserved verbatim.
+    - `sections`: ordered `aw:<slug>` sections inside the block.
+    - `drift`: True when the block was closed at EOF because `/aw:block` was missing (a
+      forgiving parse that flags rather than rewrites).
+    - `ambiguous`: True when markers are duplicated/mangled such that we must NOT
+      destructively rewrite (mirrors the legacy merge fail-safe).
+    """
+
+    found: bool = False
+    before: str = ""
+    after: str = ""
+    sections: list[AwSection] = field(default_factory=list)
+    drift: bool = False
+    ambiguous: bool = False
+
+
+def parse_aw_block(
+    text: str, style: AwCommentStyle = AW_STYLE_MARKDOWN
+) -> AwBlockParse:
+    """Forgiving parse of the sectioned aw:block region in `text`.
+
+    Fail-safe (M7): more than one opener/closer is ambiguous -> `ambiguous=True` and the
+    caller must NOT destructively rewrite. A missing `/aw:block` closes the block at EOF and
+    sets `drift=True`. Foreign text before the opener and after the closer is preserved.
+    """
+
+    lines = text.splitlines()
+    open_idxs = [
+        i for i, ln in enumerate(lines) if style.match_body(ln) == AW_BLOCK_OPEN_BODY
+    ]
+    close_idxs = [
+        i for i, ln in enumerate(lines) if style.match_body(ln) == AW_BLOCK_CLOSE_BODY
+    ]
+
+    if not open_idxs:
+        return AwBlockParse(found=False, before=text, after="")
+
+    if len(open_idxs) > 1 or len(close_idxs) > 1:
+        # Duplicated/ambiguous wrapper markers: do not rewrite.
+        return AwBlockParse(found=True, before=text, ambiguous=True)
+
+    open_i = open_idxs[0]
+    drift = False
+    if close_idxs:
+        close_i = close_idxs[0]
+        if close_i < open_i:
+            return AwBlockParse(found=True, before=text, ambiguous=True)
+    else:
+        close_i = len(lines)  # EOF close
+        drift = True
+
+    before = "\n".join(lines[:open_i])
+    # Inner lines are between the opener and the closer (exclusive of both).
+    inner = lines[open_i + 1 : close_i]
+    after_lines = lines[close_i + 1 :] if close_idxs else []
+    after = "\n".join(after_lines)
+
+    sections: list[AwSection] = []
+    current: Optional[AwSection] = None
+    for ln in inner:
+        body = style.match_body(ln)
+        if body is not None and body.startswith("aw:") and body != AW_BLOCK_CLOSE_BODY:
+            slug = body[len("aw:") :].strip()
+            current = AwSection(slug=slug)
+            sections.append(current)
+        elif current is not None:
+            current.lines.append(ln)
+        # Lines before the first opener inside the block (rare) are dropped from sections but
+        # would only appear on a malformed block; the wrapper content is installer-owned.
+
+    return AwBlockParse(
+        found=True, before=before, after=after, sections=sections, drift=drift
+    )
+
+
+def render_aw_block(
+    sections: list[AwSection], style: AwCommentStyle = AW_STYLE_MARKDOWN
+) -> str:
+    """Render the wrapper + openers-only sections in the target file's comment syntax.
+
+    Each section body is emitted verbatim between its opener and the next opener / the
+    wrapper close. Trailing whitespace on the body is normalized to a single trailing
+    newline before the next marker so re-rendering is stable (idempotent).
+    """
+
+    out: list[str] = [style.render(AW_BLOCK_OPEN_BODY)]
+    for sec in sections:
+        out.append(style.render(f"aw:{sec.slug}"))
+        body = sec.body.strip("\n")
+        if body:
+            out.append(body)
+    out.append(style.render(AW_BLOCK_CLOSE_BODY))
+    return "\n".join(out) + "\n"
 
 
 def is_interactive_session(plan: InstallPlan) -> bool:

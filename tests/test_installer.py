@@ -945,6 +945,99 @@ class PromptChoiceTests(unittest.TestCase):
             )
 
 
+class AwBlockParserWriterTests(unittest.TestCase):
+    """CP1: the sectioned aw:block parser + writer (IPD 20260723-1100-02)."""
+
+    def _wrap(self, inner, style=None):
+        style = style or INS.AW_STYLE_MARKDOWN
+        return (
+            style.render("aw:block")
+            + "\n"
+            + inner
+            + ("\n" if inner and not inner.endswith("\n") else "")
+            + style.render("/aw:block")
+            + "\n"
+        )
+
+    def test_wellformed_multi_section_parse(self):
+        text = (
+            "user preamble\n\n"
+            "<!-- aw:block -->\n"
+            "<!-- aw:pointer -->\n"
+            "pointer body line 1\n"
+            "pointer body line 2\n"
+            "<!-- aw:extra -->\n"
+            "extra body\n"
+            "<!-- /aw:block -->\n"
+            "user epilogue\n"
+        )
+        parsed = INS.parse_aw_block(text)
+        self.assertTrue(parsed.found)
+        self.assertFalse(parsed.ambiguous)
+        self.assertFalse(parsed.drift)
+        self.assertEqual(parsed.before, "user preamble\n")
+        self.assertEqual(parsed.after, "user epilogue")
+        self.assertEqual([s.slug for s in parsed.sections], ["pointer", "extra"])
+        self.assertEqual(
+            parsed.sections[0].body, "pointer body line 1\npointer body line 2"
+        )
+        self.assertEqual(parsed.sections[1].body, "extra body")
+
+    def test_missing_close_is_drift_not_rewrite(self):
+        text = "<!-- aw:block -->\n<!-- aw:pointer -->\nbody\n"
+        parsed = INS.parse_aw_block(text)
+        self.assertTrue(parsed.found)
+        self.assertTrue(parsed.drift, "missing /aw:block must flag drift (EOF close)")
+        self.assertFalse(parsed.ambiguous)
+        self.assertEqual([s.slug for s in parsed.sections], ["pointer"])
+
+    def test_duplicate_wrapper_is_ambiguous(self):
+        text = (
+            "<!-- aw:block -->\n<!-- aw:pointer -->\na\n<!-- /aw:block -->\n"
+            "<!-- aw:block -->\n<!-- aw:pointer -->\nb\n<!-- /aw:block -->\n"
+        )
+        parsed = INS.parse_aw_block(text)
+        self.assertTrue(parsed.ambiguous, "duplicate wrapper markers must be ambiguous")
+
+    def test_absent_block(self):
+        parsed = INS.parse_aw_block("just user content\n")
+        self.assertFalse(parsed.found)
+        self.assertEqual(parsed.before, "just user content\n")
+
+    def test_writer_round_trips(self):
+        sections = [
+            INS.AwSection(slug="pointer", lines=["line a", "line b"]),
+            INS.AwSection(slug="extra", lines=["x"]),
+        ]
+        rendered = INS.render_aw_block(sections)
+        parsed = INS.parse_aw_block(rendered)
+        self.assertEqual([s.slug for s in parsed.sections], ["pointer", "extra"])
+        self.assertEqual(parsed.sections[0].body, "line a\nline b")
+        # Re-render is byte-stable (idempotent).
+        self.assertEqual(INS.render_aw_block(parsed.sections), rendered)
+
+    def test_hash_comment_style_rendering_and_parse(self):
+        # Per-file syntax: `#`-comment file renders `# <!-- aw:... -->` and parses back.
+        sections = [INS.AwSection(slug="pointer", lines=["ignore *.tmp"])]
+        rendered = INS.render_aw_block(sections, style=INS.AW_STYLE_HASH)
+        self.assertIn("# <!-- aw:block -->", rendered)
+        self.assertIn("# <!-- aw:pointer -->", rendered)
+        parsed = INS.parse_aw_block(rendered, style=INS.AW_STYLE_HASH)
+        self.assertEqual([s.slug for s in parsed.sections], ["pointer"])
+        self.assertEqual(parsed.sections[0].body, "ignore *.tmp")
+        # Markdown style must NOT match the `#`-prefixed markers.
+        md = INS.parse_aw_block(rendered, style=INS.AW_STYLE_MARKDOWN)
+        self.assertFalse(md.found)
+
+    def test_foreign_text_preserved_around_block(self):
+        sections = [INS.AwSection(slug="pointer", lines=["managed"])]
+        block = INS.render_aw_block(sections)
+        text = "BEFORE\n\n" + block + "AFTER\n"
+        parsed = INS.parse_aw_block(text)
+        self.assertEqual(parsed.before, "BEFORE\n")
+        self.assertEqual(parsed.after, "AFTER")
+
+
 class MonolithicBlockCharacterizationTests(unittest.TestCase):
     """CP0 characterization for IPD 20260723-1100-02 (sectioned managed-block rewrite).
 
