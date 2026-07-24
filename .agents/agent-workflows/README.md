@@ -36,6 +36,17 @@ wrote:
 The recorded hash is always the hash of what the installer just wrote, so the next upgrade
 always compares against a fresh, correct baseline.
 
+## Managed sections
+
+The manifest also tracks the individually marked SECTIONS of the managed block in your
+shared instruction files (AGENTS.md, and CLAUDE.md/GEMINI.md when present). That block uses
+an outer `<!-- aw:block -->` .. `<!-- /aw:block -->` wrapper containing `<!-- aw:<slug> -->`
+sections. For each section the manifest records its slug and the hash of what the installer
+last wrote, keyed as `<file>#aw:<slug>`. This is what lets the installer update one section,
+leave a section you edited alone, and (in future) let you decline a specific directive while
+keeping the rest. Any hand-authored block you keep in the same file that is NOT an
+`aw:block` (for example a differently named `NAME:BEGIN/END` block) is never touched.
+
 ## Should I commit it?
 
 Yes. The manifest is tracked by default so the whole team shares one record of what the

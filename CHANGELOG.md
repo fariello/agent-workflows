@@ -37,6 +37,17 @@ scoping is confirmed at release-review.
   overwrite prompt is unchanged). A repo with no manifest yet is adopted, not false-flagged. The manifest
   also lays the groundwork for a conservative uninstaller and per-directive consent (a reserved decline
   tombstone). Existing repos gain the manifest on their next `aw install`.
+- Changed: the managed block in AGENTS.md (and the CLAUDE.md/GEMINI.md mirror) moved from the single
+  monolithic `<!-- AGENT-WORKFLOWS:BEGIN -->`..`:END` block to a sectioned scheme (DECISIONS D104): an
+  outer `<!-- aw:block -->`..`<!-- /aw:block -->` wrapper containing individually marked
+  `<!-- aw:<slug> -->` sections, so each agent-workflows directive can be identified, updated, removed,
+  and (via the D103 manifest) individually consented to or preserved when you edit it. Markers render in
+  each file's own comment syntax (bare HTML in Markdown, `#`-prefixed in a `#`-comment file). Existing
+  repos are CONVERTED in place on the next `aw install` with no human-visible content change and no
+  duplicate block; the old markers are recognized but never re-emitted. Any hand-authored sibling block
+  you keep in the same file (a different `NAME:BEGIN/END` block) is left untouched. This is the mechanism
+  the per-directive-consent and token-economy work builds on; the current pointer is one `aw:pointer`
+  section for now.
 - Changed: producing workflows (`/assess`, `/assess-all`, `/incident`, `/migrate`, `/spec`) now end
   with a uniform closing report (DECISIONS D102): which artifact file(s) they created, with paths, or
   that they created none and WHY, plus concrete next steps. `/assess` also now reports the run-record
