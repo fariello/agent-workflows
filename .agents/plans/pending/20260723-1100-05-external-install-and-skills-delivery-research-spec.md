@@ -3,10 +3,11 @@
 - Date: 2026-07-23
 - Concern: reduce per-repo footprint and recurring token cost by delivering agent-workflows from outside the repo and/or via host-native portable skills, WHERE hosts actually support it
 - Scope: produce (a) a per-host PROBE PROTOCOL + results table that a human/host operator runs to prove, per host and version, whether out-of-repo / `.agents/skills/SKILL.md` content is discovered AND followed; (b) a written DELIVERY SPEC that maps, from that evidence, what may safely live out-of-repo vs what must stay in-repo, respecting discovery, versioning, and the IPD-01 ownership model; and (c) an upload-ready external-research PROMPT (per the AGENTS.md prompt-authoring rules) to gather the per-host evidence. This IPD produces DOCUMENTS ONLY - no product code. Any actual build (skills tier, home-dir install, external pointer) is a SEPARATE later IPD, gated on the probe results. DEPENDS ON / coordinates with IPD 01 (manifest) and IPD 06 (interactive-questions trigger); it does not depend on 06 being executed first.
-- Status: reviewed
+- Status: approved
 - Set: install-safety-and-ownership
 - Order: 5
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-07-23, human ("approved go.") after /plan-review (APPROVE WITH REVISIONS APPLIED; E1-E5, PR-001/PR-002). Document-only; executing the spec + probe protocol + external-research prompt.
 
 ## Workflow history
 
