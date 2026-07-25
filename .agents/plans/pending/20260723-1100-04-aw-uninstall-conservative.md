@@ -1,55 +1,96 @@
-# IPD (DRAFT STUB): conservative `aw uninstall` that consumes the install manifest
+# IPD: conservative, manifest-driven `aw uninstall` (report drift, offer deeper cleanup, commit what it changed)
 
 - Date: 2026-07-23
-- Concern: safe, complete, reversible removal of agent-workflows from a repo without destroying user content
-- Scope (intended): an `aw uninstall` that removes what the installer owns (per the manifest), strips only managed blocks from shared files, preserves user/workflow content by default, and offers a clearly-warned deeper `.agents/` cleanup. Details TBD.
-- Status: draft
+- Concern: safe, complete, reversible removal of agent-workflows from a repo without destroying user content, with honest reporting and a user-driven deeper cleanup
+- Scope: make `aw uninstall` consult the IPD-01 manifest for ownership + hashes; remove owned files the user has NOT edited, and for an edited (drifted) owned file REPORT the diff, offer to show it, and let the user decide (keep/remove) rather than silently clobbering or silently refusing; strip only managed blocks/sections from shared files (already partly done); remove the manifest last; then OFFER (interactively, with explanation) a deeper `.agents/` cleanup that announces per-directory delete COUNTS, offers inspect-or-abort, uses a GRADUATED warning (soft when the collateral is tracked+committed and thus git-recoverable, loud when untracked/uncommitted/ignored), and `git rm`s tracked files; add `--dry-run`, `--deep`, `--force`/`--yes` escape hatches for non-interactive/CI use; and when done OFFER to commit ONLY the files uninstall changed. Product code + tests + docs. DEPENDS ON IPD 01 (manifest), IPD 02 (managed sections), IPD 03 (untracked scan/convention), all executed.
+- Status: to-review
 - Set: install-safety-and-ownership
 - Order: 4
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
-> DRAFT STUB - PRELIMINARY. Captures INTENT and OBJECTIVES only. NOT ready for /plan-review or
-> execution. The "how" is deliberately unspecified and LIKELY NEEDS MORE DISCUSSION AND CLARITY.
-> Do not execute.
-
 ## Workflow history
 
 - 2026-07-23 created as a draft stub (opencode its_direct/pt3-claude-opus-4.8-1m-us): the maintainer's original "Item 3", now scoped to build on the install-manifest/ownership model (IPD 01 manifest + IPD 02 managed-sections). Preliminary; to be fleshed out after 01/02.
+- 2026-07-23 fleshed out to a full IPD (opencode its_direct/pt3-claude-opus-4.8-1m-us): with IPD 01/02/03 executed, converted the stub into findings + ordered validatable steps + tests + docs. Maintainer decisions taken at authoring: Q1 do NOT reduce today's UX to a silent refuse or a silent blanket delete; for a drifted owned file REPORT the diff, OFFER to show it, and let the user decide (keep/remove), reusing the D101 show-and-confirm posture. Q2 preserve the `.agents/` scaffolding by default and OFFER a deeper cleanup with a GRADUATED warning (soft when the collateral is tracked+committed = git-recoverable, loud when untracked/uncommitted/ignored). Q3 do NOT hide the deeper cleanup behind a flag the user must think to set BEFORE uninstalling: OFFER it interactively during uninstall with explanation, and provide `--deep`/`--force` (+ `--dry-run`) only as escape hatches for the non-interactive/CI user; the uninstaller MUST `git rm` tracked files, MUST announce per-directory delete COUNTS and offer inspect-or-abort BEFORE deleting, and MUST offer to commit ONLY the files it changed when done.
 
-## Intent and objectives
+## Goal
 
-Today `aw uninstall` (`_run_uninstall` / `uninstall_repo`, engine) removes only three hard-coded namespaces (the workflow tree, generated shim `*.md`, the monolithic AGENTS pointer block) and leaves the setup artifacts (`.agents/plans|docs|prompts|comms`, `.gitleaksignore`, CI, gitignore entries) behind. There is no durable manifest it consults. The objective is a CONSERVATIVE, manifest-driven uninstall that removes everything agent-workflows provably installed while never destroying user or workflow-output content, and that OFFERS (never assumes) a deeper cleanup.
+Turn `aw uninstall` into a conservative, manifest-driven, honest operation:
 
-Behavior intended (per the write-safety research, `.agents/docs/research/20260722-2241-...`):
+1. Consult the IPD-01 manifest for what agent-workflows OWNS (workflow bodies, generated shims, managed sections). For each owned file, if its current content still matches OUR recorded hash, remove it (`git rm` when tracked, else unlink); if the user has EDITED it (hash differs from our record), REPORT that drift, OFFER to show the diff, and let the user decide keep-or-remove (the D101 posture) rather than clobbering it or silently leaving it.
+2. Strip only the agent-workflows-managed blocks/sections from shared files (AGENTS.md, CLAUDE.md, GEMINI.md, and the `.gitignore` untracked block) leaving user content and foreign sibling blocks intact (already implemented by IPD 02/03; keep it).
+3. Remove the manifest file itself LAST, once the files it tracked are gone.
+4. Then OFFER, interactively and with a plain-language explanation, a DEEPER `.agents/` cleanup of the NON-owned scaffolding (`.agents/plans|docs|prompts|comms`, `.gitleaksignore`, secret-scan CI, READMEs, `.gitkeep`s). Before deleting anything, ANNOUNCE the counts per directory ("about to delete 234 files under `.agents/plans/executed/`, 33 under `.agents/docs/`, ...") and OFFER to inspect the list or abort. Use a GRADUATED warning: soft when every to-be-deleted file is tracked AND committed (recoverable with `git checkout`), LOUD when any is untracked/uncommitted/ignored (unrecoverable). Never `rm -rf` a host directory blindly.
+5. Provide escape hatches for non-interactive/CI use: `--dry-run` (report the full plan, change nothing), `--deep` (perform the deeper cleanup non-interactively), `--force`/`--yes` (skip confirmations). Interactive is the default; the flags are for the user who does not want to be prompted.
+6. `git rm` tracked files (so the removal is staged, matching the repo's git state) and unlink untracked ones; NEVER commit automatically as a side effect, but when done OFFER to commit ONLY the files uninstall changed (parallel to the install commit offer), so the user is not left with a pile of staged deletions they must sort out.
 
-- Remove only files whose current hash still matches the last-installed hash in the manifest (IPD 01). A user-modified generated file is REPORTED and left, not deleted.
-- Strip only the agent-workflows-managed BLOCKS/sections from shared files (AGENTS.md, CLAUDE.md, GEMINI.md); delete the containing file only if it becomes empty AND the manifest proves the installer created it.
-- PRESERVE by default: `.agents/plans/`, `.agents/docs/`, `.agents/comms/`, `workflow-artifacts/`, and anything not in the manifest. Never `rm -rf` a host directory (`.opencode/`, `.claude/`, `.github/`, `.agents/`, etc.).
-- OFFER a deeper `.agents/` cleanup as an explicit, warned, interactive choice (the maintainer's original ask): options along the lines of "remove only agent-workflows-created files/dirs" vs "remove more", with a show-and-confirm and a loud warning that this may permanently delete files.
-- Before any deeper cleanup, COUNT and report the untracked-or-ignored NON-agent-workflows files under `.agents/` so the user is warned about collateral before deletion.
-- Handle the LEGACY monolithic block format on uninstall (recognize and remove it) but do not re-emit it.
-- Stage changes, never commit/push (existing behavior).
+Why it matters: today `aw uninstall` removes three hardcoded namespaces + (post IPD-03) the `.gitignore` block, ignores the manifest, cannot preserve a user-edited shim, leaves an orphaned manifest, and offers no path to clean up the `.agents/` scaffolding except manual `rm`. A user cannot see what will be removed before it happens, and is left with staged deletions and no commit. This makes uninstall honest, safe, and complete.
 
-## Objectives / must-haves (intent, not implementation)
+## Findings (drivers)
 
-- Manifest-driven: uninstall consults the IPD 01 manifest for ownership + hashes; no hard-coded namespace list as the source of truth.
-- Never destroys user-authored content or workflow outputs by default; drift is reported, not clobbered.
-- The deeper-cleanup prompt is self-contained (P12), warned, show-and-confirm, with a non-agent-workflows file count.
-- Recognizes and removes the legacy format; does not keep it.
+| ID | Severity | Remediation Risk | Persona | Area | Finding | Evidence |
+|----|----------|------------------|---------|------|---------|----------|
+| U1 | HIGH | Medium | adopter | data safety / anti-clobber | Uninstall removes the whole `.agents/workflows` tree and all shim `.md`s regardless of user edits; a hand-edited shim is destroyed with no warning. It must consult the manifest hash and, on drift, report + offer the diff + let the user decide (the D101 posture already exists for install). | `uninstall_repo` `engine.py:3014-3057`, `_uninstall_remove` `:2988-3011`; D101 prompt `write_file` gate |
+| U2 | MEDIUM | Low | maintainer | manifest is the source of truth | Uninstall uses hardcoded namespaces, not the manifest, so it cannot know exactly what it owns nor detect drift. It must load the manifest (`manifest.load`, partial but authoritative for bodies/shims/sections) and drive removal from it, falling back to the current namespace sweep only for pre-manifest repos. | `manifest.load` `manifest.py:225`, `matches_recorded` `:145`, recorded keys `_record_written` `engine.py:1230`, `_apply_section_consent` `:996` |
+| U3 | MEDIUM | Low | adopter | orphaned manifest | Uninstall never removes the manifest file, leaving `.agents/agent-workflows/managed-sections.json` orphaned after the framework is gone. Remove it LAST (after its files). | `uninstall_repo` `engine.py:3014-3057` (no manifest removal); `DEFAULT_MANIFEST_RELPATH` `manifest.py:41` |
+| U4 | HIGH | Medium | adopter | deeper cleanup honesty | The `.agents/plans|docs|prompts|comms` scaffolding fills with USER content; there is no safe, transparent way to clean it up on uninstall. A deeper cleanup MUST be offered (not assumed), MUST announce per-directory delete counts and offer inspect-or-abort, and MUST warn GRADUATED by git-recoverability (soft if tracked+committed, loud otherwise). | `create_setup_artifacts` `engine.py:3553-3653`; git status plumbing |
+| U5 | MEDIUM | Low | adopter | leftover staged deletions | Uninstall stages deletions and prints "review and commit" but never offers to commit, leaving the user to sort out a pile of staged removals. It must OFFER to commit ONLY the files it changed (parallel to the install commit offer). | `_run_uninstall` `cli.py:612-644` ("Deletions are STAGED, not committed"); `prompt_and_run_commit` `engine.py` |
+| U6 | LOW | Low | maintainer | flags | The CLI uninstall has only `--yes`; there is no `--dry-run` or a way to run the deeper cleanup non-interactively. Add `--dry-run`, `--deep`, `--force`/`--yes` as escape hatches; interactive-with-offer is the default. | uninstall subparser `cli.py:107-117` |
+| U7 | LOW | Low | maintainer | legacy | Uninstall must still recognize + remove the LEGACY monolithic `AGENT-WORKFLOWS:BEGIN/END` block (already handled by `_strip_managed_block`); keep that. `--undo`/`run_rollback` (backup restore) stays a SEPARATE mechanism, not merged here. | `_strip_managed_block` legacy branch; `run_rollback` `engine.py:2559+` |
 
-## Known open questions / needs discussion (NON-EXHAUSTIVE)
+## Proposed changes (ordered, validatable; checkpointed)
 
-- Exact option set and wording for the deeper `.agents/` cleanup (all vs aw-created; how "aw-created" is proven when the manifest predates some files).
-- How to count/classify "non-aw untracked or ignored" files reliably and cheaply (git plumbing vs walk); performance on large repos.
-- What to do about setup artifacts that the user has since edited or filled (e.g. `.agents/plans/` full of the user's own IPDs) - preserve always, presumably, but confirm.
-- Interaction with `--undo` (rollback of last install) vs uninstall (remove everything) - keep both? unify?
-- Whether uninstall should also offer to remove the manifest itself and the gitignore entries.
-- Dry-run and reporting format.
+| Step | Source | Change | Files | Remediation Risk | Validation |
+|------|--------|--------|-------|------------------|------------|
+| 0 | all | Characterization tests FIRST: pin current `uninstall_repo` behavior (removes workflows tree, shim `.md`s, AGENTS/native sections, `.gitignore` block; keeps user files) and current `_run_uninstall` flags/output, so the rewrite cannot silently regress them. | `tests/test_installer.py`, `tests/test_cli.py` | Low | characterization tests pass against current code |
+| 1 | U2,U1 | Manifest-driven owned-file removal with drift handling: a `plan_uninstall(repo_root) -> UninstallPlan` that loads the manifest and classifies each owned file as `remove` (hash matches our record), `drifted` (user-edited; hash differs), or `missing`. For pre-manifest repos, fall back to the current namespace sweep (all owned as `remove`). Pure/testable (no I/O side effects; returns the plan). | `agent_workflows/engine.py` (new `UninstallPlan`, `plan_uninstall`) | Medium | plan lists owned files by class; a matching shim -> remove; an edited shim -> drifted; pre-manifest repo -> namespace fallback |
+| 2 | U1,U5 | Apply the plan: remove `remove`-class files (`git rm` when tracked, else unlink); for each `drifted` file, in an interactive session REPORT it, OFFER to show the diff (reuse `print_shim_diff`/the D101 `prompt_choice` shape: keep [default] / remove / diff), and honor the choice; strip the managed sections (existing `remove_agents_pointer` + the `.gitignore` strip); remove the manifest file LAST. Non-interactive/`--force`: preserve drifted files (safe default) unless `--force` explicitly removes them. Collect every changed path. | `agent_workflows/engine.py` (`uninstall_repo` rewrite over the plan) | Medium | unedited owned files removed; drifted file preserved by default + reported, removed only on explicit choice/`--force`; sections stripped; manifest removed last; returns the changed-path set |
+| 3 | U4 | Deeper `.agents/` cleanup, OFFERED interactively (not flag-gated): after the core uninstall, if `.agents/` scaffolding remains, print what a deeper cleanup WOULD remove, grouped with per-directory COUNTS ("234 files under .agents/plans/executed/, ..."), classify each path's git state, and prompt (self-contained P12): keep [default] / show list / remove. Warning is GRADUATED: soft line when ALL to-be-removed files are tracked+committed (recoverable via git), LOUD when any is untracked/uncommitted/ignored (list those explicitly). On confirm, `git rm` tracked + unlink untracked; never `rm -rf` a host dir; never touch files outside the announced set. `--deep` performs it non-interactively; `--dry-run` reports the plan and changes nothing. | `agent_workflows/engine.py` (`plan_deep_cleanup`/`run_deep_cleanup`), `agent_workflows/cli.py` | Medium | counts correct; tracked-only collateral -> soft warning; untracked collateral -> loud warning naming those files; abort leaves everything; `--dry-run` changes nothing; host dirs never rm -rf'd |
+| 4 | U6,U5 | CLI wiring: add `--dry-run`, `--deep`, `--force` (alias/companion to `--yes`) to the uninstall subparser; interactive-with-offer is the default. After changes, OFFER to commit ONLY the files uninstall changed (a commit helper mirroring `prompt_and_run_commit`, path-scoped to the changed set; auto under `--yes`/`--force`, prompt otherwise, print the exact `git commit -- <paths>` on decline). Keep "never push". | `agent_workflows/cli.py`, `agent_workflows/engine.py` | Medium | flags parsed; interactive offer works; commit offer stages+commits only the changed paths; decline prints the command; `--dry-run` never commits |
+| 5 | all | Tests: manifest-driven plan classification (remove/drifted/missing + pre-manifest fallback); drifted-file preserve-by-default + remove-on-choice/`--force`; manifest removed last; section stripping preserved (regression); deeper-cleanup counts + graduated warning (tracked=soft, untracked=loud) + abort + `--dry-run` no-op + never-rm-rf-host; commit-only-changed-files offer + never-push; the existing uninstall tests (`test_cli.py:284-308`, `test_installer.py` uninstall cases) updated consciously. | `tests/test_installer.py`, `tests/test_cli.py` | Medium | full suite green; paste ACTUAL output |
+| 6 | all | Docs/decision sync: DECISIONS entry (pin at execution) for the conservative manifest-driven uninstall (drift report+diff+choose; preserve-by-default; offered graduated-warning deeper cleanup; announce-counts + inspect/abort; git rm tracked; remove manifest last; offer commit-of-changed-only; `--dry-run`/`--deep`/`--force`; `--undo` stays separate); CHANGELOG 1.3.0; update uninstall help/docs and the manifest README. Cross-reference the write-safety research `20260722-2241-01` and IPD 01/02/03. | `DECISIONS.md`, `CHANGELOG.md`, docs | Low | entries present; no em/en dashes |
 
-## Dependencies
+## Deferred / out of scope (with reason)
 
-- REQUIRES the install manifest (IPD 01) + managed-sections model (IPD 02). Should be authored/fleshed out after 01/02 are settled, since it is their primary consumer. Also intersects the untracked-convention IPD (counting/handling untracked files).
+| Item | Remediation Risk | Axis | Reason | Recommended later step |
+|------|------------------|------|--------|------------------------|
+| Merging `--undo` (backup restore) into uninstall | Medium | functionality | They are distinct: `--undo` reverts the last install from backups; uninstall removes the framework. Keep both separate (U7). | Only if a real need to unify appears. |
+| Making the manifest a COMPLETE inventory (recording the setup-artifacts scaffolding too) | Medium | complexity | The scaffolding holds user content and is handled by the offered deeper cleanup by git-state, not by ownership hashes; recording it would blur "owned vs user". | Revisit if deeper cleanup proves it needs per-file provenance. |
+| Removing the backups dir / its gitignore line | Low | safety | The backups are local recovery scratch; deleting them on uninstall removes a safety net. Leave them. | A `--purge-backups` flag later if asked. |
+
+## Scope check
+
+- Over-scope: none - manifest-driven removal + drift report/diff/choose + section stripping (existing) + manifest removal + the offered graduated deeper cleanup + commit-of-changed-only + flags + tests + docs. `--undo` stays separate; the manifest is not made a complete inventory.
+- Under-scope: MUST NOT reduce today's removal UX (U1: report + offer diff + let the user decide on drift, never silent clobber nor silent refuse); MUST be manifest-driven with a pre-manifest namespace fallback (U2); MUST remove the manifest last (U3); MUST offer (not assume) the deeper cleanup, announce per-directory counts, offer inspect-or-abort, and warn GRADUATED by git-recoverability (U4); MUST `git rm` tracked files; MUST never `rm -rf` a host dir or touch files outside the announced set; MUST offer to commit ONLY the files it changed and never push (U5); MUST keep legacy-block recognition and keep `--undo` separate (U7); MUST support `--dry-run`/`--deep`/`--force` as escape hatches with interactive-with-offer as the default (U6).
+
+## Required tests / validation
+
+- Plan classification: a repo with an unedited shim + an edited shim + a matching body yields remove/drifted correctly; a pre-manifest repo falls back to the namespace sweep (all remove).
+- Drift handling: a drifted owned file is PRESERVED by default and reported (with the diff offer under interactive); removed only on explicit choice or `--force`; an unedited owned file is removed (git rm when tracked).
+- Sections + manifest: AGENTS/native/`.gitignore` managed blocks stripped (regression vs IPD 02/03); the manifest file removed LAST; user content and foreign sibling blocks intact.
+- Deeper cleanup: per-directory COUNTS correct; ALL-tracked-committed collateral -> soft warning; any untracked/uncommitted/ignored -> LOUD warning listing those; abort leaves everything untouched; `--dry-run` reports and changes nothing; a host dir (`.agents/`, `.opencode/`) is never `rm -rf`'d; nothing outside the announced set is touched.
+- Commit offer: after uninstall, the commit offer stages+commits ONLY the changed paths (path-scoped), auto under `--yes`/`--force`, prints the exact `git commit -- <paths>` on decline, never pushes; `--dry-run` never commits.
+- Full suite `python -m pytest -q` GREEN; paste ACTUAL output. `aw check-local-leaks .` clean; no em/en dashes.
+
+## Spec / documentation sync
+
+- DECISIONS (the conservative manifest-driven uninstall model), CHANGELOG 1.3.0, uninstall `--help`/docs, the manifest README. Cross-reference research `20260722-2241-01` and IPD 01/02/03.
+
+## Open questions
+
+- OQ-Q1 (drift handling): RESOLVED (maintainer, authoring). Do not reduce UX; report the diff, offer to show it, let the user decide (keep/remove); preserve-by-default non-interactively; `--force` removes.
+- OQ-Q2 (deeper cleanup + warning): RESOLVED (maintainer, authoring). Preserve scaffolding by default; OFFER a deeper cleanup with a GRADUATED warning keyed to git-recoverability (soft when tracked+committed, loud otherwise) and per-directory delete counts + inspect/abort.
+- OQ-Q3 (flags + manifest/gitignore + commit): RESOLVED (maintainer, authoring). Offer the deeper cleanup INTERACTIVELY during uninstall (do not hide it behind a pre-uninstall flag); provide `--deep`/`--force`/`--dry-run` as escape hatches; `git rm` tracked files; announce counts + offer inspect/abort before deleting; remove the manifest last; OFFER to commit ONLY the files uninstall changed; leave the backups dir/gitignore line.
 
 ## Approval and execution gate
 
-DRAFT STUB. Must be fleshed out (findings, ordered validatable steps, tests incl. the write-safety golden invariants, docs sync, resolved open questions) and pass /plan-review + explicit human approval before execution. Standard execution contract applies when fleshed out.
+This IPD is a proposal. It MUST be reviewed and approved by a human before execution, and it is NOT auto-executed. DEPENDS ON IPD 01 (manifest), IPD 02 (managed sections), IPD 03 (untracked convention), all executed.
+
+Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY files changed by this plan, path-scoped (`git commit -m msg -- <path>`), never `git add -A`/`-a`, never push; `git add` new files first. When reporting tests, paste the ACTUAL runner output; never claim a pass not run. No em or en dashes in authored Markdown. STOP and report if execution exceeds this plan's scope. Never create or push a tag / Release / PyPI upload. The uninstaller itself MUST never destroy user content by default, MUST announce and confirm destructive deeper cleanup, and MUST never push.
+
+CHECKPOINTED EXECUTION: (0) characterization FIRST; (1) manifest-driven `plan_uninstall`; (2) apply plan + drift report/diff/choose + remove manifest last; (3) offered graduated deeper cleanup with counts/inspect/abort; (4) CLI flags + commit-of-changed-only offer; (5) tests; (6) docs. Re-run the full suite at each checkpoint; pause and report if scope grows.
+
+Recommended next steps:
+1. Review (optionally `/plan-review`).
+2. On human approval, execute in checkpoints, validate, sync docs; commit path-scoped (no push).
+3. Set terminal `Status: executed` and `git mv` to `.agents/plans/executed/`.
