@@ -1254,6 +1254,62 @@ class UntrackedGitignoreUninstallTests(unittest.TestCase):
         )
 
 
+class UninstallApplyTests(unittest.TestCase):
+    """CP2: uninstall_repo applies the plan (drift preserve/remove, manifest last, changed set)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+        self.source = REPO_ROOT / ".agents" / "workflows"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_force_removes_drifted(self):
+        repo = init_repo(self.base / "f")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        shim = repo / ".opencode/commands/advise.md"
+        shim.write_text("MY EDIT\n", encoding="utf-8")
+        INS.uninstall_repo(repo, use_git=True, force=True)
+        self.assertFalse(shim.is_file(), "--force removes an edited shim too")
+
+    def test_drift_decider_choice_honored(self):
+        repo = init_repo(self.base / "d")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        a = repo / ".opencode/commands/advise.md"
+        b = repo / ".opencode/commands/verify.md"
+        a.write_text("EDIT A\n", encoding="utf-8")
+        b.write_text("EDIT B\n", encoding="utf-8")
+        # Decider: remove advise, keep verify.
+        INS.uninstall_repo(
+            repo,
+            use_git=True,
+            drift_decider=lambda rel: "remove" if "advise" in rel else "keep",
+        )
+        self.assertFalse(a.is_file(), "chosen-remove drifted file is removed")
+        self.assertTrue(b.is_file(), "kept drifted file is preserved")
+
+    def test_changed_out_collects_paths_and_sections_preserved(self):
+        repo = init_repo(self.base / "c")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        changed: list[str] = []
+        INS.uninstall_repo(repo, use_git=True, changed_out=changed)
+        # Manifest + AGENTS pointer + .gitignore are among the changed paths.
+        self.assertIn(".agents/agent-workflows/managed-sections.json", changed)
+        self.assertIn("AGENTS.md", changed)
+        # AGENTS.md still exists (only its managed block was stripped, U8).
+        self.assertTrue((repo / "AGENTS.md").is_file())
+        self.assertNotIn("aw:block", (repo / "AGENTS.md").read_text(encoding="utf-8"))
+
+    def test_pre_manifest_fallback_removes_namespace(self):
+        repo = init_repo(self.base / "pre")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        # Delete the manifest to simulate a pre-manifest repo, then uninstall.
+        (repo / ".agents/agent-workflows/managed-sections.json").unlink()
+        INS.uninstall_repo(repo, use_git=True)
+        self.assertFalse((repo / ".agents/workflows").is_dir())
+
+
 class PlanUninstallTests(unittest.TestCase):
     """CP1: plan_uninstall classification (IPD 04)."""
 
@@ -1328,22 +1384,20 @@ class UninstallCharacterizationTests(unittest.TestCase):
         self.assertFalse((repo / ".agents/workflows").is_dir())
         self.assertTrue((repo / "my_code.py").is_file())
 
-    def test_today_uninstall_leaves_manifest_and_does_not_preserve_edited_shim(self):
-        # Baseline the rewrite changes: today the manifest is left behind, and a hand-edited
-        # shim is removed with the rest (no drift preservation). CP2/CP3 change both.
+    def test_uninstall_removes_manifest_last_and_preserves_edited_shim(self):
+        # CP2 behavior (consciously updated from the CP0 baseline): the manifest is removed and
+        # a user-edited (drifted) shim is PRESERVED by default (removed only on --force/choice).
         repo = init_repo(self.base / "m")
         INS.install_into_repo(repo, self.source, yes=True, no_color=True)
         manifest = repo / ".agents/agent-workflows/managed-sections.json"
         self.assertTrue(manifest.is_file())
-        # Edit a shim, then uninstall.
         shim = repo / ".opencode/commands/advise.md"
-        if shim.is_file():
-            shim.write_text("MY EDIT\n", encoding="utf-8")
+        shim.write_text("MY EDIT\n", encoding="utf-8")
         INS.uninstall_repo(repo, use_git=True)
-        # Today: manifest survives (it is not under a removed namespace).
-        self.assertTrue(
-            manifest.is_file(), "baseline: uninstall does not remove the manifest today"
-        )
+        # Manifest removed last; the edited shim preserved with its content intact.
+        self.assertFalse(manifest.is_file(), "uninstall removes the manifest (CP2)")
+        self.assertTrue(shim.is_file(), "a user-edited shim is preserved by default")
+        self.assertEqual(shim.read_text(encoding="utf-8"), "MY EDIT\n")
 
 
 class UntrackedSafetyCharacterizationTests(unittest.TestCase):

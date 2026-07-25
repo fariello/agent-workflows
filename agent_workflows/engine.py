@@ -69,7 +69,7 @@ import shlex
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import NamedTuple, Optional
+from typing import Callable, NamedTuple, Optional
 
 from . import versioning as _VERSIONING
 from . import manifest as manifest_mod
@@ -3069,35 +3069,79 @@ def plan_uninstall(repo_root: Path) -> UninstallPlan:
     return plan
 
 
-def uninstall_repo(repo_root: Path, use_git: bool) -> list[str]:
-    """Remove the framework from a repo: .agents/workflows/, our shims, the AGENTS block.
+def uninstall_repo(
+    repo_root: Path,
+    use_git: bool,
+    *,
+    drift_decider: "Optional[Callable[[str], str]]" = None,
+    force: bool = False,
+    changed_out: "Optional[list[str]]" = None,
+) -> list[str]:
+    """Remove the framework from a repo, conservatively and manifest-driven (IPD 04).
+
+    Manifest-driven when a manifest exists: an owned file/shim whose content still matches OUR
+    recorded hash is removed; a user-EDITED (drifted) owned file is PRESERVED by default and
+    reported, removed only when `force` is set or `drift_decider(rel)` returns "remove". A
+    `kind=section` entry is never file-deleted (U8); managed blocks are stripped by the
+    block-strip path. Pre-manifest repos fall back to the legacy namespace sweep.
 
     Stages deletions (git rm -f when tracked/staged) and never commits. Never touches user
-    content outside the framework namespace. Returns human-readable actions taken.
+    content outside the framework namespace. Returns human-readable actions taken; when
+    `changed_out` is provided, appends every changed repo-relative path to it (for a
+    caller's commit offer). `drift_decider` is called only in an interactive caller; it
+    receives the drifted path and returns "keep" or "remove".
     """
 
     actions: list[str] = []
 
-    # 1. The workflow tree.
-    if (repo_root / WORKFLOWS_DIR).is_dir():
-        _uninstall_remove(repo_root, WORKFLOWS_DIR, use_git)
-        actions.append(f"removed {WORKFLOWS_DIR}/")
+    def _record_changed(rel: str) -> None:
+        if changed_out is not None:
+            changed_out.append(rel)
 
-    # 2. The generated command shims (only the .md files we generate).
-    for shim_dir in COMMAND_SHIM_DIRS:
-        d = repo_root / shim_dir
-        if not d.is_dir():
-            continue
-        for path in sorted(d.glob("*.md")):
-            rel = path.relative_to(repo_root).as_posix()
+    plan = plan_uninstall(repo_root)
+
+    if plan.has_manifest:
+        # 1. Owned files/shims, classified by the manifest.
+        for rel in plan.remove:
             _uninstall_remove(repo_root, rel, use_git)
+            _record_changed(rel)
             actions.append(f"removed {rel}")
+        for rel in plan.missing:
+            actions.append(f"{rel} already absent (manifest entry stale)")
+        for rel in plan.drifted:
+            decision = "remove" if force else "keep"
+            if drift_decider is not None and not force:
+                decision = drift_decider(rel)
+            if decision == "remove":
+                _uninstall_remove(repo_root, rel, use_git)
+                _record_changed(rel)
+                actions.append(f"removed {rel} (you chose to remove your edited copy)")
+            else:
+                actions.append(f"PRESERVED {rel} (you edited it; left in place)")
+    else:
+        # Pre-manifest fallback: the legacy namespace sweep (all owned files removed).
+        if (repo_root / WORKFLOWS_DIR).is_dir():
+            _uninstall_remove(repo_root, WORKFLOWS_DIR, use_git)
+            _record_changed(WORKFLOWS_DIR + "/")
+            actions.append(f"removed {WORKFLOWS_DIR}/")
+        for shim_dir in COMMAND_SHIM_DIRS:
+            d = repo_root / shim_dir
+            if not d.is_dir():
+                continue
+            for path in sorted(d.glob("*.md")):
+                rel = path.relative_to(repo_root).as_posix()
+                _uninstall_remove(repo_root, rel, use_git)
+                _record_changed(rel)
+                actions.append(f"removed {rel}")
 
-    # 3. The managed AGENTS pointer block (leaves the user's own AGENTS prose intact).
-    actions.extend(remove_agents_pointer(repo_root, use_git))
+    # 2. The managed AGENTS pointer block (leaves the user's own AGENTS prose intact).
+    for line in remove_agents_pointer(repo_root, use_git):
+        actions.append(line)
+        if line.startswith("removed pointer block from "):
+            _record_changed(line[len("removed pointer block from ") :])
 
-    # 4. The untracked-safety aw:block in .gitignore (IPD 03), in #-comment syntax; leaves the
-    #    user's own .gitignore lines intact. Only removed on an explicit uninstall.
+    # 3. The untracked-safety aw:block in .gitignore (IPD 03), #-comment syntax; leaves the
+    #    user's own .gitignore lines intact.
     gitignore_path = repo_root / ".gitignore"
     if gitignore_path.is_file():
         existing = gitignore_path.read_text(encoding="utf-8")
@@ -3110,7 +3154,17 @@ def uninstall_repo(repo_root: Path, use_git: bool) -> list[str]:
             gitignore_path.write_text(stripped, encoding="utf-8")
             if use_git and git_is_tracked(repo_root, ".gitignore"):
                 git_add_optional(repo_root, ".gitignore")
+            _record_changed(".gitignore")
             actions.append("removed untracked-safety block from .gitignore")
+
+    # 4. Finally, remove the manifest itself (its job is done once its files are gone). LAST,
+    #    so a mid-uninstall failure still leaves the ownership record intact for a retry (U3).
+    manifest_rel = manifest_mod.DEFAULT_MANIFEST_RELPATH
+    manifest_path = repo_root / manifest_rel
+    if manifest_path.is_file():
+        _uninstall_remove(repo_root, manifest_rel, use_git)
+        _record_changed(manifest_rel)
+        actions.append(f"removed {manifest_rel}")
 
     return actions
 
