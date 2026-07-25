@@ -3011,6 +3011,134 @@ def _uninstall_remove(repo_root: Path, rel: str, use_git: bool) -> None:
         target.unlink()
 
 
+def _git_file_state(repo_root: Path, rel: str) -> str:
+    """Classify a file's recoverability for the deeper-cleanup warning (IPD 04):
+    "recoverable" (tracked AND no uncommitted changes -> `git checkout` restores it) or
+    "at_risk" (untracked, or tracked with uncommitted changes, or ignored -> deletion is
+    unrecoverable). Best-effort; anything uncertain is "at_risk" (the loud side)."""
+
+    if not git_is_tracked(repo_root, rel):
+        return "at_risk"
+    try:
+        proc = subprocess.run(
+            ["git", "status", "--porcelain", "--", rel],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            shell=False,
+        )
+    except OSError:
+        return "at_risk"
+    # Empty porcelain output for a tracked path = clean = committed = recoverable.
+    return (
+        "recoverable" if proc.returncode == 0 and not proc.stdout.strip() else "at_risk"
+    )
+
+
+# The setup-artifacts scaffolding a normal uninstall PRESERVES; the deeper cleanup (IPD 04)
+# offers to remove what remains of it. These hold user content, so removal is opt-in, warned,
+# and git-state-classified. Host dirs themselves are never rm -rf'd; only files are removed and
+# emptied dirs pruned.
+_DEEP_CLEANUP_ROOTS = (
+    ".agents/plans",
+    ".agents/docs",
+    ".agents/prompts",
+    ".agents/comms",
+    ".gitleaksignore",
+    ".github/workflows/secret-scan.yml",
+)
+
+
+@dataclass
+class DeepCleanupPlan:
+    """What the offered deeper `.agents/` cleanup would remove (IPD 04).
+
+    `files` is every repo-relative file path under the scaffolding roots that still exists;
+    `counts` is per-root file counts for the announcement; `at_risk` is the subset that is
+    NOT recoverable from git (untracked/uncommitted/ignored) and drives the LOUD warning.
+    """
+
+    files: list[str] = field(default_factory=list)
+    counts: dict[str, int] = field(default_factory=dict)
+    at_risk: list[str] = field(default_factory=list)
+
+    @property
+    def is_empty(self) -> bool:
+        return not self.files
+
+    @property
+    def all_recoverable(self) -> bool:
+        return not self.at_risk
+
+
+def plan_deep_cleanup(repo_root: Path) -> DeepCleanupPlan:
+    """Enumerate the non-owned scaffolding still present, with per-root counts and git-state
+    classification (IPD 04). Pure: reads the tree + git state, mutates nothing."""
+
+    plan = DeepCleanupPlan()
+    for root in _DEEP_CLEANUP_ROOTS:
+        base = repo_root / root
+        if base.is_file():
+            candidates = [base]
+        elif base.is_dir():
+            candidates = [p for p in base.rglob("*") if p.is_file()]
+        else:
+            continue
+        n = 0
+        for p in candidates:
+            rel = p.relative_to(repo_root).as_posix()
+            plan.files.append(rel)
+            if _git_file_state(repo_root, rel) == "at_risk":
+                plan.at_risk.append(rel)
+            n += 1
+        if n:
+            plan.counts[root] = n
+    plan.files.sort()
+    plan.at_risk.sort()
+    return plan
+
+
+def run_deep_cleanup(
+    repo_root: Path,
+    plan: DeepCleanupPlan,
+    use_git: bool,
+    changed_out: "Optional[list[str]]" = None,
+) -> list[str]:
+    """Remove exactly the files in `plan` (git rm when tracked, else unlink), then prune any
+    now-empty scaffolding directories. Never rm -rf a host dir; never touch a path outside
+    `plan.files`. Returns human-readable actions; appends changed paths to `changed_out`."""
+
+    actions: list[str] = []
+    for rel in plan.files:
+        target = repo_root / rel
+        if not target.is_file():
+            continue
+        _uninstall_remove(repo_root, rel, use_git)
+        if changed_out is not None:
+            changed_out.append(rel)
+    # Prune now-empty dirs under the scaffolding roots (deepest first); never remove the repo
+    # root or a host dir that still has content.
+    for root in _DEEP_CLEANUP_ROOTS:
+        base = repo_root / root
+        if not base.is_dir():
+            continue
+        for d in sorted(
+            (p for p in base.rglob("*") if p.is_dir()),
+            key=lambda p: len(p.parts),
+            reverse=True,
+        ):
+            try:
+                d.rmdir()  # only succeeds if empty
+            except OSError:
+                pass
+        try:
+            base.rmdir()
+        except OSError:
+            pass
+    actions.append(f"deep cleanup removed {len(plan.files)} file(s)")
+    return actions
+
+
 @dataclass
 class UninstallPlan:
     """What a conservative uninstall would do, computed from the IPD-01 manifest (IPD 04).

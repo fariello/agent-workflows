@@ -1254,6 +1254,78 @@ class UntrackedGitignoreUninstallTests(unittest.TestCase):
         )
 
 
+class DeepCleanupTests(unittest.TestCase):
+    """CP3: plan_deep_cleanup / run_deep_cleanup (IPD 04)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+        self.source = REPO_ROOT / ".agents" / "workflows"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _install_commit(self, repo):
+        from tests.support import git
+
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "install")
+
+    def test_plan_counts_and_all_recoverable_when_committed(self):
+        repo = init_repo(self.base / "r")
+        self._install_commit(repo)
+        # Add a user IPD under plans and commit it (recoverable).
+        (repo / ".agents/plans/pending/my.md").write_text("mine\n", encoding="utf-8")
+        from tests.support import git
+
+        git(repo, "add", "-A")
+        git(repo, "commit", "-m", "user ipd")
+        plan = INS.plan_deep_cleanup(repo)
+        self.assertFalse(plan.is_empty)
+        self.assertIn(".agents/plans", plan.counts)
+        self.assertTrue(
+            plan.all_recoverable, "all committed -> nothing at risk (soft warning)"
+        )
+
+    def test_untracked_file_is_at_risk(self):
+        repo = init_repo(self.base / "a")
+        self._install_commit(repo)
+        # An untracked file under docs is unrecoverable.
+        (repo / ".agents/docs/research/scratch.md").write_text("x\n", encoding="utf-8")
+        plan = INS.plan_deep_cleanup(repo)
+        self.assertIn(".agents/docs/research/scratch.md", plan.at_risk)
+        self.assertFalse(plan.all_recoverable)
+
+    def test_run_removes_only_planned_files_and_prunes_dirs(self):
+        repo = init_repo(self.base / "x")
+        self._install_commit(repo)
+        # A file OUTSIDE the scaffolding must be untouched.
+        (repo / "keep_me.py").write_text("code\n", encoding="utf-8")
+        plan = INS.plan_deep_cleanup(repo)
+        INS.run_deep_cleanup(repo, plan, use_git=True)
+        # Scaffolding dirs pruned; host dir .agents/ only remains if something else is there.
+        self.assertFalse(
+            (repo / ".agents/plans").exists(), "planned scaffolding removed"
+        )
+        self.assertTrue(
+            (repo / "keep_me.py").is_file(), "non-scaffolding file untouched"
+        )
+
+    def test_run_never_touches_paths_outside_plan(self):
+        repo = init_repo(self.base / "s")
+        self._install_commit(repo)
+        plan = INS.plan_deep_cleanup(repo)
+        # Craft a plan with a single file; run must remove only it.
+        one = plan.files[0]
+        single = INS.DeepCleanupPlan(files=[one], counts={}, at_risk=[])
+        INS.run_deep_cleanup(repo, single, use_git=True)
+        self.assertFalse((repo / one).is_file())
+        # Another planned-but-not-in-single file still exists.
+        others = [f for f in plan.files if f != one and (repo / f).is_file()]
+        self.assertTrue(others, "files outside the single-file plan are untouched")
+
+
 class UninstallApplyTests(unittest.TestCase):
     """CP2: uninstall_repo applies the plan (drift preserve/remove, manifest last, changed set)."""
 
