@@ -115,6 +115,22 @@ def _build_parser() -> argparse.ArgumentParser:
     p_uninstall.add_argument(
         "-y", "--yes", action="store_true", help="Skip the confirmation prompt."
     )
+    p_uninstall.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report what would be removed/preserved; change nothing.",
+    )
+    p_uninstall.add_argument(
+        "--deep",
+        action="store_true",
+        help="Also remove the .agents/ scaffolding (plans/docs/prompts/comms, etc.); "
+        "normally offered interactively.",
+    )
+    p_uninstall.add_argument(
+        "--force",
+        action="store_true",
+        help="Also remove files you have edited (drifted) instead of preserving them.",
+    )
 
     p_list = sub.add_parser(
         "list",
@@ -609,6 +625,108 @@ def _teach(term: Term) -> None:
 # --------------------------------------------------------------------------------------
 
 
+def _uninstall_dry_run_report(term: Term, repo_root: Path) -> int:
+    """Report what a normal + deep uninstall WOULD do, changing nothing."""
+
+    plan = engine.plan_uninstall(repo_root)
+    term.status("ok", f"[dry-run] uninstall plan for {repo_root}:")
+    if plan.has_manifest:
+        print(f"  would remove {len(plan.remove)} owned file(s)")
+        if plan.drifted:
+            print(
+                f"  would PRESERVE {len(plan.drifted)} file(s) you edited "
+                "(pass --force to remove them):"
+            )
+            for rel in plan.drifted:
+                print(f"    - {rel}")
+        print("  would strip the managed AGENTS/native + .gitignore blocks")
+        print("  would remove the manifest last")
+    else:
+        print("  no manifest: would fall back to removing the framework namespace")
+    deep = engine.plan_deep_cleanup(repo_root)
+    if not deep.is_empty:
+        print("  deeper cleanup (offered separately) WOULD remove:")
+        for root, n in sorted(deep.counts.items()):
+            print(f"    - {n} file(s) under {root}/")
+        if deep.at_risk:
+            print(
+                f"    ! {len(deep.at_risk)} of these are NOT recoverable from git "
+                "(untracked/uncommitted)"
+            )
+    return 0
+
+
+def _offer_deep_cleanup(
+    term: Term, repo_root: Path, use_git: bool, args, changed: list[str]
+) -> None:
+    """Offer (or, under --deep, perform) the deeper .agents/ cleanup with a graduated warning."""
+
+    plan = engine.plan_deep_cleanup(repo_root)
+    if plan.is_empty:
+        return
+
+    print()
+    print(
+        "A deeper cleanup can also remove the agent-workflows scaffolding it left behind:"
+    )
+    for root, n in sorted(plan.counts.items()):
+        print(f"  - {n} file(s) under {root}/")
+    if plan.all_recoverable:
+        print(
+            "  All of these are tracked and committed, so they can be restored with "
+            "`git checkout` if you change your mind."
+        )
+    else:
+        print(
+            term.colorize(
+                f"  WARNING: {len(plan.at_risk)} of these are NOT recoverable from git "
+                "(untracked, uncommitted, or ignored). Deleting them is permanent:",
+                "yellow",
+            )
+        )
+        for rel in plan.at_risk:
+            print(f"    ! {rel}")
+
+    do_it = args.deep
+    if not do_it:
+        if args.yes or args.force or not sys.stdin.isatty():
+            # Non-interactive (--yes/--force/no TTY) without --deep: do NOT silently delete the
+            # scaffolding; it holds user content. Skip the deeper cleanup unless --deep is set.
+            term.status(
+                "warn",
+                "scaffolding left in place (pass --deep to remove it non-interactively).",
+            )
+            return
+        choice = engine.prompt_choice(
+            "Remove this scaffolding too? [y/N/list/help]: ",
+            [
+                "  Y    = Yes, remove the scaffolding listed above",
+                "  N    = No, keep it [default]",
+                "  list = show every file that would be removed, then ask again",
+                "  help = show this help",
+            ],
+            default="no",
+            accept={
+                "y": "yes",
+                "yes": "yes",
+                "n": "no",
+                "no": "no",
+                "list": "list",
+                "l": "list",
+                "help": "help",
+                "?": "help",
+            },
+            on_diff=lambda: [print(f"    - {f}") for f in plan.files],
+        )
+        do_it = choice == "yes"
+
+    if do_it:
+        for a in engine.run_deep_cleanup(repo_root, plan, use_git, changed_out=changed):
+            term.status("ok", a)
+    else:
+        term.status("skip", "deeper cleanup skipped; scaffolding left in place.")
+
+
 def _run_uninstall(args: argparse.Namespace, term: Term) -> int:
     repo_root = Path(args.target).expanduser().resolve()
     if not (repo_root / engine.WORKFLOWS_DIR).is_dir():
@@ -616,19 +734,62 @@ def _run_uninstall(args: argparse.Namespace, term: Term) -> int:
             "warn", f"{repo_root}: framework not installed (nothing to remove)."
         )
         return 1
+
+    if getattr(args, "dry_run", False):
+        return _uninstall_dry_run_report(term, repo_root)
+
     if not _confirm(
         term,
         f"Remove agent-workflows from {repo_root}? "
-        "(framework + generated shims + AGENTS pointer)",
-        args.yes,
+        "(owned files + generated shims + managed blocks + manifest)",
+        args.yes or args.force,
     ):
         term.status("skip", "aborted; nothing changed.")
         return 1
 
     use_git = engine.git_available(repo_root)
-    actions = engine.uninstall_repo(repo_root, use_git)
+
+    # Interactive per-drifted-file decision (keep [default] / remove / diff). Non-interactive
+    # or --force is handled inside uninstall_repo (preserve unless --force).
+    def _drift_decider(rel: str) -> str:
+        if not sys.stdin.isatty():
+            return "keep"
+        term.status("warn", f"you have edited {rel} since install.")
+        choice = engine.prompt_choice(
+            f"Remove your edited {rel}? [y/N/d/help]: ",
+            [
+                "  Y    = Yes, remove my edited copy",
+                "  N    = No, keep my version [default]",
+                "  D    = Show what changed vs the installed version, then ask again",
+                "  help = show this help",
+            ],
+            default="no",
+            accept={
+                "y": "yes",
+                "yes": "yes",
+                "n": "no",
+                "no": "no",
+                "d": "diff",
+                "help": "help",
+                "?": "help",
+            },
+            on_diff=lambda: _print_drift_diff(repo_root, rel),
+        )
+        return "remove" if choice == "yes" else "keep"
+
+    changed: list[str] = []
+    actions = engine.uninstall_repo(
+        repo_root,
+        use_git,
+        drift_decider=None if args.force else _drift_decider,
+        force=args.force,
+        changed_out=changed,
+    )
     for a in actions:
         term.status("ok", a)
+
+    # Offer (or, under --deep, perform) the deeper .agents/ cleanup.
+    _offer_deep_cleanup(term, repo_root, use_git, args, changed)
 
     # Drop the repo from the config allowlist, if present.
     cfg = config.load()
@@ -640,8 +801,67 @@ def _run_uninstall(args: argparse.Namespace, term: Term) -> int:
         config.save(cfg)
         term.status("ok", f"removed {repo_root} from the config repo list.")
 
-    term.status("warn", "Deletions are STAGED, not committed. Review and commit.")
+    # Offer to commit ONLY the files uninstall changed (auto under --yes/--force; prompt
+    # otherwise; on decline print the exact path-scoped command). Never push.
+    _offer_commit_uninstall(term, repo_root, use_git, changed, args.yes or args.force)
     return 0
+
+
+def _print_drift_diff(repo_root: Path, rel: str) -> None:
+    """Show the user's current file vs the installer's last-written version (from the manifest
+    hash we cannot reconstruct content, so show the current file against the freshly generated
+    template when it is a shim; otherwise just note the file differs)."""
+
+    # We do not store the original bytes (only a hash), so show the current content with a note.
+    try:
+        current = (repo_root / rel).read_text(encoding="utf-8")
+    except OSError:
+        print(f"    (cannot read {rel})")
+        return
+    print(f"    --- your current {rel} (differs from the installed version) ---")
+    for line in current.splitlines():
+        print(f"    {line}")
+
+
+def _offer_commit_uninstall(
+    term: Term, repo_root: Path, use_git: bool, changed: list[str], assume_yes: bool
+) -> None:
+    """Offer to commit ONLY the paths uninstall changed (path-scoped). Never push."""
+
+    import subprocess
+
+    if not use_git or not changed:
+        if changed:
+            term.status(
+                "warn", "Deletions are STAGED, not committed. Review and commit."
+            )
+        return
+    paths = sorted(set(changed))
+    quoted = " ".join(f'"{p}"' if " " in p else p for p in paths)
+    if not assume_yes and sys.stdin.isatty():
+        if not _confirm(
+            term, f"Commit these {len(paths)} uninstall change(s) now?", False
+        ):
+            term.status("warn", "Left staged; commit with:")
+            print(f'  git commit -m "uninstall agent-workflows" -- {quoted}')
+            return
+    elif not assume_yes:
+        # Non-interactive without --yes: do not commit; tell the user how.
+        term.status("warn", "Left staged; commit with:")
+        print(f'  git commit -m "uninstall agent-workflows" -- {quoted}')
+        return
+    proc = subprocess.run(
+        ["git", "commit", "-m", "uninstall agent-workflows", "--", *paths],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        shell=False,
+    )
+    if proc.returncode == 0:
+        term.status("ok", f"committed {len(paths)} uninstall change(s).")
+    else:
+        term.status("warn", "commit failed; left staged. Commit with:")
+        print(f'  git commit -m "uninstall agent-workflows" -- {quoted}')
 
 
 # --------------------------------------------------------------------------------------

@@ -307,6 +307,47 @@ class UninstallTests(CliTestBase):
         self.assertEqual(code, 1)
         self.assertIn("not installed", out)
 
+    def test_uninstall_dry_run_changes_nothing(self):
+        repo = self._repo("dry")
+        _run(["install", str(repo), "--yes"])
+        code, out = _run(["uninstall", str(repo), "--dry-run"])
+        self.assertEqual(code, 0, out)
+        self.assertIn("dry-run", out.lower())
+        # Nothing removed.
+        self.assertTrue((repo / ".agents/workflows").is_dir())
+        self.assertTrue(
+            (repo / ".agents/agent-workflows/managed-sections.json").is_file()
+        )
+
+    def test_uninstall_yes_removes_manifest_and_leaves_scaffolding(self):
+        # --yes (no --deep) removes owned files + manifest but PRESERVES the .agents/ scaffolding.
+        repo = self._repo("y")
+        _run(["install", str(repo), "--yes"])
+        code, out = _run(["uninstall", str(repo), "--yes"])
+        self.assertEqual(code, 0, out)
+        self.assertFalse((repo / ".agents/workflows").exists())
+        self.assertFalse(
+            (repo / ".agents/agent-workflows/managed-sections.json").exists()
+        )
+        # Scaffolding preserved (holds user content); --yes without --deep does not delete it.
+        self.assertTrue((repo / ".agents/plans").exists())
+
+    def test_uninstall_deep_removes_scaffolding(self):
+        repo = self._repo("d")
+        _run(["install", str(repo), "--yes"])
+        code, out = _run(["uninstall", str(repo), "--yes", "--deep"])
+        self.assertEqual(code, 0, out)
+        self.assertFalse((repo / ".agents/plans").exists())
+
+    def test_uninstall_force_removes_edited_shim(self):
+        repo = self._repo("f")
+        _run(["install", str(repo), "--yes"])
+        shim = repo / ".opencode/commands/advise.md"
+        shim.write_text("MY EDIT\n", encoding="utf-8")
+        code, out = _run(["uninstall", str(repo), "--force"])
+        self.assertEqual(code, 0, out)
+        self.assertFalse(shim.is_file(), "--force removes the edited shim")
+
 
 class AccessibilityTests(CliTestBase):
     def test_no_color_output_has_no_ansi_and_keeps_status_words(self):
