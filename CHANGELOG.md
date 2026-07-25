@@ -59,6 +59,17 @@ scoping is confirmed at release-review.
   any files that ALREADY match the patterns but are git-tracked (with the `git rm --cached` remedy, since
   ignoring does not untrack). The block is identifiable and is removed by `aw uninstall`, leaving your own
   `.gitignore` lines intact. Existing repos get it on the next `aw install`.
+- Changed: `aw uninstall` is now conservative and manifest-driven (DECISIONS D106). It removes only
+  what agent-workflows installed (per the D103 manifest), PRESERVES any generated file you have edited
+  (reporting it and, interactively, offering to show the diff and let you decide; `--force` removes it),
+  strips only the managed blocks from AGENTS.md/CLAUDE.md/GEMINI.md/`.gitignore` (leaving your content and
+  any hand-authored sibling block intact), and removes its own manifest last. It then OFFERS a deeper
+  `.agents/` cleanup of the scaffolding it left behind, announcing how many files it would delete per
+  directory, letting you list them or abort, and warning louder when files are not recoverable from git
+  (untracked/uncommitted). New flags: `--dry-run` (report the full plan, change nothing), `--deep`
+  (perform the deeper cleanup non-interactively), `--force` (also remove edited files, skip prompts).
+  Tracked files are removed with `git rm`, and when done uninstall offers to commit ONLY the files it
+  changed (never pushes). The separate `--undo` (roll back the last install from backups) is unchanged.
 - Changed: producing workflows (`/assess`, `/assess-all`, `/incident`, `/migrate`, `/spec`) now end
   with a uniform closing report (DECISIONS D102): which artifact file(s) they created, with paths, or
   that they created none and WHY, plus concrete next steps. `/assess` also now reports the run-record
