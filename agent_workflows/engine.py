@@ -2829,18 +2829,24 @@ def print_summary(
         print("   conformance check, and stages changes without committing.)")
 
 
-def _strip_managed_block(existing: str) -> Optional[str]:
+def _strip_managed_block(
+    existing: str, style: AwCommentStyle = AW_STYLE_MARKDOWN
+) -> Optional[str]:
     """Remove a single agent-workflows-managed block (sectioned `aw:block` OR legacy
     `AGENT-WORKFLOWS:BEGIN/END`) from `existing`, leaving all other content (including any
     foreign `NAME:BEGIN/END` sibling block) untouched. Returns the new text, or None when no
     well-formed managed block is present (nothing to remove).
 
-    Only a single well-formed block is stripped (mirrors the legacy fail-safe: a malformed or
-    duplicated marker set is left in place rather than risking a destructive rewrite).
+    `style` selects the sectioned marker syntax to strip: `AW_STYLE_MARKDOWN` for AGENTS/native
+    files (bare HTML comment), `AW_STYLE_HASH` for a `#`-comment file like `.gitignore` (IPD
+    03). The two styles are mutually exclusive (`match_body` requires/rejects the `# ` prefix),
+    so stripping one never touches the other's markers. Only a single well-formed block is
+    stripped (mirrors the legacy fail-safe: a malformed or duplicated marker set is left in
+    place rather than risking a destructive rewrite).
     """
 
-    # Sectioned form first.
-    parsed = parse_aw_block(existing, style=AW_STYLE_MARKDOWN)
+    # Sectioned form first, in the requested style.
+    parsed = parse_aw_block(existing, style=style)
     if parsed.found and not parsed.ambiguous:
         pieces = []
         if parsed.before.strip("\n"):
@@ -2946,6 +2952,22 @@ def uninstall_repo(repo_root: Path, use_git: bool) -> list[str]:
 
     # 3. The managed AGENTS pointer block (leaves the user's own AGENTS prose intact).
     actions.extend(remove_agents_pointer(repo_root, use_git))
+
+    # 4. The untracked-safety aw:block in .gitignore (IPD 03), in #-comment syntax; leaves the
+    #    user's own .gitignore lines intact. Only removed on an explicit uninstall.
+    gitignore_path = repo_root / ".gitignore"
+    if gitignore_path.is_file():
+        existing = gitignore_path.read_text(encoding="utf-8")
+        stripped = _strip_managed_block(existing, style=AW_STYLE_HASH)
+        if stripped is None:
+            actions.append(
+                ".gitignore untracked-safety block not found (nothing removed)"
+            )
+        else:
+            gitignore_path.write_text(stripped, encoding="utf-8")
+            if use_git and git_is_tracked(repo_root, ".gitignore"):
+                git_add_optional(repo_root, ".gitignore")
+            actions.append("removed untracked-safety block from .gitignore")
 
     return actions
 

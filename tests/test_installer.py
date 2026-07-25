@@ -1145,6 +1145,62 @@ class UntrackedGitignoreInstallTests(unittest.TestCase):
         self.assertIn("secret.untracked.md", out)
 
 
+class UntrackedGitignoreUninstallTests(unittest.TestCase):
+    """CP3: style-aware removal + uninstall strips the .gitignore aw:block (IPD 03)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+        self.source = REPO_ROOT / ".agents" / "workflows"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_uninstall_strips_gitignore_block_preserving_user_lines(self):
+        repo = init_repo(self.base / "u")
+        gi = repo / ".gitignore"
+        gi.write_text("node_modules/\n*.log\n", encoding="utf-8")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        self.assertIn("aw:untracked", gi.read_text(encoding="utf-8"))
+        INS.uninstall_repo(repo, use_git=True)
+        after = gi.read_text(encoding="utf-8")
+        self.assertIn("node_modules/", after)
+        self.assertIn("*.log", after)
+        self.assertNotIn("aw:untracked", after)
+        self.assertNotIn("# <!-- aw:block -->", after)
+
+    def test_strip_is_style_aware_no_cross_match(self):
+        # A #-styled block is stripped only with AW_STYLE_HASH, a markdown one only with MARKDOWN.
+        hash_block = "keep\n# <!-- aw:block -->\n# <!-- aw:untracked -->\n*.untracked.*\n# <!-- /aw:block -->\n"
+        self.assertIsNone(
+            INS._strip_managed_block(hash_block, style=INS.AW_STYLE_MARKDOWN)
+        )
+        stripped = INS._strip_managed_block(hash_block, style=INS.AW_STYLE_HASH)
+        assert stripped is not None
+        self.assertNotIn("aw:block", stripped)
+        self.assertIn("keep", stripped)
+
+        md_block = (
+            "keep\n<!-- aw:block -->\n<!-- aw:pointer -->\nx\n<!-- /aw:block -->\n"
+        )
+        self.assertIsNone(INS._strip_managed_block(md_block, style=INS.AW_STYLE_HASH))
+        self.assertIsNotNone(
+            INS._strip_managed_block(md_block, style=INS.AW_STYLE_MARKDOWN)
+        )
+
+    def test_uninstall_noop_when_no_gitignore_block(self):
+        repo = init_repo(self.base / "n")
+        (repo / ".gitignore").write_text("node_modules/\n", encoding="utf-8")
+        # Remove the block by hand-writing a plain .gitignore after install, then uninstall.
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        (repo / ".gitignore").write_text("node_modules/\n", encoding="utf-8")
+        actions = INS.uninstall_repo(repo, use_git=True)
+        self.assertTrue(
+            any("nothing removed" in a for a in actions if ".gitignore" in a),
+            f"expected a no-op .gitignore action, got {actions}",
+        )
+
+
 class UntrackedSafetyCharacterizationTests(unittest.TestCase):
     """CP0 characterization for IPD 20260723-1100-03 (untracked-safety .gitignore block).
 
