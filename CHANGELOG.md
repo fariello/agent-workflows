@@ -70,6 +70,12 @@ scoping is confirmed at release-review.
   (perform the deeper cleanup non-interactively), `--force` (also remove edited files, skip prompts).
   Tracked files are removed with `git rm`, and when done uninstall offers to commit ONLY the files it
   changed (never pushes). The separate `--undo` (roll back the last install from backups) is unchanged.
+- Added (internal spec): a research/spec for delivering agent-workflows from outside a repo or via
+  host-native skills (DECISIONS D107). This is groundwork, not a user-facing feature: it defines the
+  delivery tiers (in-repo, packaged data path, host-native `.agents/skills/SKILL.md`, home-dir), a
+  per-host probe protocol to prove whether each host actually resolves and follows out-of-repo content,
+  and an upload-ready external-research prompt to gather that evidence. No external-delivery behavior
+  ships yet; any build is gated on the probe results.
 - Changed: producing workflows (`/assess`, `/assess-all`, `/incident`, `/migrate`, `/spec`) now end
   with a uniform closing report (DECISIONS D102): which artifact file(s) they created, with paths, or
   that they created none and WHY, plus concrete next steps. `/assess` also now reports the run-record
