@@ -1254,6 +1254,52 @@ class UntrackedGitignoreUninstallTests(unittest.TestCase):
         )
 
 
+class UninstallCharacterizationTests(unittest.TestCase):
+    """CP0 characterization for IPD 20260723-1100-04 (conservative manifest-driven uninstall).
+
+    Pins the CURRENT uninstall_repo contract the rewrite will change (updated consciously as
+    later checkpoints land):
+    - removes the workflow tree, generated shim .md files, and the managed sections/blocks;
+    - keeps user files;
+    - today it does NOT consult the manifest, does NOT preserve a user-edited shim, and does
+      NOT remove the manifest file.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+        self.source = REPO_ROOT / ".agents" / "workflows"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_uninstall_removes_framework_keeps_user_file(self):
+        repo = init_repo(self.base / "u")
+        (repo / "my_code.py").write_text("print('hi')\n", encoding="utf-8")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        self.assertTrue((repo / ".agents/workflows").is_dir())
+        INS.uninstall_repo(repo, use_git=True)
+        self.assertFalse((repo / ".agents/workflows").is_dir())
+        self.assertTrue((repo / "my_code.py").is_file())
+
+    def test_today_uninstall_leaves_manifest_and_does_not_preserve_edited_shim(self):
+        # Baseline the rewrite changes: today the manifest is left behind, and a hand-edited
+        # shim is removed with the rest (no drift preservation). CP2/CP3 change both.
+        repo = init_repo(self.base / "m")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        manifest = repo / ".agents/agent-workflows/managed-sections.json"
+        self.assertTrue(manifest.is_file())
+        # Edit a shim, then uninstall.
+        shim = repo / ".opencode/commands/advise.md"
+        if shim.is_file():
+            shim.write_text("MY EDIT\n", encoding="utf-8")
+        INS.uninstall_repo(repo, use_git=True)
+        # Today: manifest survives (it is not under a removed namespace).
+        self.assertTrue(
+            manifest.is_file(), "baseline: uninstall does not remove the manifest today"
+        )
+
+
 class UntrackedSafetyCharacterizationTests(unittest.TestCase):
     """CP0 characterization for IPD 20260723-1100-03 (untracked-safety .gitignore block).
 
