@@ -3,10 +3,11 @@
 - Date: 2026-07-23
 - Concern: safe, complete, reversible removal of agent-workflows from a repo without destroying user content, with honest reporting and a user-driven deeper cleanup
 - Scope: make `aw uninstall` consult the IPD-01 manifest for ownership + hashes; remove owned files the user has NOT edited, and for an edited (drifted) owned file REPORT the diff, offer to show it, and let the user decide (keep/remove) rather than silently clobbering or silently refusing; strip only managed blocks/sections from shared files (already partly done); remove the manifest last; then OFFER (interactively, with explanation) a deeper `.agents/` cleanup that announces per-directory delete COUNTS, offers inspect-or-abort, uses a GRADUATED warning (soft when the collateral is tracked+committed and thus git-recoverable, loud when untracked/uncommitted/ignored), and `git rm`s tracked files; add `--dry-run`, `--deep`, `--force`/`--yes` escape hatches for non-interactive/CI use; and when done OFFER to commit ONLY the files uninstall changed. Product code + tests + docs. DEPENDS ON IPD 01 (manifest), IPD 02 (managed sections), IPD 03 (untracked scan/convention), all executed.
-- Status: reviewed
+- Status: approved
 - Set: install-safety-and-ownership
 - Order: 4
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-07-23, human ("Approved. Go.") after /plan-review (APPROVE WITH REVISIONS APPLIED; U1-U8). IPD 01/02/03 executed. Executing in checkpoints, characterization tests first.
 
 ## Workflow history
 
