@@ -1079,6 +1079,72 @@ class UntrackedSafetySectionTests(unittest.TestCase):
         self.assertEqual([s.slug for s in parsed.sections], ["untracked"])
 
 
+class UntrackedGitignoreInstallTests(unittest.TestCase):
+    """CP2: ensure_untracked_gitignore install wiring (IPD 03)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+        self.source = REPO_ROOT / ".agents" / "workflows"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_install_writes_untracked_block_preserving_user_lines(self):
+        repo = init_repo(self.base / "gi")
+        (repo / ".gitignore").write_text("node_modules/\n*.log\n", encoding="utf-8")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        gi = (repo / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn("node_modules/", gi)  # user lines preserved
+        self.assertIn("# <!-- aw:block -->", gi)
+        self.assertIn("# <!-- aw:untracked -->", gi)
+        for pat in INS.UNTRACKED_PATTERNS:
+            self.assertIn(pat, gi)
+
+    def test_install_creates_gitignore_if_absent(self):
+        repo = init_repo(self.base / "nogi")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        self.assertTrue((repo / ".gitignore").is_file())
+        self.assertIn(
+            "**/*untracked*/", (repo / ".gitignore").read_text(encoding="utf-8")
+        )
+
+    def test_reinstall_is_empty_diff(self):
+        repo = init_repo(self.base / "idem")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        first = (repo / ".gitignore").read_text(encoding="utf-8")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        self.assertEqual(first, (repo / ".gitignore").read_text(encoding="utf-8"))
+
+    def test_manifest_records_untracked_section(self):
+        import json
+
+        repo = init_repo(self.base / "man")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        raw = json.loads(
+            (repo / ".agents/agent-workflows/managed-sections.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertIn(".gitignore#aw:untracked", raw["files"])
+
+    def test_the_actual_untracked_patterns_ignore_files(self):
+        # End-to-end: git actually ignores files matching the installed patterns.
+        from tests.support import git
+
+        repo = init_repo(self.base / "eff")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        (repo / "secret.untracked.md").write_text("nope", encoding="utf-8")
+        (repo / "scratch.untracked").write_text("nope", encoding="utf-8")
+        (repo / "notes-untracked").mkdir()
+        (repo / "notes-untracked" / "x.md").write_text("nope", encoding="utf-8")
+        out = git(repo, "status", "--porcelain", "--ignored").stdout
+        self.assertNotIn(
+            "secret.untracked.md", git(repo, "status", "--porcelain").stdout
+        )
+        self.assertIn("secret.untracked.md", out)
+
+
 class UntrackedSafetyCharacterizationTests(unittest.TestCase):
     """CP0 characterization for IPD 20260723-1100-03 (untracked-safety .gitignore block).
 
@@ -1117,17 +1183,16 @@ class UntrackedSafetyCharacterizationTests(unittest.TestCase):
         self.assertNotIn("<!-- aw:block -->", stripped)
         self.assertIn("user", stripped)
 
-    def test_uninstall_does_not_touch_gitignore_today(self):
+    def test_install_adds_untracked_block_cp2(self):
+        # CP2 reality: install adds the untracked-safety block and preserves the user's lines.
+        # (CP3 makes uninstall strip it; that is asserted in UntrackedGitignoreUninstallTests.)
         repo = init_repo(self.base / "u")
         gi = repo / ".gitignore"
         gi.write_text("node_modules/\n*.log\n", encoding="utf-8")
         INS.install_into_repo(repo, self.source, yes=True, no_color=True)
-        INS.uninstall_repo(repo, use_git=True)
         after = gi.read_text(encoding="utf-8")
-        # Baseline: uninstall leaves .gitignore's non-backups content intact and does not add
-        # or remove an untracked-safety block (there is none yet).
-        self.assertIn("node_modules/", after)
-        self.assertNotIn("aw:untracked", after)
+        self.assertIn("node_modules/", after, "user's own .gitignore lines preserved")
+        self.assertIn("aw:untracked", after)
 
 
 class AwBlockMigrationTests(unittest.TestCase):

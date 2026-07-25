@@ -475,6 +475,7 @@ def _install_one(
         backups_ignore_status=result["backups_ignore_status"],
         use_git=result["use_git"],
         artifacts=result.get("artifacts") or [],
+        untracked_ignore_status=result.get("untracked_ignore_status", ""),
     )
     return outcome
 

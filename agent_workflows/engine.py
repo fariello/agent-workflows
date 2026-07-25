@@ -1960,6 +1960,47 @@ def ensure_backups_gitignored(plan: InstallPlan, use_git: bool) -> str:
     return f"added {pattern} to .gitignore"
 
 
+def ensure_untracked_gitignore(plan: InstallPlan, use_git: bool) -> str:
+    """Ensure the target's root .gitignore carries the untracked-safety aw:block (IPD 03).
+
+    Adds/refreshes a single agent-workflows-managed `# <!-- aw:block -->` section (in
+    `#`-comment syntax via AW_STYLE_HASH) with the deliberately-untracked patterns and their
+    DO-NOT-REMOVE rationale, reusing the IPD-02 sectioning + the IPD-01 manifest (keyed by
+    `.gitignore#aw:untracked`). A user's own .gitignore lines are preserved (the block is
+    appended/refreshed in place). Idempotent: a second install is an empty diff (own-hash
+    match). Honors --dry-run. Creates .gitignore if absent. Returns a short status.
+    """
+
+    gitignore_path = plan.repo_root / ".gitignore"
+    existing = (
+        gitignore_path.read_text(encoding="utf-8") if gitignore_path.exists() else ""
+    )
+
+    new_text, action = merge_aw_block(
+        existing,
+        untracked_safety_sections(),
+        style=AW_STYLE_HASH,
+        manifest=plan.manifest,
+        file_key=".gitignore",
+    )
+
+    if new_text == existing:
+        return "untracked-safety block already current"
+    if plan.dry_run:
+        return "would add untracked-safety block to .gitignore [dry-run]"
+
+    if existing and plan.backup:
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        backup = create_backup_path(plan.repo_root, Path(".gitignore"), timestamp)
+        backup.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(gitignore_path, backup)
+    gitignore_path.write_text(new_text, encoding="utf-8")
+    if use_git:
+        git_run(plan.repo_root, ["add", "--", ".gitignore"])
+    verb = "converted legacy" if action == "converted" else "added"
+    return f"{verb} untracked-safety block in .gitignore"
+
+
 class GitState(NamedTuple):
     """Pure classification of a repo's pre-install git state (testable without a remote)."""
 
@@ -2515,6 +2556,7 @@ def prompt_and_run_commit(
     backups_ignore_status: str,
     use_git: bool,
     artifacts: list[str] | None = None,
+    untracked_ignore_status: str = "",
 ) -> None:
     """Offer to commit only the installer-modified files."""
     if not use_git or plan.dry_run:
@@ -2566,6 +2608,14 @@ def prompt_and_run_commit(
     if (
         backups_ignore_status.startswith("added ")
         and "[dry-run]" not in backups_ignore_status
+    ):
+        files_to_commit[".gitignore"] = "modified"
+
+    # The untracked-safety block (IPD 03) is another root-.gitignore mutation; commit it too so
+    # a repo is never left with a staged-but-uncommitted .gitignore (D85 no-silent-dirty).
+    if (
+        untracked_ignore_status.startswith(("added ", "converted "))
+        and "[dry-run]" not in untracked_ignore_status
     ):
         files_to_commit[".gitignore"] = "modified"
 
@@ -3561,6 +3611,7 @@ def install_into_repo(
     agents_status = update_agents_pointer(plan, use_git, timestamp)
     gitignore_status = check_gitignore(plan)
     backups_ignore_status = ensure_backups_gitignored(plan, use_git)
+    untracked_ignore_status = ensure_untracked_gitignore(plan, use_git)
     # Canonical step order (D83): README-ensurers BEFORE create_setup_artifacts. This matches the
     # single-repo run() path; both operate on disjoint no-clobber paths so the filesystem outcome is
     # order-independent, but a single canonical order removes the last orchestration divergence.
@@ -3623,6 +3674,7 @@ def install_into_repo(
         "agents_status": agents_status,
         "gitignore_status": gitignore_status,
         "backups_ignore_status": backups_ignore_status,
+        "untracked_ignore_status": untracked_ignore_status,
     }
 
 
@@ -3718,6 +3770,7 @@ def run(args: argparse.Namespace) -> int:
         pruned = result["pruned"]
         agents_status = result["agents_status"]
         backups_ignore_status = result["backups_ignore_status"]
+        untracked_ignore_status = result.get("untracked_ignore_status", "")
         use_git = result["use_git"]
         artifacts = result["artifacts"]
 
@@ -3749,6 +3802,7 @@ def run(args: argparse.Namespace) -> int:
             backups_ignore_status=backups_ignore_status,
             use_git=use_git,
             artifacts=artifacts,
+            untracked_ignore_status=untracked_ignore_status,
         )
     return returncode
 
