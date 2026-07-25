@@ -3,10 +3,11 @@
 - Date: 2026-07-23
 - Concern: data-exposure safety - give agents and users a reliable, passive way to keep sensitive/provisional files OUT of git, and warn at install that agent-workflows git-tracks IPDs/prompts/research by default
 - Scope: add an agent-workflows-managed `aw:block` to the target repo's ROOT `.gitignore` (rendered in `#`-comment syntax) carrying the maintainer's field-tested untracked-safety patterns and rationale; make block removal style-aware so uninstall strips it too; and print an honest install-time tracking warning that also scans for and reports any already-tracked files matching the untracked patterns (with the `git rm --cached` remedy). Product code + tests + docs. DEPENDS ON IPD 01 (manifest) and IPD 02 (sectioned `aw:block` mechanism), both executed.
-- Status: reviewed
+- Status: approved
 - Set: install-safety-and-ownership
 - Order: 3
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-07-23, human ("Approved, go.") after /plan-review (APPROVE WITH REVISIONS APPLIED; N1-N5, PR-001..PR-003). IPD 01 + IPD 02 executed. Executing in checkpoints, characterization tests first.
 
 ## Workflow history
 
