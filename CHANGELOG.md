@@ -76,6 +76,14 @@ scoping is confirmed at release-review.
   per-host probe protocol to prove whether each host actually resolves and follows out-of-repo content,
   and an upload-ready external-research prompt to gather that evidence. No external-delivery behavior
   ships yet; any build is gated on the probe results.
+- Changed: the "ask self-contained questions" convention (GUIDING_PRINCIPLES P12) now also guides HOW to
+  compose an interactive question, not just where the question set lives (DECISIONS D108, extending D100).
+  It tells agents to give a compact, decision-ready synthesis (relevant facts, what changed, why a
+  decision is needed, essential constraints/tradeoffs, a recommendation), to omit chronology/filenames/
+  quotes unless essential, to keep it screen-sized, and specifically to NOT repeat or preview the choices
+  the interactive tool already renders. The installer's AGENTS.md pointer gains a one-line reminder and
+  both `/plan-review` variants clarify that their six-part question's "Options" item is satisfied by the
+  tool's rendered choices (not restated in prose).
 - Changed: producing workflows (`/assess`, `/assess-all`, `/incident`, `/migrate`, `/spec`) now end
   with a uniform closing report (DECISIONS D102): which artifact file(s) they created, with paths, or
   that they created none and WHY, plus concrete next steps. `/assess` also now reports the run-record

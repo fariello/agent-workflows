@@ -213,6 +213,9 @@ Use plain language. Define acronyms and identifiers. Ask and wait before the
 final report. Do not guess or bury the recommendation. Present this whole six-part
 question set INSIDE the interactive prompt itself, so a human answering from the prompt
 can decide from the prompt alone (GUIDING_PRINCIPLES P12); do not strand it in chat.
+The "Options" item is satisfied by the interactive tool's rendered CHOICES: supply the
+options AS the tool's answer options, and do NOT also restate or preview them in the
+composed context prose (P12).
 
 After each answer:
 1. Record it in the owning plan.

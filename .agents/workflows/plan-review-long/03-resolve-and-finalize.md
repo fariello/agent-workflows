@@ -31,7 +31,9 @@ For each question provide:
 
 Use plain language. Define acronyms and identifiers. Do not guess. Present this whole
 six-part question set INSIDE the interactive prompt itself, so a human can decide from the
-prompt alone (GUIDING_PRINCIPLES P12); do not strand it in chat.
+prompt alone (GUIDING_PRINCIPLES P12); do not strand it in chat. The "Options" item is
+satisfied by the interactive tool's rendered CHOICES: supply the options AS the tool's answer
+options, and do NOT also restate or preview them in the composed context prose (P12).
 
 After each answer:
 

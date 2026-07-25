@@ -106,9 +106,26 @@ that call it rather than eyeballing files.
 
 ## 12. Ask self-contained questions
 
-When you ask a human to make a decision through an interactive prompt, the ENTIRE question
-set lives INSIDE the prompt: the plain-language context and information needed to decide, the
-actual question, and the answer options. A human answering from the prompt alone must be able
-to decide from the prompt alone; never strand the required context in surrounding chat. You
-MAY add supplementary prose in the message before a prompt, but for only ONE question at a
-time, and that prose is additive - never the sole home of information required to answer.
+When user input is needed, ALWAYS prefer the interactive question tool if available.
+
+Within the question interface, provide clear, concise, self-contained context so the user can answer without rereading earlier messages or opening referenced files.
+
+Include things like:
+
+- The relevant facts.
+- What changed or was discovered, if applicable.
+- The general reason a decision or clarification is needed.
+- Any constraint, dependency, consequence, or tradeoff essential to the answer.
+- Your recommendation and its main factual basis, when you have one.
+
+Use your judgement. Use plain English. Prefer a compact synthesis. Do not include chronology, investigation details, quotations, filenames, or exhaustive evidence unless important to decision making.
+
+Do not repeat, preview, or separately summarize the choices that the interactive tool will display. The context should explain the situation; the tool options should present the possible answers.
+
+Keep the context short enough to fit comfortably on a terminal screen. If it is too long, reduce it to the minimum facts needed to make an informed choice. If additional detail is imperative, provide it in the chat (last resort) and say so clearly in the question tool's main text.
+
+Before asking, silently confirm:
+- Can the user answer without reopening other material?
+- Is every included fact necessary?
+- Is the reason for asking clear?
+- Have I avoided repeating the tool's choices?

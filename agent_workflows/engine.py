@@ -667,7 +667,10 @@ def agents_pointer_prose() -> str:
         "(the plain-language context needed to decide, the question, and the answer options) INSIDE "
         "the prompt itself, so a human answering from the prompt can decide from the prompt alone; "
         "never strand the required context in surrounding chat. Extra prose may precede a prompt, "
-        "but for only ONE question at a time and only as a supplement (see GUIDING_PRINCIPLES P12)."
+        "but for only ONE question at a time and only as a supplement. Compose the context as a "
+        "compact, decision-ready synthesis: keep it screen-sized, do NOT repeat or preview the "
+        "choices the tool already renders, and omit chronology/filenames/quotes unless essential "
+        "(see GUIDING_PRINCIPLES P12)."
     )
 
 
