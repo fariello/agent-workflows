@@ -48,6 +48,17 @@ scoping is confirmed at release-review.
   you keep in the same file (a different `NAME:BEGIN/END` block) is left untouched. This is the mechanism
   the per-directive-consent and token-economy work builds on; the current pointer is one `aw:pointer`
   section for now.
+- Added: an untracked-file safety convention (DECISIONS D105). On install, agent-workflows adds a small
+  managed block to your repo's root `.gitignore` (in `#`-comment `aw:block` syntax) that ignores any
+  file named `*.untracked.*` / `*.untracked` and any directory whose name contains `untracked`. This is
+  a passive, name-based escape hatch: name a sensitive or provisional file `notes.untracked.md` (or put
+  it under a `*untracked*/` dir) and a blanket `git add`, the hooks, and the sanitizer will not stage it,
+  even inside directories the lifecycle rules say to commit. The install also prints an honest notice
+  that agent-workflows tracks IPDs/prompts/research by default and names the safety valves (the untracked
+  naming plus the gitignored `.agents/prompts/local/` and `.agents/comms/local/` lanes), and warns about
+  any files that ALREADY match the patterns but are git-tracked (with the `git rm --cached` remedy, since
+  ignoring does not untrack). The block is identifiable and is removed by `aw uninstall`, leaving your own
+  `.gitignore` lines intact. Existing repos get it on the next `aw install`.
 - Changed: producing workflows (`/assess`, `/assess-all`, `/incident`, `/migrate`, `/spec`) now end
   with a uniform closing report (DECISIONS D102): which artifact file(s) they created, with paths, or
   that they created none and WHY, plus concrete next steps. `/assess` also now reports the run-record
