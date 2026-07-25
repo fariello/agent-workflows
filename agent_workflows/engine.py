@@ -855,6 +855,54 @@ def agents_managed_block(style: AwCommentStyle = AW_STYLE_MARKDOWN) -> str:
     return render_aw_block(agents_managed_sections(), style=style)
 
 
+# Untracked-safety convention (IPD 20260723-1100-03). The maintainer's field-tested block: a
+# single `aw:untracked` section whose body is the DO-NOT-REMOVE rationale (as `#` comments)
+# plus the three ignore patterns (bare, so git reads them). Rendered into `.gitignore` with
+# AW_STYLE_HASH so the aw markers become `# <!-- aw:... -->`. The patterns catch a
+# `foo.untracked.md` file, an extensionless `scratch.untracked`, and any directory whose name
+# contains "untracked" nested anywhere.
+UNTRACKED_SLUG = "untracked"
+UNTRACKED_PATTERNS = ("*.untracked.*", "*.untracked", "**/*untracked*/")
+UNTRACKED_SAFETY_BODY = [
+    "# --- Deliberately-untracked local artifacts (DO NOT REMOVE these patterns) ---",
+    "#",
+    "# Purpose: provide a RELIABLE way to keep a file or directory OUT of git even when it",
+    "# lives inside a directory that agent directives would otherwise tell an agent to commit",
+    "# (e.g. AGENTS.md / the .agents/plans lifecycle rules say IPDs live under .agents/plans/",
+    "# and should be committed and moved pending -> executed). Some work is sensitive enough that",
+    "# it must NOT be tracked or pushed (incident/remediation notes, scratch audits, local-only",
+    "# working docs), yet it is convenient to keep it next to the related tracked files.",
+    "#",
+    '# Naming a file or directory with the "untracked" marker below makes git ignore it, so a',
+    "# blanket `git add .`, `git add -A`, the pre-commit hooks, and the sanitizer never stage it.",
+    "# This is a PASSIVE guard that works WITH the tooling: it does not rely on any agent",
+    "# remembering a special rule or resisting a lifecycle directive.",
+    "#",
+    "# How to use:",
+    "#   - A single file:      my-notes.untracked.md   audit.untracked.json   scratch.untracked",
+    '#   - A whole directory:  put files under any dir whose name contains "untracked",',
+    "#                         e.g. .agents/plans/pending/untracked/  or  foo.untracked/",
+    "#",
+    "# IMPORTANT LIMITS (so this is not over-trusted):",
+    "#   - This only affects files that are NOT already tracked. Gitignoring a pattern does NOT",
+    "#     untrack an already-committed file, and it does NOT remove a name from history. Name",
+    "#     the file with the marker BEFORE it is ever `git add`ed.",
+    '#   - `.gitignore` is advisory: `git add -f` bypasses it. "Untracked by default" is the goal,',
+    "#     not an enforcement boundary.",
+    "#",
+    '# DO NOT delete or narrow these patterns to "clean up" the ignore file: they are a',
+    "# deliberate safety mechanism, and removing them can cause sensitive local files to become",
+    "# trackable (and then accidentally committed) by a later `git add`.",
+    *UNTRACKED_PATTERNS,
+]
+
+
+def untracked_safety_sections() -> list[AwSection]:
+    """The single `aw:untracked` section written into a target repo's `.gitignore`."""
+
+    return [AwSection(slug=UNTRACKED_SLUG, lines=list(UNTRACKED_SAFETY_BODY))]
+
+
 def merge_aw_block(
     existing: str,
     sections: list[AwSection],

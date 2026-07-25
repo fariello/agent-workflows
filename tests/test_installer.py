@@ -1051,6 +1051,34 @@ class AwBlockParserWriterTests(unittest.TestCase):
         self.assertEqual(parsed.after, "AFTER")
 
 
+class UntrackedSafetySectionTests(unittest.TestCase):
+    """CP1: the untracked-safety section constant + rendering (IPD 03)."""
+
+    def test_patterns_are_the_three_approved(self):
+        self.assertEqual(
+            INS.UNTRACKED_PATTERNS, ("*.untracked.*", "*.untracked", "**/*untracked*/")
+        )
+
+    def test_section_renders_in_hash_style_with_patterns_and_rationale(self):
+        rendered = INS.render_aw_block(
+            INS.untracked_safety_sections(), style=INS.AW_STYLE_HASH
+        )
+        self.assertIn("# <!-- aw:block -->", rendered)
+        self.assertIn("# <!-- aw:untracked -->", rendered)
+        self.assertIn("# <!-- /aw:block -->", rendered)
+        self.assertIn("DO NOT REMOVE", rendered)
+        for pat in INS.UNTRACKED_PATTERNS:
+            # Patterns are emitted BARE (not #-commented) so git actually applies them.
+            self.assertIn("\n" + pat + "\n", rendered)
+
+    def test_section_round_trips_in_hash_style(self):
+        rendered = INS.render_aw_block(
+            INS.untracked_safety_sections(), style=INS.AW_STYLE_HASH
+        )
+        parsed = INS.parse_aw_block(rendered, style=INS.AW_STYLE_HASH)
+        self.assertEqual([s.slug for s in parsed.sections], ["untracked"])
+
+
 class UntrackedSafetyCharacterizationTests(unittest.TestCase):
     """CP0 characterization for IPD 20260723-1100-03 (untracked-safety .gitignore block).
 
