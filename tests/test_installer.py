@@ -1145,6 +1145,59 @@ class UntrackedGitignoreInstallTests(unittest.TestCase):
         self.assertIn("secret.untracked.md", out)
 
 
+class TrackingWarningScanTests(unittest.TestCase):
+    """CP4: warn_tracking_and_scan notice + already-tracked scan (IPD 03)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+        self.source = REPO_ROOT / ".agents" / "workflows"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _install_capture(self, repo):
+        import io
+        from contextlib import redirect_stdout
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        return buf.getvalue()
+
+    def test_notice_prints_with_safety_valves(self):
+        repo = init_repo(self.base / "notice")
+        out = self._install_capture(repo)
+        self.assertIn("git-tracks IPDs, prompts, and research by default", out)
+        self.assertIn(".agents/prompts/local/", out)
+        self.assertIn("untracked", out)
+
+    def test_clean_repo_has_no_per_file_warning(self):
+        repo = init_repo(self.base / "clean")
+        out = self._install_capture(repo)
+        self.assertNotIn("ALREADY git-tracked", out)
+
+    def test_already_tracked_match_is_flagged_with_remedy(self):
+        from tests.support import git
+
+        repo = init_repo(self.base / "tracked")
+        # Commit a file matching the untracked pattern BEFORE install adds the .gitignore block,
+        # then force-add it so it is tracked despite the pattern.
+        (repo / "leak.untracked.md").write_text("oops", encoding="utf-8")
+        git(repo, "add", "-f", "leak.untracked.md")
+        git(repo, "commit", "-m", "add tracked untracked-named file")
+        out = self._install_capture(repo)
+        self.assertIn("ALREADY git-tracked", out)
+        self.assertIn("leak.untracked.md", out)
+        self.assertIn("git rm --cached", out)
+
+    def test_scan_helper_non_git_safe(self):
+        # The scan helper must not crash outside a git repo.
+        nogit = self.base / "plain"
+        nogit.mkdir()
+        self.assertEqual(INS._already_tracked_untracked_matches(nogit), [])
+
+
 class UntrackedGitignoreUninstallTests(unittest.TestCase):
     """CP3: style-aware removal + uninstall strips the .gitignore aw:block (IPD 03)."""
 

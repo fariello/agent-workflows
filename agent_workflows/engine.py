@@ -1960,6 +1960,91 @@ def ensure_backups_gitignored(plan: InstallPlan, use_git: bool) -> str:
     return f"added {pattern} to .gitignore"
 
 
+def _already_tracked_untracked_matches(repo_root: Path) -> list[str]:
+    """Return tracked files whose path matches the untracked-safety patterns, using GIT's own
+    glob semantics (not a hand-rolled fnmatch, so `**/*untracked*/` is evaluated correctly).
+
+    Runs `git ls-files` for the tracked set, then `git check-ignore --no-index --stdin` against
+    the repo's ignore rules (which include our just-installed patterns). `--no-index` makes git
+    evaluate the ignore rules even for tracked paths (normally check-ignore skips tracked
+    files). Returns [] on any git error or in a non-git repo.
+    """
+
+    try:
+        tracked = subprocess.run(
+            ["git", "ls-files"],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            shell=False,
+        )
+        if tracked.returncode != 0 or not tracked.stdout.strip():
+            return []
+        checked = subprocess.run(
+            ["git", "check-ignore", "--no-index", "--stdin"],
+            cwd=str(repo_root),
+            input=tracked.stdout,
+            capture_output=True,
+            text=True,
+            shell=False,
+        )
+    except OSError:
+        return []
+    # check-ignore prints one matching path per line; exit 0 = matches, 1 = none, >1 = error.
+    if checked.returncode not in (0, 1):
+        return []
+    return [line for line in checked.stdout.splitlines() if line.strip()]
+
+
+def warn_tracking_and_scan(plan: InstallPlan, use_git: bool) -> None:
+    """Print the honest install-time tracking notice (IPD 03, N3) and warn about any files that
+    ALREADY match the untracked patterns yet are git-tracked (N4). Informational only; no
+    interactive gate. Safe in a non-git repo (prints the notice, skips the scan)."""
+
+    term = Term(color=False if plan.no_color else None)
+    print()
+    print(
+        term.colorize(
+            "Note: agent-workflows git-tracks IPDs, prompts, and research by default.",
+            "cyan",
+        )
+    )
+    print(
+        "  This is deliberate (durable, travels with the repo, auditable), but it means you and"
+    )
+    print(
+        "  especially your agents should be careful what goes into those files. For sensitive or"
+    )
+    print("  provisional content, use a safety valve instead of committing it:")
+    print(
+        "    - name it with the untracked marker: foo.untracked.md / scratch.untracked / a"
+    )
+    print("      directory whose name contains 'untracked' (see the .gitignore block);")
+    print(
+        "    - or use the gitignored local lanes: .agents/prompts/local/ and .agents/comms/local/."
+    )
+
+    if not use_git:
+        return
+    matches = _already_tracked_untracked_matches(plan.repo_root)
+    if matches:
+        print()
+        print(
+            term.colorize(
+                "Warning: these files are ALREADY git-tracked but match the untracked patterns:",
+                "yellow",
+            )
+        )
+        for rel in matches:
+            print(f"  - {rel}")
+        print(
+            "  Gitignoring a pattern does NOT untrack an already-committed file. To stop tracking"
+        )
+        print(
+            "  one (keeping it on disk):  git rm --cached <path>   then commit the removal."
+        )
+
+
 def ensure_untracked_gitignore(plan: InstallPlan, use_git: bool) -> str:
     """Ensure the target's root .gitignore carries the untracked-safety aw:block (IPD 03).
 
@@ -3683,6 +3768,10 @@ def install_into_repo(
 
     save_created_files_record(plan.repo_root, timestamp, newly_created)
     prune_old_backups(plan.repo_root)
+
+    # Honest tracking notice + already-tracked scan (IPD 03). Informational; skip on dry-run.
+    if not dry_run:
+        warn_tracking_and_scan(plan, use_git)
 
     return {
         "repo": repo_root,
