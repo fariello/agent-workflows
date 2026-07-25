@@ -3,10 +3,11 @@
 - Date: 2026-07-22
 - Concern: agent interaction quality - HOW an agent composes an interactive question, extending the P12 self-contained rule with practical guidance
 - Scope: expand GUIDING_PRINCIPLES P12, its AGENTS.md installer-template block, and the existing P12 references so agents get the fuller "how to write the question" guidance. Prose only; no product code. Standalone.
-- Status: reviewed
+- Status: approved
 - Set: install-safety-and-ownership
 - Order: 6
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-07-25, human ("Approve. Go.") after the /plan-review re-review (APPROVE WITH REVISIONS APPLIED; PR-002 stale-template-ref fixed). Prose-only; executing.
 
 ## Workflow history
 
