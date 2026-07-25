@@ -3011,6 +3011,64 @@ def _uninstall_remove(repo_root: Path, rel: str, use_git: bool) -> None:
         target.unlink()
 
 
+@dataclass
+class UninstallPlan:
+    """What a conservative uninstall would do, computed from the IPD-01 manifest (IPD 04).
+
+    - `remove`: owned file/shim paths whose on-disk content still matches OUR recorded hash
+      (safe to delete).
+    - `drifted`: owned file/shim paths the USER has edited (on-disk hash != our record) - these
+      are reported and preserved by default, removed only on explicit choice / --force.
+    - `missing`: owned file/shim paths recorded but no longer on disk.
+    - `has_manifest`: False for a pre-manifest repo, where the caller falls back to the legacy
+      namespace sweep. `section` entries are deliberately EXCLUDED from all of the above (U8):
+      their containing shared file must never be file-deleted; they are stripped by the
+      block-strip path.
+    """
+
+    remove: list[str] = field(default_factory=list)
+    drifted: list[str] = field(default_factory=list)
+    missing: list[str] = field(default_factory=list)
+    has_manifest: bool = False
+
+
+def plan_uninstall(repo_root: Path) -> UninstallPlan:
+    """Classify the manifest-owned file/shim entries into remove/drifted/missing (IPD 04).
+
+    Only `kind in {"file", "shim"}` entries are considered (U8): a `kind == "section"` entry
+    (e.g. `AGENTS.md#aw:pointer`, `.gitignore#aw:untracked`) names a managed BLOCK inside a
+    shared file, whose containing file must NOT be deleted - those are handled solely by the
+    block-strip path. Pure: reads the manifest + file contents, mutates nothing.
+    """
+
+    manifest_path = repo_root / manifest_mod.DEFAULT_MANIFEST_RELPATH
+    plan = UninstallPlan()
+    if not manifest_path.is_file():
+        return plan  # has_manifest stays False -> caller uses the namespace fallback
+    manifest = manifest_mod.load(manifest_path)
+    plan.has_manifest = True
+
+    for rel, entry in sorted(manifest.files.items()):
+        if entry.kind not in ("file", "shim"):
+            continue  # sections are strip targets, never file-removal candidates (U8)
+        dest = repo_root / rel
+        if not dest.is_file():
+            plan.missing.append(rel)
+            continue
+        try:
+            content = dest.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            # Unreadable/binary: treat as drift (do not silently delete something we cannot
+            # verify matches our record).
+            plan.drifted.append(rel)
+            continue
+        if manifest.matches_recorded(rel, content):
+            plan.remove.append(rel)
+        else:
+            plan.drifted.append(rel)
+    return plan
+
+
 def uninstall_repo(repo_root: Path, use_git: bool) -> list[str]:
     """Remove the framework from a repo: .agents/workflows/, our shims, the AGENTS block.
 

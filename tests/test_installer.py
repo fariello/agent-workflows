@@ -1254,6 +1254,52 @@ class UntrackedGitignoreUninstallTests(unittest.TestCase):
         )
 
 
+class PlanUninstallTests(unittest.TestCase):
+    """CP1: plan_uninstall classification (IPD 04)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+        self.source = REPO_ROOT / ".agents" / "workflows"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_classifies_remove_drifted_missing(self):
+        repo = init_repo(self.base / "c")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        # Edit one shim (drift), delete another (missing), leave the rest (remove).
+        edited = repo / ".opencode/commands/advise.md"
+        edited.write_text("MY EDIT\n", encoding="utf-8")
+        missing = repo / ".claude/commands/verify.md"
+        if missing.is_file():
+            missing.unlink()
+        plan = INS.plan_uninstall(repo)
+        self.assertTrue(plan.has_manifest)
+        self.assertIn(".opencode/commands/advise.md", plan.drifted)
+        self.assertIn(".claude/commands/verify.md", plan.missing)
+        # A known-unedited body file is in remove.
+        self.assertTrue(len(plan.remove) > 0)
+        self.assertNotIn(".opencode/commands/advise.md", plan.remove)
+
+    def test_section_entries_are_never_file_removal_candidates(self):
+        # U8: AGENTS.md / .gitignore carry only section entries; they must never appear as
+        # file-removal candidates, so they are never in remove/drifted/missing.
+        repo = init_repo(self.base / "u8")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        plan = INS.plan_uninstall(repo)
+        allpaths = set(plan.remove) | set(plan.drifted) | set(plan.missing)
+        self.assertNotIn("AGENTS.md", allpaths)
+        self.assertNotIn(".gitignore", allpaths)
+
+    def test_pre_manifest_repo_has_no_manifest(self):
+        repo = init_repo(self.base / "pre")
+        # No install -> no manifest.
+        plan = INS.plan_uninstall(repo)
+        self.assertFalse(plan.has_manifest)
+        self.assertEqual(plan.remove, [])
+
+
 class UninstallCharacterizationTests(unittest.TestCase):
     """CP0 characterization for IPD 20260723-1100-04 (conservative manifest-driven uninstall).
 
