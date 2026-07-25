@@ -1051,6 +1051,57 @@ class AwBlockParserWriterTests(unittest.TestCase):
         self.assertEqual(parsed.after, "AFTER")
 
 
+class UntrackedSafetyCharacterizationTests(unittest.TestCase):
+    """CP0 characterization for IPD 20260723-1100-03 (untracked-safety .gitignore block).
+
+    Pins the CURRENT behavior the untracked-safety work builds on / changes, so the additions
+    do not silently alter it (updated consciously in later checkpoints as noted):
+    - ensure_backups_gitignored appends only the backups pattern, idempotently.
+    - _strip_managed_block is Markdown-only today (does NOT strip a #-styled block); CP3 makes
+      it style-aware.
+    - uninstall does NOT touch .gitignore today; CP3 makes it strip the .gitignore aw:block.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+        self.source = REPO_ROOT / ".agents" / "workflows"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_strip_managed_block_is_markdown_only_today(self):
+        # A #-styled aw:block is NOT recognized by the current (markdown-only) stripper.
+        hash_block = (
+            "user line\n"
+            "# <!-- aw:block -->\n# <!-- aw:untracked -->\n*.untracked.*\n# <!-- /aw:block -->\n"
+        )
+        self.assertIsNone(
+            INS._strip_managed_block(hash_block),
+            "baseline: markdown-only stripper must not match a #-styled block (CP3 changes this)",
+        )
+        # A markdown block IS stripped today.
+        md_block = (
+            "user\n\n<!-- aw:block -->\n<!-- aw:pointer -->\nx\n<!-- /aw:block -->\n"
+        )
+        stripped = INS._strip_managed_block(md_block)
+        assert stripped is not None
+        self.assertNotIn("<!-- aw:block -->", stripped)
+        self.assertIn("user", stripped)
+
+    def test_uninstall_does_not_touch_gitignore_today(self):
+        repo = init_repo(self.base / "u")
+        gi = repo / ".gitignore"
+        gi.write_text("node_modules/\n*.log\n", encoding="utf-8")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        INS.uninstall_repo(repo, use_git=True)
+        after = gi.read_text(encoding="utf-8")
+        # Baseline: uninstall leaves .gitignore's non-backups content intact and does not add
+        # or remove an untracked-safety block (there is none yet).
+        self.assertIn("node_modules/", after)
+        self.assertNotIn("aw:untracked", after)
+
+
 class AwBlockMigrationTests(unittest.TestCase):
     """CP3: legacy convert-not-append + sibling-block safety + reinstall idempotence (IPD 02)."""
 
