@@ -3,7 +3,7 @@
 - Date: 2026-07-26
 - Concern: execution completeness / instruction reliability - weaker/faster models follow an explicit MUST + a concrete file path better than scattered soft guidance; a single canonical IPD spec plus a short always-loaded pointer makes the IPD conventions (including the Part 1 checklist + completion clause) rigorously followable
 - Scope: add a canonical `ipd-spec.md` under `.agents/docs/specs/` consolidating the IPD authoring/execution conventions, and add ONE concise directive to the agent-workflows-managed AGENTS.md block (via `agents_pointer_prose`) pointing agents at it and requiring the completion rule. Product-code touch is limited to the engine prose template string + regenerated AGENTS.md. DEPENDS ON Part 1 (Order 1) of this Set.
-- Status: approved
+- Status: executed
 - Set: ipd-completeness-guardrails
 - Order: 2
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -15,6 +15,7 @@
 
 - 2026-07-26 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE; findings J1-J2. Verified: `agents_pointer_prose` (`engine.py:601`) is the always-loaded source (not the legacy wrapper); `update_agents_pointer` mirrors the block into NATIVE_AGENT_FILES (`:1754`), so one shared directive reaches Gemini via the CLAUDE/GEMINI mirror (OQ1 holds); the D104 empty-diff invariant applies. No defects found; no revisions required. Correctly DEPENDS ON Part 1 and keeps the always-loaded addition to one/two lines, separate from the TODO.md aw:block item. No open questions blocking. Readiness: GO - PENDING HUMAN APPROVAL (execute after Part 1).
 
+- 2026-07-26 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): wrote the canonical `.agents/docs/specs/20260726-1340-01-ipd-spec.md` (consolidate-by-reference) and added one concise `### Authoring and executing IPDs` directive to `agents_pointer_prose` requiring it (incl. the checklist + completion rule); regenerated AGENTS.md via the sectioned path to an EMPTY DIFF with the AGENT-PLANS sibling untouched. Added DECISIONS D112 + CHANGELOG. Executed after Order 1 (dependency). Dash/leak clean; full suite 425 passed, 1 skipped (one non-reproducible pre-existing test-isolation flake in test_undo_removes_prompts_scaffold, unrelated, flagged in TODO.md). Path-scoped commits, no push. Status: approved -> executed; moved to `.agents/plans/executed/`. Set `ipd-completeness-guardrails` complete.
 ## Goal
 
 Give agents ONE canonical, referenceable IPD spec (`.agents/docs/specs/ipd-spec.md`) that consolidates the IPD authoring + execution conventions (the template structure, the Part 1 `## Detailed Implementation Checklist (TODO)`, the completion clause, the chunk-into-a-Set guidance, and the existing lifecycle/status/commit rules), and a SHORT always-loaded directive in the managed AGENTS.md block that points at it and states the completion rule as an explicit MUST. Keep the always-loaded addition to one or two lines (the block stays lean, D99/D100); the full detail lives in the spec (P8, referenced-not-restated).
