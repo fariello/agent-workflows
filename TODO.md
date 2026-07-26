@@ -124,6 +124,21 @@ these without an approved IPD.
   Needs its own IPD -> `/plan-review` -> approval. NOTE: relevant to the imminent 1.3.0 release work
   (it is about making CI-green iteration a first-class, correctly-authorized practice).
 
+- **Add a "do not hand-edit inside `aw:block` markers" directive to the managed AGENTS.md block.**
+  The sectioned managed-block mechanism (D104) delimits agent-workflows-owned regions of shared files
+  with `<!-- aw:block -->` / `<!-- aw:<slug> -->` markers; on install those regions are refreshed and a
+  user edit inside them is detected as drift (D103) and preserved+reported, but an agent that hand-edits
+  inside the block is fighting the installer and its change will be flagged (or, under `--force`,
+  overwritten). Proposal: add a short new `aw:<slug>` section (e.g. `aw:managed-block-notice`) to
+  `agents_pointer_prose()` telling agents NOT to edit content between the `aw:block` markers unless
+  absolutely necessary, and to make lasting changes via the framework (edit the workflow source / open an
+  IPD) or via the escape hatches (the `.untracked.` convention, the `local/` lanes) instead. Keep it one
+  or two lines (the always-loaded block stays lean, D99/D100); the rationale can live in the manifest
+  README. Design questions for the IPD: exact wording; whether it is its own section or a line appended to
+  the pointer section; and confirm it does not bloat the always-read context. Needs its own IPD ->
+  `/plan-review` -> approval; edits the shipped template + regenerates AGENTS.md (empty-diff invariant,
+  per D104). Source: maintainer, 2026-07-25, during the out-of-repo-delivery research-prompt discussion.
+
 - **Repo exclude-globs for `aw setup` / `aw install all`.** Add a config-file list of wildcard globs
   identifying repos to EXCLUDE from batch install/setup (so `aw setup` -> "install all" and
   `aw install all` skip matching repos rather than installing into every configured/discovered repo).
