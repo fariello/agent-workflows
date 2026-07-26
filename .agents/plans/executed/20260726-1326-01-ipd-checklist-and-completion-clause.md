@@ -3,7 +3,7 @@
 - Date: 2026-07-26
 - Concern: execution completeness / honest reporting - faster/weaker executing models under-complete moderately sized IPDs and sometimes claim "done" or move a plan to `executed/` with steps unmet; an in-file checklist + a completion clause + small-IPD guidance materially reduce this
 - Scope: add a `## Detailed Implementation Checklist (TODO)` section to the shipped IPD template, add a completion clause to the template's execution gate, and add short "chunk a large IPD into an ordered Set" guidance. Prose-only template + guidance edits; no product code.
-- Status: approved
+- Status: executed
 - Set: ipd-completeness-guardrails
 - Order: 1
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -15,6 +15,7 @@
 
 - 2026-07-26 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE; findings K1-K3. Verified against the template: checklist section absent; sections run Open questions (`ipd.md:99`) -> Approval gate (`:104`), so the placement (between them) is accurate; Set/Order present (`:9-10`); no test pins the template's section structure (only a docstring reference in test_plan_status.py), so adding the section is no-regression. No defects found; no revisions required; prose-only, low-risk, both existing sections preserved. No open questions (OQ1-OQ3 resolved). Readiness: GO - PENDING HUMAN APPROVAL.
 
+- 2026-07-26 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): prose-only execution. Added the `## Detailed Implementation Checklist (TODO)` section to `assess/templates/ipd.md` (between Open questions and the Approval gate), a completion clause in the execution gate (every item checked AND verified before done/executed, STOP otherwise; mitigation-not-guarantee caveat; executed=claim), and split-into-a-Set guidance (~4-6-task heuristic + cross-chunk deps). Added DECISIONS D111 + CHANGELOG. No existing section removed; no review-logic change. Dash/leak clean; full suite unchanged at 425 passed, 1 skipped. Path-scoped commits, no push. Status: approved -> executed; moved to `.agents/plans/executed/`. Part 2 (Order 2) next.
 ## Goal
 
 Make an IPD's completion VERIFIABLE rather than reliant on the executing agent's self-report, by giving the shipped IPD template three low-risk additions: (1) a mandatory `## Detailed Implementation Checklist (TODO)` section with GitHub-flavored `- [ ]` items naming exact files/symbols and the literal verification command; (2) a completion clause in the execution gate requiring every checklist item to be checked AND independently verified before claiming done or moving the plan to `executed/`; (3) short guidance to prefer splitting a large IPD into an ordered Set (`Set:`/`Order:`) of small, independently-verifiable plans.
