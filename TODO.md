@@ -7,7 +7,13 @@ triages this file against each release.
 
 ## Known bugs to fix
 
-- (none open)
+- **Test-isolation flake: `tests/test_setup_artifacts.py::PromptsScaffoldTests::test_undo_removes_prompts_scaffold`.**
+  Observed once failing in a full-suite run (pytest-randomly seed 995070605, 2026-07-26) but passes
+  standalone and on full-suite re-runs INCLUDING the same seed, so it is a non-deterministic
+  test-isolation/temp-state interaction, not a product bug (it surfaced during a prose/template-only
+  change that touches no undo/prompts-scaffold code). Investigate cross-test filesystem/cwd/backup-dir
+  state leakage in the setup-artifacts + rollback tests; make the test hermetic. Low priority (green on
+  normal runs); its own small IPD when addressed.
 
 FIXED 2026-07-13: `test_normalize_plan_names.py` date-relative flakiness (tests now use today-relative
 dates; product unchanged). See DECISIONS D78 and
