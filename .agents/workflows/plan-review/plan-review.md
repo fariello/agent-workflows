@@ -44,11 +44,20 @@ Re-read this before each step and before the final report:
 Complete this before judging or editing a plan.
 
 ### 0.1 Build the review-scope ledger
-List every plan explicitly requested or selected by the project workflow.
+The ledger contains ONLY the plans explicitly named in the invocation, plus any
+that the project's own documented eligibility rules add. Do NOT enumerate other
+plans in the repository (e.g. everything in `pending/` or `executed/`) to build
+the ledger. A "candidate" is a ledger entry: an explicitly named target, or a
+plan a documented eligibility rule adds. A plan that was never a candidate is an
+"incidental file" and MUST NOT appear in the ledger or the final report.
 
-Classify each as:
+Classify each candidate as:
 - `ELIGIBLE` - review it.
-- `NOT REVIEWED` - skip it, with the exact reason.
+- `NOT REVIEWED` - a candidate skipped, with the exact reason (missing,
+  unreadable, malformed beyond review, not a planning document, or wrong status
+  per project rules). NOT REVIEWED NEVER lists a plan that was never a candidate.
+  If the ledger is exactly the requested target(s) and none were skipped, the
+  final NOT REVIEWED section is `(none)`.
 
 Use project eligibility and status rules when present. Otherwise review an
 explicitly requested plan unless it is missing, unreadable, malformed beyond
@@ -56,7 +65,7 @@ review, or not a planning document.
 
 A file referenced only as evidence is not in scope unless explicitly added.
 
-The final enumeration MUST contain every ledger item and no incidental file.
+The final enumeration MUST contain every ledger CANDIDATE and no incidental file.
 
 ### 0.2 Discover controlling instructions
 Read the applicable repository and directory-scoped instructions, guiding
@@ -405,7 +414,7 @@ ELIGIBLE:
 - <plan file>
 
 NOT REVIEWED:
-- <plan file>: <reason>
+- <plan file>: <reason>   # skipped CANDIDATES only; `- (none)` if none were skipped. Never list a plan that was never a candidate.
 
 ### Findings
 | ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
@@ -436,7 +445,7 @@ REVIEWED:
   Required next step: <approval | decision | replan | other>.
 
 NOT REVIEWED:
-- `<plan file>`: <exact reason>.
+- `<plan file>`: <exact reason>.   # skipped CANDIDATES only; `- (none)` if none were skipped. Never enumerate plans that were never candidates (e.g. the executed/ dir).
 ```
 
 The `### Plans reviewed and not reviewed` section MUST be the literal final

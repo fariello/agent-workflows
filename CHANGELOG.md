@@ -92,6 +92,12 @@ scoping is confirmed at release-review.
   viable across hosts), and decomposes the build into separate, gated per-phase IPDs starting with a
   conformance harness. No clean-delta behavior ships yet; it consumes and is grounded in the committed
   aw-delivery research bundle.
+- Fixed: `/plan-review` (and the parallel `/plan-review-long`) no longer let the reviewer pad its final
+  "reviewed / not reviewed" list with unrelated plans (DECISIONS D110). The scope ledger is now bounded to
+  the plans you explicitly name plus any the project's own eligibility rules add; a plan that was never a
+  candidate is an "incidental file" and is never listed; and the NOT REVIEWED section reads `(none)` when
+  you reviewed a single target and skipped nothing, instead of enumerating the whole `.agents/plans/executed/`
+  directory. Wording clarification only; the review logic is unchanged.
 - Changed: producing workflows (`/assess`, `/assess-all`, `/incident`, `/migrate`, `/spec`) now end
   with a uniform closing report (DECISIONS D102): which artifact file(s) they created, with paths, or
   that they created none and WHY, plus concrete next steps. `/assess` also now reports the run-record
