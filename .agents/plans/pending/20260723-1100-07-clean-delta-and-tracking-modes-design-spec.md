@@ -3,10 +3,11 @@
 - Date: 2026-07-23 (fleshed 2026-07-26 from research)
 - Concern: let a developer use agent-workflows in a repo they do NOT own and will PR upstream, leaving the upstream repo a clean delta with their own artifacts tracked elsewhere; and, more generally, choose how much agent-workflows footprint a repo carries (tracked, per-class opt-out, or clean-delta)
 - Scope: produce the SPEC and phased plan for the two coherent modes (tracked; clean-delta) grounded in the committed research bundle. This IPD produces a DESIGN DOCUMENT ONLY - no product code. It defines the architecture, the per-host delivery decisions, the state/ownership model, migration, the same-version-reinstall behavior, downgrade-preservation, and a phased plan whose Phase 0 (a conformance harness) and later build phases become their OWN separate IPDs. It ABSORBS and records the resolution of IPD 05's deferred open questions. DEPENDS ON / references IPD 01 (manifest), IPD 02 (managed sections), IPD 03 (untracked convention), IPD 04 (conservative uninstall), IPD 05 (external-delivery spec + host-probe).
-- Status: to-review
+- Status: approved
 - Set: install-safety-and-ownership
 - Order: 7
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-07-26, human ("Approved. Go.") after /plan-review (APPROVE WITH REVISIONS APPLIED; split assessed - keep spec atomic, build decomposed into gated per-phase IPDs). Document-only; executing.
 
 ## Workflow history
 
