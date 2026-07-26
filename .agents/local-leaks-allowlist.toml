@@ -12,7 +12,12 @@
 # Note: `hermes-agent-org/hermes` is the PUBLIC "Hermes Agent" coding-host GitHub org/repo,
 # cited in host-survey research; it is unrelated to the private sibling repo the built-in
 # `private-repo` rule guards (which still catches the bare private-repo token elsewhere).
-allow_line_substrings = ["hermes-agent-org/hermes"]
+# Note: the backticked `file:///home/...` token is a FALSE POSITIVE: it appears only as PROSE in
+# the aw-delivery research reconciliation (criticizing a source report for citing nonportable
+# home paths). It carries no real username or path (literal ellipsis), so it is not a leak. The
+# concrete `file:///home/<user>/...` path in the underlying gemini36 report was abstracted to `~/`
+# separately; this allowlist entry only covers the abstract prose mention.
+allow_line_substrings = ["hermes-agent-org/hermes", "`file:///home/...`"]
 
 # Extra repo-specific FAIL regex patterns (added to the built-in structural rules).
 fail_patterns = []
