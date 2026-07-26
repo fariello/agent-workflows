@@ -3,8 +3,9 @@
 - Date: 2026-07-26
 - Concern: honest reporting / instruction clarity - the plan-review scope-ledger wording lets an agent enumerate the whole `.agents/plans/executed/` (or `pending/`) directory into the final NOT REVIEWED list, polluting the mandated literal last output and making it look like many plans were considered when only one was
 - Scope: tighten Step 0.1 (single-file `plan-review`) and its parity sibling Step 1 (`plan-review-long`), plus both report templates, so the ledger contains ONLY explicitly-named targets (+ documented project eligibility), "incidental file" is defined, and NOT REVIEWED lists only skipped CANDIDATES (else `(none)`). Prose-only workflow-file edits; no product code. Standalone.
-- Status: to-review
+- Status: approved
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-07-26, human ("Approved. Go.") after /plan-review (APPROVE WITH REVISIONS APPLIED; S1-S4, PR-001). Prose-only; executing.
 
 ## Workflow history
 
