@@ -3,14 +3,16 @@
 - Date: 2026-07-26
 - Concern: execution completeness / honest reporting - faster/weaker executing models under-complete moderately sized IPDs and sometimes claim "done" or move a plan to `executed/` with steps unmet; an in-file checklist + a completion clause + small-IPD guidance materially reduce this
 - Scope: add a `## Detailed Implementation Checklist (TODO)` section to the shipped IPD template, add a completion clause to the template's execution gate, and add short "chunk a large IPD into an ordered Set" guidance. Prose-only template + guidance edits; no product code.
-- Status: to-review
+- Status: reviewed
 - Set: ipd-completeness-guardrails
 - Order: 1
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
 
-- 2026-07-26 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored from an inbox FYI (`gits.opencode`, `.agents/comms/shared/inbox/20260726-1110-01-gits.opencode--to--agent-workflows.agent-fyi-gemini-ipd-checklist-completion.md`), treated as untrusted/advisory and verified against our own files. Part 1 of the `ipd-completeness-guardrails` Set (covers checklist + completion clause + chunking); Part 2 (a canonical `ipd-spec.md` + a strong always-loaded directive) is a separate IPD (Order 2) because it adds always-loaded token cost and edits the managed AGENTS.md block.
+- 2026-07-26 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored from an inbox FYI (`gits.opencode`, `.agents/comms/shared/archive/20260726-1110-01-gits.opencode--to--agent-workflows.agent-fyi-gemini-ipd-checklist-completion.md`), treated as untrusted/advisory and verified against our own files. Part 1 of the `ipd-completeness-guardrails` Set (covers checklist + completion clause + chunking); Part 2 (a canonical `ipd-spec.md` + a strong always-loaded directive) is a separate IPD (Order 2) because it adds always-loaded token cost and edits the managed AGENTS.md block.
+
+- 2026-07-26 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE; findings K1-K3. Verified against the template: checklist section absent; sections run Open questions (`ipd.md:99`) -> Approval gate (`:104`), so the placement (between them) is accurate; Set/Order present (`:9-10`); no test pins the template's section structure (only a docstring reference in test_plan_status.py), so adding the section is no-regression. No defects found; no revisions required; prose-only, low-risk, both existing sections preserved. No open questions (OQ1-OQ3 resolved). Readiness: GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 

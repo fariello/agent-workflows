@@ -3,7 +3,7 @@
 - Date: 2026-07-26
 - Concern: execution completeness / instruction reliability - weaker/faster models follow an explicit MUST + a concrete file path better than scattered soft guidance; a single canonical IPD spec plus a short always-loaded pointer makes the IPD conventions (including the Part 1 checklist + completion clause) rigorously followable
 - Scope: add a canonical `ipd-spec.md` under `.agents/docs/specs/` consolidating the IPD authoring/execution conventions, and add ONE concise directive to the agent-workflows-managed AGENTS.md block (via `agents_pointer_prose`) pointing agents at it and requiring the completion rule. Product-code touch is limited to the engine prose template string + regenerated AGENTS.md. DEPENDS ON Part 1 (Order 1) of this Set.
-- Status: to-review
+- Status: reviewed
 - Set: ipd-completeness-guardrails
 - Order: 2
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -11,6 +11,8 @@
 ## Workflow history
 
 - 2026-07-26 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored from the same `gits.opencode` inbox FYI as Part 1, treated as untrusted/advisory and verified against our own files. Part 2 of the `ipd-completeness-guardrails` Set: it consolidates the IPD conventions into a canonical `ipd-spec.md` and adds a concise always-loaded directive requiring it (the reporter found weaker models respond better to a strong MUST + a concrete path). Split from Part 1 because it adds always-loaded token cost and edits the managed AGENTS.md block, which overlaps the TODO.md `aw:block` edit-protection item.
+
+- 2026-07-26 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE; findings J1-J2. Verified: `agents_pointer_prose` (`engine.py:601`) is the always-loaded source (not the legacy wrapper); `update_agents_pointer` mirrors the block into NATIVE_AGENT_FILES (`:1754`), so one shared directive reaches Gemini via the CLAUDE/GEMINI mirror (OQ1 holds); the D104 empty-diff invariant applies. No defects found; no revisions required. Correctly DEPENDS ON Part 1 and keeps the always-loaded addition to one/two lines, separate from the TODO.md aw:block item. No open questions blocking. Readiness: GO - PENDING HUMAN APPROVAL (execute after Part 1).
 
 ## Goal
 
