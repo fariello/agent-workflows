@@ -84,6 +84,14 @@ scoping is confirmed at release-review.
   the interactive tool already renders. The installer's AGENTS.md pointer gains a one-line reminder and
   both `/plan-review` variants clarify that their six-part question's "Options" item is satisfied by the
   tool's rendered choices (not restated in prose).
+- Added (internal spec): a design spec for clean-delta contribution and artifact-tracking modes
+  (DECISIONS D109). Groundwork, not a shipped feature: it defines two modes (the current tracked mode,
+  and a clean-delta mode that lets you use agent-workflows in a repo you will PR upstream without adding
+  any agent-workflows files to that repo, keeping your own artifacts in a sibling companion repo),
+  chooses host-native skills as the primary delivery mechanism (a universal out-of-repo pointer is not
+  viable across hosts), and decomposes the build into separate, gated per-phase IPDs starting with a
+  conformance harness. No clean-delta behavior ships yet; it consumes and is grounded in the committed
+  aw-delivery research bundle.
 - Changed: producing workflows (`/assess`, `/assess-all`, `/incident`, `/migrate`, `/spec`) now end
   with a uniform closing report (DECISIONS D102): which artifact file(s) they created, with paths, or
   that they created none and WHY, plus concrete next steps. `/assess` also now reports the run-record
