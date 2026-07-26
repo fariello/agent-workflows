@@ -106,6 +106,12 @@ scoping is confirmed at release-review.
   into an ordered Set of small, independently-verifiable plans. This markedly improves completeness for
   faster/weaker executing models, which have no external todo tool. Target repos get it on the next
   `aw install`.
+- Added: a canonical IPD spec (`.agents/docs/specs/...-ipd-spec.md`) and a concise always-loaded directive
+  in the managed AGENTS.md block requiring it (DECISIONS D112). Agents now have one authoritative "how to
+  author and execute an IPD" reference (consolidating the template, the D111 checklist + completion rule,
+  the lifecycle/status/commit conventions by reference), and the always-loaded pointer states the MUST
+  explicitly so weaker/faster models follow it reliably. Target repos get the directive on the next
+  `aw install`.
 - Changed: producing workflows (`/assess`, `/assess-all`, `/incident`, `/migrate`, `/spec`) now end
   with a uniform closing report (DECISIONS D102): which artifact file(s) they created, with paths, or
   that they created none and WHY, plus concrete next steps. `/assess` also now reports the run-record

@@ -670,7 +670,13 @@ def agents_pointer_prose() -> str:
         "but for only ONE question at a time and only as a supplement. Compose the context as a "
         "compact, decision-ready synthesis: keep it screen-sized, do NOT repeat or preview the "
         "choices the tool already renders, and omit chronology/filenames/quotes unless essential "
-        "(see GUIDING_PRINCIPLES P12)."
+        "(see GUIDING_PRINCIPLES P12).\n\n"
+        "### Authoring and executing IPDs\n"
+        "When you author or execute an Implementation Plan Document (IPD), you MUST follow the "
+        "canonical IPD spec under `.agents/docs/specs/` (the `ipd-spec` doc), including its mandatory "
+        "`## Detailed Implementation Checklist (TODO)` and the completion rule: do NOT claim done or "
+        "move a plan to `.agents/plans/executed/` until every checklist item is checked AND "
+        "independently verified (tests run, actual output pasted), else STOP and report."
     )
 
 

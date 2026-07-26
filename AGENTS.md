@@ -33,6 +33,9 @@ A deterministic leak-sanitizer ships with this toolkit. Before you hand-judge wh
 
 ### Ask self-contained questions
 When you ask a human a decision through an interactive prompt, put the ENTIRE question set (the plain-language context needed to decide, the question, and the answer options) INSIDE the prompt itself, so a human answering from the prompt can decide from the prompt alone; never strand the required context in surrounding chat. Extra prose may precede a prompt, but for only ONE question at a time and only as a supplement. Compose the context as a compact, decision-ready synthesis: keep it screen-sized, do NOT repeat or preview the choices the tool already renders, and omit chronology/filenames/quotes unless essential (see GUIDING_PRINCIPLES P12).
+
+### Authoring and executing IPDs
+When you author or execute an Implementation Plan Document (IPD), you MUST follow the canonical IPD spec under `.agents/docs/specs/` (the `ipd-spec` doc), including its mandatory `## Detailed Implementation Checklist (TODO)` and the completion rule: do NOT claim done or move a plan to `.agents/plans/executed/` until every checklist item is checked AND independently verified (tests run, actual output pasted), else STOP and report.
 <!-- /aw:block -->
 
 <!-- AGENT-PLANS:BEGIN -->
