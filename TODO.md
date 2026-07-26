@@ -124,6 +124,24 @@ these without an approved IPD.
   Needs its own IPD -> `/plan-review` -> approval. NOTE: relevant to the imminent 1.3.0 release work
   (it is about making CI-green iteration a first-class, correctly-authorized practice).
 
+- **Re-evaluate agent-workflows' delivery model around host-native SKILLS (we currently do not use them).**
+  The 2026-07-26 aw-delivery research (`.agents/docs/research/20260726-0054-aw-delivery-and-clean-delta-research/`)
+  established that essentially every current coding-agent host now discovers and relies on host-native
+  Agent Skills at `.agents/skills/<name>/SKILL.md` (Claude Code at `.claude/skills/`), yet agent-workflows
+  ships COMMANDS/shims (`Read and execute @.agents/workflows/...` under `.opencode/commands/` and
+  `.claude/commands/`) and NO `SKILL.md` at all. This is a strategic gap, not just a clean-delta detail:
+  even in ordinary tracked installs, a skill is the mechanism hosts are built around (auto-discovery,
+  explicit invocation, bundled scripts/resources), so we may be delivering our workflows through a weaker,
+  older channel than the hosts prefer. Re-open the delivery-model question broadly: should skills become a
+  first-class (or the primary) delivery for the skill-eligible workflows in BOTH tracked and clean-delta
+  modes, complementing or replacing the shim/pointer model per host? This overlaps and feeds the clean-delta
+  build phases (D109 spec, Phase 2 packaged skills) but is BROADER than clean-delta. Grounding + the skill
+  taxonomy (capability skills + explicit harness skills, never one-per-lens) and the per-host path matrix
+  are in the research bundle and the D109 spec `.agents/docs/specs/20260726-1239-01-clean-delta-and-tracking-modes.spec.md`.
+  Gated on the same Phase 0 conformance harness (documentation-graded, not reproduced). Needs its own IPD
+  (or a small IPD set) -> `/plan-review` -> approval before any build. Source: maintainer, 2026-07-26
+  ("we missed that almost every agent relies on skills heavily").
+
 - **Add a "do not hand-edit inside `aw:block` markers" directive to the managed AGENTS.md block.**
   The sectioned managed-block mechanism (D104) delimits agent-workflows-owned regions of shared files
   with `<!-- aw:block -->` / `<!-- aw:<slug> -->` markers; on install those regions are refreshed and a
