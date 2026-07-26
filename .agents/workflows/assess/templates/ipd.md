@@ -101,10 +101,47 @@ N/A with reason if not applicable.
 Anything needing a human decision before or during execution, and any assumptions
 made (marked so they can be confirmed).
 
+## Detailed Implementation Checklist (TODO)
+
+An in-file, tickable checklist the executing agent updates in place (`- [ ]` -> `- [x]`)
+as each task is completed AND verified. This is the primary progress-tracking mechanism for
+agents without an external todo tool, and it gives a reviewer concrete items to check the
+`executed` claim against. Group by task; name EXACT file basenames + function/symbol names
+(and line anchors when useful); include the LITERAL verification command and a reminder to
+paste its real output. A ticked box is a claim, not proof (see the completion clause below).
+
+- [ ] **Task 1: <short title>**
+  - [ ] Edit `<file>` (`<function/symbol>`, ~line `N`): <exact change + any contract/edge case to preserve>.
+- [ ] **Task 2: <short title>**
+  - [ ] <exact change>.
+- [ ] **Tests and regression protection**
+  - [ ] Add/update `<test_name>` in `<test_file>` asserting <expected outcome>.
+  - [ ] Run `<literal verify command, e.g. python -m pytest -q>` and PASTE the actual output.
+- [ ] **Docs / spec sync** (if user-visible behavior changed): <what to update>.
+- [ ] **Lifecycle and commit**
+  - [ ] Path-scoped commit(s): `git commit -m "<msg>" -- <paths>` (never `git add -A`/`-a`; never push).
+  - [ ] Set terminal `Status:` and `git mv` this plan to the right terminal dir.
+
 ## Approval and execution gate
 
 This IPD is a proposal. It MUST be reviewed and approved by a human before execution,
-and it is NOT auto-executed. Recommended next steps:
+and it is NOT auto-executed.
+
+Completion rule: before claiming done or transitioning this plan to `executed/`, EVERY
+`- [ ]` item in the Detailed Implementation Checklist MUST be `- [x]` AND independently
+verified (tests run with the actual output pasted; never claim a pass not run). If any item
+cannot be completed, STOP and report rather than transitioning the plan. A checklist is a
+mitigation, not a guarantee (a box can be ticked without the work), so the reviewer step and
+the paste-actual-output rule still apply; an agent-asserted `executed` is a CLAIM, not proof.
+
+Prefer SMALL plans: when this IPD would exceed roughly 4-6 tasks, span several code
+regions/files, or mix distinct concerns, split it into an ordered `Set:`/`Order:` of small,
+independently-executable and independently-verifiable plans instead of one large plan. State
+cross-chunk dependencies in each chunk's execution contract ("requires `Order N` executed
+first; if its symbols are absent, STOP"). This is good hygiene for any model and close to
+REQUIRED when the executing model is a faster/weaker tier.
+
+Recommended next steps:
 
 1. Review this IPD (optionally run the `plan-review` workflow to harden it; that sets
    `Status: reviewed`). Update `Status:` as it progresses (`to-review` -> `reviewed` ->

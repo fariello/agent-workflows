@@ -98,6 +98,14 @@ scoping is confirmed at release-review.
   candidate is an "incidental file" and is never listed; and the NOT REVIEWED section reads `(none)` when
   you reviewed a single target and skipped nothing, instead of enumerating the whole `.agents/plans/executed/`
   directory. Wording clarification only; the review logic is unchanged.
+- Added: the IPD template now includes a `## Detailed Implementation Checklist (TODO)` section, a
+  completion rule, and split-into-a-Set guidance (DECISIONS D111). Plans authored from the template now
+  carry a tickable per-task checklist (with exact files/symbols and the literal verification command), and
+  the execution gate requires every item to be checked AND independently verified before a plan may be
+  claimed done or moved to `executed/` (STOP-and-report otherwise); it also advises splitting a large plan
+  into an ordered Set of small, independently-verifiable plans. This markedly improves completeness for
+  faster/weaker executing models, which have no external todo tool. Target repos get it on the next
+  `aw install`.
 - Changed: producing workflows (`/assess`, `/assess-all`, `/incident`, `/migrate`, `/spec`) now end
   with a uniform closing report (DECISIONS D102): which artifact file(s) they created, with paths, or
   that they created none and WHY, plus concrete next steps. `/assess` also now reports the run-record
