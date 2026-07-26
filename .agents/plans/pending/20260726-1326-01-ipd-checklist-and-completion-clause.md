@@ -3,10 +3,11 @@
 - Date: 2026-07-26
 - Concern: execution completeness / honest reporting - faster/weaker executing models under-complete moderately sized IPDs and sometimes claim "done" or move a plan to `executed/` with steps unmet; an in-file checklist + a completion clause + small-IPD guidance materially reduce this
 - Scope: add a `## Detailed Implementation Checklist (TODO)` section to the shipped IPD template, add a completion clause to the template's execution gate, and add short "chunk a large IPD into an ordered Set" guidance. Prose-only template + guidance edits; no product code.
-- Status: reviewed
+- Status: approved
 - Set: ipd-completeness-guardrails
 - Order: 1
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-07-26, human ("approve ...-01 ... Go.") after /plan-review (APPROVE). Prose-only template edits; executing.
 
 ## Workflow history
 
