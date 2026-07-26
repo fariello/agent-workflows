@@ -3,10 +3,11 @@
 - Date: 2026-07-26
 - Concern: execution completeness / instruction reliability - weaker/faster models follow an explicit MUST + a concrete file path better than scattered soft guidance; a single canonical IPD spec plus a short always-loaded pointer makes the IPD conventions (including the Part 1 checklist + completion clause) rigorously followable
 - Scope: add a canonical `ipd-spec.md` under `.agents/docs/specs/` consolidating the IPD authoring/execution conventions, and add ONE concise directive to the agent-workflows-managed AGENTS.md block (via `agents_pointer_prose`) pointing agents at it and requiring the completion rule. Product-code touch is limited to the engine prose template string + regenerated AGENTS.md. DEPENDS ON Part 1 (Order 1) of this Set.
-- Status: reviewed
+- Status: approved
 - Set: ipd-completeness-guardrails
 - Order: 2
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-07-26, human ("Approved: ...-02 ... Go.") after /plan-review (APPROVE). Order 1 executed. Executing.
 
 ## Workflow history
 
