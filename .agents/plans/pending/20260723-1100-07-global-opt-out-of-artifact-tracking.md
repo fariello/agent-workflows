@@ -7,6 +7,7 @@
 - Set: install-safety-and-ownership
 - Order: 7
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Blocked on: research report from `.agents/prompts/pending/20260725-2341-01-aw-delivery-and-clean-delta.research-prompt.md`. The design space (per-class opt-out, clean-delta contribution, host-native skills, out-of-repo delivery) is unresolved; this IPD must NOT be fleshed into a design spec until that report exists and is immortalized under `.agents/docs/research/`. Reframed by the 2026-07-25 discussion below.
 
 > DRAFT STUB - PRELIMINARY. Captures INTENT and OBJECTIVES only. NOT ready for /plan-review or
 > execution. This one is LARGE and TOUCHES MANY WORKFLOWS; it DEFINITELY NEEDS MORE DISCUSSION
@@ -15,6 +16,7 @@
 ## Workflow history
 
 - 2026-07-23 created as a draft stub (opencode its_direct/pt3-claude-opus-4.8-1m-us): spun out of the install-manifest discussion as the largest, most invasive piece. Preliminary; needs design discussion.
+- 2026-07-25 reframed + blocked on research (opencode its_direct/pt3-claude-opus-4.8-1m-us): the 2026-07-25 discussion (maintainer) established that the strongest driver is CLEAN-DELTA contribution - using agent-workflows fully in a repo you do not own and will PR upstream (real cases: opencode, hermes, which carry their own AGENTS.md), leaving the upstream repo a clean delta with your own artifacts tracked elsewhere - alongside per-class tracking opt-out, do-not-advertise/low-footprint, and optionally making the framework + manifest themselves untrackable. Maintainer decisions taken: Q1 (per-repo manifest with version + checksum) and Q3 (backups for rollback) are ALREADY shipped (D103 manifest + the .agent-workflows-installer-backups/ + --undo), so this IPD will REFERENCE them, not re-spec them; the genuinely new surface is the clean-delta mechanism, per-class opt-out, and untrackable framework/manifest. Because the design space is unresolved, we did NOT flesh a spec ahead of evidence; instead we authored a research prompt for GPT-5.6 (principal-architect persona; full cost/benefit/risk; effect on current + prior releases incl. re-install-same-version and revert-preservation; host-native SKILL.md discovery in depth; candidate mechanisms A-F incl. .git/info/exclude / core.excludesFile so the repo's tracked .gitignore is never polluted) and staged it at `.agents/prompts/pending/20260725-2341-01-aw-delivery-and-clean-delta.research-prompt.md`. NEXT: run that prompt, immortalize the report under `.agents/docs/research/`, THEN flesh this IPD as a design spec grounded in the evidence, then /plan-review + human approval; any build is gated further still (and, for out-of-repo/skills tiers, on the per-host resolve-and-follow probe from IPD 05). Also recorded a related backlog item in TODO.md (a "do not hand-edit inside aw:block" AGENTS.md directive) as its own future IPD.
 
 ## Intent and objectives
 
