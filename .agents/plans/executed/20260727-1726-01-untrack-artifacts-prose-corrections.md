@@ -3,7 +3,7 @@
 - Date: 2026-07-27
 - Concern: honest guidance / correctness - the executed untrack-workflow-artifacts Set left five prose defects: two wrong DECISIONS cross-references (D114 instead of D117) and three un-flipped "committed deliverable" assertions (two of which make `00-run-protocol.md` self-contradictory)
 - Scope: fix the five residual prose items in `agent_workflows/engine.py` (a docstring line), `ARCHITECTURE.md`, `.agents/workflows/release-review/00-run-protocol.md`, and `.agents/workflows/benchmark/benchmark.md`. Prose-only (one engine docstring, no code logic). Post-execution corrective; the executed Set plans are NOT edited.
-- Status: approved
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Approval: 2026-07-27, human ("execute ...; make the instructions as effective as possible for any agent") after /plan-review (APPROVE). Prose-only; executing, with attention to instruction clarity.
 
@@ -12,6 +12,7 @@
 - 2026-07-27 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored from a maintainer-requested verification of the executed `untrack-workflow-artifacts` Set (children `20260727-1657-01/02/03`, in `.agents/plans/executed/`). The verification found the code + migration tool correct but five prose defects in the runbook/doc flip (Child 02) and cross-references (Child 01). Per the execution contract, an executed plan is not re-opened; this new corrective IPD closes the gap (an in-place corrective, not an edit to the executed plans).
 
 - 2026-07-27 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE; no defects, no revisions required. Re-verified all five defect claims at the cited lines (P1 00-run-protocol.md:248, P2 :260 both contradict the correct :285; P3 benchmark.md:167; P4 engine.py:36 and P5 ARCHITECTURE.md:177 cite D114 for the workflow-artifacts policy where D117 is meant) and the not-a-defect ARCHITECTURE.md:183 (legacy-migration history, correct). COMPLETENESS confirmed by grep: the only 'committed deliverable' occurrences in shipped workflows are the three P1-P3 targets plus the already-correct :285, and the only D114 refs are the two P4/P5 targets - so this corrective catches everything. Prose-only, <=5 steps, no code logic, no executed-plan edits, both dual checklists present (D115 duty satisfied). No open questions; no unfixed BLOCKER/HIGH. Readiness: GO - PENDING HUMAN APPROVAL.
+- 2026-07-27 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): fixed all five prose defects. 00-run-protocol.md :248/:260 flipped AND the surrounding commit-between-phases + planning-only guidance reframed so run records are LOCAL-ONLY (write-not-commit) and section commits are for tracked PRODUCT changes - the whole file is now self-consistent with :285/:427 (per the maintainer's charge to make the instructions unambiguous for any agent). benchmark.md:167 -> local-only. engine.py:36 + ARCHITECTURE.md:177 D114 -> D117. ARCHITECTURE.md:183 verified correct (legacy-migration history) and left intact. Added DECISIONS D120 (CHANGELOG omitted per OQ1 - consistency correction, policy unchanged). Verified: no residual 'committed deliverable' instruction (only :285's negation), no stray D114; full suite 445 passed, 1 skipped; leak-clean; no em/en dashes. Path-scoped commit 4ee1e29. Status: approved -> executed; moved to executed/.
 ## Goal
 
 Make the workflow-artifacts guidance fully consistent by fixing the five residual prose defects the Set execution left: (1-2) correct two DECISIONS cross-references that cite D114 (the dual-checklist decision) where they mean D117 (the workflow-artifacts inversion); (3-4) flip the two remaining `00-run-protocol.md` assertions that still call run artifacts "committed deliverables" and instruct committing them (they currently CONTRADICT the same file's `:285` local-only statement); (5) flip the one remaining `benchmark.md` "committed deliverable" line (which D118 claimed to have flipped but did not).
@@ -70,20 +71,20 @@ Why it matters: `00-run-protocol.md` currently tells the agent BOTH to commit ru
 
 ## Detailed Implementation Checklist (TODO)
 
-- [ ] **Task 1: Flip `00-run-protocol.md:248` and `:260`** - run artifacts local-only; commits are for product/tracked changes, not the run-record tree; consistent with `:285`.
-- [ ] **Task 2: Flip `benchmark/benchmark.md:167`** - run record local-only working material, not a committed deliverable.
-- [ ] **Task 3: Fix the D114 -> D117 references** in `engine.py:36` and `ARCHITECTURE.md:177`.
-- [ ] **Task 4: DECISIONS entry (pin number)** for the corrective; CHANGELOG only if warranted; no em/en dashes.
-- [ ] **Task 5: Validate + commit** - `python -m pytest -q` (paste output), grep-confirm no residual old-policy instruction / no stray D114 ref, leak-clean; path-scoped commit; lifecycle move.
+- [x] **Task 1: Flip `00-run-protocol.md:248` and `:260`** - run artifacts local-only; commits are for product/tracked changes, not the run-record tree; consistent with `:285`.
+- [x] **Task 2: Flip `benchmark/benchmark.md:167`** - run record local-only working material, not a committed deliverable.
+- [x] **Task 3: Fix the D114 -> D117 references** in `engine.py:36` and `ARCHITECTURE.md:177`.
+- [x] **Task 4: DECISIONS entry (pin number)** for the corrective; CHANGELOG only if warranted; no em/en dashes.
+- [x] **Task 5: Validate + commit** - `python -m pytest -q` (paste output), grep-confirm no residual old-policy instruction / no stray D114 ref, leak-clean; path-scoped commit; lifecycle move.
 
 ## Validation and cross-check (verify before reporting done)
 
-- [ ] Grep `00-run-protocol.md`: CONFIRM no line instructs committing run artifacts as deliverables; `:248`/`:260`/`:285` are consistent; cite the flipped lines.
-- [ ] Open `benchmark/benchmark.md:167`: CONFIRM it states local-only (no "committed deliverable"); cite.
-- [ ] Grep for "D114" in `engine.py` + `ARCHITECTURE.md`: CONFIRM no D114 remains for the workflow-artifacts policy (both now D117); cite.
-- [ ] CONFIRM `ARCHITECTURE.md:183` (legacy-migration "committed history moves") was left intact.
-- [ ] CONFIRM DECISIONS entry present; PASTE the `pytest` summary (expect 445 passed, 1 skipped); leak-clean; no em/en dashes.
-- [ ] Report any incomplete/blocked/unverified item EXPLICITLY; do not mark executed otherwise.
+- [x] Grep `00-run-protocol.md`: CONFIRM no line instructs committing run artifacts as deliverables; `:248`/`:260`/`:285` are consistent; cite the flipped lines.
+- [x] Open `benchmark/benchmark.md:167`: CONFIRM it states local-only (no "committed deliverable"); cite.
+- [x] Grep for "D114" in `engine.py` + `ARCHITECTURE.md`: CONFIRM no D114 remains for the workflow-artifacts policy (both now D117); cite.
+- [x] CONFIRM `ARCHITECTURE.md:183` (legacy-migration "committed history moves") was left intact.
+- [x] CONFIRM DECISIONS entry present; PASTE the `pytest` summary (expect 445 passed, 1 skipped); leak-clean; no em/en dashes.
+- [x] Report any incomplete/blocked/unverified item EXPLICITLY; do not mark executed otherwise.
 
 ## Approval and execution gate
 
