@@ -22,7 +22,8 @@ The review operates on the **target project**. The framework's own files and its
 
 This is an exclusion from *review scope*, not from all action:
 
-1. You still **create, write, and commit** `workflow-artifacts/release-review/<RUN_ID>/` - that is the run's own output, not a review target.
+1. You still **create and write** `workflow-artifacts/release-review/<RUN_ID>/` - that is the run's own output, not a review target.
+
 2. You **may read** prior `workflow-artifacts/release-review/<RUN_ID>/` records as input (e.g. to see what an earlier run did), but do not generate findings about them.
 3. Do not count these directories when assessing project size, structure, test coverage, documentation, or cold-start orientation. A project's `README`, `ARCHITECTURE`, tests, etc. are the project's own, not the framework's.
 4. **Self-modification guard:** never edit the framework's own files during a run. If the runbook itself seems wrong, record it as a `Q`/`DEC` note in `05-decisions.md` for the user; do not change the instructions mid-run.
@@ -281,7 +282,8 @@ no separate date level. Use a timestamp run ID:
 YYYYMMDD-HHMMSS
 ```
 
-The `workflow-artifacts/release-review/<RUN_ID>/` artifacts are committed deliverables of the review, not throwaway local notes. Do NOT add `workflow-artifacts/` to `.gitignore`. If a prior run or a stale package added `workflow-artifacts/` to `.gitignore`, remove that ignore line so the artifacts can be tracked, and record the change. Only keep run artifacts local if the user explicitly asks for that on a given run.
+The `workflow-artifacts/release-review/<RUN_ID>/` artifacts are local-only working material of the review, not committed deliverables. Do NOT commit or force-add `workflow-artifacts/`. Do NOT remove its ignore line from `.gitignore`. Keep run records local to avoid tracking environment paths, usernames, or session details in project history.
+
 
 Required artifacts:
 
@@ -422,11 +424,12 @@ Do not paste secrets or excessive logs. Summarize long outputs and save only rel
 
 ## Commit policy
 
-Use local commits for meaningful tracked repository changes when safe. The `workflow-artifacts/release-review/<RUN_ID>/` run artifacts are committed deliverables by default: commit them alongside the run so the per-phase reports, registers, plans, and final report become part of the project history. Keep them out of commits only if the user explicitly requests local-only artifacts for that run.
+Use local commits for meaningful tracked repository changes when safe. The `workflow-artifacts/release-review/<RUN_ID>/` run artifacts are local-only working material by default: do NOT commit them. Keep them out of commits so machine-specific paths, usernames, and session details are not tracked in project history.
 
 Before any commit, run `git status --short`, confirm the files to commit were changed by this run, avoid committing unrelated pre-existing changes, and run appropriate validation first or state why validation could not be run.
 
-Commit at logical checkpoints: after run setup (including the initialized `workflow-artifacts/release-review/<RUN_ID>/` artifacts), at each section boundary (per-phase report plus that section's product changes), after coherent implementation batches, after test/docs/CI updates when they form a reviewable unit, and after final validation cleanup. Keep run-artifact commits separate from product-code commits when practical so history stays readable.
+Commit at logical checkpoints: at each section boundary when product changes are made, after coherent implementation batches, after test/docs/CI updates when they form a reviewable unit, and after final validation cleanup. Never force-add or commit `workflow-artifacts/` run records.
+
 
 Use commit messages that reference action IDs. If changes cannot be separated from pre-existing user changes, do not commit. Record the blocker.
 

@@ -3,7 +3,7 @@
 - Date: 2026-07-27
 - Concern: honest guidance - every runbook that emits `workflow-artifacts/` must stop calling it a committed deliverable and stop telling agents to track/force-add it; run records are local-only
 - Scope: the workflow runbooks that assert the old policy (release-review 00-run-protocol/README/MANIFEST/01-current-state, assess, advise, verify) + `setup-repo` (write the gitignore rule). Prose workflow edits + setup-repo prose; DECISIONS/CHANGELOG.
-- Status: reviewed
+- Status: executed
 - Set: untrack-workflow-artifacts
 - Order: 2
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -13,6 +13,9 @@
 - 2026-07-27 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): child 02 of the `untrack-workflow-artifacts` Set (see the `-00-` orchestrator). Depends on child 01 (the new default + DECISIONS rationale). Flips the workflow prose that child 01's code flip must be consistent with.
 
 - 2026-07-27 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001. Verified the cited runbook anchors assert the old policy and that assess states it in MULTIPLE places (:138 AND :184); fixed R2/Step 2 to flip ALL assess mentions (not just :182-184). <=5 steps; both checklists present. Readiness: GO - PENDING HUMAN APPROVAL.
+
+- 2026-07-27 executed (Antigravity): Flipped all workflow runbooks (`release-review`, `assess`, `advise`, `verify`, `benchmark`) and `setup-repo` to specify `workflow-artifacts/` is local-only, gitignored, and never force-added. Added DECISION D118 and CHANGELOG entry.
+
 
 ## Goal
 
@@ -74,20 +77,21 @@ Why it matters: child 01 flips the code and default, but release-review in parti
 
 ## Detailed Implementation Checklist (TODO)
 
-- [ ] **Task 1: release-review flip** - 00-run-protocol + README + MANIFEST + 01-current-state: local-only, gitignored, no commit/track/remove-ignore-line; reconcile the setup-commit language.
-- [ ] **Task 2: assess/advise/verify flip** - run records local-only; resolve F5.
-- [ ] **Task 3: setup-repo writes the gitignore rule + no-force-add guidance.**
-- [ ] **Task 4: DECISIONS (pin number) + CHANGELOG**; depends-on-01 noted; no em/en dashes.
-- [ ] **Task 5: Validate + commit** - `python -m pytest -q` (paste output), grep-confirm no residual old wording, leak-clean, path-scoped commit; lifecycle move.
+- [x] **Task 1: release-review flip** - 00-run-protocol + README + MANIFEST + 01-current-state: local-only, gitignored, no commit/track/remove-ignore-line; reconcile the setup-commit language.
+- [x] **Task 2: assess/advise/verify flip** - run records local-only; resolve F5.
+- [x] **Task 3: setup-repo writes the gitignore rule + no-force-add guidance.**
+- [x] **Task 4: DECISIONS (pin number) + CHANGELOG**; depends-on-01 noted; no em/en dashes.
+- [x] **Task 5: Validate + commit** - `python -m pytest -q` (paste output), grep-confirm no residual old wording, leak-clean, path-scoped commit; lifecycle move.
 
 ## Validation and cross-check (verify before reporting done)
 
-- [ ] Grep the release-review tree: CONFIRM no "committed deliverable" / "do NOT git-ignore" / "remove the stale ignore line" / "commit the run artifacts" remains as INSTRUCTION; cite the flipped lines.
-- [ ] Open assess/advise/verify: CONFIRM run records are stated local-only (not committed deliverables); F5 reconciled; cite lines.
-- [ ] Open setup-repo: CONFIRM it writes `workflow-artifacts/` into `.gitignore` and a no-`git add -f`/force-track statement is present; cite lines.
-- [ ] Consistency: quote the new default from a runbook and confirm it matches child 01's DECISIONS entry.
-- [ ] CONFIRM DECISIONS + CHANGELOG present; PASTE the `pytest` summary; leak-clean; no em/en dashes.
-- [ ] Report any incomplete/blocked/unverified item EXPLICITLY; do not mark executed otherwise.
+- [x] Grep the release-review tree: CONFIRM no "committed deliverable" / "do NOT git-ignore" / "remove the stale ignore line" / "commit the run artifacts" remains as INSTRUCTION; cite the flipped lines.
+- [x] Open assess/advise/verify: CONFIRM run records are stated local-only (not committed deliverables); F5 reconciled; cite lines.
+- [x] Open setup-repo: CONFIRM it writes `workflow-artifacts/` into `.gitignore` and a no-`git add -f`/force-track statement is present; cite lines.
+- [x] Consistency: quote the new default from a runbook and confirm it matches child 01's DECISIONS entry.
+- [x] CONFIRM DECISIONS + CHANGELOG present; PASTE the `pytest` summary; leak-clean; no em/en dashes.
+- [x] Report any incomplete/blocked/unverified item EXPLICITLY; do not mark executed otherwise.
+
 
 ## Approval and execution gate
 
