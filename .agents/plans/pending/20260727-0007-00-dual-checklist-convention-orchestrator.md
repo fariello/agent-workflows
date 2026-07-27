@@ -3,7 +3,7 @@
 - Date: 2026-07-27
 - Concern: execution quality / honest reporting - make agent-executable documents (IPDs and similar) carry a top execution checklist AND an end verification/cross-check checklist, require creator and reviewer to implement and assess both, and encode strong size guidance + a defined `00` orchestrator so large work is sequenced rather than drifting
 - Scope: ORCHESTRATOR for the ordered Set `ipd-dual-checklist-convention`. It defines the sequence, dependencies, completion criteria, and cross-IPD validation for the three child IPDs. It does NOT itself change files (each child does its own edits). This is a dogfood: the convention being added is used to structure its own rollout.
-- Status: to-review
+- Status: reviewed
 - Set: ipd-dual-checklist-convention
 - Order: 0
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -11,6 +11,8 @@
 ## Workflow history
 
 - 2026-07-27 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored from a maintainer instruction to standardize a two-checklist + creator/reviewer + size-guidance/orchestrator convention. Because the work spans the IPD template, the plan-review workflow, the canonical ipd-spec, and an orchestrator template - and the convention itself says to sequence large work as a Set with a `00` orchestrator - it is shaped as this orchestrated Set. Builds ON D111 (the single checklist + completion rule + light split guidance) and D112 (the canonical ipd-spec + always-loaded directive), which it extends.
+
+- 2026-07-27 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-002. Verified the child sequence/deps + cross-IPD-validation are coherent; tightened the dogfood note (children already carry BOTH checklists, not an interim single one). Cross-IPD consistency holds (the two-checklist rule matches across 00/01/02/03); each child <=5 steps; D111 superseded-not-forked, D112 updated-in-place. No open questions (OQ1/OQ2 resolved by maintainer); no unfixed BLOCKER/HIGH. Readiness: GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -40,7 +42,7 @@ Execute in Order. Each child is its own `/plan-review` + human approval + execut
 
 - Consistency: the two-checklist structure named in 01 is the SAME structure plan-review assesses in 02 and the spec describes in 03 (no divergent names or rules). Read 01's template + 02's reviewer duty + 03's spec together and confirm they cannot be read as contradictory.
 - No duplication/drift with D111/D112: 01 SUPERSEDES D111's single-checklist placement (recorded, not silently); 03 UPDATES the D112 spec in place rather than forking it.
-- Dogfood check: each child IPD itself uses the new two-checklist structure once 01 is executed (children authored before 01 executes may carry the interim single checklist; note it).
+- Dogfood check: each child IPD ALREADY carries the new two-checklist structure (a top `## Detailed Implementation Checklist (TODO)` + an end `## Validation and cross-check`), authored ahead of 01 to demonstrate the convention; 01 then makes that structure the template default.
 - Size check: each child stays within the size guidance (<=5 major steps; well under ~10 / 12-18 items).
 
 ## Deferred / out of scope (with reason)

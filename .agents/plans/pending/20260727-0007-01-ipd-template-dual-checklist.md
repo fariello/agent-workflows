@@ -3,7 +3,7 @@
 - Date: 2026-07-27
 - Concern: execution quality / honest reporting - one checklist (D111) helps, but a second end-of-document verification checklist that cross-checks each execution item with concrete evidence is what catches unsupported completion claims
 - Scope: edit the shipped IPD template so it carries an EXECUTION checklist near the beginning and a distinct VALIDATION AND CROSS-CHECK checklist near the end (1:1 mapping), a completion + verification rule, and sharper size guidance. Prose-only template edits + DECISIONS/CHANGELOG.
-- Status: to-review
+- Status: reviewed
 - Set: ipd-dual-checklist-convention
 - Order: 1
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -11,6 +11,8 @@
 ## Workflow history
 
 - 2026-07-27 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): child 01 of the `ipd-dual-checklist-convention` Set (see the `-00-` orchestrator). Extends D111 (which added ONE checklist near the end) by moving the execution checklist to the top and adding a distinct end verification checklist; sharpens the D111 size guidance.
+
+- 2026-07-27 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE; no defects. Verified D111 placed one checklist at ipd.md:104 + size line :137; this correctly moves execution to the top + adds the end verification checklist + supersedes the D111 placement. <=5 steps. Readiness: GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 

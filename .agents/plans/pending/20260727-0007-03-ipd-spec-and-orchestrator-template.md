@@ -3,7 +3,7 @@
 - Date: 2026-07-27
 - Concern: single-source consolidation - the canonical IPD spec (D112) and a reusable `00` orchestrator template must reflect the two-checklist + creator/reviewer + size/orchestrator convention so authors have one authoritative reference
 - Scope: update `.agents/docs/specs/...-ipd-spec.md` (D112) to describe the two checklists + creator/reviewer duties + size thresholds + the orchestrator, by REFERENCE; add a `00` ORCHESTRATOR TEMPLATE under the workflow templates. Prose/template edits + DECISIONS/CHANGELOG.
-- Status: to-review
+- Status: reviewed
 - Set: ipd-dual-checklist-convention
 - Order: 3
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -11,6 +11,8 @@
 ## Workflow history
 
 - 2026-07-27 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): child 03 of the `ipd-dual-checklist-convention` Set (see the `-00-` orchestrator). Depends on children 01 (template structure) and 02 (plan-review duties). Updates the D112 canonical spec IN PLACE (not a fork) and adds the missing orchestrator TEMPLATE (the `00` name is reserved but no template exists).
+
+- 2026-07-27 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE; no defects. Verified the D112 spec exists at the cited path and the 00-orchestrator name is reserved but has no template; this updates the spec in place + adds the template. Depends on 01+02. <=4 steps. Readiness: GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
