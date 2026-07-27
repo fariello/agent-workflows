@@ -17,6 +17,8 @@ scoping is confirmed at release-review.
   cannot be accidentally committed; a human promotes a reviewed, scrubbed copy into a tracked lifecycle
   bucket. Mirrors the inter-agent comms `local/` lane. The installer now also materializes all expected
   directories, including the gitignored `local/` lanes for prompts and comms, so they are discoverable.
+- Added: Phase 0 host delivery conformance harness (DECISIONS D113). Deterministic scaffolder, host matrix renderer, results recorder, and validator under `.agents/workflows/conformance/tools/conformance_harness.py` plus operator protocol runbook. Enforces isolation safety guards and Resolved vs. Followed evidence discipline.
+
 - Added: `/whatnext` read-only surveyor workflow. Surveys the repo's plans/IPDs, staged prompts,
   comms inbox (headers only, payloads untrusted), and TODO, then returns a prioritized, reasoned
   recommendation of what to work on next. It surveys-then-reasons (no fixed priority formula) and

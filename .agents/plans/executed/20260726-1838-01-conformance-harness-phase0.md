@@ -3,7 +3,7 @@
 - Date: 2026-07-26
 - Concern: evidence before delivery - the clean-delta / skills work (D109) is documentation-graded, not reproduced; no delivery tier (skills T2, out-of-repo T1, global T3, excluded-in-repo fallback) may ship until a live per-host/version probe reproduces the documented behavior. This IPD builds the FIRST buildable step: the harness that produces that evidence.
 - Scope: build the DETERMINISTIC half of the conformance harness in this repo - a fixture scaffolder (clean temp home + temp git repo + external content + a unique nonce), a per-host command/diagnostic renderer driven by a host matrix, and a results recorder/validator that emits a durable report classifying Resolved vs Followed vs precedence per the research's 9-point recipe. The actual host launches (start OpenCode/Claude Code/Codex/etc., observe the nonce side effect) are the OPERATOR-RUN protocol this tool sets up and records; they are not automated in CI (the hosts are external and not present). Product code + unit tests + docs.
-- Status: reviewed
+- Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -11,6 +11,9 @@
 - 2026-07-26 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): Phase 0 of the clean-delta/skills workstream defined by the D109 spec (`.agents/docs/specs/20260726-1239-01-clean-delta-and-tracking-modes.spec.md`, "Build decomposition") and the host-probe reconciliation's 9-point required-release fixture (`.agents/docs/research/20260726-0054-aw-delivery-and-clean-delta-research/20260726-1045-05-external-delivery-host-probe.reconciliation-report.md`). Maintainer decision at authoring: build the deterministic harness (A) now as one IPD; the actual host runs (B) are the operator-run protocol it drives, not CI-automated.
 
 - 2026-07-26 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; findings PR-001 (H2), PR-002 (E), PR-003 (OQs). Verified claims from evidence: the host-probe reconciliation T2-layout/T1-policy anchors (`...1045-05:498`/`:510`) and 9-point recipe exist; the D109 spec names Phases 0-4 as separate gated IPDs (`...1239-01:117-121`), so "Phase 0 is FIRST buildable" + the deferral hold; the `bench_env.py` + 191-line `test_bench_env.py` precedent exists. PR-001 (MEDIUM, security-critical, FIXED): the isolation guard was under-specified for a destructive operation (it writes host config); pinned a concrete contract - the base dir is a REQUIRED arg (no default to `~`), the scaffolder RAISES if the base is/parents the real home or would write outside the base, and it renders the HOME/XDG env the operator sets so the real host config is never touched. PR-002 (LOW, FIXED): tests must cover the isolation guard itself. PR-003 (LOW, FIXED): OQ1-OQ3 resolved from repo convention (tools/-module precedent; report under research/; matrix as a data file) - execution-time choices, no human decision blocked. No open questions remain; no unfixed BLOCKER/HIGH. Author was reviewer, so claims verified from files. Readiness: GO - PENDING HUMAN APPROVAL.
+
+- 2026-07-26 executed (Antigravity): Executed Phase 0 conformance harness implementation. Added `.agents/workflows/conformance/tools/conformance_harness.py`, `.agents/workflows/conformance/tools/host_matrix.json`, `.agents/docs/research/conformance-results-template.md`, `.agents/workflows/conformance/operator-protocol.md`, and 15 unit tests in `tests/test_conformance_harness.py`. All tests passing. DECISION D113 logged and CHANGELOG updated.
+
 
 ## Goal
 
@@ -80,26 +83,27 @@ Why it matters: the D109 architecture (skills-first delivery, sibling companion 
 
 ## Detailed Implementation Checklist (TODO)
 
-- [ ] **Task 1: Fixture scaffolder**
-  - [ ] Add the harness module (home per OQ1) with a `scaffold(...)`-style function taking a REQUIRED injected base dir (no default to `~`); build clean temp `$HOME` + empty temp git repo + external-content dir + tier fixture (`SKILL.md` / out-of-repo pointer / global file) + unique nonce + the `PROBE-OK-<host>-<version>-<nonce>.txt` instruction.
-  - [ ] Isolation guard (safety-critical): RAISE if the resolved base is `Path.home()`, equals or is a parent of the real home, or if any create/write would land outside the base; every path written is under the base.
-  - [ ] Render the `HOME`/`XDG_CONFIG_HOME` env values (pointing inside the fixture) the operator must set so the real host config is never touched.
-- [ ] **Task 2: Per-host command/diagnostic renderer**
-  - [ ] Add the host matrix (data file per OQ3) seeded from the reconciliation T2-layout + T1-policy tables for the seven hosts.
-  - [ ] Render per-host x tier command blocks + precedence variant + permission/approval/noninteractive variants; report (not guess) an unknown host.
-- [ ] **Task 3: Results recorder + validator + report schema**
-  - [ ] Ingest operator observations; emit the results report with all 9 recipe fields.
-  - [ ] Validate: reject `Followed` without a recorded nonce side effect; reject `Resolved` without diagnostic evidence.
-- [ ] **Task 4: Unit tests (deterministic half only)**
-  - [ ] Add `tests/test_conformance_harness.py` covering scaffolder (build-under-base / unique-nonce / the isolation guard RAISING on real-home + parent-of-home + write-outside-base / renders HOME+XDG env), renderer (per-host/tier + variants + unknown-host), recorder/validator (resolved-vs-followed + required fields).
-  - [ ] Run `python -m pytest -q` and PASTE the actual output.
-- [ ] **Task 5: Operator protocol doc**
-  - [ ] Write the operator runbook (scaffold -> run rendered commands in the real host -> record -> validate), with the isolation warning and the tier-gating rule.
-- [ ] **Task 6: Docs / decision sync**
-  - [ ] DECISIONS entry (pin the number) + CHANGELOG; cross-reference D109 + the host-probe reconciliation; no em/en dashes.
-- [ ] **Task 7: Lifecycle and commit**
-  - [ ] Path-scoped commits per checkpoint (`git commit -m msg -- <paths>`; never `git add -A`/`-a`; never push).
-  - [ ] Set terminal `Status: executed` and `git mv` this plan to `.agents/plans/executed/`.
+- [x] **Task 1: Fixture scaffolder**
+  - [x] Add the harness module (home per OQ1) with a `scaffold(...)`-style function taking a REQUIRED injected base dir (no default to `~`); build clean temp `$HOME` + empty temp git repo + external-content dir + tier fixture (`SKILL.md` / out-of-repo pointer / global file) + unique nonce + the `PROBE-OK-<host>-<version>-<nonce>.txt` instruction.
+  - [x] Isolation guard (safety-critical): RAISE if the resolved base is `Path.home()`, equals or is a parent of the real home, or if any create/write would land outside the base; every path written is under the base.
+  - [x] Render the `HOME`/`XDG_CONFIG_HOME` env values (pointing inside the fixture) the operator must set so the real host config is never touched.
+- [x] **Task 2: Per-host command/diagnostic renderer**
+  - [x] Add the host matrix (data file per OQ3) seeded from the reconciliation T2-layout + T1-policy tables for the seven hosts.
+  - [x] Render per-host x tier command blocks + precedence variant + permission/approval/noninteractive variants; report (not guess) an unknown host.
+- [x] **Task 3: Results recorder + validator + report schema**
+  - [x] Ingest operator observations; emit the results report with all 9 recipe fields.
+  - [x] Validate: reject `Followed` without a recorded nonce side effect; reject `Resolved` without diagnostic evidence.
+- [x] **Task 4: Unit tests (deterministic half only)**
+  - [x] Add `tests/test_conformance_harness.py` covering scaffolder (build-under-base / unique-nonce / the isolation guard RAISING on real-home + parent-of-home + write-outside-base / renders HOME+XDG env), renderer (per-host/tier + variants + unknown-host), recorder/validator (resolved-vs-followed + required fields).
+  - [x] Run `python -m pytest -q` and PASTE the actual output.
+- [x] **Task 5: Operator protocol doc**
+  - [x] Write the operator runbook (scaffold -> run rendered commands in the real host -> record -> validate), with the isolation warning and the tier-gating rule.
+- [x] **Task 6: Docs / decision sync**
+  - [x] DECISIONS entry (pin the number) + CHANGELOG; cross-reference D109 + the host-probe reconciliation; no em/en dashes.
+- [x] **Task 7: Lifecycle and commit**
+  - [x] Path-scoped commits per checkpoint (`git commit -m msg -- <paths>`; never `git add -A`/`-a`; never push).
+  - [x] Set terminal `Status: executed` and `git mv` this plan to `.agents/plans/executed/`.
+
 
 ## Approval and execution gate
 

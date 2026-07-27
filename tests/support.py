@@ -13,7 +13,17 @@ INSTALLER = REPO_ROOT / "install-workflows.py"
 SCANNER = REPO_ROOT / ".agents" / "workflows" / "assess" / "tools" / "scan_secrets.py"
 RUN_CHECKS = REPO_ROOT / ".agents" / "workflows" / "verify" / "tools" / "run_checks.py"
 BENCH_ENV = REPO_ROOT / ".agents" / "workflows" / "benchmark" / "tools" / "bench_env.py"
-SETUP_TOOLS = REPO_ROOT / ".agents" / "workflows" / "setup-repo" / "tools" / "setup_tools.py"
+SETUP_TOOLS = (
+    REPO_ROOT / ".agents" / "workflows" / "setup-repo" / "tools" / "setup_tools.py"
+)
+CONFORMANCE_HARNESS = (
+    REPO_ROOT
+    / ".agents"
+    / "workflows"
+    / "conformance"
+    / "tools"
+    / "conformance_harness.py"
+)
 
 
 def load_module(name: str, path: Path):
@@ -62,7 +72,9 @@ def run_installer(repo: Path, *extra: str) -> subprocess.CompletedProcess:
     )
 
 
-def run_tool(tool: Path, *args: str, cwd: Path | None = None) -> subprocess.CompletedProcess:
+def run_tool(
+    tool: Path, *args: str, cwd: Path | None = None
+) -> subprocess.CompletedProcess:
     """Run one of the framework's Python tools with args."""
 
     return subprocess.run(
