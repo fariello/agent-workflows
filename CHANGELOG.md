@@ -114,6 +114,14 @@ scoping is confirmed at release-review.
   the lifecycle/status/commit conventions by reference), and the always-loaded pointer states the MUST
   explicitly so weaker/faster models follow it reliably. Target repos get the directive on the next
   `aw install`.
+- Changed: the IPD template now carries TWO checklists (DECISIONS D114, extending D111): an execution
+  checklist near the top (every action/decision/deliverable/validation) and a separate
+  `## Validation and cross-check` checklist near the end whose items map 1:1 and require concrete evidence
+  per item before reporting success, with an explicit "report incomplete/blocked/skipped/unverified work"
+  rule. The completion gate now requires both checklists satisfied before a plan is done/`executed`, and
+  the size guidance is sharpened (prefer <=5 major steps; avoid more than ~10 / 12-18 items; beyond that
+  split into an ordered Set, coordinated by a `00` orchestrator IPD). Target repos get it on the next
+  `aw install`.
 - Changed: producing workflows (`/assess`, `/assess-all`, `/incident`, `/migrate`, `/spec`) now end
   with a uniform closing report (DECISIONS D102): which artifact file(s) they created, with paths, or
   that they created none and WHY, plus concrete next steps. `/assess` also now reports the run-record
