@@ -3,13 +3,14 @@
 - Date: 2026-07-27
 - Concern: honest guidance / correctness - the executed untrack-workflow-artifacts Set left five prose defects: two wrong DECISIONS cross-references (D114 instead of D117) and three un-flipped "committed deliverable" assertions (two of which make `00-run-protocol.md` self-contradictory)
 - Scope: fix the five residual prose items in `agent_workflows/engine.py` (a docstring line), `ARCHITECTURE.md`, `.agents/workflows/release-review/00-run-protocol.md`, and `.agents/workflows/benchmark/benchmark.md`. Prose-only (one engine docstring, no code logic). Post-execution corrective; the executed Set plans are NOT edited.
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
 
 - 2026-07-27 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored from a maintainer-requested verification of the executed `untrack-workflow-artifacts` Set (children `20260727-1657-01/02/03`, in `.agents/plans/executed/`). The verification found the code + migration tool correct but five prose defects in the runbook/doc flip (Child 02) and cross-references (Child 01). Per the execution contract, an executed plan is not re-opened; this new corrective IPD closes the gap (an in-place corrective, not an edit to the executed plans).
 
+- 2026-07-27 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE; no defects, no revisions required. Re-verified all five defect claims at the cited lines (P1 00-run-protocol.md:248, P2 :260 both contradict the correct :285; P3 benchmark.md:167; P4 engine.py:36 and P5 ARCHITECTURE.md:177 cite D114 for the workflow-artifacts policy where D117 is meant) and the not-a-defect ARCHITECTURE.md:183 (legacy-migration history, correct). COMPLETENESS confirmed by grep: the only 'committed deliverable' occurrences in shipped workflows are the three P1-P3 targets plus the already-correct :285, and the only D114 refs are the two P4/P5 targets - so this corrective catches everything. Prose-only, <=5 steps, no code logic, no executed-plan edits, both dual checklists present (D115 duty satisfied). No open questions; no unfixed BLOCKER/HIGH. Readiness: GO - PENDING HUMAN APPROVAL.
 ## Goal
 
 Make the workflow-artifacts guidance fully consistent by fixing the five residual prose defects the Set execution left: (1-2) correct two DECISIONS cross-references that cite D114 (the dual-checklist decision) where they mean D117 (the workflow-artifacts inversion); (3-4) flip the two remaining `00-run-protocol.md` assertions that still call run artifacts "committed deliverables" and instruct committing them (they currently CONTRADICT the same file's `:285` local-only statement); (5) flip the one remaining `benchmark.md` "committed deliverable" line (which D118 claimed to have flipped but did not).
