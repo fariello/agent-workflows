@@ -127,6 +127,11 @@ scoping is confirmed at release-review.
   reviewer assessed both and confirmed the verification checklist is specific enough to catch a false
   "done" (DECISIONS D115, building on D114). A missing or weak checklist is a finding the reviewer fixes
   in place.
+- Added: the canonical IPD spec now documents the two-checklist convention end to end, and a `00`
+  orchestrator template is shipped alongside the IPD template (DECISIONS D116). Authors have one reference
+  for the execution + verification checklists, the creator/reviewer duties, the size thresholds, and how to
+  coordinate a split into a Set via a `00` orchestrator IPD (sequence, dependencies, completion criteria,
+  cross-IPD validation). Completes the dual-checklist convention (D114-D116).
 - Changed: producing workflows (`/assess`, `/assess-all`, `/incident`, `/migrate`, `/spec`) now end
   with a uniform closing report (DECISIONS D102): which artifact file(s) they created, with paths, or
   that they created none and WHY, plus concrete next steps. `/assess` also now reports the run-record
