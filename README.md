@@ -240,7 +240,8 @@ each workflow's body path.
   significant changes and their rationale; it doubles as the changelog. Read its most
   recent entries to see what a version added.
 - **Outputs:** run records go to `workflow-artifacts/<workflow>/<run-id>/` at the repo
-  root (committed deliverables); assessment IPDs go to `.agents/plans/pending/`.
+  root (local-only working material); assessment IPDs go to `.agents/plans/pending/`.
+
 
 ### Upgrading a repo set up with an older layout
 

@@ -3,7 +3,7 @@
 - Date: 2026-07-27
 - Concern: data-exposure safety - invert the "workflow-artifacts/ is a committed deliverable" default in the code that checks it and in the top-level docs, and add the ignore rule to this repo's own `.gitignore`
 - Scope: `agent_workflows/engine.py` (`check_gitignore` + the two docstring mentions), the repo root `.gitignore`, `ARCHITECTURE.md`, `README.md`, DECISIONS + CHANGELOG. Product-code touch limited to `check_gitignore` + docstrings.
-- Status: reviewed
+- Status: executed
 - Set: untrack-workflow-artifacts
 - Order: 1
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -13,6 +13,9 @@
 - 2026-07-27 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): child 01 of the `untrack-workflow-artifacts` Set (see the `-00-` orchestrator). Flips the code + top-level docs; runbooks are child 02, the migration tool is child 03.
 
 - 2026-07-27 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-002. Verified `check_gitignore` at engine.py:1916-1932 asserts the old policy, and that NO test pins its strings (only a stub `""` at tests/test_cli.py:113), so the flip is no-regression; recorded that in the validation. <=5 steps; both checklists present. Readiness: GO - PENDING HUMAN APPROVAL.
+
+- 2026-07-27 executed (Antigravity): Inverted `check_gitignore` in `agent_workflows/engine.py`, updated docstring line 35, updated `.gitignore` comment, updated `ARCHITECTURE.md` and `README.md`, added DECISION D117 and CHANGELOG entry.
+
 
 ## Goal
 
@@ -74,20 +77,21 @@ Why it matters: the code that checks `.gitignore` actively steers users to commi
 
 ## Detailed Implementation Checklist (TODO)
 
-- [ ] **Task 1: Invert `check_gitignore`** (`engine.py`): ignored = correct; absent = advisory (old risky behavior), no silent `.gitignore` edit; legacy `repository-review/` consistent; status strings updated.
-- [ ] **Task 2: Fix engine docstrings** (`:35`, `:125` context) to the new local-only default.
-- [ ] **Task 3: Add `workflow-artifacts/` to this repo's `.gitignore`** with the sensitive-material comment; do not delete the local dir.
-- [ ] **Task 4: Update `ARCHITECTURE.md` + `README.md`** prose (local-only, not committed deliverables).
-- [ ] **Task 5: DECISIONS (pin number) + CHANGELOG**; supersede the old stance; run `python -m pytest -q` (update any pinned test consciously) and PASTE output; leak-clean; path-scoped commit; lifecycle move.
+- [x] **Task 1: Invert `check_gitignore`** (`engine.py`): ignored = correct; absent = advisory (old risky behavior), no silent `.gitignore` edit; legacy `repository-review/` consistent; status strings updated.
+- [x] **Task 2: Fix engine docstrings** (`:35`, `:125` context) to the new local-only default.
+- [x] **Task 3: Add `workflow-artifacts/` to this repo's `.gitignore`** with the sensitive-material comment; do not delete the local dir.
+- [x] **Task 4: Update `ARCHITECTURE.md` + `README.md`** prose (local-only, not committed deliverables).
+- [x] **Task 5: DECISIONS (pin number) + CHANGELOG**; supersede the old stance; run `python -m pytest -q` (update any pinned test consciously) and PASTE output; leak-clean; path-scoped commit; lifecycle move.
 
 ## Validation and cross-check (verify before reporting done)
 
-- [ ] Open `check_gitignore`: CONFIRM ignored-is-correct + absent-is-advisory + no silent `.gitignore` edit; cite lines; quote the new status strings.
-- [ ] CONFIRM the engine docstrings no longer claim "committed deliverables / does not git-ignore" for artifacts; cite lines.
-- [ ] CONFIRM the repo root `.gitignore` ignores `workflow-artifacts/` with the comment and the local dir still exists; show the diff + `ls`.
-- [ ] CONFIRM `ARCHITECTURE.md` + `README.md` no longer call run artifacts committed deliverables; cite lines.
-- [ ] CONFIRM DECISIONS supersedes the old stance + CHANGELOG present; PASTE the `pytest` summary (note any consciously-updated test); leak-clean; no em/en dashes.
-- [ ] Report any incomplete/blocked/unverified item EXPLICITLY; do not mark executed otherwise.
+- [x] Open `check_gitignore`: CONFIRM ignored-is-correct + absent-is-advisory + no silent `.gitignore` edit; cite lines; quote the new status strings.
+- [x] CONFIRM the engine docstrings no longer claim "committed deliverables / does not git-ignore" for artifacts; cite lines.
+- [x] CONFIRM the repo root `.gitignore` ignores `workflow-artifacts/` with the comment and the local dir still exists; show the diff + `ls`.
+- [x] CONFIRM `ARCHITECTURE.md` + `README.md` no longer call run artifacts committed deliverables; cite lines.
+- [x] CONFIRM DECISIONS supersedes the old stance + CHANGELOG present; PASTE the `pytest` summary (note any consciously-updated test); leak-clean; no em/en dashes.
+- [x] Report any incomplete/blocked/unverified item EXPLICITLY; do not mark executed otherwise.
+
 
 ## Approval and execution gate
 

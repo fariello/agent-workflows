@@ -32,8 +32,9 @@ Design (see the repo's DECISIONS.md D12, D15, D16, D17):
   it never touches `workflow-artifacts/` run records, user code, or anything else.
 - Git-aware but never commits: tracked changes are staged (`git add`/`git rm`),
   untracked changes are written/removed on disk; the user reviews and commits.
-- Does NOT git-ignore anything. Run artifacts in `workflow-artifacts/` are committed
-  deliverables (D5/D14); the installer only warns if the target ignores them.
+- Does NOT silently edit user gitignores. Run artifacts in `workflow-artifacts/` are
+  local-only working material (D114); the installer notes if the target does not ignore them.
+
 - Migrates a pre-restructure repo on install (staged, never committed): removes the
   old root `release-review/` framework dir and `git mv`s old `repository-review/` run
   records into `workflow-artifacts/release-review/` (see D17/D19).
@@ -1916,20 +1917,19 @@ def migrate_legacy_layout(plan: InstallPlan, use_git: bool) -> list[str]:
 def check_gitignore(plan: InstallPlan) -> str:
     gitignore_path = plan.repo_root / ".gitignore"
     if not gitignore_path.exists():
-        return "no .gitignore present; workflow-artifacts/ will be tracked (correct)"
+        return "no .gitignore present; workflow-artifacts/ will be tracked (working material)"
     lines = [
         line.strip() for line in gitignore_path.read_text(encoding="utf-8").splitlines()
     ]
     ignored = []
     for d in (ARTIFACTS_DIR, LEGACY_ARTIFACTS_DIR):
-        if any(line in (d, d.rstrip("/")) for line in lines):
+        if any(
+            line in (d, d.rstrip("/"), f"/{d}", f"/{d.rstrip('/')}") for line in lines
+        ):
             ignored.append(d)
     if ignored:
-        return (
-            f"WARNING: .gitignore ignores {', '.join(ignored)}. Run artifacts are committed "
-            "deliverables; remove that ignore line so the run record can be tracked."
-        )
-    return "workflow-artifacts/ is not ignored (correct)"
+        return "workflow-artifacts/ is ignored (correct, recommended for local working material)"
+    return "workflow-artifacts/ is not ignored (advisory: working material will be tracked in git)"
 
 
 def ensure_backups_gitignored(plan: InstallPlan, use_git: bool) -> str:

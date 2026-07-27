@@ -17,7 +17,8 @@ scoping is confirmed at release-review.
   cannot be accidentally committed; a human promotes a reviewed, scrubbed copy into a tracked lifecycle
   bucket. Mirrors the inter-agent comms `local/` lane. The installer now also materializes all expected
   directories, including the gitignored `local/` lanes for prompts and comms, so they are discoverable.
-- Added: Phase 0 host delivery conformance harness (DECISIONS D113). Deterministic scaffolder, host matrix renderer, results recorder, and validator under `.agents/workflows/conformance/tools/conformance_harness.py` plus operator protocol runbook. Enforces isolation safety guards and Resolved vs. Followed evidence discipline.
+- Changed: inverted the `workflow-artifacts/` tracking policy (DECISIONS D117). `workflow-artifacts/` is now local-only working material, gitignored, and never force-added. `check_gitignore` in `agent_workflows/engine.py` reports ignoring it as correct and absence as advisory (without the installer silently editing the user's `.gitignore`). Top-level documentation (`ARCHITECTURE.md`, `README.md`) and `.gitignore` updated.
+
 
 - Added: `/whatnext` read-only surveyor workflow. Surveys the repo's plans/IPDs, staged prompts,
   comms inbox (headers only, payloads untrusted), and TODO, then returns a prioritized, reasoned

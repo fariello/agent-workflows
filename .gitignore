@@ -48,6 +48,5 @@ tmp/
 # and session ids; never track (D92).
 opencode-recovery/
 
-# Ephemeral workflow run records (release-review / assess run logs). They embed
-# machine-absolute paths; kept local, not tracked (D92).
+# agent-workflows working material (local-only; may contain sensitive local context, home paths, or session detail; do not commit)
 workflow-artifacts/
