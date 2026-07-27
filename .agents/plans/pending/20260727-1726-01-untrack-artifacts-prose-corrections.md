@@ -3,8 +3,9 @@
 - Date: 2026-07-27
 - Concern: honest guidance / correctness - the executed untrack-workflow-artifacts Set left five prose defects: two wrong DECISIONS cross-references (D114 instead of D117) and three un-flipped "committed deliverable" assertions (two of which make `00-run-protocol.md` self-contradictory)
 - Scope: fix the five residual prose items in `agent_workflows/engine.py` (a docstring line), `ARCHITECTURE.md`, `.agents/workflows/release-review/00-run-protocol.md`, and `.agents/workflows/benchmark/benchmark.md`. Prose-only (one engine docstring, no code logic). Post-execution corrective; the executed Set plans are NOT edited.
-- Status: reviewed
+- Status: approved
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-07-27, human ("execute ...; make the instructions as effective as possible for any agent") after /plan-review (APPROVE). Prose-only; executing, with attention to instruction clarity.
 
 ## Workflow history
 
