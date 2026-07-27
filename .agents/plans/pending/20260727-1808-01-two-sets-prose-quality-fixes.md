@@ -3,12 +3,13 @@
 - Date: 2026-07-27
 - Concern: instruction effectiveness across diverse agents - a holistic re-review of the shipped prose from the two recent Sets (dual-checklist D114-D116; untrack-workflow-artifacts D117-D120) found the conventions landed well but with a few gaps that could trip a weaker model (Gemini Flash tier): a missed workflow-artifacts flip, an ambiguous commit phrase, an under-guarded destructive command, and an always-loaded pointer that names only one of the two mandatory checklists
 - Scope: fix the concrete prose gaps in `release-review/README.md`, `release-review/01-current-state.md`, `tools/README.md`, the always-loaded `agents_pointer_prose` (regenerate AGENTS.md), `assess/assess.md`, `plan-review-long` (definition parity), and `00-run-protocol.md` (cosmetic). Prose + one engine template string + AGENTS.md regeneration; DECISIONS/CHANGELOG.
-- Status: to-review
+- Status: reviewed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
 
 - 2026-07-27 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored from a maintainer-requested re-review of all *.md files touched by the two Sets, judged by "will diverse agents (Gemini 3.5/3.6 Flash, Opus 4.6-4.8, GPT 5.5-5.6) follow them faithfully with appropriate discretion?" The re-review (a full read of the core artifacts + a thorough sub-agent audit of all 15 files, top findings verified against the files) found both conventions landed cleanly (no em/en dashes; local-only default consistent; discretion well-calibrated) but surfaced the fixes below. This corrects them in place; it does not re-open the executed Set plans.
+- 2026-07-27 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004. Verified all five findings (F1-F5) exact against the repo. Applied PR-002 in place: F3's empty-diff check now names the literal `aw install .` command (idempotent; no separate `update`) and the `AGENT-PLANS` byte-identical guard, in the Required-validation section and both matching Task-2 checklists. No BLOCKER/HIGH; both checklists present and 1:1; execution contract complete. Readiness: GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -58,7 +59,7 @@ Why it matters: F1/F3/F4 defeat the conventions' purpose for exactly the weak/fa
 
 ## Required tests / validation
 
-- Prose + one docstring line; run `python -m pytest -q` (expect 445 passed, 1 skipped; paste actual output). Grep release-review for any remaining "commit ... run artifacts" instruction (should be none). Confirm the always-loaded directive names both checklists and AGENTS.md reinstall is an empty diff (AGENT-PLANS untouched). Confirm the filter-repo command carries the human-approval absolute. `aw check-local-leaks .` clean; no em/en dashes.
+- Prose + one docstring line; run `python -m pytest -q` (expect 445 passed, 1 skipped; paste actual output). Grep release-review for any remaining "commit ... run artifacts" instruction (should be none). For F3's empty-diff check, use the idempotent installer (there is intentionally NO separate `update`): re-run `aw install .` (or `python -m agent_workflows install .`) in this repo AFTER editing `agents_pointer_prose`, then confirm `git diff -- AGENTS.md` is EMPTY (the edit is already reflected because AGENTS.md was regenerated in Task 2) and the sibling `AGENT-PLANS:BEGIN/END` block is byte-identical; `tests/test_installer.py::...test_idempotent_rerun` is the standing regression guard. Confirm the always-loaded directive names both checklists. Confirm the filter-repo command carries the human-approval absolute. `aw check-local-leaks .` clean; no em/en dashes.
 
 ## Spec / documentation sync
 
@@ -71,7 +72,7 @@ Why it matters: F1/F3/F4 defeat the conventions' purpose for exactly the weak/fa
 ## Detailed Implementation Checklist (TODO)
 
 - [ ] **Task 1: release-review F1/F2** - `README.md:127` (product-only commit; run artifacts local-only) + `01-current-state.md:108` (checkpoint file stays local-only).
-- [ ] **Task 2: always-loaded dual-checklist (F3)** - `agents_pointer_prose` names BOTH checklists + completion rule; regenerate AGENTS.md to an empty diff; AGENT-PLANS sibling untouched.
+- [ ] **Task 2: always-loaded dual-checklist (F3)** - `agents_pointer_prose` names BOTH checklists + completion rule; regenerate AGENTS.md via `aw install .` (idempotent; no separate `update`); confirm `git diff -- AGENTS.md` is empty after the regen and the `AGENT-PLANS:BEGIN/END` sibling is byte-identical.
 - [ ] **Task 3: filter-repo absolute (F4)** - `tools/README.md` explicit human-approval + force-push warning replaces the soft note.
 - [ ] **Task 4: clarity (F5)** - `aw sanitize . --agent`; split `assess.md:137`; add agent-executable-plan definition to `plan-review-long/03` + `review-rubric.md`; fix `00-run-protocol.md:9` duplicate "3.".
 - [ ] **Task 5: DECISIONS (pin number)** (+ CHANGELOG only if warranted); run `python -m pytest -q` and PASTE output; leak-clean; path-scoped commit; lifecycle move.
@@ -79,7 +80,7 @@ Why it matters: F1/F3/F4 defeat the conventions' purpose for exactly the weak/fa
 ## Validation and cross-check (verify before reporting done)
 
 - [ ] Grep release-review: CONFIRM no line instructs committing run artifacts; `README.md:127` + `01-current-state.md:108` now product-only/local-only; cite the new lines.
-- [ ] Open the regenerated AGENTS.md `### Authoring and executing IPDs`: CONFIRM it names BOTH `## Detailed Implementation Checklist (TODO)` and `## Validation and cross-check` + the completion rule; CONFIRM a reinstall/refresh is an EMPTY DIFF and the AGENT-PLANS sibling is byte-identical; cite.
+- [ ] Open the regenerated AGENTS.md `### Authoring and executing IPDs`: CONFIRM it names BOTH `## Detailed Implementation Checklist (TODO)` and `## Validation and cross-check` + the completion rule. Re-run `aw install .` and PASTE the `git diff -- AGENTS.md` result showing it is EMPTY; CONFIRM the `AGENT-PLANS:BEGIN/END` sibling is byte-identical; cite.
 - [ ] Open `tools/README.md`: CONFIRM the filter-repo command carries an explicit human-approval + force-push absolute (not a soft note); CONFIRM `aw sanitize . --agent`; cite.
 - [ ] CONFIRM `assess.md:137` split into distinct sentences; the agent-executable-plan definition is in `plan-review-long/03` + `review-rubric.md`; `00-run-protocol.md:9` numbering fixed; cite each.
 - [ ] CONFIRM DECISIONS entry present; PASTE the `pytest` summary (expect 445 passed, 1 skipped); leak-clean; no em/en dashes.
