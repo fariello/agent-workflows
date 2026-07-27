@@ -242,12 +242,12 @@ These reports are part of the deliverable. They give the user a readable, audita
 
 ## Commit-between-phases policy
 
-In addition to committing meaningful tracked product changes (see Commit policy below), commit at every section boundary so the run is recoverable and the per-phase narrative is preserved:
+Run records under `workflow-artifacts/` are LOCAL-ONLY working material (gitignored; see the Commit policy and `01-current-state.md`): do NOT commit or force-add them. The section-boundary commit discipline below therefore applies to the run's TRACKED PRODUCT changes, not to the run-record tree. Still WRITE each section's per-phase report and registers to `workflow-artifacts/` at the boundary (so the run is recoverable locally and the per-phase narrative is preserved on disk); you just do not commit them.
 
-1. After completing each section, commit that section's tracked product changes (if any) as a coherent unit referencing the section's action IDs.
-2. Commit the section's per-phase report and updated registers at the boundary too, since run artifacts are committed deliverables by default. Keep them local only if the user explicitly requested local-only artifacts for this run.
+1. After completing each section, commit that section's tracked PRODUCT changes (if any) as a coherent unit referencing the section's action IDs.
+2. Write (do NOT commit) the section's per-phase report and updated registers under `workflow-artifacts/` at the boundary; they stay local-only.
 3. Never bundle changes from two different sections into one commit unless they are genuinely one logical change.
-4. Record each commit in `07-commits.md` and at the section checkpoint in `08-checkpoints.md`.
+4. Record each PRODUCT commit in `07-commits.md` and note the section boundary in `08-checkpoints.md` (these registers are themselves local-only run records).
 
 ## Core behavior
 
@@ -257,7 +257,7 @@ Section 9 (release execution: pushing, tagging, publishing, deploying) is perfor
 
 There are two distinct plan artifacts; do not conflate them. `02-execution-plan.md` is the lightweight plan of *how the review itself will run*, created early in Section 1. `implementation-plan.md` is the consolidated plan of *what fixes to make*, created after Sections 1 through 6 and before Section 7.
 
-In planning-only mode, the agent still completes Sections 1 through 6 in full, including each section's per-phase report, register updates, checkpoints, and commits (run artifacts are committed deliverables). It creates `implementation-plan.md`, then stops before Section 7 implementation and presents the plan. Planning-only mode makes no product-code changes and no Section 7 commits.
+In planning-only mode, the agent still completes Sections 1 through 6 in full, WRITING each section's per-phase report, register updates, and checkpoints to `workflow-artifacts/` as local-only working material (not committed). It creates `implementation-plan.md`, then stops before Section 7 implementation and presents the plan. Planning-only mode makes no product-code changes and no commits.
 
 Proceed autonomously through the full review. Use judgment. Do not stop for minor uncertainty. Record assumptions and proceed conservatively.
 

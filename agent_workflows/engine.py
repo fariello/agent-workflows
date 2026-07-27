@@ -33,7 +33,7 @@ Design (see the repo's DECISIONS.md D12, D15, D16, D17):
 - Git-aware but never commits: tracked changes are staged (`git add`/`git rm`),
   untracked changes are written/removed on disk; the user reviews and commits.
 - Does NOT silently edit user gitignores. Run artifacts in `workflow-artifacts/` are
-  local-only working material (D114); the installer notes if the target does not ignore them.
+  local-only working material (D117); the installer notes if the target does not ignore them.
 
 - Migrates a pre-restructure repo on install (staged, never committed): removes the
   old root `release-review/` framework dir and `git mv`s old `repository-review/` run
