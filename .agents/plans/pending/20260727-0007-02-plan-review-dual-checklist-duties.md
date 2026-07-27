@@ -3,10 +3,11 @@
 - Date: 2026-07-27
 - Concern: honest reporting - the two-checklist convention only bites if plan-review enforces it: the creator must author both checklists, and the reviewer must assess both and confirm each execution item has a concrete end cross-check
 - Scope: edit `plan-review` (and `plan-review-long` for parity) so its finalize step + rubric require the dual-checklist convention (from child 01) on any agent-executable plan, and add a reviewer duty to flag unsupported completion. Prose-only workflow edits + DECISIONS/CHANGELOG.
-- Status: reviewed
+- Status: approved
 - Set: ipd-dual-checklist-convention
 - Order: 2
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-07-27, human ("All approved.") after /plan-review (APPROVE / APPROVE WITH REVISIONS APPLIED). Executing per the 00 orchestrator.
 
 ## Workflow history
 

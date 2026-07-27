@@ -3,10 +3,11 @@
 - Date: 2026-07-27
 - Concern: execution quality / honest reporting - make agent-executable documents (IPDs and similar) carry a top execution checklist AND an end verification/cross-check checklist, require creator and reviewer to implement and assess both, and encode strong size guidance + a defined `00` orchestrator so large work is sequenced rather than drifting
 - Scope: ORCHESTRATOR for the ordered Set `ipd-dual-checklist-convention`. It defines the sequence, dependencies, completion criteria, and cross-IPD validation for the three child IPDs. It does NOT itself change files (each child does its own edits). This is a dogfood: the convention being added is used to structure its own rollout.
-- Status: reviewed
+- Status: approved
 - Set: ipd-dual-checklist-convention
 - Order: 0
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-07-27, human ("All approved.") after /plan-review (APPROVE / APPROVE WITH REVISIONS APPLIED). Executing per the 00 orchestrator.
 
 ## Workflow history
 
