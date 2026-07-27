@@ -3,7 +3,7 @@
 - Date: 2026-07-27
 - Concern: data-exposure safety / honest defaults - `workflow-artifacts/` is a high-risk, low-value working dir where agents demonstrably embed home paths, usernames, hostnames, and session ids; the toolkit currently tells users to COMMIT it, contradicting its own leak-sanitizer. Reverse the policy: gitignore it, keep it local-only, and ship a safe migration.
 - Scope: ORCHESTRATOR for the ordered Set `untrack-workflow-artifacts`. Defines the child sequence, dependencies, whole-Set completion criteria, and cross-IPD validation. It makes no file edits itself.
-- Status: to-review
+- Status: reviewed
 - Set: untrack-workflow-artifacts
 - Order: 0
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -11,6 +11,8 @@
 ## Workflow history
 
 - 2026-07-27 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored from a maintainer prompt (`.agents/prompts/pending/20260727-0655-01-untrack-workflow-artifacts.prompt.md`) reversing the "commit workflow-artifacts/" policy, corroborated by an untracked inbox task (`ocman.agent`, `.agents/comms/shared/inbox/20260726-1616-01-...`) reporting ~8,472 leak-sanitizer FAILs concentrated in `workflow-artifacts/`, and by the not-executed IPD `20260719-2354-01` (F5) that flagged the contradiction. Shaped as a `00`-orchestrated Set because the policy is asserted across product code + the whole release-review runbook + assess/advise/verify + top-level docs + a migration tool + tests (well past the <=5-step single-IPD guidance, D114/D116). The existing `tools/untrack-workflow-artifacts.py` is ADOPTED/verified, not re-written.
+
+- 2026-07-27 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (02), PR-002 (01). Reviewed all four serially (single-file variant on a 4-plan batch, by invocation). Verified claims from files: engine `check_gitignore` `:1916-1932`; the release-review/assess/advise/verify old-policy assertions (00-run-protocol :284, MANIFEST :117, advise :74, verify :76, assess :138 + :184); the tool `tools/untrack-workflow-artifacts.py` already implements the required index-only contract. Cross-IPD consistency holds; prompt<->ocman reconciliation coherent (tool index-only; history-rewrite documented not built); migration-safety invariant preserved; each child <=5 steps; all four carry both checklists (D115 duty satisfied). No open questions blocking; no unfixed BLOCKER/HIGH. Readiness: GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 

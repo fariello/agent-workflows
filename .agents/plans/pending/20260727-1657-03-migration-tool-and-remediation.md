@@ -3,7 +3,7 @@
 - Date: 2026-07-27
 - Concern: safe migration - a repo that already tracks `workflow-artifacts/` needs a safe, opt-in way to stop tracking it (index-only, keep local files, no silent commit), plus guidance for the leak-remediation case
 - Scope: verify/adopt `tools/untrack-workflow-artifacts.py`, add tests that exercise it in a temp git repo, document it + the already-committed remediation options, and make any installer migration opt-in/confirmed (detect + offer/document; never silently remove/stage/commit). Tests + docs; light installer wiring if any.
-- Status: to-review
+- Status: reviewed
 - Set: untrack-workflow-artifacts
 - Order: 3
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -11,6 +11,8 @@
 ## Workflow history
 
 - 2026-07-27 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): child 03 of the `untrack-workflow-artifacts` Set (see the `-00-` orchestrator). Depends on child 01 (the gitignore rule + rationale). The tool `tools/untrack-workflow-artifacts.py` ALREADY EXISTS (5561 bytes) and already implements the required behavior; this IPD ADOPTS/verifies it (adds tests + docs), it does not re-write it.
+
+- 2026-07-27 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE; no defects. Verified tools/untrack-workflow-artifacts.py already implements the required contract (dry-run default, --apply index-only git rm --cached + stage .gitignore, separate --commit rejecting unrelated staged, refuses dirty .gitignore, idempotent) and has NO tests; this IPD adds tests + docs + opt-in installer. Depends on 01. <=5 steps; both checklists present. Readiness: GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 

@@ -3,7 +3,7 @@
 - Date: 2026-07-27
 - Concern: data-exposure safety - invert the "workflow-artifacts/ is a committed deliverable" default in the code that checks it and in the top-level docs, and add the ignore rule to this repo's own `.gitignore`
 - Scope: `agent_workflows/engine.py` (`check_gitignore` + the two docstring mentions), the repo root `.gitignore`, `ARCHITECTURE.md`, `README.md`, DECISIONS + CHANGELOG. Product-code touch limited to `check_gitignore` + docstrings.
-- Status: to-review
+- Status: reviewed
 - Set: untrack-workflow-artifacts
 - Order: 1
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -11,6 +11,8 @@
 ## Workflow history
 
 - 2026-07-27 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): child 01 of the `untrack-workflow-artifacts` Set (see the `-00-` orchestrator). Flips the code + top-level docs; runbooks are child 02, the migration tool is child 03.
+
+- 2026-07-27 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-002. Verified `check_gitignore` at engine.py:1916-1932 asserts the old policy, and that NO test pins its strings (only a stub `""` at tests/test_cli.py:113), so the flip is no-regression; recorded that in the validation. <=5 steps; both checklists present. Readiness: GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -60,7 +62,7 @@ Why it matters: the code that checks `.gitignore` actively steers users to commi
 
 ## Required tests / validation
 
-- Run `python -m pytest -q`; if any test pins `check_gitignore`'s old strings, update it CONSCIOUSLY to the inverted behavior (record it). Confirm `check_gitignore` reports ignored-as-correct and advises-when-absent with no silent edit; the repo `.gitignore` ignores `workflow-artifacts/` with the comment; ARCHITECTURE/README no longer call it a committed deliverable; DECISIONS/CHANGELOG present. `aw check-local-leaks .` clean; no em/en dashes; paste actual test output.
+- Run `python -m pytest -q`; VERIFIED at review time that NO test currently pins `check_gitignore`'s strings/behavior (the only `gitignore_status` reference is a stub placeholder `""` at `tests/test_cli.py:113`), so the flip is expected to be no-regression; if that changes, update the pinned test CONSCIOUSLY and record it. Confirm `check_gitignore` reports ignored-as-correct and advises-when-absent with no silent edit; the repo `.gitignore` ignores `workflow-artifacts/` with the comment; ARCHITECTURE/README no longer call it a committed deliverable; DECISIONS/CHANGELOG present. `aw check-local-leaks .` clean; no em/en dashes; paste actual test output.
 
 ## Spec / documentation sync
 
