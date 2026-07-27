@@ -256,6 +256,13 @@ For each reviewed plan confirm:
   the hard-MUST "paste the actual runner output" honesty rule, path-scoped commit and
   never-push, and the lifecycle move). If any element is missing, ADD it as an in-place
   revision and record it as a finding.
+- For an agent-EXECUTABLE plan (an IPD or similar with actionable steps), the CREATOR authored
+  BOTH the top execution checklist AND the end verification/cross-check checklist, and you (the
+  REVIEWER) have assessed both: the execution checklist covers every required action, decision,
+  deliverable, and validation; the verification checklist maps 1:1 to it and demands CONCRETE
+  per-item evidence; and it is specific enough to catch an agent claiming completion without
+  having done every step. A missing or weak checklist is an UNDER-SCOPE finding you ADD or
+  strengthen in place (like the execution-contract rule above).
 
 If the project uses `Status`, set it to `reviewed` unless its contract requires
 another review-complete value.
@@ -347,6 +354,9 @@ Verify the plan states:
 - An execution contract in the gate: resolved open questions, a scope fence, the hard-MUST
   honesty rule (paste the actual runner output), path-scoped commit and never-push, and the
   lifecycle move.
+- For an agent-executable plan: BOTH a top execution checklist AND an end verification/cross-check
+  checklist that maps 1:1 with concrete per-item evidence. A weak or absent verification checklist
+  (one that could let an agent claim completion without doing every step) is an UNDER-SCOPE finding.
 
 Another qualified agent or developer must be able to execute the plan without
 inventing missing architecture.
