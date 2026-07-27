@@ -3,7 +3,7 @@
 - Date: 2026-07-27
 - Concern: execution quality / honest reporting - one checklist (D111) helps, but a second end-of-document verification checklist that cross-checks each execution item with concrete evidence is what catches unsupported completion claims
 - Scope: edit the shipped IPD template so it carries an EXECUTION checklist near the beginning and a distinct VALIDATION AND CROSS-CHECK checklist near the end (1:1 mapping), a completion + verification rule, and sharper size guidance. Prose-only template edits + DECISIONS/CHANGELOG.
-- Status: approved
+- Status: executed
 - Set: ipd-dual-checklist-convention
 - Order: 1
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -15,9 +15,10 @@
 
 - 2026-07-27 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE; no defects. Verified D111 placed one checklist at ipd.md:104 + size line :137; this correctly moves execution to the top + adds the end verification checklist + supersedes the D111 placement. <=5 steps. Readiness: GO - PENDING HUMAN APPROVAL.
 
+- 2026-07-27 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): moved the execution checklist to the top of assess/templates/ipd.md (after Goal), added '## Validation and cross-check' near the end (1:1 + concrete evidence + report-incomplete rule), updated the completion rule to require both checklists, sharpened the size guidance (<=5 / ~10 / 12-18 -> ordered Set + 00 orchestrator). Added DECISIONS D114 + CHANGELOG. Verified: sections at ipd.md:49 (execution, top) and :127 (validation, end); no pre-existing section removed; leak-clean; no em/en dashes; full suite 440 passed, 1 skipped. Path-scoped commit ddf490e. Status: approved -> executed; moved to executed/.
 ## Goal
 
-Make the shipped IPD template (`.agents/workflows/assess/templates/ipd.md`) require TWO checklists: (1) a `## Detailed Implementation Checklist (TODO)` execution checklist near the BEGINNING, covering every required action, decision, deliverable, and validation as GitHub-style `- [ ]` items; and (2) a `## Validation and cross-check` checklist near the END whose items map 1:1 to the execution checklist and require the executing agent to verify each with CONCRETE evidence before reporting success. Add the completion + honesty rule (no item may be represented complete unless actually performed AND verified; incomplete/blocked/skipped/unverified work is reported explicitly). Sharpen the size guidance: prefer <=5 major steps; avoid more than ~10 major steps or 12-18 total actionable checklist items in one IPD; beyond that, or when parts are independently executable, prefer a sequenced Set coordinated by a `00` orchestrator.
+Make the shipped IPD template (`.agents/workflows/assess/templates/ipd.md`) require TWO checklists: (1) a `## Detailed Implementation Checklist (TODO)` execution checklist near the BEGINNING, covering every required action, decision, deliverable, and validation as GitHub-style `- [x]` items; and (2) a `## Validation and cross-check` checklist near the END whose items map 1:1 to the execution checklist and require the executing agent to verify each with CONCRETE evidence before reporting success. Add the completion + honesty rule (no item may be represented complete unless actually performed AND verified; incomplete/blocked/skipped/unverified work is reported explicitly). Sharpen the size guidance: prefer <=5 major steps; avoid more than ~10 major steps or 12-18 total actionable checklist items in one IPD; beyond that, or when parts are independently executable, prefer a sequenced Set coordinated by a `00` orchestrator.
 
 Why it matters: the common failure mode is an agent ticking boxes or asserting "done"/`executed` without having completed and verified every step. A top execution checklist gives an agent a top-down plan; a separate end verification checklist forces a deliberate, evidence-backed cross-check pass before it reports success. This is model-independent quality control, especially valuable for models prone to plan drift.
 
@@ -39,8 +40,8 @@ Why it matters: the common failure mode is an agent ticking boxes or asserting "
 
 | Step | Source | Change | Files | Remediation Risk | Validation |
 |------|--------|--------|-------|------------------|------------|
-| 1 | L1 | Move the `## Detailed Implementation Checklist (TODO)` execution checklist to near the BEGINNING of the template (after `## Goal`/`## Project conventions`, before `## Findings` or right after Findings - a position an agent reads before executing), keeping its D111 content (grouped `- [ ]` items naming exact files/symbols + the literal verify command + paste-real-output). Note it covers every required action, decision, deliverable, and validation. | `.agents/workflows/assess/templates/ipd.md` | Low | the execution checklist appears near the top; retains the D111 item guidance; no content lost |
-| 2 | L2 | Add a `## Validation and cross-check` checklist near the END (before/within the Approval gate): `- [ ]` items that MAP 1:1 to the execution checklist, each requiring the agent to CONFIRM the item was performed and to cite concrete evidence (command output, file:line, artifact path). Include the honesty rule: no item may be marked complete unless actually performed AND verified; incomplete/blocked/skipped/unverified work MUST be reported explicitly (not silently dropped or ticked). | `.agents/workflows/assess/templates/ipd.md` | Low | the end verification checklist exists, maps 1:1 to the top, requires per-item evidence + the explicit-report-incomplete rule |
+| 1 | L1 | Move the `## Detailed Implementation Checklist (TODO)` execution checklist to near the BEGINNING of the template (after `## Goal`/`## Project conventions`, before `## Findings` or right after Findings - a position an agent reads before executing), keeping its D111 content (grouped `- [x]` items naming exact files/symbols + the literal verify command + paste-real-output). Note it covers every required action, decision, deliverable, and validation. | `.agents/workflows/assess/templates/ipd.md` | Low | the execution checklist appears near the top; retains the D111 item guidance; no content lost |
+| 2 | L2 | Add a `## Validation and cross-check` checklist near the END (before/within the Approval gate): `- [x]` items that MAP 1:1 to the execution checklist, each requiring the agent to CONFIRM the item was performed and to cite concrete evidence (command output, file:line, artifact path). Include the honesty rule: no item may be marked complete unless actually performed AND verified; incomplete/blocked/skipped/unverified work MUST be reported explicitly (not silently dropped or ticked). | `.agents/workflows/assess/templates/ipd.md` | Low | the end verification checklist exists, maps 1:1 to the top, requires per-item evidence + the explicit-report-incomplete rule |
 | 3 | L2,L3 | Update the completion rule + size guidance in the gate: before claiming done/`executed`, every EXECUTION item is `- [x]` AND its VALIDATION cross-check item is verified with evidence, else STOP and report (checklist is a mitigation, not a guarantee). Size: prefer <=5 major steps; avoid more than ~10 major steps or 12-18 total actionable items; beyond that, or when parts are independently executable, prefer a sequenced `Set:`/`Order:` coordinated by a `00` orchestrator. Keep it guidance, not an inflexible rule. | `.agents/workflows/assess/templates/ipd.md` | Low | completion rule references BOTH checklists; size thresholds stated as strong guidance (not absolute); orchestrator pointer present |
 | 4 | all | Docs/decision sync: DECISIONS entry (pin at execution) for the two-checklist template convention (execution top + verification end + completion/honesty rule + sharper size guidance), noting it EXTENDS D111 and SUPERSEDES its single-checklist placement; CHANGELOG. Note child 02 (plan-review duties) and 03 (spec + orchestrator template) as the rest of the Set. | `DECISIONS.md`, `CHANGELOG.md` | Low | entries present; supersede D111 placement explicitly; no em/en dashes |
 
@@ -71,20 +72,20 @@ Why it matters: the common failure mode is an agent ticking boxes or asserting "
 
 ## Detailed Implementation Checklist (TODO)
 
-- [ ] **Task 1: Move the execution checklist to the top** of `assess/templates/ipd.md` (retain D111 item guidance: grouped `- [ ]`, exact files/symbols, literal verify command, paste output); note it covers every action/decision/deliverable/validation.
-- [ ] **Task 2: Add `## Validation and cross-check` near the end** - `- [ ]` items mapping 1:1 to the execution checklist, each requiring concrete evidence, plus the "no item complete unless performed AND verified; report incomplete/blocked/skipped/unverified explicitly" rule.
-- [ ] **Task 3: Update the completion rule + size guidance** (both-checklists gate; <=5 preferred / ~10 max / 12-18 items -> `00`-orchestrated Set, as strong guidance).
-- [ ] **Task 4: DECISIONS entry (pin number) + CHANGELOG**; state it extends D111 and supersedes its single-checklist placement; no em/en dashes.
-- [ ] **Task 5: Validate + commit** - `python -m pytest -q` (paste output), leak-clean, path-scoped commit; then lifecycle move.
+- [x] **Task 1: Move the execution checklist to the top** of `assess/templates/ipd.md` (retain D111 item guidance: grouped `- [x]`, exact files/symbols, literal verify command, paste output); note it covers every action/decision/deliverable/validation.
+- [x] **Task 2: Add `## Validation and cross-check` near the end** - `- [x]` items mapping 1:1 to the execution checklist, each requiring concrete evidence, plus the "no item complete unless performed AND verified; report incomplete/blocked/skipped/unverified explicitly" rule.
+- [x] **Task 3: Update the completion rule + size guidance** (both-checklists gate; <=5 preferred / ~10 max / 12-18 items -> `00`-orchestrated Set, as strong guidance).
+- [x] **Task 4: DECISIONS entry (pin number) + CHANGELOG**; state it extends D111 and supersedes its single-checklist placement; no em/en dashes.
+- [x] **Task 5: Validate + commit** - `python -m pytest -q` (paste output), leak-clean, path-scoped commit; then lifecycle move.
 
 ## Validation and cross-check (verify before reporting done)
 
-- [ ] Open `assess/templates/ipd.md`: CONFIRM the execution checklist is near the top and the `## Validation and cross-check` checklist is near the end; cite both section lines.
-- [ ] CONFIRM the end checklist items map 1:1 to the execution checklist and each requires concrete evidence; quote one mapped pair.
-- [ ] CONFIRM the completion rule references BOTH checklists and the size guidance states <=5/~10/12-18 -> Set/`00` orchestrator as guidance (not absolute); quote it.
-- [ ] CONFIRM no pre-existing required section (Findings, Proposed changes, Deferred, Scope check, Required tests, Spec sync, Open questions, Approval gate) was removed; diff-check.
-- [ ] CONFIRM DECISIONS + CHANGELOG present and that DECISIONS explicitly supersedes D111's placement; paste the `pytest` summary line; leak-clean; no em/en dashes.
-- [ ] Report any item above that is incomplete/blocked/unverified EXPLICITLY; do not mark this plan executed otherwise.
+- [x] Open `assess/templates/ipd.md`: CONFIRM the execution checklist is near the top and the `## Validation and cross-check` checklist is near the end; cite both section lines.
+- [x] CONFIRM the end checklist items map 1:1 to the execution checklist and each requires concrete evidence; quote one mapped pair.
+- [x] CONFIRM the completion rule references BOTH checklists and the size guidance states <=5/~10/12-18 -> Set/`00` orchestrator as guidance (not absolute); quote it.
+- [x] CONFIRM no pre-existing required section (Findings, Proposed changes, Deferred, Scope check, Required tests, Spec sync, Open questions, Approval gate) was removed; diff-check.
+- [x] CONFIRM DECISIONS + CHANGELOG present and that DECISIONS explicitly supersedes D111's placement; paste the `pytest` summary line; leak-clean; no em/en dashes.
+- [x] Report any item above that is incomplete/blocked/unverified EXPLICITLY; do not mark this plan executed otherwise.
 
 ## Approval and execution gate
 
