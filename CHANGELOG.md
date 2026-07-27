@@ -19,6 +19,8 @@ scoping is confirmed at release-review.
   directories, including the gitignored `local/` lanes for prompts and comms, so they are discoverable.
 - Changed: inverted the `workflow-artifacts/` tracking policy (DECISIONS D117). `workflow-artifacts/` is now local-only working material, gitignored, and never force-added. `check_gitignore` in `agent_workflows/engine.py` reports ignoring it as correct and absence as advisory (without the installer silently editing the user's `.gitignore`). Top-level documentation (`ARCHITECTURE.md`, `README.md`) and `.gitignore` updated.
 - Changed: flipped all workflow runbooks (`release-review`, `assess`, `advise`, `verify`, `benchmark`) and `setup-repo` to specify `workflow-artifacts/` is local-only, gitignored, and never force-added (DECISIONS D118).
+- Added: migration tool tests (`tests/test_untrack_workflow_artifacts.py`) and documentation (`tools/README.md`) for safely untracking `workflow-artifacts/` without deleting local files (DECISIONS D119).
+
 
 
 

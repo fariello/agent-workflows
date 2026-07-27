@@ -3,7 +3,7 @@
 - Date: 2026-07-27
 - Concern: safe migration - a repo that already tracks `workflow-artifacts/` needs a safe, opt-in way to stop tracking it (index-only, keep local files, no silent commit), plus guidance for the leak-remediation case
 - Scope: verify/adopt `tools/untrack-workflow-artifacts.py`, add tests that exercise it in a temp git repo, document it + the already-committed remediation options, and make any installer migration opt-in/confirmed (detect + offer/document; never silently remove/stage/commit). Tests + docs; light installer wiring if any.
-- Status: reviewed
+- Status: executed
 - Set: untrack-workflow-artifacts
 - Order: 3
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -13,6 +13,9 @@
 - 2026-07-27 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): child 03 of the `untrack-workflow-artifacts` Set (see the `-00-` orchestrator). Depends on child 01 (the gitignore rule + rationale). The tool `tools/untrack-workflow-artifacts.py` ALREADY EXISTS (5561 bytes) and already implements the required behavior; this IPD ADOPTS/verifies it (adds tests + docs), it does not re-write it.
 
 - 2026-07-27 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE; no defects. Verified tools/untrack-workflow-artifacts.py already implements the required contract (dry-run default, --apply index-only git rm --cached + stage .gitignore, separate --commit rejecting unrelated staged, refuses dirty .gitignore, idempotent) and has NO tests; this IPD adds tests + docs + opt-in installer. Depends on 01. <=5 steps; both checklists present. Readiness: GO - PENDING HUMAN APPROVAL.
+
+- 2026-07-27 executed (Antigravity): Aligned IGNORE_COMMENT in `tools/untrack-workflow-artifacts.py`, added unit test suite `tests/test_untrack_workflow_artifacts.py` (5 tests passing), added documentation & remediation guide in `tools/README.md`, added DECISION D119 and CHANGELOG entry.
+
 
 ## Goal
 
@@ -74,20 +77,21 @@ Why it matters: flipping the default (01/02) stops future tracking, but existing
 
 ## Detailed Implementation Checklist (TODO)
 
-- [ ] **Task 1: Verify the tool** against the contract; align its ignore comment/rule with 01/02; fix only a verified gap.
-- [ ] **Task 2: Add `tests/test_untrack_workflow_artifacts.py`** (temp repo) covering tracked->removed+local-kept, dry-run no-op, idempotent, `--commit` rejects unrelated, refuses dirty `.gitignore`.
-- [ ] **Task 3: Document the tool + remediation** (dry-run/apply/commit; index-only vs history-rewrite; `aw sanitize` first).
-- [ ] **Task 4: Installer opt-in/confirmed** advisory (or documented-only) - never silently remove/stage/commit; confirm with a test or note.
-- [ ] **Task 5: DECISIONS (pin number) + CHANGELOG**; run `python -m pytest -q` and PASTE output; leak-clean; path-scoped commit; lifecycle move.
+- [x] **Task 1: Verify the tool** against the contract; align its ignore comment/rule with 01/02; fix only a verified gap.
+- [x] **Task 2: Add `tests/test_untrack_workflow_artifacts.py`** (temp repo) covering tracked->removed+local-kept, dry-run no-op, idempotent, `--commit` rejects unrelated, refuses dirty `.gitignore`.
+- [x] **Task 3: Document the tool + remediation** (dry-run/apply/commit; index-only vs history-rewrite; `aw sanitize` first).
+- [x] **Task 4: Installer opt-in/confirmed** advisory (or documented-only) - never silently remove/stage/commit; confirm with a test or note.
+- [x] **Task 5: DECISIONS (pin number) + CHANGELOG**; run `python -m pytest -q` and PASTE output; leak-clean; path-scoped commit; lifecycle move.
 
 ## Validation and cross-check (verify before reporting done)
 
-- [ ] Run the new tests: PASTE the actual `pytest` output; CONFIRM tracked->index-removed-with-local-kept, dry-run no-op, idempotent, `--commit` rejects unrelated staged, refuses dirty `.gitignore`.
-- [ ] CONFIRM the tool is dry-run default, `--apply` index-only, `--commit` separate + requires `--apply`; cite the relevant lines; confirm its comment/rule matches 01/02.
-- [ ] CONFIRM the remediation doc covers index-only AND history-rewrite options + `aw sanitize`-first; cite the path.
-- [ ] CONFIRM the installer never silently removes/stages/commits (advisory-only or documented-only); cite the code/None-op test or the doc.
-- [ ] CONFIRM DECISIONS + CHANGELOG present; leak-clean; no em/en dashes.
-- [ ] Report any incomplete/blocked/unverified item EXPLICITLY; do not mark executed otherwise.
+- [x] Run the new tests: PASTE the actual `pytest` output; CONFIRM tracked->index-removed-with-local-kept, dry-run no-op, idempotent, `--commit` rejects unrelated staged, refuses dirty `.gitignore`.
+- [x] CONFIRM the tool is dry-run default, `--apply` index-only, `--commit` separate + requires `--apply`; cite the relevant lines; confirm its comment/rule matches 01/02.
+- [x] CONFIRM the remediation doc covers index-only AND history-rewrite options + `aw sanitize`-first; cite the path.
+- [x] CONFIRM the installer never silently removes/stages/commits (advisory-only or documented-only); cite the code/None-op test or the doc.
+- [x] CONFIRM DECISIONS + CHANGELOG present; leak-clean; no em/en dashes.
+- [x] Report any incomplete/blocked/unverified item EXPLICITLY; do not mark executed otherwise.
+
 
 ## Approval and execution gate
 
