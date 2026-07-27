@@ -3,7 +3,7 @@
 - Date: 2026-07-27
 - Concern: honest reporting - the two-checklist convention only bites if plan-review enforces it: the creator must author both checklists, and the reviewer must assess both and confirm each execution item has a concrete end cross-check
 - Scope: edit `plan-review` (and `plan-review-long` for parity) so its finalize step + rubric require the dual-checklist convention (from child 01) on any agent-executable plan, and add a reviewer duty to flag unsupported completion. Prose-only workflow edits + DECISIONS/CHANGELOG.
-- Status: approved
+- Status: executed
 - Set: ipd-dual-checklist-convention
 - Order: 2
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -15,6 +15,7 @@
 
 - 2026-07-27 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001. Verified plan-review has no checklist duty today and that plan-review-long uses a SEPARATE review-rubric.md with PROSE executability (no lettered section); fixed Step 2/3 + checklist/validation to reference the executability item generically (not a 'section G' in the long variant) and to target review-rubric.md. Depends on 01. <=5 steps. Readiness: GO - PENDING HUMAN APPROVAL.
 
+- 2026-07-27 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): added the creator-authors-both + reviewer-assesses-both duty to plan-review Step 4 + rubric G, and to plan-review-long 03-resolve-and-finalize.md + review-rubric.md (parity; prose rubric, not a 'section G'). Added DECISIONS D115 + CHANGELOG. Verified both variants carry the duty; leak-clean; no em/en dashes; full suite 440 passed, 1 skipped. Path-scoped commit ac2f37e. Status: approved -> executed; moved to executed/.
 ## Goal
 
 Make `/plan-review` (and its parity sibling `/plan-review-long`) enforce the dual-checklist convention: (1) the CREATOR of an agent-executable plan MUST include both a top execution checklist and an end verification/cross-check checklist (per child 01); (2) the REVIEWER MUST assess both - confirm the execution checklist covers every required action/decision/deliverable/validation, confirm the end checklist maps 1:1 and demands concrete evidence, and treat a plan that lacks either, or whose end checklist is too weak to catch a false "done", as a finding to fix in place. Add a reviewer duty at the finalize gate: do not pass a plan whose checklists could let an agent claim completion without having completed and verified every step.
@@ -72,20 +73,20 @@ Why it matters: child 01 puts the checklists in the template, but nothing makes 
 
 ## Detailed Implementation Checklist (TODO)
 
-- [ ] **Task 1: plan-review Step 4 confirm item** - dual-checklist present + 1:1 + concrete-evidence + catches-false-completion; reviewer strengthens in place if weak/absent.
-- [ ] **Task 2: plan-review rubric G bullet** - two-checklist requirement as a verifiable item (weak/absent = UNDER-SCOPE finding).
-- [ ] **Task 3: plan-review-long parity** - same confirm item in `03-resolve-and-finalize.md` + the requirement in `review-rubric.md` (prose executability, not a lettered section).
-- [ ] **Task 4: DECISIONS (pin number) + CHANGELOG**; depends-on-child-01 noted; no em/en dashes.
-- [ ] **Task 5: Validate + commit** - `python -m pytest -q` (paste output), leak-clean, path-scoped commit; lifecycle move.
+- [x] **Task 1: plan-review Step 4 confirm item** - dual-checklist present + 1:1 + concrete-evidence + catches-false-completion; reviewer strengthens in place if weak/absent.
+- [x] **Task 2: plan-review rubric G bullet** - two-checklist requirement as a verifiable item (weak/absent = UNDER-SCOPE finding).
+- [x] **Task 3: plan-review-long parity** - same confirm item in `03-resolve-and-finalize.md` + the requirement in `review-rubric.md` (prose executability, not a lettered section).
+- [x] **Task 4: DECISIONS (pin number) + CHANGELOG**; depends-on-child-01 noted; no em/en dashes.
+- [x] **Task 5: Validate + commit** - `python -m pytest -q` (paste output), leak-clean, path-scoped commit; lifecycle move.
 
 ## Validation and cross-check (verify before reporting done)
 
-- [ ] Open `plan-review.md` Step 4: CONFIRM the dual-checklist creator+reviewer confirm item is present with the "catch false completion" + strengthen-in-place wording; cite lines.
-- [ ] Open the plan-review rubric `### G. Plan executability` (`plan-review.md:338`): CONFIRM the two-checklist requirement bullet is present; cite lines.
-- [ ] Open `plan-review-long/03-resolve-and-finalize.md` + `plan-review-long/review-rubric.md`: CONFIRM the identical duty is present (parity of requirement; the long rubric is prose, not lettered); cite lines; quote one matching sentence across variants.
-- [ ] CONFIRM the duty REFERENCES child 01's structure (does not redefine it) and lets the reviewer strengthen a weak checklist as a finding.
-- [ ] CONFIRM DECISIONS + CHANGELOG present; paste the `pytest` summary line; leak-clean; no em/en dashes.
-- [ ] Report any incomplete/blocked/unverified item EXPLICITLY; do not mark executed otherwise.
+- [x] Open `plan-review.md` Step 4: CONFIRM the dual-checklist creator+reviewer confirm item is present with the "catch false completion" + strengthen-in-place wording; cite lines.
+- [x] Open the plan-review rubric `### G. Plan executability` (`plan-review.md:338`): CONFIRM the two-checklist requirement bullet is present; cite lines.
+- [x] Open `plan-review-long/03-resolve-and-finalize.md` + `plan-review-long/review-rubric.md`: CONFIRM the identical duty is present (parity of requirement; the long rubric is prose, not lettered); cite lines; quote one matching sentence across variants.
+- [x] CONFIRM the duty REFERENCES child 01's structure (does not redefine it) and lets the reviewer strengthen a weak checklist as a finding.
+- [x] CONFIRM DECISIONS + CHANGELOG present; paste the `pytest` summary line; leak-clean; no em/en dashes.
+- [x] Report any incomplete/blocked/unverified item EXPLICITLY; do not mark executed otherwise.
 
 ## Approval and execution gate
 
