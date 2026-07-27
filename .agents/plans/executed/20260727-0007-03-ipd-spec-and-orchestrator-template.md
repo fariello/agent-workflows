@@ -3,7 +3,7 @@
 - Date: 2026-07-27
 - Concern: single-source consolidation - the canonical IPD spec (D112) and a reusable `00` orchestrator template must reflect the two-checklist + creator/reviewer + size/orchestrator convention so authors have one authoritative reference
 - Scope: update `.agents/docs/specs/...-ipd-spec.md` (D112) to describe the two checklists + creator/reviewer duties + size thresholds + the orchestrator, by REFERENCE; add a `00` ORCHESTRATOR TEMPLATE under the workflow templates. Prose/template edits + DECISIONS/CHANGELOG.
-- Status: approved
+- Status: executed
 - Set: ipd-dual-checklist-convention
 - Order: 3
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -15,6 +15,7 @@
 
 - 2026-07-27 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE; no defects. Verified the D112 spec exists at the cited path and the 00-orchestrator name is reserved but has no template; this updates the spec in place + adds the template. Depends on 01+02. <=4 steps. Readiness: GO - PENDING HUMAN APPROVAL.
 
+- 2026-07-27 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): updated ipd-spec.md in place (two checklists + completion rule + creator/reviewer duties + <=5/~10/12-18 + 00 orchestrator) and added .agents/workflows/assess/templates/orchestrator-ipd.md (sequence/deps/completion/cross-IPD validation + its own two checklists). Added DECISIONS D116 + CHANGELOG. Verified spec + template content; leak-clean; no em/en dashes; full suite 440 passed, 1 skipped. Path-scoped commit 2bd4fd7. Status: approved -> executed; moved to executed/.
 ## Goal
 
 Give authors one authoritative, current reference and a reusable orchestrator template: (1) UPDATE the canonical `ipd-spec.md` (D112) to describe, by reference, the two-checklist structure (execution top + verification/cross-check end, 1:1 with concrete evidence), the completion + honesty rule, the creator/reviewer duties (child 02), and the sharper size thresholds (<=5 preferred; ~10 max / 12-18 items -> a `00`-orchestrated Set); (2) ADD a `00` ORCHESTRATOR TEMPLATE under the workflow templates that defines what an orchestrator IPD must contain: the child sequence, dependencies, completion criteria, and cross-IPD validation. Consolidate by REFERENCE (P8), not duplication.
@@ -68,18 +69,18 @@ Why it matters: children 01/02 land the mechanism in the template and the review
 
 ## Detailed Implementation Checklist (TODO)
 
-- [ ] **Task 1: Update `ipd-spec.md`** - two checklists + completion/honesty rule + creator/reviewer duties + <=5/~10/12-18 -> `00`-orchestrated Set thresholds, all by reference; supersede the D111-only mentions in place.
-- [ ] **Task 2: Add the `00` orchestrator template** with sections: child sequence + Order, dependencies, whole-Set completion criteria, cross-IPD validation, and its own execution + verification checklists.
-- [ ] **Task 3: DECISIONS (pin number) + CHANGELOG**; note Set-complete + depends on 01/02; no em/en dashes.
-- [ ] **Task 4: Validate + commit** - `python -m pytest -q` (paste output), leak-clean, path-scoped commit; lifecycle move.
+- [x] **Task 1: Update `ipd-spec.md`** - two checklists + completion/honesty rule + creator/reviewer duties + <=5/~10/12-18 -> `00`-orchestrated Set thresholds, all by reference; supersede the D111-only mentions in place.
+- [x] **Task 2: Add the `00` orchestrator template** with sections: child sequence + Order, dependencies, whole-Set completion criteria, cross-IPD validation, and its own execution + verification checklists.
+- [x] **Task 3: DECISIONS (pin number) + CHANGELOG**; note Set-complete + depends on 01/02; no em/en dashes.
+- [x] **Task 4: Validate + commit** - `python -m pytest -q` (paste output), leak-clean, path-scoped commit; lifecycle move.
 
 ## Validation and cross-check (verify before reporting done)
 
-- [ ] Open `ipd-spec.md`: CONFIRM it now describes both checklists, the completion/honesty rule, the creator/reviewer duties, and the size thresholds, by reference (quote the added lines); confirm no divergent restatement vs 01/02.
-- [ ] Open the new orchestrator template: CONFIRM it has sequence/Order, dependencies, whole-Set completion criteria, cross-IPD validation, and its own two checklists; cite the path.
-- [ ] Consistency: quote the two-checklist rule from `ipd-spec.md` and confirm it matches the template (01) and plan-review (02).
-- [ ] CONFIRM DECISIONS + CHANGELOG present, Set-complete noted; paste the `pytest` summary line; leak-clean; no em/en dashes.
-- [ ] Report any incomplete/blocked/unverified item EXPLICITLY; do not mark executed otherwise.
+- [x] Open `ipd-spec.md`: CONFIRM it now describes both checklists, the completion/honesty rule, the creator/reviewer duties, and the size thresholds, by reference (quote the added lines); confirm no divergent restatement vs 01/02.
+- [x] Open the new orchestrator template: CONFIRM it has sequence/Order, dependencies, whole-Set completion criteria, cross-IPD validation, and its own two checklists; cite the path.
+- [x] Consistency: quote the two-checklist rule from `ipd-spec.md` and confirm it matches the template (01) and plan-review (02).
+- [x] CONFIRM DECISIONS + CHANGELOG present, Set-complete noted; paste the `pytest` summary line; leak-clean; no em/en dashes.
+- [x] Report any incomplete/blocked/unverified item EXPLICITLY; do not mark executed otherwise.
 
 ## Approval and execution gate
 
