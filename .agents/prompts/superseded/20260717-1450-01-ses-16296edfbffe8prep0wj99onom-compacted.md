@@ -1,3 +1,5 @@
+RETIRED 2026-07-27: consumed cold-start recovery context for a 2026-07-17 session; its state (~D89) is stale and the work has advanced to D121, so this orientation is superseded by the current project state. Kept for the record.
+
 # Restart Context for opencode
 
 ## 1. Recovery Purpose

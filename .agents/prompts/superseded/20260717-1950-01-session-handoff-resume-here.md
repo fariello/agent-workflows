@@ -1,6 +1,8 @@
+RETIRED 2026-07-27: consumed session-handoff for a 2026-07-17 -> next session; its state (~D89) is stale and the work has advanced to D121, so this orientation is superseded by the current project state. Kept for the record.
+
 # Session handoff: resume here
 
-- Status: draft
+- Status: superseded
 - Kind: session-handoff (cold-start orientation for a fresh session; NOT an IPD to execute)
 - Date: 2026-07-17
 - Author: agent-workflows session (opencode)
