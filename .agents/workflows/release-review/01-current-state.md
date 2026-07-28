@@ -105,4 +105,4 @@ Do not proceed to Section 2 until all are true (MUST):
 - [ ] `deprecation-candidates.md`, `todo-reconciliation.md`, `guiding-principles-assessment.md`, `persona-review.md` are initialized.
 - [ ] Parallel-audit decision recorded in `05-decisions.md`.
 - [ ] Per-phase report `section-summaries/01-current-state.md` written.
-- [ ] Checkpoint recorded in `08-checkpoints.md` and committed.
+- [ ] Checkpoint recorded in `08-checkpoints.md` (local-only); the section's tracked product changes, if any, committed. The checkpoint file itself stays local-only; do not commit it.

@@ -7,7 +7,7 @@ This file defines the global rules for the release review. These rules apply to 
 1. `README.md` is the controlling instruction.
 2. This file defines shared rules.
 3. Section files `01` through `09` define phase-specific tasks (`09` runs only after a GO/CONDITIONAL GO and explicit user approval to release).
-3a. `fix-decision-policy.md` is the authoritative fix policy. `reference.md` holds on-demand look-up tables (type codes, ID examples, schema/CI lists) and is not part of the always-read core.
+   - `fix-decision-policy.md` is the authoritative fix policy. `reference.md` holds on-demand look-up tables (type codes, ID examples, schema/CI lists) and is not part of the always-read core.
 4. `workflow-artifacts/release-review/<RUN_ID>/` is the authoritative run record.
 5. TodoWrite, if available, is live progress tracking only.
 

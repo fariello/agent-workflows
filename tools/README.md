@@ -33,7 +33,7 @@ If a repository has previously committed `workflow-artifacts/` run records to Gi
 1. **Size the Exposure First**:
    Run the local-leaks sanitizer to assess whether committed records contain sensitive local paths, usernames, or session IDs:
    ```bash
-   aw sanitize .
+   aw sanitize . --agent
    ```
 
 2. **Remediation Option A: Index-Only Stop Tracking (Recommended)**:
@@ -44,4 +44,4 @@ If a repository has previously committed `workflow-artifacts/` run records to Gi
    ```bash
    git filter-repo --path workflow-artifacts/ --invert-paths
    ```
-   *Note: Rewriting history changes commit SHAs and requires coordinated force-pushing across all clones.*
+   **WARNING (destructive; run ONLY with explicit human approval):** this REWRITES history, changes every subsequent commit SHA, and requires a coordinated force-push that invalidates all existing clones and open branches/PRs. It is NOT reversible by a normal pull. Do NOT run it automatically or as part of routine remediation; propose it, explain the blast radius, and wait for an explicit human decision before executing (consistent with the toolkit's never-rewrite-history-without-approval posture).

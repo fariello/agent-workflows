@@ -674,10 +674,13 @@ def agents_pointer_prose() -> str:
         "(see GUIDING_PRINCIPLES P12).\n\n"
         "### Authoring and executing IPDs\n"
         "When you author or execute an Implementation Plan Document (IPD), you MUST follow the "
-        "canonical IPD spec under `.agents/docs/specs/` (the `ipd-spec` doc), including its mandatory "
-        "`## Detailed Implementation Checklist (TODO)` and the completion rule: do NOT claim done or "
-        "move a plan to `.agents/plans/executed/` until every checklist item is checked AND "
-        "independently verified (tests run, actual output pasted), else STOP and report."
+        "canonical IPD spec under `.agents/docs/specs/` (the `ipd-spec` doc), including its TWO "
+        "mandatory checklists: a `## Detailed Implementation Checklist (TODO)` near the top (the "
+        "execution plan) AND a `## Validation and cross-check` checklist near the end (the "
+        "evidence pass, mapping 1:1 to the execution items). The completion rule: do NOT claim done "
+        "or move a plan to `.agents/plans/executed/` until every execution item is checked AND its "
+        "matching validation item is independently verified with concrete evidence (tests run, "
+        "actual output pasted), else STOP and report."
     )
 
 

@@ -61,7 +61,7 @@ For each reviewed plan confirm:
 - required spec and documentation work is included;
 - tests and validation cover affected invariants;
 - the plan does not claim implementation;
-- for an agent-executable plan, the CREATOR authored BOTH the top execution checklist AND the end
+- for an agent-executable plan (an IPD or similar with actionable steps), the CREATOR authored BOTH the top execution checklist AND the end
   verification/cross-check checklist, and you (the REVIEWER) assessed both (execution covers every
   action/decision/deliverable/validation; verification maps 1:1 with concrete per-item evidence and
   is specific enough to catch a false completion claim). A missing/weak checklist is an UNDER-SCOPE

@@ -134,7 +134,7 @@ Then read the selected lens file and adopt its focus, lead personas, and rubric.
    proposed N changes`.
 6. **Write the run record** to `workflow-artifacts/assess-<concern>/<RUN_ID>/` (see the
    next section) so the report and evidence are durable, not just shown in chat.
-7. **Commit** the IPD, and NEVER push (commit-only; no remote changes). The IPD is a committed proposal. The run record in `workflow-artifacts/` is local-only working material (gitignored by default; do not commit or force-add it). Do not commit unrelated changes; run `git status --short` first.
+7. **Commit ONLY the IPD**, and NEVER push (commit-only; no remote changes). The run record in `workflow-artifacts/` is local-only working material: it is gitignored by default, so do NOT commit or force-add it. Do not commit unrelated changes; run `git status --short` first.
 
 8. **Report and stop.** Present the report (below) to the user, ending with the shared
    closing report (`templates/closing-report.md`): the artifact paths CREATED (the IPD and

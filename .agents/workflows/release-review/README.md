@@ -124,7 +124,7 @@ This is a long, multi-step run. Do not work from memory of a section file you re
 4. **Update the registers and artifacts** named in the section's "Required outputs".
 5. **Write the section's per-phase report** to `section-summaries/<NN>-<short-name>.md` using `templates/per-phase-report.md` (what was done, why, what was considered but not done).
 6. **Record the section checkpoint** in `08-checkpoints.md` and reconcile it against the registers.
-7. **Commit** the section's tracked changes and run artifacts (see commit policy), then mark the TodoWrite item complete.
+7. **Commit** the section's tracked product changes, if any (see commit policy). The per-phase report, registers, and checkpoint are written to `workflow-artifacts/`, which stays local-only; do NOT commit or force-add it. Then mark the TodoWrite item complete.
 8. **Only then proceed** to the next section.
 
 Do not batch multiple sections before writing reports or committing. If you discover you skipped a step for a prior section, stop and complete it before continuing.
