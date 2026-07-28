@@ -3,13 +3,15 @@
 - Date: 2026-07-27
 - Concern: instruction effectiveness across diverse agents - a holistic re-review of the shipped prose from the two recent Sets (dual-checklist D114-D116; untrack-workflow-artifacts D117-D120) found the conventions landed well but with a few gaps that could trip a weaker model (Gemini Flash tier): a missed workflow-artifacts flip, an ambiguous commit phrase, an under-guarded destructive command, and an always-loaded pointer that names only one of the two mandatory checklists
 - Scope: fix the concrete prose gaps in `release-review/README.md`, `release-review/01-current-state.md`, `tools/README.md`, the always-loaded `agents_pointer_prose` (regenerate AGENTS.md), `assess/assess.md`, `plan-review-long` (definition parity), and `00-run-protocol.md` (cosmetic). Prose + one engine template string + AGENTS.md regeneration; DECISIONS/CHANGELOG.
-- Status: reviewed
+- Status: executed
+- Approval: 2026-07-27 human maintainer ("Approved, go.")
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
 
 - 2026-07-27 created (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored from a maintainer-requested re-review of all *.md files touched by the two Sets, judged by "will diverse agents (Gemini 3.5/3.6 Flash, Opus 4.6-4.8, GPT 5.5-5.6) follow them faithfully with appropriate discretion?" The re-review (a full read of the core artifacts + a thorough sub-agent audit of all 15 files, top findings verified against the files) found both conventions landed cleanly (no em/en dashes; local-only default consistent; discretion well-calibrated) but surfaced the fixes below. This corrects them in place; it does not re-open the executed Set plans.
 - 2026-07-27 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004. Verified all five findings (F1-F5) exact against the repo. Applied PR-002 in place: F3's empty-diff check now names the literal `aw install .` command (idempotent; no separate `update`) and the `AGENT-PLANS` byte-identical guard, in the Required-validation section and both matching Task-2 checklists. No BLOCKER/HIGH; both checklists present and 1:1; execution contract complete. Readiness: GO - PENDING HUMAN APPROVAL.
+- 2026-07-27 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): all five findings applied and both checklists verified with evidence; DECISIONS D121; suite 445 passed / 1 skipped; leak-clean; committed path-scoped as `8067c42` (10 files, this plan only). NOTE: `aw install --yes` regenerated pre-existing unrelated install drift and auto-committed it (`c7e3c36`); that commit was soft-reset and the drift left uncommitted for a separate decision (reported to the maintainer).
 
 ## Goal
 
@@ -71,20 +73,20 @@ Why it matters: F1/F3/F4 defeat the conventions' purpose for exactly the weak/fa
 
 ## Detailed Implementation Checklist (TODO)
 
-- [ ] **Task 1: release-review F1/F2** - `README.md:127` (product-only commit; run artifacts local-only) + `01-current-state.md:108` (checkpoint file stays local-only).
-- [ ] **Task 2: always-loaded dual-checklist (F3)** - `agents_pointer_prose` names BOTH checklists + completion rule; regenerate AGENTS.md via `aw install .` (idempotent; no separate `update`); confirm `git diff -- AGENTS.md` is empty after the regen and the `AGENT-PLANS:BEGIN/END` sibling is byte-identical.
-- [ ] **Task 3: filter-repo absolute (F4)** - `tools/README.md` explicit human-approval + force-push warning replaces the soft note.
-- [ ] **Task 4: clarity (F5)** - `aw sanitize . --agent`; split `assess.md:137`; add agent-executable-plan definition to `plan-review-long/03` + `review-rubric.md`; fix `00-run-protocol.md:9` duplicate "3.".
-- [ ] **Task 5: DECISIONS (pin number)** (+ CHANGELOG only if warranted); run `python -m pytest -q` and PASTE output; leak-clean; path-scoped commit; lifecycle move.
+- [x] **Task 1: release-review F1/F2** - `README.md:127` (product-only commit; run artifacts local-only) + `01-current-state.md:108` (checkpoint file stays local-only).
+- [x] **Task 2: always-loaded dual-checklist (F3)** - `agents_pointer_prose` names BOTH checklists + completion rule; regenerate AGENTS.md via `aw install .` (idempotent; no separate `update`); confirm `git diff -- AGENTS.md` is empty after the regen and the `AGENT-PLANS:BEGIN/END` sibling is byte-identical.
+- [x] **Task 3: filter-repo absolute (F4)** - `tools/README.md` explicit human-approval + force-push warning replaces the soft note.
+- [x] **Task 4: clarity (F5)** - `aw sanitize . --agent`; split `assess.md:137`; add agent-executable-plan definition to `plan-review-long/03` + `review-rubric.md`; fix `00-run-protocol.md:9` duplicate "3.".
+- [x] **Task 5: DECISIONS (D121)** (CHANGELOG omitted - consistency corrections, per OQ1); ran `python -m pytest -q` (445 passed, 1 skipped); leak-clean; path-scoped commit `8067c42`; lifecycle move to executed/.
 
 ## Validation and cross-check (verify before reporting done)
 
-- [ ] Grep release-review: CONFIRM no line instructs committing run artifacts; `README.md:127` + `01-current-state.md:108` now product-only/local-only; cite the new lines.
-- [ ] Open the regenerated AGENTS.md `### Authoring and executing IPDs`: CONFIRM it names BOTH `## Detailed Implementation Checklist (TODO)` and `## Validation and cross-check` + the completion rule. Re-run `aw install .` and PASTE the `git diff -- AGENTS.md` result showing it is EMPTY; CONFIRM the `AGENT-PLANS:BEGIN/END` sibling is byte-identical; cite.
-- [ ] Open `tools/README.md`: CONFIRM the filter-repo command carries an explicit human-approval + force-push absolute (not a soft note); CONFIRM `aw sanitize . --agent`; cite.
-- [ ] CONFIRM `assess.md:137` split into distinct sentences; the agent-executable-plan definition is in `plan-review-long/03` + `review-rubric.md`; `00-run-protocol.md:9` numbering fixed; cite each.
-- [ ] CONFIRM DECISIONS entry present; PASTE the `pytest` summary (expect 445 passed, 1 skipped); leak-clean; no em/en dashes.
-- [ ] Report any incomplete/blocked/unverified item EXPLICITLY; do not mark executed otherwise.
+- [x] Grep release-review: no line instructs committing run artifacts. `README.md:127` now "Commit the section's tracked product changes, if any ... `workflow-artifacts/` ... do NOT commit or force-add it"; `01-current-state.md:108` now "Checkpoint recorded in `08-checkpoints.md` (local-only); the section's tracked product changes, if any, committed. The checkpoint file itself stays local-only; do not commit it."
+- [x] AGENTS.md `### Authoring and executing IPDs` (`AGENTS.md:38`) now names BOTH `## Detailed Implementation Checklist (TODO)` (near the top) AND `## Validation and cross-check` (near the end, 1:1) + the completion rule. Regenerated via `python -m agent_workflows install . --yes`; `git diff --stat -- AGENTS.md` = `1 file changed, 1 insertion(+), 1 deletion(-)` (ONLY the directive line; empty otherwise). AGENT-PLANS sibling verified byte-identical (Python compare of the captured `AGENT-PLANS:BEGIN..END` block before/after regen: identical=True).
+- [x] `tools/README.md`: the `git filter-repo` command now carries "WARNING (destructive; run ONLY with explicit human approval): ... REWRITES history ... coordinated force-push ... Do NOT run it automatically or as part of routine remediation ..."; `aw sanitize . --agent` confirmed.
+- [x] `assess.md:137` split ("Commit ONLY the IPD ..." then "The run record ... is gitignored by default, so do NOT commit or force-add it."); agent-executable-plan definition "(an IPD or similar with actionable steps)" now in `plan-review-long/03-resolve-and-finalize.md:64` + `review-rubric.md:21`; `00-run-protocol.md` renumbering fixed (former bare duplicate "3." is now a sub-bullet under item 3).
+- [x] DECISIONS D121 present (`DECISIONS.md`); pytest = `445 passed, 1 skipped in 151.18s`; leak check `check-local-leaks . --agent` exit 0; no em/en dashes in authored files.
+- [x] One out-of-scope item reported EXPLICITLY (does NOT block this plan): `aw install --yes` regenerated pre-existing unrelated install drift (`.claude/`/`.opencode/` command shims, `.gitignore` untracked-safety block, `managed-sections.json`, prompt `.gitkeep`s) and auto-committed it as `c7e3c36`; that commit was soft-reset and the drift LEFT UNCOMMITTED for a separate decision. This plan committed ONLY its own 10 files (`8067c42`).
 
 ## Approval and execution gate
 
