@@ -102,6 +102,14 @@ Two DISTINCT ordered Sets came out of the 2026-07-16 discussion, reconciled 2026
 Ideas worth revisiting; each needs a real decision before it becomes a plan. Do not implement any of
 these without an approved IPD.
 
+- **Re-evaluate the bounded-iteration + agent-agnostic skill-modifiers roadmap
+  (`.agents/docs/roadmaps/20260712-1426-agent-workflows-bounded-iteration-skills-roadmap-for-consideration.md`).**
+  It was drafted 2026-07-12 against version 1.1.0 and is now stale relative to the many changes since
+  (the install-safety Sets, the untrack-workflow-artifacts policy, the dual-checklist convention, the
+  research-organization spec, and the IPD-structure-and-linting spec). Before treating any of its
+  proposals as live, re-read it against the current design and decide per-item keep/revise/retire; it
+  is tracked for the record, not endorsed as-is. Source: roadmap draft committed 2026-08-02.
+
 - **Audit all workflows for deterministic work that can move into agent-friendly scripts (from
   GUIDING_PRINCIPLES P11 / DECISIONS D96).** The leak-sanitizer established the pattern: deterministic,
   no-judgment checks belong in a robust script with an `--agent`/`--llm` output mode that LLM surfaces
