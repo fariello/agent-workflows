@@ -2,7 +2,7 @@
 
 - Date: 2026-08-02
 - Kind: orchestrator
-- Concern: implement the spec `.agents/docs/specs/20260802-1904-01-ipd-structure-and-linting.spec.md` (the maintainer-adopted working specification, pending formal approval for execution): convert the IPD execution/validation checklist structure from relational prose ("near the top/end") into an EXACT, machine-checkable contract with stable `E-*`/`V-*` identifiers and an allocation watermark, a deterministic phase-aware linter, tool-assisted authoring, fixed lifecycle/checkbox/question/size semantics, quarantine semantics, and fail-closed review integration.
+- Concern: implement the spec `.agents/docs/specs/20260802-1904-01-ipd-structure-and-linting.spec.md` (a gpt-5.6-revised working DRAFT that the maintainer asked to look at; NOT approved and NOT adopted; pending maintainer review and formal approval for execution): convert the IPD execution/validation checklist structure from relational prose ("near the top/end") into an EXACT, machine-checkable contract with stable `E-*`/`V-*` identifiers and an allocation watermark, a deterministic phase-aware linter, tool-assisted authoring, fixed lifecycle/checkbox/question/size semantics, quarantine semantics, and fail-closed review integration.
 - Scope: ORCHESTRATOR for the ordered Set `ipd-structure`. Defines the child sequence, dependencies, whole-Set completion criteria, and cross-IPD validation. It changes no product files itself; each child does its own edits. Applies to new and nonterminal IPDs; terminal `executed/` plans are grandfathered. Formal maintainer approval of the specification is an explicit prerequisite to executing this Set (spec Section 18).
 - Status: reviewed
 - Set: ipd-structure
@@ -185,7 +185,7 @@ Each item maps to a checklist item above; provide concrete evidence.
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Specification prerequisite: the underlying specification is maintainer-adopted as the working specification but is NOT formally approved for execution. Correct its contradictory provenance text, independently review it, and record formal maintainer approval before executing this Set (spec Section 18).
+Specification prerequisite: the underlying specification is a gpt-5.6-revised working DRAFT (the maintainer asked to look at it; NOT approved and NOT adopted). Independently review it and record formal maintainer approval before executing this Set (spec Section 18).
 
 This ORCHESTRATOR and each child MUST be reviewed and approved by a human before execution. The orchestrator is "executed" only when all children are executed and the cross-IPD validation passes. Do NOT mark the orchestrator or any child done or move it to `executed/` until every item in its own Validation and cross-check checklist is verified with concrete evidence; if any item cannot be completed, STOP and report.
 

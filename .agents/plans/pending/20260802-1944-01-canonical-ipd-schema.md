@@ -3,7 +3,7 @@
 - Date: 2026-08-02
 - Kind: child
 - Concern: define ONE machine-readable schema that owns the IPD structural contract (kinds, both enumerated H2 orders, optional-section intervals, metadata-block fields incl. `auto-approved` and the `Order: 0` orchestrator exception, `E-*`/`V-*` id grammar + the allocation watermark, execution/validation field grammar + state tables, lint checkpoints, size thresholds, quarantine + legacy applicability), so the linter, tools, templates, spec, and review workflows all derive from or are checked against it and cannot drift.
-- Scope: the schema module + its own validation tests ONLY. No parser, no CLI, no template edits, no migration (those are Orders 02+). Requires the maintainer-adopted working specification `.agents/docs/specs/20260802-1904-01-ipd-structure-and-linting.spec.md`; correcting and formally approving that spec is a prerequisite to executing this Set (spec Section 18).
+- Scope: the schema module + its own validation tests ONLY. No parser, no CLI, no template edits, no migration (those are Orders 02+). Requires the gpt-5.6-revised working DRAFT specification `.agents/docs/specs/20260802-1904-01-ipd-structure-and-linting.spec.md` (NOT approved and NOT adopted); formal maintainer approval of that spec is a prerequisite to executing this Set (spec Section 18).
 - Status: reviewed
 - Set: ipd-structure
 - Order: 1
