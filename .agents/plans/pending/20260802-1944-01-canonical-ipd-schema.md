@@ -2,9 +2,9 @@
 
 - Date: 2026-08-02
 - Kind: child
-- Concern: define ONE machine-readable schema that owns the IPD structural contract (kinds, headings + order, optional-section intervals, front-matter fields, `E-*`/`V-*` id grammar, execution/validation field grammar + state tables, lint checkpoints, size thresholds, legacy applicability), so the linter, tools, templates, spec, and review workflows all derive from or are checked against it and cannot drift.
-- Scope: the schema module + its own validation tests ONLY. No parser, no CLI, no template edits, no migration (those are Orders 02+). Requires the approved spec `.agents/docs/specs/20260802-1904-01-ipd-structure-and-linting.spec.md`.
-- Status: reviewed
+- Concern: define ONE machine-readable schema that owns the IPD structural contract (kinds, both enumerated H2 orders, optional-section intervals, metadata-block fields incl. `auto-approved` and the `Order: 0` orchestrator exception, `E-*`/`V-*` id grammar + the allocation watermark, execution/validation field grammar + state tables, lint checkpoints, size thresholds, quarantine + legacy applicability), so the linter, tools, templates, spec, and review workflows all derive from or are checked against it and cannot drift.
+- Scope: the schema module + its own validation tests ONLY. No parser, no CLI, no template edits, no migration (those are Orders 02+). Requires the specification `.agents/docs/specs/20260802-1904-01-ipd-structure-and-linting.spec.md` (a gpt-5.6-revised DRAFT; maintainer approval of the spec is a prerequisite to executing this Set, spec Section 18).
+- Status: to-review
 - Set: ipd-structure
 - Order: 1
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -13,6 +13,7 @@
 
 - 2026-08-02 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): first child of Set `ipd-structure`; establishes the single source of truth so Orders 02 to 06 reference one definition (spec Section 3, Section 8).
 - 2026-08-02 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-004 (E-01 now requires the schema to enumerate the orchestrator heading order, matching the 00 file). Bootstrap manual preflight. No BLOCKER/HIGH. GO - PENDING HUMAN APPROVAL.
+- 2026-08-03 revision (opencode its_direct/pt3-claude-opus-4.8-1m-us): substantive revisions: schema now owns the metadata-block contract (incl. `auto-approved` and the `Order: 0` exception), the `E-*` allocation watermark (Section 5.6), and quarantine semantics (Section 13.3); renamed `## Findings (drivers)` to `## Findings`; enumerated orchestrator order updated to the checklist-after-Goal shape. These SUPERSEDE the earlier GO verdict for readiness; returned to `Status: to-review`; a fresh independent `/plan-review` is required and the revising agent does NOT self-approve.
 
 ## Goal
 
@@ -26,15 +27,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 add `agent_workflows/ipd_schema.py` defining IPD kinds (`child`, `orchestrator`) and, per kind, the ordered required H2 headings + named optional-section intervals.
   - Depends on: none
-  - Expected outcome: importable constants; `child` order matches spec Section 4.3 (13 headings incl. `## Project conventions discovered (Step 0)`), verified against the live template; the `orchestrator` order is enumerated completely (per spec Section 4.2/4.3) and matches the actual orchestrator template shape (as exemplified by `20260802-1944-00-ipd-structure-orchestrator.md`: `## Child IPDs, sequence, and dependencies`, `## Completion criteria`, `## Cross-IPD validation` in place of Findings/Proposed changes, with the execution checklist still immediately after `## Goal` and the validation checklist immediately before the gate).
+  - Expected outcome: importable constants; `child` order matches spec Section 4.3 (13 headings incl. `## Project conventions discovered (Step 0)`, `## Findings` bare, `## Deferred / out of scope (with reason)`), verified against the live template; the `orchestrator` order is enumerated completely (spec Section 4.3, 12 headings) with `## Detailed Implementation Checklist (TODO)` as the H2 IMMEDIATELY AFTER `## Goal` and `## Validation and cross-check (verify before reporting the Set complete)` immediately before the gate, matching `20260802-1944-00-ipd-structure-orchestrator.md`.
   - Execution state: pending
-- [ ] E-02 define the front-matter field contract (required/allowed values incl. `Kind:`, `Status:`, `Set:`/`Order:`) separately from the H2 contract.
+- [ ] E-02 define the metadata-block contract (spec Section 4.4) separately from the H2 contract: required fields (`Date`, `Kind`, `Concern`, `Scope`, `Status`, `Author`), conditional `Set`+`Order`, `Approval`, and `Quarantine`/`Quarantine owner`/`Quarantine follow-up`; recognized `Status` values incl. `auto-approved` (spec Section 9.1); the `Kind: orchestrator` -> `Order: 0` and `Kind: child` -> `Order >= 1` rule; duplicate-field and unknown-field behavior; permitted path/status/kind/order combinations.
   - Depends on: E-01
-  - Expected outcome: a front-matter field spec + validator entry point returning structured errors.
+  - Expected outcome: a metadata-block field spec + validator entry point returning structured errors; recognizes `auto-approved`; rejects an orchestrator `Order != 0` and a child `Order < 1`; rejects a duplicate or unknown field.
   - Execution state: pending
-- [ ] E-03 define the id grammar (`E-[0-9]{2,}`, `V-[0-9]{2,}`, IPD-scoped, monotonic/stable) and the `\b` reference regex.
+- [ ] E-03 define the id grammar (`E-[0-9]{2,}`, `V-[0-9]{2,}`, IPD-scoped, monotonic/stable), the `\b` reference regex, AND the allocation-watermark rules (spec Section 5.6): the `- Highest E allocated: NN` field, next-suffix = watermark + 1, watermark never decreases, watermark >= largest present `E-*` suffix.
   - Depends on: none
-  - Expected outcome: compiled regexes + helpers; matches an id in a filename and in prose; rejects malformed.
+  - Expected outcome: compiled regexes + helpers; matches an id in a filename and in prose; rejects malformed; a watermark helper computes the next suffix from the watermark (not from the max present id) and flags a watermark below a present id.
   - Execution state: pending
 
 ### Task group 2: state model + thresholds
@@ -43,14 +44,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-01
   - Expected outcome: a state-legality function usable by the linter, covering every legal/illegal combination.
   - Execution state: pending
-- [ ] E-05 encode the lint checkpoints (`author|review-finalize|pre-execution|pre-transition|post-transition`), the size thresholds (>5 task groups, >18 E leaves) + `Size assessment` grammar, the open-question grammar (`OQ-*` fields), and the legacy applicability rules.
+- [ ] E-05 encode the lint checkpoints (`author|review-finalize|pre-execution|pre-transition|post-transition`), the size thresholds (>5 task groups, >18 E leaves) + `Size assessment` grammar, the open-question grammar (`OQ-*` fields), the legacy applicability rules, AND the quarantine semantics (spec Section 13.3): the `Quarantine`/`owner`/`follow-up` field trio, quarantine as a non-passing informational disposition distinct from `pass` and `legacy/not evaluated`, and that only nonterminal plans may be quarantined.
   - Depends on: E-01, E-04
-  - Expected outcome: checkpoint-to-required-state mapping + threshold/question/legacy constants, all from this one module.
+  - Expected outcome: checkpoint-to-required-state mapping + threshold/question/legacy/quarantine constants, all from this one module.
   - Execution state: pending
 
 ### Task group 3: tests
 
-- [ ] E-06 add `tests/test_ipd_schema.py` covering the heading orders, front-matter validation, id grammar, both state tables (legal + illegal), thresholds, question grammar, and legacy rules.
+- [ ] E-06 add `tests/test_ipd_schema.py` covering both heading orders, metadata-block validation (incl. `auto-approved`, the `Order: 0` orchestrator exception, duplicate/unknown field), id grammar + watermark rules (next-suffix from watermark, watermark-below-present-id error), both state tables (legal + illegal), thresholds, question grammar, quarantine fields, and legacy rules.
   - Depends on: E-01, E-02, E-03, E-04, E-05
   - Expected outcome: table-driven tests; all pass.
   - Execution state: pending
@@ -61,13 +62,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Project conventions discovered (Step 0)
 
-- Spec source: `.agents/docs/specs/20260802-1904-01-ipd-structure-and-linting.spec.md` Sections 3, 4.2-4.3, 5, 8, 9, 13.
-- The live child template H2 order is at `.agents/workflows/assess/templates/ipd.md` (verified 2026-08-02 to include `## Project conventions discovered (Step 0)`); re-confirm at execution before encoding.
+- Spec source: `.agents/docs/specs/20260802-1904-01-ipd-structure-and-linting.spec.md` Sections 3, 4.2-4.4, 5 (incl. 5.6 watermark), 6.2, 8, 9, 13 (incl. 13.3 quarantine).
+- The live child template H2 order is at `.agents/workflows/assess/templates/ipd.md` (verified 2026-08-02 to include `## Project conventions discovered (Step 0)`, bare `## Findings`, `## Deferred / out of scope (with reason)`); re-confirm at execution before encoding. The orchestrator template currently places its execution checklist near the bottom; the schema encodes the CORRECTED order (checklist immediately after `## Goal`) which Order 04 applies to the template.
 - Package layout: modules live in `agent_workflows/`; tests in `tests/` with table-driven style (see `tests/test_installer.py`).
 - Maintainer scope caveat (spec header): the schema is a PROPORTIONATE single-source-of-truth (a constants/spec module + parity tests), NOT a heavyweight schema-engine; keep it light.
 - House rule: no em/en dashes in authored Markdown.
 
-## Findings (drivers)
+## Findings
 
 | ID | Severity | Remediation Risk | Persona | Area | Finding | Evidence |
 |----|----------|------------------|---------|------|---------|----------|
@@ -78,8 +79,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 | Step | Source finding IDs | Change | Files | Remediation Risk | Validation |
 |------|--------------------|--------|-------|------------------|------------|
-| 1 | C1-1 | schema module (kinds, headings, front matter, ids) | `agent_workflows/ipd_schema.py` | Low | E-01..E-03 tests |
-| 2 | C1-2 | state tables + checkpoints + thresholds + question/legacy rules | `agent_workflows/ipd_schema.py` | Low | E-04, E-05 tests |
+| 1 | C1-1 | schema module (kinds, both H2 orders, metadata block, ids + watermark) | `agent_workflows/ipd_schema.py` | Low | E-01..E-03 tests |
+| 2 | C1-2 | state tables + checkpoints + thresholds + question/legacy/quarantine rules | `agent_workflows/ipd_schema.py` | Low | E-04, E-05 tests |
 | 3 | C1-1 | tests | `tests/test_ipd_schema.py` | Low | E-06, E-07 |
 
 ## Deferred / out of scope (with reason)
@@ -91,7 +92,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Scope check
 
 - Over-scope: none - a schema module + its tests.
-- Under-scope: MUST define headings+order, front matter, id grammar, both state tables, checkpoints, thresholds, question + legacy rules as importable, tested primitives.
+- Under-scope: MUST define both H2 orders, the metadata block (incl. `auto-approved` and the `Order: 0` exception), id grammar + allocation watermark, both state tables, checkpoints, thresholds, question + quarantine + legacy rules as importable, tested primitives.
 
 ## Required tests / validation
 
@@ -115,15 +116,15 @@ None beyond code + tests in this child; the spec is the authority. Templates/`ip
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: `ipd_schema.py` importable; test asserts `child` H2 order equals the live `ipd.md` order (incl. Step 0); paste the assertion output.
+  - Required evidence: `ipd_schema.py` importable; test asserts `child` H2 order equals the live `ipd.md` order (incl. Step 0, bare `## Findings`) AND the `orchestrator` order has the execution checklist immediately after `## Goal`; paste the assertion output.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: front-matter validator rejects a missing `Kind:`/bad `Status:` with a precise message; paste test output.
+  - Required evidence: metadata-block validator rejects a missing `Kind:`/bad `Status:`, accepts `auto-approved`, rejects an orchestrator `Order != 0` and a child `Order < 1`, and rejects a duplicate/unknown field, each with a precise message; paste test output.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: id regex matches `E-01`/`V-12` in a filename and in prose, rejects `E-1`/`X-01`; paste test output.
+  - Required evidence: id regex matches `E-01`/`V-12` in a filename and in prose, rejects `E-1`/`X-01`; watermark helper returns next suffix = `Highest E allocated + 1` (not max present id) and flags a watermark below a present id; paste test output.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
@@ -131,7 +132,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: checkpoint map, thresholds (>5 groups / >18 leaves), `OQ-*` grammar, and legacy rules present and tested; paste output.
+  - Required evidence: checkpoint map, thresholds (>5 groups / >18 leaves), `OQ-*` grammar, legacy rules, and the quarantine field trio + non-passing-informational disposition present and tested; paste output.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06

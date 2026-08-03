@@ -1,18 +1,18 @@
 # Specification: IPD structure, stable E-*/V-* mapping, lifecycle state, and deterministic linting
 
 - Date: 2026-08-02
-- Status: DRAFT for maintainer approval; not yet an approved convention
+- Status: DRAFT (gpt-5.6-revised) pending maintainer review and approval; NOT approved and NOT adopted as a convention
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us), original draft
-- Revised by: an external gpt-5.6 review (revision + change-rationale filed under the research bundle below); the maintainer adopted the revised version as the working spec on 2026-08-02
+- Revised by: an external gpt-5.6 review (revision + change-rationale filed under the research bundle below). The maintainer asked to LOOK AT this gpt-5.6-revised draft; the maintainer has NOT formally approved it and has NOT adopted it as the working spec. It remains a draft pending maintainer review and approval.
 - Origin: checklist-placement and instruction-audit research study
-- Implementation state: no IPD has executed against this specification
-- Scope: new and nonterminal Implementation Plan Documents (IPDs); legacy terminal IPDs are grandfathered as defined in Section 12
+- Implementation state: no IPD has executed against this specification. Formal maintainer approval of THIS specification is an explicit prerequisite to executing the implementation IPD Set (see Section 18).
+- Scope: new and nonterminal Implementation Plan Documents (IPDs); legacy terminal IPDs are grandfathered as defined in Section 13
 
-Evidence base: `.agents/docs/research/20260731-checklist-placement/`, containing three independent model reports, a consolidated reconciliation, and the gpt-5.6 revision + change-rationale that produced this version. This specification adopts the study's high-confidence recommendations and makes additional engineering decisions needed to produce an implementable, deterministic contract.
+Evidence base: `.agents/docs/research/20260731-checklist-placement/`, containing three independent model reports, a consolidated reconciliation, and the gpt-5.6 revision + change-rationale that produced this version. This draft takes up the study's high-confidence recommendations and makes additional engineering decisions needed to produce an implementable, deterministic contract, subject to maintainer review.
 
 Maintainer scope caveats applied to the implementation IPD Set (not open design questions, but boundaries on how far to go):
 
-- The "one canonical machine-readable schema" of Section 3 is adopted as a strong SHOULD and a direction, NOT a mandate to build a heavyweight schema-and-generator subsystem if a proportionate mechanism (for example one shared constants module plus parity tests) achieves single-source-of-truth. The implementation IPD chooses the lightest mechanism that prevents cross-file drift; it MUST NOT balloon the Set into a schema-engine project.
+- The "one canonical machine-readable schema" of Section 3 is a strong SHOULD and a direction, NOT a mandate to build a heavyweight schema-and-generator subsystem if a proportionate mechanism (for example one shared constants module plus parity tests) achieves single-source-of-truth. The implementation IPD chooses the lightest mechanism that prevents cross-file drift; it MUST NOT balloon the Set into a schema-engine project.
 - The canonical H2 sequence in Section 4.3 was VERIFIED against the current child template (`.agents/workflows/assess/templates/ipd.md`) on 2026-08-02 and matches it, including `## Project conventions discovered (Step 0)` which the original draft had dropped. The implementation IPD's discovery step MUST re-confirm the live template order at execution time before generating anything.
 
 ## 1. Purpose and problem statement
@@ -53,8 +53,9 @@ One machine-readable IPD schema MUST be the canonical source for:
 - required and optional headings by kind;
 - heading order and permitted optional-section intervals;
 - exact checklist heading text;
-- front-matter fields and allowed values;
+- metadata-block fields and allowed values (see Section 4.4);
 - identifier grammar;
+- the E-* allocation watermark field and its rules (see Section 5.6);
 - execution and validation field grammar;
 - lint checkpoints and legal state combinations;
 - warning thresholds;
@@ -81,16 +82,20 @@ Required section headings are top-level H2 nodes outside those constructs. “Im
 
 ### 4.2 Plan-kind selection
 
-A canonical front-matter field MUST identify the IPD kind. At minimum, the schema MUST distinguish ordinary child IPDs from orchestrator IPDs. The linter MUST select the heading schema from this field and MUST reject a missing or unknown kind for new IPDs.
+A canonical metadata-block field (`- Kind:`, see Section 4.4) MUST identify the IPD kind. At minimum, the schema MUST distinguish ordinary child IPDs from orchestrator IPDs. The linter MUST select the heading schema from this field and MUST reject a missing or unknown kind for new IPDs.
 
-The ordinary and orchestrator templates MAY have different complete H2 sequences, but both MUST satisfy these invariants:
+The ordinary and orchestrator templates have different complete H2 sequences (both fully enumerated in Section 4.3), but both MUST satisfy these invariants:
 
 - the execution checklist heading occurs exactly once and is the next H2 after `## Goal`;
 - the validation checklist heading occurs exactly once and is the H2 immediately before `## Approval and execution gate`.
 
-### 4.3 Front matter and H2 order are separate contracts
+Both invariants apply to the orchestrator kind as well as the child kind. The orchestrator's coordination sections (`## Child IPDs, sequence, and dependencies`, `## Completion criteria`, `## Cross-IPD validation`) follow the execution checklist, not precede it.
 
-Front matter is not an H2 section and MUST be validated separately. The ordinary child-IPD H2 sequence is:
+### 4.3 The metadata block and H2 order are separate contracts
+
+The metadata block (Section 4.4) is not an H2 section and MUST be validated separately. Both H2 sequences below match the live templates verified on 2026-08-02 (`.agents/workflows/assess/templates/ipd.md` and `.agents/workflows/assess/templates/orchestrator-ipd.md`), except that the orchestrator's execution checklist is moved to immediately after `## Goal` to satisfy the Section 4.2 invariant (the live orchestrator template currently places it near the bottom, a defect the implementation Set repairs; see Order 04).
+
+The ordinary child-IPD H2 sequence is:
 
 1. `## Workflow history`
 2. `## Goal`
@@ -98,7 +103,7 @@ Front matter is not an H2 section and MUST be validated separately. The ordinary
 4. `## Project conventions discovered (Step 0)`
 5. `## Findings`
 6. `## Proposed changes (ordered, validatable)`
-7. `## Deferred / out of scope`
+7. `## Deferred / out of scope (with reason)`
 8. `## Scope check`
 9. `## Required tests / validation`
 10. `## Spec / documentation sync`
@@ -106,11 +111,62 @@ Front matter is not an H2 section and MUST be validated separately. The ordinary
 12. `## Validation and cross-check (verify before reporting done)`
 13. `## Approval and execution gate`
 
-Before implementation, the implementation IPD MUST compare this sequence with the current canonical child template. If `## Project conventions discovered (Step 0)` or any other existing required section is intentionally being removed or renamed, that change MUST be recorded as a separate design decision rather than occurring incidentally through template generation.
+The orchestrator-IPD H2 sequence is:
 
-The orchestrator sequence MUST be enumerated completely in the canonical schema. “Uses its own order” without an enumerated schema is not sufficient.
+1. `## Workflow history`
+2. `## Goal`
+3. `## Detailed Implementation Checklist (TODO)`
+4. `## Child IPDs, sequence, and dependencies`
+5. `## Completion criteria (the whole Set is done only when)`
+6. `## Cross-IPD validation`
+7. `## Deferred / out of scope (with reason)`
+8. `## Scope check`
+9. `## Required tests / validation`
+10. `## Open questions`
+11. `## Validation and cross-check (verify before reporting the Set complete)`
+12. `## Approval and execution gate`
+
+Heading names are the live-template names, chosen as the single exact contract for both spec and templates: `## Findings` (bare), `## Deferred / out of scope (with reason)`, `## Project conventions discovered (Step 0)`. The child and orchestrator validation headings are intentionally kind-specific: the child uses `## Validation and cross-check (verify before reporting done)` and the orchestrator uses `## Validation and cross-check (verify before reporting the Set complete)`. The linter selects the correct validation-heading text by kind. Both are the H2 immediately before `## Approval and execution gate`.
+
+The orchestrator omits `## Findings`, `## Proposed changes (ordered, validatable)`, `## Spec / documentation sync`, and `## Project conventions discovered (Step 0)` (it changes no product files itself) and adds the three coordination sections. Both sequences are enumerated completely in the canonical schema; "uses its own order" without an enumerated schema is not sufficient.
+
+Before implementation, the implementation IPD MUST compare both sequences with the current canonical templates. Any intentional removal or rename of an existing required section MUST be recorded as a separate design decision rather than occurring incidentally through template generation. Moving the orchestrator execution checklist to immediately after `## Goal` is such a recorded decision (Order 04).
 
 Optional H2 sections, if any, MUST be named explicitly and assigned a permitted interval between two required headings. Unenumerated H2 sections MUST produce an error for new IPDs unless the schema explicitly permits extension headings.
+
+### 4.4 The metadata block
+
+The repository's IPDs carry a bullet-list metadata block, NOT YAML front matter. This specification retains the bullet metadata block; repository evidence (every tracked IPD and both live templates) does not justify migrating to YAML. The term "YAML front matter" in this specification refers ONLY to actual YAML front matter, which is a Markdown construct the parser ignores for structural checks (Section 4.1); the parser MUST NOT treat the bullet metadata block as YAML.
+
+Physical location: the metadata block is the contiguous run of top-level `- Field: value` bullet lines immediately following the H1 title and preceding the first H2 (`## Workflow history`). An HTML comment block MAY follow the metadata block before the first H2 without breaking it.
+
+Field syntax: one field per line, `- <Field>: <value>`, `<Field>` in the exact case shown below. A field appearing more than once is a duplicate-field error. A `- <Field>:` line whose `<Field>` is not a recognized field is an unknown-field error for new IPDs unless the schema explicitly permits extension fields.
+
+Required fields (all IPDs): `Date`, `Kind`, `Concern`, `Scope`, `Status`, `Author`.
+
+Optional field (all IPDs): `Highest E allocated` (the allocation watermark, Section 5.6; REQUIRED once any `E-*` has been assigned).
+
+Conditional fields:
+
+- `Set` and `Order` are REQUIRED together when the IPD belongs to an ordered Set and MUST both be absent otherwise; one present without the other is an error.
+- `Approval` is REQUIRED when and only when `Status: approved`; it records the human sign-off (for example `approved by <name> <date>`). It MUST be absent for every other status.
+- `Quarantine`, `Quarantine owner`, and `Quarantine follow-up` are REQUIRED together on a quarantined nonterminal plan (Section 13.3) and MUST all be absent otherwise; any one present without the other two is an error.
+
+Field rules:
+
+- `Kind`: one of `child` or `orchestrator`. Missing or unknown kind is an error for new IPDs.
+- `Status`: one of the recognized readiness values (Section 9.1); it is the single source of truth for readiness. Directories carry disposition; `Status` carries readiness.
+- `Set`: a lowercase-kebab identifier shared by the ordered Set.
+- `Order`: an integer. For `Kind: orchestrator`, `Order` MUST be `0` (the orchestrator exception to the otherwise 1-based child rule). For `Kind: child`, `Order` MUST be an integer `>= 1`. An orchestrator with `Order` other than `0`, or a child with `Order: 0` or a non-positive `Order`, is an error.
+
+Permitted path/status/kind/order combinations:
+
+- A pre-terminal `Status` (Section 9.1) requires the file to live under `.agents/plans/pending/` (or the standing `reusable/` directory for `Status: reusable`).
+- A terminal `Status` (`executed`, `superseded`, `not-executed`) requires the file to live in the matching terminal directory; `Status` mirrors the directory.
+- `Kind: orchestrator` requires `Order: 0`; `Kind: child` requires `Order >= 1`.
+- Any combination of persisted `Status`, directory, kind, and requested lint checkpoint that the schema does not permit MUST be an error (Section 9.1).
+
+The metadata block is validated separately from the H2 order. A metadata-block error and an H2-order error are distinct diagnostics.
 
 ## 5. Stable execution and validation identifiers
 
@@ -123,7 +179,7 @@ Optional H2 sections, if any, MUST be named explicitly and assigned a permitted 
 - More than 99 items remains syntactically representable, although the plan-size warning and semantic review should make such a plan exceptional.
 - An identifier is stable once assigned. Reordering an item MUST NOT change its identifier.
 - Gaps are legal and MUST NOT trigger renumbering.
-- New items receive the next unused numeric suffix greater than the highest suffix previously assigned in that IPD.
+- New items receive the next unused numeric suffix greater than the highest suffix EVER assigned in that IPD, as recorded by the allocation watermark of Section 5.6, not merely the highest suffix currently present. This survives deletion of the current highest item.
 
 ### 5.2 Execution checklist grammar
 
@@ -213,12 +269,30 @@ The linter checks presence and state consistency. It MUST NOT claim that evidenc
 
 Checkboxes outside the execution and validation sections are governed by their section-specific schema. The linter MUST NOT misclassify approval-gate, reviewer, or other permitted checkboxes as `E-*` or `V-*` items. Inside the execution section, every task-list leaf MUST be an `E-*` item. Inside the validation section, every task-list leaf MUST be a `V-*` item.
 
+### 5.6 Allocation watermark (never reuse a deleted suffix)
+
+Pre-approval deletion of the current highest `E-*` item and its untouched pending `V-*` skeleton is permitted (Section 6.1). Without a persistent record, the remaining document would not reveal that the deleted suffix was ever used, and a later `sync` could reuse it, violating stable and monotonically increasing identity.
+
+To prevent reuse, each IPD carries an allocation watermark in its metadata block:
+
+```markdown
+- Highest E allocated: NN
+```
+
+- `NN` is the largest numeric suffix EVER assigned to an `E-*` item in this IPD, whether or not that item still exists.
+- The field is REQUIRED once any `E-*` item has been assigned; before the first `E-*` is assigned it MAY be `00` or absent (the schema fixes which; the recommended initial value is `00`).
+- `aw ipd sync` MUST allocate the next suffix as `Highest E allocated + 1` and MUST then advance `Highest E allocated` to the newly allocated value. It MUST NOT decrease the watermark.
+- The watermark MUST be greater than or equal to the largest `E-*` suffix currently present in the document; a watermark smaller than a present `E-*` suffix is an error.
+- Deleting the current highest `E-*` item MUST NOT decrease the watermark; the tombstone survives as the watermark value.
+
+The watermark is the chosen lightweight persistent mechanism (an explicit per-IPD tombstone), preferred over per-item tombstone rows because it adds one metadata line rather than retaining dead checklist rows. The canonical schema owns the field definition, the parser reads it, `sync` maintains it, the templates include it, and Section 16.2 tests deleting the highest item and then adding another to confirm no reuse.
+
 ## 6. Tool-assisted authoring
 
 The `aw ipd` command group SHOULD provide separate, explicit operations:
 
 - `aw ipd scaffold`: create a new conformant IPD skeleton from the canonical schema and template;
-- `aw ipd sync`: assign IDs to new execution leaves, add missing pending validation skeletons, and report inconsistencies without changing existing stable IDs;
+- `aw ipd sync`: assign IDs to new execution leaves, maintain the allocation watermark, add missing pending validation skeletons, and report inconsistencies without changing existing stable IDs;
 - `aw ipd lint`: perform read-only deterministic checks.
 
 ### 6.1 Synchronization safety
@@ -228,11 +302,23 @@ The `aw ipd` command group SHOULD provide separate, explicit operations:
 - It MUST preserve every existing `E-*` and `V-*` identifier.
 - It MUST preserve nonempty `Required evidence:`, `Observed evidence:`, notes, results, and checkbox state.
 - It MUST NOT reorder user-authored actions or validation rows unless an explicit safe formatting operation is separately requested.
-- It MAY remove a pending `V-*` row automatically only when its matching `E-*` was removed before approval and the validation row contains no observed evidence, nonpending result, or manual content.
+- It MAY remove a pending `V-*` row automatically only when its matching `E-*` was removed before approval and the validation row contains no observed evidence, nonpending result, or manual content. Removing the row MUST NOT decrease the allocation watermark (Section 5.6).
 - It MUST refuse destructive synchronization after execution has begun.
 - If an approved or executing plan requires structural changes, the tool MUST stop and require the plan's existing amendment/re-review workflow, including a workflow-history entry.
 
 Authors MAY write action text manually. They SHOULD use `aw ipd sync` rather than hand-assigning identifiers or copying validation skeletons.
+
+### 6.2 Writing-command safety contract
+
+`aw ipd scaffold` and `aw ipd sync` are the only `aw ipd` operations that write files (`aw ipd lint` is read-only, Section 10). Both MUST follow this safety contract, defined here rather than in implementation discovery:
+
+- Default behavior is preview/dry-run: the command prints the diff or the file it WOULD write and makes no filesystem change unless `--apply` (or the repository's established apply flag) is passed explicitly. This mirrors the repository's existing write-tool precedent (dry-run by default, explicit `--apply`).
+- `aw ipd scaffold` MUST refuse to overwrite an existing path unless an explicit overwrite flag is passed; the default is refusal with an actionable diagnostic.
+- Writes MUST be atomic or recoverable (for example write-to-temp-then-rename), so an interrupted apply never leaves a partially written IPD.
+- `aw ipd sync` MUST preserve all authored content per Section 6.1 and MUST refuse to write after execution has begun (Section 6.1), directing the author to the amendment/re-review workflow.
+- Both commands MUST emit actionable diagnostics and use the exit-code contract of Section 10 (`0` success, `1` a refusal or conformance problem the caller must fix, `2` invocation/internal failure); an internal failure MUST NOT be reported as a successful write.
+
+The canonical schema and Order 03 own the exact flag spellings; the behavior above is fixed by this specification and is tested (Section 16.2).
 
 ## 7. Blocking-question grammar
 
@@ -292,6 +378,14 @@ The thresholds are warnings and review triggers, not targets. Authors MUST NOT p
 ### 9.1 Persisted status versus lint checkpoint
 
 The plan's persisted `Status:` and the linter's checkpoint are distinct concepts. `Status:` records the repository lifecycle state. A lint checkpoint specifies the transition or review boundary being evaluated.
+
+The persisted readiness vocabulary is the repository's existing vocabulary (authoritative source: `agent_workflows/plans.py`; DECISIONS D52 and D65) and MUST be preserved unless a separate migration decision changes it. The recognized values are:
+
+- pre-terminal (file lives in `.agents/plans/pending/`): `draft`, `to-review`, `reviewed`, `approved`, `auto-approved`;
+- terminal (file lives in the matching directory; `Status` mirrors the directory): `executed`, `superseded`, `not-executed` (`done` is an accepted alias for `executed`);
+- standing: `reusable`.
+
+`auto-approved` is a real, supported value (D65): a sibling of `approved` at the ready-to-execute tier that records an automated checker (not a human) clearing a low-complexity mechanical corrective; it is NOT human approval. The schema and linter MUST recognize it. The metadata block (Section 4.4) carries these values in the `- Status:` field, which is the single source of truth for readiness; the orchestrator exception is that `Kind: orchestrator` uses `Order: 0` while children use `Order >= 1`.
 
 The required lint checkpoints are:
 
@@ -393,7 +487,7 @@ The transaction SHOULD be implemented so that failure before commit leaves an ob
 
 ## 12. Review integration and enforcement
 
-Once `aw ipd lint` exists, `plan-review`, `plan-review-long`, and the execution/lifecycle workflows MUST invoke it at their applicable checkpoints. They MUST NOT replace invocation with a prose instruction to “apply the same checks.”
+Once `aw ipd lint` exists, `plan-review`, `plan-review-long`, and the authoritative execution/lifecycle enforcement path (Section 12.1) MUST invoke it at their applicable checkpoints. They MUST NOT replace invocation with a prose instruction to “apply the same checks.”
 
 - Structural preflight runs before semantic review.
 - A structural error becomes a distinct structural finding and MUST be repaired before semantic review can produce a passing verdict.
@@ -406,14 +500,32 @@ During the bootstrap implementation that creates the tool, the implementation IP
 
 Pre-commit or CI integration MAY be deferred from version 1, provided all authoritative review, execution, and transition workflows invoke the linter unconditionally. Repository hook integration remains recommended defense in depth.
 
+### 12.1 The authoritative execution and lifecycle enforcement path
+
+Repository fact verified on 2026-08-02: there is NO authoritative general IPD execution or pre-transition workflow in `.agents/workflows/`. `verify-execution` is POST-execution only (it cross-checks an already-executed plan and never gates `pre-execution` or `pre-transition`). Therefore an "execution/lifecycle workflow docs" reference cannot be satisfied by an existing file, and the design MUST create the missing authoritative path rather than point at nothing.
+
+Decision: the implementation Set creates a new authoritative execution-and-transition workflow document, `.agents/workflows/ipd-lifecycle/ipd-lifecycle.md` (with a sibling `README.md`), owned by Order 05. It is the single authoritative entry point for beginning execution of an approved IPD and for performing the terminal lifecycle transaction. Its exact lint checkpoints are:
+
+- at execution start, it MUST run `aw ipd lint --phase pre-execution FILE`; execution proceeds only on exit `0`;
+- at the terminal transaction, it MUST run `aw ipd lint --phase pre-transition FILE`, perform the Section 11 transaction only on exit `0`, then run `aw ipd lint --phase post-transition MOVED_FILE`.
+
+Fail-closed rules for this path:
+
+- exit `1` (conformance error) blocks the transition and is surfaced as a structural finding to repair; the workflow MUST NOT proceed;
+- exit `2` (invocation/parser/internal failure) blocks the transition and MUST NOT be treated as a pass; the tool being unable to run is a hard stop, not a skip;
+- before the lifecycle commit, a failure leaves the plan in its pre-transition directory and status with no partial move (recoverable by re-running after repair);
+- after the lifecycle commit, a failing `post-transition` check is reported as incomplete lifecycle finalization and repaired with a corrective follow-up; it is never reported as a successful transition.
+
+The only permitted exception is the labeled bootstrap exception (`machine preflight unavailable: bootstrap`) that applies solely while this implementation Set is creating the tool, and it ends when `aw ipd lint` exists. Section 15 lists this workflow as a required implementation component and Order 05 names the exact file to create; Section 16.3 and 16.5 test the fail-closed behavior for exit `1` and exit `2` and the full `post-transition` consistency check.
+
 ## 13. Rollout and legacy behavior
 
 ### 13.1 New and existing nonterminal plans
 
 - Every IPD created after adoption MUST use the new schema.
-- Existing nonterminal IPDs MUST be migrated, re-authored, or explicitly quarantined before authoritative review or execution under the new convention.
-- Repository-wide lint SHOULD target new and migrated nonterminal IPDs.
-- The already drafted, uncommitted research-org IPD Set is re-authored after this IPD-system Set lands, consistent with the maintainer's IPD-system-first sequencing decision.
+- Existing nonterminal IPDs MUST be migrated, re-authored, or explicitly quarantined (Section 13.3) before authoritative review or execution under the new convention.
+- Repository-wide lint SHOULD target new and migrated nonterminal IPDs and MUST report quarantined plans explicitly (Section 13.3), never silently skipping them or calling them conforming.
+- The already drafted, uncommitted research-org IPD Set is re-authored after this IPD-system Set lands, consistent with the maintainer's IPD-system-first sequencing decision. During this bootstrap it is explicitly quarantined (Section 13.3), not migrated in place, because it is deliberately not being pursued in its current shape and will be re-authored to the new schema immediately after this Set. Its bootstrap disposition is therefore `quarantined` with reason "pending re-authoring to the new schema after the IPD-system Set", owner "the IPD-system Set follow-up", and follow-up condition "re-author to the new schema".
 
 ### 13.2 Grandfathered terminal plans
 
@@ -426,6 +538,22 @@ Direct lint of a grandfathered file MUST behave explicitly rather than silently 
 - with an explicit migration option or after manual migration, run the current schema.
 
 Legacy files MUST NOT be described as conforming to the new contract merely because they were skipped.
+
+### 13.3 Quarantine of nonterminal plans
+
+Quarantine is a first-class disposition for a nonterminal IPD that is not yet migrated and not being pursued in its current shape, so it must not block adoption yet must never be silently skipped or reported as conforming. Quarantine semantics are defined here and in Order 01 (schema), implemented in Order 02 (linter behavior), and applied in Order 06 (migration).
+
+Representation: quarantine is declared in the metadata block (Section 4.4) by a `- Quarantine:` field whose value is a short reason, together with `- Quarantine owner:` and `- Quarantine follow-up:` fields. A plan with a `- Quarantine:` field is a quarantined plan; the three fields are required together (one present without the others is an error).
+
+- Which plans may be quarantined: only nonterminal (pre-terminal) IPDs. A terminal plan is grandfathered (Section 13.2), not quarantined.
+- Who authorizes it: the maintainer, or an agent acting under an explicit maintainer decision recorded in the plan's workflow history; the recorded owner names the authorizer or triggering follow-up.
+- Location: the plan REMAINS in `.agents/plans/pending/` (it is not moved); the metadata field marks it. This avoids inventing a new directory and keeps the plan visible on the board.
+- Direct lint behavior (`aw ipd lint FILE` on a quarantined file): report an explicit `quarantined` disposition and a non-passing informational outcome (distinct from both `pass` and `legacy/not evaluated`); do not run the full new-schema conformance checks against it and do not report it as conforming.
+- Repository-wide lint behavior: report quarantined plans in a distinct `quarantined` category with their recorded reason; they are neither counted as conforming nor silently dropped. The repository scan MUST distinguish conforming, quarantined, grandfathered, and erroneous plans.
+- Outcome classification: `quarantined` is a non-passing informational outcome; it is not `pass`, not a warning, and not a hard error. Repository-wide lint MUST NOT report overall success while treating a quarantined plan as if it conformed, and MUST make the quarantined count visible.
+- Recorded fields: `- Quarantine:` (reason), `- Quarantine owner:` (owner or trigger), `- Quarantine follow-up:` (the expiry or follow-up condition, for example "re-author to the new schema after the IPD-system Set").
+
+Quarantine MUST NOT be used to pass a plan that should be an error; a structurally broken plan that is being actively pursued is an error, not a quarantine.
 
 ## 14. Canonical authored example
 
@@ -477,20 +605,20 @@ The canonical no-open-questions marker MUST be defined once in the schema. The e
 
 The implementation IPD Set MUST cover:
 
-1. the canonical machine-readable schema and schema tests;
-2. ordinary child and orchestrator templates generated from or checked against the schema;
+1. the canonical machine-readable schema and schema tests, including the metadata-block contract (Section 4.4), the allocation watermark (Section 5.6), and quarantine semantics (Section 13.3);
+2. ordinary child and orchestrator templates generated from or checked against the schema, with the orchestrator execution checklist immediately after `## Goal`;
 3. `ipd-spec` updates and removal of ambiguous “near” language;
-4. `aw ipd scaffold`;
-5. non-destructive `aw ipd sync`;
-6. read-only `aw ipd lint` with explicit checkpoints;
-7. the execution/validation state model and stable-ID rules;
+4. `aw ipd scaffold` with the writing-command safety contract (Section 6.2);
+5. non-destructive `aw ipd sync` with watermark maintenance (Section 5.6) and the writing-command safety contract (Section 6.2);
+6. read-only `aw ipd lint` with explicit checkpoints, legacy disposition, and quarantine disposition;
+7. the execution/validation state model and stable-ID rules including the allocation watermark;
 8. structured open-question and size-exception grammar;
 9. lifecycle-gate and post-transition fixes;
-10. structural-preflight integration into `plan-review`, `plan-review-long`, `review-rubric`, and execution/lifecycle workflows;
-11. parity tests for embedded and standalone rubric/report-template content;
+10. structural-preflight integration into `plan-review`, `plan-review-long`, `review-rubric`, and the NEW authoritative execution-and-transition workflow `.agents/workflows/ipd-lifecycle/ipd-lifecycle.md` (Section 12.1), which does not exist today and MUST be created;
+11. parity tests for embedded and standalone rubric/report-template content, and replacement of the always-loaded structural prose in `agent_workflows/engine.py` `agents_pointer_prose()` (and the regenerated `AGENTS.md`) with a thin pointer;
 12. documentation, DECISIONS pointer, and thin `AGENTS.md` pointer;
-13. migration or quarantine of existing nonterminal IPDs;
-14. dogfooding against this repository's nonterminal IPDs;
+13. migration or explicit quarantine (Section 13.3) of existing nonterminal IPDs, including the explicit bootstrap quarantine of the research-org Set;
+14. dogfooding against this repository's nonterminal IPDs, distinguishing conforming, quarantined, grandfathered, and erroneous plans;
 15. tests and fixtures defined in Section 16.
 
 The E-*/V-* convention remains IPD-specific and does not alter the research-org convention directly. The research-org IPD Set is re-authored to this shape after the IPD-system Set lands.
@@ -499,35 +627,59 @@ The E-*/V-* convention remains IPD-specific and does not alter the research-org 
 
 The implementation MUST include table-driven fixtures covering at least:
 
-### 16.1 Parser and heading tests
+Each case below is mandatory. The implementation IPD Set MUST map each case to an explicit execution (`E-*`) and validation (`V-*`) item; a case MUST NOT be absorbed silently into a broad phrase such as "checkpoint cases" or "full state tests".
 
-- conforming ordinary and orchestrator plans;
-- missing, duplicate, renamed, and out-of-order required headings;
-- an apparent H2 inside fenced code, indented code, and block quotation;
-- optional headings in allowed and disallowed intervals;
-- invalid or missing plan kind;
-- front matter containing heading-like text.
+### 16.1 Parser, heading, and metadata tests
 
-### 16.2 Identifier and synchronization tests
+- conforming ordinary (child) plan;
+- conforming orchestrator plan;
+- missing required heading;
+- duplicate required heading;
+- renamed required heading;
+- out-of-order required headings;
+- an apparent H2 inside a fenced code block;
+- an apparent H2 inside an indented code block;
+- an apparent H2 inside a block quotation;
+- an apparent H2 inside YAML front matter;
+- a heading-like or checkbox-like line inside the canonical bullet metadata block treated as metadata, not structure;
+- optional heading in an allowed interval (accepted);
+- optional heading in a forbidden interval (rejected);
+- invalid or unknown plan kind;
+- missing plan kind;
+- invalid or missing required metadata field;
+- duplicate metadata field;
+- unknown metadata field for a new IPD;
+- an orchestrator with `Order` other than `0`, and a child with `Order: 0` or non-positive `Order`, each rejected;
+- an incompatible status/directory/kind/checkpoint combination rejected.
 
-- duplicate and malformed IDs;
-- missing, duplicate, and orphaned validation mappings;
+### 16.2 Identifier, watermark, and synchronization tests
+
+- duplicate IDs;
+- malformed IDs;
+- missing validation mapping;
+- duplicate validation mapping;
+- orphaned validation mapping (a `V-*` with no matching `E-*`);
 - more than 99 syntactically valid IDs;
 - reordering without renumbering;
 - adding an item assigns the next unused suffix;
 - gaps remain stable;
+- deleting the highest assigned `E-*` (and its untouched pending `V-*`) then adding a new item assigns a suffix ABOVE the watermark, never reusing the deleted suffix;
+- a metadata watermark smaller than a present `E-*` suffix is an error;
 - synchronization preserves authored evidence and state;
 - destructive synchronization is refused after execution begins;
-- removed pending draft item removes only its untouched pending validation skeleton.
+- removed pending draft item removes only its untouched pending validation skeleton;
+- every writing command (`scaffold`, `sync`) defaults to dry-run/preview and writes only under explicit apply;
+- `scaffold` refuses to overwrite an existing path without an explicit overwrite flag;
+- an interrupted or failed write leaves no partially written IPD (atomic/recoverable).
 
-### 16.3 State-machine tests
+### 16.3 State-machine and lifecycle tests
 
 - every legal and illegal execution checkbox/state pair;
 - every legal and illegal validation checkbox/result/evidence combination;
-- cross-state conflicts between each E and V pair;
+- every E/V cross-state conflict between a matching pair;
 - checkpoint-specific placeholder rules;
 - `pre-transition` rejects any nonperformed E, nonpassing V, unchecked V, or empty observed evidence;
-- `post-transition` checks status/history/path/commit consistency.
+- `post-transition` checks full status/history/path/commit consistency after the transaction.
 
 ### 16.4 Question and size tests
 
@@ -535,20 +687,29 @@ The implementation MUST include table-driven fixtures covering at least:
 - resolved blocking question accepted with rationale;
 - deferred blocking question rejected;
 - deferred nonblocking question requires owner/trigger and rationale;
-- size warning at each threshold boundary;
-- missing and present exception rationale;
-- standard assessment rejected when thresholds are exceeded.
+- size warning at each threshold boundary (group threshold and leaf threshold);
+- missing exception rationale rejected;
+- present exception rationale accepted;
+- `standard` assessment rejected when a threshold is exceeded.
 
-### 16.5 Enforcement and legacy tests
+### 16.5 Status, enforcement, legacy, quarantine, dash, and parity tests
 
-- authoritative workflows fail closed on linter exit `1` or `2`;
-- bootstrap-unavailable state is labeled accurately;
+- every supported persisted status is recognized, including `auto-approved`;
+- authoritative workflows fail closed on linter exit `1`;
+- authoritative workflows fail closed on linter exit `2`;
+- linter exit `0`, `1`, and `2` are distinct and never conflated;
+- bootstrap-unavailable state is labeled accurately (`machine preflight unavailable: bootstrap`);
 - repository scans skip grandfathered terminal files without calling them conforming;
-- direct legacy-file invocation reports explicit legacy disposition;
+- direct grandfathered-file invocation WITHOUT a legacy option reports explicit `legacy/not evaluated`;
+- explicit reduced legacy checking under the legacy option;
 - migrated legacy file is checked under the current schema;
-- diagnostics contain stable rule code, file, and source location.
+- quarantined nonterminal file reports the explicit `quarantined` disposition (not a pass, not silently skipped);
+- diagnostics contain a stable rule code, file path, line, and column;
+- the no-em/en-dash rule is checked only in authored prose, with code blocks, metadata values, and every intended exempt construct tested as NOT flagged;
+- an intentionally desynchronized parity fixture fails, and a missing required dependency (for example `report-template.md`) fails explicitly;
+- repository dogfood distinguishes conforming, quarantined, grandfathered, and erroneous plans, and never calls a skipped file conforming.
 
-Acceptance requires all tests to pass, parity checks to pass, and dogfood lint to pass for every migrated nonterminal IPD. Semantic review remains a separate acceptance gate.
+Acceptance requires all tests to pass, parity checks to pass, and dogfood lint to pass (conforming plans pass; quarantined and grandfathered plans report their explicit dispositions) for the repository's nonterminal IPDs. Semantic review remains a separate acceptance gate.
 
 ## 17. Deferred experiment and open implementation details
 
@@ -565,15 +726,19 @@ The following implementation details may be resolved in the implementation IPD w
 The following are not open decisions:
 
 - IDs are stable and are never automatically renumbered.
+- The allocation watermark records the highest suffix ever assigned and is never decreased, so a deleted suffix is never reused.
 - Explicit `--phase` is required at transition gates.
 - The linter is read-only and fail-closed in authoritative workflows.
+- The metadata block is a bullet list, not YAML front matter.
+- The authoritative execution-and-transition path is a NEW workflow (`.agents/workflows/ipd-lifecycle/ipd-lifecycle.md`), created by this Set (Section 12.1).
+- Quarantine is a metadata-declared, explicitly reported, non-passing disposition (Section 13.3).
 - Execution and validation remain separate physical sections in version 1.
 - The mutable checklist is never duplicated.
 - Semantic review remains mandatory.
 
 ## 18. Approval and next step
 
-This specification is paused for human approval. After approval, author an orchestrated IPD Set for the components in Section 15. Do not begin implementation before that Set is reviewed and approved under the applicable bootstrap rules.
+This specification is a gpt-5.6-revised DRAFT paused for maintainer review and formal approval; it is NOT approved and NOT adopted. Formal maintainer approval of THIS specification is an explicit prerequisite to executing the implementation IPD Set: the orchestrator and each child MUST NOT be executed until (a) this specification is approved by the maintainer and (b) that Set is itself reviewed and approved under the applicable bootstrap rules. After approval, author or finalize the orchestrated IPD Set for the components in Section 15.
 
 After the IPD-system Set lands:
 

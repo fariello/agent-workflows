@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: bring the human-facing authoring surface into line with the schema: child + orchestrator templates generated-from/checked-against the Order-01 schema, `ipd-spec` updated to remove the ambiguous "near" language and adopt the exact contract, and the three confirmed defects fixed (F-07 checkbox semantics, F-08 circular lifecycle gate, F-09 blocking-question + size-assessment grammar).
 - Scope: template + spec + defect-fix prose/structure, checked against the schema; no new tool logic. Requires Orders 01, 02, 03 executed (schema to check against; `aw ipd lint` from Order 02 to VALIDATE the templates per V-01/V-02; scaffold from Order 03 to generate skeletons); if any is absent, STOP.
-- Status: reviewed
+- Status: to-review
 - Set: ipd-structure
 - Order: 4
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -13,6 +13,7 @@
 
 - 2026-08-02 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `ipd-structure`; aligns the authored artifacts with the schema and fixes the audited defects.
 - 2026-08-02 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (dependency corrected to 01,02,03 in scope + gate, since V-01/V-02 run `aw ipd lint` from Order 02) and PR-004 (E-02 now targets the schema-defined orchestrator order, no fork). Bootstrap manual preflight. No BLOCKER/HIGH. GO - PENDING HUMAN APPROVAL.
+- 2026-08-03 revision (opencode its_direct/pt3-claude-opus-4.8-1m-us): substantive revisions: E-02 now explicitly MOVES the orchestrator template's execution checklist to immediately after `## Goal` (recorded design decision per spec Section 4.3, correcting the live template's bottom placement); the metadata-block/watermark/quarantine field shape is added to the templates; the deterministic-vs-semantic boundary and non-mandate size language are reflected in `ipd-spec`; renamed `## Findings (drivers)` to `## Findings`. These SUPERSEDE the earlier GO verdict for readiness; returned to `Status: to-review`; a fresh independent `/plan-review` is required; the revising agent does NOT self-approve.
 
 ## Goal
 
@@ -24,13 +25,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: templates
 
-- [ ] E-01 update `.agents/workflows/assess/templates/ipd.md` to the exact contract: canonical H2 order, execution checklist immediately after `## Goal` with `E-*` + `Expected outcome:` + `Execution state:` fields, validation immediately before the gate with `V-*` + evidence + `Result:` fields, structured `OQ-*` block, `Size assessment` block.
+- [ ] E-01 update `.agents/workflows/assess/templates/ipd.md` to the exact contract: canonical child H2 order (bare `## Findings`, `## Deferred / out of scope (with reason)`, `## Project conventions discovered (Step 0)`), execution checklist immediately after `## Goal` with `E-*` + `Expected outcome:` + `Execution state:` fields, validation immediately before the gate with `V-*` + evidence + `Result:` fields, structured `OQ-*` block, `Size assessment` block, and the metadata-block shape incl. `Kind`, the `Status` vocabulary with `auto-approved`, and `Highest E allocated:`.
   - Depends on: none
   - Expected outcome: the template passes `aw ipd lint --phase author` and is parity-checked against the schema.
   - Execution state: pending
-- [ ] E-02 update the orchestrator template `.agents/workflows/assess/templates/orchestrator-ipd.md` to the schema-defined orchestrator order (the `## Child IPDs...`/`## Completion criteria`/`## Cross-IPD validation` shape, execution checklist immediately after `## Goal`, validation immediately before the gate) and the same field grammar; orchestrator gate/checklist items are gate checkpoints, not `E-*` leaves.
+- [ ] E-02 update the orchestrator template `.agents/workflows/assess/templates/orchestrator-ipd.md` to the schema-defined orchestrator order (spec Section 4.3): MOVE `## Detailed Implementation Checklist (TODO)` from its current bottom placement to immediately after `## Goal` (the recorded design decision), keep the `## Child IPDs...`/`## Completion criteria`/`## Cross-IPD validation` shape, validation immediately before the gate; apply the same field grammar; orchestrator gate/checklist items are gate checkpoints, not `E-*` leaves.
   - Depends on: E-01
-  - Expected outcome: the orchestrator template passes `aw ipd lint` for kind `orchestrator`, and the schema's orchestrator order matches this template (single source of truth, no fork).
+  - Expected outcome: the orchestrator template's execution checklist is the H2 immediately after `## Goal`; the template passes `aw ipd lint` for kind `orchestrator`; the schema's orchestrator order matches this template (single source of truth, no fork).
   - Execution state: pending
 
 ### Task group 2: spec + defect fixes
@@ -63,7 +64,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Editing the template + ipd-spec is prose/structure; these are the artifacts other IPDs are born from, so correctness here propagates.
 - No em/en dashes in authored Markdown.
 
-## Findings (drivers)
+## Findings
 
 | ID | Severity | Remediation Risk | Persona | Area | Finding | Evidence |
 |----|----------|------------------|---------|------|---------|----------|
@@ -114,11 +115,11 @@ This child IS the spec/template sync. DECISIONS pointer + AGENTS.md pointer land
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste `aw ipd lint --phase author` on the child template = exit 0; cite the E-*/state/OQ/size blocks present.
+  - Required evidence: paste `aw ipd lint --phase author` on the child template = exit 0; cite the E-*/state/OQ/size blocks and the metadata block (incl. `Kind`, `auto-approved` in the Status vocabulary, `Highest E allocated:`) present.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: paste `aw ipd lint` on the orchestrator template (kind orchestrator) = exit 0.
+  - Required evidence: paste a mechanical H2 listing of the orchestrator template showing `## Detailed Implementation Checklist (TODO)` is the H2 immediately after `## Goal`; paste `aw ipd lint` on the orchestrator template (kind orchestrator) = exit 0.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03

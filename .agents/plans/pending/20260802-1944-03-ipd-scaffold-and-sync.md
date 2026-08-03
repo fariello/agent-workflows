@@ -3,8 +3,8 @@
 - Date: 2026-08-02
 - Kind: child
 - Concern: make the fiddly, error-prone parts of the new IPD shape (conformant skeletons, id assignment, matching `V-*` skeletons) a tool operation, so authors never hand-number ids or hand-copy validation rows, and identity is never rewritten.
-- Scope: `aw ipd scaffold` (create) + `aw ipd sync` (reconcile), consuming the Order-01 schema and reusing the Order-02 parser. No review wiring (05), no migration (06). Requires Orders 01, 02 executed; if their symbols are absent, STOP.
-- Status: reviewed
+- Scope: `aw ipd scaffold` (create) + `aw ipd sync` (reconcile), consuming the Order-01 schema and reusing the Order-02 parser, both under the writing-command safety contract (spec Section 6.2) and maintaining the allocation watermark (spec Section 5.6). No review wiring (05), no migration (06). Requires Orders 01, 02 executed; if their symbols are absent, STOP.
+- Status: to-review
 - Set: ipd-structure
 - Order: 3
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -13,6 +13,7 @@
 
 - 2026-08-02 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `ipd-structure`; the authoring ergonomics that keep the bijection convention from becoming hand-work.
 - 2026-08-02 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE; no findings (deps 01,02 correct; stable-id/no-renumber + refuse-destructive-post-execution rules match spec Section 6). Bootstrap manual preflight. GO - PENDING HUMAN APPROVAL.
+- 2026-08-03 revision (opencode its_direct/pt3-claude-opus-4.8-1m-us): substantive revisions: `sync` now MAINTAINS the allocation watermark (next suffix = `Highest E allocated + 1`, never decreased, never reused after deletion; spec Section 5.6), and both commands adopt the explicit writing-command safety contract (dry-run default, explicit apply, overwrite refusal, atomic/recoverable writes; spec Section 6.2), with matching E/V items; added the highest-id-deletion-then-add test; renamed `## Findings (drivers)` to `## Findings`. These SUPERSEDE the earlier GO verdict for readiness; returned to `Status: to-review`; a fresh independent `/plan-review` is required; the revising agent does NOT self-approve.
 
 ## Goal
 
@@ -24,25 +25,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: scaffold
 
-- [ ] E-01 add `aw ipd scaffold` (module `agent_workflows/ipd_authoring.py` + CLI action): create a new conformant skeleton (canonical headings in order for the chosen kind, empty checklists, size-assessment block, no-open-questions marker) from the Order-01 schema.
+- [ ] E-01 add `aw ipd scaffold` (module `agent_workflows/ipd_authoring.py` + CLI action): create a new conformant skeleton (canonical headings in order for the chosen kind, empty checklists, size-assessment block, no-open-questions marker, `Highest E allocated: 00`) from the Order-01 schema, under the writing-command safety contract (spec Section 6.2): dry-run/preview by default, explicit `--apply` to write, REFUSE to overwrite an existing path without an explicit overwrite flag, atomic/recoverable write, actionable diagnostics, exit codes `0`/`1`/`2`.
   - Depends on: none
-  - Expected outcome: a scaffolded file passes `aw ipd lint --phase author`.
+  - Expected outcome: a scaffolded file (via `--apply`) passes `aw ipd lint --phase author`; the default invocation only previews and writes nothing; overwriting an existing path is refused without the overwrite flag.
   - Execution state: pending
 
 ### Task group 2: non-destructive sync
 
-- [ ] E-02 add `aw ipd sync`: assign the next unused suffix to each new execution leaf (monotonic, never renumber existing), generate a matching pending `V-NN` skeleton for each new `E-NN`, and report inconsistencies.
+- [ ] E-02 add `aw ipd sync`: assign the next unused suffix to each new execution leaf FROM THE ALLOCATION WATERMARK (`Highest E allocated + 1`, monotonic, never renumber existing, never reuse a deleted suffix), advance the watermark to the new value (never decrease it), generate a matching pending `V-NN` skeleton for each new `E-NN`, and report inconsistencies; under the writing-command safety contract (dry-run default, explicit `--apply`, atomic write).
   - Depends on: none
-  - Expected outcome: adding two leaves yields the next two ids + two pending V rows; existing ids unchanged; gaps preserved.
+  - Expected outcome: adding two leaves yields the next two ids above the watermark + two pending V rows and advances the watermark; existing ids unchanged; gaps preserved; deleting the highest `E-*` then adding one assigns a suffix ABOVE the watermark, never the deleted suffix.
   - Execution state: pending
-- [ ] E-03 enforce sync safety: preserve nonempty evidence/notes/results/checkbox state; do not reorder authored rows; only auto-remove a pending `V-*` whose matching `E-*` was removed BEFORE approval and which has no observed evidence/nonpending result/manual content; REFUSE destructive sync after execution began (require the amendment/re-review workflow + a workflow-history entry).
+- [ ] E-03 enforce sync safety: preserve nonempty evidence/notes/results/checkbox state; do not reorder authored rows; only auto-remove a pending `V-*` whose matching `E-*` was removed BEFORE approval and which has no observed evidence/nonpending result/manual content, WITHOUT decreasing the watermark (spec Section 5.6); REFUSE destructive sync after execution began (require the amendment/re-review workflow + a workflow-history entry).
   - Depends on: E-02
-  - Expected outcome: post-execution structural change is refused with a clear message; pre-approval orphan pending V is cleanly removed.
+  - Expected outcome: post-execution structural change is refused with a clear message; pre-approval orphan pending V is cleanly removed and the watermark does not decrease.
   - Execution state: pending
 
 ### Task group 3: tests
 
-- [ ] E-04 add `tests/test_ipd_authoring.py`: scaffold conformance, monotonic id assignment, gap stability, V-skeleton generation, evidence/state preservation, refusal after execution, pre-approval orphan removal.
+- [ ] E-04 add `tests/test_ipd_authoring.py`: scaffold conformance + writing-safety (dry-run default, apply writes, overwrite refusal, atomic write), monotonic watermark-based id assignment, gap stability, highest-id-deletion-then-add (no reuse), V-skeleton generation, evidence/state preservation, refusal after execution, pre-approval orphan removal.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: table-driven tests; all pass.
   - Execution state: pending
@@ -58,7 +59,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - `sync` is explicitly NOT a renumber command; there is no auto-renumber (spec Section 2 of the change-rationale).
 - No em/en dashes in authored Markdown.
 
-## Findings (drivers)
+## Findings
 
 | ID | Severity | Remediation Risk | Persona | Area | Finding | Evidence |
 |----|----------|------------------|---------|------|---------|----------|
@@ -106,19 +107,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste a scaffolded file passing `aw ipd lint --phase author`.
+  - Required evidence: paste a scaffolded file (written with `--apply`) passing `aw ipd lint --phase author`; paste the default run showing preview-only (no write); paste the refusal to overwrite an existing path without the overwrite flag.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: paste a sync run adding two leaves -> next two monotonic ids + two pending V rows; existing ids + a gap unchanged.
+  - Required evidence: paste a sync run adding two leaves -> next two ids above the watermark + two pending V rows, the watermark advanced; existing ids + a gap unchanged; paste a run that deletes the highest `E-*` then adds one, showing the new suffix is ABOVE the watermark (deleted suffix not reused).
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: paste (a) refusal of destructive sync after execution began, (b) clean removal of a pre-approval orphan pending V with no manual content, (c) preservation of nonempty evidence on a retained row.
+  - Required evidence: paste (a) refusal of destructive sync after execution began, (b) clean removal of a pre-approval orphan pending V with no manual content and the watermark unchanged, (c) preservation of nonempty evidence on a retained row.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: paste the collected test count covering scaffold/id/gap/V-skeleton/preservation/refusal/orphan cases.
+  - Required evidence: paste the collected test count covering scaffold/writing-safety/watermark-id/gap/deletion-no-reuse/V-skeleton/preservation/refusal/orphan cases.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
