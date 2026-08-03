@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: complete adoption: migrate or quarantine this repo's nonterminal IPDs to the new schema, dogfood `aw ipd lint` across the repo (nonterminal pass; terminal grandfathered), and record the convention (docs + DECISIONS pointer + thin AGENTS.md pointer).
 - Scope: migration of nonterminal plans + dogfood + adoption docs. No new tool/linter logic. Requires Orders 01 to 05 executed; if their tools/wiring are absent, STOP.
-- Status: to-review
+- Status: reviewed
 - Set: ipd-structure
 - Order: 6
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -12,6 +12,7 @@
 ## Workflow history
 
 - 2026-08-02 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): final child of Set `ipd-structure`; proves the convention on the repo's own plans and records adoption.
+- 2026-08-02 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE; no findings (deps 01-05 correct; migrate/quarantine + dogfood + grandfather + thin AGENTS pointer match spec Sections 12/13; relies on Order 02's legacy disposition, now explicitly owned there per PR-003). Bootstrap manual preflight. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 

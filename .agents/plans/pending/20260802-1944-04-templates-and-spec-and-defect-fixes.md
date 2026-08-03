@@ -3,8 +3,8 @@
 - Date: 2026-08-02
 - Kind: child
 - Concern: bring the human-facing authoring surface into line with the schema: child + orchestrator templates generated-from/checked-against the Order-01 schema, `ipd-spec` updated to remove the ambiguous "near" language and adopt the exact contract, and the three confirmed defects fixed (F-07 checkbox semantics, F-08 circular lifecycle gate, F-09 blocking-question + size-assessment grammar).
-- Scope: template + spec + defect-fix prose/structure, checked against the schema; no new tool logic. Requires Orders 01, 03 executed (schema + scaffold to generate/validate templates); if absent, STOP.
-- Status: to-review
+- Scope: template + spec + defect-fix prose/structure, checked against the schema; no new tool logic. Requires Orders 01, 02, 03 executed (schema to check against; `aw ipd lint` from Order 02 to VALIDATE the templates per V-01/V-02; scaffold from Order 03 to generate skeletons); if any is absent, STOP.
+- Status: reviewed
 - Set: ipd-structure
 - Order: 4
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -27,9 +27,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: the template passes `aw ipd lint --phase author` and is parity-checked against the schema.
   - Execution state: pending
-- [ ] E-02 update the orchestrator template `.agents/workflows/assess/templates/orchestrator-ipd.md` to its schema-defined canonical order and the same field grammar (gate items carry no `E-*` ids).
+- [ ] E-02 update the orchestrator template `.agents/workflows/assess/templates/orchestrator-ipd.md` to the schema-defined orchestrator order (the `## Child IPDs...`/`## Completion criteria`/`## Cross-IPD validation` shape, execution checklist immediately after `## Goal`, validation immediately before the gate) and the same field grammar; orchestrator gate/checklist items are gate checkpoints, not `E-*` leaves.
   - Depends on: E-01
-  - Expected outcome: the orchestrator template passes `aw ipd lint` for kind `orchestrator`.
+  - Expected outcome: the orchestrator template passes `aw ipd lint` for kind `orchestrator`, and the schema's orchestrator order matches this template (single source of truth, no fork).
   - Execution state: pending
 
 ### Task group 2: spec + defect fixes
@@ -142,6 +142,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Proposal; human review + approval required; not auto-executed. Requires Orders 01, 03; if absent, STOP. After Order 02, this file SHOULD be linted with the real `aw ipd lint`. Do NOT claim done or move to `executed/` until every `E-*` is `performed`+checked AND its matching `V-*` is `pass`+checked with nonempty observed evidence; else STOP and report.
+Proposal; human review + approval required; not auto-executed. Requires Orders 01, 02, 03; if any is absent, STOP (V-01/V-02 run `aw ipd lint` from Order 02, so 02 is a hard prerequisite, not optional). Do NOT claim done or move to `executed/` until every `E-*` is `performed`+checked AND its matching `V-*` is `pass`+checked with nonempty observed evidence; else STOP and report.
 
 Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY this plan's files, path-scoped, never `git add -A`/`-a`, never push; `git add` new files first. Paste ACTUAL runner output; never claim a pass not run. No em or en dashes. STOP and report if execution exceeds scope (templates + spec + F-07/F-08/F-09 + parity test; no review wiring, no migration of existing plans). Terminal transition is a POST-gate transaction. Never create or push a tag / Release / PyPI upload.

@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: make the linter authoritative: `plan-review`, `plan-review-long`, `review-rubric`, and the execution/lifecycle workflows MUST invoke `aw ipd lint` at their checkpoints (structural preflight before semantic review; fail closed at execution and transition), instead of repeating a prose rule; and add parity tests for embedded-vs-standalone rubric/report-template content.
 - Scope: review + lifecycle workflow wiring + parity tests. No new linter logic (Order 02). Requires Orders 01, 02, 04 executed (schema + linter + updated templates/spec); if absent, STOP.
-- Status: to-review
+- Status: reviewed
 - Set: ipd-structure
 - Order: 5
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -12,6 +12,7 @@
 ## Workflow history
 
 - 2026-08-02 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `ipd-structure`; closes the "reviewer approves a strong but misplaced checklist" gap by making enforcement mandatory and fail-closed.
+- 2026-08-02 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE; no findings (deps 01,02,04 correct; invoke-not-paraphrase + fail-closed + parity coverage match spec Sections 11/12). Bootstrap manual preflight. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 

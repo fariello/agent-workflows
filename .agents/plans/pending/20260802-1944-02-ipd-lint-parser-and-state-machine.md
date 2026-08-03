@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: build the deterministic, read-only `aw ipd lint` that enforces the Order-01 schema: a fence-aware Markdown parser, the execution/validation state machine, the `E-*`/`V-*` bijection, evidence/state legality, explicit `--phase` checkpoints, stable diagnostics + exit codes. No model calls, no network, no writes.
 - Scope: the parser + linter + state-machine consuming the Order-01 schema. No authoring tools (Order 03), no template/spec edits (04), no review wiring (05). Requires Order 01 executed (imports `ipd_schema`); if its symbols are absent, STOP.
-- Status: to-review
+- Status: reviewed
 - Set: ipd-structure
 - Order: 2
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -12,6 +12,7 @@
 ## Workflow history
 
 - 2026-08-02 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `ipd-structure`; the highest-value intervention (deterministic enforcement) per the research.
+- 2026-08-02 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-003 (added the legacy-disposition behavior + its tests to E-05/E-06/V-05, since spec 13.2/16.5 make the linter own `legacy/not evaluated` and Order 06 only consumes it). Bootstrap manual preflight. No BLOCKER/HIGH. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -45,13 +46,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: CLI + boundary + tests
 
-- [ ] E-05 wire `aw ipd lint` into the CLI: `--phase` (explicit; conservative default inference from front matter/path but never infers a transition gate), stable rule codes + `path:line:col` diagnostics, exit `0`/`1`/`2` (conform / lint-error / tool-failure, never conflated), and the no-em/en-dash rule applied to authored prose only.
+- [ ] E-05 wire `aw ipd lint` into the CLI: `--phase` (explicit; conservative default inference from front matter/path but never infers a transition gate), stable rule codes + `path:line:col` diagnostics, exit `0`/`1`/`2` (conform / lint-error / tool-failure, never conflated), the no-em/en-dash rule applied to authored prose only, AND the legacy disposition (spec Sections 13.2/16.5): a terminal/grandfathered file with no legacy flag reports `legacy/not evaluated` (a non-passing informational outcome, never a false pass); `--legacy` runs only the reduced legacy checks.
   - Depends on: E-02, E-03, E-04
-  - Expected outcome: `aw ipd lint --help` states the structure-not-meaning boundary; exit codes behave per spec Section 10.
+  - Expected outcome: `aw ipd lint --help` states the structure-not-meaning boundary; exit codes behave per spec Section 10; a grandfathered file reports `legacy/not evaluated` rather than passing.
   - Execution state: pending
-- [ ] E-06 add `tests/test_ipd_lint.py`: parser fixtures (fenced/indented/quoted examples), heading-order cases, id/bijection cases, every legal/illegal state combo, checkpoint cases, exit-code cases.
+- [ ] E-06 add `tests/test_ipd_lint.py`: parser fixtures (fenced/indented/quoted examples), heading-order cases, id/bijection cases, every legal/illegal state combo, checkpoint cases, exit-code cases, and legacy-disposition cases (grandfathered file reports `legacy/not evaluated`; `--legacy` reduced checks) with diagnostics asserting stable rule code + `path:line:col` (spec Sections 16.5).
   - Depends on: E-01, E-02, E-03, E-04, E-05
-  - Expected outcome: table-driven + golden-fixture tests; all pass.
+  - Expected outcome: table-driven + golden-fixture tests incl. legacy + diagnostics; all pass.
   - Execution state: pending
 - [ ] E-07 run `python -m pytest tests/test_ipd_lint.py -q` then the full suite; paste both.
   - Depends on: E-06
@@ -131,7 +132,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: paste `aw ipd lint --help` showing the boundary text; paste runs returning exit 0 (conform), 1 (lint error), and 2 (forced parse failure) distinctly.
+  - Required evidence: paste `aw ipd lint --help` showing the boundary text; paste runs returning exit 0 (conform), 1 (lint error), and 2 (forced parse failure) distinctly; paste a grandfathered-file run reporting `legacy/not evaluated` (not a pass) and a `--legacy` run doing the reduced checks.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06

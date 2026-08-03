@@ -4,7 +4,7 @@
 - Kind: orchestrator
 - Concern: implement the approved spec `.agents/docs/specs/20260802-1904-01-ipd-structure-and-linting.spec.md`: convert the IPD execution/validation checklist structure from relational prose ("near the top/end") into an EXACT, machine-checkable contract with stable `E-*`/`V-*` identifiers, a deterministic phase-aware linter, tool-assisted authoring, fixed lifecycle/checkbox/question/size semantics, and fail-closed review integration.
 - Scope: ORCHESTRATOR for the ordered Set `ipd-structure`. Defines the child sequence, dependencies, whole-Set completion criteria, and cross-IPD validation. It changes no product files itself; each child does its own edits. Applies to new and nonterminal IPDs; terminal `executed/` plans are grandfathered.
-- Status: to-review
+- Status: reviewed
 - Set: ipd-structure
 - Order: 0
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -19,6 +19,7 @@ lands, remaining unexecuted children SHOULD be linted with the real tool.
 ## Workflow history
 
 - 2026-08-02 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored from the maintainer-adopted (gpt-5.6-revised) spec. Split into a Set because the work spans a canonical schema, a parser+linter+state-machine, authoring tools, template/spec edits, review-workflow integration, and a migration, with strict dependency ordering and well beyond one IPD's size guidance.
+- 2026-08-02 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (Order 04 dependency corrected 01,03 -> 01,02,03 in this table, since 04's validation runs `aw ipd lint` from Order 02), PR-004 (Orders 01/04 now explicitly capture the orchestrator heading order this file exemplifies). Bootstrap preflight applied manually ("machine preflight unavailable: bootstrap"). No BLOCKER/HIGH. Readiness: GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -33,7 +34,7 @@ Execute in Order. Each child is its own `/plan-review` + human approval + execut
 | 01 | `20260802-1944-01-canonical-ipd-schema.md` | The single machine-readable IPD schema (kinds, headings+order, optional intervals, front-matter fields, id grammar, E/V field grammar + state tables, checkpoints, thresholds, legacy) + schema tests. The source of truth everything else derives from or is checked against. | none |
 | 02 | `20260802-1944-02-ipd-lint-parser-and-state-machine.md` | Fence-aware Markdown parser + read-only `aw ipd lint` with explicit `--phase` checkpoints, the execution/validation state machine, the bijection + evidence/state checks, diagnostics + exit codes. | 01 |
 | 03 | `20260802-1944-03-ipd-scaffold-and-sync.md` | `aw ipd scaffold` (new conformant skeleton from the schema) and non-destructive `aw ipd sync` (assign ids to new leaves, add pending V skeletons, never rewrite stable ids, refuse destructive sync after execution). | 01, 02 |
-| 04 | `20260802-1944-04-templates-and-spec-and-defect-fixes.md` | Child + orchestrator templates generated-from/checked-against the schema; `ipd-spec` update removing "near" language; F-07 checkbox semantics, F-08 lifecycle-gate-as-post-transaction, F-09 blocking-question + size-assessment grammar. | 01, 03 |
+| 04 | `20260802-1944-04-templates-and-spec-and-defect-fixes.md` | Child + orchestrator templates generated-from/checked-against the schema; `ipd-spec` update removing "near" language; F-07 checkbox semantics, F-08 lifecycle-gate-as-post-transaction, F-09 blocking-question + size-assessment grammar. | 01, 02, 03 |
 | 05 | `20260802-1944-05-review-preflight-and-enforcement.md` | Structural preflight + fail-closed enforcement wired into `plan-review`, `plan-review-long`, `review-rubric`, and execution/lifecycle workflows; parity tests for embedded vs standalone rubric/report-template content. | 01, 02, 04 |
 | 06 | `20260802-1944-06-migrate-nonterminal-and-adopt.md` | Migrate/quarantine nonterminal IPDs to the new schema; dogfood lint across the repo; docs + DECISIONS pointer + thin AGENTS.md pointer; grandfather terminal plans. | 01, 02, 03, 04, 05 |
 

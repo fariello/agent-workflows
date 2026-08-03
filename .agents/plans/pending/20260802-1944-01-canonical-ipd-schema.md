@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: define ONE machine-readable schema that owns the IPD structural contract (kinds, headings + order, optional-section intervals, front-matter fields, `E-*`/`V-*` id grammar, execution/validation field grammar + state tables, lint checkpoints, size thresholds, legacy applicability), so the linter, tools, templates, spec, and review workflows all derive from or are checked against it and cannot drift.
 - Scope: the schema module + its own validation tests ONLY. No parser, no CLI, no template edits, no migration (those are Orders 02+). Requires the approved spec `.agents/docs/specs/20260802-1904-01-ipd-structure-and-linting.spec.md`.
-- Status: to-review
+- Status: reviewed
 - Set: ipd-structure
 - Order: 1
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
@@ -12,6 +12,7 @@
 ## Workflow history
 
 - 2026-08-02 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): first child of Set `ipd-structure`; establishes the single source of truth so Orders 02 to 06 reference one definition (spec Section 3, Section 8).
+- 2026-08-02 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-004 (E-01 now requires the schema to enumerate the orchestrator heading order, matching the 00 file). Bootstrap manual preflight. No BLOCKER/HIGH. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -25,7 +26,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 add `agent_workflows/ipd_schema.py` defining IPD kinds (`child`, `orchestrator`) and, per kind, the ordered required H2 headings + named optional-section intervals.
   - Depends on: none
-  - Expected outcome: importable constants; `child` order matches spec Section 4.3 (13 headings incl. `## Project conventions discovered (Step 0)`), verified against the live template.
+  - Expected outcome: importable constants; `child` order matches spec Section 4.3 (13 headings incl. `## Project conventions discovered (Step 0)`), verified against the live template; the `orchestrator` order is enumerated completely (per spec Section 4.2/4.3) and matches the actual orchestrator template shape (as exemplified by `20260802-1944-00-ipd-structure-orchestrator.md`: `## Child IPDs, sequence, and dependencies`, `## Completion criteria`, `## Cross-IPD validation` in place of Findings/Proposed changes, with the execution checklist still immediately after `## Goal` and the validation checklist immediately before the gate).
   - Execution state: pending
 - [ ] E-02 define the front-matter field contract (required/allowed values incl. `Kind:`, `Status:`, `Set:`/`Order:`) separately from the H2 contract.
   - Depends on: E-01
