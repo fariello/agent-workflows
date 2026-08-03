@@ -4,9 +4,10 @@
 - Kind: child
 - Concern: build the deterministic, read-only `aw ipd lint` that enforces the Order-01 schema: a fence-aware Markdown parser, the execution/validation state machine, the `E-*`/`V-*` bijection, evidence/state legality, explicit `--phase` checkpoints, stable diagnostics + exit codes. No model calls, no network, no writes.
 - Scope: the parser + linter + state-machine consuming the Order-01 schema, including the legacy AND quarantine dispositions and the metadata-block/watermark checks. No authoring tools (Order 03), no template/spec edits (04), no review wiring (05). Requires Order 01 executed (imports `ipd_schema`); if its symbols are absent, STOP.
-- Status: to-review
+- Status: reviewed
 - Set: ipd-structure
 - Order: 2
+- Highest E allocated: 07
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -14,6 +15,7 @@
 - 2026-08-02 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `ipd-structure`; the highest-value intervention (deterministic enforcement) per the research.
 - 2026-08-02 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-003 (added the legacy-disposition behavior + its tests to E-05/E-06/V-05, since spec 13.2/16.5 make the linter own `legacy/not evaluated` and Order 06 only consumes it). Bootstrap manual preflight. No BLOCKER/HIGH. GO - PENDING HUMAN APPROVAL.
 - 2026-08-03 revision (opencode its_direct/pt3-claude-opus-4.8-1m-us): substantive revisions: the linter now also implements the QUARANTINE disposition (spec Section 13.3) alongside legacy, the metadata-block checks incl. `auto-approved` and the `Order: 0` exception, the watermark checks (spec Section 5.6), and the deterministic-vs-semantic boundary is made explicit per checkpoint (spec Section 10.1); diagnostics carry line AND column; renamed `## Findings (drivers)` to `## Findings`. These SUPERSEDE the earlier GO verdict for readiness; returned to `Status: to-review`; a fresh independent `/plan-review` is required; the revising agent does NOT self-approve.
+- 2026-08-03 /plan-review (Codex gpt-5.6): REVIEWED - OPEN QUESTIONS; PR-001 through PR-010 repaired where in scope. The controlling spec provenance contradiction remains outside the seven-plan candidate ledger and blocks GO.
 
 ## Goal
 
@@ -25,7 +27,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: parser
 
-- [ ] E-01 add a fence-aware structural Markdown reader (module `agent_workflows/ipd_lint.py`) that yields top-level H2 nodes and task-list leaves while EXCLUDING headings/checkboxes inside fenced/indented code, front matter, and block quotes; retain source line/col.
+- [ ] E-01 add a fence-aware structural Markdown reader (module `agent_workflows/ipd_lint.py`) that yields top-level H2 nodes and task-list leaves while excluding headings/checkboxes inside fenced/indented code, actual YAML front matter, and block quotes; retain source line/col.
   - Depends on: none
   - Expected outcome: parsing the spec's own example file does NOT treat its fenced examples as IPD structure.
   - Execution state: pending
@@ -47,15 +49,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: CLI + boundary + tests
 
-- [ ] E-05 wire `aw ipd lint` into the CLI: `--phase` (explicit; conservative default inference from the metadata block/path but never infers a transition gate), stable rule codes + `path:line:col` diagnostics, exit `0`/`1`/`2` (conform / lint-error / tool-failure, never conflated), the no-em/en-dash rule applied to authored prose only (code blocks, metadata values, and exempt constructs NOT flagged), AND both dispositions (spec Sections 13.2/13.3/16.5): a terminal/grandfathered file with no legacy flag reports `legacy/not evaluated`; `--legacy` runs the reduced legacy checks; a QUARANTINED nonterminal file (metadata `Quarantine:` trio) reports the explicit `quarantined` disposition (a non-passing informational outcome distinct from both `pass` and `legacy/not evaluated`, never a false pass).
+- [ ] E-05 wire `aw ipd lint` into the CLI: single-file mode plus `--all` repository aggregation; explicit `--phase`; conservative default inference that never infers a transition gate; `--agent` machine output with one deterministically escaped record per finding or disposition and no prose; stable rule codes + `path:line:col`; exit `0` for a successful evaluation with no conformance error, `1` for conformance errors, and `2` for invocation/internal failure. A zero exit with `quarantined` or `legacy/not evaluated` means evaluation succeeded, not conformance; authoritative gates require disposition `conforming`. Report conforming, quarantined, grandfathered, and erroneous outcomes distinctly; `--all` emits counts and exits 1 if erroneous is nonzero. Apply the dash rule to authored prose only.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: `aw ipd lint --help` states the structure-not-meaning boundary; exit codes behave per spec Section 10; a grandfathered file reports `legacy/not evaluated`; a quarantined file reports `quarantined`; neither is reported as passing.
   - Execution state: pending
-- [ ] E-06 add `tests/test_ipd_lint.py`: parser fixtures (fenced/indented/quoted/YAML-front-matter/metadata-block examples), heading-order cases, metadata-block cases (incl. `auto-approved`, `Order: 0`, watermark-below-present-id), id/bijection cases, every legal/illegal state combo, checkpoint cases, exit-code cases, legacy-disposition cases, quarantine-disposition cases, and the dash-only-in-prose cases, with diagnostics asserting a stable rule code + `path:line:col` (spec Section 16).
+- [ ] E-06 add `tests/test_ipd_lint.py` with one named fixture or table row for every acceptance case in spec Section 16, including parser exclusions, both heading orders, every metadata invariant, watermark and dependency grammar, every legal/illegal state combination, each checkpoint including pre/post-transition consistency, OQ and size boundaries, migrated legacy, optional-section intervals, quarantine, repository aggregation, process-exit versus disposition semantics, `--agent` escaping, and dash-only-in-prose behavior. Assert a stable rule code + `path:line:col` for every failure.
   - Depends on: E-01, E-02, E-03, E-04, E-05
   - Expected outcome: table-driven + golden-fixture tests incl. legacy + quarantine + diagnostics; all pass.
   - Execution state: pending
-- [ ] E-07 run `python -m pytest tests/test_ipd_lint.py -q` then the full suite; paste both.
+- [ ] E-07 run `python3 -m unittest tests.test_ipd_lint -v` then `python3 -m unittest discover -s tests -t .`; paste both.
   - Depends on: E-06
   - Expected outcome: new tests pass; suite green.
   - Execution state: pending
@@ -64,7 +66,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Imports the Order-01 `ipd_schema`; no restated constants.
 - CLI style: argparse subcommands in `agent_workflows/cli.py`; add an `ipd` group with a `lint` action.
-- Parser: prefer a maintained CommonMark-compatible parser retaining source positions; if a new dependency is undesirable, a fence-aware structural reader is acceptable (decide in discovery, keep 3.9-safe).
+- Parser: implement a purpose-built, Python-standard-library structural reader for the bounded IPD grammar, retaining source positions and adding no runtime dependency.
 - No em/en dashes in authored Markdown.
 
 ## Findings
@@ -97,7 +99,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-`tests/test_ipd_lint.py` (E-06). Run `python -m pytest tests/test_ipd_lint.py -q` then `python -m pytest -q`; paste both. Leak-clean; no em/en dashes.
+`tests/test_ipd_lint.py` (E-06). Run `python3 -m unittest tests.test_ipd_lint -v` then `python3 -m unittest discover -s tests -t .`; paste both. Leak-clean; no em/en dashes.
 
 ## Spec / documentation sync
 
@@ -108,9 +110,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ### OQ-01: Markdown parsing library vs in-repo reader
 
 - Blocking: no
-- Status: deferred
+- Status: resolved
 - Owner: this child's discovery step
-- Resolution or deferral rationale: choose a maintained CommonMark parser vs a small fence-aware reader in discovery; the fence-awareness + source-position requirement is fixed. Prefer no new heavy dependency if a small reader suffices.
+- Resolution or deferral rationale: use the standard-library bounded structural reader defined above; test fenced and indented code, block quotes, actual YAML front matter, the bullet metadata block, and source positions.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -150,6 +152,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Proposal; human review + approval required; not auto-executed. Requires Order 01 (`ipd_schema`); if absent, STOP. Bootstrap: hand-authored to the new shape, reviewed with a manual preflight labeled "machine preflight unavailable: bootstrap"; after THIS child lands, later children can be linted by the real tool. Do NOT claim done or move to `executed/` until every `E-*` is `performed`+checked AND its matching `V-*` is `pass`+checked with nonempty observed evidence; else STOP and report.
+Proposal; human review + approval required; not auto-executed. Correcting, independently reviewing, and formally approving the controlling spec is a prerequisite. Requires Order 01; if absent, STOP. This file may retain the historical bootstrap label because it creates lint; after it lands unavailable lint is a hard stop. Do not transition until every E/V pair is complete with evidence.
 
 Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY this plan's files, path-scoped, never `git add -A`/`-a`, never push; `git add` new files first. Paste ACTUAL runner output; never claim a pass not run. No em or en dashes. STOP and report if execution exceeds scope (parser + read-only lint + CLI + tests; no write ops, no review wiring). Terminal transition is a POST-gate transaction, not a checklist item. Never create or push a tag / Release / PyPI upload.

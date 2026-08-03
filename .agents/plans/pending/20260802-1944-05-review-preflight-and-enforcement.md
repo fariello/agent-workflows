@@ -3,10 +3,11 @@
 - Date: 2026-08-02
 - Kind: child
 - Concern: make the linter authoritative: `plan-review`, `plan-review-long`, `review-rubric` MUST invoke `aw ipd lint` at their checkpoints (structural preflight before semantic review), and a NEW authoritative execution-and-transition workflow (`.agents/workflows/ipd-lifecycle/ipd-lifecycle.md`) MUST fail closed at `pre-execution`/`pre-transition`/`post-transition`, instead of repeating a prose rule; and add parity tests for embedded-vs-standalone rubric/report-template content. Repository fact (spec Section 12.1): no authoritative general execution/transition workflow exists today (`verify-execution` is POST-execution only), so this Order CREATES the missing path rather than editing a nonexistent file.
-- Scope: review-workflow wiring + the NEW `ipd-lifecycle` workflow + parity tests. No new linter logic (Order 02). Requires Orders 01, 02, 04 executed (schema + linter + updated templates/spec); if absent, STOP.
-- Status: to-review
+- Scope: review-workflow wiring + the NEW `ipd-lifecycle` workflow and its repository registration/generated shims/docs + parity and integration tests. No new linter logic (Order 02). Requires Orders 01, 02, 04 executed (schema + linter + updated templates/spec); if absent, STOP.
+- Status: reviewed
 - Set: ipd-structure
 - Order: 5
+- Highest E allocated: 05
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -14,6 +15,7 @@
 - 2026-08-02 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `ipd-structure`; closes the "reviewer approves a strong but misplaced checklist" gap by making enforcement mandatory and fail-closed.
 - 2026-08-02 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE; no findings (deps 01,02,04 correct; invoke-not-paraphrase + fail-closed + parity coverage match spec Sections 11/12). Bootstrap manual preflight. GO - PENDING HUMAN APPROVAL.
 - 2026-08-03 revision (opencode its_direct/pt3-claude-opus-4.8-1m-us): substantive revisions: the vague "execution/lifecycle workflow docs" is replaced with a NAMED, CREATED authoritative workflow `.agents/workflows/ipd-lifecycle/ipd-lifecycle.md` (+ `README.md`) that is the single entry point for beginning execution and performing the terminal transaction, with explicit `pre-execution`/`pre-transition`/`post-transition` checkpoints, fail-closed on exit 1 AND exit 2, and pre-/post-commit recovery (spec Section 12.1); the deterministic-vs-semantic boundary per checkpoint is made explicit (spec Section 10.1); renamed `## Findings (drivers)` to `## Findings`. These SUPERSEDE the earlier GO verdict for readiness; returned to `Status: to-review`; a fresh independent `/plan-review` is required; the revising agent does NOT self-approve.
+- 2026-08-03 /plan-review (Codex gpt-5.6): REVIEWED - OPEN QUESTIONS; PR-001 through PR-010 repaired where in scope. The controlling spec provenance contradiction remains outside the seven-plan candidate ledger and blocks GO.
 
 ## Goal
 
@@ -25,29 +27,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: review-workflow preflight
 
-- [ ] E-01 wire `plan-review.md` to run `aw ipd lint` (structural preflight) BEFORE semantic review, and again at `review-finalize` after edits; a structural error is a distinct finding that MUST be repaired before a passing verdict; replace any "apply the same checks" prose. State explicitly that a passing lint proves ONLY deterministic structure/state and that semantic adequacy (atomicity, observability, evidence sufficiency, truthful nonblocking) remains the reviewer's separate responsibility, and that `review-finalize` help text MUST NOT overclaim semantic certainty (spec Section 10.1).
+- [ ] E-01 wire `.agents/workflows/plan-review/plan-review.md` to run `aw ipd lint --phase author --agent FILE` as an exit gate before semantic review and `--phase review-finalize --agent FILE` after all edits; wire `.agents/workflows/plan-review-long/01-discover-and-snapshot.md` to run the author preflight before audit lanes and `03-resolve-and-finalize.md` to run review-finalize after edits. Exit 1 is a finding and exit 2 is a hard stop; only disposition `conforming` proceeds. State that lint proves structure/state only and semantic review remains separate.
   - Depends on: none
   - Expected outcome: plan-review instructs invoking the linter (not paraphrasing it); structural failure blocks a passing verdict; the deterministic-vs-semantic boundary is stated and not overclaimed.
   - Execution state: pending
-- [ ] E-02 mirror the same preflight + finalize wiring into `plan-review-long/03-resolve-and-finalize.md` and `review-rubric.md`, preserving single-file/multi-file parity.
+- [ ] E-02 update `review-rubric.md` and the single-file/long-form workflow text so the two flows have the same exact checkpoint, disposition, exit-code, and semantic-boundary contract. Remove any permanent bootstrap escape: once Order 02 exists, unavailable lint is exit 2 and fails closed. Preserve the historical bootstrap label only in records created before Order 02.
   - Depends on: E-01
   - Expected outcome: both variants invoke the linter at the same checkpoints; wording parity holds.
   - Execution state: pending
 
 ### Task group 2: lifecycle fail-closed
 
-- [ ] E-03 CREATE the new authoritative execution-and-transition workflow `.agents/workflows/ipd-lifecycle/ipd-lifecycle.md` (+ sibling `README.md`) as the single entry point for beginning execution and performing the terminal transaction (spec Section 12.1; no such workflow exists today, `verify-execution` is POST-execution only). It MUST run `aw ipd lint --phase pre-execution FILE` at execution start (proceed only on exit 0) and `aw ipd lint --phase pre-transition FILE` before the Section 11 terminal transaction (proceed only on exit 0), then `--phase post-transition MOVED_FILE`; fail closed on BOTH exit 1 (conformance error, surfaced as a finding) and exit 2 (tool cannot run, a hard stop, never a skip); before the lifecycle commit a failure leaves the plan un-moved and recoverable; after the commit a failing `post-transition` is reported as incomplete finalization, never as success. The `machine preflight unavailable: bootstrap` label is the ONLY accepted exception and only during the bootstrap Set.
+- [ ] E-03 create `.agents/workflows/ipd-lifecycle/ipd-lifecycle.md` and `README.md` as a cold-start executable contract. Require formal spec and plan approval before pre-execution. Run `aw ipd lint --phase pre-execution --agent FILE` and proceed only on exit 0 plus disposition `conforming`; after execution run pre-transition the same way. Define the terminal transaction exactly: update status/history, move the file, path-scope the lifecycle commit, then run post-transition on the moved file. Before commit, any failure leaves the original file unmoved and clean; if the move or commit fails, restore the pre-transaction state and stop; after a successful commit, post-transition failure creates and cites a corrective IPD and reports incomplete finalization without rewriting the completed commit. Exit 1 and 2 always fail closed.
   - Depends on: E-01
   - Expected outcome: the new `ipd-lifecycle.md` exists and names the exact `pre-execution`/`pre-transition`/`post-transition` invocations, the exit-1 and exit-2 fail-closed rules, and the pre-/post-commit recovery behavior.
   - Execution state: pending
 
 ### Task group 3: parity tests
 
-- [ ] E-04 add parity tests for any embedded-vs-standalone rubric/report-template content (single-file `plan-review` vs `plan-review-long` files), failing explicitly if a required dependency (e.g. `report-template.md`) is missing.
+- [ ] E-04 register `ipd-lifecycle` in `.agents/workflows/index.md` and the workflow manifest, regenerate OpenCode and Claude command shims using repository tooling, and update README/ARCHITECTURE workflow inventories. Add `tests/test_plan_review_parity.py` with the standalone long-form files as canonical owners and explicit normalized extraction markers for embedded copies; test missing dependencies and deliberate drift. Add workflow registration, generated-shim, installer, and lifecycle invocation/rollback tests.
   - Depends on: none
   - Expected outcome: parity test passes; a deliberately-desynced fixture fails.
   - Execution state: pending
-- [ ] E-05 run `python -m pytest -q` (incl. the new parity tests); paste.
+- [ ] E-05 run the targeted parity/integration unittest modules and `python3 -m unittest discover -s tests -t .`; run generated-artifact parity checks; paste all actual output.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: suite green.
   - Execution state: pending
@@ -92,7 +94,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-Parity tests (E-04) + suite. Run `python -m pytest -q`; paste. Grep the review workflows to confirm they INVOKE `aw ipd lint` and no longer say "apply the same checks". Leak-clean; no em/en dashes.
+Run the targeted `tests.test_plan_review_parity` and lifecycle/manifest/installer unittest modules, then `python3 -m unittest discover -s tests -t .`; paste. Grep review workflows for exact invocations and verify generated shims are current. Leak-clean; no em/en dashes.
 
 ## Spec / documentation sync
 
@@ -103,9 +105,9 @@ The review workflow docs are updated and the NEW `ipd-lifecycle` workflow is cre
 ### OQ-01: bootstrap-exception wording
 
 - Blocking: no
-- Status: deferred
+- Status: resolved
 - Owner: this child
-- Resolution or deferral rationale: the exact `machine preflight unavailable: bootstrap` label + where it is recorded in the review record is finalized here; it must end when the tool exists.
+- Resolution or deferral rationale: the historical label is valid only in records produced before Order 02 lands. This Order adds no live exception; thereafter missing/unavailable lint is exit 2 and a hard stop.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -120,15 +122,15 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: confirm `.agents/workflows/ipd-lifecycle/ipd-lifecycle.md` was created (`git add`ed); quote its `pre-execution`/`pre-transition`/`post-transition` invocations, the exit-1 AND exit-2 fail-closed rules, the pre-/post-commit recovery behavior, and the bootstrap-only exception.
+  - Required evidence: quote the cold-start pre-execution/pre-transition/post-transition invocations, conforming-disposition check, spec/plan approval prerequisites, exact move/commit transaction, pre-commit rollback, and post-commit corrective-IPD procedure; prove exits 1 and 2 stop.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: paste the parity test passing on current files AND failing on a deliberately-desynced fixture; confirm missing-`report-template.md` fails explicitly.
+  - Required evidence: paste workflow index/manifest registration, generated OpenCode/Claude shim parity, installer/docs checks, lifecycle integration/rollback tests, and parity tests passing current files while failing deliberate drift and a missing dependency.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: paste the full-suite summary (incl. parity tests), suite green.
+  - Required evidence: paste targeted module results, generated-artifact parity, and full unittest-discovery summary; suite green.
   - Observed evidence:
   - Result: pending
 
@@ -137,6 +139,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Proposal; human review + approval required; not auto-executed. Requires Orders 01, 02, 04; if absent, STOP. This file SHOULD be linted with the real `aw ipd lint` (available after Order 02). Do NOT claim done or move to `executed/` until every `E-*` is `performed`+checked AND its matching `V-*` is `pass`+checked with nonempty observed evidence; else STOP and report.
+Proposal; human review + approval required; not auto-executed. Correcting, independently reviewing, and formally approving the controlling spec is a prerequisite. Requires Orders 01, 02, and 04 plus conforming pre-execution lint. Do not transition until every E/V pair is complete with evidence and pre-transition lint conforms; execute the newly defined terminal transaction directly for this bootstrap Order.
 
 Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY this plan's files, path-scoped, never `git add -A`/`-a`, never push; `git add` the new `ipd-lifecycle` files first. Paste ACTUAL runner output; never claim a pass not run. No em or en dashes. STOP and report if execution exceeds scope (review-workflow wiring + creating the `ipd-lifecycle` workflow + parity tests; no linter logic changes, no plan migration). Terminal transition is a POST-gate transaction. Never create or push a tag / Release / PyPI upload.

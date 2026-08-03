@@ -2,11 +2,12 @@
 
 - Date: 2026-08-02
 - Kind: orchestrator
-- Concern: implement the spec `.agents/docs/specs/20260802-1904-01-ipd-structure-and-linting.spec.md` (a gpt-5.6-revised DRAFT pending maintainer review and approval; NOT approved, NOT adopted): convert the IPD execution/validation checklist structure from relational prose ("near the top/end") into an EXACT, machine-checkable contract with stable `E-*`/`V-*` identifiers and an allocation watermark, a deterministic phase-aware linter, tool-assisted authoring, fixed lifecycle/checkbox/question/size semantics, quarantine semantics, and fail-closed review integration.
+- Concern: implement the spec `.agents/docs/specs/20260802-1904-01-ipd-structure-and-linting.spec.md` (the maintainer-adopted working specification, pending formal approval for execution): convert the IPD execution/validation checklist structure from relational prose ("near the top/end") into an EXACT, machine-checkable contract with stable `E-*`/`V-*` identifiers and an allocation watermark, a deterministic phase-aware linter, tool-assisted authoring, fixed lifecycle/checkbox/question/size semantics, quarantine semantics, and fail-closed review integration.
 - Scope: ORCHESTRATOR for the ordered Set `ipd-structure`. Defines the child sequence, dependencies, whole-Set completion criteria, and cross-IPD validation. It changes no product files itself; each child does its own edits. Applies to new and nonterminal IPDs; terminal `executed/` plans are grandfathered. Formal maintainer approval of the specification is an explicit prerequisite to executing this Set (spec Section 18).
-- Status: to-review
+- Status: reviewed
 - Set: ipd-structure
 - Order: 0
+- Highest E allocated: 08
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 <!--
@@ -21,6 +22,7 @@ lands, remaining unexecuted children SHOULD be linted with the real tool.
 - 2026-08-02 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored from the gpt-5.6-revised spec. Split into a Set because the work spans a canonical schema, a parser+linter+state-machine, authoring tools, template/spec edits, review-workflow integration, and a migration, with strict dependency ordering and well beyond one IPD's size guidance.
 - 2026-08-02 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (Order 04 dependency corrected 01,03 -> 01,02,03 in this table, since 04's validation runs `aw ipd lint` from Order 02), PR-004 (Orders 01/04 now explicitly capture the orchestrator heading order this file exemplifies). Bootstrap preflight applied manually ("machine preflight unavailable: bootstrap"). No BLOCKER/HIGH. Readiness: GO - PENDING HUMAN APPROVAL.
 - 2026-08-03 revision (opencode its_direct/pt3-claude-opus-4.8-1m-us): substantive post-review structural revisions applied to the whole Set (corrected false "approved/adopted" spec provenance to a draft pending approval; moved this orchestrator's execution checklist to immediately after `## Goal` per spec Section 4.2; renamed `## Findings (drivers)` to `## Findings` across the Set; added the allocation-watermark, quarantine, metadata-block, writing-safety, and NEW `ipd-lifecycle` enforcement-path scope to the children; expanded acceptance-case coverage). These revisions SUPERSEDE the earlier /plan-review GO verdict for readiness purposes. Returned to `Status: to-review`; a FRESH independent `/plan-review` is required (the revising agent does NOT self-approve). No `approved` status set; maintainer approval remains separate and is a prerequisite to execution.
+- 2026-08-03 /plan-review (Codex gpt-5.6): REVIEWED - OPEN QUESTIONS; PR-001 through PR-010 repaired in the seven-plan Set where in scope. The controlling spec remains outside this review's candidate ledger and contains a provenance contradiction that blocks GO until corrected and formally approved.
 
 ## Goal
 
@@ -28,16 +30,40 @@ Deliver the IPD-structure convention end to end: a single canonical schema (incl
 
 ## Detailed Implementation Checklist (TODO)
 
-The orchestrator's actions are gating the children and running the cross-IPD checks. These items are gate checkpoints, not code edits, so they carry no `E-*` ids (spec Section 4.2: the execution checklist is the next H2 after `## Goal`; for the orchestrator its entries are coordination checkpoints).
+The orchestrator's execution leaves coordinate the children and whole-Set checks. They use the same stable E/V contract as every other actionable IPD.
 
-- [ ] Child 01 executed (canonical schema + schema tests, incl. metadata-block/watermark/quarantine) and its own checklists verified.
-- [ ] Child 02 executed (parser + `aw ipd lint` + state machine + legacy/quarantine disposition, after 01) and verified.
-- [ ] Child 03 executed (scaffold + sync + writing-safety + watermark maintenance, after 01/02) and verified.
-- [ ] Child 04 executed (templates + spec + F-07/F-08/F-09 + orchestrator-checklist relocation, after 01/02/03) and verified.
-- [ ] Child 05 executed (review preflight + NEW `ipd-lifecycle` fail-closed enforcement + parity, after 01/02/04) and verified.
-- [ ] Child 06 executed (migrate/quarantine nonterminal + thin `agents_pointer_prose` pointer + dogfood + adopt, after 01 to 05) and verified.
-- [ ] Cross-IPD validation run (single-source-of-truth / no-drift / dependency correctness / size).
-- [ ] Suite green after the last child (paste actual output); leak-clean; no em/en dashes; `aw ipd lint` dogfood clean on nonterminal IPDs (conforming pass; quarantined/grandfathered report their dispositions).
+- [ ] E-01 verify Child 01 is executed and its own checklist is verified.
+  - Depends on: none
+  - Expected outcome: canonical schema and schema tests, including metadata block, watermark, and quarantine, are complete.
+  - Execution state: pending
+- [ ] E-02 verify Child 02 is executed after Child 01 and its own checklist is verified.
+  - Depends on: E-01
+  - Expected outcome: parser, linter, state machine, and disposition behavior are complete.
+  - Execution state: pending
+- [ ] E-03 verify Child 03 is executed after Children 01 and 02 and its own checklist is verified.
+  - Depends on: E-01, E-02
+  - Expected outcome: scaffold, sync, writing safety, and watermark maintenance are complete.
+  - Execution state: pending
+- [ ] E-04 verify Child 04 is executed after Children 01 through 03 and its own checklist is verified.
+  - Depends on: E-01, E-02, E-03
+  - Expected outcome: templates, documentation, and F-07/F-08/F-09 corrections are complete.
+  - Execution state: pending
+- [ ] E-05 verify Child 05 is executed after Children 01, 02, and 04 and its own checklist is verified.
+  - Depends on: E-01, E-02, E-04
+  - Expected outcome: review preflight, lifecycle enforcement, generated integrations, and parity checks are complete.
+  - Execution state: pending
+- [ ] E-06 verify Child 06 is executed after Children 01 through 05 and its own checklist is verified.
+  - Depends on: E-01, E-02, E-03, E-04, E-05
+  - Expected outcome: nonterminal migration/quarantine, thin pointer, dogfood, and adoption documentation are complete.
+  - Execution state: pending
+- [ ] E-07 run the cross-IPD validation.
+  - Depends on: E-01, E-02, E-03, E-04, E-05, E-06
+  - Expected outcome: single-source-of-truth, no-drift, dependency, acceptance-case, and size checks pass.
+  - Execution state: pending
+- [ ] E-08 run the final suite and repository dogfood checks and paste actual output.
+  - Depends on: E-07
+  - Expected outcome: unittest suite, leak check, dash check, and four-way lint inventory are clean and accurately classified.
+  - Execution state: pending
 
 ## Child IPDs, sequence, and dependencies
 
@@ -66,6 +92,22 @@ Execute in Order. Each child is its own `/plan-review` + human approval + execut
 - Dependency correctness: no child uses a later child's symbols; the linter (02) does not assume the tools (03); migration (06) runs only after schema+linter+tools+templates+review exist.
 - Size check: each child stays within the size guidance (prefer <=5 task groups / <=18 E leaves); a child exceeding it carries a Size-assessment exception with a cohesion rationale or is split.
 
+### Spec Section 16 acceptance-case ownership
+
+No acceptance case is implied by a generic test phrase. The named cases map as follows; the owning E item implements the fixture/assertion and the matching V item inspects its result.
+
+| Spec cases | Owning E/V |
+|------------|------------|
+| 16.1 conforming child; conforming orchestrator; missing, duplicate, renamed, or out-of-order required heading; apparent H2 in fenced code, indented code, block quote, or YAML front matter; heading/checkbox-like metadata value; optional heading allowed/forbidden; invalid/missing kind; invalid/missing, duplicate, or unknown metadata; bad orchestrator/child Order; incompatible status/directory/kind/checkpoint | Order 02 E-06/V-06 |
+| 16.2 duplicate or malformed IDs; missing, duplicate, or orphan V mapping; >99 IDs; watermark below present ID | Order 02 E-06/V-06 |
+| 16.2 reorder without renumber; next suffix; stable gaps; delete-highest then allocate above watermark; preserve evidence/state; refuse destructive sync; remove only untouched draft V; dry-run/apply for scaffold and sync; overwrite refusal; atomic/recoverable failed write | Order 03 E-04/V-04 |
+| 16.3 every execution checkbox/state pair; every validation checkbox/result/evidence combination; every E/V cross-state conflict; checkpoint placeholder rules; pre-transition incomplete E/V/evidence rejection | Order 02 E-06/V-06 |
+| 16.3 post-transition status/history/path/commit consistency | Order 05 E-03/V-03 |
+| 16.4 open blocking rejected; resolved blocking accepted with rationale; deferred blocking rejected; deferred nonblocking owner/trigger/rationale; both size threshold boundaries; missing/present exception rationale; standard rejected over threshold | Order 02 E-06/V-06 |
+| 16.5 every persisted status including auto-approved; distinct exits 0/1/2; direct grandfathered disposition; reduced legacy; migrated legacy; quarantine disposition; stable code/path/line/column diagnostics; authored-prose-only dash exemptions | Order 02 E-06/V-06 |
+| 16.5 workflows fail closed on exits 1 and 2; bootstrap label boundary; intentional parity drift and missing dependency | Order 05 E-04/V-04 |
+| 16.5 repository scan grandfather behavior; four-way dogfood inventory with no skipped file called conforming | Order 06 E-02/V-02 |
+
 ## Deferred / out of scope (with reason)
 
 | Item | Axis | Reason | Later step |
@@ -83,39 +125,67 @@ Execute in Order. Each child is its own `/plan-review` + human approval + execut
 
 ## Required tests / validation
 
-Per-child validation (each child names its own literal commands) plus the cross-IPD checks above. Run `python -m pytest -q` after each child and at the end; paste ACTUAL output; `aw check-local-leaks . --agent` clean; no em/en dashes. Final acceptance: `aw ipd lint` (real tool) passes on every migrated nonterminal IPD and reports terminal plans as grandfathered.
+Per-child validation (each child names its own literal commands) plus the cross-IPD checks above. Run `python3 -m unittest discover -s tests -t .` after each child and at the end; paste ACTUAL output; `aw check-local-leaks . --agent` clean; no em/en dashes. Final acceptance: `aw ipd lint --all --agent` classifies every plan as conforming, quarantined, grandfathered, or erroneous without calling an excluded file conforming.
 
 ## Open questions
 
 ### OQ-01: canonical-schema repository path
 
 - Blocking: no
-- Status: deferred
+- Status: resolved
 - Owner: Order 01 (discovery step)
-- Resolution or deferral rationale: the exact on-disk path for the canonical schema is an implementation detail chosen in Order 01 after confirming repo conventions (spec Section 3); it does not gate the Set's design.
+- Resolution or deferral rationale: use the already-planned Python 3.9, zero-runtime-dependency module `agent_workflows/ipd_schema.py`.
 
 ### OQ-02: Markdown parsing library
 
 - Blocking: no
-- Status: deferred
+- Status: resolved
 - Owner: Order 02
-- Resolution or deferral rationale: the specific CommonMark-compatible parser is chosen in Order 02; the requirement (fence-aware, structural, source positions retained) is fixed by the spec.
+- Resolution or deferral rationale: implement a purpose-built, standard-library, read-only structural reader that recognizes only the bounded IPD grammar and retains source positions. Do not add a runtime Markdown dependency.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
 Each item maps to a checklist item above; provide concrete evidence.
 
-- [ ] Each child 01 to 06 is in `.agents/plans/executed/` with `Status: executed` and its own Validation checklist verified; cite each.
-- [ ] Cross-IPD validation performed: quote the schema's id grammar + state tables + heading order from Order 01 and confirm the linter, tools, templates, and review integration match it; confirm execution order respected the dependency table.
-- [ ] Paste the actual final `pytest` summary line; paste `aw ipd lint` dogfood output showing nonterminal IPDs pass, quarantined plans (incl. research-org) report `quarantined`, and terminal plans report grandfathered; confirm leak-clean and no em/en dashes.
-- [ ] Report any child that is incomplete/blocked/unverified EXPLICITLY; do NOT mark the Set complete otherwise.
+- [ ] V-01 validates E-01 with the executed Child 01 path, its verified checklist, and its actual test output.
+  - Required evidence: executed Child 01 path and cited verification evidence.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-02 validates E-02 with the executed Child 02 path, dependency evidence, and its verified checklist.
+  - Required evidence: executed Child 02 path, dependency order, and cited verification evidence.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-03 validates E-03 with the executed Child 03 path, dependency evidence, and its verified checklist.
+  - Required evidence: executed Child 03 path, dependency order, and cited verification evidence.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-04 validates E-04 with the executed Child 04 path, dependency evidence, and its verified checklist.
+  - Required evidence: executed Child 04 path, dependency order, and cited verification evidence.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-05 validates E-05 with the executed Child 05 path, dependency evidence, and its verified checklist.
+  - Required evidence: executed Child 05 path, dependency order, generated integration checks, and cited verification evidence.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-06 validates E-06 with the executed Child 06 path, dependency evidence, and its verified checklist.
+  - Required evidence: executed Child 06 path, dependency order, and cited migration/dogfood evidence.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-07 validates E-07.
+  - Required evidence: quote the schema's grammar, state tables, heading order, and every Section 16 acceptance-case owner, then show each consumer agrees.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-08 validates E-08.
+  - Required evidence: actual unittest summary, `aw ipd lint --all --agent` four-way inventory, leak output, and dash check.
+  - Observed evidence:
+  - Result: pending
 
 ## Approval and execution gate
 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Specification prerequisite: the underlying specification is a gpt-5.6-revised DRAFT that is NOT approved and NOT adopted. Formal maintainer approval of the specification is an explicit prerequisite to executing this Set (spec Section 18); do NOT execute any child until that approval is recorded.
+Specification prerequisite: the underlying specification is maintainer-adopted as the working specification but is NOT formally approved for execution. Correct its contradictory provenance text, independently review it, and record formal maintainer approval before executing this Set (spec Section 18).
 
 This ORCHESTRATOR and each child MUST be reviewed and approved by a human before execution. The orchestrator is "executed" only when all children are executed and the cross-IPD validation passes. Do NOT mark the orchestrator or any child done or move it to `executed/` until every item in its own Validation and cross-check checklist is verified with concrete evidence; if any item cannot be completed, STOP and report.
 

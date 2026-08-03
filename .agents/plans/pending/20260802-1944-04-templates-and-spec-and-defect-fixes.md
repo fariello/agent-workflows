@@ -4,9 +4,10 @@
 - Kind: child
 - Concern: bring the human-facing authoring surface into line with the schema: child + orchestrator templates generated-from/checked-against the Order-01 schema, `ipd-spec` updated to remove the ambiguous "near" language and adopt the exact contract, and the three confirmed defects fixed (F-07 checkbox semantics, F-08 circular lifecycle gate, F-09 blocking-question + size-assessment grammar).
 - Scope: template + spec + defect-fix prose/structure, checked against the schema; no new tool logic. Requires Orders 01, 02, 03 executed (schema to check against; `aw ipd lint` from Order 02 to VALIDATE the templates per V-01/V-02; scaffold from Order 03 to generate skeletons); if any is absent, STOP.
-- Status: to-review
+- Status: reviewed
 - Set: ipd-structure
 - Order: 4
+- Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -14,6 +15,7 @@
 - 2026-08-02 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `ipd-structure`; aligns the authored artifacts with the schema and fixes the audited defects.
 - 2026-08-02 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (dependency corrected to 01,02,03 in scope + gate, since V-01/V-02 run `aw ipd lint` from Order 02) and PR-004 (E-02 now targets the schema-defined orchestrator order, no fork). Bootstrap manual preflight. No BLOCKER/HIGH. GO - PENDING HUMAN APPROVAL.
 - 2026-08-03 revision (opencode its_direct/pt3-claude-opus-4.8-1m-us): substantive revisions: E-02 now explicitly MOVES the orchestrator template's execution checklist to immediately after `## Goal` (recorded design decision per spec Section 4.3, correcting the live template's bottom placement); the metadata-block/watermark/quarantine field shape is added to the templates; the deterministic-vs-semantic boundary and non-mandate size language are reflected in `ipd-spec`; renamed `## Findings (drivers)` to `## Findings`. These SUPERSEDE the earlier GO verdict for readiness; returned to `Status: to-review`; a fresh independent `/plan-review` is required; the revising agent does NOT self-approve.
+- 2026-08-03 /plan-review (Codex gpt-5.6): REVIEWED - OPEN QUESTIONS; PR-001 through PR-010 repaired where in scope. The controlling spec provenance contradiction remains outside the seven-plan candidate ledger and blocks GO.
 
 ## Goal
 
@@ -27,16 +29,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 update `.agents/workflows/assess/templates/ipd.md` to the exact contract: canonical child H2 order (bare `## Findings`, `## Deferred / out of scope (with reason)`, `## Project conventions discovered (Step 0)`), execution checklist immediately after `## Goal` with `E-*` + `Expected outcome:` + `Execution state:` fields, validation immediately before the gate with `V-*` + evidence + `Result:` fields, structured `OQ-*` block, `Size assessment` block, and the metadata-block shape incl. `Kind`, the `Status` vocabulary with `auto-approved`, and `Highest E allocated:`.
   - Depends on: none
-  - Expected outcome: the template passes `aw ipd lint --phase author` and is parity-checked against the schema.
+  - Expected outcome: a concrete pending child fixture rendered from the template passes `aw ipd lint --phase author`; the raw placeholder template passes the schema parity test, not ordinary lifecycle lint.
   - Execution state: pending
-- [ ] E-02 update the orchestrator template `.agents/workflows/assess/templates/orchestrator-ipd.md` to the schema-defined orchestrator order (spec Section 4.3): MOVE `## Detailed Implementation Checklist (TODO)` from its current bottom placement to immediately after `## Goal` (the recorded design decision), keep the `## Child IPDs...`/`## Completion criteria`/`## Cross-IPD validation` shape, validation immediately before the gate; apply the same field grammar; orchestrator gate/checklist items are gate checkpoints, not `E-*` leaves.
+- [ ] E-02 update the orchestrator template `.agents/workflows/assess/templates/orchestrator-ipd.md` to the schema-defined orchestrator order: move the execution checklist immediately after `## Goal`, retain the child/completion/cross-validation sections, put validation immediately before the gate, and apply the same E/V leaf grammar and allocation watermark as child IPDs. Do not create an orchestrator exemption.
   - Depends on: E-01
-  - Expected outcome: the orchestrator template's execution checklist is the H2 immediately after `## Goal`; the template passes `aw ipd lint` for kind `orchestrator`; the schema's orchestrator order matches this template (single source of truth, no fork).
+  - Expected outcome: the checklist is immediately after Goal; a concrete pending orchestrator fixture rendered from the template passes author lint; raw-template parity matches the schema.
   - Execution state: pending
 
 ### Task group 2: spec + defect fixes
 
-- [ ] E-03 update `.agents/docs/specs/20260726-1340-01-ipd-spec.md`: replace "near the top/beginning/end" with the exact placement + section-order contract; reference the schema as the source of truth; state the `E-*`/`V-*` bijection.
+- [ ] E-03 update `.agents/docs/specs/20260726-1340-01-ipd-spec.md`: replace relational placement and stale template-as-authority language with the exact per-kind section orders and schema source of truth; consistently call the post-H1 bullet list the metadata block and reserve YAML front matter for actual `---` YAML; document required and conditional metadata including Kind, Set/Order, Approval, watermark, and quarantine; state E/V field/dependency/state/checkpoint grammar, lifecycle transaction, and legacy/quarantine applicability.
   - Depends on: E-01
   - Expected outcome: no "near the" placement language remains; ipd-spec matches the schema.
   - Execution state: pending
@@ -51,7 +53,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: parity + tests
 
-- [ ] E-06 add a parity test asserting the templates conform to the schema (generated-from or checked-against) so they cannot drift; run it + the full suite; paste both.
+- [ ] E-06 add `tests/test_ipd_templates.py` asserting both raw templates conform to schema-owned placeholders/order/field grammar and that concrete child and orchestrator renderings pass author lint. Keep prose hand-maintained and parity-checked. Run the targeted unittest and full suite; paste both.
   - Depends on: E-01, E-02, E-03, E-04, E-05
   - Expected outcome: parity test passes; suite green; templates lint clean.
   - Execution state: pending
@@ -95,7 +97,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-The parity test (E-06) + templates passing `aw ipd lint`. Run `python -m pytest -q`; paste. Grep the template + ipd-spec for residual "near the" placement language (must be none). Leak-clean; no em/en dashes.
+Run `python3 -m unittest tests.test_ipd_templates -v` and `python3 -m unittest discover -s tests -t .`; paste. Lint concrete renderings, then grep the templates and ipd-spec for residual relational placement and incorrect `front matter` terminology. Leak-clean; no em/en dashes.
 
 ## Spec / documentation sync
 
@@ -106,24 +108,24 @@ This child IS the spec/template sync. DECISIONS pointer + AGENTS.md pointer land
 ### OQ-01: generate templates vs parity-check them
 
 - Blocking: no
-- Status: deferred
+- Status: resolved
 - Owner: this child
-- Resolution or deferral rationale: whether the templates are emitted by a generator from the schema or hand-maintained + parity-tested is decided here; either satisfies single-source-of-truth. Lean: parity-check (templates carry prose a pure generator would fight).
+- Resolution or deferral rationale: retain hand-maintained prose templates and enforce their structural contract with `tests/test_ipd_templates.py`; do not add a generator.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste `aw ipd lint --phase author` on the child template = exit 0; cite the E-*/state/OQ/size blocks and the metadata block (incl. `Kind`, `auto-approved` in the Status vocabulary, `Highest E allocated:`) present.
+  - Required evidence: paste raw child-template schema parity plus author lint on a concrete pending child rendering; cite E/V/state/OQ/size and complete metadata grammar.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: paste a mechanical H2 listing of the orchestrator template showing `## Detailed Implementation Checklist (TODO)` is the H2 immediately after `## Goal`; paste `aw ipd lint` on the orchestrator template (kind orchestrator) = exit 0.
+  - Required evidence: paste raw orchestrator-template parity, mechanical H2 order, E/V grammar and watermark, plus author lint on a concrete pending orchestrator rendering.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: paste a grep of ipd-spec showing NO "near the" placement language and the exact-order contract present.
+  - Required evidence: paste checks showing no relational placement or incorrect front-matter terminology remains and the spec contains exact orders, metadata, E/V dependency/state/checkpoint, lifecycle, legacy, and quarantine contracts.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
@@ -144,6 +146,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Proposal; human review + approval required; not auto-executed. Requires Orders 01, 02, 03; if any is absent, STOP (V-01/V-02 run `aw ipd lint` from Order 02, so 02 is a hard prerequisite, not optional). Do NOT claim done or move to `executed/` until every `E-*` is `performed`+checked AND its matching `V-*` is `pass`+checked with nonempty observed evidence; else STOP and report.
+Proposal; human review + approval required; not auto-executed. Correcting, independently reviewing, and formally approving the controlling spec is a prerequisite. Requires Orders 01 through 03 plus conforming pre-execution lint. Do not transition until every E/V pair is complete with evidence and pre-transition lint conforms; until Order 05 exists, run and record the same pre/post-transition transaction directly.
 
 Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY this plan's files, path-scoped, never `git add -A`/`-a`, never push; `git add` new files first. Paste ACTUAL runner output; never claim a pass not run. No em or en dashes. STOP and report if execution exceeds scope (templates + spec + F-07/F-08/F-09 + parity test; no review wiring, no migration of existing plans). Terminal transition is a POST-gate transaction. Never create or push a tag / Release / PyPI upload.

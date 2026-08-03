@@ -3,10 +3,11 @@
 - Date: 2026-08-02
 - Kind: child
 - Concern: define ONE machine-readable schema that owns the IPD structural contract (kinds, both enumerated H2 orders, optional-section intervals, metadata-block fields incl. `auto-approved` and the `Order: 0` orchestrator exception, `E-*`/`V-*` id grammar + the allocation watermark, execution/validation field grammar + state tables, lint checkpoints, size thresholds, quarantine + legacy applicability), so the linter, tools, templates, spec, and review workflows all derive from or are checked against it and cannot drift.
-- Scope: the schema module + its own validation tests ONLY. No parser, no CLI, no template edits, no migration (those are Orders 02+). Requires the specification `.agents/docs/specs/20260802-1904-01-ipd-structure-and-linting.spec.md` (a gpt-5.6-revised DRAFT; maintainer approval of the spec is a prerequisite to executing this Set, spec Section 18).
-- Status: to-review
+- Scope: the schema module + its own validation tests ONLY. No parser, no CLI, no template edits, no migration (those are Orders 02+). Requires the maintainer-adopted working specification `.agents/docs/specs/20260802-1904-01-ipd-structure-and-linting.spec.md`; correcting and formally approving that spec is a prerequisite to executing this Set (spec Section 18).
+- Status: reviewed
 - Set: ipd-structure
 - Order: 1
+- Highest E allocated: 07
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -14,6 +15,7 @@
 - 2026-08-02 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): first child of Set `ipd-structure`; establishes the single source of truth so Orders 02 to 06 reference one definition (spec Section 3, Section 8).
 - 2026-08-02 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-004 (E-01 now requires the schema to enumerate the orchestrator heading order, matching the 00 file). Bootstrap manual preflight. No BLOCKER/HIGH. GO - PENDING HUMAN APPROVAL.
 - 2026-08-03 revision (opencode its_direct/pt3-claude-opus-4.8-1m-us): substantive revisions: schema now owns the metadata-block contract (incl. `auto-approved` and the `Order: 0` exception), the `E-*` allocation watermark (Section 5.6), and quarantine semantics (Section 13.3); renamed `## Findings (drivers)` to `## Findings`; enumerated orchestrator order updated to the checklist-after-Goal shape. These SUPERSEDE the earlier GO verdict for readiness; returned to `Status: to-review`; a fresh independent `/plan-review` is required and the revising agent does NOT self-approve.
+- 2026-08-03 /plan-review (Codex gpt-5.6): REVIEWED - OPEN QUESTIONS; PR-001 through PR-010 repaired where in scope. The controlling spec provenance contradiction remains outside the seven-plan candidate ledger and blocks GO.
 
 ## Goal
 
@@ -29,11 +31,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: importable constants; `child` order matches spec Section 4.3 (13 headings incl. `## Project conventions discovered (Step 0)`, `## Findings` bare, `## Deferred / out of scope (with reason)`), verified against the live template; the `orchestrator` order is enumerated completely (spec Section 4.3, 12 headings) with `## Detailed Implementation Checklist (TODO)` as the H2 IMMEDIATELY AFTER `## Goal` and `## Validation and cross-check (verify before reporting the Set complete)` immediately before the gate, matching `20260802-1944-00-ipd-structure-orchestrator.md`.
   - Execution state: pending
-- [ ] E-02 define the metadata-block contract (spec Section 4.4) separately from the H2 contract: required fields (`Date`, `Kind`, `Concern`, `Scope`, `Status`, `Author`), conditional `Set`+`Order`, `Approval`, and `Quarantine`/`Quarantine owner`/`Quarantine follow-up`; recognized `Status` values incl. `auto-approved` (spec Section 9.1); the `Kind: orchestrator` -> `Order: 0` and `Kind: child` -> `Order >= 1` rule; duplicate-field and unknown-field behavior; permitted path/status/kind/order combinations.
+- [ ] E-02 define the post-H1 bullet metadata-block contract separately from H2 structure: exact location, `- Field: value` syntax, canonical field order, required Date/Kind/Concern/Scope/Status/Author fields, paired Set+Order, conditional Approval, conditional watermark, and all-or-none Quarantine/owner/follow-up. Encode recognized statuses including `auto-approved`, path/status/kind/checkpoint combinations, orchestrator Order 0, child Order >=1, Approval iff approved/auto-approved, nonterminal-only quarantine, and duplicate/unknown-field errors.
   - Depends on: E-01
   - Expected outcome: a metadata-block field spec + validator entry point returning structured errors; recognizes `auto-approved`; rejects an orchestrator `Order != 0` and a child `Order < 1`; rejects a duplicate or unknown field.
   - Execution state: pending
-- [ ] E-03 define the id grammar (`E-[0-9]{2,}`, `V-[0-9]{2,}`, IPD-scoped, monotonic/stable), the `\b` reference regex, AND the allocation-watermark rules (spec Section 5.6): the `- Highest E allocated: NN` field, next-suffix = watermark + 1, watermark never decreases, watermark >= largest present `E-*` suffix.
+- [ ] E-03 define the id grammar (`E-[0-9]{2,}`, `V-[0-9]{2,}`, IPD-scoped, monotonic/stable), reference regex, Depends-on grammar (`none` or comma-separated E IDs), required per-leaf fields, leaf-family placement, dependency existence/self/cycle rules, and allocation watermark: required once any E exists, next suffix = watermark + 1, never decrease or reuse, and watermark >= largest present E suffix.
   - Depends on: none
   - Expected outcome: compiled regexes + helpers; matches an id in a filename and in prose; rejects malformed; a watermark helper computes the next suffix from the watermark (not from the max present id) and flags a watermark below a present id.
   - Execution state: pending
@@ -55,7 +57,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-01, E-02, E-03, E-04, E-05
   - Expected outcome: table-driven tests; all pass.
   - Execution state: pending
-- [ ] E-07 run `python -m pytest tests/test_ipd_schema.py -q` then the full suite; paste both.
+- [ ] E-07 run `python3 -m unittest tests.test_ipd_schema -v` then `python3 -m unittest discover -s tests -t .`; paste both.
   - Depends on: E-06
   - Expected outcome: new tests pass; full suite still green.
   - Execution state: pending
@@ -96,7 +98,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-`tests/test_ipd_schema.py` (E-06). Run `python -m pytest tests/test_ipd_schema.py -q` then `python -m pytest -q`; paste both. Leak-clean; no em/en dashes.
+`tests/test_ipd_schema.py` (E-06). Run `python3 -m unittest tests.test_ipd_schema -v` then `python3 -m unittest discover -s tests -t .`; paste both. Leak-clean; no em/en dashes.
 
 ## Spec / documentation sync
 
@@ -107,9 +109,9 @@ None beyond code + tests in this child; the spec is the authority. Templates/`ip
 ### OQ-01: canonical-schema file path and format
 
 - Blocking: no
-- Status: deferred
+- Status: resolved
 - Owner: this child's discovery step
-- Resolution or deferral rationale: whether the schema is a Python constants module vs a data file (JSON/TOML) + loader is chosen here after confirming repo conventions; the spec fixes the CONTENT, not the container. Lean: a Python module for 3.9-safety and zero new deps.
+- Resolution or deferral rationale: use `agent_workflows/ipd_schema.py`, a Python 3.9-compatible constants and validation module with no runtime dependency.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -120,11 +122,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: metadata-block validator rejects a missing `Kind:`/bad `Status:`, accepts `auto-approved`, rejects an orchestrator `Order != 0` and a child `Order < 1`, and rejects a duplicate/unknown field, each with a precise message; paste test output.
+  - Required evidence: table output covers exact location/syntax/order, all required and conditional fields, paired Set/Order, Approval iff approved, conditional watermark, all-or-none quarantine, path/status/kind/checkpoint combinations, duplicate/unknown fields, and Order boundaries.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: id regex matches `E-01`/`V-12` in a filename and in prose, rejects `E-1`/`X-01`; watermark helper returns next suffix = `Highest E allocated + 1` (not max present id) and flags a watermark below a present id; paste test output.
+  - Required evidence: tests cover ID/reference grammar, required E/V fields, section family, Depends-on syntax/existence/self/cycle, and watermark presence/monotonic/no-reuse/next-suffix behavior.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
@@ -140,7 +142,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-07 validates E-07
-  - Required evidence: paste `pytest tests/test_ipd_schema.py -q` result AND the full-suite summary line (new tests pass, suite green).
+  - Required evidence: paste the targeted unittest result AND the full unittest-discovery summary line (new tests pass, suite green).
   - Observed evidence:
   - Result: pending
 
@@ -149,6 +151,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Proposal; human review + approval required; not auto-executed. Bootstrap: this file is hand-authored to the new shape and reviewed with a manual preflight labeled "machine preflight unavailable: bootstrap" (spec Section 12), since `aw ipd lint` does not exist until Order 02. Do NOT claim done or move to `executed/` until every `E-*` is `performed`+checked AND its matching `V-*` is `pass`+checked with nonempty observed evidence; if any item cannot be completed, STOP and report.
+Proposal; human review + approval required; not auto-executed. Correcting, independently reviewing, and formally approving the controlling spec is a prerequisite. Record the historical bootstrap label because lint does not exist before Order 02; no later Order may reuse it. Do not transition until every E/V pair is complete with evidence; perform the terminal move as a post-gate transaction.
 
 Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY this plan's files, path-scoped, never `git add -A`/`-a`, never push; `git add` new files first. Paste ACTUAL runner output; never claim a pass not run. No em or en dashes. STOP and report if execution exceeds scope (schema + its tests only; no parser/CLI/template/migration). Terminal transition is a POST-gate transaction, not a checklist item. Never create or push a tag / Release / PyPI upload.

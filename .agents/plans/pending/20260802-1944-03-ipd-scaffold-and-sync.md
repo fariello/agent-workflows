@@ -4,9 +4,10 @@
 - Kind: child
 - Concern: make the fiddly, error-prone parts of the new IPD shape (conformant skeletons, id assignment, matching `V-*` skeletons) a tool operation, so authors never hand-number ids or hand-copy validation rows, and identity is never rewritten.
 - Scope: `aw ipd scaffold` (create) + `aw ipd sync` (reconcile), consuming the Order-01 schema and reusing the Order-02 parser, both under the writing-command safety contract (spec Section 6.2) and maintaining the allocation watermark (spec Section 5.6). No review wiring (05), no migration (06). Requires Orders 01, 02 executed; if their symbols are absent, STOP.
-- Status: to-review
+- Status: reviewed
 - Set: ipd-structure
 - Order: 3
+- Highest E allocated: 05
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -14,6 +15,7 @@
 - 2026-08-02 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `ipd-structure`; the authoring ergonomics that keep the bijection convention from becoming hand-work.
 - 2026-08-02 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE; no findings (deps 01,02 correct; stable-id/no-renumber + refuse-destructive-post-execution rules match spec Section 6). Bootstrap manual preflight. GO - PENDING HUMAN APPROVAL.
 - 2026-08-03 revision (opencode its_direct/pt3-claude-opus-4.8-1m-us): substantive revisions: `sync` now MAINTAINS the allocation watermark (next suffix = `Highest E allocated + 1`, never decreased, never reused after deletion; spec Section 5.6), and both commands adopt the explicit writing-command safety contract (dry-run default, explicit apply, overwrite refusal, atomic/recoverable writes; spec Section 6.2), with matching E/V items; added the highest-id-deletion-then-add test; renamed `## Findings (drivers)` to `## Findings`. These SUPERSEDE the earlier GO verdict for readiness; returned to `Status: to-review`; a fresh independent `/plan-review` is required; the revising agent does NOT self-approve.
+- 2026-08-03 /plan-review (Codex gpt-5.6): REVIEWED - OPEN QUESTIONS; PR-001 through PR-010 repaired where in scope. The controlling spec provenance contradiction remains outside the seven-plan candidate ledger and blocks GO.
 
 ## Goal
 
@@ -25,29 +27,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: scaffold
 
-- [ ] E-01 add `aw ipd scaffold` (module `agent_workflows/ipd_authoring.py` + CLI action): create a new conformant skeleton (canonical headings in order for the chosen kind, empty checklists, size-assessment block, no-open-questions marker, `Highest E allocated: 00`) from the Order-01 schema, under the writing-command safety contract (spec Section 6.2): dry-run/preview by default, explicit `--apply` to write, REFUSE to overwrite an existing path without an explicit overwrite flag, atomic/recoverable write, actionable diagnostics, exit codes `0`/`1`/`2`.
+- [ ] E-01 add `aw ipd scaffold` (module `agent_workflows/ipd_authoring.py` + CLI action) with exact syntax `aw ipd scaffold --kind child|orchestrator --title TEXT --path FILE [--set NAME --order N] [--author TEXT] [--apply] [--overwrite]`. Require paired Set/Order, force orchestrator Order 0 and child Order >=1, default Date to today, Status to `draft`, and watermark to 00; require an explicit or configured author. Emit a complete canonical skeleton with explicit empty placeholders. Dry-run is default; `--apply` writes; `--overwrite` is required for an existing file; writes are atomic/recoverable; diagnostics and exits are 0/1/2; prompts are forbidden.
   - Depends on: none
   - Expected outcome: a scaffolded file (via `--apply`) passes `aw ipd lint --phase author`; the default invocation only previews and writes nothing; overwriting an existing path is refused without the overwrite flag.
   - Execution state: pending
 
 ### Task group 2: non-destructive sync
 
-- [ ] E-02 add `aw ipd sync`: assign the next unused suffix to each new execution leaf FROM THE ALLOCATION WATERMARK (`Highest E allocated + 1`, monotonic, never renumber existing, never reuse a deleted suffix), advance the watermark to the new value (never decrease it), generate a matching pending `V-NN` skeleton for each new `E-NN`, and report inconsistencies; under the writing-command safety contract (dry-run default, explicit `--apply`, atomic write).
+- [ ] E-02 add `aw ipd sync`: recognize an unassigned leaf only as a top-level task-list item inside the execution section whose first text token is the schema-owned placeholder; assign leaves in source order from `Highest E allocated + 1`, replace only that placeholder, and append matching V skeletons in E order at the schema-owned insertion point. Never mutate unrelated or malformed checkboxes. Preflight the whole document and refuse all changes on bad/missing watermark, duplicate/malformed IDs, orphan V rows, or invalid section placement. Dry-run is default; explicit `--apply` performs one atomic write.
   - Depends on: none
   - Expected outcome: adding two leaves yields the next two ids above the watermark + two pending V rows and advances the watermark; existing ids unchanged; gaps preserved; deleting the highest `E-*` then adding one assigns a suffix ABOVE the watermark, never the deleted suffix.
   - Execution state: pending
-- [ ] E-03 enforce sync safety: preserve nonempty evidence/notes/results/checkbox state; do not reorder authored rows; only auto-remove a pending `V-*` whose matching `E-*` was removed BEFORE approval and which has no observed evidence/nonpending result/manual content, WITHOUT decreasing the watermark (spec Section 5.6); REFUSE destructive sync after execution began (require the amendment/re-review workflow + a workflow-history entry).
+- [ ] E-03 enforce sync safety: preserve nonempty evidence/notes/results/checkbox state and do not reorder authored rows. Only auto-remove a pending V row whose E row was removed while Status is pre-approval and which has no evidence, nonpending result, or manual content. Refuse every structural change when Status is `approved` or `auto-approved`, or when any E/V checkbox, state, note, evidence, or result is non-initial; require amendment, workflow-history entry, and re-review. Never normalize whitespace or formatting outside the exact placeholder, generated V skeleton, and watermark lines.
   - Depends on: E-02
   - Expected outcome: post-execution structural change is refused with a clear message; pre-approval orphan pending V is cleanly removed and the watermark does not decrease.
   - Execution state: pending
 
 ### Task group 3: tests
 
-- [ ] E-04 add `tests/test_ipd_authoring.py`: scaffold conformance + writing-safety (dry-run default, apply writes, overwrite refusal, atomic write), monotonic watermark-based id assignment, gap stability, highest-id-deletion-then-add (no reuse), V-skeleton generation, evidence/state preservation, refusal after execution, pre-approval orphan removal.
+- [ ] E-04 add `tests/test_ipd_authoring.py`: exact scaffold arguments/defaults/metadata and invalid combinations; dry-run/apply/overwrite behavior; atomic success, injected failure rollback, and temp cleanup; transient placeholder recognition and source-order V insertion; full preflight/all-or-nothing refusal; monotonic watermark assignment, gap stability, no reuse after deletion; preservation; approved/non-initial refusal; safe pre-approval orphan removal; separate sync dry-run/apply and 0/1/2 exits.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: table-driven tests; all pass.
   - Execution state: pending
-- [ ] E-05 run `python -m pytest tests/test_ipd_authoring.py -q` then the full suite; paste both.
+- [ ] E-05 run `python3 -m unittest tests.test_ipd_authoring -v` then `python3 -m unittest discover -s tests -t .`; paste both.
   - Depends on: E-04
   - Expected outcome: new tests pass; suite green.
   - Execution state: pending
@@ -87,7 +89,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-`tests/test_ipd_authoring.py` (E-04). Run `python -m pytest tests/test_ipd_authoring.py -q` then `python -m pytest -q`; paste both. Additionally: a scaffolded file passes `aw ipd lint --phase author` (paste). Leak-clean; no em/en dashes.
+`tests/test_ipd_authoring.py` (E-04). Run `python3 -m unittest tests.test_ipd_authoring -v` then `python3 -m unittest discover -s tests -t .`; paste both. Additionally: a scaffolded file passes `aw ipd lint --phase author` (paste). Leak-clean; no em/en dashes.
 
 ## Spec / documentation sync
 
@@ -98,9 +100,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ### OQ-01: sync formatting scope
 
 - Blocking: no
-- Status: deferred
+- Status: resolved
 - Owner: this child
-- Resolution or deferral rationale: whether `sync` may perform any whitespace normalization is decided here; default is to touch only id/V-skeleton lines and never reorder authored rows.
+- Resolution or deferral rationale: sync performs no general whitespace normalization or reordering; a formatter, if ever needed, is a separate explicit command and plan.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -132,6 +134,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Proposal; human review + approval required; not auto-executed. Requires Orders 01, 02; if absent, STOP. After Order 02, this file SHOULD be linted with the real `aw ipd lint`. Do NOT claim done or move to `executed/` until every `E-*` is `performed`+checked AND its matching `V-*` is `pass`+checked with nonempty observed evidence; else STOP and report.
+Proposal; human review + approval required; not auto-executed. Correcting, independently reviewing, and formally approving the controlling spec is a prerequisite. Requires Orders 01 and 02 plus conforming pre-execution lint; if absent or nonconforming, STOP. Do not transition until every E/V pair is complete with evidence and pre-transition lint conforms.
 
 Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY this plan's files, path-scoped, never `git add -A`/`-a`, never push; `git add` new files first. Paste ACTUAL runner output; never claim a pass not run. No em or en dashes. STOP and report if execution exceeds scope (scaffold + sync + tests; no review wiring, no migration). Never provide an auto-renumber command. Terminal transition is a POST-gate transaction. Never create or push a tag / Release / PyPI upload.
