@@ -12,6 +12,7 @@
 ## Workflow history
 
 - 2026-08-02 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `ipd-structure`; aligns the authored artifacts with the schema and fixes the audited defects.
+- 2026-08-02 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (dependency corrected to 01,02,03 in scope + gate, since V-01/V-02 run `aw ipd lint` from Order 02) and PR-004 (E-02 now targets the schema-defined orchestrator order, no fork). Bootstrap manual preflight. No BLOCKER/HIGH. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
