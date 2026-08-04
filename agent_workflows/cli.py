@@ -173,6 +173,44 @@ def _build_parser() -> argparse.ArgumentParser:
         help="(Re)generate .agents/plans/STATUS.md instead of printing.",
     )
 
+    p_ipd = sub.add_parser(
+        "ipd",
+        parents=[common],
+        help="IPD tooling (structure/state). 'ipd lint' deterministically checks an IPD.",
+    )
+    ipd_sub = p_ipd.add_subparsers(dest="ipd_command")
+    p_ipd_lint = ipd_sub.add_parser(
+        "lint",
+        parents=[common],
+        help="Deterministically lint an IPD's structure/state (read-only; no model/network/writes).",
+    )
+    p_ipd_lint.add_argument(
+        "path",
+        nargs="?",
+        default=None,
+        help="IPD file to lint (or a repo root with --all).",
+    )
+    p_ipd_lint.add_argument(
+        "--phase",
+        default="author",
+        help="Lint checkpoint: author | review-finalize | pre-execution | pre-transition | post-transition.",
+    )
+    p_ipd_lint.add_argument(
+        "--all",
+        action="store_true",
+        help="Lint every plan under .agents/plans and report a per-disposition inventory.",
+    )
+    p_ipd_lint.add_argument(
+        "--legacy",
+        action="store_true",
+        help="Run the reduced legacy checks against a grandfathered terminal file.",
+    )
+    p_ipd_lint.add_argument(
+        "--agent",
+        action="store_true",
+        help="Machine output: one tab-separated record per finding or disposition; no prose.",
+    )
+
     p_names = sub.add_parser(
         "plan-names",
         parents=[common],
@@ -1294,6 +1332,13 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return _run_plans(args, term)
     if args.command == "plan-names":
         return _run_plan_names(args, term)
+    if args.command == "ipd":
+        if getattr(args, "ipd_command", None) == "lint":
+            from agent_workflows import ipd_lint
+
+            return ipd_lint.run_lint(args)
+        parser.print_help()
+        return 2
     if args.command in ("check-local-leaks", "sanitize"):
         return _run_check_local_leaks(args, term)
 
