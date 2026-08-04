@@ -1,7 +1,7 @@
 # Specification: IPD structure, stable E-*/V-* mapping, lifecycle state, and deterministic linting
 
 - Date: 2026-08-02
-- Status: DRAFT (gpt-5.6-revised) pending maintainer review and approval; NOT approved and NOT adopted as a convention
+- Status: APPROVED (2026-08-03, human maintainer "Approved. Go.") as the working specification for the ipd-structure implementation Set. Originated as a gpt-5.6-revised draft; approved after independent Codex gpt-5.6 review of the Set and correction of the provenance wording.
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us), original draft
 - Revised by: an external gpt-5.6 review (revision + change-rationale filed under the research bundle below). The maintainer asked to LOOK AT this gpt-5.6-revised draft; the maintainer has NOT formally approved it and has NOT adopted it as the working spec. It remains a draft pending maintainer review and approval.
 - Origin: checklist-placement and instruction-audit research study
@@ -738,7 +738,7 @@ The following are not open decisions:
 
 ## 18. Approval and next step
 
-This specification is a gpt-5.6-revised DRAFT paused for maintainer review and formal approval; it is NOT approved and NOT adopted. Formal maintainer approval of THIS specification is an explicit prerequisite to executing the implementation IPD Set: the orchestrator and each child MUST NOT be executed until (a) this specification is approved by the maintainer and (b) that Set is itself reviewed and approved under the applicable bootstrap rules. After approval, author or finalize the orchestrated IPD Set for the components in Section 15.
+This specification was APPROVED by the human maintainer on 2026-08-03 ("Approved. Go."), after the independent Codex gpt-5.6 review of the implementation Set and the provenance correction. Prerequisite (a) formal maintainer approval of THIS specification is now satisfied. Prerequisite (b) the implementation Set was independently reviewed (Codex gpt-5.6, 2026-08-03) and approved by the maintainer in the same instruction; execution proceeds in dependency order (Order 01 through 06), pausing only to STOP-and-report on a genuine blocker, out-of-scope decision, or unresolved question. The components to implement are in Section 15.
 
 After the IPD-system Set lands:
 
