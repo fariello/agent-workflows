@@ -23,6 +23,16 @@ verification/cross-check checklist that maps 1:1 with concrete per-item evidence
 absent verification checklist (one that could let an agent claim completion without doing every
 step) is an UNDER-SCOPE finding.
 
+Structural conformance is enforced by the deterministic linter, not re-judged by prose: run
+`aw ipd lint --phase author --agent <plan-file>` as a structural preflight before semantic review
+and `--phase review-finalize --agent <plan-file>` after edits (identical contract in the single-file
+`plan-review` and this long-form flow). Only a `conforming` disposition proceeds; exit `1` is a
+STRUCTURAL finding to repair; exit `2` (the linter could not run) is a hard stop, never a skip. The
+linter proves STRUCTURE and STATE only (heading order, `E-*`/`V-*` bijection, state legality,
+metadata); coverage, correctness, and evidence sufficiency remain the reviewer's separate semantic
+judgment. The `machine preflight unavailable: bootstrap` label is valid only while the linter does
+not yet exist; once `aw ipd lint` is available, unavailable lint fails closed.
+
 The plan must be executable by another qualified agent or developer without
 inventing architecture.
 

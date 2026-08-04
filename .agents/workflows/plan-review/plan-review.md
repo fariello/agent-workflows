@@ -110,6 +110,26 @@ For each eligible plan:
 
 If missing evidence prevents reliable review, file a finding or open question.
 
+### Structural preflight (before semantic review)
+For each eligible plan that is an agent-executable IPD, run the deterministic structural linter as
+a GATE before you spend semantic effort:
+
+    aw ipd lint --phase author --agent <plan-file>
+
+Then, after all revision edits are applied (Step 2/3), re-run at the finalize checkpoint:
+
+    aw ipd lint --phase review-finalize --agent <plan-file>
+
+Only a `conforming` disposition proceeds. Exit `1` (a conformance error) is a distinct STRUCTURAL
+finding that MUST be repaired before a passing verdict; exit `2` (the linter could not run) is a
+hard stop, not a skip. INVOKE the linter; do not paraphrase or hand-simulate its checks. The linter
+proves STRUCTURE and STATE only (heading order, `E-*`/`V-*` bijection, state legality, metadata);
+it establishes nothing semantic (coverage, correctness, evidence sufficiency, truthful
+blocking-classification), so the semantic review below remains fully required and separate.
+
+(Only while the linter does not yet exist may a run record say `machine preflight unavailable:
+bootstrap`; once `aw ipd lint` is available that exception no longer applies.)
+
 ### Pre-review commit
 Before editing:
 1. Inspect repository status.

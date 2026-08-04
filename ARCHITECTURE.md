@@ -40,6 +40,7 @@ agent-workflows/
     verify/                 Evidence layer (proof, not self-report)
     verify-execution/       Post-execution cross-check that a plan was truly done
       tools/run_checks.py   Discovers and runs the repo's own checks; captures evidence
+    ipd-lifecycle/          Authoritative execution + terminal-transition gate (aw ipd lint, fail-closed)
     benchmark/              Guided performance benchmarking (informational)
       tools/bench_env.py    Read-only machine/environment capture + diagnosis + HPC detect
     setup-repo/             Guided setup + conformance wizard

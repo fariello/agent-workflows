@@ -88,6 +88,19 @@ Before editing:
 If Git is unavailable or a safe commit cannot be made, continue when safe and
 record the reason.
 
+## 5. Structural preflight (before the audit lanes)
+
+For each eligible agent-executable IPD, run the deterministic structural linter as a GATE before
+opening the audit lanes:
+
+    aw ipd lint --phase author --agent <plan-file>
+
+Only a `conforming` disposition proceeds. Exit `1` is a distinct STRUCTURAL finding to repair
+before a passing verdict; exit `2` (the linter could not run) is a hard stop, not a skip. INVOKE
+the linter; do not paraphrase its checks. It proves STRUCTURE and STATE only; the semantic audit
+lanes remain fully required and separate. (The `machine preflight unavailable: bootstrap` label
+applies only while the linter does not yet exist.)
+
 ## Exit gate
 
 Do not proceed until:
@@ -98,3 +111,4 @@ Do not proceed until:
 - [ ] Material plan claims are grounded in repository evidence.
 - [ ] Documentation/specification impact is identified.
 - [ ] Pre-review snapshot is committed, skipped, or explained.
+- [ ] Structural preflight (`aw ipd lint --phase author`) is `conforming`, or its findings are recorded to repair before a passing verdict.

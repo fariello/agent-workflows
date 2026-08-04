@@ -67,6 +67,16 @@ For each reviewed plan confirm:
   is specific enough to catch a false completion claim). A missing/weak checklist is an UNDER-SCOPE
   finding you add or strengthen in place.
 
+After all revision edits are applied, re-run the deterministic structural linter at the finalize
+checkpoint as a GATE:
+
+    aw ipd lint --phase review-finalize --agent <plan-file>
+
+Only a `conforming` disposition permits a passing verdict; exit `1` is a structural finding to
+repair; exit `2` is a hard stop. INVOKE the linter; do not paraphrase it. It proves structure/state
+only; it does not establish semantic adequacy. (The `machine preflight unavailable: bootstrap`
+label applies only while the linter does not yet exist.)
+
 Apply the project's review-complete status. If it uses `Status`, set `reviewed`
 unless the contract requires another value.
 
