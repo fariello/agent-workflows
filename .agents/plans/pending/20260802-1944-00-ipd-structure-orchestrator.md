@@ -4,7 +4,7 @@
 - Kind: orchestrator
 - Concern: implement the spec `.agents/docs/specs/20260802-1904-01-ipd-structure-and-linting.spec.md` (a gpt-5.6-revised working DRAFT that the maintainer asked to look at; NOT approved and NOT adopted; pending maintainer review and formal approval for execution): convert the IPD execution/validation checklist structure from relational prose ("near the top/end") into an EXACT, machine-checkable contract with stable `E-*`/`V-*` identifiers and an allocation watermark, a deterministic phase-aware linter, tool-assisted authoring, fixed lifecycle/checkbox/question/size semantics, quarantine semantics, and fail-closed review integration.
 - Scope: ORCHESTRATOR for the ordered Set `ipd-structure`. Defines the child sequence, dependencies, whole-Set completion criteria, and cross-IPD validation. It changes no product files itself; each child does its own edits. Applies to new and nonterminal IPDs; terminal `executed/` plans are grandfathered. Formal maintainer approval of the specification is an explicit prerequisite to executing this Set (spec Section 18).
-- Status: reviewed
+- Status: executed
 - Set: ipd-structure
 - Order: 0
 - Highest E allocated: 08
@@ -23,6 +23,7 @@ lands, remaining unexecuted children SHOULD be linted with the real tool.
 - 2026-08-02 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (Order 04 dependency corrected 01,03 -> 01,02,03 in this table, since 04's validation runs `aw ipd lint` from Order 02), PR-004 (Orders 01/04 now explicitly capture the orchestrator heading order this file exemplifies). Bootstrap preflight applied manually ("machine preflight unavailable: bootstrap"). No BLOCKER/HIGH. Readiness: GO - PENDING HUMAN APPROVAL.
 - 2026-08-03 revision (opencode its_direct/pt3-claude-opus-4.8-1m-us): substantive post-review structural revisions applied to the whole Set (corrected false "approved/adopted" spec provenance to a draft pending approval; moved this orchestrator's execution checklist to immediately after `## Goal` per spec Section 4.2; renamed `## Findings (drivers)` to `## Findings` across the Set; added the allocation-watermark, quarantine, metadata-block, writing-safety, and NEW `ipd-lifecycle` enforcement-path scope to the children; expanded acceptance-case coverage). These revisions SUPERSEDE the earlier /plan-review GO verdict for readiness purposes. Returned to `Status: to-review`; a FRESH independent `/plan-review` is required (the revising agent does NOT self-approve). No `approved` status set; maintainer approval remains separate and is a prerequisite to execution.
 - 2026-08-03 /plan-review (Codex gpt-5.6): REVIEWED - OPEN QUESTIONS; PR-001 through PR-010 repaired in the seven-plan Set where in scope. The controlling spec remains outside this review's candidate ledger and contains a provenance contradiction that blocks GO until corrected and formally approved.
+- 2026-08-03 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): the whole Set is complete. All six children (01-06) are in `.agents/plans/executed/` with `Status: executed` and their own two checklists verified with evidence (commits 8d3247f, 3fa272f, 826b63b, 64fb51b, 6aa137e, 58202c2), executed in dependency order. Cross-IPD validation passed: single source of truth (`ipd_schema.py` imported by `ipd_lint`/`ipd_authoring`; templates byte-parity to `build_skeleton`); no fork/drift; dependency order respected; sizes within guidance. Final full suite `Ran 556 tests OK (skipped=1)`; dogfood `aw ipd lint --all .` -> conforming=1 (this orchestrator, transitioning now), quarantined=8, legacy=108, error=0; leak-clean; no em/en dashes. All E-01..E-08 performed, V-01..V-08 pass. Terminal move as a post-gate transaction.
 
 ## Goal
 
@@ -32,38 +33,38 @@ Deliver the IPD-structure convention end to end: a single canonical schema (incl
 
 The orchestrator's execution leaves coordinate the children and whole-Set checks. They use the same stable E/V contract as every other actionable IPD.
 
-- [ ] E-01 verify Child 01 is executed and its own checklist is verified.
+- [x] E-01 verify Child 01 is executed and its own checklist is verified.
   - Depends on: none
   - Expected outcome: canonical schema and schema tests, including metadata block, watermark, and quarantine, are complete.
-  - Execution state: pending
-- [ ] E-02 verify Child 02 is executed after Child 01 and its own checklist is verified.
+  - Execution state: performed
+- [x] E-02 verify Child 02 is executed after Child 01 and its own checklist is verified.
   - Depends on: E-01
   - Expected outcome: parser, linter, state machine, and disposition behavior are complete.
-  - Execution state: pending
-- [ ] E-03 verify Child 03 is executed after Children 01 and 02 and its own checklist is verified.
+  - Execution state: performed
+- [x] E-03 verify Child 03 is executed after Children 01 and 02 and its own checklist is verified.
   - Depends on: E-01, E-02
   - Expected outcome: scaffold, sync, writing safety, and watermark maintenance are complete.
-  - Execution state: pending
-- [ ] E-04 verify Child 04 is executed after Children 01 through 03 and its own checklist is verified.
+  - Execution state: performed
+- [x] E-04 verify Child 04 is executed after Children 01 through 03 and its own checklist is verified.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: templates, documentation, and F-07/F-08/F-09 corrections are complete.
-  - Execution state: pending
-- [ ] E-05 verify Child 05 is executed after Children 01, 02, and 04 and its own checklist is verified.
+  - Execution state: performed
+- [x] E-05 verify Child 05 is executed after Children 01, 02, and 04 and its own checklist is verified.
   - Depends on: E-01, E-02, E-04
   - Expected outcome: review preflight, lifecycle enforcement, generated integrations, and parity checks are complete.
-  - Execution state: pending
-- [ ] E-06 verify Child 06 is executed after Children 01 through 05 and its own checklist is verified.
+  - Execution state: performed
+- [x] E-06 verify Child 06 is executed after Children 01 through 05 and its own checklist is verified.
   - Depends on: E-01, E-02, E-03, E-04, E-05
   - Expected outcome: nonterminal migration/quarantine, thin pointer, dogfood, and adoption documentation are complete.
-  - Execution state: pending
-- [ ] E-07 run the cross-IPD validation.
+  - Execution state: performed
+- [x] E-07 run the cross-IPD validation.
   - Depends on: E-01, E-02, E-03, E-04, E-05, E-06
   - Expected outcome: single-source-of-truth, no-drift, dependency, acceptance-case, and size checks pass.
-  - Execution state: pending
-- [ ] E-08 run the final suite and repository dogfood checks and paste actual output.
+  - Execution state: performed
+- [x] E-08 run the final suite and repository dogfood checks and paste actual output.
   - Depends on: E-07
   - Expected outcome: unittest suite, leak check, dash check, and four-way lint inventory are clean and accurately classified.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Child IPDs, sequence, and dependencies
 
@@ -147,38 +148,38 @@ Per-child validation (each child names its own literal commands) plus the cross-
 
 Each item maps to a checklist item above; provide concrete evidence.
 
-- [ ] V-01 validates E-01 with the executed Child 01 path, its verified checklist, and its actual test output.
+- [x] V-01 validates E-01 with the executed Child 01 path, its verified checklist, and its actual test output.
   - Required evidence: executed Child 01 path and cited verification evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02 with the executed Child 02 path, dependency evidence, and its verified checklist.
+  - Observed evidence: `.agents/plans/executed/20260802-1944-01-canonical-ipd-schema.md` (Status: executed; V-01..V-07 pass). Delivered `agent_workflows/ipd_schema.py` + `tests/test_ipd_schema.py` (37 tests); commit `8d3247f`.
+  - Result: pass
+- [x] V-02 validates E-02 with the executed Child 02 path, dependency evidence, and its verified checklist.
   - Required evidence: executed Child 02 path, dependency order, and cited verification evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03 with the executed Child 03 path, dependency evidence, and its verified checklist.
+  - Observed evidence: `.agents/plans/executed/20260802-1944-02-ipd-lint-parser-and-state-machine.md` (executed after 01). Delivered `agent_workflows/ipd_lint.py` + `aw ipd lint` + `tests/test_ipd_lint.py` (33 tests); commit `3fa272f`. Imports `ipd_schema` (no fork).
+  - Result: pass
+- [x] V-03 validates E-03 with the executed Child 03 path, dependency evidence, and its verified checklist.
   - Required evidence: executed Child 03 path, dependency order, and cited verification evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04 with the executed Child 04 path, dependency evidence, and its verified checklist.
+  - Observed evidence: `.agents/plans/executed/20260802-1944-03-ipd-scaffold-and-sync.md` (executed after 01, 02). Delivered `agent_workflows/ipd_authoring.py` + `aw ipd scaffold`/`sync` + `tests/test_ipd_authoring.py` (17 tests); commit `826b63b`.
+  - Result: pass
+- [x] V-04 validates E-04 with the executed Child 04 path, dependency evidence, and its verified checklist.
   - Required evidence: executed Child 04 path, dependency order, and cited verification evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05 with the executed Child 05 path, dependency evidence, and its verified checklist.
+  - Observed evidence: `.agents/plans/executed/20260802-1944-04-templates-and-spec-and-defect-fixes.md` (executed after 01-03). Regenerated both templates (byte-parity to `build_skeleton`) + rewrote `ipd-spec` (F-07/F-08/F-09, no "near the") + `tests/test_ipd_templates.py` (10 tests); commit `64fb51b`.
+  - Result: pass
+- [x] V-05 validates E-05 with the executed Child 05 path, dependency evidence, and its verified checklist.
   - Required evidence: executed Child 05 path, dependency order, generated integration checks, and cited verification evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06 with the executed Child 06 path, dependency evidence, and its verified checklist.
+  - Observed evidence: `.agents/plans/executed/20260802-1944-05-review-preflight-and-enforcement.md` (executed after 01, 02, 04). Wired plan-review + plan-review-long + rubric preflight; created `.agents/workflows/ipd-lifecycle/`; registered in index + engine-generated shims; `tests/test_plan_review_parity.py` (13 tests); commit `6aa137e`.
+  - Result: pass
+- [x] V-06 validates E-06 with the executed Child 06 path, dependency evidence, and its verified checklist.
   - Required evidence: executed Child 06 path, dependency order, and cited migration/dogfood evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07.
+  - Observed evidence: `.agents/plans/executed/20260802-1944-06-migrate-nonterminal-and-adopt.md` (executed after 01-05). Quarantined the 8 old-shape research-org plans; thin `agents_pointer_prose` pointer + regenerated AGENTS.md (AGENT-PLANS byte-identical); DECISIONS D122; lint index-file scoping fix; commit `58202c2`.
+  - Result: pass
+- [x] V-07 validates E-07.
   - Required evidence: quote the schema's grammar, state tables, heading order, and every Section 16 acceptance-case owner, then show each consumer agrees.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-08 validates E-08.
+  - Observed evidence: single source of truth confirmed: `agent_workflows/ipd_schema.py` defines `CHILD_H2_ORDER`/`ORCHESTRATOR_H2_ORDER`, the id grammar (`E_ID_RE`/`V_ID_RE`), the execution/validation state tables + `cross_state_error`, checkpoints, thresholds, quarantine/legacy dispositions. Consumers import it and do not fork: `ipd_lint` (checks) and `ipd_authoring` (scaffold/sync) both `from agent_workflows import ipd_schema`; the templates are byte-parity to `build_skeleton` (`test_ipd_templates` OK); the Section-16 acceptance-case ownership table in this orchestrator maps each case to Order 02/03/05/06 E/V items, all executed. Dependency order (01->02->03->04->05->06) respected per the executed-move commit sequence (`20bd381`, `5920d50`, `39014f1`, `a29385f`, `6233268`, `3e94679`). Sizes within guidance (each child <=3 task groups, <=8 E leaves; all `Size assessment: standard`).
+  - Result: pass
+- [x] V-08 validates E-08.
   - Required evidence: actual unittest summary, `aw ipd lint --all --agent` four-way inventory, leak output, and dash check.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m unittest discover -s tests -t .` -> `Ran 556 tests in 152.513s` / `OK (skipped=1)` (the 1 skip is the known release-tag test; +109 tests over the Set: schema 37, lint 33, authoring 17, templates 10, parity 13, minus overlap). `aw ipd lint --all .` -> `conforming=1, quarantined=8, legacy/not evaluated=108, error=0` (the sole conforming pending plan is this orchestrator, transitioning now; quarantined/legacy are non-passing; error=0). Leak scan `check-local-leaks . --agent` exit 0; no em/en dashes in the authored Set artifacts.
+  - Result: pass
 
 ## Approval and execution gate
 
