@@ -6,11 +6,16 @@
 - Status: to-review
 - Set: research-org
 - Order: 0
+- Quarantine: old-shape draft; superseded by the ipd-structure convention, to be re-authored to the E-*/V-* shape
+- Quarantine owner: maintainer (IPD-system-first sequencing decision, 2026-08-03)
+- Quarantine follow-up: re-author the research-org Set to the new schema after the ipd-structure Set lands
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
 
 - 2026-07-30 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored from the approved spec `20260730-2152-01-agents-artifact-organization.spec.md`. Split into a Set because the work spans a naming/schema contract, three distinct tool surfaces, a data migration of 78 files, and framework scaffolding + convention edits (well beyond one IPD's size guidance) with clear dependency ordering.
+
+- 2026-08-03 quarantined (opencode its_direct/pt3-claude-opus-4.8-1m-us): the maintainer's IPD-system-first sequencing decision defers this old-shape research-org plan; quarantined under spec Section 13.3 (metadata trio added) pending re-authoring to the new E-*/V-* shape after the ipd-structure Set. Not conforming, not an error; an informational disposition.
 
 ## Goal
 

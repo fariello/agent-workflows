@@ -726,11 +726,15 @@ BOUNDARY_TEXT = (
 )
 
 
+# Generated index / scaffolding files under .agents/plans that are NOT IPDs and must not be linted.
+_NON_IPD_BASENAMES = frozenset(("README.md", "STATUS.md", "INDEX.md"))
+
+
 def _iter_plan_files(root: Path) -> List[Path]:
     base = root / ".agents" / "plans"
     if not base.is_dir():
         return []
-    return sorted(p for p in base.rglob("*.md") if p.name != "README.md")
+    return sorted(p for p in base.rglob("*.md") if p.name not in _NON_IPD_BASENAMES)
 
 
 def run_lint(args: argparse.Namespace) -> int:

@@ -13,6 +13,7 @@ import io
 import re
 import unittest
 from contextlib import redirect_stdout
+from pathlib import Path
 
 from agent_workflows import ipd_lint as L
 from agent_workflows import ipd_schema as S
@@ -403,9 +404,36 @@ class ExitCodeTests(unittest.TestCase):
         self.assertEqual(self._run(path="x.md", phase="bogus"), 2)
 
     def test_all_exits_1_when_errors_present(self):
-        # The repo currently has old-shape research-org plans that are errors under the new schema.
-        rc = self._run(all=True, path=str(REPO_ROOT))
-        self.assertEqual(rc, 1)
+        # Build a throwaway repo with one structurally-erroneous IPD; --all must exit 1.
+        import tempfile
+
+        root = Path(tempfile.mkdtemp())
+        pend = root / ".agents" / "plans" / "pending"
+        pend.mkdir(parents=True)
+        (pend / "bad.md").write_text(
+            "# IPD: bad\n\n- Kind: child\n\n## Goal\n\nno checklist here\n"
+        )
+        self.assertEqual(self._run(all=True, path=str(root)), 1)
+
+    def test_all_exits_0_when_no_errors(self):
+        # A repo whose only plan conforms -> --all exits 0.
+        import tempfile
+        from agent_workflows import ipd_authoring as A
+
+        root = Path(tempfile.mkdtemp())
+        pend = root / ".agents" / "plans" / "pending"
+        pend.mkdir(parents=True)
+        (pend / "ok.md").write_text(
+            A.build_skeleton(
+                kind="child",
+                title="ok (Set x, Order 1)",
+                author="t",
+                when="2026-08-03",
+                set_name="x",
+                order=1,
+            )
+        )
+        self.assertEqual(self._run(all=True, path=str(root)), 0)
 
 
 class AgentOutputTests(unittest.TestCase):
