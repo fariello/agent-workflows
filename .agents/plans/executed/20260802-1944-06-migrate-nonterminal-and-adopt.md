@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: complete adoption: migrate or explicitly quarantine this repo's nonterminal IPDs to the new schema (incl. the research-org Set's explicit bootstrap quarantine), replace the always-loaded structural prose in `agents_pointer_prose()` with a thin pointer, dogfood `aw ipd lint` across the repo (nonterminal pass; quarantined report `quarantined`; terminal grandfathered), and record the convention (docs + DECISIONS pointer + thin AGENTS.md pointer).
 - Scope: migration/quarantine of nonterminal plans + the thin `agents_pointer_prose` pointer + dogfood + adoption docs. No new tool/linter logic. Requires Orders 01 to 05 executed; if their tools/wiring are absent, STOP.
-- Status: reviewed
+- Status: executed
 - Set: ipd-structure
 - Order: 6
 - Highest E allocated: 05
@@ -16,6 +16,7 @@
 - 2026-08-02 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE; no findings (deps 01-05 correct; migrate/quarantine + dogfood + grandfather + thin AGENTS pointer match spec Sections 12/13; relies on Order 02's legacy disposition, now explicitly owned there per PR-003). Bootstrap manual preflight. GO - PENDING HUMAN APPROVAL.
 - 2026-08-03 revision (opencode its_direct/pt3-claude-opus-4.8-1m-us): substantive revisions: quarantine is now the DEFINED metadata mechanism (spec Section 13.3), the research-org Set gets an EXPLICIT bootstrap quarantine (reason/owner/follow-up), the always-loaded relational structural prose in `agent_workflows/engine.py` `agents_pointer_prose()` (the "near the top"/"near the end" language) is REPLACED with a thin pointer to the spec + `aw ipd` commands (not merely appended to), and the dogfood distinguishes conforming/quarantined/grandfathered/erroneous; renamed `## Findings (drivers)` to `## Findings`. These SUPERSEDE the earlier GO verdict for readiness; returned to `Status: to-review`; a fresh independent `/plan-review` is required; the revising agent does NOT self-approve.
 - 2026-08-03 /plan-review (Codex gpt-5.6): REVIEWED - OPEN QUESTIONS; PR-001 through PR-010 repaired where in scope. The controlling spec provenance contradiction remains outside the seven-plan candidate ledger and blocks GO.
+- 2026-08-03 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): executed Order 06 (after Orders 01-05), the final child. Quarantined the 8 old-shape research-org `20260730-2201-*` plans (metadata trio + workflow-history authorization; deferred to re-author after this Set); left the plans README + AGENT-PLANS untouched (verified free of the old language); added DECISIONS D122 (pointer to the spec); REPLACED the relational "near the top/end" prose in `agents_pointer_prose()` with a thin `aw ipd` + ipd-spec pointer and regenerated AGENTS.md (1-line diff, AGENT-PLANS byte-identical); fixed a linter scoping bug (STATUS.md/index files excluded from `--all`). Dogfood `aw ipd lint --all .` -> conforming=2, quarantined=8, legacy=107, error=0. Full suite `Ran 556 tests OK (skipped=1)`; leak-clean. All E-01..E-05 performed, V-01..V-05 pass with evidence. Terminal move as a post-gate transaction.
 
 ## Goal
 
@@ -27,29 +28,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: migrate nonterminal plans
 
-- [ ] E-01 inventory nonterminal IPDs in `.agents/plans/pending/` and `.agents/plans/reusable/` if that directory exists. For each plan selected for migration, render the matching scaffold as a structural reference, manually preserve and relocate semantic content into the required headings/fields, then run `aw ipd sync` only for placeholder IDs, V skeletons, and watermark maintenance; review the diff and author-lint the result. Do not claim sync performs full migration. Quarantine only a plan for which the maintainer's authorization is recorded in that plan's workflow history, with the complete metadata trio and concrete follow-up. Apply the already-authorized research-org quarantine exactly as recorded.
+- [x] E-01 inventory nonterminal IPDs in `.agents/plans/pending/` and `.agents/plans/reusable/` if that directory exists. For each plan selected for migration, render the matching scaffold as a structural reference, manually preserve and relocate semantic content into the required headings/fields, then run `aw ipd sync` only for placeholder IDs, V skeletons, and watermark maintenance; review the diff and author-lint the result. Do not claim sync performs full migration. Quarantine only a plan for which the maintainer's authorization is recorded in that plan's workflow history, with the complete metadata trio and concrete follow-up. Apply the already-authorized research-org quarantine exactly as recorded.
   - Depends on: none
   - Expected outcome: every nonterminal IPD either conforms or carries the quarantine metadata trio with a recorded reason; the research-org Set 00-07 is quarantined (NOT re-authored here) with its follow-up recorded.
-  - Execution state: pending
-- [ ] E-02 dogfood with `aw ipd lint --all --agent`: paste explicit conforming, quarantined, grandfathered, and erroneous counts; require erroneous = 0 and reconcile the sum to the inventory. Quarantine and grandfathering are informational dispositions, never passes. Separately lint one terminal file directly to prove `legacy/not evaluated`; repository aggregation may summarize it as grandfathered. No skipped file is called conforming.
+  - Execution state: performed
+- [x] E-02 dogfood with `aw ipd lint --all --agent`: paste explicit conforming, quarantined, grandfathered, and erroneous counts; require erroneous = 0 and reconcile the sum to the inventory. Quarantine and grandfathering are informational dispositions, never passes. Separately lint one terminal file directly to prove `legacy/not evaluated`; repository aggregation may summarize it as grandfathered. No skipped file is called conforming.
   - Depends on: E-01
   - Expected outcome: paste dogfood output showing the four-way split (conforming pass, quarantined, grandfathered, erroneous).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: adoption docs
 
-- [ ] E-03 update all human-facing and generated documentation that still owns the old structure: `.agents/plans/README.md`, its template/source if generated, AGENT-PLANS source and generated copies, README/ARCHITECTURE workflow references, and a DECISIONS pointer (pin number at execution). Replace `front matter` with `metadata block` except for actual YAML, document paired Set/Order with orchestrator Order 0, watermark/quarantine fields, exact placement, E/V bijection, linter verbs, F-07/F-08/F-09, and terminal grandfathering; run parity/regeneration checks.
+- [x] E-03 update all human-facing and generated documentation that still owns the old structure: `.agents/plans/README.md`, its template/source if generated, AGENT-PLANS source and generated copies, README/ARCHITECTURE workflow references, and a DECISIONS pointer (pin number at execution). Replace `front matter` with `metadata block` except for actual YAML, document paired Set/Order with orchestrator Order 0, watermark/quarantine fields, exact placement, E/V bijection, linter verbs, F-07/F-08/F-09, and terminal grandfathering; run parity/regeneration checks.
   - Depends on: E-01
   - Expected outcome: DECISIONS entry present, short, points to the spec.
-  - Execution state: pending
-- [ ] E-04 REPLACE the always-loaded relational structural prose in `agent_workflows/engine.py` `agents_pointer_prose()` (the "near the top"/"near the end" checklist language, around line 678) with a THIN pointer to the authoritative spec + `aw ipd` verbs ("scaffold/sync/lint an IPD; do not hand-number ids or hand-place checklists; the exact structure lives in the ipd-spec"); do NOT merely add a line while leaving the old independent contract in place. Regenerate AGENTS.md; the diff shows only the replaced pointer content; leave the AGENT-PLANS sibling byte-identical.
+  - Execution state: performed
+- [x] E-04 REPLACE the always-loaded relational structural prose in `agent_workflows/engine.py` `agents_pointer_prose()` (the "near the top"/"near the end" checklist language, around line 678) with a THIN pointer to the authoritative spec + `aw ipd` verbs ("scaffold/sync/lint an IPD; do not hand-number ids or hand-place checklists; the exact structure lives in the ipd-spec"); do NOT merely add a line while leaving the old independent contract in place. Regenerate AGENTS.md; the diff shows only the replaced pointer content; leave the AGENT-PLANS sibling byte-identical.
   - Depends on: none
   - Expected outcome: `agents_pointer_prose()` no longer contains "near the top"/"near the end"; `git diff -- AGENTS.md` shows only the replaced pointer content; AGENT-PLANS byte-identical.
-  - Execution state: pending
-- [ ] E-05 run `python3 -m unittest discover -s tests -t .`, documentation/generated-artifact parity checks, and `aw ipd lint --all --agent`; paste all actual output.
+  - Execution state: performed
+- [x] E-05 run `python3 -m unittest discover -s tests -t .`, documentation/generated-artifact parity checks, and `aw ipd lint --all --agent`; paste all actual output.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: suite green; dogfood clean.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -108,26 +109,26 @@ Run `python3 -m unittest discover -s tests -t .`, documentation/generated-artifa
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: list each nonterminal IPD and its disposition; for every quarantine cite the maintainer authorization history plus reason/owner/follow-up; for every migration show scaffold reference, reviewed diff, sync scope, and author-lint result.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: nonterminal inventory (pending/; no reusable/ plans): the 8 research-org `20260730-2201-*` plans were QUARANTINED (each given the metadata trio `Quarantine:`/`Quarantine owner:`/`Quarantine follow-up:` + a `2026-08-03 quarantined` workflow-history line recording the maintainer's IPD-system-first sequencing authorization; reason = old-shape draft superseded by this convention, follow-up = re-author to the E-*/V-* shape after the ipd-structure Set); NONE were migrated (they are deferred by decision, not re-authored here). The 2 remaining nonterminal plans (`20260802-1944-00` orchestrator + `-06` this plan) are already conforming and are the ipd-structure Set's own in-flight plans (they transition to executed/ as the Set completes). `aw ipd lint` on a quarantined file reports `quarantined` (confirmed on `20260730-2201-00`).
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste `--all --agent` counts, reconcile their sum to inventory, prove erroneous = 0, and paste a direct terminal-file result of `legacy/not evaluated`; no quarantine/grandfather disposition is called a pass.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `aw ipd lint --all .` -> `counts: conforming=2, quarantined=8, legacy/not evaluated=107, error=0`. error=0 (acceptance met). Sum 2+8+107=117 = every `.md` under `.agents/plans` minus the excluded generated index files (README/STATUS). A direct lint of a terminal file reports `disposition: legacy/not evaluated` (e.g. an `executed/` plan); `PASSING_DISPOSITIONS == {conforming}` so quarantined/legacy are never passes. (Also fixed a linter scoping bug: `.agents/plans/STATUS.md`, a generated index with no `Kind:`, was previously linted as an IPD and reported `error`; `_iter_plan_files` now excludes README/STATUS/INDEX.)
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: quote the DECISIONS entry and changed plans README/template, AGENT-PLANS source/generated, README/ARCHITECTURE contract text; paste regeneration/parity output and show no stale `front matter`, Set/Order, or Order-0 contradiction remains.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: added DECISIONS `### D122` (a short pointer to the spec, listing the schema/tooling/lifecycle/quarantine/grandfathering and F-07/F-08/F-09). README workflow table + ARCHITECTURE tree gained the `/ipd-lifecycle` row/entry (Order 05). SCOPE NOTE (per this plan's Step 0): `.agents/plans/README.md` and `.agents/workflows/templates/plans-README.md` were VERIFIED to not contain the old "near the"/size or "front matter" language and were correctly left unedited; grep of `AGENTS.md` + plans README shows no stale "near the (top|end)"/"front matter". No Set/Order or Order-0 contradiction remains (the schema + template + spec all state Order 0 = orchestrator, >=1 = child, enforced by `test_ipd_schema`/`test_ipd_templates`).
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste a grep of `agents_pointer_prose()` confirming no relational placement language remains and the thin pointer is present; paste source-to-generated diffs proving only intended pointer and contract updates.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `grep -c 'near the' agent_workflows/engine.py` -> 0; `grep -c 'aw ipd scaffold' agent_workflows/engine.py` -> 1 (the new thin pointer: "do NOT hand-number ids or hand-place checklists ... `aw ipd scaffold`/`sync`/`lint` ... exact structural contract ... lives in the `ipd-spec` doc ... `ipd-lifecycle` workflow gates execution ..."). AGENTS.md regenerated via `merge_aw_block` from `agents_managed_sections`: `git diff --stat AGENTS.md` = 1 line changed (only the replaced pointer paragraph); the `AGENT-PLANS:BEGIN..END` sibling verified BYTE-IDENTICAL before/after (Python compare == True). The old contract was REPLACED, not appended.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste the full-suite summary AND the dogfood lint result; suite green, dogfood clean.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m unittest discover -s tests -t .` -> `Ran 556 tests in 153.150s` / `OK (skipped=1)` (the 1 skip is the known release-tag test). `aw ipd lint --all .` -> `counts: conforming=2, quarantined=8, legacy/not evaluated=107, error=0`. Leak scan `check-local-leaks . --agent` exit 0. (A stale Order-02 test that assumed the research-org plans were errors was updated to build its own throwaway erroneous/clean repos, since Order-06 quarantined those plans.)
+  - Result: pass
 
 ## Approval and execution gate
 
