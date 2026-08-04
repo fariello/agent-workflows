@@ -196,9 +196,11 @@ def parse(text: str) -> ParsedDoc:
         nonlocal current_leaf, cur_fields
         if current_leaf is not None:
             lf = current_leaf._replace(fields=dict(cur_fields))
-            if lf.kind == "E":
+            # Route by ENCLOSING SECTION, not by parsed kind, so a malformed leaf in a checklist
+            # section is retained (kind "other") and flagged by the id-family check (spec 5.5).
+            if lf.section == exec_title:
                 exec_leaves.append(lf)
-            elif lf.kind == "V":
+            elif lf.section in valid_titles:
                 valid_leaves.append(lf)
         current_leaf = None
         cur_fields = {}

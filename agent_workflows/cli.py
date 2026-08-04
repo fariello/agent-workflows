@@ -211,6 +211,47 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Machine output: one tab-separated record per finding or disposition; no prose.",
     )
 
+    p_ipd_scaffold = ipd_sub.add_parser(
+        "scaffold",
+        parents=[common],
+        help="Write a new conformant IPD skeleton (dry-run by default; --apply to write).",
+    )
+    p_ipd_scaffold.add_argument("--kind", required=True, help="child or orchestrator.")
+    p_ipd_scaffold.add_argument(
+        "--title", required=True, help="IPD title (after the H1 'IPD: ')."
+    )
+    p_ipd_scaffold.add_argument("--path", required=True, help="Destination file path.")
+    p_ipd_scaffold.add_argument(
+        "--set", dest="set", default=None, help="Ordered-Set id (with --order)."
+    )
+    p_ipd_scaffold.add_argument(
+        "--order",
+        type=int,
+        default=None,
+        help="Order in the Set (0 for orchestrator, >=1 for child).",
+    )
+    p_ipd_scaffold.add_argument(
+        "--author", default=None, help="Author (or set AW_IPD_AUTHOR)."
+    )
+    p_ipd_scaffold.add_argument(
+        "--apply", action="store_true", help="Write the file (default is preview only)."
+    )
+    p_ipd_scaffold.add_argument(
+        "--overwrite", action="store_true", help="Allow overwriting an existing path."
+    )
+
+    p_ipd_sync = ipd_sub.add_parser(
+        "sync",
+        parents=[common],
+        help="Assign ids to new E-NEW leaves + append V skeletons + advance the watermark (dry-run by default).",
+    )
+    p_ipd_sync.add_argument("path", help="IPD file to sync.")
+    p_ipd_sync.add_argument(
+        "--apply",
+        action="store_true",
+        help="Write the change (default is preview only).",
+    )
+
     p_names = sub.add_parser(
         "plan-names",
         parents=[common],
@@ -1333,10 +1374,19 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     if args.command == "plan-names":
         return _run_plan_names(args, term)
     if args.command == "ipd":
-        if getattr(args, "ipd_command", None) == "lint":
+        ipd_cmd = getattr(args, "ipd_command", None)
+        if ipd_cmd == "lint":
             from agent_workflows import ipd_lint
 
             return ipd_lint.run_lint(args)
+        if ipd_cmd == "scaffold":
+            from agent_workflows import ipd_authoring
+
+            return ipd_authoring.run_scaffold(args)
+        if ipd_cmd == "sync":
+            from agent_workflows import ipd_authoring
+
+            return ipd_authoring.run_sync(args)
         parser.print_help()
         return 2
     if args.command in ("check-local-leaks", "sanitize"):

@@ -1,0 +1,397 @@
+"""IPD authoring tools: `aw ipd scaffold` and non-destructive `aw ipd sync` (Order 03).
+
+`scaffold` writes a new conformant IPD skeleton from the canonical schema. `sync` assigns stable
+ids to newly-authored execution leaves, maintains the allocation watermark, and appends matching
+pending validation skeletons WITHOUT rewriting existing identity or authored content.
+
+Both are the only writing `aw ipd` operations and follow the writing-command safety contract
+(spec Section 6.2): dry-run by default, explicit ``--apply`` to write, atomic write-to-temp-rename,
+scaffold refuses to overwrite without ``--overwrite``, sync refuses destructive change once
+execution has begun, exit 0/1/2 (an internal failure is never reported as a successful write).
+
+Stdlib-only, Python 3.9 compatible. Consumes ``agent_workflows.ipd_schema`` and the Order-02 parser
+in ``agent_workflows.ipd_lint``; it restates no structure.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import tempfile
+from datetime import date
+from pathlib import Path
+from typing import List, Optional
+
+from agent_workflows import ipd_lint as LINT
+from agent_workflows import ipd_schema as S
+
+# The schema-owned unassigned-leaf placeholder: an execution-section top-level task item whose
+# first text token is exactly this marker is an unassigned leaf that `sync` will number.
+UNASSIGNED_MARKER = "E-NEW"
+
+# --------------------------------------------------------------------------------------
+# Scaffold
+# --------------------------------------------------------------------------------------
+
+# Per-heading placeholder body used in a fresh skeleton (kept minimal but conformant).
+_SECTION_BODY = {
+    S.H_WORKFLOW_HISTORY: "- {date} draft ({author}): created.",
+    S.H_GOAL: "TODO: one or two sentences on what this plan achieves and why.",
+    S.H_PROJECT_CONVENTIONS: "- TODO: relevant conventions discovered during Step 0.",
+    S.H_FINDINGS: "TODO: findings table or notes.",
+    S.H_PROPOSED: "TODO: ordered, validatable proposed changes.",
+    S.H_DEFERRED: "TODO: deferred / out of scope, with reason (or 'none').",
+    S.H_SCOPE_CHECK: "- Over-scope: none.\n- Under-scope: TODO.",
+    S.H_REQUIRED_TESTS: "TODO: how the executed plan is verified.",
+    S.H_SPEC_SYNC: "TODO: specs/docs to update, or 'N/A with reason'.",
+    S.H_CHILD_IPDS: "TODO: child IPD table (Order | File | What it does | Depends on).",
+    S.H_COMPLETION: "- TODO: whole-Set completion criteria.",
+    S.H_CROSS_IPD: "- TODO: cross-IPD consistency / no-drift / dependency checks.",
+}
+
+_EXEC_INTRO = (
+    "Execution-state rule: mark an `E-*` item complete only after performing the action. "
+    "That mark is not validation."
+)
+_VALID_INTRO = (
+    "Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item "
+    "complete from memory or from the matching execution checkmark."
+)
+
+
+def _exec_placeholder_leaf() -> str:
+    # A fresh scaffold ships one already-assigned E-01 leaf (watermark 01) so it lints conforming
+    # immediately. Authors add further work as `E-NEW` leaves and run `aw ipd sync` to assign them.
+    return (
+        "### Task group 1: TODO\n\n"
+        "- [ ] E-01 TODO one observable action.\n"
+        "  - Depends on: none\n"
+        "  - Expected outcome: TODO observable result.\n"
+        "  - Execution state: pending\n\n"
+        "Add further leaves as `- [ ] {marker} <action>` and run `aw ipd sync` to assign ids.".format(
+            marker=UNASSIGNED_MARKER
+        )
+    )
+
+
+def _validation_placeholder() -> str:
+    return (
+        "- [ ] V-01 validates E-01\n"
+        "  - Required evidence: TODO falsifiable evidence.\n"
+        "  - Observed evidence:\n"
+        "  - Result: pending"
+    )
+
+
+def _gate_body() -> str:
+    return (
+        "- Size assessment: standard\n"
+        "- Cohesion rationale: not required\n\n"
+        "TODO: approval + execution gate prose (execution contract, post-gate lifecycle move)."
+    )
+
+
+def build_skeleton(
+    *,
+    kind: str,
+    title: str,
+    author: str,
+    when: str,
+    set_name: Optional[str],
+    order: Optional[int],
+) -> str:
+    """Return a conformant IPD skeleton for ``kind`` from the schema's H2 order."""
+    order_seq = S.H2_ORDER_BY_KIND[kind]
+    lines: List[str] = []
+    lines.append("# IPD: {0}".format(title))
+    lines.append("")
+    # Metadata block.
+    lines.append("- Date: {0}".format(when))
+    lines.append("- Kind: {0}".format(kind))
+    lines.append("- Concern: TODO.")
+    lines.append("- Scope: TODO.")
+    lines.append("- Status: draft")
+    if set_name is not None:
+        lines.append("- Set: {0}".format(set_name))
+        lines.append("- Order: {0}".format(order))
+    lines.append("- Highest E allocated: 01")
+    lines.append("- Author: {0}".format(author))
+    lines.append("")
+    for h in order_seq:
+        lines.append("## {0}".format(h))
+        lines.append("")
+        if h == S.H_EXECUTION:
+            lines.append(_EXEC_INTRO)
+            lines.append("")
+            lines.append(_exec_placeholder_leaf())
+        elif h in (S.H_VALIDATION_CHILD, S.H_VALIDATION_ORCH):
+            lines.append(_VALID_INTRO)
+            lines.append("")
+            lines.append(_validation_placeholder())
+        elif h == S.H_OPEN_QUESTIONS:
+            lines.append("### OQ-01: TODO a question")
+            lines.append("")
+            lines.append("- Blocking: no")
+            lines.append("- Status: open")
+            lines.append("- Owner: none")
+            lines.append("- Resolution or deferral rationale: TODO.")
+        elif h == S.H_APPROVAL_GATE:
+            lines.append(_gate_body())
+        else:
+            body = _SECTION_BODY.get(h, "TODO.")
+            lines.append(body.format(date=when, author=author))
+        lines.append("")
+    return "\n".join(lines).rstrip("\n") + "\n"
+
+
+def _atomic_write(path: Path, text: str) -> None:
+    """Write-to-temp-then-rename so an interrupted apply never leaves a partial file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".ipd-tmp-", suffix=".md")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(tmp, str(path))
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def run_scaffold(args: argparse.Namespace) -> int:
+    kind = getattr(args, "kind", None)
+    if kind not in S.KINDS:
+        print("error: --kind must be child or orchestrator")
+        return 2
+    title = getattr(args, "title", None)
+    target = getattr(args, "path", None)
+    if not title or not target:
+        print("error: --title and --path are required")
+        return 2
+    set_name = getattr(args, "set", None)
+    order = getattr(args, "order", None)
+    if (set_name is None) != (order is None):
+        print("error: --set and --order must be given together")
+        return 2
+    if kind == S.KIND_ORCHESTRATOR and order is not None and order != 0:
+        print("error: orchestrator Order must be 0")
+        return 2
+    if kind == S.KIND_CHILD and order is not None and order < 1:
+        print("error: child Order must be >= 1")
+        return 2
+    author = getattr(args, "author", None) or os.environ.get("AW_IPD_AUTHOR")
+    if not author:
+        print("error: --author is required (or set AW_IPD_AUTHOR)")
+        return 2
+    when = date.today().strftime("%Y-%m-%d")
+    text = build_skeleton(
+        kind=kind, title=title, author=author, when=when, set_name=set_name, order=order
+    )
+    path = Path(target)
+    if path.exists() and not getattr(args, "overwrite", False):
+        print(
+            "error: refusing to overwrite existing path (pass --overwrite): {0}".format(
+                target
+            )
+        )
+        return 1
+    if not getattr(args, "apply", False):
+        print("--- would write {0} ({1} lines) ---".format(target, text.count(chr(10))))
+        print(text)
+        return 0
+    try:
+        _atomic_write(path, text)
+    except Exception as exc:
+        print("error: scaffold write failed: {0}".format(exc))
+        return 2
+    print("wrote {0}".format(target))
+    return 0
+
+
+# --------------------------------------------------------------------------------------
+# Sync
+# --------------------------------------------------------------------------------------
+
+_UNASSIGNED_LEAF_RE = re.compile(
+    r"^- \[ \] {0}\b(.*)$".format(re.escape(UNASSIGNED_MARKER))
+)
+_WATERMARK_RE = re.compile(r"^- Highest E allocated:\s*([0-9]+)\s*$")
+_VALIDATION_HEADING_RE = re.compile(r"^## Validation and cross-check\b")
+_GATE_HEADING_RE = re.compile(r"^## Approval and execution gate\b")
+
+
+def _fmt_suffix(n: int) -> str:
+    return "{0:02d}".format(n)
+
+
+class SyncResult(object):
+    def __init__(self) -> None:
+        self.new_text = ""
+        self.assigned: List[str] = []
+        self.errors: List[str] = []
+        self.changed = False
+
+
+def compute_sync(text: str, *, directory: Optional[str]) -> SyncResult:
+    """Compute the sync result for ``text``. Pure: returns new text + assigned ids + errors."""
+    res = SyncResult()
+
+    # Preflight with the linter's parser and refuse on any structural error EXCEPT the presence of
+    # unassigned E-NEW leaves (which is exactly what we are here to fix).
+    doc = LINT.parse(text)
+    status = doc.meta_fields.get("Status", "")
+    # Refuse structural change once execution has begun or approval is granted (Section 6.1).
+    if status in ("approved", "auto-approved"):
+        res.errors.append(
+            "refusing sync: Status is '{0}'; use the amendment/re-review workflow".format(
+                status
+            )
+        )
+        return res
+    # Any non-initial execution/validation state means execution has begun -> refuse.
+    for lf in doc.exec_leaves:
+        if lf.kind == "E" and (
+            lf.checked or lf.fields.get("Execution state", "pending") != "pending"
+        ):
+            res.errors.append(
+                "refusing sync: execution has begun ({0} is not pending); use amendment/re-review".format(
+                    lf.ident
+                )
+            )
+            return res
+    for lf in doc.valid_leaves:
+        if lf.kind == "V" and (
+            lf.checked
+            or lf.fields.get("Result", "pending") != "pending"
+            or lf.fields.get("Observed evidence", "").strip()
+        ):
+            res.errors.append(
+                "refusing sync: validation has begun ({0}); use amendment/re-review".format(
+                    lf.ident
+                )
+            )
+            return res
+
+    # Watermark preflight.
+    wm_raw = doc.meta_fields.get(S.META_WATERMARK)
+    if wm_raw is None:
+        res.errors.append("refusing sync: metadata is missing 'Highest E allocated'")
+        return res
+    try:
+        watermark = int(wm_raw)
+    except ValueError:
+        res.errors.append("refusing sync: 'Highest E allocated' is not an integer")
+        return res
+    present = [
+        S.suffix_of(lf.ident)
+        for lf in doc.exec_leaves
+        if lf.kind == "E" and S.suffix_of(lf.ident) is not None
+    ]
+    werr = S.watermark_error(watermark, [p for p in present if p is not None])
+    if werr:
+        res.errors.append("refusing sync: {0}".format(werr))
+        return res
+
+    # Locate unassigned leaves in source order; assign from watermark+1.
+    lines = text.splitlines()
+    next_suffix = watermark + 1
+    new_v_rows: List[str] = []
+    out: List[str] = []
+    in_exec = False
+    for raw in lines:
+        if raw.startswith("## "):
+            in_exec = raw[3:].strip() == S.H_EXECUTION
+        if in_exec:
+            m = _UNASSIGNED_LEAF_RE.match(raw)
+            if m:
+                new_id = "E-" + _fmt_suffix(next_suffix)
+                out.append("- [ ] {0}{1}".format(new_id, m.group(1)))
+                res.assigned.append(new_id)
+                new_v_rows.append(
+                    "- [ ] V-{0} validates {1}\n"
+                    "  - Required evidence: TODO falsifiable evidence.\n"
+                    "  - Observed evidence:\n"
+                    "  - Result: pending".format(_fmt_suffix(next_suffix), new_id)
+                )
+                next_suffix += 1
+                continue
+        out.append(raw)
+
+    if not res.assigned:
+        # Nothing to do; still valid (idempotent no-op).
+        res.new_text = text
+        res.changed = False
+        return res
+
+    new_watermark = next_suffix - 1
+    # Advance the watermark line.
+    for i, raw in enumerate(out):
+        if _WATERMARK_RE.match(raw):
+            out[i] = "- Highest E allocated: {0}".format(_fmt_suffix(new_watermark))
+            break
+
+    # Insert the new V rows immediately before the approval gate, appended after existing V rows.
+    # Find the gate heading; insert new V rows just before its preceding blank line.
+    gate_idx = None
+    for i, raw in enumerate(out):
+        if _GATE_HEADING_RE.match(raw):
+            gate_idx = i
+            break
+    if gate_idx is None:
+        res.errors.append(
+            "refusing sync: no approval gate heading to anchor validation rows"
+        )
+        return res
+    # Walk back over trailing blank lines before the gate.
+    insert_at = gate_idx
+    while insert_at - 1 >= 0 and out[insert_at - 1].strip() == "":
+        insert_at -= 1
+    v_block: List[str] = []
+    for row in new_v_rows:
+        v_block.append(row)
+    out[insert_at:insert_at] = v_block + [""]
+
+    res.new_text = "\n".join(out).rstrip("\n") + "\n"
+    res.changed = True
+    return res
+
+
+def run_sync(args: argparse.Namespace) -> int:
+    target = getattr(args, "path", None)
+    if not target:
+        print("error: a FILE is required")
+        return 2
+    path = Path(target)
+    if not path.is_file():
+        print("error: not a file: {0}".format(target))
+        return 2
+    try:
+        text = path.read_text(encoding="utf-8")
+        res = compute_sync(text, directory=LINT._dir_of(path))
+    except Exception as exc:
+        print("error: sync failed to run: {0}".format(exc))
+        return 2
+    if res.errors:
+        for e in res.errors:
+            print(e)
+        return 1
+    if not res.changed:
+        print("no unassigned leaves; nothing to sync")
+        return 0
+    if not getattr(args, "apply", False):
+        print(
+            "--- would assign: {0} (dry-run; pass --apply) ---".format(
+                ", ".join(res.assigned)
+            )
+        )
+        return 0
+    try:
+        _atomic_write(path, res.new_text)
+    except Exception as exc:
+        print("error: sync write failed: {0}".format(exc))
+        return 2
+    print("assigned {0}; watermark advanced".format(", ".join(res.assigned)))
+    return 0
