@@ -1,21 +1,20 @@
 # IPD: migrate the existing 78 research files onto the convention (Set `research-org`, Order 6)
 
 - Date: 2026-07-30
+- Kind: child
 - Concern: apply the convention to this repo's existing research corpus (the dogfood): back-fill frontmatter + `<id6>`, group cohorts into sets, normalize model-token drift, classify initial status/outcome, generate the index, and preserve all citations.
 - Scope: a one-time, reviewed data migration of `.agents/docs/research/**` using the Order 02 to 05 tools. Requires Orders 01 to 05 executed; if their tools are absent, STOP.
 - Status: to-review
 - Set: research-org
 - Order: 6
-- Quarantine: old-shape draft; superseded by the ipd-structure convention, to be re-authored to the E-*/V-* shape
-- Quarantine owner: maintainer (IPD-system-first sequencing decision, 2026-08-03)
-- Quarantine follow-up: re-author the research-org Set to the new schema after the ipd-structure Set lands
+- Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
 
 - 2026-07-30 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `research-org`; the accepted one-time cost that proves the convention on real data.
-
-- 2026-08-03 quarantined (opencode its_direct/pt3-claude-opus-4.8-1m-us): the maintainer's IPD-system-first sequencing decision defers this old-shape research-org plan; quarantined under spec Section 13.3 (metadata trio added) pending re-authoring to the new E-*/V-* shape after the ipd-structure Set. Not conforming, not an error; an informational disposition.
+- 2026-08-03 quarantined (opencode its_direct/pt3-claude-opus-4.8-1m-us): deferred by the maintainer's IPD-system-first sequencing; quarantined pending re-authoring to the new E-*/V-* shape.
+- 2026-08-03 re-authored (opencode its_direct/pt3-claude-opus-4.8-1m-us): lifted out of quarantine and converted to the new IPD shape (Kind + E-*/V-* bijection + Execution state / Result fields + allocation watermark + OQ-* grammar + Size assessment) per DECISIONS D122; content preserved. Conforms to `aw ipd lint --phase author`.
 
 ## Goal
 
@@ -23,14 +22,37 @@ Every existing research file (78 at survey time; re-count at execution) ends up:
 
 ## Detailed Implementation Checklist (TODO)
 
-- [ ] **Precheck**: Orders 01 to 05 executed; tools present, else STOP. Re-count research files (survey said 78).
-- [ ] **Task 1: back-fill frontmatter + id** for every doc.
-- [ ] **Task 2: group cohorts + normalize names/model drift**.
-- [ ] **Task 3: update citations** (DECISIONS/plans/TODO/docs); danglers resolved.
-- [ ] **Task 4: reviewed status/outcome classification** + shard.
-- [ ] **Task 5: generate INDEX + `index --check`**.
-- [ ] **Tests/validation** as above; PASTE `index --check` result, dangling report, suite summary, before/after count.
-- [ ] **Lifecycle/commit** path-scoped; `git add` new files; never push.
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.
+
+### Task group 1: back-fill and regroup
+
+- [ ] E-01 confirm Orders 01 to 05 are executed and their tools are present, else STOP, and re-count the research files (survey said 78).
+  - Depends on: none
+  - Expected outcome: the Order 02 to 05 tools are usable; a re-counted before-total is recorded.
+  - Execution state: pending
+- [ ] E-02 back-fill frontmatter + `<id6>` for every research doc (created from git-first-commit; topic/kind/model inferred; consumed-by inferred from existing cites).
+  - Depends on: E-01
+  - Expected outcome: every file has valid frontmatter; the `index --check` frontmatter stage is clean.
+  - Execution state: pending
+- [ ] E-03 group cohorts into sets via `set-assign` and normalize names/model-token drift (`gpt-56`->`gpt56`, prefix->suffix).
+  - Depends on: E-02
+  - Expected outcome: each named cohort shares a date/set + ordered NN; singletons are well-formed.
+  - Execution state: pending
+
+### Task group 2: citations, classification, index
+
+- [ ] E-04 update in-repo citations (DECISIONS/plans/TODO/docs) via the Order 04 reference updater; report + resolve danglers.
+  - Depends on: E-03
+  - Expected outcome: the dangling-cite report is empty after `--apply`; sample cites resolve.
+  - Execution state: pending
+- [ ] E-05 classify initial `status`/`outcome` as a REVIEWED pass (cited -> reference; uncited/dead-end -> archive candidate), then shard per Order 05.
+  - Depends on: E-03
+  - Expected outcome: classification is recorded per doc; the miscategorization flag is empty.
+  - Execution state: pending
+- [ ] E-06 generate `INDEX.json`+`INDEX.md` and run `aw research index --check`; paste the check result, dangling report, suite summary, and before/after count.
+  - Depends on: E-02, E-03, E-04, E-05
+  - Expected outcome: `index --check` exits 0; INDEX.md is bounded + archive-excluded; the full suite stays green.
+  - Execution state: pending
 
 ## Project conventions discovered (Step 0)
 
@@ -40,7 +62,7 @@ Every existing research file (78 at survey time; re-count at execution) ends up:
 - Citations to update: DECISIONS.md (10 refs), executed plans (14 files), TODO.md/roadmaps.
 - External research artifacts stay VERBATIM in content (only names/frontmatter are added); the no-dash rule applies to what WE author.
 
-## Findings (drivers)
+## Findings
 
 | ID | Severity | Remediation Risk | Persona | Area | Finding | Evidence |
 |----|----------|------------------|---------|------|---------|----------|
@@ -52,11 +74,11 @@ Every existing research file (78 at survey time; re-count at execution) ends up:
 
 | Step | Source | Change | Files | Remediation Risk | Validation |
 |------|--------|--------|-------|------------------|------------|
-| 1 | 9.1 | Back-fill frontmatter + `<id6>` for every research doc (created from git-first-commit; topic/kind/model inferred; consumed-by inferred from existing cites). | `.agents/docs/research/**` | Medium | every file has valid frontmatter; `index --check` frontmatter stage clean |
-| 2 | 9.2/9.3 | Group cohorts into sets via `set-assign` and normalize names/model-token drift (`gpt-56`->`gpt56`, prefix->suffix). | `.agents/docs/research/**` | Medium | each named cohort shares date/set + ordered NN; singletons well-formed |
-| 3 | 9.5 | Update in-repo citations (DECISIONS/plans/TODO/docs) via the Order 04 reference updater; report + resolve danglers. | `DECISIONS.md`, `.agents/plans/**`, `TODO.md`, docs | Medium | dangling-cite report is empty after `--apply`; sample cites resolve |
-| 4 | 9.4 | Classify initial `status`/`outcome` as a REVIEWED pass (cited -> reference; uncited/dead-end -> archive candidate), then shard per Order 05. | `.agents/docs/research/**` | Medium | classification recorded per doc; miscategorization flag empty |
-| 5 | 9 | Generate `INDEX.json`+`INDEX.md`; run `aw research index --check`. | `.agents/docs/research/INDEX.*` | Low | `index --check` exits 0; INDEX.md bounded + archive-excluded |
+| 1 | 9.1 | Back-fill frontmatter + `<id6>` for every research doc (created from git-first-commit; topic/kind/model inferred; consumed-by inferred from existing cites). | `.agents/docs/research/**` | Medium | E-02 |
+| 2 | 9.2/9.3 | Group cohorts into sets via `set-assign` and normalize names/model-token drift (`gpt-56`->`gpt56`, prefix->suffix). | `.agents/docs/research/**` | Medium | E-03 |
+| 3 | 9.5 | Update in-repo citations (DECISIONS/plans/TODO/docs) via the Order 04 reference updater; report + resolve danglers. | `DECISIONS.md`, `.agents/plans/**`, `TODO.md`, docs | Medium | E-04 |
+| 4 | 9.4 | Classify initial `status`/`outcome` as a REVIEWED pass (cited -> reference; uncited/dead-end -> archive candidate), then shard per Order 05. | `.agents/docs/research/**` | Medium | E-05 |
+| 5 | 9 | Generate `INDEX.json`+`INDEX.md`; run `aw research index --check`. | `.agents/docs/research/INDEX.*` | Low | E-06 |
 
 ## Deferred / out of scope (with reason)
 
@@ -80,21 +102,47 @@ Regenerate `.agents/docs/research/README.md`/INDEX from the migrated state. No s
 
 ## Open questions
 
-- Set-id names for existing cohorts (e.g. `awdeliv`, `hostprobe`, `planrev`, `occomms`, `ocsec`, `skills`). Confirm at review.
+### OQ-01: set-id names for existing cohorts
+
+- Blocking: no
+- Status: resolved
+- Owner: this child
+- Resolution or deferral rationale: the existing cohorts adopt short set-ids (e.g. `awdeliv`, `hostprobe`, `planrev`, `occomms`, `ocsec`, `skills`). Confirm the exact names at review; if they change, only this child changes.
 
 ## Validation and cross-check (verify before reporting done)
 
-- [ ] Precheck: cite Orders 01 to 05 in executed/; PASTE the re-counted file total.
-- [ ] Task 1: confirm EVERY file has valid frontmatter (PASTE `index --check` frontmatter result).
-- [ ] Task 2: PASTE a migrated cohort (shared date/set/ordered NN) and a normalized model token.
-- [ ] Task 3: PASTE the (empty) dangling-cite report and >=3 resolved sample cites.
-- [ ] Task 4: confirm classification recorded and miscategorization flag empty; cite.
-- [ ] Task 5: PASTE `aw research index --check` = exit 0; confirm INDEX.md bounded + archive-excluded.
-- [ ] PASTE full-suite summary; before/after file count reconciles (all accounted for); leak-clean.
-- [ ] Report any incomplete/blocked/unverified item EXPLICITLY; else do not transition.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [ ] V-01 validates E-01
+  - Required evidence: cite Orders 01 to 05 in `executed/` and paste the re-counted file total.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-02 validates E-02
+  - Required evidence: confirm EVERY file has valid frontmatter (paste the `index --check` frontmatter result).
+  - Observed evidence:
+  - Result: pending
+- [ ] V-03 validates E-03
+  - Required evidence: paste a migrated cohort (shared date/set/ordered NN) and a normalized model token.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-04 validates E-04
+  - Required evidence: paste the (empty) dangling-cite report and >=3 resolved sample cites.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-05 validates E-05
+  - Required evidence: confirm classification is recorded and the miscategorization flag is empty; cite.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-06 validates E-06
+  - Required evidence: paste `aw research index --check` = exit 0; confirm INDEX.md bounded + archive-excluded; paste the full-suite summary; the before/after file count reconciles (all accounted for); leak-clean.
+  - Observed evidence:
+  - Result: pending
 
 ## Approval and execution gate
 
-Proposal; human review + approval; not auto-executed. Requires Orders 01 to 05; if absent, STOP. Do NOT claim done or move to `executed/` until every execution item is `- [x]` AND its Validation item is verified with concrete evidence (including a clean `index --check` and an empty dangling report); else STOP and report.
+- Size assessment: standard
+- Cohesion rationale: not required
 
-Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY this plan's files (the research tree + the citation-bearing files it updates), path-scoped, never `git add -A`/`-a`, never push; `git add` new files first. Paste ACTUAL runner output; never claim a pass not run. No em or en dashes in authored Markdown (external artifact CONTENT stays verbatim). STOP and report if execution exceeds scope (research migration + its citations only). Never create or push a tag / Release / PyPI upload.
+Proposal; human review + approval; not auto-executed. Requires Orders 01 to 05; if absent, STOP. Do NOT claim done or move to `executed/` until every `E-*` is performed+checked AND its matching `V-*` is pass+checked with concrete evidence (including a clean `index --check` and an empty dangling report); else STOP and report.
+
+Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY this plan's files (the research tree + the citation-bearing files it updates), path-scoped, never `git add -A`/`-a`, never push; `git add` new files first. Paste ACTUAL runner output; never claim a pass not run. No em or en dashes in authored Markdown (external artifact CONTENT stays verbatim). STOP and report if execution exceeds scope (research migration + its citations only). Terminal transition is a POST-gate transaction, not a checklist item. Never create or push a tag / Release / PyPI upload.

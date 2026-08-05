@@ -1,25 +1,67 @@
 # IPD (ORCHESTRATOR): research-organization convention and tooling (Set `research-org`)
 
 - Date: 2026-07-30
+- Kind: orchestrator
 - Concern: implement the approved `.agents/` artifact-organization design for `.agents/docs/research/` (the spec `.agents/docs/specs/20260730-2152-01-agents-artifact-organization.spec.md`): stable greppable ids, filename-encoded set grouping, tool-owned lifecycle, a tiered generated manifest, weekly cold shards, and progressive-disclosure tooling, so a human and an agent can cheaply answer "what did we find re X?" and "what still needs addressing?" at scale.
 - Scope: ORCHESTRATOR for the ordered Set `research-org`. Defines the child sequence, dependencies, whole-Set completion criteria, and cross-IPD validation. It does NOT itself change files (each child does its own edits). Implementation is scoped to `research/` only; `plans/executed/` and other areas are named future adopters (tracked in TODO, Child 07).
 - Status: to-review
 - Set: research-org
 - Order: 0
-- Quarantine: old-shape draft; superseded by the ipd-structure convention, to be re-authored to the E-*/V-* shape
-- Quarantine owner: maintainer (IPD-system-first sequencing decision, 2026-08-03)
-- Quarantine follow-up: re-author the research-org Set to the new schema after the ipd-structure Set lands
+- Highest E allocated: 09
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
 
 - 2026-07-30 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored from the approved spec `20260730-2152-01-agents-artifact-organization.spec.md`. Split into a Set because the work spans a naming/schema contract, three distinct tool surfaces, a data migration of 78 files, and framework scaffolding + convention edits (well beyond one IPD's size guidance) with clear dependency ordering.
-
-- 2026-08-03 quarantined (opencode its_direct/pt3-claude-opus-4.8-1m-us): the maintainer's IPD-system-first sequencing decision defers this old-shape research-org plan; quarantined under spec Section 13.3 (metadata trio added) pending re-authoring to the new E-*/V-* shape after the ipd-structure Set. Not conforming, not an error; an informational disposition.
+- 2026-08-03 quarantined (opencode its_direct/pt3-claude-opus-4.8-1m-us): deferred by the maintainer's IPD-system-first sequencing; quarantined pending re-authoring to the new E-*/V-* shape.
+- 2026-08-03 re-authored (opencode its_direct/pt3-claude-opus-4.8-1m-us): lifted out of quarantine and converted to the new IPD shape (Kind + E-*/V-* bijection + Execution state / Result fields + allocation watermark + OQ-* grammar + Size assessment) per DECISIONS D122; content preserved. Conforms to `aw ipd lint --phase author`.
 
 ## Goal
 
 Deliver the research-organization convention end to end for `.agents/docs/research/`: define the identity/naming/frontmatter contract; build the `aw research` and `aw archive` tooling (creation, indexing, querying, regrouping, archival); migrate the 78 existing research files onto the convention; and wire the scaffold + directives + prior-decision revisions. Dogfood in this repo. Do not build the convention for other `.agents/` areas yet (future adopters are named, not implemented).
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.
+
+The orchestrator's execution leaves gate the children and run the whole-Set checks. They use the same stable E/V contract as every other actionable IPD.
+
+- [ ] E-01 verify Child 01 (naming/frontmatter contract) is executed and its own two checklists are verified.
+  - Depends on: none
+  - Expected outcome: the naming grammar, `<id6>`, `<model>`/`<kind>` vocab, and frontmatter schema are complete.
+  - Execution state: pending
+- [ ] E-02 verify Child 02 (create tool) is executed after Child 01 and its own checklists are verified.
+  - Depends on: E-01
+  - Expected outcome: `aw research new`/`new-comparison` are complete.
+  - Execution state: pending
+- [ ] E-03 verify Child 03 (index generator + find) is executed after Children 01 and 02 and its own checklists are verified.
+  - Depends on: E-01, E-02
+  - Expected outcome: the tiered INDEX + `find` + `--check` are complete.
+  - Execution state: pending
+- [ ] E-04 verify Child 04 (rename/refs tool) is executed after Children 01 through 03 and its own checklists are verified.
+  - Depends on: E-01, E-02, E-03
+  - Expected outcome: regroup/rename + reference update + dangling detection are complete.
+  - Execution state: pending
+- [ ] E-05 verify Child 05 (archival/states) is executed after Children 01 and 03 and its own checklists are verified.
+  - Depends on: E-01, E-03
+  - Expected outcome: the state lifecycle + weekly shards + `aw archive` verbs are complete.
+  - Execution state: pending
+- [ ] E-06 verify Child 06 (migrate 78 files) is executed after Children 01 through 05 and its own checklists are verified.
+  - Depends on: E-01, E-02, E-03, E-04, E-05
+  - Expected outcome: the corpus migration with preserved citations and a clean `index --check` is complete.
+  - Execution state: pending
+- [ ] E-07 verify Child 07 (scaffold/directives/decisions) is executed after Children 01, 03, and 05 and its own checklists are verified.
+  - Depends on: E-01, E-03, E-05
+  - Expected outcome: scaffold + thin AGENTS.md pointer + P5/DECISIONS/TODO edits are complete.
+  - Execution state: pending
+- [ ] E-08 run the cross-IPD validation.
+  - Depends on: E-01, E-02, E-03, E-04, E-05, E-06, E-07
+  - Expected outcome: consistency, no-drift, dependency-correctness, and size checks pass.
+  - Execution state: pending
+- [ ] E-09 run the final suite and repository dogfood checks and paste actual output.
+  - Depends on: E-08
+  - Expected outcome: the suite is green, leak-clean, no em/en dashes, and `aw research index --check` is clean.
+  - Execution state: pending
 
 ## Child IPDs, sequence, and dependencies
 
@@ -35,20 +77,6 @@ Execute in Order. Each child is its own `/plan-review` + human approval + execut
 | 06 | `20260730-2201-06-migrate-existing-research.md` | Back-fill frontmatter + `<id6>`, group cohorts into sets, normalize model-token drift, classify initial status/outcome, regenerate INDEX, preserve citations for the 78 existing files. | 01, 02, 03, 04, 05 |
 | 07 | `20260730-2201-07-scaffold-directives-and-decision-updates.md` | Installer scaffold (READMEs, dir shape), thin AGENTS.md pointer (F6), P5 revision, DECISIONS pointer entry, TODO future-work note (plans/executed/ next). | 01, 03, 05 |
 
-## Detailed Implementation Checklist (TODO)
-
-The orchestrator's "actions" are gating the children and running the cross-IPD checks.
-
-- [ ] **Child 01 executed** (naming/frontmatter contract) and its own checklists verified.
-- [ ] **Child 02 executed** (create tool, after 01) and verified.
-- [ ] **Child 03 executed** (index generator, after 01/02) and verified.
-- [ ] **Child 04 executed** (rename/refs tool, after 01/02/03) and verified.
-- [ ] **Child 05 executed** (archival/states, after 01/03) and verified.
-- [ ] **Child 06 executed** (migrate 78 files, after 01 to 05) and verified.
-- [ ] **Child 07 executed** (scaffold/directives/decisions, after 01/03/05) and verified.
-- [ ] **Cross-IPD validation run** (consistency / no-drift / dependency correctness / size).
-- [ ] **Suite green** after the last child (paste actual output); leak-clean; no em/en dashes; `aw research index --check` clean.
-
 ## Completion criteria (the whole Set is done only when)
 
 - Each child (01 to 07) is executed and its OWN two checklists are verified with concrete evidence.
@@ -61,7 +89,7 @@ The orchestrator's "actions" are gating the children and running the cross-IPD c
 - Consistency: the naming grammar, `<id6>` definition, `<model>`/`<kind>` vocab, frontmatter schema, and state vocabulary are defined ONCE in Child 01 and every later child + the tool + the docs reference that single definition (no forks). Read them together and confirm no contradiction.
 - No duplication/drift: children 02 to 07 consume Child 01's contract; the spec's open questions (OQ1 to OQ6) are each resolved in exactly one child and not re-litigated elsewhere.
 - Dependency correctness: no child uses a later child's symbols; the create tool (02) does not assume the index (03); the migration (06) runs only after the create/index/rename/archival tools exist.
-- Size check: each child stays within the IPD size guidance (prefer <=5 major steps); if any child grows past it during authoring, split it further.
+- Size check: each child stays within the IPD size guidance (prefer <=5 task groups / <=18 E leaves); if any child grows past it during authoring, split it further.
 
 ## Deferred / out of scope (with reason)
 
@@ -82,19 +110,59 @@ Per-child validation (each child names its own literal commands) plus the cross-
 
 ## Open questions
 
-- The spec's OQ1 to OQ6 are assigned to specific children (01 owns OQ1/OQ4/OQ5/OQ6; 03 owns OQ2/OQ3). Each child confirms its assigned OQ with the human at its own review; the orchestrator does not pre-decide them.
+### OQ-01: spec open questions OQ1 to OQ6 ownership
+
+- Blocking: no
+- Status: resolved
+- Owner: the individual children
+- Resolution or deferral rationale: the spec's OQ1 to OQ6 are assigned to specific children (01 owns OQ1/OQ4/OQ5/OQ6; 03 owns OQ2/OQ3). Each child confirms its assigned OQ with the human at its own review; the orchestrator does not pre-decide them.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
-Each item maps to a checklist item above; provide concrete evidence.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] Each child 01 to 07 is in `.agents/plans/executed/` with `Status: executed` and its own Validation checklist verified; cite each.
-- [ ] Cross-IPD validation performed: quote the naming grammar + `<id6>` + frontmatter schema + state vocab from Child 01 and confirm the tool and every later child match; confirm execution order respected the dependency table.
-- [ ] Paste the actual final `pytest` summary line; confirm `aw research index --check` clean, leak-clean, and no em/en dashes.
-- [ ] Report any child that is incomplete/blocked/unverified EXPLICITLY; do NOT mark the Set complete otherwise.
+- [ ] V-01 validates E-01
+  - Required evidence: cite Child 01 in `.agents/plans/executed/` with `Status: executed` and its own Validation checklist verified.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-02 validates E-02
+  - Required evidence: cite Child 02 executed after Child 01 with its own Validation checklist verified.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-03 validates E-03
+  - Required evidence: cite Child 03 executed after Children 01 and 02 with its own Validation checklist verified.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-04 validates E-04
+  - Required evidence: cite Child 04 executed after Children 01 through 03 with its own Validation checklist verified.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-05 validates E-05
+  - Required evidence: cite Child 05 executed after Children 01 and 03 with its own Validation checklist verified.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-06 validates E-06
+  - Required evidence: cite Child 06 executed after Children 01 through 05 with its own Validation checklist verified.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-07 validates E-07
+  - Required evidence: cite Child 07 executed after Children 01, 03, and 05 with its own Validation checklist verified.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-08 validates E-08
+  - Required evidence: quote the naming grammar + `<id6>` + frontmatter schema + state vocab from Child 01 and confirm the tool and every later child match; confirm execution order respected the dependency table.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-09 validates E-09
+  - Required evidence: paste the actual final `pytest` summary line; confirm `aw research index --check` clean, leak-clean, and no em/en dashes.
+  - Observed evidence:
+  - Result: pending
 
 ## Approval and execution gate
 
+- Size assessment: standard
+- Cohesion rationale: not required
+
 This ORCHESTRATOR and each child MUST be reviewed and approved by a human before execution. The orchestrator is "executed" only when all children are executed and the cross-IPD validation passes. Do NOT mark the orchestrator or any child done or move it to `executed/` until every item in its own Validation and cross-check checklist is verified with concrete evidence; if any item cannot be completed, STOP and report.
 
-Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY files changed by each plan, path-scoped (`git commit -m msg -- <path>`), never `git add -A`/`-a`, never push; `git add` new files first. Paste ACTUAL runner output; never claim a pass not run. No em or en dashes in authored Markdown. STOP and report if execution exceeds a plan's scope. Never create or push a tag / Release / PyPI upload.
+Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY files changed by each plan, path-scoped (`git commit -m msg -- <path>`), never `git add -A`/`-a`, never push; `git add` new files first. Paste ACTUAL runner output; never claim a pass not run. No em or en dashes in authored Markdown. STOP and report if execution exceeds a plan's scope. Never create or push a tag / Release / PyPI upload. Terminal lifecycle transition is a POST-gate transaction, never an execution/validation checklist item.

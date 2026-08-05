@@ -1,21 +1,20 @@
 # IPD: research state lifecycle + weekly archival shards (Set `research-org`, Order 5)
 
 - Date: 2026-07-30
+- Kind: child
 - Concern: implement the state lifecycle (intake/active/reference/archive) and the weekly `YYYYMM-Www` cold shards for reference and archive, with deliberate, tool-invoked archival verbs (never a background side effect).
 - Scope: state transitions + shard layout + `aw archive` verbs, consuming Orders 01 and 03. No corpus migration (06). Requires Orders 01, 03 executed; if their symbols are absent, STOP.
 - Status: to-review
 - Set: research-org
 - Order: 5
-- Quarantine: old-shape draft; superseded by the ipd-structure convention, to be re-authored to the E-*/V-* shape
-- Quarantine owner: maintainer (IPD-system-first sequencing decision, 2026-08-03)
-- Quarantine follow-up: re-author the research-org Set to the new schema after the ipd-structure Set lands
+- Highest E allocated: 07
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
 
 - 2026-07-30 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `research-org`; the compartmentalization + scale mechanism.
-
-- 2026-08-03 quarantined (opencode its_direct/pt3-claude-opus-4.8-1m-us): the maintainer's IPD-system-first sequencing decision defers this old-shape research-org plan; quarantined under spec Section 13.3 (metadata trio added) pending re-authoring to the new E-*/V-* shape after the ipd-structure Set. Not conforming, not an error; an informational disposition.
+- 2026-08-03 quarantined (opencode its_direct/pt3-claude-opus-4.8-1m-us): deferred by the maintainer's IPD-system-first sequencing; quarantined pending re-authoring to the new E-*/V-* shape.
+- 2026-08-03 re-authored (opencode its_direct/pt3-claude-opus-4.8-1m-us): lifted out of quarantine and converted to the new IPD shape (Kind + E-*/V-* bijection + Execution state / Result fields + allocation watermark + OQ-* grammar + Size assessment) per DECISIONS D122; content preserved. Conforms to `aw ipd lint --phase author`.
 
 ## Goal
 
@@ -23,14 +22,41 @@ Move cold docs into weekly shards and manage state: `reference/YYYYMM-Www/` (mat
 
 ## Detailed Implementation Checklist (TODO)
 
-- [ ] **Precheck**: Orders 01+03 executed; symbols present, else STOP.
-- [ ] **Task 1: shard layout + status-transition move** (id/cites intact).
-- [ ] **Task 2: targeted `aw archive <id>`** (dry-run/apply).
-- [ ] **Task 3: bare `aw archive` aged sweep** (preview).
-- [ ] **Task 4: miscategorization flag**.
-- [ ] **Task 5: INDEX refresh after move**.
-- [ ] **Tests** `tests/test_research_archive.py`; run it + full suite and PASTE output.
-- [ ] **Lifecycle/commit** path-scoped; `git add` new files; never push.
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.
+
+### Task group 1: state transitions and shards
+
+- [ ] E-01 confirm Orders 01+03 are executed and their symbols are present, else STOP.
+  - Depends on: none
+  - Expected outcome: the contract + index symbols are importable; if absent the tool halts before moving files.
+  - Execution state: pending
+- [ ] E-02 add the shard layout + `status` transition helper: set `status` in frontmatter AND move the file to the matching location (`reference/YYYYMM-Www/`, `archive/YYYYMM-Www/`, or hot root for intake/active), keeping `<id6>`; reuse Order 04's reference-update on move.
+  - Depends on: E-01
+  - Expected outcome: promoting to reference moves into the correct week shard; id + cites intact.
+  - Execution state: pending
+
+### Task group 2: archive verbs, flags, refresh, tests
+
+- [ ] E-03 add `aw archive [research] <set-id|doc-id>`: deep-shelve target(s) to `archive/YYYYMM-Www/`, dry-run/preview default + `--apply`.
+  - Depends on: E-02
+  - Expected outcome: a named set moves to the archive shard on `--apply`, previewed otherwise.
+  - Execution state: pending
+- [ ] E-04 add bare `aw archive [research]`: select candidates older than two weeks (default) that are uncited, PREVIEW, and move on `--apply`.
+  - Depends on: E-02
+  - Expected outcome: an aged uncited fixture is selected; recent/cited docs are excluded; the preview is shown.
+  - Execution state: pending
+- [ ] E-05 add the miscategorization flag: a doc in `archive/` that IS cited by DECISIONS/plan is reported ("should be reference?").
+  - Depends on: E-02
+  - Expected outcome: an archived-but-cited fixture is flagged.
+  - Execution state: pending
+- [ ] E-06 refresh INDEX after any archival move (reference stays in the most-recent-N window; archive excluded).
+  - Depends on: E-02, E-03, E-04
+  - Expected outcome: an archived doc leaves INDEX.md; a reference doc remains.
+  - Execution state: pending
+- [ ] E-07 add `tests/test_research_archive.py` (promote-to-reference shard move id/cites intact; targeted archive; aged-uncited sweep + preview; miscategorization flag; INDEX refresh); run it plus the full suite and paste both.
+  - Depends on: E-02, E-03, E-04, E-05, E-06
+  - Expected outcome: new tests pass; full suite still green.
+  - Execution state: pending
 
 ## Project conventions discovered (Step 0)
 
@@ -38,7 +64,7 @@ Move cold docs into weekly shards and manage state: `reference/YYYYMM-Www/` (mat
 - Determinism: archival is ALWAYS on invocation, never index-time or background (spec 4.10); mirror the dry-run/preview + `--apply` safety pattern.
 - The reference-vs-archive judgment is curation, not derivable; the tool DEFAULTS (cited -> reference; uncited+aged -> archive candidate) and FLAGS miscategorization.
 
-## Findings (drivers)
+## Findings
 
 | ID | Severity | Remediation Risk | Persona | Area | Finding | Evidence |
 |----|----------|------------------|---------|------|---------|----------|
@@ -50,11 +76,11 @@ Move cold docs into weekly shards and manage state: `reference/YYYYMM-Www/` (mat
 
 | Step | Source | Change | Files | Remediation Risk | Validation |
 |------|--------|--------|-------|------------------|------------|
-| 1 | 4.5/4.9 | Shard layout + a `status` transition helper: set `status` in frontmatter AND move the file to the matching location (`reference/YYYYMM-Www/`, `archive/YYYYMM-Www/`, or hot root for intake/active), keeping `<id6>`; reuse Order 04's reference-update on move. | `agent_workflows/research_archive.py` (new), `agent_workflows/research_cmd.py` | Medium | test: promoting to reference moves into the correct week shard; id + cites intact |
-| 2 | 4.10 | `aw archive [research] <set-id|doc-id>`: deep-shelve target(s) to `archive/YYYYMM-Www/`, dry-run/preview default + `--apply`. | `agent_workflows/research_cmd.py` | Medium | test: named set moves to archive shard on `--apply`, previewed otherwise |
-| 3 | 4.10 | Bare `aw archive [research]`: select candidates older than two weeks (default) that are uncited, PREVIEW, move on `--apply`. | `agent_workflows/research_archive.py` | Medium | test: aged uncited fixture selected; recent/cited excluded; preview shown |
-| 4 | 4.5 | Miscategorization flag: a doc in `archive/` that IS cited by DECISIONS/plan is reported ("should be reference?"). | `agent_workflows/research_archive.py` | Low | test: archived-but-cited fixture is flagged |
-| 5 | 4.7 | After any archival move, refresh INDEX (reference stays in most-recent-N window; archive excluded). | `agent_workflows/research_cmd.py` | Low | test: archived doc leaves INDEX.md, reference doc remains |
+| 1 | 4.5/4.9 | Shard layout + a `status` transition helper: set `status` in frontmatter AND move the file to the matching location (`reference/YYYYMM-Www/`, `archive/YYYYMM-Www/`, or hot root for intake/active), keeping `<id6>`; reuse Order 04's reference-update on move. | `agent_workflows/research_archive.py` (new), `agent_workflows/research_cmd.py` | Medium | E-02 |
+| 2 | 4.10 | `aw archive [research] <set-id|doc-id>`: deep-shelve target(s) to `archive/YYYYMM-Www/`, dry-run/preview default + `--apply`. | `agent_workflows/research_cmd.py` | Medium | E-03 |
+| 3 | 4.10 | Bare `aw archive [research]`: select candidates older than two weeks (default) that are uncited, PREVIEW, move on `--apply`. | `agent_workflows/research_archive.py` | Medium | E-04 |
+| 4 | 4.5 | Miscategorization flag: a doc in `archive/` that IS cited by DECISIONS/plan is reported ("should be reference?"). | `agent_workflows/research_archive.py` | Low | E-05 |
+| 5 | 4.7 | After any archival move, refresh INDEX (reference stays in most-recent-N window; archive excluded). | `agent_workflows/research_cmd.py` | Low | E-06 |
 
 ## Deferred / out of scope (with reason)
 
@@ -78,21 +104,51 @@ Move cold docs into weekly shards and manage state: `reference/YYYYMM-Www/` (mat
 
 ## Open questions
 
-- Default sweep age (two weeks) and whether the sweep also requires uncited (lean: aged AND uncited). Confirm at review.
+### OQ-01: default sweep age and uncited requirement
+
+- Blocking: no
+- Status: resolved
+- Owner: this child
+- Resolution or deferral rationale: the default sweep age is two weeks and the sweep also requires uncited (aged AND uncited). Confirm at review; if it changes, only this child changes.
 
 ## Validation and cross-check (verify before reporting done)
 
-- [ ] Precheck: cite Orders 01+03 in executed/.
-- [ ] Task 1: PASTE a promote-to-reference move showing correct week shard + unchanged id + updated cite.
-- [ ] Task 2: confirm targeted archive previews then moves on `--apply`; cite.
-- [ ] Task 3: confirm aged+uncited selected, recent/cited excluded, preview shown; cite.
-- [ ] Task 4: confirm archived-but-cited is flagged; cite.
-- [ ] Task 5: confirm archived doc leaves INDEX.md and reference remains; cite.
-- [ ] PASTE `pytest tests/test_research_archive.py -q` + full-suite summary; leak-clean.
-- [ ] Report any incomplete/blocked/unverified item EXPLICITLY; else do not transition.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [ ] V-01 validates E-01
+  - Required evidence: cite Orders 01+03 in `executed/`; confirm the tool halts when their symbols are absent.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-02 validates E-02
+  - Required evidence: paste a promote-to-reference move showing the correct week shard + unchanged id + updated cite.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-03 validates E-03
+  - Required evidence: confirm targeted archive previews then moves on `--apply`; cite.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-04 validates E-04
+  - Required evidence: confirm aged+uncited is selected, recent/cited excluded, and the preview shown; cite.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-05 validates E-05
+  - Required evidence: confirm an archived-but-cited doc is flagged; cite.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-06 validates E-06
+  - Required evidence: confirm an archived doc leaves INDEX.md and a reference doc remains; cite.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-07 validates E-07
+  - Required evidence: paste `pytest tests/test_research_archive.py -q` + the full-suite summary (new tests pass, suite green); leak-clean.
+  - Observed evidence:
+  - Result: pending
 
 ## Approval and execution gate
 
-Proposal; human review + approval; not auto-executed. Requires Orders 01, 03; if absent, STOP. Do NOT claim done or move to `executed/` until every execution item is `- [x]` AND its Validation item is verified with concrete evidence; else STOP and report.
+- Size assessment: standard
+- Cohesion rationale: not required
 
-Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY this plan's files, path-scoped, never `git add -A`/`-a`, never push; `git add` new files first. Paste ACTUAL runner output; never claim a pass not run. No em or en dashes. STOP and report if execution exceeds scope (states/shards/archive verbs only; no corpus migration). Never create or push a tag / Release / PyPI upload.
+Proposal; human review + approval; not auto-executed. Requires Orders 01, 03; if absent, STOP. Do NOT claim done or move to `executed/` until every `E-*` is performed+checked AND its matching `V-*` is pass+checked with concrete evidence; else STOP and report.
+
+Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY this plan's files, path-scoped, never `git add -A`/`-a`, never push; `git add` new files first. Paste ACTUAL runner output; never claim a pass not run. No em or en dashes. STOP and report if execution exceeds scope (states/shards/archive verbs only; no corpus migration). Terminal transition is a POST-gate transaction, not a checklist item. Never create or push a tag / Release / PyPI upload.

@@ -1,21 +1,20 @@
 # IPD: research rename/regroup + reference integrity tool (Set `research-org`, Order 4)
 
 - Date: 2026-07-30
+- Kind: child
 - Concern: enable after-the-fact regrouping (C4) and prevent citation rot (F5): rename/move research files, update references repo-wide, and flag any `\b<id6>\b` match whose surrounding filename no longer resolves (a dangling citation).
 - Scope: the regroup/rename/reference verbs, consuming Orders 01 to 03. No archival policy (05), no migration (06). Requires Orders 01, 02, 03 executed; if their symbols are absent, STOP.
 - Status: to-review
 - Set: research-org
 - Order: 4
-- Quarantine: old-shape draft; superseded by the ipd-structure convention, to be re-authored to the E-*/V-* shape
-- Quarantine owner: maintainer (IPD-system-first sequencing decision, 2026-08-03)
-- Quarantine follow-up: re-author the research-org Set to the new schema after the ipd-structure Set lands
+- Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
 
 - 2026-07-30 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `research-org`; delivers the C4/F5 capability the timestamp scheme lacked.
-
-- 2026-08-03 quarantined (opencode its_direct/pt3-claude-opus-4.8-1m-us): the maintainer's IPD-system-first sequencing decision defers this old-shape research-org plan; quarantined under spec Section 13.3 (metadata trio added) pending re-authoring to the new E-*/V-* shape after the ipd-structure Set. Not conforming, not an error; an informational disposition.
+- 2026-08-03 quarantined (opencode its_direct/pt3-claude-opus-4.8-1m-us): deferred by the maintainer's IPD-system-first sequencing; quarantined pending re-authoring to the new E-*/V-* shape.
+- 2026-08-03 re-authored (opencode its_direct/pt3-claude-opus-4.8-1m-us): lifted out of quarantine and converted to the new IPD shape (Kind + E-*/V-* bijection + Execution state / Result fields + allocation watermark + OQ-* grammar + Size assessment) per DECISIONS D122; content preserved. Conforms to `aw ipd lint --phase author`.
 
 ## Goal
 
@@ -23,13 +22,37 @@
 
 ## Detailed Implementation Checklist (TODO)
 
-- [ ] **Precheck**: Orders 01+02+03 executed; symbols present, else STOP.
-- [ ] **Task 1: `set-assign`** (regroup; stable id; dry-run/apply).
-- [ ] **Task 2: `mv`** (rename one; stable id).
-- [ ] **Task 3: reference updater** (rewrite name-based cites; dry-run/apply).
-- [ ] **Task 4: dangling-cite detector** (id matched, filename unresolved).
-- [ ] **Tests** `tests/test_research_refs.py`; run it + full suite and PASTE output.
-- [ ] **Lifecycle/commit** path-scoped; `git add` new files; never push.
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.
+
+### Task group 1: regroup and rename verbs
+
+- [ ] E-01 confirm Orders 01+02+03 are executed and their symbols are present, else STOP.
+  - Depends on: none
+  - Expected outcome: the contract + create + index symbols are importable; if absent the tool halts before renaming.
+  - Execution state: pending
+- [ ] E-02 add `aw research set-assign <id6...> --set <id> [--order ...]`: rename targets into the set (shared date+set-id, assigned NN), keep `<id6>`, dry-run default + `--apply`.
+  - Depends on: E-01
+  - Expected outcome: 3 docs regrouped get a shared date/set + ordered NN; ids unchanged.
+  - Execution state: pending
+- [ ] E-03 add `aw research mv <id6> [--slug ... --kind ... --model ...]`: rename one doc within the grammar; `<id6>` unchanged.
+  - Depends on: E-01
+  - Expected outcome: a re-slug changes the name, not the id.
+  - Execution state: pending
+
+### Task group 2: reference integrity + tests
+
+- [ ] E-04 add the reference updater: on any rename, find name-based references repo-wide and rewrite them to the new name (dry-run/`--apply`).
+  - Depends on: E-02, E-03
+  - Expected outcome: a DECISIONS-style cite to the old name is rewritten on `--apply` and previewed on dry-run.
+  - Execution state: pending
+- [ ] E-05 add the dangling-cite detector: report `\b<id6>\b` matches whose surrounding filename does not resolve to a current file (a moved/renamed target cited by an old path).
+  - Depends on: E-02, E-03
+  - Expected outcome: a stale full-path cite to a moved id is reported as dangling.
+  - Execution state: pending
+- [ ] E-06 add `tests/test_research_refs.py` (set-assign shared-date/ordered-NN/stable-id; mv re-slug stable-id; reference rewrite dry-run vs `--apply`; dangling-cite detection); run it plus the full suite and paste both.
+  - Depends on: E-02, E-03, E-04, E-05
+  - Expected outcome: new tests pass; full suite still green.
+  - Execution state: pending
 
 ## Project conventions discovered (Step 0)
 
@@ -37,7 +60,7 @@
 - Reference scan scope: repo-tracked text (DECISIONS.md, `.agents/plans/**`, TODO.md, docs) - the places that cite research (measured: 10 DECISIONS refs, 14 executed plans today).
 - Safety precedent: existing tools default to dry-run + explicit `--apply` (e.g. the untrack tool). Mirror that.
 
-## Findings (drivers)
+## Findings
 
 | ID | Severity | Remediation Risk | Persona | Area | Finding | Evidence |
 |----|----------|------------------|---------|------|---------|----------|
@@ -48,10 +71,10 @@
 
 | Step | Source | Change | Files | Remediation Risk | Validation |
 |------|--------|--------|-------|------------------|------------|
-| 1 | 5.6/C4 | `aw research set-assign <id6...> --set <id> [--order ...]`: rename targets into the set (shared date+set-id, assigned NN), keep `<id6>`, dry-run default + `--apply`. | `agent_workflows/research_cmd.py`, `agent_workflows/research_refs.py` (new) | Medium | test: 3 docs regrouped get shared date/set + ordered NN; ids unchanged |
-| 2 | 5.6 | `aw research mv <id6> [--slug ... --kind ... --model ...]`: rename one doc within the grammar; `<id6>` unchanged. | `agent_workflows/research_cmd.py` | Low | test: re-slug changes name, not id |
-| 3 | F5 | Reference updater: on any rename, find name-based references repo-wide and rewrite them to the new name (dry-run/`--apply`). | `agent_workflows/research_refs.py` | Medium | test: a DECISIONS-style cite to the old name is rewritten on `--apply`, previewed on dry-run |
-| 4 | F5 | Dangling-cite detector: report `\b<id6>\b` matches whose surrounding filename does not resolve to a current file (a moved/renamed target cited by an old path). | `agent_workflows/research_refs.py` | Medium | test: a stale full-path cite to a moved id is reported as dangling |
+| 1 | 5.6/C4 | `aw research set-assign <id6...> --set <id> [--order ...]`: rename targets into the set (shared date+set-id, assigned NN), keep `<id6>`, dry-run default + `--apply`. | `agent_workflows/research_cmd.py`, `agent_workflows/research_refs.py` (new) | Medium | E-02 |
+| 2 | 5.6 | `aw research mv <id6> [--slug ... --kind ... --model ...]`: rename one doc within the grammar; `<id6>` unchanged. | `agent_workflows/research_cmd.py` | Low | E-03 |
+| 3 | F5 | Reference updater: on any rename, find name-based references repo-wide and rewrite them to the new name (dry-run/`--apply`). | `agent_workflows/research_refs.py` | Medium | E-04 |
+| 4 | F5 | Dangling-cite detector: report `\b<id6>\b` matches whose surrounding filename does not resolve to a current file (a moved/renamed target cited by an old path). | `agent_workflows/research_refs.py` | Medium | E-05 |
 
 ## Deferred / out of scope (with reason)
 
@@ -75,20 +98,47 @@
 
 ## Open questions
 
-- Reference scan roots (which tracked paths to scan/rewrite). Lean: DECISIONS.md, `.agents/plans/**`, `.agents/docs/**`, TODO.md, README/ARCHITECTURE. Confirm at review.
+### OQ-01: reference scan roots
+
+- Blocking: no
+- Status: resolved
+- Owner: this child
+- Resolution or deferral rationale: scan and rewrite the tracked paths DECISIONS.md, `.agents/plans/**`, `.agents/docs/**`, TODO.md, and README/ARCHITECTURE. Confirm the exact set at review; if it changes, only this child changes.
 
 ## Validation and cross-check (verify before reporting done)
 
-- [ ] Precheck: cite Orders 01+02+03 in executed/.
-- [ ] Task 1: PASTE regrouped names (shared date/set, ordered NN, unchanged ids).
-- [ ] Task 2: confirm re-slug changes name not id; cite.
-- [ ] Task 3: confirm dry-run previews and `--apply` rewrites a sample cite; cite.
-- [ ] Task 4: confirm a stale cite to a moved id is reported dangling; cite.
-- [ ] PASTE `pytest tests/test_research_refs.py -q` + full-suite summary; leak-clean.
-- [ ] Report any incomplete/blocked/unverified item EXPLICITLY; else do not transition.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [ ] V-01 validates E-01
+  - Required evidence: cite Orders 01+02+03 in `executed/`; confirm the tool halts when their symbols are absent.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-02 validates E-02
+  - Required evidence: paste regrouped names (shared date/set, ordered NN, unchanged ids).
+  - Observed evidence:
+  - Result: pending
+- [ ] V-03 validates E-03
+  - Required evidence: confirm a re-slug changes the name not the id; cite.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-04 validates E-04
+  - Required evidence: confirm dry-run previews and `--apply` rewrites a sample cite; cite.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-05 validates E-05
+  - Required evidence: confirm a stale cite to a moved id is reported dangling; cite.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-06 validates E-06
+  - Required evidence: paste `pytest tests/test_research_refs.py -q` + the full-suite summary (new tests pass, suite green); leak-clean.
+  - Observed evidence:
+  - Result: pending
 
 ## Approval and execution gate
 
-Proposal; human review + approval; not auto-executed. Requires Orders 01, 02, 03; if absent, STOP. Do NOT claim done or move to `executed/` until every execution item is `- [x]` AND its Validation item is verified with concrete evidence; else STOP and report.
+- Size assessment: standard
+- Cohesion rationale: not required
 
-Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY this plan's files, path-scoped, never `git add -A`/`-a`, never push; `git add` new files first. Paste ACTUAL runner output; never claim a pass not run. No em or en dashes. STOP and report if execution exceeds scope (regroup/rename/refs only; no archival, no corpus curation). Never create or push a tag / Release / PyPI upload.
+Proposal; human review + approval; not auto-executed. Requires Orders 01, 02, 03; if absent, STOP. Do NOT claim done or move to `executed/` until every `E-*` is performed+checked AND its matching `V-*` is pass+checked with concrete evidence; else STOP and report.
+
+Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY this plan's files, path-scoped, never `git add -A`/`-a`, never push; `git add` new files first. Paste ACTUAL runner output; never claim a pass not run. No em or en dashes. STOP and report if execution exceeds scope (regroup/rename/refs only; no archival, no corpus curation). Terminal transition is a POST-gate transaction, not a checklist item. Never create or push a tag / Release / PyPI upload.

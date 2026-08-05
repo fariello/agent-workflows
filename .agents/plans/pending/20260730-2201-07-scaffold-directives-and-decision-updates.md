@@ -1,21 +1,20 @@
 # IPD: research scaffold, directives, and prior-decision updates (Set `research-org`, Order 7)
 
 - Date: 2026-07-30
+- Kind: child
 - Concern: wire the convention into the framework: installer scaffold (dir shape + generated READMEs), the thin always-loaded AGENTS.md pointer (F6 token economy), the P5 revision (cite-by-id replaces never-move-research), a DECISIONS pointer entry, and a TODO future-work note naming `plans/executed/` as the next adopter.
 - Scope: scaffold + directives + prior-decision edits, consuming Orders 01/03/05. No new tool behavior. Requires Orders 01, 03, 05 executed; if their symbols/paths are absent, STOP.
 - Status: to-review
 - Set: research-org
 - Order: 7
-- Quarantine: old-shape draft; superseded by the ipd-structure convention, to be re-authored to the E-*/V-* shape
-- Quarantine owner: maintainer (IPD-system-first sequencing decision, 2026-08-03)
-- Quarantine follow-up: re-author the research-org Set to the new schema after the ipd-structure Set lands
+- Highest E allocated: 07
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
 
 - 2026-07-30 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `research-org`; the framework wiring + the recorded unwinding of the prior non-canon decisions.
-
-- 2026-08-03 quarantined (opencode its_direct/pt3-claude-opus-4.8-1m-us): the maintainer's IPD-system-first sequencing decision defers this old-shape research-org plan; quarantined under spec Section 13.3 (metadata trio added) pending re-authoring to the new E-*/V-* shape after the ipd-structure Set. Not conforming, not an error; an informational disposition.
+- 2026-08-03 quarantined (opencode its_direct/pt3-claude-opus-4.8-1m-us): deferred by the maintainer's IPD-system-first sequencing; quarantined pending re-authoring to the new E-*/V-* shape.
+- 2026-08-03 re-authored (opencode its_direct/pt3-claude-opus-4.8-1m-us): lifted out of quarantine and converted to the new IPD shape (Kind + E-*/V-* bijection + Execution state / Result fields + allocation watermark + OQ-* grammar + Size assessment) per DECISIONS D122; content preserved. Conforms to `aw ipd lint --phase author`.
 
 ## Goal
 
@@ -23,14 +22,41 @@ Make the convention ship and be discoverable at near-zero permanent token cost, 
 
 ## Detailed Implementation Checklist (TODO)
 
-- [ ] **Precheck**: Orders 01, 03, 05 executed; `research/` dir shape + INDEX + states exist, else STOP.
-- [ ] **Task 1: installer scaffold** - `research/` dir shape (hot root + `reference/`, `archive/`) + generated no-clobber READMEs describing the convention (point to the spec); wire into the install flow like the other `.agents/docs` READMEs.
-- [ ] **Task 2: thin AGENTS.md pointer (F6)** - ONE line in `agents_pointer_prose` pointing at the `aw research`/`aw archive` verbs ("do not hand-name or hand-maintain the index"); regenerate AGENTS.md to an empty diff; AGENT-PLANS sibling untouched.
-- [ ] **Task 3: revise P5** - edit `GUIDING_PRINCIPLES.md` research carve-out: research is cited by `<id6>` via the manifest and is freely movable; the tool maintains references. Supersede the never-move-research text.
-- [ ] **Task 4: DECISIONS pointer entry** (pin number at execution) referencing the spec; note it revises the timestamp-grouping theory, P5, and the founding free-form-research stance (spec Section 8).
-- [ ] **Task 5: TODO future-work note** naming `plans/executed/` (the ~85/mo, 179-file pain) as the highest-value next adopter of the convention.
-- [ ] **Tests** for the scaffold (dirs + no-clobber READMEs created; dry-run; idempotent) in the existing scaffold test harness; run + full suite and PASTE output.
-- [ ] **Lifecycle/commit** path-scoped; `git add` new files; never push.
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.
+
+### Task group 1: scaffold and pointer
+
+- [ ] E-01 confirm Orders 01, 03, 05 are executed and the `research/` dir shape + INDEX + states exist, else STOP.
+  - Depends on: none
+  - Expected outcome: the research dir shape/INDEX/states are present; if absent the child halts.
+  - Execution state: pending
+- [ ] E-02 add the installer scaffold: the `research/` dir shape (hot root + `reference/`, `archive/`) + generated no-clobber READMEs describing the convention (pointing to the spec), wired into the install flow like the other `.agents/docs` READMEs.
+  - Depends on: E-01
+  - Expected outcome: dirs + no-clobber READMEs are created; dry-run works; the scaffold is idempotent.
+  - Execution state: pending
+- [ ] E-03 add the thin AGENTS.md pointer (F6): ONE line in `agents_pointer_prose` pointing at the `aw research`/`aw archive` verbs ("do not hand-name or hand-maintain the index"); regenerate AGENTS.md to an empty diff; the AGENT-PLANS sibling untouched.
+  - Depends on: E-01
+  - Expected outcome: `aw install .` yields an empty AGENTS.md diff except the one pointer line; AGENT-PLANS is byte-identical.
+  - Execution state: pending
+
+### Task group 2: prior-decision edits and tests
+
+- [ ] E-04 revise GUIDING_PRINCIPLES P5's research carve-out: research is cited by `<id6>` via the manifest and is freely movable; the tool maintains references; supersede the never-move-research text.
+  - Depends on: E-01
+  - Expected outcome: P5 no longer says never-move-research and describes cite-by-id.
+  - Execution state: pending
+- [ ] E-05 add a DECISIONS pointer entry (pin the number at execution) referencing the spec; note it revises the timestamp-grouping theory, P5, and the founding free-form-research stance (spec Section 8).
+  - Depends on: E-01
+  - Expected outcome: the entry is present, points to the spec, and lists the three revised decisions.
+  - Execution state: pending
+- [ ] E-06 add a TODO future-work note naming `plans/executed/` (the ~85/mo, 179-file pain) as the highest-value next adopter of the convention.
+  - Depends on: E-01
+  - Expected outcome: the note is present with the measured rationale.
+  - Execution state: pending
+- [ ] E-07 add scaffold tests (dirs + no-clobber READMEs created; dry-run; idempotent) in the existing scaffold test harness; run them plus the full suite and paste output.
+  - Depends on: E-02, E-03, E-04, E-05, E-06
+  - Expected outcome: new tests pass; full suite still green; the AGENTS.md regen is an empty diff except the pointer line.
+  - Execution state: pending
 
 ## Project conventions discovered (Step 0)
 
@@ -39,7 +65,7 @@ Make the convention ship and be discoverable at near-zero permanent token cost, 
 - P5 lives in `GUIDING_PRINCIPLES.md` (section 5, "Externalize state"); its research carve-out is the boundary bullet this Set revises.
 - DECISIONS entries are short pointers to specs (e.g. D112 points at ipd-spec); keep the depth in the spec, not inline.
 
-## Findings (drivers)
+## Findings
 
 | ID | Severity | Remediation Risk | Persona | Area | Finding | Evidence |
 |----|----------|------------------|---------|------|---------|----------|
@@ -51,11 +77,11 @@ Make the convention ship and be discoverable at near-zero permanent token cost, 
 
 | Step | Source | Change | Files | Remediation Risk | Validation |
 |------|--------|--------|-------|------------------|------------|
-| 1 | 7 | Installer scaffold: research dir shape + generated no-clobber READMEs; wire into install. | `agent_workflows/engine.py`, README templates | Low | scaffold test: dirs + READMEs created, no-clobber, dry-run, idempotent |
-| 2 | 4.11 | Thin AGENTS.md pointer to the verbs; regenerate to empty diff; AGENT-PLANS untouched. | `agent_workflows/engine.py`, `AGENTS.md` | Low | `aw install .` yields empty AGENTS.md diff except the one pointer line; AGENT-PLANS byte-identical |
-| 3 | 8 | Revise P5 research carve-out (cite-by-id + movable + tool-maintained refs). | `GUIDING_PRINCIPLES.md` | Low | P5 no longer says never-move-research; describes cite-by-id |
-| 4 | 8 | DECISIONS pointer entry (pin number). | `DECISIONS.md` | Low | entry present, points to the spec, lists the three revised decisions |
-| 5 | 7 | TODO future-work note: plans/executed/ next adopter. | `TODO.md` | Low | note present with the measured rationale |
+| 1 | 7 | Installer scaffold: research dir shape + generated no-clobber READMEs; wire into install. | `agent_workflows/engine.py`, README templates | Low | E-02 |
+| 2 | 4.11 | Thin AGENTS.md pointer to the verbs; regenerate to empty diff; AGENT-PLANS untouched. | `agent_workflows/engine.py`, `AGENTS.md` | Low | E-03 |
+| 3 | 8 | Revise P5 research carve-out (cite-by-id + movable + tool-maintained refs). | `GUIDING_PRINCIPLES.md` | Low | E-04 |
+| 4 | 8 | DECISIONS pointer entry (pin number). | `DECISIONS.md` | Low | E-05 |
+| 5 | 7 | TODO future-work note: plans/executed/ next adopter. | `TODO.md` | Low | E-06 |
 
 ## Deferred / out of scope (with reason)
 
@@ -79,21 +105,51 @@ Extend the scaffold test harness (dirs + no-clobber READMEs; dry-run; idempotent
 
 ## Open questions
 
-- Exact wording of the one-line AGENTS.md pointer (keep it to a single line for token economy). Confirm at review.
+### OQ-01: exact wording of the one-line AGENTS.md pointer
+
+- Blocking: no
+- Status: resolved
+- Owner: this child
+- Resolution or deferral rationale: the AGENTS.md pointer stays a single line for token economy (pointing at the `aw research`/`aw archive` verbs). Confirm the exact wording at review; if it changes, only this child changes.
 
 ## Validation and cross-check (verify before reporting done)
 
-- [ ] Precheck: cite Orders 01/03/05 in executed/ and the research dir shape/INDEX/states present.
-- [ ] Task 1: PASTE the scaffold test output (dirs + no-clobber READMEs; dry-run; idempotent).
-- [ ] Task 2: PASTE `git diff -- AGENTS.md` showing ONLY the added pointer line; confirm AGENT-PLANS byte-identical.
-- [ ] Task 3: quote the revised P5 text; confirm it no longer says never-move-research and describes cite-by-id.
-- [ ] Task 4: confirm the DECISIONS entry exists, points to the spec, and lists the three revised decisions.
-- [ ] Task 5: confirm the TODO note names plans/executed/ with the measured rationale.
-- [ ] PASTE the full-suite summary; confirm leak-clean and no em/en dashes.
-- [ ] Report any incomplete/blocked/unverified item EXPLICITLY; else do not transition.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [ ] V-01 validates E-01
+  - Required evidence: cite Orders 01/03/05 in `executed/` and confirm the research dir shape/INDEX/states are present.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-02 validates E-02
+  - Required evidence: paste the scaffold test output (dirs + no-clobber READMEs; dry-run; idempotent).
+  - Observed evidence:
+  - Result: pending
+- [ ] V-03 validates E-03
+  - Required evidence: paste `git diff -- AGENTS.md` showing ONLY the added pointer line; confirm AGENT-PLANS is byte-identical.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-04 validates E-04
+  - Required evidence: quote the revised P5 text; confirm it no longer says never-move-research and describes cite-by-id.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-05 validates E-05
+  - Required evidence: confirm the DECISIONS entry exists, points to the spec, and lists the three revised decisions.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-06 validates E-06
+  - Required evidence: confirm the TODO note names plans/executed/ with the measured rationale.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-07 validates E-07
+  - Required evidence: paste the full-suite summary; confirm leak-clean and no em/en dashes.
+  - Observed evidence:
+  - Result: pending
 
 ## Approval and execution gate
 
-Proposal; human review + approval; not auto-executed. Requires Orders 01, 03, 05; if absent, STOP. Do NOT claim done or move to `executed/` until every execution item is `- [x]` AND its Validation item is verified with concrete evidence (including the empty AGENTS.md diff and byte-identical AGENT-PLANS); else STOP and report.
+- Size assessment: standard
+- Cohesion rationale: not required
 
-Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY this plan's files, path-scoped, never `git add -A`/`-a`, never push; `git add` new files first. Paste ACTUAL runner output; never claim a pass not run. No em or en dashes. STOP and report if execution exceeds scope (scaffold/pointer/P5/DECISIONS/TODO only; edit only the existing `agents_pointer_prose`; regenerate AGENTS.md, do not hand-edit; do not add the separate aw:block edit-protection directive here). Never create or push a tag / Release / PyPI upload.
+Proposal; human review + approval; not auto-executed. Requires Orders 01, 03, 05; if absent, STOP. Do NOT claim done or move to `executed/` until every `E-*` is performed+checked AND its matching `V-*` is pass+checked with concrete evidence (including the empty AGENTS.md diff and byte-identical AGENT-PLANS); else STOP and report.
+
+Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY this plan's files, path-scoped, never `git add -A`/`-a`, never push; `git add` new files first. Paste ACTUAL runner output; never claim a pass not run. No em or en dashes. STOP and report if execution exceeds scope (scaffold/pointer/P5/DECISIONS/TODO only; edit only the existing `agents_pointer_prose`; regenerate AGENTS.md, do not hand-edit; do not add the separate aw:block edit-protection directive here). Terminal transition is a POST-gate transaction, not a checklist item. Never create or push a tag / Release / PyPI upload.

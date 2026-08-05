@@ -1,21 +1,20 @@
 # IPD: `aw research new` / `new-comparison` creation tool (Set `research-org`, Order 2)
 
 - Date: 2026-07-30
+- Kind: child
 - Concern: give agents and humans a deterministic command to create a correctly-named research doc with starter frontmatter, so naming is a tool call (not a fallible convention). Encodes the multi-model comparison pattern as first-class.
 - Scope: the create verbs only, consuming the Order-01 contract. No indexing (Order 03), no rename (04), no archival (05). Requires Order 01 executed (imports `research_contract`); if its symbols are absent, STOP.
 - Status: to-review
 - Set: research-org
 - Order: 2
-- Quarantine: old-shape draft; superseded by the ipd-structure convention, to be re-authored to the E-*/V-* shape
-- Quarantine owner: maintainer (IPD-system-first sequencing decision, 2026-08-03)
-- Quarantine follow-up: re-author the research-org Set to the new schema after the ipd-structure Set lands
+- Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
 
 - 2026-07-30 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `research-org`; the first behavior on top of the Order-01 contract.
-
-- 2026-08-03 quarantined (opencode its_direct/pt3-claude-opus-4.8-1m-us): the maintainer's IPD-system-first sequencing decision defers this old-shape research-org plan; quarantined under spec Section 13.3 (metadata trio added) pending re-authoring to the new E-*/V-* shape after the ipd-structure Set. Not conforming, not an error; an informational disposition.
+- 2026-08-03 quarantined (opencode its_direct/pt3-claude-opus-4.8-1m-us): deferred by the maintainer's IPD-system-first sequencing; quarantined pending re-authoring to the new E-*/V-* shape.
+- 2026-08-03 re-authored (opencode its_direct/pt3-claude-opus-4.8-1m-us): lifted out of quarantine and converted to the new IPD shape (Kind + E-*/V-* bijection + Execution state / Result fields + allocation watermark + OQ-* grammar + Size assessment) per DECISIONS D122; content preserved. Conforms to `aw ipd lint --phase author`.
 
 ## Goal
 
@@ -23,13 +22,37 @@
 
 ## Detailed Implementation Checklist (TODO)
 
-- [ ] **Precheck**: Order 01 executed; `research_contract` importable, else STOP.
-- [ ] **Task 1: `aw research new`** (id, set/NN resolution, vocab validate, write + starter frontmatter).
-- [ ] **Task 2: `aw research new-comparison`** (prompt 00 + model reports + reconciliation).
-- [ ] **Task 3: self-revealing output + `--help`**.
-- [ ] **Task 4: invalid-input rejection** (no file written).
-- [ ] **Tests** `tests/test_research_cmd_create.py`; run it + full suite and PASTE output.
-- [ ] **Lifecycle/commit** path-scoped; `git add` new files; never push.
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.
+
+### Task group 1: create verbs
+
+- [ ] E-01 confirm Order 01 is executed and `research_contract` is importable, else STOP.
+  - Depends on: none
+  - Expected outcome: `research_contract` symbols (id, grammar, vocab, frontmatter) are present; if absent the tool halts before writing.
+  - Execution state: pending
+- [ ] E-02 add `aw research new` (args `--set`, `--kind`, `--model?`, `--slug`, `--summary`, `--topic`, `--date?`): generate a collision-checked id, resolve the set (reuse date+next NN, or new set NN=00; omitted set = singleton from slug), validate/normalize vocab, kebab the slug, and write the file plus starter frontmatter (status: intake, consumed-by []).
+  - Depends on: E-01
+  - Expected outcome: a well-formed name plus frontmatter appears in a temp dir; a second call to the same set increments NN.
+  - Execution state: pending
+- [ ] E-03 add `aw research new-comparison` (`--set --slug --models a,b,c`): create the prompt at NN=00, one report slot per model at NN=01..N, and reserve a reconciliation-report slot.
+  - Depends on: E-01, E-02
+  - Expected outcome: a prompt plus N model reports plus a reconciliation slot in correct NN order with model tags in name and frontmatter.
+  - Execution state: pending
+
+### Task group 2: output, safety, tests
+
+- [ ] E-04 add self-revealing output: on success print the created path(s) and the next step ("run `aw research index`"), and add `--help` text.
+  - Depends on: E-02, E-03
+  - Expected outcome: stdout contains the created path and the index hint.
+  - Execution state: pending
+- [ ] E-05 reject invalid input clearly (unknown kind/model with a closest-match suggestion; missing required args) without writing a file.
+  - Depends on: E-02
+  - Expected outcome: an unknown kind exits nonzero, writes nothing, and suggests the closest valid value.
+  - Execution state: pending
+- [ ] E-06 add `tests/test_research_cmd_create.py` (new well-formed output + NN increment + singleton; new-comparison scaffold; self-revealing stdout; invalid-input rejection); run it plus the full suite and paste both.
+  - Depends on: E-02, E-03, E-04, E-05
+  - Expected outcome: new tests pass; full suite still green.
+  - Execution state: pending
 
 ## Project conventions discovered (Step 0)
 
@@ -37,7 +60,7 @@
 - Contract: import id/grammar/vocab/frontmatter from Order 01's `research_contract.py`; do NOT restate them.
 - Test harness precedent: `tests/test_installer.py` etc. use throwaway dirs; mirror for tool tests.
 
-## Findings (drivers)
+## Findings
 
 | ID | Severity | Remediation Risk | Persona | Area | Finding | Evidence |
 |----|----------|------------------|---------|------|---------|----------|
@@ -48,10 +71,10 @@
 
 | Step | Source | Change | Files | Remediation Risk | Validation |
 |------|--------|--------|-------|------------------|------------|
-| 1 | 5.1 | Add `aw research new` (args: `--set`, `--kind`, `--model?`, `--slug`, `--summary`, `--topic`, `--date?`): generate collision-checked id, resolve set (reuse date+next NN, or new set NN=00; omitted set = singleton from slug), validate/normalize vocab, kebab slug, write file + starter frontmatter (status: intake, consumed-by []). | `agent_workflows/cli.py`, `agent_workflows/research_cmd.py` (new) | Low | test: creates a well-formed name+frontmatter in a temp dir; second call to same set increments NN |
-| 2 | 5.3 | Add `aw research new-comparison` (`--set --slug --models a,b,c`): create prompt at NN=00, one report slot per model NN=01..N, reserve a reconciliation-report slot. | `agent_workflows/research_cmd.py` | Low | test: yields prompt + N model reports + reconciliation, correct NN order, model tags in name+frontmatter |
-| 3 | F6 | Self-revealing output: on success print the created path(s) and the next step ("run `aw research index`"). Add `--help` text. | `agent_workflows/research_cmd.py` | Low | test: stdout contains the created path and the index hint |
-| 4 | G1 | Reject invalid input clearly (unknown kind/model with a suggestion; missing required args) without writing a file. | `agent_workflows/research_cmd.py` | Low | test: unknown kind exits nonzero, writes nothing, suggests closest |
+| 1 | 5.1 | Add `aw research new` (args: `--set`, `--kind`, `--model?`, `--slug`, `--summary`, `--topic`, `--date?`): generate collision-checked id, resolve set (reuse date+next NN, or new set NN=00; omitted set = singleton from slug), validate/normalize vocab, kebab slug, write file + starter frontmatter (status: intake, consumed-by []). | `agent_workflows/cli.py`, `agent_workflows/research_cmd.py` (new) | Low | E-02 |
+| 2 | 5.3 | Add `aw research new-comparison` (`--set --slug --models a,b,c`): create prompt at NN=00, one report slot per model NN=01..N, reserve a reconciliation-report slot. | `agent_workflows/research_cmd.py` | Low | E-03 |
+| 3 | F6 | Self-revealing output: on success print the created path(s) and the next step ("run `aw research index`"). Add `--help` text. | `agent_workflows/research_cmd.py` | Low | E-04 |
+| 4 | G1 | Reject invalid input clearly (unknown kind/model with a suggestion; missing required args) without writing a file. | `agent_workflows/research_cmd.py` | Low | E-05 |
 
 ## Deferred / out of scope (with reason)
 
@@ -75,20 +98,47 @@ Update `.agents/docs/research/README.md` usage section (created in Order 01) to 
 
 ## Open questions
 
-- Default derivation of `<set-id>`/`<slug>` when omitted: derive from `--summary`/`--slug`. Confirm the derivation rule at review.
+### OQ-01: default derivation of `<set-id>`/`<slug>` when omitted
+
+- Blocking: no
+- Status: resolved
+- Owner: this child
+- Resolution or deferral rationale: derive the omitted `<set-id>`/`<slug>` from `--summary`/`--slug` (a slug-derived singleton when no set is given). Confirm the exact derivation rule at review; if it changes, only this child changes.
 
 ## Validation and cross-check (verify before reporting done)
 
-- [ ] Precheck: cite that `research_contract` symbols exist (Order 01 in executed/).
-- [ ] Task 1: PASTE a created name + frontmatter from the test; confirm NN increments on a second same-set call.
-- [ ] Task 2: PASTE the `new-comparison` output; confirm 00 prompt + N model reports + reconciliation with correct order and model tags.
-- [ ] Task 3: confirm stdout shows the created path + the `aw research index` hint; cite.
-- [ ] Task 4: confirm unknown kind exits nonzero and writes no file; cite.
-- [ ] PASTE `pytest tests/test_research_cmd_create.py -q` + full-suite summary; leak-clean.
-- [ ] Report any incomplete/blocked/unverified item EXPLICITLY; else do not transition.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [ ] V-01 validates E-01
+  - Required evidence: cite that `research_contract` symbols exist (Order 01 in `executed/`) and that the tool halts when they are absent.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-02 validates E-02
+  - Required evidence: paste a created name + frontmatter from the test and confirm NN increments on a second same-set call.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-03 validates E-03
+  - Required evidence: paste the `new-comparison` output; confirm the 00 prompt + N model reports + reconciliation with correct order and model tags.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-04 validates E-04
+  - Required evidence: confirm stdout shows the created path + the `aw research index` hint; cite.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-05 validates E-05
+  - Required evidence: confirm an unknown kind exits nonzero and writes no file; cite.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-06 validates E-06
+  - Required evidence: paste `pytest tests/test_research_cmd_create.py -q` + the full-suite summary (new tests pass, suite green); leak-clean.
+  - Observed evidence:
+  - Result: pending
 
 ## Approval and execution gate
 
-Proposal; human review + approval; not auto-executed. Requires Order 01 (`research_contract`); if absent, STOP. Do NOT claim done or move to `executed/` until every execution item is `- [x]` AND its Validation item is verified with concrete evidence; if any cannot be completed, STOP and report.
+- Size assessment: standard
+- Cohesion rationale: not required
 
-Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY this plan's files, path-scoped, never `git add -A`/`-a`, never push; `git add` new files first. Paste ACTUAL runner output; never claim a pass not run. No em or en dashes. STOP and report if execution exceeds scope (create verbs only; no index/rename/archival). Never create or push a tag / Release / PyPI upload.
+Proposal; human review + approval; not auto-executed. Requires Order 01 (`research_contract`); if absent, STOP. Do NOT claim done or move to `executed/` until every `E-*` is performed+checked AND its matching `V-*` is pass+checked with concrete evidence; if any cannot be completed, STOP and report.
+
+Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY this plan's files, path-scoped (`git commit -m msg -- <path>`), never `git add -A`/`-a`, never push; `git add` new files first. Paste ACTUAL runner output; never claim a pass not run. No em or en dashes. STOP and report if execution exceeds scope (create verbs only; no index/rename/archival). Terminal transition is a POST-gate transaction, not a checklist item. Never create or push a tag / Release / PyPI upload.
