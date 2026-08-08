@@ -4,12 +4,11 @@
 - Kind: orchestrator
 - Concern: implement the approved `.agents/` artifact-organization design for `.agents/docs/research/` (the spec `.agents/docs/specs/20260730-2152-01-agents-artifact-organization.spec.md`): stable greppable ids, filename-encoded set grouping, tool-owned lifecycle, a tiered generated manifest, weekly cold shards, and progressive-disclosure tooling, so a human and an agent can cheaply answer "what did we find re X?" and "what still needs addressing?" at scale.
 - Scope: ORCHESTRATOR for the ordered Set `research-org`. Defines the child sequence, dependencies, whole-Set completion criteria, and cross-IPD validation. It does NOT itself change files (each child does its own edits). Implementation is scoped to `research/` only; `plans/executed/` and other areas are named future adopters (tracked in TODO, Child 07).
-- Status: approved
+- Status: executed
 - Set: research-org
 - Order: 0
 - Highest E allocated: 09
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
-- Approval: 2026-08-07 human maintainer (via opencode its_direct/pt3-claude-opus-4.8-1m-us): "Consider them all approved. Please do them in the recommended order."
 
 ## Workflow history
 
@@ -17,6 +16,7 @@
 - 2026-08-03 quarantined (opencode its_direct/pt3-claude-opus-4.8-1m-us): deferred by the maintainer's IPD-system-first sequencing; quarantined pending re-authoring to the new E-*/V-* shape.
 - 2026-08-03 re-authored (opencode its_direct/pt3-claude-opus-4.8-1m-us): lifted out of quarantine and converted to the new IPD shape (Kind + E-*/V-* bijection + Execution state / Result fields + allocation watermark + OQ-* grammar + Size assessment) per DECISIONS D122; content preserved. Conforms to `aw ipd lint --phase author`.
 - 2026-08-07 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (pytest->unittest), PR-002 (stale "78"->re-count), PR-006 (dependency reorder 01,02,04,03,05,06,07 + dangling-detector single source), PR-011 (OQ2/OQ3 pinned N=40), plus the cross-IPD dangling-gate consistency check. Independent parallel read-only audit lanes + human decisions on 7 open questions.
+- 2026-08-07 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): all seven children executed in dependency order 01 -> 02 -> 04 -> 03 -> 05 -> 06 -> 07 via the ipd-lifecycle gate, each with its own V-* verified. Cross-IPD validation passed: contract defined once (research_contract) with no forks, dangling detector single-source (research_refs) consumed by index+archive, execution order respected. Final dogfood: full suite green (Ran 628 tests OK, skipped=1); aw research index --check clean (only a doc-example self-reference); leak-clean; no em/en dashes. The existing 71-file research corpus is migrated onto the convention. All E-01..E-09 performed and V-01..V-09 pass. The Set is complete.
 
 ## Goal
 
@@ -28,42 +28,42 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 The orchestrator's execution leaves gate the children and run the whole-Set checks. They use the same stable E/V contract as every other actionable IPD.
 
-- [ ] E-01 verify Child 01 (naming/frontmatter contract) is executed and its own two checklists are verified.
+- [x] E-01 verify Child 01 (naming/frontmatter contract) is executed and its own two checklists are verified.
   - Depends on: none
   - Expected outcome: the naming grammar, `<id6>`, `<model>`/`<kind>` vocab, and frontmatter schema are complete.
-  - Execution state: pending
-- [ ] E-02 verify Child 02 (create tool) is executed after Child 01 and its own checklists are verified.
+  - Execution state: performed
+- [x] E-02 verify Child 02 (create tool) is executed after Child 01 and its own checklists are verified.
   - Depends on: E-01
   - Expected outcome: `aw research new`/`new-comparison` are complete.
-  - Execution state: pending
-- [ ] E-04 verify Child 04 (rename/refs tool) is executed after Children 01 and 02 and its own checklists are verified.
+  - Execution state: performed
+- [x] E-04 verify Child 04 (rename/refs tool) is executed after Children 01 and 02 and its own checklists are verified.
   - Depends on: E-01, E-02
   - Expected outcome: regroup/rename (atomic tracked) + reference update (pinned scan root) + the reusable dangling detector primitive are complete.
-  - Execution state: pending
-- [ ] E-03 verify Child 03 (index generator + find) is executed after Children 01, 02, and 04 and its own checklists are verified (its `--check` consumes Order 04's dangling detector).
+  - Execution state: performed
+- [x] E-03 verify Child 03 (index generator + find) is executed after Children 01, 02, and 04 and its own checklists are verified (its `--check` consumes Order 04's dangling detector).
   - Depends on: E-01, E-02, E-04
   - Expected outcome: the tiered INDEX (N=40) + `find` + `--check` (four drift classes incl. dangling) are complete.
-  - Execution state: pending
-- [ ] E-05 verify Child 05 (archival/states) is executed after Children 01, 03, and 04 and its own checklists are verified.
+  - Execution state: performed
+- [x] E-05 verify Child 05 (archival/states) is executed after Children 01, 03, and 04 and its own checklists are verified.
   - Depends on: E-01, E-03, E-04
   - Expected outcome: the state lifecycle + weekly shards + `aw archive` verbs (per-item preview/override) are complete.
-  - Execution state: pending
-- [ ] E-06 verify Child 06 (migrate the existing corpus) is executed after Children 01 through 05 and its own checklists are verified.
+  - Execution state: performed
+- [x] E-06 verify Child 06 (migrate the existing corpus) is executed after Children 01 through 05 and its own checklists are verified.
   - Depends on: E-01, E-02, E-03, E-04, E-05
   - Expected outcome: the corpus migration with preserved citations and a clean `index --check` is complete.
-  - Execution state: pending
-- [ ] E-07 verify Child 07 (scaffold/directives/decisions) is executed after Children 01, 03, and 05 and its own checklists are verified.
+  - Execution state: performed
+- [x] E-07 verify Child 07 (scaffold/directives/decisions) is executed after Children 01, 03, and 05 and its own checklists are verified.
   - Depends on: E-01, E-03, E-05
   - Expected outcome: scaffold + thin AGENTS.md pointer + P5/DECISIONS/TODO edits are complete.
-  - Execution state: pending
-- [ ] E-08 run the cross-IPD validation.
+  - Execution state: performed
+- [x] E-08 run the cross-IPD validation.
   - Depends on: E-01, E-02, E-03, E-04, E-05, E-06, E-07
   - Expected outcome: consistency, no-drift, dependency-correctness, and size checks pass.
-  - Execution state: pending
-- [ ] E-09 run the final suite and repository dogfood checks and paste actual output.
+  - Execution state: performed
+- [x] E-09 run the final suite and repository dogfood checks and paste actual output.
   - Depends on: E-08
   - Expected outcome: the suite is green, leak-clean, no em/en dashes, and `aw research index --check` is clean.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Child IPDs, sequence, and dependencies
 
@@ -126,42 +126,42 @@ Per-child validation (each child names its own literal commands) plus the cross-
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: cite Child 01 in `.agents/plans/executed/` with `Status: executed` and its own Validation checklist verified.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `.agents/plans/executed/20260730-2201-01-research-naming-and-frontmatter-contract.md` is `Status: executed` with V-01..V-06 pass; product commit af7489e (`research_contract.py`).
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: cite Child 02 executed after Child 01 with its own Validation checklist verified.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `.agents/plans/executed/20260730-2201-02-aw-research-create-tool.md` executed after 01; V-01..V-06 pass; product commit 0dd0afe (`research_cmd.py`).
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: cite Child 04 executed after Children 01 and 02 with its own Validation checklist verified.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `.agents/plans/executed/20260730-2201-04-research-rename-and-refs-tool.md` executed after 01/02 (before 03); V-01..V-07 pass; product commit e8c9e7b (`research_refs.py` incl. the single-source dangling detector).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: cite Child 03 executed after Children 01, 02, and 04 with its own Validation checklist verified (incl. the `--check` dangling class consuming Order 04).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `.agents/plans/executed/20260730-2201-03-research-index-generator.md` executed after 01/02/04; V-01..V-07 pass; product commits 561b632 + 57514bd; `index --check` imports `research_refs.find_dangling_citations`.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: cite Child 05 executed after Children 01, 03, and 04 with its own Validation checklist verified.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `.agents/plans/executed/20260730-2201-05-research-archival-and-states.md` executed after 01/03/04; V-01..V-07 pass; product commit a11294c (`research_archive.py`).
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: cite Child 06 executed after Children 01 through 05 with its own Validation checklist verified.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: `.agents/plans/executed/20260730-2201-06-migrate-existing-research.md` executed after 01-05; V-01..V-08 pass; product commit 6735f3b (71 files migrated with citations preserved; 69 tracked renames).
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: cite Child 07 executed after Children 01, 03, and 05 with its own Validation checklist verified.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-08 validates E-08
+  - Observed evidence: `.agents/plans/executed/20260730-2201-07-scaffold-directives-and-decision-updates.md` executed after 01/03/05; V-01..V-07 pass; product commit 94c4f49 + installer-authored 4fd2921/fa6ad21 (scaffold, thin pointer, P5 narrowing, DECISIONS D123, TODO note).
+  - Result: pass
+- [x] V-08 validates E-08
   - Required evidence: quote the naming grammar + `<id6>` + frontmatter schema + state vocab from Child 01 and confirm the tool and every later child match; confirm the dangling detector is defined once (Child 04) and consumed by Child 03/05; confirm execution order respected the dependency table (01, 02, 04, 03, 05, 06, 07).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-09 validates E-09
+  - Observed evidence: the grammar `YYYYMMDD-<set-id>-<NN>-<id6>-<slug>[.<model>].<kind>.md`, `<id6>` (6-char base36), the 11-field frontmatter schema, and the state vocab (intake/active/reference/archive) are defined ONCE in `agent_workflows/research_contract.py`; `research_cmd`/`research_refs`/`research_index`/`research_archive` each `import research_contract` and none redefine them (verified: 1 import each, 0 forks). `find_dangling_citations` is defined once in `research_refs.py` and consumed by both `research_index` and `research_archive` (grep confirmed). Execution order was 01 -> 02 -> 04 -> 03 -> 05 -> 06 -> 07 per the dependency table (commit order af7489e/78727b3, 0dd0afe/e448789, e8c9e7b/3380564, 561b632/41f2adf, a11294c/660191c, 6735f3b/53b86c3, 94c4f49/a057dd6).
+  - Result: pass
+- [x] V-09 validates E-09
   - Required evidence: paste the actual final `python3 -m unittest` summary line (`Ran N tests ... OK`); confirm `aw research index --check` clean, leak-clean, and no em/en dashes.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: final full suite `python3 -m unittest discover -s tests -t .` -> `Ran 628 tests in 153.762s / OK (skipped=1)`. `aw research index --check` reports only the one illustrative `k7m2xq` example inside the executed Order-01 plan (a documentation example, not a real citation); no frontmatter/name/stale-index drift. `aw sanitize --agent` exit 0. No em/en dashes in authored Markdown.
+  - Result: pass
 
 ## Approval and execution gate
 
