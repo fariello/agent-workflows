@@ -1,0 +1,145 @@
+# IPD: plans regroup/rename + reference integrity (Set `plans-adopter`, Order 4)
+
+- Date: 2026-08-08
+- Kind: child
+- Concern: enable after-the-fact topic regrouping of plans (the capability the timestamp stem cannot provide, spec 8) without breaking citations: (re)assign a plan's `Set:`/`Order:`, optionally rename it to the Set-clustering grammar, keep its `Id` stable, and rewrite the three plan-citation forms.
+- Scope: `aw plans set-assign`/`mv`, consuming the Order-01 core (id6, dangling detector, atomic write, git mv), Order-02 `Id`, and Order-03 manifest. The clustering grammar is `YYYYMMDD-<set-id>-<NN>-<id6>-<slug>.md` (OQ1). No shards (05), no bulk migration (06). Requires Orders 01, 02, 03.
+- Status: to-review
+- Set: plans-adopter
+- Order: 4
+- Highest E allocated: 06
+- Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+
+## Workflow history
+
+- 2026-08-08 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `plans-adopter`; the regroup/rename capability. Authored from spec `20260808-0004-01` Section 4.3 + 4.5 + OQ1.
+
+## Goal
+
+`aw plans set-assign <id...> --set <s> [--order ...] [--rename]` groups plans into a Set (updating `Set:`/`Order:` metadata and, with `--rename`, renaming to the clustering grammar) and `aw plans mv <id> [--slug ...]` renames/re-slugs one plan; both keep the immutable `Id`, rewrite the three plan-citation forms (full-name, bare-stem via an old->new map, range-shorthand), and flag danglers via the core detector. This delivers citation-safe topic regrouping for plans.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.
+
+### Task group 1: regroup + rename verbs
+
+- [ ] E-01 confirm Orders 01+02+03 are executed and their symbols are present, else STOP.
+  - Depends on: none
+  - Expected outcome: the core + `Id` + manifest symbols are importable; if absent the tool halts before renaming.
+  - Execution state: pending
+- [ ] E-02 add `aw plans set-assign <id6...> --set <id> [--order ...] [--rename]`: update each target's `Set:`/`Order:` metadata; with `--rename`, rename to `YYYYMMDD-<set-id>-<NN>-<id6>-<slug>.md` as an atomic tracked `git mv`, keeping `Id`; dry-run default + `--apply`.
+  - Depends on: E-01
+  - Expected outcome: targets get a shared Set + ordered NN in metadata; with `--rename` the files cluster on disk; ids unchanged.
+  - Execution state: pending
+- [ ] E-03 add `aw plans mv <id6> [--slug ... --set ... --order ...]`: rename/re-slug one plan within the clustering grammar; `Id` unchanged; atomic tracked rename.
+  - Depends on: E-01
+  - Expected outcome: a re-slug/reassign changes the name and metadata, not the id.
+  - Execution state: pending
+
+### Task group 2: reference integrity + tests
+
+- [ ] E-04 add the plan reference updater: on any rename, rewrite the THREE plan-citation forms across the tracked scan root (reusing the core scan-root + atomic write): (a) full old filename -> new; (b) bare stem `YYYYMMDD-HHMM-NN` -> new name via an old-stem->new-name map; (c) range shorthand `` `<stem>`..`NN` `` expanded/rewritten. Dry-run preview + `--apply`.
+  - Depends on: E-02, E-03
+  - Expected outcome: a full-name cite, a bare-stem cite, and a range-shorthand cite to a renamed plan are all rewritten on `--apply` and previewed on dry-run.
+  - Execution state: pending
+- [ ] E-05 wire the core dangling-cite detector for plan ids so `aw plans index --check` (Order 03) and this verb both report a plan citation whose id no longer resolves; do not falsely flag a stable-id cite to a moved-but-present plan.
+  - Depends on: E-02, E-03
+  - Expected outcome: a stale plan cite is reported; a bare-stem/id cite to a present plan is not.
+  - Execution state: pending
+- [ ] E-06 add `tests/test_plans_refs.py` (set-assign shared-Set/ordered-NN/stable-Id; mv re-slug stable-Id; the three-citation-form rewrite incl. bare-stem-via-map and range-expansion; dangling detection); run it plus the full suite and paste both.
+  - Depends on: E-02, E-03, E-04, E-05
+  - Expected outcome: new tests pass; full suite still green.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- The immutable `Id` (Order 02) is the citation handle; only the surrounding name parts change. Reference matching/rewriting reuses the core (Order 01), not a new implementation.
+- Plans are cited THREE ways (verified in the corpus): full filename, bare `YYYYMMDD-HHMM-NN` stem, and range shorthand `` `<stem>`..`NN` ``. All three must be handled; the bare-stem and range forms require the old-stem->new-name map built from the rename table.
+- Safety precedent: `aw research set-assign`/`mv` + `aw ipd scaffold`/`sync` (dry-run default, `--apply`, atomic write, tracked `git mv`). Mirror it.
+- Scan root: reuse the core's tracked-text scan roots (DECISIONS.md, `.agents/plans/**`, `.agents/docs/**`, TODO.md, README/ARCHITECTURE), the same pinned set research uses.
+- Test runner: stdlib `unittest`, NOT pytest.
+
+## Findings
+
+| ID | Severity | Remediation Risk | Persona | Area | Finding | Evidence |
+|----|----------|------------------|---------|------|---------|----------|
+| C4-1 | HIGH | Medium | maintainer | regroup | Topic regrouping is the crux need (spec 2, 8); it must not break citations. | spec 8, 4.3 |
+| C4-2 | HIGH | Medium | integrity | citation-forms | Plans are cited three ways; a naive full-name-only rewrite would leave bare-stem and range cites dangling. | corpus survey |
+
+## Proposed changes (ordered, validatable)
+
+| Step | Source | Change | Files | Remediation Risk | Validation |
+|------|--------|--------|-------|------------------|------------|
+| 1 | 4.3/4.5 | `aw plans set-assign` (metadata + optional `--rename`, atomic git mv, keep Id) | `agent_workflows/plans_refs.py` (new), `agent_workflows/cli.py` | Medium | E-02 |
+| 2 | 4.5 | `aw plans mv` (rename/re-slug one plan, keep Id) | `agent_workflows/plans_refs.py` | Medium | E-03 |
+| 3 | 4.7 | Reference updater for the THREE citation forms (full-name, bare-stem via map, range) | `agent_workflows/plans_refs.py` | Medium-High | E-04 |
+| 4 | 4.4 | Dangling plan-cite detection wired into `--check` + this verb | `agent_workflows/plans_refs.py` | Medium | E-05 |
+| 5 | 4.5 | tests | `tests/test_plans_refs.py` | Low | E-06 |
+
+## Deferred / out of scope (with reason)
+
+| Item | Remediation Risk | Axis | Reason | Later step |
+|------|------------------|------|--------|-----------|
+| The bulk one-time migration of all plans | n/a | scope | This child builds the verbs; the migration USES them at scale with a STOP gate. | Order 06 |
+| Shard moves / archival | n/a | scope | Order 05. | Order 05 |
+
+## Scope check
+
+- Over-scope: none - regroup + rename + reference rewrite + dangling detection.
+- Under-scope: MUST keep `Id` stable across every operation, rewrite ALL THREE citation forms, and never leave a silently-broken plan citation.
+
+## Required tests / validation
+
+`tests/test_plans_refs.py`: set-assign (shared Set, ordered NN, stable Id, optional rename to the clustering grammar); mv (re-slug keeps Id); the reference rewriter for a full-name cite, a bare-stem cite (via the old->new map), and a range-shorthand cite (expanded); dangling detection (stale plan cite flagged, present-plan cite not). Run it + the full suite `python3 -m unittest discover -s tests -t .`; PASTE both. Leak-clean; no em/en dashes.
+
+## Spec / documentation sync
+
+`.agents/plans/README.md`: how to regroup plans after the fact, the clustering grammar, the dry-run/`--apply` safety, and that `Id` makes it citation-safe. The Remediation Risk of the three-form rewrite (Medium-High on the bare-stem/range paths) is noted so the migration (Order 06) treats it with a STOP gate.
+
+## Open questions
+
+### OQ-01: range-shorthand rewrite strategy
+
+- Blocking: no
+- Status: resolved
+- Owner: this child
+- Resolution or deferral rationale: a range shorthand `` `<stem>`..`NN` `` cites a whole Set by the orchestrator stem + a member-NN range. On rename, rewrite it by resolving the stem to its Set via the old-stem->new-name map and re-expressing the range against the new clustering names (or expanding to explicit member ids if a compact range is not reconstructable). The maintainer has expressed confidence in the agent handling truncated/range references; the migration's dry-run diff (Order 06) surfaces every such rewrite for review before applying.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [ ] V-01 validates E-01
+  - Required evidence: cite Orders 01+02+03 in `executed/`; confirm the tool halts when their symbols are absent.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-02 validates E-02
+  - Required evidence: paste a set-assign result showing shared Set + ordered NN in metadata, stable Id, and (with `--rename`) the clustering filename; confirm the move is a tracked git rename.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-03 validates E-03
+  - Required evidence: confirm `mv` re-slug changes the name/metadata not the Id; cite.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-04 validates E-04
+  - Required evidence: paste tests showing a full-name cite, a bare-stem cite, and a range-shorthand cite to a renamed plan are ALL rewritten on `--apply` and previewed on dry-run.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-05 validates E-05
+  - Required evidence: confirm a stale plan cite (id no longer resolves) is reported dangling and a stable-id/bare-stem cite to a present plan is NOT; confirm `aw plans index --check` consumes the same detector.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-06 validates E-06
+  - Required evidence: paste `python3 -m unittest tests.test_plans_refs -v` + the full-suite `Ran N tests ... OK` summary; leak-clean.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+Proposal; human review + approval; not auto-executed. Requires Orders 01, 02, 03. Do NOT claim done or move to `executed/` until every `E-*` is performed+checked AND its matching `V-*` is pass+checked with concrete evidence; else STOP and report.
+
+Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY this plan's files, path-scoped, never `git add -A`/`-a`, never push; `git add` new files first. Paste ACTUAL runner output; never claim a pass not run. No em or en dashes in authored Markdown. STOP and report if execution exceeds scope (regroup/rename/refs only; no bulk migration, no shards). Terminal transition is a POST-gate transaction, not a checklist item. Never create or push a tag / Release / PyPI upload.
