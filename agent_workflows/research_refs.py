@@ -19,80 +19,21 @@ write, atomic writes, tracked ``git mv`` for moves.
 from __future__ import annotations
 
 import argparse
-import os
-import subprocess
-import tempfile
 from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
+from agent_workflows import artifact_core as _core
 from agent_workflows import research_contract as R
 
 # --------------------------------------------------------------------------------------
-# The pinned reference scan-root (E-07): ONE authoritative list, consumed by E-04 and E-05.
-# Paths are POSIX, relative to the repo root. This is the ONLY enumeration; do not scatter
-# divergent lists in prose or elsewhere.
+# The pinned reference scan-root + scan iteration + writing-safety helpers are defined ONCE in
+# the shared core (plans-adopter Order 01) and re-exported here so research's API is unchanged.
 # --------------------------------------------------------------------------------------
 
-SCAN_ROOTS: Tuple[str, ...] = (
-    "DECISIONS.md",
-    "TODO.md",
-    "README.md",
-    "ARCHITECTURE.md",
-    ".agents/plans",
-    ".agents/docs",
-)
-
-_TEXT_SUFFIXES = (".md", ".txt")
-
-
-def iter_scan_files(repo_root: Path) -> List[Path]:
-    """Return every tracked-text file under the pinned scan root (deterministic, sorted)."""
-
-    files: List[Path] = []
-    for rel in SCAN_ROOTS:
-        p = repo_root / rel
-        if p.is_file():
-            files.append(p)
-        elif p.is_dir():
-            for f in sorted(p.rglob("*")):
-                if f.is_file() and f.suffix in _TEXT_SUFFIXES:
-                    files.append(f)
-    return sorted(set(files))
-
-
-# --------------------------------------------------------------------------------------
-# Atomic write (mirrors ipd_authoring._atomic_write)
-# --------------------------------------------------------------------------------------
-
-
-def _atomic_write(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".refs-tmp-", suffix=".md")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(text)
-        os.replace(tmp, str(path))
-    except BaseException:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
-
-
-def _git_mv(repo_root: Path, src_rel: str, dst_rel: str) -> None:
-    """git mv (staged, not committed), with a filesystem fallback for untracked files."""
-
-    (repo_root / dst_rel).parent.mkdir(parents=True, exist_ok=True)
-    result = subprocess.run(
-        ["git", "-C", str(repo_root), "mv", "--", src_rel, dst_rel],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        import shutil
-
-        shutil.move(str(repo_root / src_rel), str(repo_root / dst_rel))
+SCAN_ROOTS: Tuple[str, ...] = _core.SCAN_ROOTS
+iter_scan_files = _core.iter_scan_files
+_atomic_write = _core.atomic_write
+_git_mv = _core.git_mv
 
 
 # --------------------------------------------------------------------------------------
@@ -151,13 +92,9 @@ def apply_reference_rewrites(edits: List[RefEdit]) -> None:
 # --------------------------------------------------------------------------------------
 
 
-class Dangler(NamedTuple):
-    """A dangling citation: an id6 word-match whose surrounding filename does not resolve."""
-
-    file: Path
-    line: int
-    id6: str
-    context: str
+# The Dangler record + the scan/detection loop are the shared core's (plans-adopter Order 01);
+# re-export the record so research's API is unchanged.
+Dangler = _core.Dangler
 
 
 def _current_id6s(research_root: Path) -> set:
@@ -177,35 +114,20 @@ def find_dangling_citations(
 ) -> List[Dangler]:
     """Return every research-id CITATION that does not resolve to a current research file.
 
-    A pure, deterministic scan of the pinned scan root. A CITATION is the ``RSCH-<id6>`` handle or a
-    full research-filename reference (see ``research_contract.iter_id6_citations``); a bare 6-letter
-    word is NOT a citation, so ordinary prose does not false-positive. A citation resolves when its
-    id names a current research file; one whose id names no current file (a moved/renamed target
-    cited by an old path, or a deleted doc) is reported as dangling. A citation to a moved-but-present
-    id still resolves (the id is stable), so it is NOT reported.
+    Delegates to the area-agnostic ``artifact_core.find_dangling_citations`` with research's
+    current-id resolver (``_current_id6s``) and citation matcher (``R.iter_id6_citations``), and
+    excludes the research tree itself. A CITATION is the ``RSCH-<id6>`` handle or a full
+    research-filename reference; a bare 6-letter word is NOT a citation. Behavior is identical to
+    the pre-refactor detector.
     """
 
     rroot = research_root or (repo_root / R.RESEARCH_ROOT)
-    current_ids = _current_id6s(rroot)
-    danglers: List[Dangler] = []
-    for f in iter_scan_files(repo_root):
-        # Do not scan the research files themselves for their own ids as citations.
-        try:
-            f.relative_to(rroot)
-            is_research = True
-        except ValueError:
-            is_research = False
-        if is_research:
-            continue
-        try:
-            text = f.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            continue
-        for i, line in enumerate(text.splitlines(), start=1):
-            for tok in R.iter_id6_citations(line):
-                if tok not in current_ids:
-                    danglers.append(Dangler(f, i, tok, line.strip()[:120]))
-    return danglers
+    return _core.find_dangling_citations(
+        repo_root,
+        current_ids=_current_id6s(rroot),
+        cite_matcher=R.iter_id6_citations,
+        exclude_root=rroot,
+    )
 
 
 # --------------------------------------------------------------------------------------

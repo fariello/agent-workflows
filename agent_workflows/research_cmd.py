@@ -13,13 +13,11 @@ without ``--overwrite``, and a nonzero exit on any failure (never a false succes
 from __future__ import annotations
 
 import argparse
-import os
-import secrets
-import tempfile
 from datetime import date
 from pathlib import Path
 from typing import List, NamedTuple, Optional, Tuple
 
+from agent_workflows import artifact_core as _core
 from agent_workflows import research_contract as R
 
 
@@ -42,14 +40,9 @@ def _existing_id6s(research_root: Path) -> set:
 
 
 def generate_id6(existing: set, _rng=None) -> str:
-    """Generate a fresh 6-char base36-lowercase id not in ``existing`` (collision-checked)."""
+    """Generate a fresh 6-char base36-lowercase id not in ``existing`` (delegates to the core)."""
 
-    rng = _rng or secrets.choice
-    for _ in range(10000):
-        candidate = "".join(rng(R.ID6_ALPHABET) for _ in range(R.ID6_LENGTH))
-        if candidate not in existing:
-            return candidate
-    raise RuntimeError("could not generate a unique id6 after many attempts")
+    return _core.generate_id6(existing, _rng)
 
 
 # --------------------------------------------------------------------------------------
@@ -127,22 +120,9 @@ def _set_date_for_set(research_root: Path, set_id: str, default: str) -> str:
 
 
 def _atomic_write(path: Path, text: str) -> None:
-    """Write-to-temp-then-rename so an interrupted apply never leaves a partial file."""
+    """Write-to-temp-then-rename so an interrupted apply never leaves a partial file (core)."""
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(
-        dir=str(path.parent), prefix=".research-tmp-", suffix=".md"
-    )
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(text)
-        os.replace(tmp, str(path))
-    except BaseException:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
+    _core.atomic_write(path, text, prefix=".research-tmp-")
 
 
 # A planned document: its resolved path and its starter content.

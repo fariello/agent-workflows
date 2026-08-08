@@ -25,30 +25,20 @@ from __future__ import annotations
 import re
 from typing import Dict, FrozenSet, List, NamedTuple, Optional, Tuple
 
+from agent_workflows import artifact_core as _core
+
 # --------------------------------------------------------------------------------------
-# Identity: the stable, greppable ``<id6>`` (spec 4.1 / OQ5)
+# Identity: the stable, greppable ``<id6>`` (spec 4.1 / OQ5).
+# The id6 primitive is defined ONCE in ``artifact_core`` (plans-adopter Order 01) and re-exported
+# here so research's public API (``R.is_valid_id6`` etc.) is unchanged.
 # --------------------------------------------------------------------------------------
 
-ID6_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz"  # base36 lowercase
-ID6_LENGTH = 6
-
-# An id token in isolation (a whole string is exactly the id).
-ID6_RE = re.compile(r"\A[0-9a-z]{6}\Z")
-# An id token as a word inside a filename or prose. ``\b`` treats ``-`` as a boundary, so a
-# ``-`` delimited id in ``...-k7m2xq-...`` and a bare ``k7m2xq`` in prose both match (spec 4.1/D2).
-ID6_WORD_RE = re.compile(r"\b[0-9a-z]{6}\b")
-
-
-def is_valid_id6(token: str) -> bool:
-    """True iff ``token`` is exactly a 6-char base36-lowercase id."""
-
-    return bool(ID6_RE.match(token))
-
-
-def iter_id6_in_text(text: str) -> List[str]:
-    """Return every ``\\b<id6>\\b`` word-boundary match in ``text`` (low-level; matches any 6-token)."""
-
-    return ID6_WORD_RE.findall(text)
+ID6_ALPHABET = _core.ID6_ALPHABET
+ID6_LENGTH = _core.ID6_LENGTH
+ID6_RE = _core.ID6_RE
+ID6_WORD_RE = _core.ID6_WORD_RE
+is_valid_id6 = _core.is_valid_id6
+iter_id6_in_text = _core.iter_id6_in_text
 
 
 # A CITATION of a research id, as opposed to any 6-char word. Two accepted forms (spec 6 / 4.2):
@@ -206,16 +196,10 @@ def normalize_kind(token: str) -> VocabResult:
 
 
 # --------------------------------------------------------------------------------------
-# Slug + set-id kebab normalization
+# Slug + set-id kebab normalization (re-exported from the shared core)
 # --------------------------------------------------------------------------------------
 
-_KEBAB_STRIP_RE = re.compile(r"[^a-z0-9]+")
-
-
-def kebab(text: str) -> str:
-    """Lowercase kebab-case a free string (for ``<slug>`` and ``<set-id>``); collapse separators."""
-
-    return _KEBAB_STRIP_RE.sub("-", text.strip().lower()).strip("-")
+kebab = _core.kebab
 
 
 # --------------------------------------------------------------------------------------
@@ -229,8 +213,8 @@ _CORE_RE = re.compile(
     r"\A(?P<date>\d{8})-(?P<set>[a-z0-9-]+?)-(?P<nn>\d{2})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9-]+)\Z"
 )
 
-# Weekly shard directory grammar (spec 4.9): YYYYMM-Www (e.g. 202607-W30).
-SHARD_DIR_RE = re.compile(r"\A(?P<yyyymm>\d{6})-W(?P<week>\d{2})\Z")
+# Weekly shard directory grammar (spec 4.9): YYYYMM-Www (e.g. 202607-W30). Re-exported from core.
+SHARD_DIR_RE = _core.SHARD_DIR_RE
 
 
 class ResearchName(NamedTuple):
@@ -325,30 +309,10 @@ REFERENCE_DIR = "reference"
 ARCHIVE_DIR = "archive"
 
 
-def shard_dirname(yyyymm: str, week: int) -> str:
-    """Return a weekly shard directory name ``YYYYMM-Www`` (e.g. ``202607-W30``)."""
-
-    return f"{yyyymm}-W{week:02d}"
-
-
-def is_valid_shard_dirname(name: str) -> bool:
-    """True iff ``name`` is a valid weekly shard directory name."""
-
-    return bool(SHARD_DIR_RE.match(name))
-
-
-def shard_for_date(yyyymmdd: str) -> str:
-    """Map a ``YYYYMMDD`` date to its weekly shard name ``YYYYMM-Www`` (ISO week of the month-year).
-
-    The week number is the ISO calendar week; the ``YYYYMM`` prefix is the date's own year-month, so
-    shards sort chronologically in a name-sorted tree. Deterministic and dependency-free.
-    """
-
-    import datetime
-
-    d = datetime.date(int(yyyymmdd[0:4]), int(yyyymmdd[4:6]), int(yyyymmdd[6:8]))
-    week = d.isocalendar()[1]
-    return shard_dirname(yyyymmdd[0:6], week)
+# Shard date math is defined once in the shared core; re-exported here for research's API.
+shard_dirname = _core.shard_dirname
+is_valid_shard_dirname = _core.is_valid_shard_dirname
+shard_for_date = _core.shard_for_date
 
 
 # --------------------------------------------------------------------------------------

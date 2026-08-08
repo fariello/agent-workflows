@@ -20,6 +20,7 @@ import json
 from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
+from agent_workflows import artifact_core as _core
 from agent_workflows import research_contract as R
 from agent_workflows import research_refs as RF
 
@@ -48,12 +49,8 @@ class DocEntry(NamedTuple):
     summary: str
 
 
-class Drift(NamedTuple):
-    """A drift finding for ``--check`` (location + rule + detail)."""
-
-    location: str
-    rule: str
-    detail: str
+# The generic drift record is the shared core's (plans-adopter Order 01); re-export it.
+Drift = _core.Drift
 
 
 def _scan_docs(
