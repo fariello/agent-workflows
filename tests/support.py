@@ -9,6 +9,9 @@ from pathlib import Path
 
 # Repo root = the directory containing install-workflows.py (two up from this file's dir).
 REPO_ROOT = Path(__file__).resolve().parent.parent
+# Static, checked-in test fixtures (decoupled from the mutable live plans board).
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+CONFORMING_ORCHESTRATOR = FIXTURES / "conforming-orchestrator.md"
 INSTALLER = REPO_ROOT / "install-workflows.py"
 SCANNER = REPO_ROOT / ".agents" / "workflows" / "assess" / "tools" / "scan_secrets.py"
 RUN_CHECKS = REPO_ROOT / ".agents" / "workflows" / "verify" / "tools" / "run_checks.py"

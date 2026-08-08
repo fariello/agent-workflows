@@ -12,16 +12,13 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import ipd_schema as S
-from tests.support import REPO_ROOT
+from tests.support import CONFORMING_ORCHESTRATOR, REPO_ROOT
 
 CHILD_TEMPLATE = REPO_ROOT / ".agents" / "workflows" / "assess" / "templates" / "ipd.md"
-ORCH_IPD = (
-    REPO_ROOT
-    / ".agents"
-    / "plans"
-    / "pending"
-    / "20260802-1944-00-ipd-structure-orchestrator.md"
-)
+# A static, checked-in conforming orchestrator fixture (see tests/fixtures/). Decoupled from
+# the mutable live plans board so ordinary lifecycle moves (pending -> executed) never break
+# these structural tests. Regenerate with ipd_authoring.build_skeleton(kind="orchestrator", ...).
+ORCH_IPD = CONFORMING_ORCHESTRATOR
 
 
 def _h2_sequence(path: Path):
@@ -50,7 +47,7 @@ class HeadingOrderTests(unittest.TestCase):
         self.assertTrue(S.validation_precedes_gate(S.KIND_ORCHESTRATOR))
 
     def test_orchestrator_order_matches_the_order00_file(self):
-        # The Order-00 file exemplifies the corrected orchestrator order.
+        # A conforming orchestrator exemplifies the canonical orchestrator H2 order.
         self.assertEqual(list(S.ORCHESTRATOR_H2_ORDER), _h2_sequence(ORCH_IPD))
 
 

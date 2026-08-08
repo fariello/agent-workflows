@@ -17,7 +17,7 @@ from pathlib import Path
 
 from agent_workflows import ipd_lint as L
 from agent_workflows import ipd_schema as S
-from tests.support import REPO_ROOT
+from tests.support import CONFORMING_ORCHESTRATOR, REPO_ROOT
 
 CHILD_TEMPLATE = REPO_ROOT / ".agents" / "workflows" / "assess" / "templates" / "ipd.md"
 SPEC = (
@@ -145,14 +145,8 @@ class ConformingTests(unittest.TestCase):
         )
         self.assertTrue(res.passing)
 
-    def test_live_pending_orchestrator_conforms(self):
-        p = (
-            REPO_ROOT
-            / ".agents"
-            / "plans"
-            / "pending"
-            / "20260802-1944-00-ipd-structure-orchestrator.md"
-        )
+    def test_conforming_orchestrator_fixture_conforms(self):
+        p = CONFORMING_ORCHESTRATOR
         res = L.lint_file(p, checkpoint="author")
         self.assertEqual(
             res.disposition,
@@ -388,13 +382,7 @@ class ExitCodeTests(unittest.TestCase):
         return rc
 
     def test_exit0_conforming(self):
-        p = (
-            REPO_ROOT
-            / ".agents"
-            / "plans"
-            / "pending"
-            / "20260802-1944-00-ipd-structure-orchestrator.md"
-        )
+        p = CONFORMING_ORCHESTRATOR
         self.assertEqual(self._run(path=str(p)), 0)
 
     def test_exit2_missing_file(self):
@@ -438,13 +426,7 @@ class ExitCodeTests(unittest.TestCase):
 
 class AgentOutputTests(unittest.TestCase):
     def test_agent_output_is_tab_separated_no_prose(self):
-        p = (
-            REPO_ROOT
-            / ".agents"
-            / "plans"
-            / "pending"
-            / "20260802-1944-00-ipd-structure-orchestrator.md"
-        )
+        p = CONFORMING_ORCHESTRATOR
         ns = argparse.Namespace(
             phase="author", all=False, legacy=False, agent=True, path=str(p)
         )
