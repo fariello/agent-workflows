@@ -4,12 +4,11 @@
 - Kind: orchestrator
 - Concern: apply the shipped research-organization model (DECISIONS D123) to `.agents/plans/` per the approved companion spec `.agents/docs/specs/20260808-0004-01-artifact-organization-plans-adopter.spec.md`: extract an area-agnostic core, give plans a stable `Id`, surface the existing `Set:` grouping in a manifest, make Set regrouping/rename citation-safe, weekly-shard the terminal disposition dirs, and migrate the corpus onto a Set-clustering filename grammar, so a human and an agent can browse plans by topic at scale.
 - Scope: ORCHESTRATOR for the ordered Set `plans-adopter`. Defines the child sequence, dependencies, whole-Set completion criteria, and cross-IPD validation. It does NOT itself change files (each child does its own edits). Implementation is scoped to `plans/` (and the shared core); `prompts/`/`comms/`/`walkthroughs/` are named future adopters, not implemented.
-- Status: approved
+- Status: executed
 - Set: plans-adopter
 - Order: 0
 - Highest E allocated: 09
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
-- Approval: 2026-08-08 human maintainer (via opencode its_direct/pt3-claude-opus-4.8-1m-us): "Approved all. Please read and execute the orchestrator."
 - Id: lus9ou
 
 ## Workflow history
@@ -17,6 +16,7 @@
 - 2026-08-08 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored from the approved spec `20260808-0004-01-artifact-organization-plans-adopter.spec.md`. Split into a Set because the work spans a shared-core extraction, an `ipd_schema` metadata + linter change, a manifest surface, a regroup/rename tool, a shard/archival tool, a one-time corpus migration with citation rewriting, and framework scaffolding + decision updates, with clear dependency ordering.
 - 2026-08-08 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; verified all load-bearing claims against the code. Fixes: cross-IPD note that Order 05 depends functionally on 01/03 (04 is ordering-only, PR-005).
 - 2026-08-08 /plan-review (Antigravity Agent): APPROVE; (none)
+- 2026-08-08 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): all seven children executed in dependency order 01 -> 02 -> 03 -> 04 -> 05 -> 06 -> 07 via the ipd-lifecycle gate, each with its own V-* verified. Cross-IPD validation passed: the id6/shard/detector/manifest primitives are single-source in artifact_core (imported by 9 modules, no fork); the plan Id uses the existing ipd_schema metadata (no second frontmatter block); execution order respected the table; research behaves unchanged. Final dogfood: full suite green (Ran 673 tests OK, skipped=1); aw plans index --check clean but for the 2 intentionally-excluded other-agent stray plans; aw research index --check unregressed; leak-clean; no em/en dashes. Migrated 122 existing plans onto the clustering grammar. The Set is complete.
 
 ## Goal
 
@@ -28,42 +28,42 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 The orchestrator's execution leaves gate the children and run the whole-Set checks. They use the same stable E/V contract as every other actionable IPD.
 
-- [ ] E-01 verify Child 01 (shared area-agnostic core) is executed and its own two checklists are verified.
+- [x] E-01 verify Child 01 (shared area-agnostic core) is executed and its own two checklists are verified.
   - Depends on: none
   - Expected outcome: `agent_workflows/artifact_core.py` exists (id6, shard math, dangling detector, manifest/`--check` shape, writing-safety); research imports it with no behavior change.
-  - Execution state: pending
-- [ ] E-02 verify Child 02 (`Id` in `ipd_schema` + linter + scaffold/sync) is executed after Child 01 and its own checklists are verified.
+  - Execution state: performed
+- [x] E-02 verify Child 02 (`Id` in `ipd_schema` + linter + scaffold/sync) is executed after Child 01 and its own checklists are verified.
   - Depends on: E-01
   - Expected outcome: `- Id:` is a required, linter-validated plan metadata field; `aw ipd scaffold`/`sync` emit it.
-  - Execution state: pending
-- [ ] E-03 verify Child 03 (plans manifest + browse-by-Set + `--check`) is executed after Children 01 and 02 and its own checklists are verified.
+  - Execution state: performed
+- [x] E-03 verify Child 03 (plans manifest + browse-by-Set + `--check`) is executed after Children 01 and 02 and its own checklists are verified.
   - Depends on: E-01, E-02
   - Expected outcome: `aw plans index [--check]` builds `INDEX.json` + a Set-grouped bounded view and fails on drift.
-  - Execution state: pending
-- [ ] E-04 verify Child 04 (regroup/rename verb) is executed after Children 01 through 03 and its own checklists are verified.
+  - Execution state: performed
+- [x] E-04 verify Child 04 (regroup/rename verb) is executed after Children 01 through 03 and its own checklists are verified.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: `aw plans set-assign`/`mv` (re)assign `Set:`/`Order:` and optionally rename to the clustering grammar, keeping `Id` and rewriting citations.
-  - Execution state: pending
-- [ ] E-05 verify Child 05 (shards + archival) is executed after Children 01, 03, and 04 and its own checklists are verified.
+  - Execution state: performed
+- [x] E-05 verify Child 05 (shards + archival) is executed after Children 01, 03, and 04 and its own checklists are verified.
   - Depends on: E-01, E-03, E-04
   - Expected outcome: weekly `YYYYMM-Www/` shards in `executed/`/`superseded/`/`not-executed/`; `aw plans archive` targeted + aged sweep with preview.
-  - Execution state: pending
-- [ ] E-06 verify Child 06 (one-time corpus migration) is executed after Children 01 through 05 and its own checklists are verified.
+  - Execution state: performed
+- [x] E-06 verify Child 06 (one-time corpus migration) is executed after Children 01 through 05 and its own checklists are verified.
   - Depends on: E-01, E-02, E-03, E-04, E-05
   - Expected outcome: all plans have an `Id`, are renamed to the clustering grammar as tracked renames, the three citation forms are rewritten, and `aw plans index --check` is clean.
-  - Execution state: pending
-- [ ] E-07 verify Child 07 (scaffold/directives/decisions) is executed after Children 01, 03, and 05 and its own checklists are verified.
+  - Execution state: performed
+- [x] E-07 verify Child 07 (scaffold/directives/decisions) is executed after Children 01, 03, and 05 and its own checklists are verified.
   - Depends on: E-01, E-03, E-05
   - Expected outcome: installer scaffolds the terminal-dir shards; AGENTS.md pointer notes the `aw plans` grouping verbs; DECISIONS D124 + P-relevant + TODO edits are complete.
-  - Execution state: pending
-- [ ] E-08 run the cross-IPD validation.
+  - Execution state: performed
+- [x] E-08 run the cross-IPD validation.
   - Depends on: E-01, E-02, E-03, E-04, E-05, E-06, E-07
   - Expected outcome: consistency, no-drift, dependency-correctness, and no-collision checks pass.
-  - Execution state: pending
-- [ ] E-09 run the final suite and repository dogfood checks and paste actual output.
+  - Execution state: performed
+- [x] E-09 run the final suite and repository dogfood checks and paste actual output.
   - Depends on: E-08
   - Expected outcome: the suite is green, leak-clean, no em/en dashes, and `aw plans index --check` is clean on this repo's migrated `plans/`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Child IPDs, sequence, and dependencies
 
@@ -126,42 +126,42 @@ Per-child validation (each child names its own literal commands) plus the cross-
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: cite Child 01 in `.agents/plans/executed/` with `Status: executed` and its own Validation checklist verified; confirm the research suite passed unchanged.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `.agents/plans/executed/20260808-plansadopt-01-...-shared-artifact-core.md` executed (product 242014d/30e45ba); `artifact_core.py` built; the 71 research tests passed UNCHANGED (no-behavior-change refactor). V-01..V-06 pass.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: cite Child 02 executed after Child 01 with its own Validation checklist verified.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `...-plansadopt-02-...-plan-id-in-ipd-schema.md` executed after 01 (product 0b3a23d/317ae35); required `- Id:` + linter + scaffold/sync + fixture repair. V-01..V-06 pass.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: cite Child 03 executed after Children 01 and 02 with its own Validation checklist verified.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `...-plansadopt-03-...-plans-manifest-and-check.md` executed after 01/02 (product da1962d/2aa3cb0); recursive manifest + browse-by-Set + `--check`. V-01..V-06 pass.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: cite Child 04 executed after Children 01 through 03 with its own Validation checklist verified.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `...-plansadopt-04-...-plans-regroup-and-refs.md` executed after 01/02/03 (product e8bb981/ae0d56d); set-assign/mv + 3-citation-form rewriter (plan-vs-spec safe). V-01..V-06 pass.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: cite Child 05 executed after Children 01, 03, and 04 with its own Validation checklist verified.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `...-plansadopt-05-...-plans-shards-and-archival.md` executed after 01/03/04 (product e94e321/2514cf2); weekly shards in all terminal dirs + `aw plans archive`. V-01..V-06 pass.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: cite Child 06 executed after Children 01 through 05 with its own Validation checklist verified.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: `.agents/plans/executed/20260808-0004-06-migrate-existing-plans.md` executed after 01-05 (product 05c4deb/80bb27c); 122 plans migrated with a STOP-gated dry-run, citations preserved, tracked renames. V-01..V-06 pass.
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: cite Child 07 executed after Children 01, 03, and 05 with its own Validation checklist verified.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-08 validates E-08
+  - Observed evidence: `.agents/plans/executed/20260808-0004-07-plans-scaffold-directives-decisions.md` executed after 01/03/05 (product 8411ab2/ff62b3f + installer sync 1bb2447); AGENTS pointer, plans README, DECISIONS D124, TODO note. V-01..V-06 pass.
+  - Result: pass
+- [x] V-08 validates E-08
   - Required evidence: confirm the id6/shard/detector/manifest primitives are defined once in `artifact_core` and consumed by both research and plans with no fork; confirm the plan `Id` did not introduce a second frontmatter block; confirm execution order respected the dependency table.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-09 validates E-09
+  - Observed evidence: the id6/kebab/shard-math/dangling-detector/Drift primitives are defined ONCE in `agent_workflows/artifact_core.py` and imported by 9 modules (research_contract/refs/index/cmd + plans_index/refs/archive + ipd_schema/ipd_authoring); no fork. The plan `Id` lives in the EXISTING `ipd_schema` metadata block (a `- Id:` line), NOT a second frontmatter block (grep for research-style `status: intake`/`kind: research` frontmatter in plans returns none). Execution order respected the table: 01 -> 02 -> 03 -> 04 -> 05 -> 06 -> 07 (commit order confirms). Research suite unchanged (no regression).
+  - Result: pass
+- [x] V-09 validates E-09
   - Required evidence: paste the actual final `python3 -m unittest` summary line (`Ran N tests ... OK`); confirm `aw plans index --check` clean, leak-clean, and no em/en dashes.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: final full suite `python3 -m unittest discover -s tests -t .` -> `Ran 673 tests in 154.404s / OK (skipped=1)`. `aw plans index --check --agent` clean except the 2 intentionally-excluded other-agent stray pending plans (id-missing); `aw research index --check` shows only the pre-existing doc-example self-reference (no regression). `aw sanitize --agent` exit 0. No em/en dashes in authored files.
+  - Result: pass
 
 ## Approval and execution gate
 
