@@ -298,13 +298,13 @@
       "host": "",
       "kind": "file",
       "logical_id": "",
-      "sha256": "dc037b1e6f710135f11d89493feae9c7e467629111aaff8de43cf82780840184"
+      "sha256": "29cafba8c83e7a629f854d60cf2369072fe81916f698874c0cc5562a98760dee"
     },
     ".agents/workflows/assess/templates/orchestrator-ipd.md": {
       "host": "",
       "kind": "file",
       "logical_id": "",
-      "sha256": "fcbbb72f517cc589f2cd293cd025fc9629aa69b394c719eee98d60f9ae33206a"
+      "sha256": "264ae40bc377769680161744a30f8cad8bd897e0f067f7ad096f3c252af6eb03"
     },
     ".agents/workflows/assess/templates/run-report.md": {
       "host": "",
@@ -700,7 +700,7 @@
       "host": "",
       "kind": "file",
       "logical_id": "",
-      "sha256": "5788908bebbd92e0f5b9bb4ee6335940720195edf5fafbe1025fb5be43e97ee2"
+      "sha256": "ef0ac9c1c9bd770d0b057261da6ba562f671e5aa32cf73123a8873aac7fb077a"
     },
     ".agents/workflows/setup-repo/tools/setup_tools.py": {
       "host": "",
@@ -1162,7 +1162,7 @@
       "host": "",
       "kind": "section",
       "logical_id": "pointer",
-      "sha256": "e55e80c43a1e1a400f03fe1adf6923b406770bcafa9a3243ad28fe65d62e5f9d"
+      "sha256": "f537a0e54071b21cdc38bd2ee0e4205d3a99cbd8307c5f515258086ff0d88a80"
     }
   },
   "installed_version": "1.2.1",
