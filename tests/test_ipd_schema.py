@@ -59,6 +59,7 @@ class MetadataTests(unittest.TestCase):
         "Scope": "x",
         "Status": "to-review",
         "Author": "x",
+        "Id": "abc123",
         "Set": "s",
         "Order": "1",
     }
@@ -98,6 +99,24 @@ class MetadataTests(unittest.TestCase):
         f["Approval"] = "approved by x"
         errs = S.validate_metadata(f, directory="pending")
         self.assertTrue(any(e.field == S.META_APPROVAL for e in errs))
+
+    def test_id_is_required(self):
+        # plans-adopter Order 02: Id is a required metadata field.
+        self.assertIn("Id", S.META_REQUIRED)
+        f = dict(self.BASE)
+        del f["Id"]
+        errs = S.validate_metadata(f, directory="pending")
+        self.assertTrue(any(e.field == "Id" for e in errs))
+
+    def test_id_must_be_valid_id6(self):
+        f = dict(self.BASE)
+        f["Id"] = "TOOLONGX"
+        errs = S.validate_metadata(f, directory="pending")
+        self.assertTrue(any(e.field == "Id" for e in errs))
+        f["Id"] = "abc123"
+        self.assertFalse(
+            any(e.field == "Id" for e in S.validate_metadata(f, directory="pending"))
+        )
 
     def test_orchestrator_order_must_be_zero(self):
         f = dict(self.BASE)

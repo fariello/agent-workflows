@@ -25,6 +25,9 @@ CHILD_TITLE = "<short title of the change>"
 ORCH_TITLE = "<short title of the coordinated change>"
 AUTHOR = "<agent/model>"
 WHEN = "<YYYY-MM-DD>"
+# A fixed, valid id6 placeholder so the templates are deterministic AND lint conforming; a real
+# scaffold generates a fresh id per plan (plans-adopter Order 02).
+TEMPLATE_ID = "tmp1d6"
 
 
 class TemplateParityTests(unittest.TestCase):
@@ -36,6 +39,7 @@ class TemplateParityTests(unittest.TestCase):
             when=WHEN,
             set_name=None,
             order=None,
+            plan_id=TEMPLATE_ID,
         )
         self.assertEqual(
             CHILD.read_text(encoding="utf-8"),
@@ -51,6 +55,7 @@ class TemplateParityTests(unittest.TestCase):
             when=WHEN,
             set_name="<set-id>",
             order=0,
+            plan_id=TEMPLATE_ID,
         )
         self.assertEqual(
             ORCH.read_text(encoding="utf-8"),

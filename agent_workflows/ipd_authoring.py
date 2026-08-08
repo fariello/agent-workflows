@@ -23,6 +23,7 @@ from datetime import date
 from pathlib import Path
 from typing import List, Optional
 
+from agent_workflows import artifact_core as _core
 from agent_workflows import ipd_lint as LINT
 from agent_workflows import ipd_schema as S
 
@@ -100,8 +101,15 @@ def build_skeleton(
     when: str,
     set_name: Optional[str],
     order: Optional[int],
+    plan_id: Optional[str] = None,
 ) -> str:
-    """Return a conformant IPD skeleton for ``kind`` from the schema's H2 order."""
+    """Return a conformant IPD skeleton for ``kind`` from the schema's H2 order.
+
+    ``plan_id`` is the stable ``- Id:`` handle (6-char base36); when omitted a fresh one is
+    generated. Deterministic output for tests can pin ``plan_id``.
+    """
+    if plan_id is None:
+        plan_id = _core.generate_id6(set())
     order_seq = S.H2_ORDER_BY_KIND[kind]
     lines: List[str] = []
     lines.append("# IPD: {0}".format(title))
@@ -117,6 +125,7 @@ def build_skeleton(
         lines.append("- Order: {0}".format(order))
     lines.append("- Highest E allocated: 01")
     lines.append("- Author: {0}".format(author))
+    lines.append("- Id: {0}".format(plan_id))
     lines.append("")
     for h in order_seq:
         lines.append("## {0}".format(h))
@@ -161,6 +170,40 @@ def _atomic_write(path: Path, text: str) -> None:
         raise
 
 
+_ID_LINE_RE = re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
+
+
+def _plans_root_for(path: Path) -> Optional[Path]:
+    """Find the `.agents/plans` dir enclosing ``path`` (walk up), or None."""
+
+    for parent in [path] + list(path.parents):
+        cand = parent / ".agents" / "plans"
+        if cand.is_dir():
+            return cand
+        # If path is already inside .agents/plans, detect it.
+        if parent.name == "plans" and parent.parent.name == ".agents":
+            return parent
+    return None
+
+
+def _existing_plan_ids(target_path: Path) -> set:
+    """Collect every `- Id:` already present across `.agents/plans/**` (for collision checks)."""
+
+    ids: set = set()
+    root = _plans_root_for(target_path.resolve())
+    if root is None:
+        return ids
+    for f in root.rglob("*.md"):
+        try:
+            text = f.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        m = _ID_LINE_RE.search(text)
+        if m:
+            ids.add(m.group(1))
+    return ids
+
+
 def run_scaffold(args: argparse.Namespace) -> int:
     kind = getattr(args, "kind", None)
     if kind not in S.KINDS:
@@ -187,10 +230,17 @@ def run_scaffold(args: argparse.Namespace) -> int:
         print("error: --author is required (or set AW_IPD_AUTHOR)")
         return 2
     when = date.today().strftime("%Y-%m-%d")
-    text = build_skeleton(
-        kind=kind, title=title, author=author, when=when, set_name=set_name, order=order
-    )
     path = Path(target)
+    plan_id = _core.generate_id6(_existing_plan_ids(path))
+    text = build_skeleton(
+        kind=kind,
+        title=title,
+        author=author,
+        when=when,
+        set_name=set_name,
+        order=order,
+        plan_id=plan_id,
+    )
     if path.exists() and not getattr(args, "overwrite", False):
         print(
             "error: refusing to overwrite existing path (pass --overwrite): {0}".format(
@@ -359,6 +409,22 @@ def compute_sync(text: str, *, directory: Optional[str]) -> SyncResult:
     return res
 
 
+def _backfill_id(text: str, existing: set) -> "tuple[str, Optional[str]]":
+    """Insert a `- Id:` line after `- Author:` if the block lacks one. Returns (new_text, id|None)."""
+
+    if _ID_LINE_RE.search(text):
+        return text, None
+    new_id = _core.generate_id6(existing)
+    # Insert immediately after the `- Author:` metadata line.
+    lines = text.splitlines(keepends=True)
+    for i, line in enumerate(lines):
+        if line.startswith("- Author:"):
+            nl = "\n" if line.endswith("\n") else ""
+            lines.insert(i + 1, f"- Id: {new_id}{nl}")
+            return "".join(lines), new_id
+    return text, None  # no Author line; leave untouched (lint will flag the missing Id)
+
+
 def run_sync(args: argparse.Namespace) -> int:
     target = getattr(args, "path", None)
     if not target:
@@ -370,7 +436,9 @@ def run_sync(args: argparse.Namespace) -> int:
         return 2
     try:
         text = path.read_text(encoding="utf-8")
-        res = compute_sync(text, directory=LINT._dir_of(path))
+        # Backfill a missing stable `Id` first (plans-adopter Order 02), then sync E/V leaves.
+        text_after_id, backfilled_id = _backfill_id(text, _existing_plan_ids(path))
+        res = compute_sync(text_after_id, directory=LINT._dir_of(path))
     except Exception as exc:
         print("error: sync failed to run: {0}".format(exc))
         return 2
@@ -378,14 +446,17 @@ def run_sync(args: argparse.Namespace) -> int:
         for e in res.errors:
             print(e)
         return 1
-    if not res.changed:
-        print("no unassigned leaves; nothing to sync")
+    if not res.changed and backfilled_id is None:
+        print("no unassigned leaves and Id present; nothing to sync")
         return 0
     if not getattr(args, "apply", False):
+        parts = []
+        if backfilled_id is not None:
+            parts.append("Id {0}".format(backfilled_id))
+        if res.assigned:
+            parts.append(", ".join(res.assigned))
         print(
-            "--- would assign: {0} (dry-run; pass --apply) ---".format(
-                ", ".join(res.assigned)
-            )
+            "--- would assign: {0} (dry-run; pass --apply) ---".format("; ".join(parts))
         )
         return 0
     try:
@@ -393,5 +464,10 @@ def run_sync(args: argparse.Namespace) -> int:
     except Exception as exc:
         print("error: sync write failed: {0}".format(exc))
         return 2
-    print("assigned {0}; watermark advanced".format(", ".join(res.assigned)))
+    done = []
+    if backfilled_id is not None:
+        done.append("backfilled Id {0}".format(backfilled_id))
+    if res.assigned:
+        done.append("assigned {0}; watermark advanced".format(", ".join(res.assigned)))
+    print("; ".join(done) if done else "synced")
     return 0

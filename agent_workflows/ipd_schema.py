@@ -19,6 +19,7 @@ from __future__ import annotations
 import re
 from typing import Dict, FrozenSet, List, NamedTuple, Optional, Sequence, Tuple
 
+from agent_workflows import artifact_core as _core
 from agent_workflows import plans as _plans
 
 # --------------------------------------------------------------------------------------
@@ -131,6 +132,7 @@ META_REQUIRED: Tuple[str, ...] = (
     "Scope",
     "Status",
     "Author",
+    "Id",
 )
 # Fields REQUIRED together (all-or-none groups):
 META_PAIRED_SET_ORDER: Tuple[str, ...] = ("Set", "Order")
@@ -222,6 +224,11 @@ def validate_metadata(
     status = fields.get("Status")
     if status is not None and status not in RECOGNIZED_STATUS:
         errors.append(MetaError("Status", "unrecognized readiness status"))
+
+    # Id: the stable plan citation handle (6-char base36 lowercase, from the shared core).
+    plan_id = fields.get("Id")
+    if plan_id is not None and not _core.is_valid_id6(plan_id.strip()):
+        errors.append(MetaError("Id", "Id must be a 6-char base36-lowercase token"))
 
     # Set/Order pairing + Order rules.
     has_set = "Set" in fields

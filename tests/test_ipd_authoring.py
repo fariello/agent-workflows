@@ -110,6 +110,33 @@ class ScaffoldTests(unittest.TestCase):
             [d.message for d in res.diagnostics],
         )
 
+    def test_scaffold_emits_unique_valid_id(self):
+        # plans-adopter Order 02: scaffold emits a valid, collision-checked `- Id:`.
+        import re as _re
+
+        def _scaffold(name):
+            target = self.tmp / name
+            _run(
+                A.run_scaffold,
+                _ns(
+                    kind="child",
+                    title="t (Set x, Order 1)",
+                    path=str(target),
+                    set="x",
+                    order=1,
+                    author="tester",
+                    apply=True,
+                ),
+            )
+            m = _re.search(r"(?m)^- Id: ([0-9a-z]{6})$", target.read_text())
+            return m.group(1) if m else None
+
+        id_a = _scaffold("ida.md")
+        id_b = _scaffold("idb.md")
+        self.assertIsNotNone(id_a)
+        self.assertIsNotNone(id_b)
+        self.assertNotEqual(id_a, id_b)
+
     def test_overwrite_refused_without_flag(self):
         target = self.tmp / "c.md"
         target.write_text("existing\n")
@@ -221,6 +248,27 @@ class SyncTests(unittest.TestCase):
             S.DISPOSITION_CONFORMING,
             [d.message for d in res.diagnostics],
         )
+
+    def test_sync_backfills_missing_id_and_leaves_present_id(self):
+        # plans-adopter Order 02: sync backfills a missing `- Id:`, leaves an existing one.
+        import re as _re
+
+        t = self.path.read_text()
+        m0 = _re.search(r"(?m)^- Id: ([0-9a-z]{6})$", t)
+        self.assertIsNotNone(m0)  # scaffold already emitted one
+        # Strip the Id to simulate a legacy plan lacking it.
+        t_noid = _re.sub(r"(?m)^- Id: [0-9a-z]{6}\n", "", t)
+        self.path.write_text(t_noid)
+        rc, out = _run(A.run_sync, _ns(path=str(self.path), apply=True))
+        self.assertEqual(rc, 0)
+        t_after = self.path.read_text()
+        m1 = _re.search(r"(?m)^- Id: ([0-9a-z]{6})$", t_after)
+        self.assertIsNotNone(m1)  # backfilled
+        # Running sync again does not add a second Id or change the existing one.
+        existing = m1.group(1)
+        _run(A.run_sync, _ns(path=str(self.path), apply=True))
+        ids = _re.findall(r"(?m)^- Id: ([0-9a-z]{6})$", self.path.read_text())
+        self.assertEqual(ids, [existing])
 
     def test_dry_run_writes_nothing(self):
         self._add_unassigned(1)
