@@ -4,11 +4,12 @@
 - Kind: child
 - Concern: implement the state lifecycle (intake/active/reference/archive) and the weekly `YYYYMM-Www` cold shards for reference and archive, with deliberate, tool-invoked archival verbs (never a background side effect).
 - Scope: state transitions + shard layout + `aw archive` verbs, consuming Orders 01, 03, and 04 (moving a file changes its path, so it reuses Order 04's reference-updater rather than reimplementing it). No corpus migration (06). Requires Orders 01, 03, 04 executed; if their symbols are absent, STOP.
-- Status: reviewed
+- Status: approved
 - Set: research-org
 - Order: 5
 - Highest E allocated: 07
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-08-07 human maintainer (via opencode its_direct/pt3-claude-opus-4.8-1m-us): "Consider them all approved. Please do them in the recommended order."
 
 ## Workflow history
 

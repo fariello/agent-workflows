@@ -4,11 +4,12 @@
 - Kind: child
 - Concern: enable after-the-fact regrouping (C4) and prevent citation rot (F5): rename/move research files, update references repo-wide, and flag any `\b<id6>\b` match whose surrounding filename no longer resolves (a dangling citation).
 - Scope: the regroup/rename/reference verbs, consuming Orders 01 and 02. No archival policy (05), no migration (06). Requires Orders 01, 02 executed; if their symbols are absent, STOP. Executes BEFORE Order 03 so Order 03's `index --check` can consume this child's dangling-cite detector (the reference/dangling logic resolves against the filesystem + the Order 01 id6 regex, not the generated INDEX, so no dependency on Order 03 exists).
-- Status: reviewed
+- Status: approved
 - Set: research-org
 - Order: 4
 - Highest E allocated: 07
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-08-07 human maintainer (via opencode its_direct/pt3-claude-opus-4.8-1m-us): "Consider them all approved. Please do them in the recommended order."
 
 ## Workflow history
 

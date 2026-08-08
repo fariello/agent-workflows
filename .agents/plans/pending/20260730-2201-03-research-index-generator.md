@@ -4,11 +4,12 @@
 - Kind: child
 - Concern: make "what did we find re X?" and "what needs addressing?" answerable without reading the corpus, via a tool-generated tiered manifest (INDEX.json = all; INDEX.md = bounded hot glance) and a query verb. Resolves OQ2 (default N) and OQ3 (commit vs generate the index).
 - Scope: index generation + query + drift check, consuming Order-01 frontmatter, Order-02-created docs, and Order-04's dangling-cite detector primitive (so `--check` catches citation rot, spec 5.2). No rename verbs (04), no archival moves (05). Requires Orders 01, 02, 04 executed; if their symbols are absent, STOP. Executes AFTER Order 04.
-- Status: reviewed
+- Status: approved
 - Set: research-org
 - Order: 3
 - Highest E allocated: 07
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-08-07 human maintainer (via opencode its_direct/pt3-claude-opus-4.8-1m-us): "Consider them all approved. Please do them in the recommended order."
 
 ## Workflow history
 

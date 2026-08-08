@@ -4,11 +4,12 @@
 - Kind: child
 - Concern: apply the convention to this repo's existing research corpus (the dogfood): back-fill frontmatter + `<id6>`, group cohorts into sets, normalize model-token drift, classify initial status/outcome, generate the index, and preserve all citations.
 - Scope: a one-time, reviewed data migration of `.agents/docs/research/**` using the Order 02 to 05 tools. Requires Orders 01 to 05 executed; if their tools are absent, STOP. Migratable = authored research `*.md` content files; EXCLUDED are nav/index files (`README.md`, `INDEX.json`, `INDEX.md`, `00-README-index.md`), `*template*.md`, `.gitkeep`, and non-`.md` artifacts under `research/**/prototype/` (`.ts`/`.py`/`.json`/`MANIFEST.json`), which stay VERBATIM in place under their parent set and receive no frontmatter/id6.
-- Status: reviewed
+- Status: approved
 - Set: research-org
 - Order: 6
 - Highest E allocated: 08
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-08-07 human maintainer (via opencode its_direct/pt3-claude-opus-4.8-1m-us): "Consider them all approved. Please do them in the recommended order."
 
 ## Workflow history
 

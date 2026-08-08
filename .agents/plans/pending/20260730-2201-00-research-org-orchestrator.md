@@ -4,11 +4,12 @@
 - Kind: orchestrator
 - Concern: implement the approved `.agents/` artifact-organization design for `.agents/docs/research/` (the spec `.agents/docs/specs/20260730-2152-01-agents-artifact-organization.spec.md`): stable greppable ids, filename-encoded set grouping, tool-owned lifecycle, a tiered generated manifest, weekly cold shards, and progressive-disclosure tooling, so a human and an agent can cheaply answer "what did we find re X?" and "what still needs addressing?" at scale.
 - Scope: ORCHESTRATOR for the ordered Set `research-org`. Defines the child sequence, dependencies, whole-Set completion criteria, and cross-IPD validation. It does NOT itself change files (each child does its own edits). Implementation is scoped to `research/` only; `plans/executed/` and other areas are named future adopters (tracked in TODO, Child 07).
-- Status: reviewed
+- Status: approved
 - Set: research-org
 - Order: 0
 - Highest E allocated: 09
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-08-07 human maintainer (via opencode its_direct/pt3-claude-opus-4.8-1m-us): "Consider them all approved. Please do them in the recommended order."
 
 ## Workflow history
 

@@ -4,11 +4,12 @@
 - Kind: child
 - Concern: define the single authoritative contract that all research tooling and docs depend on: the filename grammar, the stable `<id6>` id, the enumerated `<model>`/`<kind>` vocabularies, and the frontmatter schema. Resolves spec open questions OQ1 (kind vocab), OQ4 (set-date-in-name vs per-file created), OQ5 (id length/alphabet), OQ6 (state paths).
 - Scope: authoritative definitions + constants + docs ONLY. No behavior change, no migration, no tool that consumes it yet (those are Orders 2 to 07). Requires spec `.agents/docs/specs/20260730-2152-01-agents-artifact-organization.spec.md`.
-- Status: reviewed
+- Status: approved
 - Set: research-org
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-08-07 human maintainer (via opencode its_direct/pt3-claude-opus-4.8-1m-us): "Consider them all approved. Please do them in the recommended order."
 
 ## Workflow history
 
