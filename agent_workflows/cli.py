@@ -260,6 +260,26 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Perform the rename (default is preview only).",
     )
 
+    p_plans_archive = sub.add_parser(
+        "plans-archive",
+        parents=[common],
+        help="Deep-shelve terminal plans into weekly shards (targeted or an aged sweep). Alias: 'plans archive'.",
+    )
+    p_plans_archive.add_argument(
+        "target",
+        nargs="?",
+        default=None,
+        help="A plan <id6> or Set id (omit for a sweep).",
+    )
+    p_plans_archive.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_plans_archive.add_argument(
+        "--apply",
+        action="store_true",
+        help="Perform the moves (default is preview only).",
+    )
+
     p_ipd = sub.add_parser(
         "ipd",
         parents=[common],
@@ -1654,7 +1674,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     if (
         len(argv_list) >= 2
         and argv_list[0] == "plans"
-        and argv_list[1] in ("index", "find", "set-assign", "mv")
+        and argv_list[1] in ("index", "find", "set-assign", "mv", "archive")
     ):
         argv_list = ["plans-" + argv_list[1]] + argv_list[2:]
         argv = argv_list
@@ -1710,6 +1730,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         from agent_workflows import plans_refs as prefs
 
         return prefs.run_mv(args)
+    if args.command == "plans-archive":
+        from agent_workflows import plans_archive as parch
+
+        return parch.run_archive(args)
     if args.command == "plan-names":
         return _run_plan_names(args, term)
     if args.command == "ipd":
