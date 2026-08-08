@@ -4,12 +4,11 @@
 - Kind: child
 - Concern: implement the state lifecycle (intake/active/reference/archive) and the weekly `YYYYMM-Www` cold shards for reference and archive, with deliberate, tool-invoked archival verbs (never a background side effect).
 - Scope: state transitions + shard layout + `aw archive` verbs, consuming Orders 01, 03, and 04 (moving a file changes its path, so it reuses Order 04's reference-updater rather than reimplementing it). No corpus migration (06). Requires Orders 01, 03, 04 executed; if their symbols are absent, STOP.
-- Status: approved
+- Status: executed
 - Set: research-org
 - Order: 5
 - Highest E allocated: 07
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
-- Approval: 2026-08-07 human maintainer (via opencode its_direct/pt3-claude-opus-4.8-1m-us): "Consider them all approved. Please do them in the recommended order."
 
 ## Workflow history
 
@@ -17,6 +16,7 @@
 - 2026-08-03 quarantined (opencode its_direct/pt3-claude-opus-4.8-1m-us): deferred by the maintainer's IPD-system-first sequencing; quarantined pending re-authoring to the new E-*/V-* shape.
 - 2026-08-03 re-authored (opencode its_direct/pt3-claude-opus-4.8-1m-us): lifted out of quarantine and converted to the new IPD shape (Kind + E-*/V-* bijection + Execution state / Result fields + allocation watermark + OQ-* grammar + Size assessment) per DECISIONS D122; content preserved. Conforms to `aw ipd lint --phase author`.
 - 2026-08-07 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (pytest->unittest), PR-C05-2 (declare dep on Order 04 for reference-update), PR-C05-5 (per-item accept/override curation with recorded `status`, spec 4.5), PR-C05-6 (bare-sweep selector = aged AND uncited, confirmed), PR-C05-4/7 (miscat detection via `consumed-by`/Order-04 detector), atomic tracked moves.
+- 2026-08-07 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): built `agent_workflows/research_archive.py` (status transitions, weekly shards, `aw archive` targeted + aged-and-uncited sweep with per-item override, miscat flag, INDEX refresh) + `shard_for_date` in the contract + wired `archive`/`promote`/`check-miscategorized` + `tests/test_research_archive.py` (8 tests); product commit a11294c; the full suite is green (Ran 627 tests OK, skipped=1); leak-clean; no em/en dashes. All E-01..E-07 performed and V-01..V-07 pass.
 
 ## Goal
 
@@ -28,37 +28,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: state transitions and shards
 
-- [ ] E-01 confirm Orders 01+03+04 are executed and their symbols are present, else STOP.
+- [x] E-01 confirm Orders 01+03+04 are executed and their symbols are present, else STOP.
   - Depends on: none
   - Expected outcome: the contract + index + Order-04 reference-updater symbols are importable; if absent the tool halts before moving files.
-  - Execution state: pending
-- [ ] E-02 add the shard layout + `status` transition helper: set `status` in frontmatter AND move the file to the matching location (`reference/YYYYMM-Www/`, `archive/YYYYMM-Www/`, or hot root for intake/active) as an atomic tracked rename (prefer `git mv`, staged), keeping `<id6>`; reuse Order 04's reference-updater on move (do not reimplement it).
+  - Execution state: performed
+- [x] E-02 add the shard layout + `status` transition helper: set `status` in frontmatter AND move the file to the matching location (`reference/YYYYMM-Www/`, `archive/YYYYMM-Www/`, or hot root for intake/active) as an atomic tracked rename (prefer `git mv`, staged), keeping `<id6>`; reuse Order 04's reference-updater on move (do not reimplement it).
   - Depends on: E-01
   - Expected outcome: promoting to reference moves into the correct week shard via a tracked rename; id + cites intact.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: archive verbs, flags, refresh, tests
 
-- [ ] E-03 add `aw archive [research] <set-id|doc-id>`: deep-shelve target(s) to `archive/YYYYMM-Www/`, dry-run/preview default + `--apply`.
+- [x] E-03 add `aw archive [research] <set-id|doc-id>`: deep-shelve target(s) to `archive/YYYYMM-Www/`, dry-run/preview default + `--apply`.
   - Depends on: E-02
   - Expected outcome: a named set moves to the archive shard on `--apply`, previewed otherwise.
-  - Execution state: pending
-- [ ] E-04 add bare `aw archive [research]`: select candidates that are BOTH older than two weeks AND uncited, PREVIEW each with the tool's DEFAULT classification (reference vs archive), let the operator accept or override PER ITEM before applying, then move accepted items on `--apply` and record the resulting `status` in frontmatter (the recorded reference-vs-archive judgment, spec 4.5).
+  - Execution state: performed
+- [x] E-04 add bare `aw archive [research]`: select candidates that are BOTH older than two weeks AND uncited, PREVIEW each with the tool's DEFAULT classification (reference vs archive), let the operator accept or override PER ITEM before applying, then move accepted items on `--apply` and record the resulting `status` in frontmatter (the recorded reference-vs-archive judgment, spec 4.5).
   - Depends on: E-02
   - Expected outcome: an aged-and-uncited fixture is proposed with a default; recent or cited docs are excluded; a per-item override is honored and its recorded `status` reflects the accepted choice.
-  - Execution state: pending
-- [ ] E-05 add the miscategorization flag: detect a doc in `archive/` that IS cited (via its frontmatter `consumed-by` and/or a repo `\b<id6>\b` scan using Order 04's detector) and report it ("should be reference?").
+  - Execution state: performed
+- [x] E-05 add the miscategorization flag: detect a doc in `archive/` that IS cited (via its frontmatter `consumed-by` and/or a repo `\b<id6>\b` scan using Order 04's detector) and report it ("should be reference?").
   - Depends on: E-02
   - Expected outcome: an archived-but-cited fixture is flagged by the named detection mechanism.
-  - Execution state: pending
-- [ ] E-06 refresh INDEX after any archival move (reference stays in the most-recent-N window; archive excluded).
+  - Execution state: performed
+- [x] E-06 refresh INDEX after any archival move (reference stays in the most-recent-N window; archive excluded).
   - Depends on: E-02, E-03, E-04
   - Expected outcome: an archived doc leaves INDEX.md; a reference doc remains.
-  - Execution state: pending
-- [ ] E-07 add `tests/test_research_archive.py` (promote-to-reference shard move id/cites intact; targeted archive; aged-uncited sweep + preview; miscategorization flag; INDEX refresh); run it plus the full suite and paste both.
+  - Execution state: performed
+- [x] E-07 add `tests/test_research_archive.py` (promote-to-reference shard move id/cites intact; targeted archive; aged-uncited sweep + preview; miscategorization flag; INDEX refresh); run it plus the full suite and paste both.
   - Depends on: E-02, E-03, E-04, E-05, E-06
   - Expected outcome: new tests pass; full suite still green.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -117,40 +117,40 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
-  - Required evidence: cite Orders 01+03 in `executed/`; confirm the tool halts when their symbols are absent.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+- [x] V-01 validates E-01
+  - Required evidence: cite Orders 01+03+04 in `executed/`; confirm the tool halts when their symbols are absent.
+  - Observed evidence: Orders 01, 03, 04 are executed in `.agents/plans/executed/`; `research_archive.py` imports `research_contract`, `research_index`, and `research_refs` at module top, so an absent dependency raises ImportError before any move.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste a promote-to-reference move showing the correct week shard + unchanged id + updated cite; confirm the move is a tracked git rename (R).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `TransitionTests::test_promote_to_reference_moves_to_weekly_shard_keeps_id` passes: id `aaaaaa` (created 20260701) moves to `reference/202607-W27/` with `status: reference` and id unchanged; `apply_moves` uses `research_refs._git_mv` (tracked rename). `ShardDateTests` confirms `shard_for_date("20260701") == "202607-W27"`.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: confirm targeted archive previews then moves on `--apply`; cite.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `TargetedArchiveTests::test_targeted_archive_moves_to_archive_shard` passes: `aw archive bbbbbb --apply` moves the doc into `archive/202607-W27/` with `status: archive`. `run_archive` prints `--- would archive ... ---` when `--apply` is absent.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: confirm aged-and-uncited is selected, recent/cited excluded, the per-item preview with a default is shown, a per-item override is honored, and the resulting `status` is recorded in frontmatter; cite.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `SweepTests::test_sweep_selects_aged_uncited_only` confirms `oldddd` (aged+uncited) is a candidate while `newwww` (recent) and `citedd` (cited) are excluded. `test_sweep_per_item_override_records_status` sends `oldddd` to reference via `--keep` and confirms the moved file records `status: reference`. `run_archive` prints the per-candidate default classification before applying.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: confirm an archived-but-cited doc is flagged via the named mechanism (`consumed-by` and/or Order 04's detector); cite.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `MiscategorizedTests::test_archived_but_cited_flagged` passes: an `archive/` doc with `consumed-by: [D9]` is returned by `find_miscategorized` (which checks `consumed-by` and, for empty lists, Order 04's `iter_id6_citations` scan).
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: confirm an archived doc leaves INDEX.md and a reference doc remains; cite.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: `IndexRefreshTests::test_archived_leaves_index_md` passes: after archiving `aaaaaa`, `INDEX.md` no longer contains it (archive excluded from the hot glance); `apply_moves` regenerates INDEX.json/md via `research_index`.
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: paste `python3 -m unittest tests.test_research_archive -v` + the full-suite `Ran N tests ... OK` summary (new tests pass, suite green); leak-clean.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m unittest tests.test_research_archive` -> `Ran 8 tests in 0.076s / OK`. Full suite `python3 -m unittest discover -s tests -t .` -> `Ran 627 tests in 145.826s / OK (skipped=1)`. `aw sanitize --agent` exit 0.
+  - Result: pass
 
 ## Approval and execution gate
 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Proposal; human review + approval; not auto-executed. Requires Orders 01, 03; if absent, STOP. Do NOT claim done or move to `executed/` until every `E-*` is performed+checked AND its matching `V-*` is pass+checked with concrete evidence; else STOP and report.
+Proposal; human review + approval; not auto-executed. Requires Orders 01, 03, 04; if absent, STOP. Do NOT claim done or move to `executed/` until every `E-*` is performed+checked AND its matching `V-*` is pass+checked with concrete evidence; else STOP and report.
 
 Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY this plan's files, path-scoped, never `git add -A`/`-a`, never push; `git add` new files first. Paste ACTUAL runner output; never claim a pass not run. No em or en dashes. STOP and report if execution exceeds scope (states/shards/archive verbs only; no corpus migration). Terminal transition is a POST-gate transaction, not a checklist item. Never create or push a tag / Release / PyPI upload.
