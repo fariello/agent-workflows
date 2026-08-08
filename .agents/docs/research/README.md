@@ -44,6 +44,16 @@ Hot states (`intake`/`active`) stay flat at this directory's root and cluster by
 live in weekly `YYYYMM-Www` shards. `INDEX.md` shows the most-recent-N plus intake and includes
 `reference`; `archive` is excluded from the hot glance but present in `INDEX.json`.
 
+## The index
+
+`aw research index` regenerates `INDEX.json` (every doc) and `INDEX.md` (the hot glance) purely from
+frontmatter; both are COMMITTED so a fresh clone and a weak agent have them without running the tool.
+The hot window shows the most-recent N sets (default N = 40, override with `aw research index
+--limit N`). `aw research index --check` fails on drift (missing/invalid frontmatter, name vs
+frontmatter mismatch, a stale generated view, or a dangling citation) and is wireable into a
+pre-commit or CI gate. `aw research find --id|--set|--topic|--status` answers queries over the
+manifest without reading the corpus.
+
 ## External artifacts
 
 Externally-produced artifacts (for example an LLM's research output) are archived here verbatim;
