@@ -426,6 +426,57 @@ def _build_parser() -> argparse.ArgumentParser:
     p_research_find.add_argument("--topic", default=None, help="Filter by topic.")
     p_research_find.add_argument("--status", default=None, help="Filter by status.")
 
+    p_research_promote = research_sub.add_parser(
+        "promote",
+        parents=[common],
+        help="Deliberately set a doc's status (e.g. --to reference) and move it to the shard.",
+    )
+    p_research_promote.add_argument("id", help="The <id6> of the doc.")
+    p_research_promote.add_argument("--to", default="reference", help="Target status.")
+    p_research_promote.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_research_promote.add_argument(
+        "--apply",
+        action="store_true",
+        help="Perform the move (default is preview only).",
+    )
+
+    p_research_miscat = research_sub.add_parser(
+        "check-miscategorized",
+        parents=[common],
+        help="Report archived-but-cited docs (should they be reference?).",
+    )
+    p_research_miscat.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+
+    p_archive = sub.add_parser(
+        "archive",
+        parents=[common],
+        help="Deliberately deep-shelve research (targeted, or a bare aged-and-uncited sweep with preview).",
+    )
+    p_archive.add_argument(
+        "target",
+        nargs="?",
+        default=None,
+        help="A <set-id> or <id6> to archive (omit for a sweep).",
+    )
+    p_archive.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_archive.add_argument(
+        "--keep",
+        action="append",
+        default=None,
+        help="In a sweep, send this <id6> to reference instead of archive.",
+    )
+    p_archive.add_argument(
+        "--apply",
+        action="store_true",
+        help="Perform the moves (default is preview only).",
+    )
+
     p_names = sub.add_parser(
         "plan-names",
         parents=[common],
@@ -1593,8 +1644,20 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import research_index as ri
 
             return ri.run_find(args)
+        if research_cmd == "promote":
+            from agent_workflows import research_archive as ra
+
+            return ra.run_promote(args)
+        if research_cmd == "check-miscategorized":
+            from agent_workflows import research_archive as ra
+
+            return ra.run_check_miscategorized(args)
         parser.print_help()
         return 2
+    if args.command == "archive":
+        from agent_workflows import research_archive as ra
+
+        return ra.run_archive(args)
     if args.command in ("check-local-leaks", "sanitize"):
         return _run_check_local_leaks(args, term)
 

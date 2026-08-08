@@ -337,6 +337,20 @@ def is_valid_shard_dirname(name: str) -> bool:
     return bool(SHARD_DIR_RE.match(name))
 
 
+def shard_for_date(yyyymmdd: str) -> str:
+    """Map a ``YYYYMMDD`` date to its weekly shard name ``YYYYMM-Www`` (ISO week of the month-year).
+
+    The week number is the ISO calendar week; the ``YYYYMM`` prefix is the date's own year-month, so
+    shards sort chronologically in a name-sorted tree. Deterministic and dependency-free.
+    """
+
+    import datetime
+
+    d = datetime.date(int(yyyymmdd[0:4]), int(yyyymmdd[4:6]), int(yyyymmdd[6:8]))
+    week = d.isocalendar()[1]
+    return shard_dirname(yyyymmdd[0:6], week)
+
+
 # --------------------------------------------------------------------------------------
 # Frontmatter schema (spec 5.8)
 # --------------------------------------------------------------------------------------
