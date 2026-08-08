@@ -18,7 +18,7 @@ When asked to write a prompt to give to another AI (e.g. a research prompt for a
 3. It instructs the target AI to return its answer as a DOWNLOADABLE markdown (`.md`) file, so the result can be handed back for consumption.
 
 ### Durable reference and walkthroughs documentation
-1. Immortalize research/analysis you rely on for a decision to `.agents/docs/research/` using `YYYYMMDD-HHMM-NN-<slug>.md`.
+1. Immortalize research/analysis you rely on for a decision to `.agents/docs/research/`. Do NOT hand-name research files or hand-maintain the index: use the `aw research` and `aw archive` verbs (`aw research new`/`new-comparison` to create, `index [--check]`/`find` to manage the manifest, `set-assign`/`mv` to regroup, `aw archive` to deep-shelve). See `aw research --help` and `.agents/docs/research/README.md`.
 2. Save narrative walkthroughs to `.agents/docs/walkthroughs/` with `...-walkthrough.md`.
 3. If you keep plans/IPDs or walkthroughs in a private, hidden, or tool-internal "brain"/memory/scratch dir (e.g. Antigravity/Gemini), you MUST also keep an exact, conventions-compliant copy under `.agents/plans/` (moved through the lifecycle) and `.agents/docs/walkthroughs/`; the tracked copy is the source of truth, the private copy is disposable.
 

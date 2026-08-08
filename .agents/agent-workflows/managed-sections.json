@@ -1162,7 +1162,7 @@
       "host": "",
       "kind": "section",
       "logical_id": "pointer",
-      "sha256": "19633591083a2af72296f0866713ea6f45803af48fb291aa44f3e500a5ed25b6"
+      "sha256": "e55e80c43a1e1a400f03fe1adf6923b406770bcafa9a3243ad28fe65d62e5f9d"
     }
   },
   "installed_version": "1.2.1",
