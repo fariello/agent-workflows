@@ -4,18 +4,18 @@
 - Kind: child
 - Concern: apply the convention to this repo's existing plan corpus (the dogfood): assign every plan a stable `Id`, rename all executed and pending plans to the Set-clustering grammar, rewrite the three plan-citation forms, and regenerate the manifest, so plans cluster by topic in the tree with all citations preserved.
 - Scope: a one-time, reviewed data migration of `.agents/plans/**` using the Order 02 to 05 tools. The clustering grammar is `YYYYMMDD-<set-id>-<NN>-<id6>-<slug>.md` (OQ1). Requires Orders 01 to 05 executed; if their tools are absent, STOP. MANDATORY dry-run mapping + STOP-for-human-review before any apply.
-- Status: approved
+- Status: executed
 - Set: plans-adopter
 - Order: 6
 - Highest E allocated: 07
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
-- Approval: 2026-08-08 human maintainer (via opencode its_direct/pt3-claude-opus-4.8-1m-us): "Approved all. Please read and execute the orchestrator."
 - Id: 7qx7ys
 
 ## Workflow history
 
 - 2026-08-08 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `plans-adopter`; the accepted one-time cost that proves the convention on real data. Authored from spec `20260808-plansadopt-01-qkc93l-shared-artifact-core` Section 4.7 + 4.8.
 - 2026-08-08 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-002/D2 (HIGH): Id validity on migrated executed plans is verified via `aw plans index --check` (checks all dispositions), NOT `aw ipd lint` (skips terminal-dir plans as legacy); PR-004/D5: bare-stem rewrite must not touch spec-only stems.
+- 2026-08-08 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): produced the dry-run mapping and STOPPED for human review across two rounds (which refined the set-id readability + the `Set: <terse> (<descriptive>)` format); on approval migrated 122 plans onto the clustering grammar (Id backfill, terse-set-id + descriptive metadata, tracked git renames, 287 citations rewritten across ~40 files, spec-only stems untouched, INDEX regenerated). Excluded the 2 other-agent + 3 in-flight plans-adopter plans. Reconciled the stale plan-name normalizer/test to accept the clustering grammar. Product commit 05c4deb; full suite green (Ran 673 tests OK, skipped=1); `aw plans index --check` clean but for the 2 excluded strays; leak-clean; no em/en dashes in authored files. All E-01..E-06 performed and V-01..V-06 pass.
 - 2026-08-08 /plan-review (Antigravity Agent): APPROVE; (none)
 
 ## Goal
@@ -28,33 +28,33 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: prepare and STOP-gate
 
-- [ ] E-01 confirm Orders 01 to 05 are executed and their tools are present, else STOP; then re-count the migratable plans (executed + pending; exclude non-plan files like `STATUS.md`/`INDEX.*`/`README.md`) and record that exact before-total.
+- [x] E-01 confirm Orders 01 to 05 are executed and their tools are present, else STOP; then re-count the migratable plans (executed + pending; exclude non-plan files like `STATUS.md`/`INDEX.*`/`README.md`) and record that exact before-total.
   - Depends on: none
   - Expected outcome: the Order 02 to 05 tools are usable; a re-counted before-total is recorded (do NOT rely on a hardcoded number).
-  - Execution state: pending
-- [ ] E-02 produce a full DRY-RUN migration mapping (every migratable plan: old path -> assigned `Id` + new clustering name + Set/Order + disposition) AND the citation-rewrite diff for all THREE forms (full-name, bare-stem, range), verify 1:1 completeness against the E-01 before-total, then STOP for human review BEFORE any apply.
+  - Execution state: performed
+- [x] E-02 produce a full DRY-RUN migration mapping (every migratable plan: old path -> assigned `Id` + new clustering name + Set/Order + disposition) AND the citation-rewrite diff for all THREE forms (full-name, bare-stem, range), verify 1:1 completeness against the E-01 before-total, then STOP for human review BEFORE any apply.
   - Depends on: E-01
   - Expected outcome: a reviewable mapping + citation diff accounting for every plan and every citation, with no gaps/dupes; nothing moved or rewritten yet.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: apply
 
-- [ ] E-03 assign each plan a collision-checked `- Id:` (backfill the metadata block; keep body + workflow history verbatim).
+- [x] E-03 assign each plan a collision-checked `- Id:` (backfill the metadata block; keep body + workflow history verbatim).
   - Depends on: E-02
   - Expected outcome: every migratable plan has a valid unique `Id`. NOTE: `aw ipd lint` treats terminal-dir (executed/superseded/not-executed) plans as `legacy/not evaluated` and does NOT check their metadata, so Id validity on the migrated corpus is verified via `aw plans index --check` (Order 03, which checks Id on ALL plans regardless of disposition), NOT via `aw ipd lint`.
-  - Execution state: pending
-- [ ] E-04 rename each plan to the clustering grammar via the Order-04 `set-assign --rename`/`mv` (tracked git renames); Set-less plans become singletons keyed on their slug.
+  - Execution state: performed
+- [x] E-04 rename each plan to the clustering grammar via the Order-04 `set-assign --rename`/`mv` (tracked git renames); Set-less plans become singletons keyed on their slug.
   - Depends on: E-03
   - Expected outcome: plans cluster by Set in the name-sorted tree; git tracks moves as renames (R), not delete+add.
-  - Execution state: pending
-- [ ] E-05 rewrite all in-repo citations across the three forms via the Order-04 reference updater + the old-stem->new-name map; a bare stem is rewritten ONLY when it maps to a plan in the migration table (a spec-only stem sharing the `YYYYMMDD-HHMM-NN` grammar is left untouched); report + resolve danglers.
+  - Execution state: performed
+- [x] E-05 rewrite all in-repo citations across the three forms via the Order-04 reference updater + the old-stem->new-name map; a bare stem is rewritten ONLY when it maps to a plan in the migration table (a spec-only stem sharing the `YYYYMMDD-HHMM-NN` grammar is left untouched); report + resolve danglers.
   - Depends on: E-04
   - Expected outcome: the dangling-cite report is empty after `--apply`; sample cites of each form resolve; a spec-only bare stem is confirmed NOT rewritten.
-  - Execution state: pending
-- [ ] E-06 regenerate `INDEX.json` + the browse-by-Set view and run `aw plans index --check`; paste the check result, dangling report, suite summary, and before/after count.
+  - Execution state: performed
+- [x] E-06 regenerate `INDEX.json` + the browse-by-Set view and run `aw plans index --check`; paste the check result, dangling report, suite summary, and before/after count.
   - Depends on: E-03, E-04, E-05
   - Expected outcome: `aw plans index --check` exits clean; the browse-by-Set view groups the corpus; the full suite stays green.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -118,30 +118,30 @@ Regenerate `.agents/plans/INDEX.*` and refresh `STATUS.md` from the migrated sta
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: cite Orders 01 to 05 in `executed/` and paste the re-counted migratable-plan before-total (executed + pending, exclusions applied).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: Orders 01-05 are executed (`.agents/plans/executed/20260808-plansadopt-01..05-*`). Re-count: 127 plan files total; excluded = the 2 other-agent pending plans + the 3 still-in-flight plans-adopter plans (00/06/07, mid-lifecycle); migrated = 122 (120 executed + 2 not-executed). The 4 already-executed plans-adopter members (01-05) were included and clustered as `plansadopt`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste the full dry-run mapping (old path -> Id + new name + Set/NN) and the citation-rewrite diff; confirm the row count equals the E-01 before-total with no gaps/dupes and that nothing was moved/rewritten before review.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: the full dry-run mapping (81 set-ids + 122-row old->new table + citation impact: 287 occurrences across ~40 files incl. 66 in DECISIONS.md, 5 in TODO.md) was produced and reviewed with the human across two STOP-gate rounds BEFORE any apply; the human approved. Row count 122 == the migratable before-total. Two STOP-gate refinements resulted from the review (terse readable set-ids; the `Set: <terse> (<descriptive>)` format). Nothing moved until `--apply`.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: confirm EVERY migratable plan has a valid unique `Id` via `aw plans index --check` (which validates Id on all dispositions incl. `executed/`); paste the check output showing no missing/invalid-Id drift + a count of plans carrying an Id. Do NOT rely on `aw ipd lint` (it skips terminal-dir plans as legacy).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `aw plans index --check --agent` reports zero `id-missing`/`id-invalid` on the 122 migrated plans (the only 2 remaining `id-missing` are the intentionally-excluded other-agent stray pending plans). All migrated plans carry a valid `- Id:` (10 pre-metadata-convention legacy plans, which lack an `- Author:` line, had the Id backfilled after the last metadata bullet). Validation is via `aw plans index --check` (not `aw ipd lint`, which skips terminal-dir plans as legacy), as designed.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste a migrated cohort (shared Set, ordered NN, clustering names) and `git status`/`git log --follow` for a sample showing renames (R), not delete+add.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: the `ipdstruct` cohort clustered as `20260802-ipdstruct-00..06-<id6>-<slug>.md` (shared date + set + ordered NN); `git status --porcelain` shows 122 `R` (rename) entries and 0 delete+add for moved plans (history preserved). `Set:` metadata carries `ipdstruct (ipd-structure)`.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste the (empty) dangling-cite report and >=3 resolved sample cites, one per citation form (full-name, bare-stem, range); AND confirm a spec-only bare stem sharing the `YYYYMMDD-HHMM-NN` grammar (e.g. an `.agents/docs/specs/` id that is not a plan) was NOT rewritten.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `aw plans index --check` reports ZERO `dangling-citation`. Sample resolved rewrites: full-name + bare-stem + range cites of `20260802-1944-00..06` were rewritten to `20260802-ipdstruct-00..06-...` in DECISIONS.md (old stem count 0, new stem present). Spec-only guard: `20260726-1340-01-ipd-spec.md` (a spec whose stem `20260726-1340-01` shares the grammar) was NOT renamed and its 3 bare-stem cites in DECISIONS survive intact.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: paste `aw plans index --check` = clean; confirm the browse-by-Set view groups the corpus; paste the full-suite summary; the before/after plan count reconciles (all accounted for); leak-clean.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `aw plans index --check --agent` is clean except the 2 excluded stray plans (0 stale-index, 0 dangling, 0 name-mismatch). `INDEX.md` groups the corpus by Set (browse-by-topic). Full suite `python3 -m unittest discover -s tests -t .` -> `Ran 673 tests in 153.136s / OK (skipped=1)` (incl. the reconciled `normalize_plan_names` conformance test). Before/after: 122 migrated in, all present + indexed (INDEX shows 127 total incl. the 5 excluded). `aw sanitize --agent` exit 0.
+  - Result: pass
 
 ## Approval and execution gate
 
