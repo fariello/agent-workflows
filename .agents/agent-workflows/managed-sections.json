@@ -748,7 +748,7 @@
       "host": "",
       "kind": "file",
       "logical_id": "",
-      "sha256": "8195532e291883658d4ec00a144dd57297a405df504a14ca99ba3a9cadaaa527"
+      "sha256": "aee37f6b670a6b4d4628664c39343de93c7e0bf31d8513c9623e8a2a9c3d629b"
     },
     ".agents/workflows/templates/agents-docs-specs-README.md": {
       "host": "",
