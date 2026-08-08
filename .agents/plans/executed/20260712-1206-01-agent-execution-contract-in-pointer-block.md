@@ -93,7 +93,7 @@ APPLIED** (pending human sign-off). Evidence re-opened against source:
   - Honesty ("paste real runner output; never assert success you did not run"): written NOWHERE as a
     standing rule. This is the highest-value addition.
 - Reach: `AGENTS.md`-only does NOT reach Claude Code or default Gemini (survey
-  `.agents/docs/research/20260712-0031-01-agent-instruction-file-discovery-survey.md`). So these rules
+  `.agents/docs/research/20260712-agent-instruction-file-discovery-survey-00-74bchk-agent-instruction-file-discovery-survey.survey.md`). So these rules
   only reach those agents once IPD `20260712-0030-01` mirrors the block into an existing
   `CLAUDE.md`/`GEMINI.md`. SOFT dependency on 0030-01 for full reach (the rules are correct in
   AGENTS.md meanwhile).

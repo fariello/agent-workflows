@@ -22,7 +22,7 @@ dates; product unchanged). See DECISIONS D78 and
 ## Security follow-ups (OpenCode shared-host finding, D86/D87)
 
 Not framework bugs; external-tool finding with coordinated-disclosure obligations. See advisory
-`.agents/docs/research/20260716-0850-01-opencode-unauthenticated-local-server-advisory.md`.
+`.agents/docs/research/20260716-opencode-unauthenticated-local-server-advisory-00-kams1a-opencode-unauthenticated-local-server-advisory.advisory.md`.
 
 - **Coordinated disclosure to OpenCode maintainers (OPEN).** Send the private report (repro + fix proposal:
   UNIX 0700 socket / require-auth config key / UID check / redact secrets from `/config` / honor permission
@@ -37,7 +37,7 @@ Not framework bugs; external-tool finding with coordinated-disclosure obligation
 The agent-comms convention (D81) was IPD 1 of a designed 4-IPD split; IPDs 2-4 are intended future work
 (not "maybe" ideas). They are OPTIONAL and OpenCode-specific, and the convention works standalone without
 them, so none is release-gating. Full design + the load-bearing unknowns are in
-`.agents/docs/research/20260714-2300-01-same-box-agent-wakeup-mechanisms.md`. Each still needs its own IPD
+`.agents/docs/research/20260714-same-box-agent-wakeup-mechanisms-00-j2000q-same-box-agent-wakeup-mechanisms.research-report.md`. Each still needs its own IPD
 and human approval before any build.
 
 - **IPD 2 - the payload-blind broker (OpenCode-only, opt-in).** A long-lived per-box notifier that
@@ -47,7 +47,7 @@ and human approval before any build.
   expired). HARD INVARIANT: the broker is payload-BLIND (reads envelope headers only, never the payload;
   carries no attacker-controlled text). Attended TUIs get a gentle nudge (never a forced turn); headless
   targets can be woken. FEASIBILITY NOW CONFIRMED (live test + source-grounded consult, 2026-07-16; see
-  `.agents/docs/research/20260716-0850-03-broker-feasibility-confirmation.md`): cross-instance
+  `.agents/docs/research/20260716-broker-feasibility-confirmation-00-xawbsa-broker-feasibility-confirmation.research-report.md`): cross-instance
   delivery/wake works; there is NO discovery API (port must be injected / scraped / enumerated); a plugin
   and an external daemon share the same HTTP-client channel (external daemon is cleaner); `OPENCODE_SERVER_PASSWORD`
   Basic auth (user `opencode`) works. This IPD can now be drafted. HARD INVARIANT reinforced by the D86

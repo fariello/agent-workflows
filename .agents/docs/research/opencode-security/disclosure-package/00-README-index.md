@@ -14,11 +14,11 @@ We acknowledge the project's SECURITY.md position that server mode is opt-in and
 ## Contents
 
 - `00-README-index.md` - this file.
-- `01-executive-summary-and-report.md` - the human-readable report: threat model, the verified chain, affected scope, what is and is not in scope, severity, and the HPC/consortium context.
-- `02-test-evidence.md` - the controlled test campaign (discovery, reachability, disclosure, shell execution as victim, network exposure, attended-TUI visibility, mitigation), labeled by verification method (runtime / source / reported).
-- `03-source-validation.md` - file:line source citations for every load-bearing claim, and the four framing corrections the review process applied.
-- `04-patch-proposal.md` - proposed remediations mapped to source, sequenced as reviewable PRs. DESIGN SPECIFICATION / PSEUDODIFF ONLY - not compiled, not tested.
-- `05-provenance-and-cross-validation.md` - how the analysis was produced, the three-agent adversarial review, and what each review caught/corrected. Establishes rigor and honesty about limits.
+- `20260716-ocsec-00-98m3pw-executive-summary-and-report.executive-summary.md` - the human-readable report: threat model, the verified chain, affected scope, what is and is not in scope, severity, and the HPC/consortium context.
+- `20260716-ocsec-01-vcnu3f-test-evidence.test-evidence.md` - the controlled test campaign (discovery, reachability, disclosure, shell execution as victim, network exposure, attended-TUI visibility, mitigation), labeled by verification method (runtime / source / reported).
+- `20260716-ocsec-02-e4ule1-source-validation.research-report.md` - file:line source citations for every load-bearing claim, and the four framing corrections the review process applied.
+- `20260716-ocsec-03-jfoccf-patch-proposal.patch-proposal.md` - proposed remediations mapped to source, sequenced as reviewable PRs. DESIGN SPECIFICATION / PSEUDODIFF ONLY - not compiled, not tested.
+- `20260716-ocsec-04-zhkhky-provenance-and-cross-validation.research-report.md` - how the analysis was produced, the three-agent adversarial review, and what each review caught/corrected. Establishes rigor and honesty about limits.
 
 ## Load-bearing honesty notes (read before the rest)
 

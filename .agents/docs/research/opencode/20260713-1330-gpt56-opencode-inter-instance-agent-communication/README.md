@@ -10,14 +10,14 @@ This package executes the uploaded deep-research prompt on communication between
 
 ## Read in this order
 
-1. [00-executive-summary.md](00-executive-summary.md)
-2. [01-native-capabilities-and-runtime.md](01-native-capabilities-and-runtime.md)
-3. [02-communication-methods-comparison.md](02-communication-methods-comparison.md)
-4. [03-provenance-and-security.md](03-provenance-and-security.md)
-5. [04-plugin-feasibility-and-design.md](04-plugin-feasibility-and-design.md)
-6. [05-core-enhancement-proposal.md](05-core-enhancement-proposal.md)
-7. [06-implementation-roadmap.md](06-implementation-roadmap.md)
-8. [sources.md](sources.md)
+1. [20260713-occomms-03-tmylmj-executive-summary.executive-summary.md](20260713-occomms-03-tmylmj-executive-summary.executive-summary.md)
+2. [20260713-occomms-04-t5xyw0-native-capabilities-and-runtime.research-report.md](20260713-occomms-04-t5xyw0-native-capabilities-and-runtime.research-report.md)
+3. [20260713-occomms-05-u5wtc3-communication-methods-comparison.research-report.md](20260713-occomms-05-u5wtc3-communication-methods-comparison.research-report.md)
+4. [20260713-occomms-06-fl4bfm-provenance-and-security.research-report.md](20260713-occomms-06-fl4bfm-provenance-and-security.research-report.md)
+5. [20260713-occomms-07-e1majf-plugin-feasibility-and-design.research-report.md](20260713-occomms-07-e1majf-plugin-feasibility-and-design.research-report.md)
+6. [20260713-occomms-08-wz8x3l-core-enhancement-proposal.research-report.md](20260713-occomms-08-wz8x3l-core-enhancement-proposal.research-report.md)
+7. [20260713-occomms-09-3rpcmu-implementation-roadmap.roadmap.md](20260713-occomms-09-3rpcmu-implementation-roadmap.roadmap.md)
+8. [20260713-occomms-11-8xgwvm-sources.research-report.md](20260713-occomms-11-8xgwvm-sources.research-report.md)
 9. [prototype/README.md](prototype/README.md)
 
 ## Key conclusion

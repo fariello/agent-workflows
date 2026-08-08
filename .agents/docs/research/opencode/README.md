@@ -32,7 +32,7 @@ content-mutating hooks so it will not recur.
   running OpenCode instance can drive another (HTTP server API: create/prompt/status/abort/SSE), and
   crucially what OpenCode does NOT provide: no native peer provenance, no authentication, no durable
   peer mailbox, no distinct peer message role - an API prompt is indistinguishable from human input.
-  Includes numbered sections (00-06), `sources.md`, and a `prototype/` (a broker, an `opencode-peer`
+  Includes numbered sections (00-06), `20260713-occomms-11-8xgwvm-sources.research-report.md`, and a `prototype/` (a broker, an `opencode-peer`
   plugin, a message JSON schema, and tests) sketching a richer transport that could layer ON TOP of the
   filesystem floor.
 

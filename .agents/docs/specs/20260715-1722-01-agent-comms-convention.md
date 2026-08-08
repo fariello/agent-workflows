@@ -2,7 +2,7 @@
 
 Status: canonical (supersedes and replaces the earlier draft, now removed).
 Date: 2026-07-15
-Decision: DECISIONS D81. Design source: `.agents/docs/research/20260714-2300-01-same-box-agent-wakeup-mechanisms.md`.
+Decision: DECISIONS D81. Design source: `.agents/docs/research/20260714-same-box-agent-wakeup-mechanisms-00-j2000q-same-box-agent-wakeup-mechanisms.research-report.md`.
 
 This spec defines the PORTABLE, agent-agnostic convention for filesystem inter-agent communication
 (IAC): the on-disk layout, the message envelope (including the `Not-Before` scheduling gate), the

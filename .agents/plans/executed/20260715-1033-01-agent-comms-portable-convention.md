@@ -31,7 +31,7 @@
   (a) studied a reference agent implementation (transport adapter -> handle_message -> turn), (b) VERIFIED the
   OpenCode server API by live self-test (serve/doc/session-create/message/tui/mdns/acp; unsecured by
   default), and (c) settled the load-bearing decisions recorded in
-  `.agents/docs/research/20260714-2300-01-same-box-agent-wakeup-mechanisms.md`. The maintainer chose to
+  `.agents/docs/research/20260714-same-box-agent-wakeup-mechanisms-00-j2000q-same-box-agent-wakeup-mechanisms.research-report.md`. The maintainer chose to
   split the work across IPDs and draft this foundation IPD first. Complete proposal; born to-review.
 - 2026-07-15 /plan-review (its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED.
   Verified claims against source: `create_setup_artifacts` (engine.py:2489), `_create_if_absent`
@@ -102,7 +102,7 @@
   test_cli.py, test_setup_artifacts.py). Good safety net.
 - House rule: no em dashes or en dashes in authored Markdown.
 - Design source of truth for the decisions below:
-  `.agents/docs/research/20260714-2300-01-same-box-agent-wakeup-mechanisms.md` (sections "Design
+  `.agents/docs/research/20260714-same-box-agent-wakeup-mechanisms-00-j2000q-same-box-agent-wakeup-mechanisms.research-report.md` (sections "Design
   decisions" and the ack state machine). This IPD implements the AGENT-AGNOSTIC subset of those
   decisions only.
 

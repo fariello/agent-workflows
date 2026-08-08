@@ -25,8 +25,8 @@ We have standardized the directory structure and naming conventions for durable 
 
 #### 3. Migration of Reference Files
 * Migrated existing research documents from `docs/research/` (now deleted) to `.agents/docs/research/` using standard naming conventions:
-  * **[20260712-0031-01-agent-instruction-file-discovery-survey.md](./.agents/docs/research/20260712-0031-01-agent-instruction-file-discovery-survey.md)**
-  * **[20260712-0031-02-agent-instruction-file-discovery-prompt.md](./.agents/docs/research/20260712-0031-02-agent-instruction-file-discovery-prompt.md)**
+  * **[20260712-agent-instruction-file-discovery-survey-00-74bchk-agent-instruction-file-discovery-survey.survey.md](./.agents/docs/research/20260712-agent-instruction-file-discovery-survey-00-74bchk-agent-instruction-file-discovery-survey.survey.md)**
+  * **[20260712-agent-instruction-file-discovery-prompt-00-jd8qhs-agent-instruction-file-discovery-prompt.research-prompt.md](./.agents/docs/research/20260712-agent-instruction-file-discovery-prompt-00-jd8qhs-agent-instruction-file-discovery-prompt.research-prompt.md)**
 
 #### 4. Filename Normalization and Naming Checks
 * Updated `.agents/workflows/setup-repo/tools/normalize_plan_names.py` to scan the `docs` area by default and recognize its subdirectories.

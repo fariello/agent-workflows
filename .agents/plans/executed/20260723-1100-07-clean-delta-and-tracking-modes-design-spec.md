@@ -32,8 +32,8 @@ Why it matters: a developer contributing upstream (opencode, hermes) must leave 
 
 All claims below trace to `.agents/docs/research/20260726-0054-aw-delivery-and-clean-delta-research/`:
 
-- Clean-delta reconciliation: `20260726-0054-05-aw-delivery-and-clean-delta.reconciliation-report.md`.
-- Host-probe reconciliation: `20260726-1045-05-external-delivery-host-probe.reconciliation-report.md`.
+- Clean-delta reconciliation: `20260726-awdeliv-04-uxq2tt-aw-delivery-and-clean-delta.reconciliation.reconciliation-report.md`.
+- Host-probe reconciliation: `20260726-hostprobe-04-36rfym-external-delivery-host-probe.reconciliation.reconciliation-report.md`.
 - Eight underlying model reports (gpt56, gemini36flash, gemini31pro, sonnet5 for each set).
 
 Grade: DOCUMENTATION-GRADED as of 2026-07-26. No report ran a live fixture, so every host verdict means "documented", not "reproduced". This is the single most important constraint on the phased plan (Phase 0).

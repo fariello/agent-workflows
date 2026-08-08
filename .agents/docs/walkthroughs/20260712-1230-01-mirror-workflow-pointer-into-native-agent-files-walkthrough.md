@@ -28,7 +28,7 @@ We have successfully executed the approved implementation plan to mirror the wor
 #### 4. Updated Documentation & Decisions
 * **Documentation**: Updated **[README.md](./README.md)** and **[ARCHITECTURE.md](./ARCHITECTURE.md)** to document native rule files mirroring.
 * **Decisions**: Appended decision **D68** to **[DECISIONS.md](./DECISIONS.md)** and marked **D59** as revised.
-* **Research Prompt**: Copied the research survey prompt to **[20260712-0031-01-agent-instruction-file-discovery-survey-prompt.md](./.agents/docs/research/20260712-0031-01-agent-instruction-file-discovery-survey-prompt.md)**.
+* **Research Prompt**: Copied the research survey prompt to **[20260712-agent-instruction-file-discovery-survey-prompt-00-g5vhpz-agent-instruction-file-discovery-survey-prompt.research-prompt.md](./.agents/docs/research/20260712-agent-instruction-file-discovery-survey-prompt-00-g5vhpz-agent-instruction-file-discovery-survey-prompt.research-prompt.md)**.
 
 ---
 
