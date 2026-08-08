@@ -45,22 +45,37 @@ Each plan also keeps a `## Workflow history` section: an appended, dated line pe
 that touched it (assess, plan-review, ...), so you can see the path a plan took. The
 plan-mutating workflows commit (never push) as they go, so `git log` shows the progression.
 
-## Ordered sets (optional `Set:` / `Order:` front-matter)
+## Identity, sets, and the clustering filename grammar
 
-When several plans form ONE sequence meant to run in a specific order, tag them with two optional
-front-matter fields (D82):
+Every plan carries a stable `- Id:` (a 6-char base36 citation handle that never changes across
+renames/regrouping) and a `- Set:` grouping. Cite a plan by its `Id`; the tooling resolves it via the
+manifest, so a plan can be re-slugged or regrouped without breaking citations (plans-adopter,
+DECISIONS D124).
 
-- `- Set: <lowercase-kebab id>` - shared by every plan in the set (e.g. `Set: editor-workflow`).
-- `- Order: <n>` - the 1-based position within that set. Optional; a `Set:` with no `Order:` is an
-  unordered grouping.
+- `- Id: <id6>` - the stable handle (emitted by `aw ipd scaffold`, backfilled by `aw ipd sync`).
+- `- Set: <terse-id> (<descriptive>)` - the terse id is the canonical grouping key (the leading
+  token before the parenthetical); the parenthetical is a human-readable name. A SINGLETON is a set
+  of one (no special-casing).
+- `- Order: <n>` - the position within the set.
 
-These are ADVISORY: they group related plans and make the intended run order queryable and visible
-in the `aw plans` board (a "Sets" section), but they do NOT auto-execute, do NOT gate approval, and do
-NOT change the `Status:` lifecycle. The human still approves and runs each plan. They are ORTHOGONAL
-to the filename convention: the `YYYYMMDD-HHMM-NN-<slug>.md` name and the `NN` same-minute
-disambiguator are unchanged. An agent may GROUP pending plans by adding these fields, but any change to
-a set's membership, order, or id must be surfaced (in Workflow history) and confirmed with the human,
-never done silently; set fields on plans already in a terminal directory are frozen history.
+The plan FILENAME clusters by Set so members are adjacent in a name-sorted tree:
+`YYYYMMDD-<set-id>-<NN>-<id6>-<slug>.md`. Do NOT hand-name plans or hand-maintain the manifest; use
+the `aw plans` verbs (below). Set membership/order changes on a plan already in a terminal directory
+are a deliberate, tool-driven, citation-safe act (the plan BODY and workflow history stay immutable;
+only the name/grouping is mutable via the stable `Id`).
+
+## The plans manifest and weekly shards
+
+- `aw plans index [--check]` regenerates `.agents/plans/INDEX.json` (every plan) and `INDEX.md` (a
+  browse-by-`Set:` view, the most-recent Sets); `--check` fails on drift (missing/invalid `Id`,
+  name-vs-metadata mismatch, stale view, dangling plan citation). `aw plans find` queries the
+  manifest. This complements the disposition-grouped `STATUS.md`.
+- `aw plans set-assign`/`mv` (re)assign a plan's Set/Order and optionally rename it to the clustering
+  grammar, keeping the `Id` and rewriting citations.
+- `aw plans archive` deep-shelves aged terminal plans into weekly `YYYYMM-Www/` shards INSIDE their
+  disposition dir (`executed/`, `superseded/`, `not-executed/`); `pending/` and `reusable/` stay
+  flat. Shards are created on demand by this deliberate verb (never a background side effect); the
+  manifest scan is recursive so sharded plans stay visible.
 
 ## Execution contract in every plan's gate
 

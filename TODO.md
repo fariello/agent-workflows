@@ -34,14 +34,16 @@ Not framework bugs; external-tool finding with coordinated-disclosure obligation
 
 ## Planned next (designed, deferred; not yet drafted as IPDs)
 
-**Apply the research-organization convention to `plans/executed/` (the highest-value next adopter, D123).**
-The `research-org` Set (D123) built and dogfooded the stable-id + tool-owned-lifecycle + tiered-manifest
-model for `.agents/docs/research/`, deliberately research-first to prove the design on the smaller,
-self-contained corpus. The measured pain is actually largest in `plans/executed/` (about 85 plans/month,
-179 files in the heaviest surveyed repo). Lifting the model to `plans/` (and later `prompts/`, `comms/`,
-`walkthroughs/`) is the intended next work; the id/naming/grouping/manifest/archival design was written to
-generalize (spec `20260730-2152-01` Section 7). Needs its own IPD Set + `/plan-review` + human approval;
-not release-gating.
+**Apply the artifact-organization model to `prompts/` (the next adopter after research and plans).**
+DONE: research (`research-org`, D123) and plans (`plans-adopter`, D124) now share the area-agnostic
+core (`agent_workflows/artifact_core.py`): stable id, tiered manifest + `--check`, weekly cold shards,
+deliberate archival verbs. `prompts/` is the WEAKEST remaining case (low volume, an existing
+pending/executed lifecycle, filenames already the stable stem, and the research-prompt lineage already
+handled in the research spec 4.6), so it is lowest priority; `comms/` and `walkthroughs/` are subsequent
+adopters after that. Each is its own IPD Set (reusing the shared core) + `/plan-review` + human approval;
+not release-gating. When authored, mirror the plans-adopter shape: a shared-core reuse, a stable Id in
+the area's existing metadata (no duplicate frontmatter), a manifest, and a migration with a dry-run STOP
+gate.
 
 The agent-comms convention (D81) was IPD 1 of a designed 4-IPD split; IPDs 2-4 are intended future work
 (not "maybe" ideas). They are OPTIONAL and OpenCode-specific, and the convention works standalone without

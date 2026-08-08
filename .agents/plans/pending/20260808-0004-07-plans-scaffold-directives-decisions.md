@@ -32,9 +32,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: the Order 01/03/05 symbols/verbs are importable/invokable; if absent the child halts.
   - Execution state: pending
-- [ ] E-02 extend the installer scaffold: add the weekly-shard PARENT layout for the terminal disposition dirs (`executed/`, `superseded/`, `not-executed/`) so the layout is discoverable in a fresh repo; extend BOTH the real and dry-run branches of `create_setup_artifacts`; update the created-count assertion in `tests/test_setup_artifacts.py` and assert real-vs-dry-run parity for the new artifacts.
+- [ ] E-02 document the plan weekly-shard layout in `.agents/plans/README.md`. CORRECTION (found at execution): unlike research (whose `reference/`/`archive/` shard PARENTS were NEW dirs the installer had to create), the plan terminal disposition dirs (`executed/`/`superseded/`/`not-executed/`) ALREADY exist via `PLAN_LIFECYCLE_SUBDIRS` in `create_setup_artifacts`, and the weekly `YYYYMM-Www/` shards inside them are created on demand by `aw plans archive`. So there are NO new scaffold dirs to add and the created-count assertion does NOT change (adding empty `.gitkeep`s would be gold-plating). Instead, document the shard layout + the `aw plans archive` convention in the plans README so it is discoverable.
   - Depends on: E-01
-  - Expected outcome: the terminal-dir shard scaffolding is created (no-clobber); dry-run matches real; idempotent; the created-count assertion is updated.
+  - Expected outcome: `.agents/plans/README.md` documents the terminal-dir weekly-shard layout and the deliberate `aw plans archive` verb; no installer dir change; the setup-artifacts created-count is unchanged (verified).
   - Execution state: pending
 - [ ] E-03 add the thin AGENTS.md pointer: a SHORT new `###` section in `agents_pointer_prose` naming the `aw plans` grouping/manifest verbs ("browse/regroup plans by Set with `aw plans`; do not hand-name or hand-maintain the plans index"); regenerate AGENTS.md; the AGENT-PLANS sibling untouched (byte-identical).
   - Depends on: E-01
@@ -119,7 +119,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: paste the scaffold test output (terminal-dir shard parents created no-clobber; dry-run matches real; idempotent); confirm the created-count assertion was updated and real-vs-dry-run parity holds.
+  - Required evidence: confirm `.agents/plans/README.md` documents the terminal-dir weekly-shard layout + `aw plans archive`; confirm (per the execution correction) that no new installer scaffold dir was needed and `test_setup_artifacts` created-count is UNCHANGED (the terminal dirs already scaffold via PLAN_LIFECYCLE_SUBDIRS; weekly shards are on-demand); cite.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
