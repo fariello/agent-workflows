@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: give agents and humans a deterministic command to create a correctly-named research doc with starter frontmatter, so naming is a tool call (not a fallible convention). Encodes the multi-model comparison pattern as first-class.
 - Scope: the create verbs only, consuming the Order-01 contract. No indexing (Order 03), no rename (04), no archival (05). Requires Order 01 executed (imports `research_contract`); if its symbols are absent, STOP.
-- Status: to-review
+- Status: reviewed
 - Set: research-org
 - Order: 2
 - Highest E allocated: 06
@@ -15,6 +15,7 @@
 - 2026-07-30 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `research-org`; the first behavior on top of the Order-01 contract.
 - 2026-08-03 quarantined (opencode its_direct/pt3-claude-opus-4.8-1m-us): deferred by the maintainer's IPD-system-first sequencing; quarantined pending re-authoring to the new E-*/V-* shape.
 - 2026-08-03 re-authored (opencode its_direct/pt3-claude-opus-4.8-1m-us): lifted out of quarantine and converted to the new IPD shape (Kind + E-*/V-* bijection + Execution state / Result fields + allocation watermark + OQ-* grammar + Size assessment) per DECISIONS D122; content preserved. Conforms to `aw ipd lint --phase author`.
+- 2026-08-07 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (pytest->unittest), PR-C02-2 (writing-command safety: dry-run/`--apply`/atomic/no-clobber), PR-C02-4 (full spec-5.8 frontmatter incl. `outcome`), PR-C02-5 (reconciliation NN=N+1), PR-C02-3 (index-hint worded informational), PR-C02-6 (suggestion via contract API), PR-C02-7 (id collision-checked against on-disk ids), OQ-01 derivation pinned.
 
 ## Goal
 
@@ -30,24 +31,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: `research_contract` symbols (id, grammar, vocab, frontmatter) are present; if absent the tool halts before writing.
   - Execution state: pending
-- [ ] E-02 add `aw research new` (args `--set`, `--kind`, `--model?`, `--slug`, `--summary`, `--topic`, `--date?`): generate a collision-checked id, resolve the set (reuse date+next NN, or new set NN=00; omitted set = singleton from slug), validate/normalize vocab, kebab the slug, and write the file plus starter frontmatter (status: intake, consumed-by []).
+- [ ] E-02 add `aw research new` (args `--set`, `--kind`, `--model?`, `--slug`, `--summary`, `--topic`, `--date?`): generate an id collision-checked against all existing on-disk `<id6>` tokens (retry on collision), resolve the set (reuse date+next NN, or new set NN=00; omitted set = singleton from slug), validate/normalize vocab, kebab the slug, and write the file plus the FULL spec-5.8 starter frontmatter (`id`, `created`, `set`, `order`, `topic`, `model`, `kind`, `status: intake`, `outcome: none-yet`, `summary`, `consumed-by: []`). Writing-command safety mirrors `aw ipd scaffold`: preview by default, explicit `--apply` to write, atomic write-to-temp-rename, refuse to clobber an existing file without `--overwrite`, nonzero exit on any internal failure (never a false success).
   - Depends on: E-01
-  - Expected outcome: a well-formed name plus frontmatter appears in a temp dir; a second call to the same set increments NN.
+  - Expected outcome: a well-formed name plus a frontmatter block that passes `research_contract`'s validator appears in a temp dir under `--apply`; dry-run writes nothing; a second call to the same set increments NN.
   - Execution state: pending
-- [ ] E-03 add `aw research new-comparison` (`--set --slug --models a,b,c`): create the prompt at NN=00, one report slot per model at NN=01..N, and reserve a reconciliation-report slot.
+- [ ] E-03 add `aw research new-comparison` (`--set --slug --models a,b,c`): create the prompt at NN=00, one report slot per model at NN=01..N, and reserve a reconciliation-report slot at NN=N+1 (the synthesis is the LAST member, spec 4.2).
   - Depends on: E-01, E-02
-  - Expected outcome: a prompt plus N model reports plus a reconciliation slot in correct NN order with model tags in name and frontmatter.
+  - Expected outcome: a prompt (00) plus N model reports (01..N) plus a reconciliation slot (N+1) in exact NN order with model tags in name and frontmatter.
   - Execution state: pending
 
 ### Task group 2: output, safety, tests
 
-- [ ] E-04 add self-revealing output: on success print the created path(s) and the next step ("run `aw research index`"), and add `--help` text.
+- [ ] E-04 add self-revealing output: on success print the created path(s) and a next-step hint that names the index refresh (worded as an informational suggestion, since `aw research index` is delivered by Order 03 and may not yet exist), and add `--help` text.
   - Depends on: E-02, E-03
-  - Expected outcome: stdout contains the created path and the index hint.
+  - Expected outcome: stdout contains the created path and an informational index-refresh hint.
   - Execution state: pending
-- [ ] E-05 reject invalid input clearly (unknown kind/model with a closest-match suggestion; missing required args) without writing a file.
+- [ ] E-05 reject invalid input clearly using `research_contract`'s vocab/normalization API for the closest-match suggestion (do NOT implement a second matcher): unknown kind/model returns the contract's suggestion; missing required args are reported; nothing is written.
   - Depends on: E-02
-  - Expected outcome: an unknown kind exits nonzero, writes nothing, and suggests the closest valid value.
+  - Expected outcome: an unknown kind exits nonzero, writes nothing, and suggests the closest valid value via the contract API.
   - Execution state: pending
 - [ ] E-06 add `tests/test_research_cmd_create.py` (new well-formed output + NN increment + singleton; new-comparison scaffold; self-revealing stdout; invalid-input rejection); run it plus the full suite and paste both.
   - Depends on: E-02, E-03, E-04, E-05
@@ -57,7 +58,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Project conventions discovered (Step 0)
 
 - CLI structure: `agent_workflows/cli.py` uses argparse subcommands (`install`, `setup`, `plan-names`, `check-local-leaks`, ...). Add a `research` subcommand group with a `new`/`new-comparison` action, mirroring the existing subparser style.
-- Contract: import id/grammar/vocab/frontmatter from Order 01's `research_contract.py`; do NOT restate them.
+- Contract: import id/grammar/vocab/frontmatter (and the vocab-suggestion/normalization API) from Order 01's `research_contract.py`; do NOT restate or reimplement them.
+- Writing-command safety precedent: `aw ipd scaffold`/`sync` (`ipd_authoring.py`) - preview/dry-run default, explicit `--apply`, atomic write-to-temp-rename, no-clobber, nonzero-on-failure. Mirror it.
 - Test harness precedent: `tests/test_installer.py` etc. use throwaway dirs; mirror for tool tests.
 
 ## Findings
@@ -71,10 +73,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 | Step | Source | Change | Files | Remediation Risk | Validation |
 |------|--------|--------|-------|------------------|------------|
-| 1 | 5.1 | Add `aw research new` (args: `--set`, `--kind`, `--model?`, `--slug`, `--summary`, `--topic`, `--date?`): generate collision-checked id, resolve set (reuse date+next NN, or new set NN=00; omitted set = singleton from slug), validate/normalize vocab, kebab slug, write file + starter frontmatter (status: intake, consumed-by []). | `agent_workflows/cli.py`, `agent_workflows/research_cmd.py` (new) | Low | E-02 |
-| 2 | 5.3 | Add `aw research new-comparison` (`--set --slug --models a,b,c`): create prompt at NN=00, one report slot per model NN=01..N, reserve a reconciliation-report slot. | `agent_workflows/research_cmd.py` | Low | E-03 |
-| 3 | F6 | Self-revealing output: on success print the created path(s) and the next step ("run `aw research index`"). Add `--help` text. | `agent_workflows/research_cmd.py` | Low | E-04 |
-| 4 | G1 | Reject invalid input clearly (unknown kind/model with a suggestion; missing required args) without writing a file. | `agent_workflows/research_cmd.py` | Low | E-05 |
+| 1 | 5.1/5.8 | Add `aw research new`: collision-checked id, resolve set, validate/normalize vocab, kebab slug, write FULL spec-5.8 frontmatter; preview default + `--apply` + atomic write + no-clobber + nonzero-on-failure. | `agent_workflows/cli.py`, `agent_workflows/research_cmd.py` (new) | Low | E-02 |
+| 2 | 5.3/4.2 | Add `aw research new-comparison`: prompt NN=00, model reports NN=01..N, reconciliation NN=N+1. | `agent_workflows/research_cmd.py` | Low | E-03 |
+| 3 | F6 | Self-revealing output: created path(s) + an informational index-refresh hint (index is Order 03). Add `--help`. | `agent_workflows/research_cmd.py` | Low | E-04 |
+| 4 | G1 | Reject invalid input via the contract's suggestion API (no second matcher); write nothing. | `agent_workflows/research_cmd.py` | Low | E-05 |
 
 ## Deferred / out of scope (with reason)
 
@@ -90,7 +92,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-`tests/test_research_cmd_create.py`: `new` well-formed output + NN increment + singleton; `new-comparison` full scaffold with correct order/model tags; self-revealing stdout; invalid-input rejection writes nothing. Run that file then full `python -m pytest -q`; PASTE both. Leak-clean; no em/en dashes.
+`tests/test_research_cmd_create.py`: `new` well-formed output + full-frontmatter-passes-validator + NN increment + singleton + dry-run-writes-nothing + `--apply`-writes-atomically + no-clobber; `new-comparison` full scaffold with correct order (00 prompt, 01..N models, N+1 reconciliation) + model tags; self-revealing stdout; invalid-input rejection writes nothing (suggestion via contract API). Run that file then full `python3 -m unittest discover -s tests -t .`; PASTE both (the `Ran N tests ... OK` summary). Leak-clean; no em/en dashes.
 
 ## Spec / documentation sync
 
@@ -103,7 +105,7 @@ Update `.agents/docs/research/README.md` usage section (created in Order 01) to 
 - Blocking: no
 - Status: resolved
 - Owner: this child
-- Resolution or deferral rationale: derive the omitted `<set-id>`/`<slug>` from `--summary`/`--slug` (a slug-derived singleton when no set is given). Confirm the exact derivation rule at review; if it changes, only this child changes.
+- Resolution or deferral rationale: RESOLVED at review (2026-08-07). When `--set` is omitted, the doc is a singleton whose `<set-id>` is derived by kebab-normalizing the `--slug` (falling back to a kebab of `--summary` if `--slug` is also omitted); `<id6>` remains the stable citation handle regardless.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -114,23 +116,23 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: paste a created name + frontmatter from the test and confirm NN increments on a second same-set call.
+  - Required evidence: paste a created name + full frontmatter and confirm it passes `research_contract`'s validator; confirm NN increments on a second same-set call; confirm dry-run wrote nothing and `--apply` wrote atomically and refused to clobber.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: paste the `new-comparison` output; confirm the 00 prompt + N model reports + reconciliation with correct order and model tags.
+  - Required evidence: paste the `new-comparison` output; confirm the 00 prompt + 01..N model reports + N+1 reconciliation in exact order with model tags.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: confirm stdout shows the created path + the `aw research index` hint; cite.
+  - Required evidence: confirm stdout shows the created path + the informational index-refresh hint; cite.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: confirm an unknown kind exits nonzero and writes no file; cite.
+  - Required evidence: confirm an unknown kind exits nonzero, writes no file, and returns the contract API's closest-match suggestion; cite.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06
-  - Required evidence: paste `pytest tests/test_research_cmd_create.py -q` + the full-suite summary (new tests pass, suite green); leak-clean.
+  - Required evidence: paste `python3 -m unittest tests.test_research_cmd_create -v` + the full-suite `Ran N tests ... OK` summary (new tests pass, suite green); leak-clean.
   - Observed evidence:
   - Result: pending
 

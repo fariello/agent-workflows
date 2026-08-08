@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: define the single authoritative contract that all research tooling and docs depend on: the filename grammar, the stable `<id6>` id, the enumerated `<model>`/`<kind>` vocabularies, and the frontmatter schema. Resolves spec open questions OQ1 (kind vocab), OQ4 (set-date-in-name vs per-file created), OQ5 (id length/alphabet), OQ6 (state paths).
 - Scope: authoritative definitions + constants + docs ONLY. No behavior change, no migration, no tool that consumes it yet (those are Orders 2 to 07). Requires spec `.agents/docs/specs/20260730-2152-01-agents-artifact-organization.spec.md`.
-- Status: to-review
+- Status: reviewed
 - Set: research-org
 - Order: 1
 - Highest E allocated: 06
@@ -15,6 +15,7 @@
 - 2026-07-30 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): first child of Set `research-org`; establishes the contract so Orders 2 to 07 reference ONE definition (cross-IPD consistency).
 - 2026-08-03 quarantined (opencode its_direct/pt3-claude-opus-4.8-1m-us): deferred by the maintainer's IPD-system-first sequencing; quarantined pending re-authoring to the new E-*/V-* shape.
 - 2026-08-03 re-authored (opencode its_direct/pt3-claude-opus-4.8-1m-us): lifted out of quarantine and converted to the new IPD shape (Kind + E-*/V-* bijection + Execution state / Result fields + allocation watermark + OQ-* grammar + Size assessment) per DECISIONS D122; content preserved. Conforms to `aw ipd lint --phase author`.
+- 2026-08-07 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-C01-1 (E-05 rewrite the existing stale-grammar README, do not append). Contract verified correct against the spec; already used stdlib unittest (no PR-001 change needed).
 
 ## Goal
 
@@ -45,9 +46,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: docs + tests
 
-- [ ] E-05 document the contract in `.agents/docs/research/README.md` (grammar, states, id, tool pointer) referencing the spec.
-  - Depends on: E-03, E-04
-  - Expected outcome: README states the grammar + states + id + where the tool lives; no em/en dashes.
+- [ ] E-05 REWRITE the existing `.agents/docs/research/README.md` (which currently documents the SUPERSEDED `YYYYMMDD-HHMM-NN` grammar), REPLACING that stale grammar with the new contract (grammar, states, id, tool pointer) referencing the spec; do not merely append.
+  - Depends on: E-01
+  - Expected outcome: README states ONLY the new grammar + states + id + where the tool lives; the superseded `YYYYMMDD-HHMM-NN` grammar no longer appears; no em/en dashes.
   - Execution state: pending
 - [ ] E-06 add `tests/test_research_contract.py` (id regex; vocab accept/normalize/reject; name parse+format round-trip incl. singleton + optional model; frontmatter validate pass/fail); run it + the full suite and paste both.
   - Depends on: E-01, E-02, E-03, E-04
@@ -130,7 +131,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: confirm `research/README.md` states grammar + states + id + tool pointer and points to the spec; no em/en dashes; cite.
+  - Required evidence: confirm `research/README.md` states the NEW grammar + states + id + tool pointer and points to the spec, AND that the superseded `YYYYMMDD-HHMM-NN` grammar no longer appears (grep shows no residual); no em/en dashes; cite.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06

@@ -1,13 +1,13 @@
-# IPD: migrate the existing 78 research files onto the convention (Set `research-org`, Order 6)
+# IPD: migrate the existing research files onto the convention (Set `research-org`, Order 6)
 
 - Date: 2026-07-30
 - Kind: child
 - Concern: apply the convention to this repo's existing research corpus (the dogfood): back-fill frontmatter + `<id6>`, group cohorts into sets, normalize model-token drift, classify initial status/outcome, generate the index, and preserve all citations.
-- Scope: a one-time, reviewed data migration of `.agents/docs/research/**` using the Order 02 to 05 tools. Requires Orders 01 to 05 executed; if their tools are absent, STOP.
-- Status: to-review
+- Scope: a one-time, reviewed data migration of `.agents/docs/research/**` using the Order 02 to 05 tools. Requires Orders 01 to 05 executed; if their tools are absent, STOP. Migratable = authored research `*.md` content files; EXCLUDED are nav/index files (`README.md`, `INDEX.json`, `INDEX.md`, `00-README-index.md`), `*template*.md`, `.gitkeep`, and non-`.md` artifacts under `research/**/prototype/` (`.ts`/`.py`/`.json`/`MANIFEST.json`), which stay VERBATIM in place under their parent set and receive no frontmatter/id6.
+- Status: reviewed
 - Set: research-org
 - Order: 6
-- Highest E allocated: 06
+- Highest E allocated: 08
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
@@ -15,10 +15,11 @@
 - 2026-07-30 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `research-org`; the accepted one-time cost that proves the convention on real data.
 - 2026-08-03 quarantined (opencode its_direct/pt3-claude-opus-4.8-1m-us): deferred by the maintainer's IPD-system-first sequencing; quarantined pending re-authoring to the new E-*/V-* shape.
 - 2026-08-03 re-authored (opencode its_direct/pt3-claude-opus-4.8-1m-us): lifted out of quarantine and converted to the new IPD shape (Kind + E-*/V-* bijection + Execution state / Result fields + allocation watermark + OQ-* grammar + Size assessment) per DECISIONS D122; content preserved. Conforms to `aw ipd lint --phase author`.
+- 2026-08-07 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (pytest->unittest), PR-002 (stale "78" removed; count re-counted at execution), PR-C06-6/E-07 (mandatory dry-run mapping + STOP gate before apply), PR-C06-2 (explicit migratable include/exclude list), PR-C06-4/E-08 (prompt-lineage per spec 4.6), PR-C06-5 (moves verified as git renames). Two new leaves E-07/E-08 assigned via `aw ipd sync`.
 
 ## Goal
 
-Every existing research file (78 at survey time; re-count at execution) ends up: named to the grammar, carrying valid frontmatter with a stable `<id6>`, grouped into its set (or a singleton), classified with a reviewed `status`/`outcome`, indexed, and with all in-repo citations updated. `aw research index --check` passes clean afterward. Spec Section 9.
+Every migratable existing research file (the exact content-file total is re-counted at execution; the survey observed roughly seventy, and the count is anchored ONLY by the re-count, never by a hardcoded number) ends up: named to the grammar, carrying valid frontmatter with a stable `<id6>`, grouped into its set (or a singleton), classified with a reviewed `status`/`outcome`, indexed, and with all in-repo citations updated. Excluded files (nav/index/template/`.gitkeep`/prototype code, per Scope) stay verbatim in place. `aw research index --check` passes clean afterward. Spec Section 9.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -26,17 +27,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: back-fill and regroup
 
-- [ ] E-01 confirm Orders 01 to 05 are executed and their tools are present, else STOP, and re-count the research files (survey said 78).
+- [ ] E-01 confirm Orders 01 to 05 are executed and their tools are present, else STOP; then re-count the migratable research content files per the Scope include/exclude rule and record that exact before-total (do NOT rely on any hardcoded number).
   - Depends on: none
-  - Expected outcome: the Order 02 to 05 tools are usable; a re-counted before-total is recorded.
+  - Expected outcome: the Order 02 to 05 tools are usable; a re-counted before-total (migratable content files only) is recorded.
   - Execution state: pending
-- [ ] E-02 back-fill frontmatter + `<id6>` for every research doc (created from git-first-commit; topic/kind/model inferred; consumed-by inferred from existing cites).
+- [ ] E-07 produce a full DRY-RUN migration mapping (every migratable old path -> new grammar name + assigned `<id6>` + set/NN) AND the citation-rewrite diff, verify 1:1 completeness against the E-01 before-total, then STOP for review BEFORE any apply.
   - Depends on: E-01
-  - Expected outcome: every file has valid frontmatter; the `index --check` frontmatter stage is clean.
+  - Expected outcome: a reviewable mapping accounting for every migratable file with no gaps/dupes; nothing is moved or rewritten yet.
   - Execution state: pending
-- [ ] E-03 group cohorts into sets via `set-assign` and normalize names/model-token drift (`gpt-56`->`gpt56`, prefix->suffix).
+- [ ] E-02 back-fill frontmatter + `<id6>` for every migratable research doc (created from git-first-commit; topic/kind/model inferred; consumed-by inferred from existing cites).
+  - Depends on: E-07
+  - Expected outcome: every migratable file has valid frontmatter; the `index --check` frontmatter stage is clean.
+  - Execution state: pending
+- [ ] E-03 group cohorts into sets via `set-assign` and normalize names/model-token drift (`gpt-56`->`gpt56`, prefix->suffix); apply moves as tracked git renames.
   - Depends on: E-02
-  - Expected outcome: each named cohort shares a date/set + ordered NN; singletons are well-formed.
+  - Expected outcome: each named cohort shares a date/set + ordered NN; singletons are well-formed; git tracks the moves as renames (R), not delete+add.
+  - Execution state: pending
+- [ ] E-08 link each in-research `*-prompt.md` file to its research output as `NN=00` of that output's set (prompt lineage, spec 4.6); a prompt with no run output becomes a singleton.
+  - Depends on: E-03
+  - Expected outcome: every in-research prompt file is either the `NN=00` member of its cohort or a well-formed singleton; none is orphaned.
   - Execution state: pending
 
 ### Task group 2: citations, classification, index
@@ -59,15 +68,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Use the Order 02 to 05 tools; do NOT hand-edit names/frontmatter where a tool exists.
 - Existing cohorts to preserve as sets: the two dated bundles (`20260726-0054-aw-delivery-*`, `20260726-1045-host-probe-*`), the `plan-review/` set (14 files), the `opencode/` and `opencode-security/` groups, the `suggested-future-skill-usage.*` set. Standalone advisories/findings become singletons.
 - `created` derives from git-first-commit (earliest-evidence rule already used by the normalizer).
-- Citations to update: DECISIONS.md (10 refs), executed plans (14 files), TODO.md/roadmaps.
+- Citations to update: DECISIONS.md, executed plans, TODO.md/roadmaps (the exact per-source counts are re-counted at execution, not hardcoded; the survey observed roughly ten DECISIONS refs and about fourteen plan files).
+- In-research `*-prompt.md` files carry prompt lineage (spec 4.6): each becomes `NN=00` of its research output's set, or a singleton if it has no run output.
+- Excluded (per Scope): nav/index/template/`.gitkeep`/prototype non-`.md` code stay verbatim in place and are NOT counted as migratable.
 - External research artifacts stay VERBATIM in content (only names/frontmatter are added); the no-dash rule applies to what WE author.
+- Moves are applied as tracked git renames (prefer `git mv`, staged not committed) so history is preserved.
 
 ## Findings
 
 | ID | Severity | Remediation Risk | Persona | Area | Finding | Evidence |
 |----|----------|------------------|---------|------|---------|----------|
 | C6-1 | HIGH | Medium | maintainer | dogfood | The convention is unproven until applied to the real corpus; migration is the proof + the value delivery. | spec 9 |
-| C6-2 | HIGH | Medium | integrity | citations | 10 DECISIONS + 14 plan cites must survive the renames. | measured refs |
+| C6-2 | HIGH | Medium | integrity | citations | Every DECISIONS + plan citation must survive the renames (per-source counts re-counted at execution, not hardcoded). | measured refs |
 | C6-3 | MEDIUM | Medium | curation | classification | Initial reference-vs-archive is a reviewed judgment, not a blind default. | spec 4.5/9 |
 
 ## Proposed changes (ordered, validatable)
@@ -94,7 +106,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-Migration is data, validated by the tools: after execution, `aw research index --check` exits 0; the dangling-cite report (Order 04) is empty; a spot-check of >=3 previously-cited docs shows their DECISIONS/plan cites still resolve; the full suite `python -m pytest -q` stays green (PASTE). Record a before/after file count (all accounted for). Leak-clean; no em/en dashes in authored frontmatter/README.
+Migration is data, validated by the tools: after execution, `aw research index --check` exits 0; the dangling-cite report (Order 04) is empty; a spot-check of >=3 previously-cited docs shows their DECISIONS/plan cites still resolve; a sample of moved files shows as git renames (`git log --follow` / `git status` reports `R`, not delete+add); the full suite `python3 -m unittest discover -s tests -t .` stays green (PASTE the `Ran N tests ... OK` summary). Record a before/after file count (every migratable file accounted for, per the Scope include/exclude rule). Leak-clean; no em/en dashes in authored frontmatter/README.
 
 ## Spec / documentation sync
 
@@ -114,15 +126,23 @@ Regenerate `.agents/docs/research/README.md`/INDEX from the migrated state. No s
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: cite Orders 01 to 05 in `executed/` and paste the re-counted file total.
+  - Required evidence: cite Orders 01 to 05 in `executed/` and paste the re-counted MIGRATABLE-content file total (per the Scope include/exclude rule).
+  - Observed evidence:
+  - Result: pending
+- [ ] V-07 validates E-07
+  - Required evidence: paste the full dry-run mapping (old path -> new name + id6 + set/NN) and confirm its row count equals the E-01 before-total with no gaps or duplicates, and that nothing was moved/rewritten before review.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: confirm EVERY file has valid frontmatter (paste the `index --check` frontmatter result).
+  - Required evidence: confirm EVERY migratable file has valid frontmatter (paste the `index --check` frontmatter result).
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: paste a migrated cohort (shared date/set/ordered NN) and a normalized model token.
+  - Required evidence: paste a migrated cohort (shared date/set/ordered NN) and a normalized model token; paste `git status`/`git log --follow` for a sample showing the moves are renames (R), not delete+add.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-08 validates E-08
+  - Required evidence: cite each in-research `*-prompt.md` file and show it is `NN=00` of its set or a well-formed singleton; confirm none is orphaned.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04

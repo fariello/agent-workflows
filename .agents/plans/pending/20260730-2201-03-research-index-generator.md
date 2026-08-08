@@ -3,8 +3,8 @@
 - Date: 2026-07-30
 - Kind: child
 - Concern: make "what did we find re X?" and "what needs addressing?" answerable without reading the corpus, via a tool-generated tiered manifest (INDEX.json = all; INDEX.md = bounded hot glance) and a query verb. Resolves OQ2 (default N) and OQ3 (commit vs generate the index).
-- Scope: index generation + query + drift check, consuming Order-01 frontmatter and Order-02-created docs. No rename (04), no archival moves (05). Requires Orders 01, 02 executed; if their symbols are absent, STOP.
-- Status: to-review
+- Scope: index generation + query + drift check, consuming Order-01 frontmatter, Order-02-created docs, and Order-04's dangling-cite detector primitive (so `--check` catches citation rot, spec 5.2). No rename verbs (04), no archival moves (05). Requires Orders 01, 02, 04 executed; if their symbols are absent, STOP. Executes AFTER Order 04.
+- Status: reviewed
 - Set: research-org
 - Order: 3
 - Highest E allocated: 07
@@ -15,6 +15,7 @@
 - 2026-07-30 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `research-org`; the token-economy payoff (F1/F2).
 - 2026-08-03 quarantined (opencode its_direct/pt3-claude-opus-4.8-1m-us): deferred by the maintainer's IPD-system-first sequencing; quarantined pending re-authoring to the new E-*/V-* shape.
 - 2026-08-03 re-authored (opencode its_direct/pt3-claude-opus-4.8-1m-us): lifted out of quarantine and converted to the new IPD shape (Kind + E-*/V-* bijection + Execution state / Result fields + allocation watermark + OQ-* grammar + Size assessment) per DECISIONS D122; content preserved. Conforms to `aw ipd lint --phase author`.
+- 2026-08-07 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (pytest->unittest), PR-006 (dep on Order 04 + `--check` consumes its dangling detector, spec 5.2's 4th class), PR-011 (OQ2 N=40 configurable; OQ3 commit-the-index confirmed), PR-C03-6 (determinism: byte-compare + total sort), PR-C03-7 (`--agent` output + 0/1/2 exit codes), PR-C03-9 (V asserts reference PRESENT).
 
 ## Goal
 
@@ -26,17 +27,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: index generation
 
-- [ ] E-01 confirm Orders 01+02 are executed and the contract + create verbs are present, else STOP.
+- [ ] E-01 confirm Orders 01+02+04 are executed and the contract + create verbs + Order-04 dangling-cite detector are present, else STOP.
   - Depends on: none
-  - Expected outcome: `research_contract` + the create verbs are importable; if absent the tool halts before generating.
+  - Expected outcome: `research_contract`, the create verbs, and Order 04's dangling-cite primitive are importable; if absent the tool halts before generating.
   - Execution state: pending
-- [ ] E-02 add `aw research index`: scan research frontmatter and build `INDEX.json` (all docs, all fields including the resolved current path).
+- [ ] E-02 add `aw research index`: scan research frontmatter and build `INDEX.json` (all docs, all fields including the resolved current path). The index is a PURE, deterministic function of frontmatter (no model/network/writes beyond the two generated files); INDEX.md ordering uses a total deterministic sort (set last-touched desc, then set-id, then `<id6>`) so equal dates never reorder.
   - Depends on: E-01
-  - Expected outcome: the JSON contains every fixture doc with correct fields.
+  - Expected outcome: the JSON contains every fixture doc with correct fields; regenerating twice yields byte-identical output.
   - Execution state: pending
-- [ ] E-03 generate `INDEX.md`: intake band + most-recent-N (by set last-touched, default N; OQ2), grouped by set, reference included, archive EXCLUDED, with a "do not edit" header.
+- [ ] E-03 generate `INDEX.md`: intake band + most-recent-N (by set last-touched; default N = 40, overridable via a `research_contract` constant and `aw research index --limit N`; resolves OQ2), grouped by set, reference INCLUDED, archive EXCLUDED, with a "do not edit" header.
   - Depends on: E-02
-  - Expected outcome: an archived fixture is absent from INDEX.md but present in JSON; N is honored; intake is shown.
+  - Expected outcome: an archived fixture is absent from INDEX.md but present in JSON; a reference fixture is PRESENT in INDEX.md; N (=40) is honored; intake is shown.
   - Execution state: pending
 
 ### Task group 2: query, drift, docs, tests
@@ -45,9 +46,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-02
   - Expected outcome: each filter returns the expected ids from a fixture set.
   - Execution state: pending
-- [ ] E-05 add `--check`: exit nonzero on drift (missing/invalid frontmatter, name-vs-frontmatter mismatch, stale generated views).
+- [ ] E-05 add `--check`: exit nonzero on drift (missing/invalid frontmatter, name-vs-frontmatter mismatch, stale generated view detected by in-memory regenerate-and-byte-compare, AND a dangling citation via Order 04's imported detector primitive; spec 5.2's four drift classes). Provide `--agent` tab-separated `location\trule\tseverity` output and distinct exit codes (0 clean, 1 drift, 2 could-not-run), mirroring `aw ipd lint`.
   - Depends on: E-02, E-03
-  - Expected outcome: a clean tree passes; a hand-edited stale INDEX.md fails.
+  - Expected outcome: a clean tree passes; a hand-edited stale INDEX.md fails; a dangling citation fails; `--agent` emits machine-readable records.
   - Execution state: pending
 - [ ] E-06 decide and document commit-vs-generate (OQ3) in the README: COMMIT `INDEX.json`+`INDEX.md` (so fresh clones/weak agents have them) and keep them fresh via `--check` (wireable into pre-commit later).
   - Depends on: E-05
@@ -60,8 +61,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Project conventions discovered (Step 0)
 
-- Contract: import parsing/frontmatter/state vocab from Order 01; the index is a pure function of frontmatter (F2), never hand-maintained.
-- Generated-file precedent: dir READMEs are generated no-clobber; INDEX.md is similarly generated (with a "do not edit" header) but IS refreshed (not no-clobber).
+- Contract: import parsing/frontmatter/state vocab from Order 01; the index is a pure, deterministic function of frontmatter (F2), never hand-maintained; no model/network.
+- Dangling-cite detection is NOT reimplemented here; `--check` imports Order 04's `research_refs.py` detector primitive (spec 5.2). This is why Order 03 depends on and runs after Order 04.
+- Generated-file precedent: dir READMEs are generated no-clobber; INDEX.md is similarly generated (with a "do not edit" header) but IS refreshed (not no-clobber). Determinism + `--agent` output + distinct exit codes follow the `aw ipd lint` precedent.
 - CLI: extend the `research` subcommand group from Order 02.
 
 ## Findings
@@ -79,7 +81,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | 1 | 4.7/5.2 | `aw research index`: scan research frontmatter, build `INDEX.json` (all docs, all fields incl. resolved current path). | `agent_workflows/research_cmd.py`, `agent_workflows/research_index.py` (new) | Low | E-02 |
 | 2 | 4.8/4.9 | Generate `INDEX.md`: intake band + most-recent-N (by set last-touched, default N; OQ2), grouped by set, reference included, archive EXCLUDED; "do not edit" header. | `agent_workflows/research_index.py` | Low | E-03 |
 | 3 | 5.5 | `aw research find --id|--set|--topic|--status`: query INDEX.json, print terse rows. | `agent_workflows/research_cmd.py` | Low | E-04 |
-| 4 | 5.2/F4 | `--check`: nonzero on drift (missing/invalid frontmatter, name-vs-frontmatter mismatch, stale generated views). | `agent_workflows/research_index.py` | Low | E-05 |
+| 4 | 5.2/F4 | `--check`: nonzero on drift (missing/invalid frontmatter, name-vs-frontmatter mismatch, stale generated view via byte-compare, dangling citation via Order 04's detector); `--agent` output + 0/1/2 exit codes. | `agent_workflows/research_index.py` | Low | E-05 |
 | 5 | OQ3 | Decide + document commit-vs-generate: COMMIT `INDEX.json`+`INDEX.md` (fresh clones/weak agents have them) and keep them fresh via `--check` (wireable into pre-commit later). | `.agents/docs/research/README.md` | Low | E-06 |
 
 ## Deferred / out of scope (with reason)
@@ -96,7 +98,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-`tests/test_research_index.py`: JSON completeness; INDEX.md bounded + archive-excluded + intake-shown + N honored; `find` filters; `--check` clean-vs-drift. Run it + full `python -m pytest -q`; PASTE both. Leak-clean; no em/en dashes.
+`tests/test_research_index.py`: JSON completeness; INDEX.md bounded + archive-excluded + reference-INCLUDED + intake-shown + N(=40) honored; determinism (regenerate twice, byte-identical); `find` filters; `--check` clean-vs-drift for all four classes incl. dangling-citation; `--agent` output shape + exit codes. Run it + full `python3 -m unittest discover -s tests -t .`; PASTE both (the `Ran N tests ... OK` summary). Leak-clean; no em/en dashes.
 
 ## Spec / documentation sync
 
@@ -109,7 +111,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Blocking: no
 - Status: resolved
 - Owner: this child
-- Resolution or deferral rationale: OQ2 default N is adopted at a lean of 30 to 50, and OQ3 is resolved to COMMIT the generated `INDEX.json`+`INDEX.md` and keep them fresh via `--check`. Confirm both leans at review; if either changes, only this child changes.
+- Resolution or deferral rationale: RESOLVED at review (2026-08-07). OQ2: default N = 40, overridable via a `research_contract` constant and `aw research index --limit N`. OQ3: COMMIT the generated `INDEX.json`+`INDEX.md` (so fresh clones and weak agents have them) and keep them fresh via the `--check` gate (wireable into pre-commit later).
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -120,11 +122,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: paste a JSON snippet showing all fixture docs + fields.
+  - Required evidence: paste a JSON snippet showing all fixture docs + fields; confirm regenerating the index twice yields byte-identical output (determinism).
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: paste INDEX.md fixture output; confirm the archived doc is ABSENT, intake is present, and N is honored.
+  - Required evidence: paste INDEX.md fixture output; confirm the archived doc is ABSENT, a reference doc is PRESENT, intake is present, and N (=40) is honored.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
@@ -132,7 +134,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: confirm a clean tree passes and a stale INDEX.md fails; cite.
+  - Required evidence: confirm a clean tree passes, a stale INDEX.md fails, AND a dangling citation fails (via Order 04's imported detector); paste a sample `--agent` tab-separated record and confirm exit codes 0/1/2; cite.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06
@@ -140,7 +142,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-07 validates E-07
-  - Required evidence: paste `pytest tests/test_research_index.py -q` + the full-suite summary (new tests pass, suite green); leak-clean.
+  - Required evidence: paste `python3 -m unittest tests.test_research_index -v` + the full-suite `Ran N tests ... OK` summary (new tests pass, suite green); leak-clean.
   - Observed evidence:
   - Result: pending
 
