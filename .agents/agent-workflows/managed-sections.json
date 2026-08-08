@@ -88,7 +88,7 @@
       "host": "",
       "kind": "file",
       "logical_id": "",
-      "sha256": "1f4bd0f04f6cff204434cf169ce64a16a1f2fd8225e6a65bd5c04c368b6e566f"
+      "sha256": "e673a449c65b4a9ac54debce03e6538ab48a5d3ec568f702197f9d0215b09611"
     },
     ".agents/workflows/assess/lenses/accessibility.md": {
       "host": "",
@@ -298,13 +298,13 @@
       "host": "",
       "kind": "file",
       "logical_id": "",
-      "sha256": "fa8aa1d5f6ed0d8fe7b89a7a92e8b76abd263bf09b1243cd1fdb8ab7ad622cbf"
+      "sha256": "dc037b1e6f710135f11d89493feae9c7e467629111aaff8de43cf82780840184"
     },
     ".agents/workflows/assess/templates/orchestrator-ipd.md": {
       "host": "",
       "kind": "file",
       "logical_id": "",
-      "sha256": "2f14227dd93c1baa13b58ded8b7764308c5989736f53f924ebe8395b3436be30"
+      "sha256": "fcbbb72f517cc589f2cd293cd025fc9629aa69b394c719eee98d60f9ae33206a"
     },
     ".agents/workflows/assess/templates/run-report.md": {
       "host": "",
@@ -400,7 +400,19 @@
       "host": "",
       "kind": "file",
       "logical_id": "",
-      "sha256": "9f0a7eca5a0b2d9797ee5ccdb8784607713bc272ce5841a06012ada4ca3a225d"
+      "sha256": "a2bb54749d718779ea435a4b483f9f46f4976b071562825484a8137fa95a2c9c"
+    },
+    ".agents/workflows/ipd-lifecycle/README.md": {
+      "host": "",
+      "kind": "file",
+      "logical_id": "",
+      "sha256": "0f9b986d80f7ba05688ad7b617000498e281b20ba6c3a73c5b37a984954c23e9"
+    },
+    ".agents/workflows/ipd-lifecycle/ipd-lifecycle.md": {
+      "host": "",
+      "kind": "file",
+      "logical_id": "",
+      "sha256": "8555ca674f1747beb5b5313fa890acaa5617f2ac5a3f47bef5cf598af7173e84"
     },
     ".agents/workflows/list-workflows/README.md": {
       "host": "",
@@ -430,7 +442,7 @@
       "host": "",
       "kind": "file",
       "logical_id": "",
-      "sha256": "e6a19c9ee776b272227b8213b4f109c8e56944384abb377a5886b4d640f60413"
+      "sha256": "132091c90e3b975a98906a96bcc134aa528405fd49958993f64dc8a60781be1b"
     },
     ".agents/workflows/plan-review-long/02-review-and-revise.md": {
       "host": "",
@@ -442,7 +454,7 @@
       "host": "",
       "kind": "file",
       "logical_id": "",
-      "sha256": "0dd128c95ad8cef558af714f91a15ad1ded8900318f0ae5d2c6eb3ab262b8f2a"
+      "sha256": "21c6386d2e16df4556a705ffedd38c740cb821acc64749f29b0051e65e5dc8f2"
     },
     ".agents/workflows/plan-review-long/README.md": {
       "host": "",
@@ -466,7 +478,7 @@
       "host": "",
       "kind": "file",
       "logical_id": "",
-      "sha256": "94228606763215f509c2401f5feaa7cf19ae506643899751a084a930afa100b2"
+      "sha256": "d7fae7f18a24ed15b514c48534dd0037848097c5d3ae760804aee3ec99cabc18"
     },
     ".agents/workflows/plan-review/README.md": {
       "host": "",
@@ -478,7 +490,7 @@
       "host": "",
       "kind": "file",
       "logical_id": "",
-      "sha256": "8b7b6bada7910d53c4a3decfb5c56df00169331ec72d4dc1cc4c0040eace5071"
+      "sha256": "7c9862808214b20d756280082cce9e6eff64cd8553ad48685cc7b48f70716f8b"
     },
     ".agents/workflows/release-notes/README.md": {
       "host": "",
@@ -496,7 +508,7 @@
       "host": "",
       "kind": "file",
       "logical_id": "",
-      "sha256": "298c5ee3c9a396c8a70d069bf760080a751c21cf8af3aee5875347df0fe1febd"
+      "sha256": "158347ba71e7f8271e1daa4095db59559d2dd130b252fa54acf996893ed1b0a9"
     },
     ".agents/workflows/release-review/01-current-state.md": {
       "host": "",
@@ -924,6 +936,12 @@
       "logical_id": "incident",
       "sha256": "9c934b56e47bc3afc5c9ae969769c279d253ccb768c74decc5b9aaf90870cff3"
     },
+    ".claude/commands/ipd-lifecycle.md": {
+      "host": "claude",
+      "kind": "shim",
+      "logical_id": "ipd-lifecycle",
+      "sha256": "90ca120cf764c185acd1555bd6c59590023eab0191478e576362a67e32fa02f0"
+    },
     ".claude/commands/list-workflows.md": {
       "host": "claude",
       "kind": "shim",
@@ -1055,6 +1073,12 @@
       "kind": "shim",
       "logical_id": "incident",
       "sha256": "ae1798cad71275019c59dbda7fee6896c9945493c0c59f2f392fb2f95cc4d120"
+    },
+    ".opencode/commands/ipd-lifecycle.md": {
+      "host": "opencode",
+      "kind": "shim",
+      "logical_id": "ipd-lifecycle",
+      "sha256": "7f4d6f24fb3a3267f3f11df1c9741dda3235b453f5baa012e8040e3025101b05"
     },
     ".opencode/commands/list-workflows.md": {
       "host": "opencode",
