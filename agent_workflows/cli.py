@@ -219,6 +219,47 @@ def _build_parser() -> argparse.ArgumentParser:
         "--disposition", default=None, help="Filter by disposition dir."
     )
 
+    p_plans_setassign = sub.add_parser(
+        "plans-set-assign",
+        parents=[common],
+        help="Group plans into a Set (Set/Order metadata; --rename to cluster). Alias: 'plans set-assign'.",
+    )
+    p_plans_setassign.add_argument(
+        "ids", nargs="+", help="One or more plan <id6> tokens, in order."
+    )
+    p_plans_setassign.add_argument("--set", dest="set", required=True, help="Set id.")
+    p_plans_setassign.add_argument(
+        "--order", type=int, default=None, help="Starting Order (default 0)."
+    )
+    p_plans_setassign.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_plans_setassign.add_argument(
+        "--rename", action="store_true", help="Also rename to the clustering grammar."
+    )
+    p_plans_setassign.add_argument(
+        "--apply",
+        action="store_true",
+        help="Perform the changes (default is preview only).",
+    )
+    p_plans_mv = sub.add_parser(
+        "plans-mv",
+        parents=[common],
+        help="Rename/re-slug one plan to the clustering grammar, keeping Id. Alias: 'plans mv'.",
+    )
+    p_plans_mv.add_argument("id", help="The plan <id6>.")
+    p_plans_mv.add_argument("--slug", default=None, help="New slug.")
+    p_plans_mv.add_argument("--set", dest="set", default=None, help="New Set id.")
+    p_plans_mv.add_argument("--order", type=int, default=None, help="New Order.")
+    p_plans_mv.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_plans_mv.add_argument(
+        "--apply",
+        action="store_true",
+        help="Perform the rename (default is preview only).",
+    )
+
     p_ipd = sub.add_parser(
         "ipd",
         parents=[common],
@@ -1613,7 +1654,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     if (
         len(argv_list) >= 2
         and argv_list[0] == "plans"
-        and argv_list[1] in ("index", "find")
+        and argv_list[1] in ("index", "find", "set-assign", "mv")
     ):
         argv_list = ["plans-" + argv_list[1]] + argv_list[2:]
         argv = argv_list
@@ -1661,6 +1702,14 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         from agent_workflows import plans_index as pidx
 
         return pidx.run_find(args)
+    if args.command == "plans-set-assign":
+        from agent_workflows import plans_refs as prefs
+
+        return prefs.run_set_assign(args)
+    if args.command == "plans-mv":
+        from agent_workflows import plans_refs as prefs
+
+        return prefs.run_mv(args)
     if args.command == "plan-names":
         return _run_plan_names(args, term)
     if args.command == "ipd":
