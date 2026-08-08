@@ -252,6 +252,80 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Write the change (default is preview only).",
     )
 
+    p_research = sub.add_parser(
+        "research",
+        parents=[common],
+        help="Research artifact tooling. 'research new'/'new-comparison' create correctly-named docs.",
+    )
+    research_sub = p_research.add_subparsers(dest="research_command")
+    p_research_new = research_sub.add_parser(
+        "new",
+        parents=[common],
+        help="Create a correctly-named research doc + starter frontmatter (dry-run by default; --apply to write).",
+    )
+    p_research_new.add_argument(
+        "dir", nargs="?", default=None, help="Repo root (default: current directory)."
+    )
+    p_research_new.add_argument(
+        "--kind", required=True, help="Research kind (see the contract vocab)."
+    )
+    p_research_new.add_argument(
+        "--slug", default=None, help="Short descriptive kebab slug."
+    )
+    p_research_new.add_argument("--summary", default="", help="One-line human summary.")
+    p_research_new.add_argument(
+        "--set",
+        dest="set",
+        default=None,
+        help="Set id (omitted = a singleton from the slug).",
+    )
+    p_research_new.add_argument(
+        "--model", default=None, help="Optional authorship-facet model."
+    )
+    p_research_new.add_argument("--topic", default=None, help="Comma-separated topics.")
+    p_research_new.add_argument(
+        "--date", default=None, help="Override the set date (YYYYMMDD)."
+    )
+    p_research_new.add_argument(
+        "--apply", action="store_true", help="Write the file (default is preview only)."
+    )
+    p_research_new.add_argument(
+        "--overwrite", action="store_true", help="Allow overwriting an existing path."
+    )
+
+    p_research_cmp = research_sub.add_parser(
+        "new-comparison",
+        parents=[common],
+        help="Scaffold a multi-model comparison set (prompt + one report per model + reconciliation).",
+    )
+    p_research_cmp.add_argument(
+        "dir", nargs="?", default=None, help="Repo root (default: current directory)."
+    )
+    p_research_cmp.add_argument(
+        "--set", dest="set", required=True, help="Set id for the comparison."
+    )
+    p_research_cmp.add_argument(
+        "--slug", required=True, help="Short descriptive kebab slug."
+    )
+    p_research_cmp.add_argument(
+        "--models",
+        required=True,
+        help="Comma-separated models (e.g. gpt56,sonnet5,gemini31pro).",
+    )
+    p_research_cmp.add_argument("--summary", default="", help="One-line human summary.")
+    p_research_cmp.add_argument("--topic", default=None, help="Comma-separated topics.")
+    p_research_cmp.add_argument(
+        "--date", default=None, help="Override the set date (YYYYMMDD)."
+    )
+    p_research_cmp.add_argument(
+        "--apply",
+        action="store_true",
+        help="Write the files (default is preview only).",
+    )
+    p_research_cmp.add_argument(
+        "--overwrite", action="store_true", help="Allow overwriting an existing path."
+    )
+
     p_names = sub.add_parser(
         "plan-names",
         parents=[common],
@@ -1387,6 +1461,18 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import ipd_authoring
 
             return ipd_authoring.run_sync(args)
+        parser.print_help()
+        return 2
+    if args.command == "research":
+        research_cmd = getattr(args, "research_command", None)
+        if research_cmd == "new":
+            from agent_workflows import research_cmd as rc
+
+            return rc.run_new(args)
+        if research_cmd == "new-comparison":
+            from agent_workflows import research_cmd as rc
+
+            return rc.run_new_comparison(args)
         parser.print_help()
         return 2
     if args.command in ("check-local-leaks", "sanitize"):
