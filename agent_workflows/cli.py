@@ -173,6 +173,52 @@ def _build_parser() -> argparse.ArgumentParser:
         help="(Re)generate .agents/plans/STATUS.md instead of printing.",
     )
 
+    # The plans manifest verbs are separate top-level parsers (`plans-index`, `plans-find`) to avoid
+    # colliding the `plans <dir>` positional with an argparse subparser; a thin `aw plans index` /
+    # `aw plans find` alias is routed in `_dispatch` before the main parser runs (see below).
+    p_plans_index = sub.add_parser(
+        "plans-index",
+        parents=[common],
+        help="Regenerate .agents/plans/INDEX.json + a browse-by-Set INDEX.md; --check fails on drift. Alias: 'plans index'.",
+    )
+    p_plans_index.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_plans_index.add_argument(
+        "--check",
+        action="store_true",
+        help="Fail (nonzero) on drift instead of regenerating.",
+    )
+    p_plans_index.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Browse-by-Set view size (default 40 Sets).",
+    )
+    p_plans_index.add_argument(
+        "--agent",
+        action="store_true",
+        help="Machine output for --check: tab-separated records.",
+    )
+    p_plans_find = sub.add_parser(
+        "plans-find",
+        parents=[common],
+        help="Query the plans manifest by --id/--set/--status/--disposition. Alias: 'plans find'.",
+    )
+    p_plans_find.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_plans_find.add_argument("--id", default=None, help="Filter by plan <id6>.")
+    p_plans_find.add_argument(
+        "--set", dest="set", default=None, help="Filter by Set id."
+    )
+    p_plans_find.add_argument(
+        "--status", default=None, help="Filter by readiness status."
+    )
+    p_plans_find.add_argument(
+        "--disposition", default=None, help="Filter by disposition dir."
+    )
+
     p_ipd = sub.add_parser(
         "ipd",
         parents=[common],
@@ -1560,6 +1606,17 @@ def _run_check_local_leaks(args: argparse.Namespace, term: Term) -> int:
 
 def _dispatch(argv: Optional[Sequence[str]]) -> int:
     parser = _build_parser()
+    # Alias: `aw plans index` / `aw plans find` -> the `plans-index` / `plans-find` parsers, so the
+    # ergonomic `plans <verb>` form works without colliding the `plans <dir>` positional with an
+    # argparse subparser.
+    argv_list = list(sys.argv[1:] if argv is None else argv)
+    if (
+        len(argv_list) >= 2
+        and argv_list[0] == "plans"
+        and argv_list[1] in ("index", "find")
+    ):
+        argv_list = ["plans-" + argv_list[1]] + argv_list[2:]
+        argv = argv_list
     args = parser.parse_args(argv)
 
     term = Term(color=False if args.no_color else None)
@@ -1596,6 +1653,14 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return _run_setup(args, term)
     if args.command == "plans":
         return _run_plans(args, term)
+    if args.command == "plans-index":
+        from agent_workflows import plans_index as pidx
+
+        return pidx.run_index(args)
+    if args.command == "plans-find":
+        from agent_workflows import plans_index as pidx
+
+        return pidx.run_find(args)
     if args.command == "plan-names":
         return _run_plan_names(args, term)
     if args.command == "ipd":
