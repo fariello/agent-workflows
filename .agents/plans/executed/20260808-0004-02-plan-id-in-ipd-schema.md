@@ -4,18 +4,18 @@
 - Kind: child
 - Concern: give every plan a stable, greppable citation handle that survives renaming/regrouping, expressed as a single `- Id:` line in the EXISTING `ipd_schema` metadata block (NOT a research-style frontmatter block, avoiding collision with `Set:`/`Order:`/`Status:`/`Kind:`/watermark).
 - Scope: add `Id` (6-char base36 from the Order-01 core) as a REQUIRED plan metadata field in `agent_workflows/ipd_schema.py`; have `aw ipd lint` validate it; have `aw ipd scaffold`/`sync` emit it. No manifest, no rename, no migration. Requires Order 01 (`artifact_core`).
-- Status: approved
+- Status: executed
 - Set: plans-adopter
 - Order: 2
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
-- Approval: 2026-08-08 human maintainer (via opencode its_direct/pt3-claude-opus-4.8-1m-us): "Approved all. Please read and execute the orchestrator."
 - Id: 2bpoz6
 
 ## Workflow history
 
 - 2026-08-08 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `plans-adopter`; the identity layer for plans. Authored from spec `20260808-0004-01` Section 4.2 + OQ2.
 - 2026-08-08 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001/C2-3 (HIGH): added E-06 to repair every in-repo conforming fixture lacking Id (conforming-orchestrator.md, _conforming_child ~22x, templates) in lockstep with making Id required, else ~28 conformance/exact-diagnostic tests would flip to error; corrected OQ-01 (no metadata field-order rule exists).
+- 2026-08-08 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): added required `- Id:` to ipd_schema (validated via artifact_core) + emit in build_skeleton + scaffold generation + sync backfill; regenerated templates (fixed placeholder tmp1d6, parity test pinned); repaired conforming-orchestrator.md/_conforming_child/MetadataTests.BASE in lockstep (E-06); backfilled Id into the in-flight plans-adopter plans. Product commit 0b3a23d; full suite green (Ran 647 tests OK, skipped=1); leak-clean; no em/en dashes. All E-01..E-06 performed and V-01..V-06 pass.
 - 2026-08-08 /plan-review (Antigravity Agent): APPROVE; (none)
 
 ## Goal
@@ -28,33 +28,33 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: schema + linter
 
-- [ ] E-01 add `Id` to the `ipd_schema` recognized metadata fields, sourced from `artifact_core`'s id6 grammar; define its position in the metadata block (after `Author`, or a defined slot) and its validity rule (exactly a 6-char base36 token).
+- [x] E-01 add `Id` to the `ipd_schema` recognized metadata fields, sourced from `artifact_core`'s id6 grammar; define its position in the metadata block (after `Author`, or a defined slot) and its validity rule (exactly a 6-char base36 token).
   - Depends on: none
   - Expected outcome: `ipd_schema` recognizes and can validate an `- Id:` line.
-  - Execution state: pending
-- [ ] E-02 make `Id` REQUIRED for all plans (OQ2): a missing or malformed `Id` is a lint error. Grandfather nothing at the schema level; the migration (Order 06) backfills existing plans, and until then the `--legacy` path (terminal grandfathered plans) is unaffected.
+  - Execution state: performed
+- [x] E-02 make `Id` REQUIRED for all plans (OQ2): a missing or malformed `Id` is a lint error. Grandfather nothing at the schema level; the migration (Order 06) backfills existing plans, and until then the `--legacy` path (terminal grandfathered plans) is unaffected.
   - Depends on: E-01
   - Expected outcome: `aw ipd lint` on a conforming plan WITHOUT an `Id` reports a precise error; WITH a valid `Id` passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: authoring tools + tests + templates
 
-- [ ] E-03 update `aw ipd scaffold` to generate a fresh collision-checked `Id` (using the core generator, checked against ids already present under `.agents/plans/**`) and emit the `- Id:` line in the skeleton.
+- [x] E-03 update `aw ipd scaffold` to generate a fresh collision-checked `Id` (using the core generator, checked against ids already present under `.agents/plans/**`) and emit the `- Id:` line in the skeleton.
   - Depends on: E-01
   - Expected outcome: a scaffolded plan carries a valid unique `- Id:`.
-  - Execution state: pending
-- [ ] E-04 update `aw ipd sync` to BACKFILL a missing `Id` (assign a fresh collision-checked id, dry-run default + `--apply`), without touching an existing one.
+  - Execution state: performed
+- [x] E-04 update `aw ipd sync` to BACKFILL a missing `Id` (assign a fresh collision-checked id, dry-run default + `--apply`), without touching an existing one.
   - Depends on: E-01
   - Expected outcome: `sync` on a plan lacking `Id` proposes/writes one; on a plan with `Id` leaves it unchanged.
-  - Execution state: pending
-- [ ] E-05 regenerate the IPD templates (`assess/templates/ipd.md` + `orchestrator-ipd.md`) to include the `- Id:` line (byte-parity with `ipd_authoring.build_skeleton`); extend `tests/test_ipd_schema`/`test_ipd_lint`/`test_ipd_authoring`/`test_ipd_templates` for the new field; run the file(s) plus the full suite and paste both.
+  - Execution state: performed
+- [x] E-05 regenerate the IPD templates (`assess/templates/ipd.md` + `orchestrator-ipd.md`) to include the `- Id:` line (byte-parity with `ipd_authoring.build_skeleton`); extend `tests/test_ipd_schema`/`test_ipd_lint`/`test_ipd_authoring`/`test_ipd_templates` for the new field; run the file(s) plus the full suite and paste both.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: templates carry `Id`; new/updated tests pass; full suite green.
-  - Execution state: pending
-- [ ] E-06 REPAIR every existing in-repo "conforming" fixture that lacks `- Id:` so making `Id` required does not flip conformance/exact-diagnostic assertions to error: backfill a valid `- Id:` into `tests/fixtures/conforming-orchestrator.md` and into the `_conforming_child()` builder in `tests/test_ipd_lint.py` (used ~22 times), and into any other in-code conforming IPD string (e.g. `_conforming_orchestrator` helpers). This MUST land in the same change as E-02 (making Id required) so the suite never goes red between steps.
+  - Execution state: performed
+- [x] E-06 REPAIR every existing in-repo "conforming" fixture that lacks `- Id:` so making `Id` required does not flip conformance/exact-diagnostic assertions to error: backfill a valid `- Id:` into `tests/fixtures/conforming-orchestrator.md` and into the `_conforming_child()` builder in `tests/test_ipd_lint.py` (used ~22 times), and into any other in-code conforming IPD string (e.g. `_conforming_orchestrator` helpers). This MUST land in the same change as E-02 (making Id required) so the suite never goes red between steps.
   - Depends on: E-02
   - Expected outcome: `tests/fixtures/conforming-orchestrator.md` and `_conforming_child()` carry a valid `Id`; the ~22 `_conforming_child` assertions and the fixture-based `test_ipd_lint`/`test_ipd_schema` conformance/exact-diagnostic tests pass unchanged in intent (no stray `meta.missing` diagnostic).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -116,30 +116,30 @@ The `ipd-spec` doc (`.agents/docs/specs/20260726-1340-01-ipd-spec.md`) is update
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a test showing `ipd_schema` recognizes `- Id:` and validates a 6-char base36 token (rejects wrong length/charset), sourced from `artifact_core`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `MetadataTests::test_id_must_be_valid_id6` passes: `Id="TOOLONGX"` yields an `Id` MetaError; `Id="abc123"` yields none. `ipd_schema.validate_metadata` calls `_core.is_valid_id6` (the shared-core primitive). `Id` is in `META_REQUIRED` -> `META_RECOGNIZED`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste `aw ipd lint` output: a plan missing `Id` fails with a precise message; the same plan with a valid `Id` conforms; confirm `--legacy` terminal plans are unaffected.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: Live: the still-pending plans-adopter plans (lacking Id) reported `IPD-M101  Id: required field missing` under `aw ipd lint --phase pre-execution`; after backfilling a valid `- Id:` they all reported `DISPOSITION conforming`. `MetadataTests::test_id_is_required` passes. Terminal-dir plans stay `legacy/not evaluated` (executed Order 01 lints legacy, unaffected).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste a scaffolded plan showing a valid unique `- Id:`; confirm two scaffolds produce different ids.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `ScaffoldTests::test_scaffold_emits_unique_valid_id` passes: two scaffolds produce two DIFFERENT valid 6-char base36 ids via `_core.generate_id6(_existing_plan_ids(...))`.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste `aw ipd sync` proposing an `Id` for a plan lacking one and leaving an existing `Id` unchanged.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `SyncTests::test_sync_backfills_missing_id_and_leaves_present_id` passes: `run_sync --apply` on a plan lacking `Id` backfills a valid one after `- Author:`; re-running leaves exactly one unchanged Id. (Note: sync refuses on `approved` plans, so the in-flight approved plans-adopter plans were backfilled by the equivalent mechanical insertion, recorded in the Order-02 commit.)
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: confirm both templates carry `- Id:` with byte-parity to `build_skeleton`; paste the affected test files' results + the full-suite `Ran N tests ... OK` summary; leak-clean.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `assess/templates/ipd.md` and `orchestrator-ipd.md` carry `- Id: tmp1d6`; `TemplateParityTests` (pinning `plan_id=TEMPLATE_ID`) pass, as do the template-conforms-at-author tests. `python3 -m unittest tests.test_ipd_schema tests.test_ipd_authoring tests.test_ipd_lint tests.test_ipd_templates tests.test_artifact_core` -> `Ran 116 tests ... OK`. `aw sanitize --agent` exit 0.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: confirm `tests/fixtures/conforming-orchestrator.md` and `_conforming_child()` (and any other in-code conforming IPD) carry a valid `- Id:`; paste `python3 -m unittest tests.test_ipd_lint tests.test_ipd_schema -v` showing the previously-conforming fixtures still conform (no stray `meta.missing`); confirm this landed together with E-02 (no red intermediate state).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/fixtures/conforming-orchestrator.md` carries `- Id: fix000`; `_conforming_child()` carries `- Id: abc123`; `MetadataTests.BASE` carries `Id`. `python3 -m unittest tests.test_ipd_lint tests.test_ipd_schema` pass (no stray `meta.missing`). All landed in the single Order-02 product commit 0b3a23d (schema + fixtures together, no red intermediate state); full suite `Ran 647 tests OK, skipped=1`.
+  - Result: pass
 
 ## Approval and execution gate
 
