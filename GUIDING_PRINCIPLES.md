@@ -55,10 +55,13 @@ Boundaries (when an in-file marker or a stable path is still right):
   ONE primary lifecycle axis in the path. Orthogonal or secondary attributes
   (readiness, grouping, ordering) stay as in-file fields. This is why plans keep
   disposition in the directory but `Status:`, `Set:`, and `Order:` in the file.
-- Do not move artifacts that are cited by a stable path. Durable knowledge (research
-  analysis notes, specs) is referenced by path; there, citation stability outweighs
-  glanceability, so keep the path stable and let an in-file `Status:` carry the rare
-  state change (for example current vs superseded).
+- Do not move artifacts that are cited by a stable PATH. Specs are referenced by path; there,
+  citation stability outweighs glanceability, so keep the spec path stable and let an in-file
+  `Status:` carry the rare state change (for example current vs superseded). Research is the
+  EXCEPTION: research is cited by its stable `<id6>` (resolved via the tool-maintained manifest),
+  not by path, so research files are freely movable between states and weekly shards without
+  breaking citations. Use the `aw research` / `aw archive` verbs (never hand-move or hand-name
+  research); the rename tool updates references and flags danglers.
 - If the file must be opened anyway for the task, an in-file marker is fine.
 
 ## 6. KISS, and guard against scope creep

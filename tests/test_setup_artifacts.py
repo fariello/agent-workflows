@@ -55,6 +55,12 @@ class SetupArtifactTests(unittest.TestCase):
                 (self.repo / ".agents/docs" / sub / ".gitkeep").is_file(),
                 f"missing docs dir {sub}",
             )
+        # Research cold-shard parents (research-org Order 07).
+        for sub in ("research/reference", "research/archive"):
+            self.assertTrue(
+                (self.repo / ".agents/docs" / sub / ".gitkeep").is_file(),
+                f"missing research shard dir {sub}",
+            )
         # Prompts staging buckets (D91): all 5, mirroring plans.
         for sub in ("pending", "executed", "superseded", "not-executed", "reusable"):
             self.assertTrue(
@@ -133,12 +139,13 @@ class SetupArtifactTests(unittest.TestCase):
         created = engine.create_setup_artifacts(self.repo, use_git)
         # 5 plan-dir gitkeeps (pending/executed/superseded/not-executed/reusable)
         # + 4 docs-dir gitkeeps (research/walkthroughs/specs/prompts)
+        # + 2 research shard gitkeeps (research/reference, research/archive) (research-org Order 07)
         # + 5 prompts-dir gitkeeps (pending/executed/superseded/not-executed/reusable) (D91)
         # + prompts .gitignore (D94 local/ lane; the mkdir'd local/ dirs are side-effect-only,
         #   NOT counted)
         # + gitleaksignore + secret-scan CI
-        # + comms .gitignore + comms README + 3 comms shared/ gitkeeps (inbox/sent/archive) = 22.
-        self.assertEqual(len(created), 22)
+        # + comms .gitignore + comms README + 3 comms shared/ gitkeeps (inbox/sent/archive) = 24.
+        self.assertEqual(len(created), 24)
 
     def test_install_does_not_touch_target_root_gitignore(self):
         # The comms nested .gitignore is a created deliverable; the ROOT .gitignore must not be
@@ -189,6 +196,18 @@ class PromptsScaffoldTests(unittest.TestCase):
         created = engine.create_setup_artifacts(self.repo, use_git, dry_run=True)
         for sub in engine.PROMPT_LIFECYCLE_SUBDIRS:
             keep = f".agents/prompts/{sub}/.gitkeep"
+            self.assertTrue(
+                any(c.startswith(keep) for c in created),
+                f"dry-run did not report {keep}: {created}",
+            )
+            self.assertFalse((self.repo / keep).exists(), f"dry-run wrote {keep}")
+
+    def test_dry_run_reports_research_shards_without_writing(self):
+        # Dry-run/real parity for the new research shard dirs (research-org Order 07).
+        use_git = engine.git_available(self.repo)
+        created = engine.create_setup_artifacts(self.repo, use_git, dry_run=True)
+        for sub in engine.RESEARCH_SHARD_SUBDIRS:
+            keep = f".agents/docs/{sub}/.gitkeep"
             self.assertTrue(
                 any(c.startswith(keep) for c in created),
                 f"dry-run did not report {keep}: {created}",
@@ -266,10 +285,10 @@ class LocalLeaksBackstopTests(unittest.TestCase):
     def tearDown(self):
         self._tmp.cleanup()
 
-    def test_default_setup_artifacts_unchanged_count_22(self):
+    def test_default_setup_artifacts_unchanged_count_24(self):
         # G6: the off-by-default backstop MUST NOT leak into the always-on path.
         created = engine.create_setup_artifacts(self.repo, use_git=False)
-        self.assertEqual(len(created), 22)
+        self.assertEqual(len(created), 24)
         # And neither backstop file is written by the default path.
         self.assertFalse((self.repo / engine.LOCAL_LEAKS_CI).exists())
         self.assertFalse((self.repo / engine.PRE_COMMIT_CONFIG).exists())

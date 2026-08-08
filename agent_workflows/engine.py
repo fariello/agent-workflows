@@ -627,8 +627,11 @@ def agents_pointer_prose() -> str:
         "3. It instructs the target AI to return its answer as a DOWNLOADABLE markdown (`.md`) file, "
         "so the result can be handed back for consumption.\n\n"
         "### Durable reference and walkthroughs documentation\n"
-        "1. Immortalize research/analysis you rely on for a decision to `.agents/docs/research/` "
-        "using `YYYYMMDD-HHMM-NN-<slug>.md`.\n"
+        "1. Immortalize research/analysis you rely on for a decision to `.agents/docs/research/`. Do "
+        "NOT hand-name research files or hand-maintain the index: use the `aw research` and `aw "
+        "archive` verbs (`aw research new`/`new-comparison` to create, `index [--check]`/`find` to "
+        "manage the manifest, `set-assign`/`mv` to regroup, `aw archive` to deep-shelve). See `aw "
+        "research --help` and `.agents/docs/research/README.md`.\n"
         "2. Save narrative walkthroughs to `.agents/docs/walkthroughs/` with "
         "`...-walkthrough.md`.\n"
         "3. If you keep plans/IPDs or walkthroughs in a private, hidden, or tool-internal "
@@ -3335,6 +3338,13 @@ DOCS_SUBDIRS = (
     "specs",
     "prompts",
 )
+# Research cold-shard parents (research-org Order 07). Weekly `YYYYMM-Www/` shards are created on
+# demand by `aw archive`; the installer only scaffolds the two parent dirs so the layout is
+# discoverable in a fresh repo.
+RESEARCH_SHARD_SUBDIRS = (
+    "research/reference",
+    "research/archive",
+)
 # Operational staging for run-once / research prompts that are QUEUED to be executed (D91),
 # distinct from `.agents/docs/prompts/` (the evergreen copy-paste prompt LIBRARY). Mirrors the
 # plan lifecycle buckets so the `aw plans` board and the name-normalizer treat it on par with
@@ -3834,6 +3844,10 @@ def create_setup_artifacts(
             keep = f"{DOCS_DIR}/{sub}/.gitkeep"
             if not (repo_root / keep).exists():
                 created.append(keep + " [dry-run]")
+        for sub in RESEARCH_SHARD_SUBDIRS:
+            keep = f"{DOCS_DIR}/{sub}/.gitkeep"
+            if not (repo_root / keep).exists():
+                created.append(keep + " [dry-run]")
         for sub in PROMPT_LIFECYCLE_SUBDIRS:
             keep = f"{PROMPTS_DIR}/{sub}/.gitkeep"
             if not (repo_root / keep).exists():
@@ -3860,6 +3874,8 @@ def create_setup_artifacts(
             repo_root, f"{PLANS_DIR}/{sub}/.gitkeep", "", use_git, created
         )
     for sub in DOCS_SUBDIRS:
+        _create_if_absent(repo_root, f"{DOCS_DIR}/{sub}/.gitkeep", "", use_git, created)
+    for sub in RESEARCH_SHARD_SUBDIRS:
         _create_if_absent(repo_root, f"{DOCS_DIR}/{sub}/.gitkeep", "", use_git, created)
     for sub in PROMPT_LIFECYCLE_SUBDIRS:
         _create_if_absent(
