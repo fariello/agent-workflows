@@ -4,18 +4,18 @@
 - Kind: child
 - Concern: make "what plans did we do about X?" answerable at a glance by surfacing the existing `Set:` grouping in a generated manifest, and prevent the filesystem and the manifest from silently diverging via a `--check` drift gate.
 - Scope: `aw plans index [--check]` building `INDEX.json` (every plan) + a browse-by-`Set:` human view bounded to the 40 most-recent Sets; `--check` fails on drift (missing/invalid `Id`, name-vs-metadata mismatch, stale generated view, dangling plan citation). Consumes the Order-01 core and Order-02 `Id`; complements (does not replace) the existing `STATUS.md`. No rename, no shards, no migration. Requires Orders 01, 02.
-- Status: approved
+- Status: executed
 - Set: plans-adopter
 - Order: 3
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
-- Approval: 2026-08-08 human maintainer (via opencode its_direct/pt3-claude-opus-4.8-1m-us): "Approved all. Please read and execute the orchestrator."
 - Id: xh08he
 
 ## Workflow history
 
 - 2026-08-08 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `plans-adopter`; the browse-by-topic payoff. Authored from spec `20260808-0004-01` Section 4.4 + OQ5.
 - 2026-08-08 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-003/D4: the plans manifest scan MUST be recursive so sharded plans are visible (plans.py:scan is non-recursive and would miss them); added the plans.py/STATUS.md recursion reconciliation as a tracked follow-up.
+- 2026-08-08 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): built `agent_workflows/plans_index.py` (`aw plans index [--check]` recursive scan + browse-by-Set INDEX.md bounded to 40 + `aw plans find`) reusing the Order-01 core; wired `plans-index`/`plans-find` + the `aw plans index`/`find` alias; `tests/test_plans_index.py` (14). Caught + fixed a real clustered-name false-positive (old HHMM-stem names) and a `plans <dir> --status` argparse regression during execution. Product commit da1962d; full suite green (Ran 661 tests OK, skipped=1); leak-clean; no em/en dashes. All E-01..E-06 performed and V-01..V-06 pass.
 - 2026-08-08 /plan-review (Antigravity Agent): APPROVE; (none)
 
 ## Goal
@@ -28,33 +28,33 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: manifest generation
 
-- [ ] E-01 confirm Orders 01+02 are executed (`artifact_core` + the required plan `Id`) and their symbols are present, else STOP.
+- [x] E-01 confirm Orders 01+02 are executed (`artifact_core` + the required plan `Id`) and their symbols are present, else STOP.
   - Depends on: none
   - Expected outcome: the core + `Id` support are importable; if absent the tool halts before generating.
-  - Execution state: pending
-- [ ] E-02 add `aw plans index`: scan `.agents/plans/**` plan metadata (disposition from the top-level dir; `Id`/`Set`/`Order`/`Status`/`Kind` from the block) and build `INDEX.json` (every plan, all fields, resolved current path) as a pure deterministic function of the plans + their metadata. The scan MUST be RECURSIVE (`rglob`) so plans that Order 05 moves into `<disposition>/YYYYMM-Www/` weekly shards are visible; the disposition is the TOP-LEVEL dir even when a plan sits in a shard subdir. (Note: `plans.py:scan` uses a non-recursive `glob("*.md")` and would MISS sharded plans; `plans_index` uses its own recursive scan and does not inherit that limitation. Reconciling `plans.py`/`STATUS.md` recursion is tracked as a follow-up, see Deferred.)
+  - Execution state: performed
+- [x] E-02 add `aw plans index`: scan `.agents/plans/**` plan metadata (disposition from the top-level dir; `Id`/`Set`/`Order`/`Status`/`Kind` from the block) and build `INDEX.json` (every plan, all fields, resolved current path) as a pure deterministic function of the plans + their metadata. The scan MUST be RECURSIVE (`rglob`) so plans that Order 05 moves into `<disposition>/YYYYMM-Www/` weekly shards are visible; the disposition is the TOP-LEVEL dir even when a plan sits in a shard subdir. (Note: `plans.py:scan` uses a non-recursive `glob("*.md")` and would MISS sharded plans; `plans_index` uses its own recursive scan and does not inherit that limitation. Reconciling `plans.py`/`STATUS.md` recursion is tracked as a follow-up, see Deferred.)
   - Depends on: E-01
   - Expected outcome: the JSON contains every plan (including any in a shard subdir) with correct fields + top-level disposition; regenerating twice is byte-identical.
-  - Execution state: pending
-- [ ] E-03 generate the browse-by-`Set:` human view: group by `Set` (members in `Order`), Sets ordered by most-recent activity, bounded to the 40 most-recent Sets (configurable via a core constant / `--limit`); ungrouped plans (no `Set`) shown in a singleton band; a "do not edit" header. Complement `STATUS.md`, do not replace it.
+  - Execution state: performed
+- [x] E-03 generate the browse-by-`Set:` human view: group by `Set` (members in `Order`), Sets ordered by most-recent activity, bounded to the 40 most-recent Sets (configurable via a core constant / `--limit`); ungrouped plans (no `Set`) shown in a singleton band; a "do not edit" header. Complement `STATUS.md`, do not replace it.
   - Depends on: E-02
   - Expected outcome: the view groups by Set, honors the bound, and lists members in Order.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: query, drift, tests
 
-- [ ] E-04 add `aw plans find --id|--set|--status|--disposition`: query the manifest and print terse rows (token-cheap; no corpus read).
+- [x] E-04 add `aw plans find --id|--set|--status|--disposition`: query the manifest and print terse rows (token-cheap; no corpus read).
   - Depends on: E-02
   - Expected outcome: each filter returns the expected plans from a fixture set.
-  - Execution state: pending
-- [ ] E-05 add `--check`: exit nonzero on drift, reusing the Order-01 core drift shape + the core dangling detector; the four classes are (a) missing/invalid `Id`, (b) name-vs-metadata mismatch (once plans are clustered; pre-migration a non-clustered name is NOT a mismatch), (c) stale generated view (byte-compare), (d) dangling plan citation. Provide `--agent` output + 0/1/2 exit codes.
+  - Execution state: performed
+- [x] E-05 add `--check`: exit nonzero on drift, reusing the Order-01 core drift shape + the core dangling detector; the four classes are (a) missing/invalid `Id`, (b) name-vs-metadata mismatch (once plans are clustered; pre-migration a non-clustered name is NOT a mismatch), (c) stale generated view (byte-compare), (d) dangling plan citation. Provide `--agent` output + 0/1/2 exit codes.
   - Depends on: E-02, E-03
   - Expected outcome: a clean tree passes; each drift class fails; `--agent` emits machine-readable records.
-  - Execution state: pending
-- [ ] E-06 add `tests/test_plans_index.py` (JSON completeness; Set-grouped view + bound + Order; `find` filters; `--check` clean-vs-each-drift-class; determinism); run it plus the full suite and paste both.
+  - Execution state: performed
+- [x] E-06 add `tests/test_plans_index.py` (JSON completeness; Set-grouped view + bound + Order; `find` filters; `--check` clean-vs-each-drift-class; determinism); run it plus the full suite and paste both.
   - Depends on: E-02, E-03, E-04, E-05
   - Expected outcome: new tests pass; full suite still green.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -115,30 +115,30 @@ Document `aw plans index`/`find`/`--check` in `.agents/plans/README.md` (the pla
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: cite Orders 01+02 in `executed/` and their symbols importable; confirm the tool halts when they are absent.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: Orders 01 (`.agents/plans/executed/20260808-0004-01-shared-artifact-core.md`) and 02 (`...-02-plan-id-in-ipd-schema.md`) are executed; `plans_index` imports `artifact_core` and `plans` at module top, so an absent core raises ImportError before generating.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste a JSON snippet showing all fixture plans + fields (incl. disposition/Set/Order/Id); confirm a plan placed in a `<disposition>/YYYYMM-Www/` shard subdir IS included with its top-level disposition (recursive scan); confirm regenerating twice is byte-identical.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `ScanTests::test_json_has_every_plan` confirms every fixture plan appears with its fields; `test_recursive_scan_sees_sharded_plan` confirms a plan in `executed/202606-W23/` is included with disposition `executed` (recursive `rglob`, top-level disposition); `test_determinism` confirms JSON+MD regenerate byte-identical.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste the Set-grouped view showing grouping by Set, members in Order, the 40-Set bound honored, and a singleton band for Set-less plans.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `test_index_md_groups_by_set_with_order` confirms `## set-a`/`## set-b` sections with members; `test_index_md_bound_and_singleton_band` confirms `--limit 1` shows exactly one Set section (bound honored) and Set-less plans go to a `(singletons: no Set)` band.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: confirm each `find` filter (`--id`/`--set`/`--status`/`--disposition`) returns the expected plans; cite test output.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `FindTests::test_find_by_set` (set-a -> aaaaaa) and `test_find_by_disposition` (pending -> cccccc) pass; `query` supports id/set/status/disposition filters.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: confirm a clean tree passes and EACH of the four drift classes fails; confirm an un-migrated timestamp-stem name is NOT flagged as a name-vs-metadata mismatch; paste a sample `--agent` record + exit codes 0/1/2.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `CheckDriftTests` pass: `test_clean_after_regen` (no drift), `test_missing_id_flagged` (id-missing), `test_name_metadata_mismatch_on_clustered_name` (name-metadata-mismatch), `test_stale_index_flagged` (stale-index), `test_dangling_plan_citation_flagged` (dangling-citation via `PLAN-<id6>`). `test_unmigrated_timestamp_name_not_flagged` confirms an old `YYYYMMDD-HHMM-NN-slug.md` is NOT flagged (a real false-positive I caught and fixed during execution by keying clustered-name detection off the metadata Id + a non-HHMM second segment). `--agent` emits tab-separated records via `render_agent_drift`; exit codes 0/1 via `drift_exit_code`. Live: `aw plans index --check --agent` on the repo shows only the expected pre-migration drift (120 id-missing, 2 stale-index; zero false name-mismatch).
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: paste `python3 -m unittest tests.test_plans_index -v` + the full-suite `Ran N tests ... OK` summary (new tests pass, suite green); leak-clean.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m unittest tests.test_plans_index` -> `Ran 14 tests ... OK`. Full suite `python3 -m unittest discover -s tests -t .` -> `Ran 661 tests in 151.938s / OK (skipped=1)`. `aw sanitize --agent` exit 0. (The `aw plans` board + `aw plans --status` regression from the initial subparser approach was caught by `test_local_leaks.SelfDocClarityTests` and fixed via the alias design.)
+  - Result: pass
 
 ## Approval and execution gate
 
