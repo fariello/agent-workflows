@@ -1153,6 +1153,26 @@
     "date": "2026-08-08",
     "disposition": "executed",
     "kind": "child",
+    "order": 6,
+    "path": "executed/20260808-0004-06-migrate-existing-plans.md",
+    "plan_id": "7qx7ys",
+    "set_id": "plans-adopter",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-08",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 7,
+    "path": "executed/20260808-0004-07-plans-scaffold-directives-decisions.md",
+    "plan_id": "8q6yr9",
+    "set_id": "plans-adopter",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-08",
+    "disposition": "executed",
+    "kind": "child",
     "order": 1,
     "path": "executed/20260808-plansadopt-01-qkc93l-shared-artifact-core.md",
     "plan_id": "qkc93l",
@@ -1246,26 +1266,6 @@
     "order": 0,
     "path": "pending/20260808-0004-00-plans-adopter-orchestrator.md",
     "plan_id": "lus9ou",
-    "set_id": "plans-adopter",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-08",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 6,
-    "path": "pending/20260808-0004-06-migrate-existing-plans.md",
-    "plan_id": "7qx7ys",
-    "set_id": "plans-adopter",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-08",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 7,
-    "path": "pending/20260808-0004-07-plans-scaffold-directives-decisions.md",
-    "plan_id": "8q6yr9",
     "set_id": "plans-adopter",
     "status": "approved"
   }
