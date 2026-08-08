@@ -129,18 +129,28 @@ class DanglingTests(unittest.TestCase):
         _mk_research(self.root, "20260701-alpha-00-aaaaaa-present.notes.md")
 
     def test_stale_id_flagged(self):
+        # A full-name citation to a moved/gone doc (id zqzqzq names no current file).
         (self.root / "DECISIONS.md").write_text(
-            "cite to a gone doc zqzqzq here\n", encoding="utf-8"
+            "cite 20260601-old-00-zqzqzq-gone.notes.md here\n", encoding="utf-8"
         )
         danglers = RF.find_dangling_citations(self.root)
         self.assertTrue(any(d.id6 == "zqzqzq" for d in danglers))
 
-    def test_stable_bare_id_not_flagged(self):
+    def test_stable_cite_to_present_not_flagged(self):
+        # A full-name citation whose id (aaaaaa) still names a present doc resolves.
         (self.root / "DECISIONS.md").write_text(
-            "cite the present doc aaaaaa here\n", encoding="utf-8"
+            "cite 20260601-old-00-aaaaaa-renamed.notes.md here\n", encoding="utf-8"
         )
         danglers = RF.find_dangling_citations(self.root)
         self.assertFalse(any(d.id6 == "aaaaaa" for d in danglers))
+
+    def test_bare_english_word_not_a_citation(self):
+        # Ordinary 6-letter words are NOT citations (precision guard).
+        (self.root / "DECISIONS.md").write_text(
+            "the design and prompt inform the naming here\n", encoding="utf-8"
+        )
+        danglers = RF.find_dangling_citations(self.root)
+        self.assertEqual(danglers, [])
 
 
 class ScanRootTests(unittest.TestCase):

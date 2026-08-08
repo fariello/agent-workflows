@@ -175,12 +175,14 @@ def _current_id6s(research_root: Path) -> set:
 def find_dangling_citations(
     repo_root: Path, research_root: Optional[Path] = None
 ) -> List[Dangler]:
-    """Return every ``\\b<id6>\\b`` citation that does not resolve to a current research file.
+    """Return every research-id CITATION that does not resolve to a current research file.
 
-    A pure, deterministic scan of the pinned scan root. An id6 word-match resolves when it is the id
-    of some current research file; a full-path citation to a moved/renamed target whose path no
-    longer exists, or an id that names no current file, is reported as dangling. A BARE id6 whose id
-    still names a current file is NOT reported (the id is stable and resolves via the manifest).
+    A pure, deterministic scan of the pinned scan root. A CITATION is the ``RSCH-<id6>`` handle or a
+    full research-filename reference (see ``research_contract.iter_id6_citations``); a bare 6-letter
+    word is NOT a citation, so ordinary prose does not false-positive. A citation resolves when its
+    id names a current research file; one whose id names no current file (a moved/renamed target
+    cited by an old path, or a deleted doc) is reported as dangling. A citation to a moved-but-present
+    id still resolves (the id is stable), so it is NOT reported.
     """
 
     rroot = research_root or (repo_root / R.RESEARCH_ROOT)
@@ -200,7 +202,7 @@ def find_dangling_citations(
         except (OSError, UnicodeDecodeError):
             continue
         for i, line in enumerate(text.splitlines(), start=1):
-            for tok in R.iter_id6_in_text(line):
+            for tok in R.iter_id6_citations(line):
                 if tok not in current_ids:
                     danglers.append(Dangler(f, i, tok, line.strip()[:120]))
     return danglers

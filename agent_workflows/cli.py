@@ -386,6 +386,46 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Machine output: tab-separated location/rule/id.",
     )
 
+    p_research_index = research_sub.add_parser(
+        "index",
+        parents=[common],
+        help="Regenerate INDEX.json + INDEX.md from frontmatter; --check fails on drift.",
+    )
+    p_research_index.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_research_index.add_argument(
+        "--check",
+        action="store_true",
+        help="Fail (nonzero) on drift instead of regenerating.",
+    )
+    p_research_index.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Hot-window size for INDEX.md (default 40).",
+    )
+    p_research_index.add_argument(
+        "--agent",
+        action="store_true",
+        help="Machine output for --check: tab-separated records.",
+    )
+
+    p_research_find = research_sub.add_parser(
+        "find",
+        parents=[common],
+        help="Query the index by --id/--set/--topic/--status (token-cheap; no corpus read).",
+    )
+    p_research_find.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_research_find.add_argument("--id", default=None, help="Filter by <id6>.")
+    p_research_find.add_argument(
+        "--set", dest="set", default=None, help="Filter by set id."
+    )
+    p_research_find.add_argument("--topic", default=None, help="Filter by topic.")
+    p_research_find.add_argument("--status", default=None, help="Filter by status.")
+
     p_names = sub.add_parser(
         "plan-names",
         parents=[common],
@@ -1545,6 +1585,14 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import research_refs as rr
 
             return rr.run_check_refs(args)
+        if research_cmd == "index":
+            from agent_workflows import research_index as ri
+
+            return ri.run_index(args)
+        if research_cmd == "find":
+            from agent_workflows import research_index as ri
+
+            return ri.run_find(args)
         parser.print_help()
         return 2
     if args.command in ("check-local-leaks", "sanitize"):

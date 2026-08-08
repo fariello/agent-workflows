@@ -46,9 +46,35 @@ def is_valid_id6(token: str) -> bool:
 
 
 def iter_id6_in_text(text: str) -> List[str]:
-    """Return every ``\\b<id6>\\b`` word-boundary match in ``text`` (for citation scanning, F5)."""
+    """Return every ``\\b<id6>\\b`` word-boundary match in ``text`` (low-level; matches any 6-token)."""
 
     return ID6_WORD_RE.findall(text)
+
+
+# A CITATION of a research id, as opposed to any 6-char word. Two accepted forms (spec 6 / 4.2):
+#   1. the explicit ``RSCH-<id6>`` handle;
+#   2. a full research-filename reference that PARSES as a valid new-grammar research name.
+# This precision avoids treating ordinary 6-letter English words ("design", "prompt") AND old-style
+# pre-migration filenames (which do not parse under the new grammar) as citations.
+_CITE_RSCH_RE = re.compile(r"\bRSCH-([0-9a-z]{6})\b")
+# A candidate research-filename token to test with parse_name (a conservative superset).
+_CITE_FILENAME_TOKEN_RE = re.compile(r"\d{8}-[a-z0-9.\-]+\.md")
+
+
+def iter_id6_citations(text: str) -> List[str]:
+    """Return every research-id CITATION in ``text`` (``RSCH-<id6>`` or a valid research-name ref).
+
+    Unlike ``iter_id6_in_text`` this does NOT match bare 6-letter words, and a filename token counts
+    only if it PARSES as a valid new-grammar research name (so old-style pre-migration names and
+    prose do not produce false positives).
+    """
+
+    out = list(_CITE_RSCH_RE.findall(text))
+    for token in _CITE_FILENAME_TOKEN_RE.findall(text):
+        parsed, _err = parse_name(token)
+        if parsed is not None:
+            out.append(parsed.id6)
+    return out
 
 
 # --------------------------------------------------------------------------------------
@@ -414,3 +440,39 @@ def validate_frontmatter(data: Dict[str, object]) -> List[FrontmatterError]:
         errors.append(FrontmatterError("consumed-by", "consumed-by must be a list"))
 
     return errors
+
+
+# --------------------------------------------------------------------------------------
+# Frontmatter reader (the shared parser for the tool-authored block; the tool owns text I/O so
+# the schema stays pure, but the read format is defined ONCE here so index/archive/migration
+# never fork it). Handles the ``--- ... ---`` leading block: ``key: value`` scalars and
+# ``key: [a, b]`` lists, matching what ``research_cmd.build_frontmatter`` writes.
+# --------------------------------------------------------------------------------------
+
+
+def parse_frontmatter(text: str) -> Optional[Dict[str, object]]:
+    """Parse a leading ``---`` frontmatter block into a mapping, or None if absent/malformed.
+
+    Scalars become ``str`` (empty string for an empty value); ``[a, b]`` becomes a ``list`` of
+    trimmed strings (``[]`` for empty). This is deliberately minimal and dependency-free.
+    """
+
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return None
+    data: Dict[str, object] = {}
+    for line in lines[1:]:
+        if line.strip() == "---":
+            return data
+        if ":" not in line:
+            continue
+        key, _, val = line.partition(":")
+        key = key.strip()
+        val = val.strip()
+        if val.startswith("[") and val.endswith("]"):
+            inner = val[1:-1].strip()
+            data[key] = [x.strip() for x in inner.split(",")] if inner else []
+        else:
+            data[key] = val
+    # No closing '---' seen: malformed.
+    return None
