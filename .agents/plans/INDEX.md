@@ -6,7 +6,7 @@ Showing the 40 most-recent of 72 Sets; the full manifest is INDEX.json.
 
 ## plans-adopter
 
-- `lus9ou` [pending] 00 pending/20260808-0004-00-plans-adopter-orchestrator.md
+- `lus9ou` [executed] 00 executed/20260808-0004-00-plans-adopter-orchestrator.md
 - `7qx7ys` [executed] 06 executed/20260808-0004-06-migrate-existing-plans.md
 - `8q6yr9` [executed] 07 executed/20260808-0004-07-plans-scaffold-directives-decisions.md
 

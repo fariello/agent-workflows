@@ -1152,6 +1152,16 @@
   {
     "date": "2026-08-08",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260808-0004-00-plans-adopter-orchestrator.md",
+    "plan_id": "lus9ou",
+    "set_id": "plans-adopter",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-08",
+    "disposition": "executed",
     "kind": "child",
     "order": 6,
     "path": "executed/20260808-0004-06-migrate-existing-plans.md",
@@ -1258,15 +1268,5 @@
     "plan_id": null,
     "set_id": null,
     "status": "to-review"
-  },
-  {
-    "date": "2026-08-08",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260808-0004-00-plans-adopter-orchestrator.md",
-    "plan_id": "lus9ou",
-    "set_id": "plans-adopter",
-    "status": "approved"
   }
 ]
