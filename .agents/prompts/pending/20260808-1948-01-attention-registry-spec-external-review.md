@@ -1,23 +1,4 @@
----
-Kind: run-once
-Status: pending
-Created: 2026-08-08
-Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
-Targets: gpt-5.6 (Codex) and Gemini (run separately, compare)
-Reviews-spec: .agents/docs/specs/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md
-Grounding-research: .agents/docs/research/20260808-attention-registry-cross-tree-status-and-whatnext-00-bv6n38-attention-registry-cross-tree-status-and-whatnext.survey.md
-Results-go-to: .agents/docs/research/ (file each returned .md as a review artifact)
----
-
-# Operator note (NOT part of the prompt; do not upload this section)
-
-This file stages a run-once external-review prompt. Upload EVERYTHING below the
-`=== BEGIN UPLOAD-READY PROMPT ===` marker (or copy from that marker to the end) to gpt-5.6 and,
-separately, to Gemini. Each is self-contained. Save each returned `.md` under `.agents/docs/research/`,
-then move this prompt to `.agents/prompts/executed/`.
-
-=== BEGIN UPLOAD-READY PROMPT ===
-
+<!-- aw-prompt: Kind: run-once | Status: pending | Created: 2026-08-08 | Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us) | Targets: gpt-5.6 (Codex) and Gemini, run separately | Reviews-spec: .agents/docs/specs/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md | Grounding: .agents/docs/research/20260808-attention-registry-cross-tree-status-and-whatnext-00-bv6n38-attention-registry-cross-tree-status-and-whatnext.survey.md | Results-go-to: .agents/docs/research/ . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
 You are a senior software architect and API/CLI design reviewer. I am giving you a functional and
 design specification for a new command-line tool and a cross-cutting convention. Your job is to
 critically review it and return actionable feedback. Be rigorous, specific, and willing to disagree;
