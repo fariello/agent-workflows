@@ -326,6 +326,66 @@ def _build_parser() -> argparse.ArgumentParser:
         "--overwrite", action="store_true", help="Allow overwriting an existing path."
     )
 
+    p_research_setassign = research_sub.add_parser(
+        "set-assign",
+        parents=[common],
+        help="Group docs into a set (shared date+set-id, assigned NN), keeping id6 (dry-run by default).",
+    )
+    p_research_setassign.add_argument(
+        "ids",
+        nargs="+",
+        help="One or more <id6> tokens to group into the set, in order.",
+    )
+    p_research_setassign.add_argument(
+        "--set", dest="set", required=True, help="Set id."
+    )
+    p_research_setassign.add_argument(
+        "--order", type=int, default=None, help="Starting NN (default 0)."
+    )
+    p_research_setassign.add_argument(
+        "--date", default=None, help="Set date (YYYYMMDD; default today)."
+    )
+    p_research_setassign.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_research_setassign.add_argument(
+        "--apply",
+        action="store_true",
+        help="Perform the renames (default is preview only).",
+    )
+
+    p_research_mv = research_sub.add_parser(
+        "mv",
+        parents=[common],
+        help="Rename/re-slug one research doc within the grammar, keeping id6 (dry-run by default).",
+    )
+    p_research_mv.add_argument("id", help="The <id6> of the doc to rename.")
+    p_research_mv.add_argument("--slug", default=None, help="New slug.")
+    p_research_mv.add_argument("--kind", default=None, help="New kind.")
+    p_research_mv.add_argument("--model", default=None, help="New model facet.")
+    p_research_mv.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_research_mv.add_argument(
+        "--apply",
+        action="store_true",
+        help="Perform the rename (default is preview only).",
+    )
+
+    p_research_checkrefs = research_sub.add_parser(
+        "check-refs",
+        parents=[common],
+        help="Report dangling <id6> citations (the reusable detector as a standalone verb).",
+    )
+    p_research_checkrefs.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_research_checkrefs.add_argument(
+        "--agent",
+        action="store_true",
+        help="Machine output: tab-separated location/rule/id.",
+    )
+
     p_names = sub.add_parser(
         "plan-names",
         parents=[common],
@@ -1473,6 +1533,18 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import research_cmd as rc
 
             return rc.run_new_comparison(args)
+        if research_cmd == "set-assign":
+            from agent_workflows import research_refs as rr
+
+            return rr.run_set_assign(args)
+        if research_cmd == "mv":
+            from agent_workflows import research_refs as rr
+
+            return rr.run_mv(args)
+        if research_cmd == "check-refs":
+            from agent_workflows import research_refs as rr
+
+            return rr.run_check_refs(args)
         parser.print_help()
         return 2
     if args.command in ("check-local-leaks", "sanitize"):
