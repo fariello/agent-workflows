@@ -1,7 +1,7 @@
 # Walkthrough: Installer Shim False-Positive, Ctrl-C Abort, and Unified Diff on Conflict
 
 Date: 2026-07-12
-Plan Executed: [.agents/plans/executed/20260712-0954-01-installer-shim-detection-ctrlc-and-diff.md](./.agents/plans/executed/20260712-0954-01-installer-shim-detection-ctrlc-and-diff.md)
+Plan Executed: [.agents/plans/executed/20260712-installer-shim-00-7y7pbh-installer-shim-detection-ctrlc-and-diff.md](./.agents/plans/executed/20260712-installer-shim-00-7y7pbh-installer-shim-detection-ctrlc-and-diff.md)
 Status: EXECUTED
 
 ---

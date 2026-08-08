@@ -2,8 +2,8 @@
 
 Date: 2026-07-12
 Plans Executed:
-* [.agents/plans/executed/20260712-0959-01-assess-bugs-in-scripts.md](./.agents/plans/executed/20260712-0959-01-assess-bugs-in-scripts.md)
-* [.agents/plans/executed/20260712-1005-01-assess-tests.md](./.agents/plans/executed/20260712-1005-01-assess-tests.md)
+* [.agents/plans/executed/20260712-assess-bugs-00-hq4p3a-assess-bugs-in-scripts.md](./.agents/plans/executed/20260712-assess-bugs-00-hq4p3a-assess-bugs-in-scripts.md)
+* [.agents/plans/executed/20260712-assess-tests-00-lc5a3x-assess-tests.md](./.agents/plans/executed/20260712-assess-tests-00-lc5a3x-assess-tests.md)
 Status: EXECUTED
 
 ---

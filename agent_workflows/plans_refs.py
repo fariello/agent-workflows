@@ -60,11 +60,24 @@ def _find_plan_by_id(plans_dir: Path, id6: str) -> Optional[Path]:
     return None
 
 
-def _set_metadata(text: str, *, set_id: str, order: int) -> str:
-    """Return ``text`` with Set/Order set (updating existing lines or inserting after Author/Id)."""
+def _set_value(set_id: str, descriptive: Optional[str]) -> str:
+    """The `Set:` metadata value: terse id, optionally with a `(descriptive)` parenthetical."""
 
+    return f"{set_id} ({descriptive})" if descriptive else set_id
+
+
+def _set_metadata(
+    text: str, *, set_id: str, order: int, descriptive: Optional[str] = None
+) -> str:
+    """Return ``text`` with Set/Order set (updating existing lines or inserting after Author/Id).
+
+    The written `Set:` value is ``<terse-id> (<descriptive>)`` when ``descriptive`` is given, else the
+    bare terse id (plans-adopter Order 06 format).
+    """
+
+    set_val = _set_value(set_id, descriptive)
     if _SET_LINE_RE.search(text):
-        text = _SET_LINE_RE.sub(f"- Set: {set_id}", text, count=1)
+        text = _SET_LINE_RE.sub(f"- Set: {set_val}", text, count=1)
     if _ORDER_LINE_RE.search(text):
         text = _ORDER_LINE_RE.sub(f"- Order: {order}", text, count=1)
     if _SET_LINE_RE.search(text) and _ORDER_LINE_RE.search(text):
@@ -83,7 +96,7 @@ def _set_metadata(text: str, *, set_id: str, order: int) -> str:
         nl = "\n"
         ins = []
         if not _SET_LINE_RE.search(text):
-            ins.append(f"- Set: {set_id}{nl}")
+            ins.append(f"- Set: {set_val}{nl}")
         if not _ORDER_LINE_RE.search(text):
             ins.append(f"- Order: {order}{nl}")
         lines[anchor + 1 : anchor + 1] = ins
@@ -254,6 +267,7 @@ def apply_renames(
     set_id: str,
     *,
     apply: bool,
+    descriptive: Optional[str] = None,
 ) -> None:
     """Set metadata + (optional) clustering rename + citation rewrite. Preview when not apply."""
 
@@ -279,7 +293,9 @@ def apply_renames(
     for i, p in enumerate(plans):
         # Update Set/Order metadata in place first.
         text = p.old_path.read_text(encoding="utf-8")
-        text = _set_metadata(text, set_id=_core.kebab(set_id), order=i)
+        text = _set_metadata(
+            text, set_id=_core.kebab(set_id), order=i, descriptive=descriptive
+        )
         _core.atomic_write(p.old_path, text, prefix=".plans-refs-")
         if p.old_path != p.new_path:
             src_rel = p.old_path.relative_to(repo_root).as_posix()
@@ -338,7 +354,8 @@ def run_mv(args: argparse.Namespace) -> int:
     text = src.read_text(encoding="utf-8")
     m = _SET_LINE_RE.search(text)
     om = _ORDER_LINE_RE.search(text)
-    set_id = getattr(args, "set", None) or (m.group(1) if m else id6)
+    existing_terse = _idx.set_terse_id(m.group(1)) if m else None
+    set_id = getattr(args, "set", None) or existing_terse or id6
     order = getattr(args, "order", None)
     order = order if order is not None else (int(om.group(1)) if om else 0)
     slug = getattr(args, "slug", None)

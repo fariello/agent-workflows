@@ -1,8 +1,8 @@
 # Research bundle: external delivery + clean-delta contribution (2026-07-26)
 
 This directory holds the full evidence set produced from two staged research prompts and the
-reconciliations that synthesize them. It is the durable evidence that IPD `20260723-1100-05`
-(external / out-of-repo delivery) and IPD `20260723-1100-07` (clean-delta / per-class tracking
+reconciliations that synthesize them. It is the durable evidence that IPD `20260723-instsafe-05-kemhdg-external-install-and-skills-delivery-research-spec`
+(external / out-of-repo delivery) and IPD `20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec` (clean-delta / per-class tracking
 opt-out) were blocked on. It is documentation-graded (verified against first-party host docs as of
 2026-07-26); no live per-host fixture was run, so "Followed" means documented, not reproduced.
 

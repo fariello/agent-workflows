@@ -1,7 +1,7 @@
 # Spec: clean-delta contribution and artifact-tracking modes for agent-workflows
 
 - Date: 2026-07-26
-- Status: draft spec (evidence-gated; build deferred to per-phase IPDs); produced by IPD `20260723-1100-07`
+- Status: draft spec (evidence-gated; build deferred to per-phase IPDs); produced by IPD `20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec`
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Evidence: `.agents/docs/research/20260726-0054-aw-delivery-and-clean-delta-research/` (clean-delta reconciliation `...-0054-05`, host-probe reconciliation `...-1045-05`, and eight underlying model reports). Documentation-graded as of 2026-07-26; no live host fixture was run, so "Followed" means documented, not reproduced.
 - Supersedes/extends: `.agents/docs/specs/20260725-0957-01-external-delivery-and-skills.spec.md` (IPD 05's tier spec, whose open per-host questions this resolves).

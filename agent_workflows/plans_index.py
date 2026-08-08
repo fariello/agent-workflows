@@ -61,6 +61,19 @@ def _meta(text: str, key: str) -> Optional[str]:
     return m.group(1) if m else None
 
 
+def set_terse_id(raw: Optional[str]) -> Optional[str]:
+    """Extract the canonical terse set-id from a `Set:` value of the form ``<terse> (<descriptive>)``.
+
+    The leading whitespace-delimited token before any ``(`` is the set-id; the parenthetical is a
+    human-readable display name (plans-adopter Order 06). A bare terse id (no parenthetical) also
+    parses. Returns None for None.
+    """
+
+    if raw is None:
+        return None
+    return raw.split("(", 1)[0].strip() or None
+
+
 def scan_plans(plans_dir: Path) -> Tuple[List[PlanEntry], List[_core.Drift]]:
     """Recursively scan every plan under ``plans_dir``; return (entries, drift).
 
@@ -88,7 +101,7 @@ def scan_plans(plans_dir: Path) -> Tuple[List[PlanEntry], List[_core.Drift]]:
                 path=rel,
                 disposition=disposition,
                 date=str(_meta(text, "Date") or ""),
-                set_id=_meta(text, "Set"),
+                set_id=set_terse_id(_meta(text, "Set")),
                 order=int(order_raw) if order_raw else None,
                 status=_meta(text, "Status"),
                 kind=_meta(text, "Kind"),
@@ -305,15 +318,16 @@ def run_index(args: argparse.Namespace) -> int:
             print(f"{d.location}: {d.rule}: {d.detail}")
         return 1
     entries, drift = scan_plans(plans_dir)
-    if drift:
-        for d in drift:
-            print(f"{d.location}: {d.rule}: {d.detail}")
-        return 1
     plans_dir.mkdir(parents=True, exist_ok=True)
     (plans_dir / INDEX_JSON).write_text(build_index_json(entries), encoding="utf-8")
     (plans_dir / INDEX_MD).write_text(
         build_index_md(entries, limit=limit), encoding="utf-8"
     )
+    # Regeneration always writes the CURRENT state (a snapshot); metadata drift (e.g. a plan still
+    # lacking an Id) is reported but does NOT block the write. Use `--check` as the gate.
+    if drift:
+        for d in drift:
+            print(f"{d.location}: {d.rule}: {d.detail}")
     print(f"wrote {INDEX_JSON} + {INDEX_MD} ({len(entries)} plans)")
     return 0
 

@@ -1,7 +1,7 @@
 # Walkthrough: `.agents/docs/` convention (research + walkthroughs)
 
 Date: 2026-07-12
-Plan Executed: [.agents/plans/executed/20260712-0033-01-agents-docs-research-and-walkthroughs-convention.md](./.agents/plans/executed/20260712-0033-01-agents-docs-research-and-walkthroughs-convention.md)
+Plan Executed: [.agents/plans/executed/20260712-agents-docs-00-98dj6q-agents-docs-research-and-walkthroughs-convention.md](./.agents/plans/executed/20260712-agents-docs-00-98dj6q-agents-docs-research-and-walkthroughs-convention.md)
 Status: EXECUTED
 
 ---

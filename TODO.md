@@ -17,7 +17,7 @@ triages this file against each release.
 
 FIXED 2026-07-13: `test_normalize_plan_names.py` date-relative flakiness (tests now use today-relative
 dates; product unchanged). See DECISIONS D78 and
-`.agents/plans/executed/20260713-1419-01-normalize-plan-names-test-date-flakiness.md`.
+`.agents/plans/executed/20260713-normalize-plan-00-qv04dz-normalize-plan-names-test-date-flakiness.md`.
 
 ## Security follow-ups (OpenCode shared-host finding, D86/D87)
 
@@ -73,9 +73,9 @@ and human approval before any build.
 ### Two reconciled 1.3.0-era Sets (prompt pipeline + agent-continuity workflows)
 
 Two DISTINCT ordered Sets came out of the 2026-07-16 discussion, reconciled 2026-07-20 (IPD
-`20260717-2317-01` Step 5) so their `Order:` numbers no longer collide. Each item needs its own IPD +
+`20260717-agentcont-01-6a3myl-whatnext-surveyor-workflow` Step 5) so their `Order:` numbers no longer collide. Each item needs its own IPD +
 `/plan-review` + human approval before any build. Grounding: D88 (filesystem-encoded state, extends P5);
-`.agents/prompts/` staging is blessed by D50 / IPD `20260712-1544-01`.
+`.agents/prompts/` staging is blessed by D50 / IPD `20260712-consolidate-reference-00-7waz4b-consolidate-reference-material-and-docs-bucket-standard`.
 
 **Set `research-prompt-pipeline`** - where run-once/research prompts and their results live:
 
@@ -84,7 +84,7 @@ Two DISTINCT ordered Sets came out of the 2026-07-16 discussion, reconciled 2026
 - **Order 2 - DONE (D91).** Scaffold `.agents/prompts/` lifecycle buckets + document the
   research-prompt->results convention (prompts stage in `.agents/prompts/<bucket>/`; RESULTS under
   `.agents/docs/research/<topic>/`; `.agents/docs/prompts/` stays the evergreen library). Executed via IPD
-  `20260717-2118-01` (now tagged this Set, Order 2).
+  `20260717-researchprompt-02-2txx9b-scaffold-agents-prompts-staging-convention` (now tagged this Set, Order 2).
 - **Order 3 - `/research [topic]` workflow (producer; prompt-authoring walk-through).** Clarifies the
   research question, drafts a house-conformant prompt into `.agents/prompts/pending/` (ENFORCING the
   AGENTS.md handoff-prompt rules: upload-ready, self-contained, no user-instructions inside, returns a
@@ -96,13 +96,13 @@ Two DISTINCT ordered Sets came out of the 2026-07-16 discussion, reconciled 2026
 **Set `agent-continuity-workflows`** - the surveyor/producer/snapshot command trio:
 
 - **Order 1 - `/whatnext` workflow (surveyor; read-only, recommend-don't-act).** DONE via IPD
-  `20260717-2317-01`: a `.agents/workflows/whatnext/` prose runbook that surveys plans/prompts/comms/TODO
+  `20260717-agentcont-01-6a3myl-whatnext-surveyor-workflow`: a `.agents/workflows/whatnext/` prose runbook that surveys plans/prompts/comms/TODO
   and returns a prioritized, reasoned recommendation (survey-then-reason; never mutates/acks/moves).
 - **Order 2 - `/research`** is the pipeline producer above; it is cross-listed here as the natural producer
   that `/whatnext` surveys, but its home Set is `research-prompt-pipeline`.
 - **Order 3 - `/handoff` workflow (session-handoff generator; human request 2026-07-17).** Produces a
   DETAILED cold-start handoff document on demand (facts PLUS a working-style/preferences/nuance layer). HAS
-  A FULL IPD (Status: to-review): `.agents/plans/pending/20260717-2000-01-handoff-workflow-session-continuity.md`.
+  A FULL IPD (Status: to-review): `.agents/plans/pending/20260717-agentcont-03-5twbwf-handoff-workflow-session-continuity.md`.
   The hand-authored `.agents/plans/pending/20260717-1950-01-session-handoff-resume-here.md` is the
   golden-output example. Needs `/plan-review` -> approval before building; 1.3.0-era.
 

@@ -202,7 +202,7 @@ kind: reconciliation-report
 status: reference        # intake | active | reference | archive
 outcome: adopted         # adopted | rejected | informational | none-yet
 summary: One-line human summary shown in INDEX.md.
-consumed-by: [D107, 20260723-1100-05]   # DECISIONS/plan ids that relied on this
+consumed-by: [D107, 20260723-instsafe-05-kemhdg-external-install-and-skills-delivery-research-spec]   # DECISIONS/plan ids that relied on this
 ---
 ```
 
@@ -219,7 +219,7 @@ Only research is BUILT now; the rest are named future work, not speculative stru
 ## 8. Prior decisions this spec revises (not canon)
 - The `YYYYMMDD-HHMM-NN` grouping theory (D48/D50/D55 family): FAILED at grouping (set members span timestamps and do not cluster). Superseded by filename-encoded `set-id` + `NN` + a stable `<id6>`, with human recency from a leading `YYYYMMDD`.
 - GUIDING_PRINCIPLES P5 research carve-out ("do not move research; cite by stable path; use a rare in-file Status"): revised. Research is now cited by `<id6>` via the manifest, which makes files freely movable between states/shards; P5's boundary text will be updated to describe cite-by-id + tool-maintained references instead of path immobility.
-- The founding docs-convention IPD (`20260712-0033-01`) OQ2 lean "research is free-form reference, NOT a lifecycle artifact": superseded. Research gets a light, tool-owned lifecycle (intake/active/reference/archive) precisely because free-form did not scale.
+- The founding docs-convention IPD (`20260712-agents-docs-00-98dj6q-agents-docs-research-and-walkthroughs-convention`) OQ2 lean "research is free-form reference, NOT a lifecycle artifact": superseded. Research gets a light, tool-owned lifecycle (intake/active/reference/archive) precisely because free-form did not scale.
 The follow-on IPD will make these edits in place (P5 text, a short DECISIONS pointer entry) and record the supersession; it will not silently contradict the old text.
 
 ## 9. Migration outline (the accepted one-time cost)

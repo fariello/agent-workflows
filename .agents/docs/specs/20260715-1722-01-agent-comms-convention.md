@@ -7,7 +7,7 @@ Decision: DECISIONS D81. Design source: `.agents/docs/research/20260714-same-box
 This spec defines the PORTABLE, agent-agnostic convention for filesystem inter-agent communication
 (IAC): the on-disk layout, the message envelope (including the `Not-Before` scheduling gate), the
 closed-enum acknowledgement model with an authorized-writer table, and the untrusted-input stance.
-It is implemented by IPD `20260715-1033-01`. It deliberately does NOT define a daemon, any OpenCode
+It is implemented by IPD `20260715-agent-comms-00-ssmov3-agent-comms-portable-convention`. It deliberately does NOT define a daemon, any OpenCode
 server interaction, agent-side ack writing, discovery/registry, conditional scheduling, or extra
 transports; those are later IPDs (see "Deferred").
 

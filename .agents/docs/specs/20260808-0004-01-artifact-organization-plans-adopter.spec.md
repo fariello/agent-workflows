@@ -98,8 +98,22 @@ scaffold`/`sync` emit it.
 
 ### 4.3 Set-clustering filename grammar
 Executed (and pending) plans adopt a Set-leading grammar so Set members cluster in a name-sorted
-tree, e.g. `<YYYYMMDD>-<set-id>-<NN>-<id6>-<slug>.md` (the exact grammar is OQ1). `Set:`/`Order:`
-remain the source of truth in metadata; the filename mirrors them. Orchestrator stays `NN=00`.
+tree: `<YYYYMMDD>-<set-id>-<NN>-<id6>-<slug>.md`. `Set:`/`Order:` remain the source of truth in
+metadata; the filename mirrors them. Orchestrator stays `NN=00`.
+
+The `<set-id>` is SHORT/TERSE (a compressed cohort key, like the research migration's `awdeliv`,
+`chkplace`, `ocsec`), NOT the full slug; the `<slug>` is the longer descriptive name. A SINGLETON is
+a set of one and is NEVER special-cased (uniform grammar for all plans, so filename symmetry holds
+and adding a second member later needs no cascade rename). The terse set-id for the 9 existing plan
+Sets and the singletons is hand-picked (explicit, per parent spec 4.2's "explicit or tool-derived").
+
+The `- Set:` METADATA carries BOTH forms: `Set: <terse-id> (<descriptive name>)`, e.g.
+`Set: researchorg (research-org)`, `Set: instsafe (install safety and ownership)`. The leading
+whitespace-delimited token before any `(` is the canonical set-id (parsed by the manifest, refs, and
+archival tools and matching the filename `<set-id>` exactly); the parenthetical is a human-readable
+display name shown in the manifest. This removes any divergence between the terse filename token and
+the descriptive Set name, and prose Set-name mentions in DECISIONS/TODO are left untouched (no fuzzy
+prose rewriting). The tools ignore the parenthetical when reading the set-id.
 
 ### 4.4 Plans manifest + browse-by-Set + `--check`
 A generated `INDEX.json` (every plan, all fields incl. disposition + Set + Order + Id + resolved
@@ -167,7 +181,10 @@ manifest regenerates clean; moves are git renames).
 ## 8. Resolved questions (settled with the maintainer 2026-08-08)
 - OQ1 (RESOLVED): the clustering filename grammar is `<YYYYMMDD>-<set-id>-<NN>-<id6>-<slug>.md`;
   `HHMM` is dropped. The leading date is the plan's date; `set-id`+`NN` come from the existing
-  `Set:`/`Order:` metadata; `id6` is the stable handle; `slug` is the descriptive kebab.
+  `Set:`/`Order:` metadata; `id6` is the stable handle; `slug` is the descriptive kebab. REFINED at
+  the Order-06 STOP gate (2026-08-08): `<set-id>` is SHORT/TERSE (hand-picked, like `awdeliv`), NOT
+  the full slug; singletons are never special-cased (uniform grammar); the `- Set:` metadata carries
+  `<terse-id> (<descriptive>)` with the leading token as the canonical set-id (see Section 4.3).
 - OQ2 (RESOLVED): `Id` is REQUIRED for all plans. `ipd_schema` makes `- Id:` a required metadata
   field (linter-enforced); the migration backfills every existing plan; nothing is grandfathered.
 - OQ3 (RESOLVED): ALL cold disposition dirs shard weekly, not only `executed/`. `executed/`,

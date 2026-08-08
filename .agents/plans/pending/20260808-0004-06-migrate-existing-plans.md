@@ -14,7 +14,7 @@
 
 ## Workflow history
 
-- 2026-08-08 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `plans-adopter`; the accepted one-time cost that proves the convention on real data. Authored from spec `20260808-0004-01` Section 4.7 + 4.8.
+- 2026-08-08 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `plans-adopter`; the accepted one-time cost that proves the convention on real data. Authored from spec `20260808-plansadopt-01-qkc93l-shared-artifact-core` Section 4.7 + 4.8.
 - 2026-08-08 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-002/D2 (HIGH): Id validity on migrated executed plans is verified via `aw plans index --check` (checks all dispositions), NOT `aw ipd lint` (skips terminal-dir plans as legacy); PR-004/D5: bare-stem rewrite must not touch spec-only stems.
 - 2026-08-08 /plan-review (Antigravity Agent): APPROVE; (none)
 
@@ -61,7 +61,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Use the Order 02 to 05 tools; do NOT hand-edit names/metadata where a tool exists.
 - Existing Set cohorts to preserve (verified in the corpus): `install-safety-and-ownership` (7), `ipd-structure` (7), `research-org` (8), `ipd-dual-checklist-convention` (4), `untrack-workflow-artifacts` (4), `plans-adopter` (this Set), and others; Set-less plans become singletons. Re-derive the exact cohorts at execution.
 - Plans are cited THREE ways: full filename, bare `YYYYMMDD-HHMM-NN` stem, and range shorthand; the migration builds the old-stem->new-name map and rewrites all three (Order 04).
-- HAZARD (verified at review): the bare-stem `YYYYMMDD-HHMM-NN` grammar is SHARED with `.agents/docs/specs/` filenames (e.g. `20260808-0004-01` is BOTH a plan and a spec). A bare-stem rewrite MUST disambiguate a plan citation from a spec citation (resolve the stem to a plan `Id` only when it maps to a plan in the migration table; leave spec-only stems untouched). The dry-run diff (E-02) surfaces every bare-stem rewrite for human review to catch a mis-hit; do NOT blind-rewrite bare stems.
+- HAZARD (verified at review): the bare-stem `YYYYMMDD-HHMM-NN` grammar is SHARED with `.agents/docs/specs/` filenames (e.g. `20260808-plansadopt-01-qkc93l-shared-artifact-core` is BOTH a plan and a spec). A bare-stem rewrite MUST disambiguate a plan citation from a spec citation (resolve the stem to a plan `Id` only when it maps to a plan in the migration table; leave spec-only stems untouched). The dry-run diff (E-02) surfaces every bare-stem rewrite for human review to catch a mis-hit; do NOT blind-rewrite bare stems.
 - The plan BODY and append-only workflow history are IMMUTABLE (spec 4.8): only the filename and the added `Id` line change. Moves are tracked git renames so history is preserved.
 - Migratable = plan `*.md` under a disposition dir; EXCLUDE `STATUS.md`, `INDEX.json`, `INDEX.md`, `README.md`, `.gitkeep`.
 - Test runner: stdlib `unittest`, NOT pytest.

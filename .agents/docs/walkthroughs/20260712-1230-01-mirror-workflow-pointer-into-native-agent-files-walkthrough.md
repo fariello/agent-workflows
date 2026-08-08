@@ -1,7 +1,7 @@
 # Walkthrough: Mirror workflow pointer into native agent rule files
 
 Date: 2026-07-12
-Plan Executed: [.agents/plans/executed/20260712-0030-01-mirror-workflow-pointer-into-native-agent-files.md](./.agents/plans/executed/20260712-0030-01-mirror-workflow-pointer-into-native-agent-files.md)
+Plan Executed: [.agents/plans/executed/20260712-mirror-workflow-00-ndxj3i-mirror-workflow-pointer-into-native-agent-files.md](./.agents/plans/executed/20260712-mirror-workflow-00-ndxj3i-mirror-workflow-pointer-into-native-agent-files.md)
 Status: EXECUTED
 
 ---

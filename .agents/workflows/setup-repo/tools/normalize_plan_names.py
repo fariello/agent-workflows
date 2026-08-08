@@ -86,6 +86,12 @@ DEFAULT_EXCLUDES = ("*/README.md", "README.md")
 _NEW_RE = re.compile(
     r"^(?P<date>\d{8})-(?P<time>\d{4})-(?P<nn>\d{2})-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)\.md$"
 )
+# The Set-clustering grammar for plans (plans-adopter Order 06, spec 20260808-0004-01):
+# YYYYMMDD-<set-id>-<NN>-<id6>-<slug>.md, where <id6> is a 6-char base36 stable handle. This is
+# the current plan-name convention; the older HHMM-NN form above is accepted for compatibility.
+_CLUSTERED_RE = re.compile(
+    r"^(?P<date>\d{8})-(?P<set>[a-z0-9]+(?:-[a-z0-9]+)*)-(?P<nn>\d{2})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)\.md$"
+)
 # Legacy shapes (ordered; first match wins). Each yields date + optional time/nn + slug.
 _LEGACY_RES = (
     # YYYYMMDD-HHMM-<slug>  (time, no NN): 4-digit group
@@ -158,9 +164,14 @@ def parse_name(filename: str) -> Optional[Parsed]:
 
 
 def is_conformant(filename: str) -> bool:
-    """True only for a fully valid canonical name with a clean lowercase-kebab slug."""
+    """True for a valid canonical plan name: either the Set-clustering grammar
+    ``YYYYMMDD-<set-id>-<NN>-<id6>-<slug>.md`` (current, plans-adopter) or the older
+    ``YYYYMMDD-HHMM-NN-<slug>.md`` form (accepted for compatibility). Both use clean
+    lowercase-kebab slugs."""
 
-    return _NEW_RE.match(filename) is not None
+    return (
+        _CLUSTERED_RE.match(filename) is not None or _NEW_RE.match(filename) is not None
+    )
 
 
 # --------------------------------------------------------------------------------------

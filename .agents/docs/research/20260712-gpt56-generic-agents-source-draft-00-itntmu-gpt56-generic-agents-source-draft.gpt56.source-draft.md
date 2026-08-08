@@ -13,7 +13,7 @@ consumed-by: []
 ---
 <!--
 PROVENANCE (archived 2026-07-12): external source draft, generated with GPT-5.6, 2026-07-11.
-This is the ORIGIN material for IPD 20260712-0020-01 (D67), which filtered a subset of these
+This is the ORIGIN material for IPD 20260712-ux-and-00-ob9h6r-ux-and-data-modeling-principles-import (D67), which filtered a subset of these
 generic UX/data-modeling principles into the assess lenses + GUIDING_PRINCIPLES. This full generic
 doc was deliberately NOT imported wholesale. Kept verbatim for provenance; the "Authoritative
 baseline" wording below is the external draft's own claim, NOT this repo's status. This repo's

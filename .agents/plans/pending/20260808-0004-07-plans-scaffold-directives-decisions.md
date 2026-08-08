@@ -14,7 +14,7 @@
 
 ## Workflow history
 
-- 2026-08-08 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `plans-adopter`; the framework wiring + the recorded decision. Authored from spec `20260808-0004-01` Section 4, 6.
+- 2026-08-08 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `plans-adopter`; the framework wiring + the recorded decision. Authored from spec `20260808-plansadopt-01-qkc93l-shared-artifact-core` Section 4, 6.
 - 2026-08-08 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; verified the RESEARCH_SHARD_SUBDIRS precedent, the created-count (24 -> 27 with 3 terminal-dir shards), and the installer auto-commit behavior; no defects found.
 - 2026-08-08 /plan-review (Antigravity Agent): APPROVE; (none)
 
@@ -43,7 +43,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: prior-decision edits and tests
 
-- [ ] E-04 add a DECISIONS pointer entry (pin the number at execution; next is D124) referencing the plans-adopter spec `20260808-0004-01`; note it applies the D123 model to plans via the shared core + the stable `Id` + Set-clustering, and cites D122 (the ipd_schema it extends).
+- [ ] E-04 add a DECISIONS pointer entry (pin the number at execution; next is D124) referencing the plans-adopter spec `20260808-plansadopt-01-qkc93l-shared-artifact-core`; note it applies the D123 model to plans via the shared core + the stable `Id` + Set-clustering, and cites D122 (the ipd_schema it extends).
   - Depends on: E-01
   - Expected outcome: the entry is present, points to the spec, and cites D123 (the model) and D122 (ipd_schema).
   - Execution state: pending

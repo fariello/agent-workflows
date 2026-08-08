@@ -1,10 +1,10 @@
 # Spec: external / out-of-repo delivery and host-native skills for agent-workflows
 
 - Date: 2026-07-25
-- Status: draft spec (evidence-gated); produced by IPD `20260723-1100-05`
+- Status: draft spec (evidence-gated); produced by IPD `20260723-instsafe-05-kemhdg-external-install-and-skills-delivery-research-spec`
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Sources: research `.agents/docs/research/20260722-agent-coding-system-file-discovery-and-write-safety-00-x41kw0-agent-coding-system-file-discovery-and-write-safety.findings.md` and `.agents/docs/research/20260722-token-efficient-managed-sections-in-agent-instruction-files-00-0jl8pv-token-efficient-managed-sections-in-agent-instruction-files.gpt56.findings.md`
-- Related: IPD `20260723-1100-01` (install manifest / ownership), IPD `20260723-1100-06` (interactive-questions trigger)
+- Related: IPD `20260723-instsafe-01-920qnm-install-manifest-and-managed-sections-model` (install manifest / ownership), IPD `20260722-instsafe-06-mv7hw7-deepen-interactive-questions-convention` (interactive-questions trigger)
 
 This spec decides, from evidence, how much of agent-workflows can live OUTSIDE a repo and still be discovered AND followed per host, and defines the probe protocol that produces that evidence. It builds nothing: the delivery build is a separate later IPD, gated on the probe results recorded here.
 
