@@ -2,6 +2,7 @@
 
 - Date: 2026-07-30
 - Status: approved (2026-07-30, human maintainer) as the design basis for the research-organization IPD Set. Design rationale; the follow-on IPD Set implements it (research first). Open questions OQ1 to OQ6 (Section 10) are resolved within the Set's child IPDs.
+- Implemented: SHIPPED as DECISIONS D123 (research adopter) and D124 (plans adopter, via the follow-on spec `20260808-0004-01-artifact-organization-plans-adopter.spec.md`). This spec remains the standing design reference; the executed IPD Sets and their walkthroughs carry the execution record.
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Scope: a GENERAL principle for organizing the durable, growing artifact trees under `.agents/` (research, plans, prompts, comms, walkthroughs) so a human and an agent can answer "what did we find / decide about X?" and "what still needs attention?" cheaply and at scale. IMPLEMENTATION is scoped to `.agents/docs/research/` first; the other areas are named future adopters.
 
@@ -211,10 +212,9 @@ Cite research by its `<id6>` (optionally `RSCH-<id6>`), resolved via the manifes
 
 ## 7. General principle and future adopters (scope G2)
 The model above (stable id + filename-encoded set/order + tool-generated tiered manifest + count-window hot glance + weekly cold shards + deliberate archival verbs + progressive-disclosure tool adoption) is written to apply to any growing `.agents/` artifact tree. Implementation order:
-1. `research/` (this Set): smallest, self-contained, safe to dogfood.
-2. `plans/executed/` (highest-value next adopter): the measured 179-file, ~85/month pain. Tracked in TODO.md.
-3. `prompts/`, `comms/`, `walkthroughs/`: subsequent adopters.
-Only research is BUILT now; the rest are named future work, not speculative structure (P6).
+1. `research/` (this Set): smallest, self-contained, safe to dogfood. DONE (D123).
+2. `plans/executed/` (highest-value next adopter): the measured 179-file, ~85/month pain. DONE (D124, spec `20260808-0004-01`), reusing the shared `artifact_core`.
+3. `prompts/`, `comms/`, `walkthroughs/`: subsequent adopters. Named future work, tracked in TODO.md; not speculative structure (P6).
 
 ## 8. Prior decisions this spec revises (not canon)
 - The `YYYYMMDD-HHMM-NN` grouping theory (D48/D50/D55 family): FAILED at grouping (set members span timestamps and do not cluster). Superseded by filename-encoded `set-id` + `NN` + a stable `<id6>`, with human recency from a leading `YYYYMMDD`.

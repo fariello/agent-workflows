@@ -2,6 +2,7 @@
 
 - Date: 2026-08-08
 - Status: approved (2026-08-08, human maintainer) as the design basis for the plans-adopter IPD Set. Design rationale; the follow-on IPD Set implements it. Open questions OQ1 to OQ5 (Section 8) are resolved.
+- Implemented: SHIPPED as DECISIONS D124 via the executed plans-adopter IPD Set (orchestrator `20260808-0004-00` plus children `...-01..07`, in `.agents/plans/executed/`). This spec remains the standing design reference; the executed Set and its walkthrough carry the execution record. The Section 9 "next step / do NOT begin until approved" note below is historical.
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Parent: `.agents/docs/specs/20260730-2152-01-agents-artifact-organization.spec.md` (the research-org
   design, now shipped as DECISIONS D123). This companion spec CORRECTS and EXTENDS the parent's
