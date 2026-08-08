@@ -13,6 +13,7 @@
 ## Workflow history
 
 - 2026-08-08 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored from the approved spec `20260808-0004-01-artifact-organization-plans-adopter.spec.md`. Split into a Set because the work spans a shared-core extraction, an `ipd_schema` metadata + linter change, a manifest surface, a regroup/rename tool, a shard/archival tool, a one-time corpus migration with citation rewriting, and framework scaffolding + decision updates, with clear dependency ordering.
+- 2026-08-08 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; verified all load-bearing claims against the code. Fixes: cross-IPD note that Order 05 depends functionally on 01/03 (04 is ordering-only, PR-005).
 - 2026-08-08 /plan-review (Antigravity Agent): APPROVE; (none)
 
 ## Goal
@@ -72,7 +73,7 @@ Execute in Order. Each child is its own `/plan-review` + human approval + execut
 | 02 | `20260808-0004-02-plan-id-in-ipd-schema.md` | Add `- Id:` (6-char base36 from the core) as a REQUIRED plan metadata field in `ipd_schema`; `aw ipd lint` validates it; `aw ipd scaffold`/`sync` emit it. | 01 |
 | 03 | `20260808-0004-03-plans-manifest-and-check.md` | `aw plans index [--check]`: `INDEX.json` (all plans) + a browse-by-`Set:` view bounded to the 40 most-recent Sets; `--check` drift gate (missing/invalid `Id`, name-vs-metadata mismatch, stale view, dangling plan citation). | 01, 02 |
 | 04 | `20260808-0004-04-plans-regroup-and-refs.md` | `aw plans set-assign`/`mv`: (re)assign `Set:`/`Order:`, optionally rename to `YYYYMMDD-<set-id>-<NN>-<id6>-<slug>.md`, keep `Id`, rewrite plan citations (full-name, bare-stem, range) via the stable id; reuse the core dangling detector. | 01, 02, 03 |
-| 05 | `20260808-0004-05-plans-shards-and-archival.md` | Weekly `YYYYMM-Www/` shards inside `executed/`/`superseded/`/`not-executed/`; `aw plans archive` (targeted + deliberate aged sweep with preview); INDEX refresh. | 01, 03, 04 |
+| 05 | `20260808-0004-05-plans-shards-and-archival.md` | Weekly `YYYYMM-Www/` shards inside `executed/`/`superseded/`/`not-executed/`; `aw plans archive` (targeted + deliberate aged sweep with preview); INDEX refresh (recursive scan sees shards). | 01, 03 (04 precedes in Set order but is not a functional dep: a dir-only shard move is a citation no-op) |
 | 06 | `20260808-0004-06-migrate-existing-plans.md` | One-time migration: assign `Id`, rename all executed+pending plans to the clustering grammar (tracked renames), rewrite the three citation forms, regenerate INDEX; dry-run mapping + STOP-for-review gate. | 01, 02, 03, 04, 05 |
 | 07 | `20260808-0004-07-plans-scaffold-directives-decisions.md` | Installer scaffold (terminal-dir shard parents), AGENTS.md pointer note for the `aw plans` grouping verbs, DECISIONS D124 pointer entry, TODO update (prompts named next adopter). | 01, 03, 05 |
 

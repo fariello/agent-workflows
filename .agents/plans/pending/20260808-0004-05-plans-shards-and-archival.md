@@ -3,7 +3,7 @@
 - Date: 2026-08-08
 - Kind: child
 - Concern: tame the flat, unbounded terminal disposition dirs (measured pain: 116 files in `executed/`) by adding weekly `YYYYMM-Www/` cold shards inside every terminal dir, with a deliberate, tool-invoked archival verb (never a background side effect).
-- Scope: weekly shards inside `executed/`/`superseded/`/`not-executed/` (OQ3); `aw plans archive` (targeted + a deliberate aged sweep with preview); INDEX refresh after moves. `pending/`/`reusable/` stay flat. Consumes the Order-01 core (shard math, atomic move), Order-03 manifest, Order-04 reference-update. No bulk migration (06). Requires Orders 01, 03, 04.
+- Scope: weekly shards inside `executed/`/`superseded/`/`not-executed/` (OQ3); `aw plans archive` (targeted + a deliberate aged sweep with preview); INDEX refresh after moves. `pending/`/`reusable/` stay flat. Consumes the Order-01 core (shard math, atomic move) and the Order-03 manifest. Order-04 executes before this child in the Set order but its reference-updater is NOT invoked by a shard move (a dir-only move is a citation no-op; see E-02); the 04 dependency is retained only for Set ordering, not a functional coupling. No bulk migration (06). Requires Orders 01, 03.
 - Status: reviewed
 - Set: plans-adopter
 - Order: 5
@@ -13,6 +13,7 @@
 ## Workflow history
 
 - 2026-08-08 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `plans-adopter`; the scale mechanism. Authored from spec `20260808-0004-01` Section 4.6 + OQ3.
+- 2026-08-08 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-005/D3: a dir-only shard move is a CITATION NO-OP (plans cited by basename/stem, not path), so removed the over-scoped 'reuse Order 04 reference-update' claim; narrowed functional deps to 01/03 (04 ordering-only); noted the recursive-manifest visibility.
 - 2026-08-08 /plan-review (Antigravity Agent): APPROVE; (none)
 
 ## Goal
@@ -25,13 +26,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: shard layout + move helper
 
-- [ ] E-01 confirm Orders 01+03+04 are executed and their symbols are present, else STOP.
+- [ ] E-01 confirm Orders 01+03 are executed and their symbols are present, else STOP.
   - Depends on: none
-  - Expected outcome: the core + manifest + reference-update symbols are importable; if absent the tool halts before moving files.
+  - Expected outcome: the core (shard math, atomic move) + manifest symbols are importable; if absent the tool halts before moving files.
   - Execution state: pending
-- [ ] E-02 add the shard-move helper: move a terminal plan from its disposition-dir root into `<disposition>/YYYYMM-Www/` (weekly shard from the plan's date, via the core shard math) as an atomic tracked `git mv`, keeping `Id`; reuse Order 04's reference-update so any full-path cite is rewritten (id/bare-stem cites are unaffected by a dir-only move).
+- [ ] E-02 add the shard-move helper: move a terminal plan from its disposition-dir root into `<disposition>/YYYYMM-Www/` (weekly shard from the plan's date, via the core shard math) as an atomic tracked `git mv`, keeping the filename and `Id`. A dir-only move changes the PATH but NOT the filename; plans are cited by basename/stem (verified: no full-path citations exist in the corpus), so this move is a CITATION NO-OP and requires NO reference rewrite. Only if a rare full-path citation is later found does the manifest/`--check` flag it; do not invoke Order 04's rewriter as part of a shard move.
   - Depends on: E-01
-  - Expected outcome: a terminal plan moves into the correct week shard of its disposition dir; id + cites intact.
+  - Expected outcome: a terminal plan moves into the correct week shard of its disposition dir; filename + id unchanged; no citation rewrite performed (none needed).
   - Execution state: pending
 
 ### Task group 2: archive verbs, refresh, tests
@@ -56,8 +57,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Project conventions discovered (Step 0)
 
 - Disposition dirs are the coarse lifecycle; the shard layer is fine-grained cold storage WITHIN each terminal dir. `pending/`/`reusable/` (hot/standing) stay flat.
-- Shard math (`shard_for_date`, `YYYYMM-Www`) and the atomic move/`git mv` come from the Order-01 core; the reference-update from Order 04; the manifest refresh from Order 03. No fork.
-- A dir-only move (root -> shard within the same disposition dir) changes the plan's PATH but not its filename; so full-path citations may need rewriting, but bare-stem/id citations are unaffected. Archival is ALWAYS deliberate/on-invocation (mirrors `aw archive` for research, spec 4.10).
+- Shard math (`shard_for_date`, `YYYYMM-Www`) and the atomic move/`git mv` come from the Order-01 core; the manifest refresh from Order 03. No fork.
+- A dir-only move (root -> shard within the same disposition dir) changes the plan's PATH but not its filename; plans are cited by basename/stem (no full-path citations exist in the corpus), so a shard move is a CITATION NO-OP and does NOT invoke Order 04's reference-updater. Archival is ALWAYS deliberate/on-invocation (mirrors `aw archive` for research, spec 4.10).
+- The manifest scan (Order 03) is RECURSIVE, so a plan moved into a shard subdir stays visible in `INDEX.json` and the browse-by-Set view. (The legacy `plans.py`/`STATUS.md` board is non-recursive; its reconciliation is a tracked follow-up, see Child 03 Deferred.)
 - Test runner: stdlib `unittest`, NOT pytest.
 
 ## Findings
@@ -91,7 +93,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-`tests/test_plans_archive.py`: shard-move (correct `YYYYMM-Www` shard for the plan's date, unchanged Id, tracked git rename, full-path cite rewritten); targeted `aw plans archive <id|set>`; bare aged sweep (aged selected, recent excluded, preview shown); INDEX refresh (archived plan's path updates, `index --check` clean). Run it + the full suite `python3 -m unittest discover -s tests -t .`; PASTE both. Leak-clean; no em/en dashes.
+`tests/test_plans_archive.py`: shard-move (correct `YYYYMM-Www` shard for the plan's date, unchanged filename + Id, tracked git rename, NO citation rewrite performed, plan still visible in the recursive manifest); targeted `aw plans archive <id|set>`; bare aged sweep (aged selected, recent excluded, preview shown); INDEX refresh (archived plan's path updates, `index --check` clean). Run it + the full suite `python3 -m unittest discover -s tests -t .`; PASTE both. Leak-clean; no em/en dashes.
 
 ## Spec / documentation sync
 
@@ -111,11 +113,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: cite Orders 01+03+04 in `executed/`; confirm the tool halts when their symbols are absent.
+  - Required evidence: cite Orders 01+03 in `executed/`; confirm the tool halts when their symbols are absent.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: paste a shard-move showing the correct week shard within the disposition dir + unchanged Id; confirm the move is a tracked git rename and any full-path cite was rewritten.
+  - Required evidence: paste a shard-move showing the correct week shard within the disposition dir + unchanged filename + unchanged Id; confirm the move is a tracked git rename; confirm NO citation rewrite was performed (a dir-only move is a citation no-op) and the plan stays visible in the recursive manifest.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
@@ -140,6 +142,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Proposal; human review + approval; not auto-executed. Requires Orders 01, 03, 04. Do NOT claim done or move to `executed/` until every `E-*` is performed+checked AND its matching `V-*` is pass+checked with concrete evidence; else STOP and report.
+Proposal; human review + approval; not auto-executed. Requires Orders 01, 03 (Order 04 precedes this in Set order but is not a functional dependency of a shard move). Do NOT claim done or move to `executed/` until every `E-*` is performed+checked AND its matching `V-*` is pass+checked with concrete evidence; else STOP and report.
 
 Execution contract (per `.agents/plans/README.md` and `AGENTS.md`): commit ONLY this plan's files, path-scoped, never `git add -A`/`-a`, never push; `git add` new files first. Paste ACTUAL runner output; never claim a pass not run. No em or en dashes in authored Markdown. STOP and report if execution exceeds scope (shards + archive verbs only; no bulk migration). Terminal transition is a POST-gate transaction, not a checklist item. Never create or push a tag / Release / PyPI upload.

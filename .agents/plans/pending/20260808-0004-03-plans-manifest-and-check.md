@@ -13,6 +13,7 @@
 ## Workflow history
 
 - 2026-08-08 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `plans-adopter`; the browse-by-topic payoff. Authored from spec `20260808-0004-01` Section 4.4 + OQ5.
+- 2026-08-08 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-003/D4: the plans manifest scan MUST be recursive so sharded plans are visible (plans.py:scan is non-recursive and would miss them); added the plans.py/STATUS.md recursion reconciliation as a tracked follow-up.
 - 2026-08-08 /plan-review (Antigravity Agent): APPROVE; (none)
 
 ## Goal
@@ -29,9 +30,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: the core + `Id` support are importable; if absent the tool halts before generating.
   - Execution state: pending
-- [ ] E-02 add `aw plans index`: scan `.agents/plans/**` plan metadata (disposition from dir; `Id`/`Set`/`Order`/`Status`/`Kind` from the block) and build `INDEX.json` (every plan, all fields, resolved current path) as a pure deterministic function of the plans + their metadata.
+- [ ] E-02 add `aw plans index`: scan `.agents/plans/**` plan metadata (disposition from the top-level dir; `Id`/`Set`/`Order`/`Status`/`Kind` from the block) and build `INDEX.json` (every plan, all fields, resolved current path) as a pure deterministic function of the plans + their metadata. The scan MUST be RECURSIVE (`rglob`) so plans that Order 05 moves into `<disposition>/YYYYMM-Www/` weekly shards are visible; the disposition is the TOP-LEVEL dir even when a plan sits in a shard subdir. (Note: `plans.py:scan` uses a non-recursive `glob("*.md")` and would MISS sharded plans; `plans_index` uses its own recursive scan and does not inherit that limitation. Reconciling `plans.py`/`STATUS.md` recursion is tracked as a follow-up, see Deferred.)
   - Depends on: E-01
-  - Expected outcome: the JSON contains every plan with correct fields; regenerating twice is byte-identical.
+  - Expected outcome: the JSON contains every plan (including any in a shard subdir) with correct fields + top-level disposition; regenerating twice is byte-identical.
   - Execution state: pending
 - [ ] E-03 generate the browse-by-`Set:` human view: group by `Set` (members in `Order`), Sets ordered by most-recent activity, bounded to the 40 most-recent Sets (configurable via a core constant / `--limit`); ungrouped plans (no `Set`) shown in a singleton band; a "do not edit" header. Complement `STATUS.md`, do not replace it.
   - Depends on: E-02
@@ -55,7 +56,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Project conventions discovered (Step 0)
 
-- `plans.py` already scans `.agents/plans/**` and renders a disposition-grouped `STATUS.md` (`render_status_index`); this child ADDS a Set-grouped manifest + JSON + `--check`, it does not replace `STATUS.md`. Reuse `plans.py`'s scan/record types where sensible.
+- `plans.py` already scans `.agents/plans/**` and renders a disposition-grouped `STATUS.md` (`render_status_index`); this child ADDS a Set-grouped manifest + JSON + `--check`, it does not replace `STATUS.md`. Reuse `plans.py`'s record TYPES where sensible, but NOT its scan: `plans.py:scan` uses a non-recursive `glob("*.md")` (`plans.py:165`) and cannot see plans inside `<disposition>/YYYYMM-Www/` shards; `plans_index` MUST scan recursively (`ipd_lint._iter_plan_files` already uses `rglob`, the precedent). Deriving disposition from the TOP-LEVEL dir regardless of shard depth.
 - The drift/`--check` shape, dangling detector, and determinism come from `artifact_core` (Order 01); `Id` comes from `ipd_schema` (Order 02). No fork.
 - Pre-migration, plan filenames are still the timestamp stem; the name-vs-metadata drift class only applies to CLUSTERED names, so it must not false-positive on un-migrated plans.
 - Test runner: stdlib `unittest`, NOT pytest.
@@ -84,6 +85,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | Renaming plans to cluster by Set | n/a | scope | Order 04 (regroup) + Order 06 (migration). | Orders 04, 06 |
 | Moving plans into shards | n/a | scope | Order 05. | Order 05 |
 | Wiring `--check` into a pre-commit hook | usability | Hook-less per spec OQ4; the workflows carry the obligation. | Deferred hook follow-up |
+| Making `plans.py:scan`/`STATUS.md` recursive so the disposition board also sees sharded plans | functionality | `plans_index` scans recursively so the manifest is correct; the legacy `STATUS.md` board would under-count sharded plans until `plans.py:scan` is made recursive too. Bounded, but touches the existing board; scoped as a small follow-up rather than expanded here. | A later small fix (or folded into Order 05) |
 
 ## Scope check
 
@@ -116,7 +118,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: paste a JSON snippet showing all fixture plans + fields (incl. disposition/Set/Order/Id); confirm regenerating twice is byte-identical.
+  - Required evidence: paste a JSON snippet showing all fixture plans + fields (incl. disposition/Set/Order/Id); confirm a plan placed in a `<disposition>/YYYYMM-Www/` shard subdir IS included with its top-level disposition (recursive scan); confirm regenerating twice is byte-identical.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03

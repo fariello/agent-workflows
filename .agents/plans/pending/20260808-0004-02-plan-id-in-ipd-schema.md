@@ -7,12 +7,13 @@
 - Status: reviewed
 - Set: plans-adopter
 - Order: 2
-- Highest E allocated: 05
+- Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
 ## Workflow history
 
 - 2026-08-08 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `plans-adopter`; the identity layer for plans. Authored from spec `20260808-0004-01` Section 4.2 + OQ2.
+- 2026-08-08 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001/C2-3 (HIGH): added E-06 to repair every in-repo conforming fixture lacking Id (conforming-orchestrator.md, _conforming_child ~22x, templates) in lockstep with making Id required, else ~28 conformance/exact-diagnostic tests would flip to error; corrected OQ-01 (no metadata field-order rule exists).
 - 2026-08-08 /plan-review (Antigravity Agent): APPROVE; (none)
 
 ## Goal
@@ -48,6 +49,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: templates carry `Id`; new/updated tests pass; full suite green.
   - Execution state: pending
+- [ ] E-06 REPAIR every existing in-repo "conforming" fixture that lacks `- Id:` so making `Id` required does not flip conformance/exact-diagnostic assertions to error: backfill a valid `- Id:` into `tests/fixtures/conforming-orchestrator.md` and into the `_conforming_child()` builder in `tests/test_ipd_lint.py` (used ~22 times), and into any other in-code conforming IPD string (e.g. `_conforming_orchestrator` helpers). This MUST land in the same change as E-02 (making Id required) so the suite never goes red between steps.
+  - Depends on: E-02
+  - Expected outcome: `tests/fixtures/conforming-orchestrator.md` and `_conforming_child()` carry a valid `Id`; the ~22 `_conforming_child` assertions and the fixture-based `test_ipd_lint`/`test_ipd_schema` conformance/exact-diagnostic tests pass unchanged in intent (no stray `meta.missing` diagnostic).
+  - Execution state: pending
 
 ## Project conventions discovered (Step 0)
 
@@ -63,6 +68,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 |----|----------|------------------|---------|------|---------|----------|
 | C2-1 | HIGH | Low | integrity | identity | Plans need a stable handle to survive regrouping/rename (spec 2/4.2); the timestamp stem cannot serve once files are reclustered. | spec 2, 8 |
 | C2-2 | MEDIUM | Medium | consistency | no-collision | The handle must reuse the existing metadata block, not add a second frontmatter system. | spec 3, 4.2 |
+| C2-3 | HIGH | Low | testing | fixture-repair | Making `Id` required flips every in-repo conforming fixture lacking it to `error`: `tests/fixtures/conforming-orchestrator.md` and `_conforming_child()` (used ~22x) + the two templates. E-06 repairs them in lockstep with E-02. | tests/fixtures/conforming-orchestrator.md, tests/test_ipd_lint.py:33 |
 
 ## Proposed changes (ordered, validatable)
 
@@ -73,6 +79,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | 3 | 4.2 | `aw ipd scaffold` emits a fresh collision-checked `Id` | `agent_workflows/ipd_authoring.py` | Low | E-03 |
 | 4 | 4.2 | `aw ipd sync` backfills a missing `Id` | `agent_workflows/ipd_authoring.py` | Low | E-04 |
 | 5 | 4.2 | Templates + tests | `assess/templates/ipd.md`, `orchestrator-ipd.md`, `tests/test_ipd_*` | Low | E-05 |
+| 6 | 4.2 | Backfill `Id` into existing conforming fixtures (`conforming-orchestrator.md`, `_conforming_child()`) in lockstep with making Id required | `tests/fixtures/conforming-orchestrator.md`, `tests/test_ipd_lint.py` | Low | E-06 |
 
 ## Deferred / out of scope (with reason)
 
@@ -101,7 +108,7 @@ The `ipd-spec` doc (`.agents/docs/specs/20260726-1340-01-ipd-spec.md`) is update
 - Blocking: no
 - Status: resolved
 - Owner: this child
-- Resolution or deferral rationale: place `- Id:` immediately after `- Author:` (end of the identity block), so it is visually grouped with the other stable identity fields and does not disturb the `Set`/`Order`/watermark ordering the linter already checks. Confirm the exact slot against the linter's metadata-order rule at execution.
+- Resolution or deferral rationale: place `- Id:` immediately after `- Author:` (end of the identity block), grouped with the other stable identity fields. VERIFIED at review: the linter does NOT enforce metadata FIELD order (`validate_metadata` checks presence/duplicates/unknown-fields/pairing/values, not order; only H2 heading order is checked), so the slot is a readability choice and cannot break a lint check. `Id` is added to `META_REQUIRED` (order-independent) and `META_RECOGNIZED`.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -125,6 +132,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 - [ ] V-05 validates E-05
   - Required evidence: confirm both templates carry `- Id:` with byte-parity to `build_skeleton`; paste the affected test files' results + the full-suite `Ran N tests ... OK` summary; leak-clean.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-06 validates E-06
+  - Required evidence: confirm `tests/fixtures/conforming-orchestrator.md` and `_conforming_child()` (and any other in-code conforming IPD) carry a valid `- Id:`; paste `python3 -m unittest tests.test_ipd_lint tests.test_ipd_schema -v` showing the previously-conforming fixtures still conform (no stray `meta.missing`); confirm this landed together with E-02 (no red intermediate state).
   - Observed evidence:
   - Result: pending
 

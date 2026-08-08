@@ -13,6 +13,7 @@
 ## Workflow history
 
 - 2026-08-08 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `plans-adopter`; the shared foundation every later child builds on. Authored from spec `20260808-0004-01` Section 4.1.
+- 2026-08-08 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-006 corrected the 'welded to RESEARCH_ROOT' mis-statement (the root is already a param; the real coupling is the name-grammar/citation-matcher, which E-03 parameterizes).
 - 2026-08-08 /plan-review (Antigravity Agent): APPROVE; (none)
 
 ## Goal
@@ -33,9 +34,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-01
   - Expected outcome: shard helpers live in the core; `202607-W27` style output unchanged.
   - Execution state: pending
-- [ ] E-03 move the dangling-citation detector primitive and the tracked-text scan-root iteration into the core as an area-parameterized function (the caller supplies the scan roots + the current-id resolver + the citation matcher); keep the atomic-write + `git mv` helpers in the core.
+- [ ] E-03 move the dangling-citation detector primitive and the tracked-text scan-root iteration into the core as an area-parameterized function. NOTE the real coupling: `research_refs.find_dangling_citations` and `_current_id6s` ALREADY take `research_root` as a parameter (the ROOT is not welded), and `SCAN_ROOTS`/`iter_scan_files` are already generic; the research-SPECIFIC parts to parameterize out are the name-grammar/current-id resolver (`parse_name`) and the citation matcher (`iter_id6_citations`, incl. the `RSCH-` handle). The core function takes the scan roots + a current-id resolver + a citation matcher as arguments. Keep the atomic-write + `git mv` helpers in the core.
   - Depends on: E-01
-  - Expected outcome: a single `find_dangling_citations`-style core function both research and plans can call with their own area config.
+  - Expected outcome: a single `find_dangling_citations`-style core function both research and plans can call with their own name-grammar/citation-matcher.
   - Execution state: pending
 - [ ] E-04 move the tiered-manifest + `--check` SHAPE into the core (a generic drift-record type, the byte-compare stale-view check, the `--agent` tab-separated output + 0/1/2 exit-code convention) so both areas share the gate structure; area-specific entry/render stays in each area's module.
   - Depends on: E-01

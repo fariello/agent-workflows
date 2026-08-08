@@ -13,6 +13,7 @@
 ## Workflow history
 
 - 2026-08-08 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `plans-adopter`; the framework wiring + the recorded decision. Authored from spec `20260808-0004-01` Section 4, 6.
+- 2026-08-08 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; verified the RESEARCH_SHARD_SUBDIRS precedent, the created-count (24 -> 27 with 3 terminal-dir shards), and the installer auto-commit behavior; no defects found.
 - 2026-08-08 /plan-review (Antigravity Agent): APPROVE; (none)
 
 ## Goal

@@ -13,6 +13,7 @@
 ## Workflow history
 
 - 2026-08-08 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `plans-adopter`; the accepted one-time cost that proves the convention on real data. Authored from spec `20260808-0004-01` Section 4.7 + 4.8.
+- 2026-08-08 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-002/D2 (HIGH): Id validity on migrated executed plans is verified via `aw plans index --check` (checks all dispositions), NOT `aw ipd lint` (skips terminal-dir plans as legacy); PR-004/D5: bare-stem rewrite must not touch spec-only stems.
 - 2026-08-08 /plan-review (Antigravity Agent): APPROVE; (none)
 
 ## Goal
@@ -38,15 +39,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-03 assign each plan a collision-checked `- Id:` (backfill the metadata block; keep body + workflow history verbatim).
   - Depends on: E-02
-  - Expected outcome: every migratable plan has a valid unique `Id`; `aw ipd lint` Id check passes on each.
+  - Expected outcome: every migratable plan has a valid unique `Id`. NOTE: `aw ipd lint` treats terminal-dir (executed/superseded/not-executed) plans as `legacy/not evaluated` and does NOT check their metadata, so Id validity on the migrated corpus is verified via `aw plans index --check` (Order 03, which checks Id on ALL plans regardless of disposition), NOT via `aw ipd lint`.
   - Execution state: pending
 - [ ] E-04 rename each plan to the clustering grammar via the Order-04 `set-assign --rename`/`mv` (tracked git renames); Set-less plans become singletons keyed on their slug.
   - Depends on: E-03
   - Expected outcome: plans cluster by Set in the name-sorted tree; git tracks moves as renames (R), not delete+add.
   - Execution state: pending
-- [ ] E-05 rewrite all in-repo citations across the three forms via the Order-04 reference updater + the old-stem->new-name map; report + resolve danglers.
+- [ ] E-05 rewrite all in-repo citations across the three forms via the Order-04 reference updater + the old-stem->new-name map; a bare stem is rewritten ONLY when it maps to a plan in the migration table (a spec-only stem sharing the `YYYYMMDD-HHMM-NN` grammar is left untouched); report + resolve danglers.
   - Depends on: E-04
-  - Expected outcome: the dangling-cite report is empty after `--apply`; sample cites of each form resolve.
+  - Expected outcome: the dangling-cite report is empty after `--apply`; sample cites of each form resolve; a spec-only bare stem is confirmed NOT rewritten.
   - Execution state: pending
 - [ ] E-06 regenerate `INDEX.json` + the browse-by-Set view and run `aw plans index --check`; paste the check result, dangling report, suite summary, and before/after count.
   - Depends on: E-03, E-04, E-05
@@ -58,6 +59,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Use the Order 02 to 05 tools; do NOT hand-edit names/metadata where a tool exists.
 - Existing Set cohorts to preserve (verified in the corpus): `install-safety-and-ownership` (7), `ipd-structure` (7), `research-org` (8), `ipd-dual-checklist-convention` (4), `untrack-workflow-artifacts` (4), `plans-adopter` (this Set), and others; Set-less plans become singletons. Re-derive the exact cohorts at execution.
 - Plans are cited THREE ways: full filename, bare `YYYYMMDD-HHMM-NN` stem, and range shorthand; the migration builds the old-stem->new-name map and rewrites all three (Order 04).
+- HAZARD (verified at review): the bare-stem `YYYYMMDD-HHMM-NN` grammar is SHARED with `.agents/docs/specs/` filenames (e.g. `20260808-0004-01` is BOTH a plan and a spec). A bare-stem rewrite MUST disambiguate a plan citation from a spec citation (resolve the stem to a plan `Id` only when it maps to a plan in the migration table; leave spec-only stems untouched). The dry-run diff (E-02) surfaces every bare-stem rewrite for human review to catch a mis-hit; do NOT blind-rewrite bare stems.
 - The plan BODY and append-only workflow history are IMMUTABLE (spec 4.8): only the filename and the added `Id` line change. Moves are tracked git renames so history is preserved.
 - Migratable = plan `*.md` under a disposition dir; EXCLUDE `STATUS.md`, `INDEX.json`, `INDEX.md`, `README.md`, `.gitkeep`.
 - Test runner: stdlib `unittest`, NOT pytest.
@@ -123,7 +125,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: confirm EVERY migratable plan has a valid unique `Id` (paste `aw ipd lint` Id-check evidence on a sample + a count).
+  - Required evidence: confirm EVERY migratable plan has a valid unique `Id` via `aw plans index --check` (which validates Id on all dispositions incl. `executed/`); paste the check output showing no missing/invalid-Id drift + a count of plans carrying an Id. Do NOT rely on `aw ipd lint` (it skips terminal-dir plans as legacy).
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
@@ -131,7 +133,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: paste the (empty) dangling-cite report and >=3 resolved sample cites, one per citation form (full-name, bare-stem, range).
+  - Required evidence: paste the (empty) dangling-cite report and >=3 resolved sample cites, one per citation form (full-name, bare-stem, range); AND confirm a spec-only bare stem sharing the `YYYYMMDD-HHMM-NN` grammar (e.g. an `.agents/docs/specs/` id that is not a plan) was NOT rewritten.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06
