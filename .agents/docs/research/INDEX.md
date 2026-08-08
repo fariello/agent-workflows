@@ -2,10 +2,11 @@
 
 # Research index
 
-Showing the most-recent 40 of 61 hot docs (archive excluded).
+Showing the most-recent 40 of 62 hot docs (archive excluded).
 
 ## Most recent
 
+- `bv6n38` [active] 20260808-attention-registry-cross-tree-status-and-whatnext-00-bv6n38-attention-registry-cross-tree-status-and-whatnext.survey.md - Design survey for a cross-tree attention registry: standardized status vocabulary, deterministic aw attention scanner+writer, and whatnext-as-reader
 - `5zczmo` [reference] 20260731-chkplace-04-5zczmo-checklist-placement-and-instruction-audit.findings.md - Migrated from 20260731-chkplace-04-5zczmo-checklist-placement-and-instruction-audit.findings.md.
 - `72n26s` [reference] 20260731-chkplace-02-72n26s-checklist-placement-and-instruction-audit-report.gpt56medium.research-report.md - Migrated from 20260731-chkplace-02-72n26s-checklist-placement-and-instruction-audit-report.gpt56medium.research-report.md.
 - `80eqy0` [reference] 20260731-chkplace-03-80eqy0-checklist-placement-and-instruction-audit-report.sonnet5.research-report.md - Migrated from 20260731-chkplace-03-80eqy0-checklist-placement-and-instruction-audit-report.sonnet5.research-report.md.
@@ -45,4 +46,3 @@ Showing the most-recent 40 of 61 hot docs (archive excluded).
 - `kams1a` [reference] 20260716-opencode-unauthenticated-local-server-advisory-00-kams1a-opencode-unauthenticated-local-server-advisory.advisory.md - Migrated from 20260716-opencode-unauthenticated-local-server-advisory-00-kams1a-opencode-unauthenticated-local-server-advisory.advisory.md.
 - `j2000q` [reference] 20260714-same-box-agent-wakeup-mechanisms-00-j2000q-same-box-agent-wakeup-mechanisms.research-report.md - Migrated from 20260714-same-box-agent-wakeup-mechanisms-00-j2000q-same-box-agent-wakeup-mechanisms.research-report.md.
 - `3rpcmu` [reference] 20260713-occomms-09-3rpcmu-implementation-roadmap.roadmap.md - Migrated from 20260713-occomms-09-3rpcmu-implementation-roadmap.roadmap.md.
-- `8xgwvm` [reference] 20260713-occomms-11-8xgwvm-sources.research-report.md - Migrated from 20260713-occomms-11-8xgwvm-sources.research-report.md.

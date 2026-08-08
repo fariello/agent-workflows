@@ -266,6 +266,25 @@
     "topic": []
   },
   {
+    "created": "20260808",
+    "date": "20260808",
+    "id6": "bv6n38",
+    "kind": "survey",
+    "model": "",
+    "order": "00",
+    "outcome": "none-yet",
+    "path": "20260808-attention-registry-cross-tree-status-and-whatnext-00-bv6n38-attention-registry-cross-tree-status-and-whatnext.survey.md",
+    "set_id": "attention-registry-cross-tree-status-and-whatnext",
+    "status": "active",
+    "summary": "Design survey for a cross-tree attention registry: standardized status vocabulary, deterministic aw attention scanner+writer, and whatnext-as-reader",
+    "topic": [
+      "attention-registry",
+      "status-model",
+      "whatnext",
+      "tooling"
+    ]
+  },
+  {
     "created": "20260726",
     "date": "20260726",
     "id6": "cnkyvn",
