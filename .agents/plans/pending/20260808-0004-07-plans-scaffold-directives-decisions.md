@@ -4,11 +4,12 @@
 - Kind: child
 - Concern: wire the plans convention into the framework: installer scaffold for the terminal-dir shard parents, a thin AGENTS.md pointer note for the `aw plans` grouping/manifest verbs, a DECISIONS pointer entry, and a TODO future-work note naming `prompts/` as the next adopter.
 - Scope: scaffold + directives + prior-decision edits, consuming Orders 01/03/05. No new tool behavior. Requires Orders 01, 03, 05 executed; if their symbols/paths are absent, STOP.
-- Status: reviewed
+- Status: approved
 - Set: plans-adopter
 - Order: 7
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-08-08 human maintainer (via opencode its_direct/pt3-claude-opus-4.8-1m-us): "Approved all. Please read and execute the orchestrator."
 
 ## Workflow history
 

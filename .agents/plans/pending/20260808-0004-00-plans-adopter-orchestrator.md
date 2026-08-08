@@ -4,11 +4,12 @@
 - Kind: orchestrator
 - Concern: apply the shipped research-organization model (DECISIONS D123) to `.agents/plans/` per the approved companion spec `.agents/docs/specs/20260808-0004-01-artifact-organization-plans-adopter.spec.md`: extract an area-agnostic core, give plans a stable `Id`, surface the existing `Set:` grouping in a manifest, make Set regrouping/rename citation-safe, weekly-shard the terminal disposition dirs, and migrate the corpus onto a Set-clustering filename grammar, so a human and an agent can browse plans by topic at scale.
 - Scope: ORCHESTRATOR for the ordered Set `plans-adopter`. Defines the child sequence, dependencies, whole-Set completion criteria, and cross-IPD validation. It does NOT itself change files (each child does its own edits). Implementation is scoped to `plans/` (and the shared core); `prompts/`/`comms/`/`walkthroughs/` are named future adopters, not implemented.
-- Status: reviewed
+- Status: approved
 - Set: plans-adopter
 - Order: 0
 - Highest E allocated: 09
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-08-08 human maintainer (via opencode its_direct/pt3-claude-opus-4.8-1m-us): "Approved all. Please read and execute the orchestrator."
 
 ## Workflow history
 

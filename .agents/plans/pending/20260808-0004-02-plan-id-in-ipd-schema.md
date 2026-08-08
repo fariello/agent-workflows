@@ -4,11 +4,12 @@
 - Kind: child
 - Concern: give every plan a stable, greppable citation handle that survives renaming/regrouping, expressed as a single `- Id:` line in the EXISTING `ipd_schema` metadata block (NOT a research-style frontmatter block, avoiding collision with `Set:`/`Order:`/`Status:`/`Kind:`/watermark).
 - Scope: add `Id` (6-char base36 from the Order-01 core) as a REQUIRED plan metadata field in `agent_workflows/ipd_schema.py`; have `aw ipd lint` validate it; have `aw ipd scaffold`/`sync` emit it. No manifest, no rename, no migration. Requires Order 01 (`artifact_core`).
-- Status: reviewed
+- Status: approved
 - Set: plans-adopter
 - Order: 2
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-08-08 human maintainer (via opencode its_direct/pt3-claude-opus-4.8-1m-us): "Approved all. Please read and execute the orchestrator."
 
 ## Workflow history
 

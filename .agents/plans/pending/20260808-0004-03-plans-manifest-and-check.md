@@ -4,11 +4,12 @@
 - Kind: child
 - Concern: make "what plans did we do about X?" answerable at a glance by surfacing the existing `Set:` grouping in a generated manifest, and prevent the filesystem and the manifest from silently diverging via a `--check` drift gate.
 - Scope: `aw plans index [--check]` building `INDEX.json` (every plan) + a browse-by-`Set:` human view bounded to the 40 most-recent Sets; `--check` fails on drift (missing/invalid `Id`, name-vs-metadata mismatch, stale generated view, dangling plan citation). Consumes the Order-01 core and Order-02 `Id`; complements (does not replace) the existing `STATUS.md`. No rename, no shards, no migration. Requires Orders 01, 02.
-- Status: reviewed
+- Status: approved
 - Set: plans-adopter
 - Order: 3
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-08-08 human maintainer (via opencode its_direct/pt3-claude-opus-4.8-1m-us): "Approved all. Please read and execute the orchestrator."
 
 ## Workflow history
 

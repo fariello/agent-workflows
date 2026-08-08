@@ -4,11 +4,12 @@
 - Kind: child
 - Concern: tame the flat, unbounded terminal disposition dirs (measured pain: 116 files in `executed/`) by adding weekly `YYYYMM-Www/` cold shards inside every terminal dir, with a deliberate, tool-invoked archival verb (never a background side effect).
 - Scope: weekly shards inside `executed/`/`superseded/`/`not-executed/` (OQ3); `aw plans archive` (targeted + a deliberate aged sweep with preview); INDEX refresh after moves. `pending/`/`reusable/` stay flat. Consumes the Order-01 core (shard math, atomic move) and the Order-03 manifest. Order-04 executes before this child in the Set order but its reference-updater is NOT invoked by a shard move (a dir-only move is a citation no-op; see E-02); the 04 dependency is retained only for Set ordering, not a functional coupling. No bulk migration (06). Requires Orders 01, 03.
-- Status: reviewed
+- Status: approved
 - Set: plans-adopter
 - Order: 5
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-08-08 human maintainer (via opencode its_direct/pt3-claude-opus-4.8-1m-us): "Approved all. Please read and execute the orchestrator."
 
 ## Workflow history
 
