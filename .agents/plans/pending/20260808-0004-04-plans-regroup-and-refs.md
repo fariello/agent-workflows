@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: enable after-the-fact topic regrouping of plans (the capability the timestamp stem cannot provide, spec 8) without breaking citations: (re)assign a plan's `Set:`/`Order:`, optionally rename it to the Set-clustering grammar, keep its `Id` stable, and rewrite the three plan-citation forms.
 - Scope: `aw plans set-assign`/`mv`, consuming the Order-01 core (id6, dangling detector, atomic write, git mv), Order-02 `Id`, and Order-03 manifest. The clustering grammar is `YYYYMMDD-<set-id>-<NN>-<id6>-<slug>.md` (OQ1). No shards (05), no bulk migration (06). Requires Orders 01, 02, 03.
-- Status: to-review
+- Status: reviewed
 - Set: plans-adopter
 - Order: 4
 - Highest E allocated: 06
@@ -13,6 +13,7 @@
 ## Workflow history
 
 - 2026-08-08 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `plans-adopter`; the regroup/rename capability. Authored from spec `20260808-0004-01` Section 4.3 + 4.5 + OQ1.
+- 2026-08-08 /plan-review (Antigravity Agent): APPROVE; (none)
 
 ## Goal
 

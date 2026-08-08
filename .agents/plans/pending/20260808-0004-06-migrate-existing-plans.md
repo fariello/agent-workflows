@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: apply the convention to this repo's existing plan corpus (the dogfood): assign every plan a stable `Id`, rename all executed and pending plans to the Set-clustering grammar, rewrite the three plan-citation forms, and regenerate the manifest, so plans cluster by topic in the tree with all citations preserved.
 - Scope: a one-time, reviewed data migration of `.agents/plans/**` using the Order 02 to 05 tools. The clustering grammar is `YYYYMMDD-<set-id>-<NN>-<id6>-<slug>.md` (OQ1). Requires Orders 01 to 05 executed; if their tools are absent, STOP. MANDATORY dry-run mapping + STOP-for-human-review before any apply.
-- Status: to-review
+- Status: reviewed
 - Set: plans-adopter
 - Order: 6
 - Highest E allocated: 07
@@ -13,6 +13,7 @@
 ## Workflow history
 
 - 2026-08-08 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `plans-adopter`; the accepted one-time cost that proves the convention on real data. Authored from spec `20260808-0004-01` Section 4.7 + 4.8.
+- 2026-08-08 /plan-review (Antigravity Agent): APPROVE; (none)
 
 ## Goal
 

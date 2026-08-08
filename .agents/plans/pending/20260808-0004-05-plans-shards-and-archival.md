@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: tame the flat, unbounded terminal disposition dirs (measured pain: 116 files in `executed/`) by adding weekly `YYYYMM-Www/` cold shards inside every terminal dir, with a deliberate, tool-invoked archival verb (never a background side effect).
 - Scope: weekly shards inside `executed/`/`superseded/`/`not-executed/` (OQ3); `aw plans archive` (targeted + a deliberate aged sweep with preview); INDEX refresh after moves. `pending/`/`reusable/` stay flat. Consumes the Order-01 core (shard math, atomic move), Order-03 manifest, Order-04 reference-update. No bulk migration (06). Requires Orders 01, 03, 04.
-- Status: to-review
+- Status: reviewed
 - Set: plans-adopter
 - Order: 5
 - Highest E allocated: 06
@@ -13,6 +13,7 @@
 ## Workflow history
 
 - 2026-08-08 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `plans-adopter`; the scale mechanism. Authored from spec `20260808-0004-01` Section 4.6 + OQ3.
+- 2026-08-08 /plan-review (Antigravity Agent): APPROVE; (none)
 
 ## Goal
 

@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: extract the area-agnostic pieces of the shipped research-org machinery into ONE shared module so plans (and later prompts/comms/walkthroughs) reuse them instead of forking: the `<id6>` primitive, the weekly-shard date math, the dangling-citation detector, the tiered-manifest + `--check` drift shape, and the deterministic writing-command safety helpers.
 - Scope: create `agent_workflows/artifact_core.py` and refactor `research_contract`/`research_index`/`research_refs`/`research_archive` to import from it, with NO behavior change (the research tests pass unchanged). No plans behavior yet. Requires the approved spec `.agents/docs/specs/20260808-0004-01-artifact-organization-plans-adopter.spec.md`.
-- Status: to-review
+- Status: reviewed
 - Set: plans-adopter
 - Order: 1
 - Highest E allocated: 06
@@ -13,6 +13,7 @@
 ## Workflow history
 
 - 2026-08-08 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): child of Set `plans-adopter`; the shared foundation every later child builds on. Authored from spec `20260808-0004-01` Section 4.1.
+- 2026-08-08 /plan-review (Antigravity Agent): APPROVE; (none)
 
 ## Goal
 
