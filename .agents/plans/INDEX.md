@@ -235,3 +235,5 @@ Showing the 40 most-recent of 74 Sets; the full manifest is INDEX.json.
 - `vfa1tl` [executed] executed/20260709-interactive-git-00-vfa1tl-interactive-git-workflow.md
 - `vw1ich` [executed] executed/20260709-target-directory-00-vw1ich-target-directory-readmes.md
 - `4025ak` [executed] executed/20260710-plan-lifecycle-00-4025ak-plan-lifecycle-superseded-notexecuted-dirs.md
+- `??????` [pending] pending/20260807-2118-01-thorough-execution-verification-workflow.md
+- `??????` [pending] pending/20260807-2128-01-ipd-lifecycle-history-tracking.md

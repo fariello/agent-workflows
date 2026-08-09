@@ -1310,6 +1310,26 @@
     "status": "not-executed"
   },
   {
+    "date": "2026-08-07",
+    "disposition": "pending",
+    "kind": "child",
+    "order": null,
+    "path": "pending/20260807-2118-01-thorough-execution-verification-workflow.md",
+    "plan_id": null,
+    "set_id": null,
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-07",
+    "disposition": "pending",
+    "kind": "child",
+    "order": null,
+    "path": "pending/20260807-2128-01-ipd-lifecycle-history-tracking.md",
+    "plan_id": null,
+    "set_id": null,
+    "status": "to-review"
+  },
+  {
     "date": "2026-08-09",
     "disposition": "pending",
     "kind": "orchestrator",
