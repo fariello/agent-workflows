@@ -660,6 +660,39 @@ def _build_parser() -> argparse.ArgumentParser:
     p_specs_check.add_argument(
         "--agent", action="store_true", help="Machine-readable tab-separated output."
     )
+    p_specs_migrate = specs_sub.add_parser(
+        "migrate",
+        parents=[common],
+        help="One-time first-normalization of a legacy/free-form spec status to the bare enum (Order 04).",
+    )
+    p_specs_migrate.add_argument("path", help="Spec file to normalize.")
+    p_specs_migrate.add_argument(
+        "--status", required=True, help="Target bare-enum status."
+    )
+    p_specs_migrate.add_argument(
+        "--canonical", action="store_true", help="Add a `- Canonical: true` field."
+    )
+    p_specs_migrate.add_argument(
+        "--gate-kind",
+        dest="gate_kind",
+        default=None,
+        help="Gate kind (required for deferred).",
+    )
+    p_specs_migrate.add_argument(
+        "--gate-ref",
+        dest="gate_ref",
+        default=None,
+        help="Gate reference (required for deferred).",
+    )
+    p_specs_migrate.add_argument(
+        "--gate-summary",
+        dest="gate_summary",
+        default=None,
+        help="Optional human gate context.",
+    )
+    p_specs_migrate.add_argument(
+        "--date", default=None, help="Override the history date (YYYY-MM-DD)."
+    )
 
     p_archive = sub.add_parser(
         "archive",
@@ -1913,6 +1946,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import specs as sp
 
             return sp.run_check(args)
+        if specs_cmd == "migrate":
+            from agent_workflows import specs as sp
+
+            return sp.run_migrate(args)
         parser.print_help()
         return 2
     if args.command == "archive":

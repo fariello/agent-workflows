@@ -15,6 +15,7 @@ verification.
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -373,6 +374,131 @@ def run_set(args) -> int:
         return 1
     core.atomic_write(path, new_text)
     sys.stdout.write(f"aw specs set: {path} -> {new}\n")
+    return 0
+
+
+def run_migrate(args) -> int:
+    """One-time first-normalization of a legacy/free-form spec status to the bare enum.
+
+    Unlike ``set``, this does NOT apply the enum-transition graph or the human-token/evidence floor:
+    it is an explicit, human-directed migration of the EXISTING corpus (Order 04), not an ongoing
+    lifecycle transition. It replaces the current ``Status`` line (a ``- Status:`` bullet OR a bare
+    ``Status:`` body line) with a bare-enum ``- Status:`` bullet in the metadata block, folds any
+    trailing status prose into a migration history record, optionally adds ``- Canonical: true``,
+    optionally sets typed gate fields (required for ``deferred``), removes a free-form ``- Implemented:``
+    line (folded to history), then validates the result and refuses (byte-identical) if it would not
+    conform. Writes atomically; never touches git.
+    """
+
+    path = Path(args.path)
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        sys.stderr.write(f"aw specs migrate: cannot read {path}: {exc}\n")
+        return 2
+    new = args.status
+    if new not in A.SPEC_STATUSES:
+        sys.stderr.write(
+            f"aw specs migrate: {new!r} is not a spec status {sorted(A.SPEC_STATUSES)}\n"
+        )
+        return 1
+    lines = _lines(text)
+
+    # capture the old status prose (from a `- Status:` bullet or a bare `Status:` body line) for history
+    old_prose = None
+    status_bullet_idx = _find_status_index(lines)
+    bare_status_idx = -1
+    if status_bullet_idx >= 0:
+        old_prose = lines[status_bullet_idx][len("- Status:") :].strip()
+    else:
+        for i, line in enumerate(lines):
+            if line.startswith("Status:"):
+                bare_status_idx = i
+                old_prose = line[len("Status:") :].strip()
+                break
+            m = re.match(r"^- Status:\s*(.*)$", line)
+            if m:
+                status_bullet_idx = i
+                old_prose = m.group(1).strip()
+                break
+
+    out: List[str] = []
+    implemented_prose = None
+    inserted_status = False
+    for i, line in enumerate(lines):
+        if i == status_bullet_idx:
+            out.append(f"- Status: {new}")
+            inserted_status = True
+            if getattr(args, "canonical", False):
+                out.append("- Canonical: true")
+            if new == "deferred":
+                gk, gr, gs = (
+                    args.gate_kind,
+                    args.gate_ref,
+                    getattr(args, "gate_summary", None),
+                )
+                out.append(f"- Gate-Kind: {gk}")
+                out.append(f"- Gate-Ref: {gr}")
+                if gs:
+                    out.append(f"- Gate-Summary: {gs}")
+            continue
+        if i == bare_status_idx:
+            # a bare `Status:` body line -> drop it; a proper metadata bullet is created below
+            continue
+        if line.startswith("- Implemented:"):
+            implemented_prose = line[len("- Implemented:") :].strip()
+            continue
+        out.append(line)
+
+    if not inserted_status:
+        # no status bullet existed (only a bare body line, or none): insert into the metadata block
+        # after the first `- ` bullet, else after the H1.
+        insert_at = 0
+        for i, line in enumerate(out):
+            if line.startswith("- "):
+                insert_at = i + 1
+        add = [f"- Status: {new}"]
+        if getattr(args, "canonical", False):
+            add.append("- Canonical: true")
+        if new == "deferred":
+            add.append(f"- Gate-Kind: {args.gate_kind}")
+            add.append(f"- Gate-Ref: {args.gate_ref}")
+            if getattr(args, "gate_summary", None):
+                add.append(f"- Gate-Summary: {args.gate_summary}")
+        for k, a in enumerate(add):
+            out.insert(insert_at + k, a)
+
+    if new == "deferred":
+        if (
+            not args.gate_kind
+            or not args.gate_ref
+            or args.gate_kind not in A.GATE_KINDS
+            or not A.validate_gate_ref(args.gate_kind, args.gate_ref)
+        ):
+            sys.stderr.write(
+                "aw specs migrate: deferred requires a valid --gate-kind and --gate-ref\n"
+            )
+            return 1
+
+    date = getattr(args, "date", None) or _today()
+    hist = f"- {date} migrated (aw specs): normalized status to `{new}`"
+    if old_prose:
+        hist += f" (was: {A.escape_detail(old_prose)[:160]})"
+    if implemented_prose:
+        hist += f"; folded Implemented line: {A.escape_detail(implemented_prose)[:160]}"
+    out = _append_history(out, hist)
+
+    new_text = "\n".join(out)
+    residual = validate_spec(path, new_text)
+    if residual:
+        sys.stderr.write(
+            "aw specs migrate: the resulting spec would not conform; refused (file unchanged):\n"
+        )
+        for d in residual:
+            sys.stderr.write(f"  {d.rule}: {d.detail}\n")
+        return 1
+    core.atomic_write(path, new_text)
+    sys.stdout.write(f"aw specs migrate: {path} -> {new}\n")
     return 0
 
 

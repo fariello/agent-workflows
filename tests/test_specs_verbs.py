@@ -237,6 +237,87 @@ class SetTests(unittest.TestCase):
             self.assertEqual(p.read_text(encoding="utf-8"), before)
 
 
+class MigrateTests(unittest.TestCase):
+    def test_migrate_free_form_to_bare_enum(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.md"
+            p.write_text(
+                "# Spec: legacy\n\n- Date: 2026-08-08\n- Status: canonical reference; produced by IPD X\n- Author: t\n\n## Body\n\nx\n",
+                encoding="utf-8",
+            )
+            with redirect_stdout(io.StringIO()):
+                rc = specs.run_migrate(
+                    _args(
+                        path=str(p),
+                        status="implemented",
+                        canonical=True,
+                        gate_kind=None,
+                        gate_ref=None,
+                        gate_summary=None,
+                        date="2026-08-09",
+                    )
+                )
+            self.assertEqual(rc, 0)
+            t = p.read_text(encoding="utf-8")
+            self.assertIn("- Status: implemented", t)
+            self.assertIn("- Canonical: true", t)
+            self.assertIn("## Workflow history", t)
+            self.assertIn("was: canonical reference", t)
+            # result conforms
+            self.assertEqual(specs.validate_spec(p, t), [])
+
+    def test_migrate_to_deferred_with_gate(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.md"
+            p.write_text(
+                "# Spec: legacy\n\n- Date: 2026-08-08\n- Status: draft spec (evidence-gated)\n- Author: t\n\n## Body\n\nx\n",
+                encoding="utf-8",
+            )
+            with redirect_stdout(io.StringIO()):
+                rc = specs.run_migrate(
+                    _args(
+                        path=str(p),
+                        status="deferred",
+                        canonical=False,
+                        gate_kind="artifact",
+                        gate_ref="TODO.md",
+                        gate_summary="waiting on the skills re-eval",
+                        date="2026-08-09",
+                    )
+                )
+            self.assertEqual(rc, 0)
+            t = p.read_text(encoding="utf-8")
+            self.assertIn("- Status: deferred", t)
+            self.assertIn("- Gate-Kind: artifact", t)
+            self.assertIn("- Gate-Ref: TODO.md", t)
+            self.assertEqual(specs.validate_spec(p, t), [])
+
+    def test_migrate_folds_implemented_line(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.md"
+            p.write_text(
+                "# Spec: legacy\n\n- Date: 2026-08-08\n- Status: approved (2026-07-30, human)\n- Implemented: SHIPPED as D123\n- Author: t\n\n## Body\n\nx\n",
+                encoding="utf-8",
+            )
+            with redirect_stdout(io.StringIO()):
+                rc = specs.run_migrate(
+                    _args(
+                        path=str(p),
+                        status="implemented",
+                        canonical=False,
+                        gate_kind=None,
+                        gate_ref=None,
+                        gate_summary=None,
+                        date="2026-08-09",
+                    )
+                )
+            self.assertEqual(rc, 0)
+            t = p.read_text(encoding="utf-8")
+            self.assertNotIn("- Implemented:", t)
+            self.assertIn("folded Implemented line: SHIPPED as D123", t)
+            self.assertEqual(specs.validate_spec(p, t), [])
+
+
 class NoteTests(unittest.TestCase):
     def test_note_appends_one_record_only(self):
         with tempfile.TemporaryDirectory() as d:
