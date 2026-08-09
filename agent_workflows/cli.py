@@ -558,6 +558,34 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dir", default=None, help="Repo root (default: current directory)."
     )
 
+    p_attention = sub.add_parser(
+        "attention",
+        parents=[common],
+        help="Read-only cross-tree attention view (board or JSON to stdout); --check fails closed.",
+    )
+    p_attention.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_attention.add_argument(
+        "--format",
+        choices=("markdown", "json"),
+        default=None,
+        help="Output format (default: human board).",
+    )
+    p_attention.add_argument(
+        "--check",
+        action="store_true",
+        help="Validate all tracked trees; fail closed on any violation.",
+    )
+    p_attention.add_argument(
+        "--agent",
+        action="store_true",
+        help="Machine-readable tab-separated drift output (with --check).",
+    )
+    p_attention.add_argument(
+        "--all", action="store_true", help="Show done/parked groups in the board."
+    )
+
     p_specs = sub.add_parser(
         "specs",
         parents=[common],
@@ -1867,6 +1895,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             return ra.run_check_miscategorized(args)
         parser.print_help()
         return 2
+    if args.command == "attention":
+        from agent_workflows import attention as att
+
+        return att.run(args)
     if args.command == "specs":
         specs_cmd = getattr(args, "specs_command", None)
         if specs_cmd == "set":
