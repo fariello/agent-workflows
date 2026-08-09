@@ -58,6 +58,25 @@ class CheckTests(unittest.TestCase):
             }
             self.assertIn(rule, rules, f"{name}: expected {rule}, got {rules}")
 
+    def test_body_gate_example_is_not_a_real_gate(self):
+        # A spec that shows `- Gate-*` bullets as an EXAMPLE in its body (after a `## ` heading) must
+        # NOT be read as carrying a real gate; only the metadata block (before the first `## `) counts.
+        text = (
+            "# Spec: s\n\n- Date: 2026-08-08\n- Status: implementing\n- Author: t\n\n"
+            "## 8.4 gates\n\nExample:\n\n```\n- Status: deferred\n- Gate-Kind: issue\n- Gate-Ref: <ref>\n```\n\n"
+            "## Workflow history\n- 2026-08-08 draft (t): x.\n"
+        )
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.md"
+            p.write_text(text, encoding="utf-8")
+            self.assertEqual(
+                specs.validate_spec(p, text),
+                [],
+                "body gate examples must not trip gate-forbidden",
+            )
+
     def test_trailing_prose_status_is_unknown_or_missing(self):
         # bare-enum grammar rejects trailing prose -> parsed as missing status
         f = FIX / "violations" / "status-trailing-prose.md"

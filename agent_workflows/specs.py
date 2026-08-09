@@ -35,9 +35,21 @@ def _lines(text: str) -> List[str]:
     return text.split("\n")
 
 
-def _find_status_index(lines: List[str]) -> int:
+def _metadata_end(lines: List[str]) -> int:
+    """The index of the first `## ` section heading (metadata block is everything before it). Gate and
+    status bullets are only recognized in this block, so prose EXAMPLES of `- Gate-*`/`- Status:` inside
+    a spec body (e.g. this Set's own spec Section 8.4) are not mistaken for real metadata."""
+
     for i, line in enumerate(lines):
-        if A.SPEC_STATUS_RE.match(line):
+        if line.startswith("## "):
+            return i
+    return len(lines)
+
+
+def _find_status_index(lines: List[str]) -> int:
+    end = _metadata_end(lines)
+    for i in range(end):
+        if A.SPEC_STATUS_RE.match(lines[i]):
             return i
     return -1
 
@@ -52,7 +64,8 @@ def _read_status(lines: List[str]) -> Optional[str]:
 
 def _read_gate(lines: List[str]) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     kind = ref = summary = None
-    for line in lines:
+    end = _metadata_end(lines)
+    for line in lines[:end]:
         mk = A.GATE_KIND_RE.match(line)
         if mk:
             kind = mk.group("value")
@@ -216,7 +229,9 @@ def _set_status(lines: List[str], new_status: str) -> List[str]:
 
 def _gate_field_indices(lines: List[str]) -> List[int]:
     idx = []
-    for i, line in enumerate(lines):
+    end = _metadata_end(lines)
+    for i in range(end):
+        line = lines[i]
         if (
             A.GATE_KIND_RE.match(line)
             or A.GATE_REF_RE.match(line)
@@ -452,10 +467,13 @@ def run_migrate(args) -> int:
 
     if not inserted_status:
         # no status bullet existed (only a bare body line, or none): insert into the metadata block
-        # after the first `- ` bullet, else after the H1.
+        # after the last metadata bullet (before the first `## ` heading), else right after the H1.
+        meta_end = _metadata_end(out)
         insert_at = 0
-        for i, line in enumerate(out):
-            if line.startswith("- "):
+        for i in range(meta_end):
+            if out[i].startswith("# "):  # H1 title
+                insert_at = i + 1
+            if out[i].startswith("- "):  # a metadata bullet
                 insert_at = i + 1
         add = [f"- Status: {new}"]
         if getattr(args, "canonical", False):
