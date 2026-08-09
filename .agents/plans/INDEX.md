@@ -2,7 +2,22 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 73 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 74 Sets; the full manifest is INDEX.json.
+
+## awlayout
+
+- `az9912` [pending] 00 pending/20260809-awlayout-00-az9912-aw-project-layout-orchestrator.md
+- `m9tqof` [pending] 01 pending/20260809-awlayout-01-m9tqof-aw-context-and-logical-roots.md
+- `bgyymp` [pending] 02 pending/20260809-awlayout-02-bgyymp-aw-home-project-identity-and-registry.md
+- `g4y28x` [pending] 03 pending/20260809-awlayout-03-g4y28x-records-backends-and-durability.md
+- `q0wpk4` [pending] 04 pending/20260809-awlayout-04-q0wpk4-install-update-policy-wizard.md
+- `tg60qo` [pending] 05 pending/20260809-awlayout-05-tg60qo-system-config-state-layout-and-ownership.md
+- `anlovz` [pending] 06 pending/20260809-awlayout-06-anlovz-operational-actions-and-install-history.md
+- `b31tuy` [pending] 07 pending/20260809-awlayout-07-b31tuy-action-workflow-and-status-integration.md
+- `0me1hr` [pending] 08 pending/20260809-awlayout-08-0me1hr-producing-workflow-record-routing.md
+- `es1phc` [pending] 09 pending/20260809-awlayout-09-es1phc-layout-migration-rollback-and-uninstall.md
+- `jmjh97` [pending] 10 pending/20260809-awlayout-10-jmjh97-clean-delta-skills-and-host-gates.md
+- `blw6qp` [pending] 11 pending/20260809-awlayout-11-blw6qp-docs-release-and-end-to-end-cutover.md
 
 ## attnview
 
@@ -208,10 +223,6 @@ Showing the 40 most-recent of 73 Sets; the full manifest is INDEX.json.
 
 - `3obd0t` [executed] 00 executed/20260712-agent-execution-00-3obd0t-agent-execution-contract-in-pointer-block.md
 
-## agents-docs
-
-- `98dj6q` [executed] 00 executed/20260712-agents-docs-00-98dj6q-agents-docs-research-and-walkthroughs-convention.md
-
 ## (singletons: no Set)
 
 - `d5tz36` [executed] executed/20260704-advise-workflow-00-d5tz36-advise-workflow-and-personas.md
@@ -224,5 +235,3 @@ Showing the 40 most-recent of 73 Sets; the full manifest is INDEX.json.
 - `vfa1tl` [executed] executed/20260709-interactive-git-00-vfa1tl-interactive-git-workflow.md
 - `vw1ich` [executed] executed/20260709-target-directory-00-vw1ich-target-directory-readmes.md
 - `4025ak` [executed] executed/20260710-plan-lifecycle-00-4025ak-plan-lifecycle-superseded-notexecuted-dirs.md
-- `??????` [pending] pending/20260807-2118-01-thorough-execution-verification-workflow.md
-- `??????` [pending] pending/20260807-2128-01-ipd-lifecycle-history-tracking.md
