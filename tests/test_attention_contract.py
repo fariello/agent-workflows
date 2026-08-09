@@ -39,6 +39,21 @@ class EnumAndPolicyTests(unittest.TestCase):
                 self.assertTrue(p.owner, f"tracked tree {p.name} needs an owner")
             else:
                 self.assertTrue(p.reason, f"excluded tree {p.name} needs a rationale")
+        # the evergreen prompt LIBRARY is an explicitly excluded tree (distinct from .agents/prompts)
+        self.assertIn("docs-prompts", {p.name for p in A.TREE_POLICY if not p.tracked})
+
+    def test_nonartifact_names(self):
+        for n in (
+            "README.md",
+            "INDEX.md",
+            "STATUS.md",
+            "conformance-results-template.md",
+            "00-README-index.md",
+            "some-index.md",
+        ):
+            self.assertTrue(A.is_nonartifact_name(n), n)
+        for n in ("20260808-attnview-01-abc123-x.md", "s.md", "a-real-spec.md"):
+            self.assertFalse(A.is_nonartifact_name(n), n)
 
 
 class MappingTotalityTests(unittest.TestCase):

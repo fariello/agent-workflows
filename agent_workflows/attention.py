@@ -108,7 +108,7 @@ def scan(repo_root: Path) -> Tuple[List[Item], List[core.Drift]]:
             continue
         if not pol.tracked:
             continue
-        if Path(rel).name in ("README.md", "INDEX.md"):
+        if A.is_nonartifact_name(Path(rel).name):
             continue
 
         try:

@@ -130,9 +130,31 @@ TREE_POLICY: Tuple[TreePolicy, ...] = (
         "",
         "deferred to Phase 3 (OQ3); own ack lifecycle not contracted here",
     ),
+    TreePolicy(
+        "docs-prompts",
+        ".agents/docs/prompts",
+        False,
+        "",
+        "the evergreen copy-paste prompt LIBRARY, not a lifecycle-tracked artifact tree",
+    ),
 )
 
 TRACKED_TREES: Tuple[str, ...] = tuple(p.name for p in TREE_POLICY if p.tracked)
+
+
+def is_nonartifact_name(name: str) -> bool:
+    """True for files that live INSIDE a tracked tree but are not lifecycle artifacts (generated
+    boards, templates, indexes, READMEs). They carry no status and are excluded from the view rather
+    than flagged. Kept deliberately narrow and name-based so it is predictable."""
+
+    lower = name.lower()
+    if name in ("README.md", "INDEX.md", "INDEX.json", "STATUS.md"):
+        return True
+    if lower.endswith("-template.md") or lower.endswith("-index.md"):
+        return True
+    if lower.endswith("readme.md"):
+        return True
+    return False
 
 
 # --------------------------------------------------------------------------------------
