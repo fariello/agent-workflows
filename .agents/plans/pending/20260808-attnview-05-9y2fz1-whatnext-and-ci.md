@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: make the attention view actually change behavior: rewire the `/whatnext` workflow to CONSUME `aw attention --format json` first (stop on an invalid view) instead of re-scouring raw files, wire `aw attention --check` (and `aw specs check`) into CI, and land the docs/DECISIONS updates that record the convention.
 - Scope: edit the `/whatnext` workflow body, add the CI check, update AGENTS.md pointer + relevant READMEs + DECISIONS. Consumes the Order 03 command; does NOT change the scanner/verbs. Requires Orders 01, 02, 03 executed (04 recommended so the repo view is clean, but not a code dependency).
-- Status: draft
+- Status: reviewed
 - Set: attnview
 - Order: 5
 - Highest E allocated: 06
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-08 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created. Child of Set `attnview`, authored from the approved spec Sections 8.7 (whatnext), 5 (CI), and G5/G7; requires the Order 03 `aw attention` command.
+- 2026-08-08 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. FIXED L5-01 (HIGH: the CI premise was false - no existing `aw ipd lint`/`aw plans index --check` CI gate to "match"; E-03 now states the ground truth and pins the new mechanism, a GitHub Actions step, and names it the first such gate), L5-02 (confirm `aw specs check` is delivered by Order 02 before wiring it, else gate only `aw attention --check`), L5-03 (resolve OQ-01: AGENTS.md source of truth is `agents_pointer_prose()` + regenerate + empty-diff invariant; forbid hand-editing the tracked pointer), L5-04 (V-01 asserts the no-silent-rescan negative), L5-05 (preserve the comms untrusted-payload headers-only invariant among the bounded secondary sources). Status draft -> reviewed.
 
 ## Goal
 
@@ -25,9 +26,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: rewire /whatnext
 
-- [ ] E-01 edit `.agents/workflows/whatnext/whatnext.md` so Step 1 runs `aw attention --format json` FIRST as the primary source: on nonzero/`valid:false`, present all violations and STOP normal prioritization; on valid, prioritize `active` then `ready`, show `blocked` with gate detail, hide `done`/`parked` unless requested, and read only selected artifacts. Keep comms-inbox, git-WIP, and TODO.md as explicitly-bounded separate sources; do NOT silently fall back to full raw rescanning.
+- [ ] E-01 edit `.agents/workflows/whatnext/whatnext.md` so Step 1 runs `aw attention --format json` FIRST as the primary source: on nonzero/`valid:false`, present all violations and STOP normal prioritization; on valid, prioritize `active` then `ready`, show `blocked` with gate detail, hide `done`/`parked` unless requested, and read only selected artifacts. Keep comms-inbox, git-WIP, and TODO.md as explicitly-bounded separate SECONDARY sources subordinate to the view, PRESERVING the existing comms untrusted-payload invariant (headers-only, never write a payload to TODO.md; whatnext.md:24-27, 130-133); do NOT silently fall back to full raw rescanning (a diagnostic raw-inspect mode, if present, is explicitly opt-in).
   - Depends on: none
-  - Expected outcome: the whatnext workflow text specifies the consume-then-stop-or-prioritize contract (spec Section 8.7).
+  - Expected outcome: the whatnext workflow text specifies the consume-then-stop-or-prioritize contract (spec Section 8.7) and preserves the comms untrusted-payload boundary.
   - Execution state: pending
 - [ ] E-02 update the `/whatnext` README so its described sources match the rewired body (registry-view-first).
   - Depends on: E-01
@@ -36,11 +37,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: CI + docs/decisions
 
-- [ ] E-03 wire `aw attention --check` and `aw specs check` into the repo's CI (the existing GitHub Actions / pre-commit surface used for the other `--check` gates), fail-closed, matching how `aw ipd lint` / `aw plans index --check` are (or are documented to be) gated.
+- [ ] E-03 wire `aw attention --check` (and `aw specs check` IF Order 02 delivered it as a subcommand; else gate only `aw attention --check`, which already covers the specs tree) into CI, fail-closed. GROUND TRUTH (verified): no `aw ipd lint` / `aw plans index --check` gate exists in CI or pre-commit today (`.github/workflows/{tests,secret-scan,local-leaks}.yml`, `.pre-commit-config.yaml`), so there is NO existing pattern to "match" - this child adds the FIRST such gate. Pin the mechanism: add a fail-closed step running `python3 -m agent_workflows attention --check` (the checks need the full `.agents/` tree). Prefer a GitHub Actions job/step (after the unittest run in `tests.yml`, matching the secret-scan/local-leaks precedent) over a pre-commit hook; if a `local` pre-commit hook is chosen instead, mirror the `local-leaks` hook (`pass_filenames: false`, `always_run: true`).
   - Depends on: none
-  - Expected outcome: CI runs the attention/specs checks and fails on any violation.
+  - Expected outcome: a NEW fail-closed CI step runs the attention (and, if present, specs) check and fails on any violation; the chosen surface is named.
   - Execution state: pending
-- [ ] E-04 update the AGENTS.md managed pointer (via the installer's `agents_pointer_prose()` if that is the source of truth, else the tracked pointer) to note the `aw attention` view + `aw specs` verbs + the "attention view is ephemeral/on-demand, not committed" stance; update `.agents/docs/specs/README.md` (specs now carry a required status + history) if not already done in Order 02.
+- [ ] E-04 update the AGENTS.md managed pointer by editing `agent_workflows/engine.py::agents_pointer_prose()` (the source of truth, per OQ-01) and regenerating via the installer - do NOT hand-edit the tracked AGENTS.md pointer body - to note the `aw attention` view + `aw specs` verbs + the "attention view is ephemeral/on-demand, not committed" stance; verify the post-regeneration AGENTS.md diff is empty (invariant); update `.agents/docs/specs/README.md` (specs now carry a required status + history) if not already done in Order 02.
   - Depends on: E-01
   - Expected outcome: the always-loaded pointer tells agents to consult `aw attention` and use `aw specs` for spec status.
   - Execution state: pending
@@ -99,16 +100,16 @@ This child IS the documentation sync for the Set: AGENTS.md pointer, specs READM
 ### OQ-01: AGENTS.md pointer source of truth
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: this child (E-04)
-- Resolution or deferral rationale: whether to edit `agents_pointer_prose()` + regenerate or edit the tracked pointer directly depends on the installer's current ownership of that block; E-04 checks and uses the correct path, verifying the empty-diff invariant. Not blocking.
+- Resolution or deferral rationale: RESOLVED (verified via `engine.py` `agents_pointer_prose()` + the visible `aw:block`/`aw:pointer` managed region in AGENTS.md): the source of truth is `agent_workflows/engine.py::agents_pointer_prose()`, wrapped as the `aw:pointer` managed section. E-04 edits THAT prose and regenerates via the installer, then verifies the post-regeneration AGENTS.md diff is empty; it does NOT hand-edit the tracked AGENTS.md pointer body (that would be overwritten and fail the empty-diff invariant). The installer may auto-commit AGENTS.md + the managed-sections manifest; record that commit exactly (gate note).
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: the rewired `whatnext.md` Step 1 runs `aw attention --format json` first, stops on `valid:false`, prioritizes active/ready, shows blocked-with-gates, and keeps git/TODO bounded; quote the relevant lines.
+  - Required evidence: the rewired `whatnext.md` Step 1 runs `aw attention --format json` first, stops on `valid:false`, prioritizes active/ready, shows blocked-with-gates, keeps git/TODO/comms bounded, and preserves comms headers-only; quote the line proving there is NO silent fallback to full raw rescanning when the view is missing/invalid (spec 8.7).
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
@@ -116,7 +117,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: CI config runs `aw attention --check` + `aw specs check` fail-closed; show the added job/step.
+  - Required evidence: a NEW fail-closed CI step runs `aw attention --check` (and `aw specs check` if delivered); show the added job/step and name the chosen surface (GitHub Actions step vs pre-commit hook); confirm no pre-existing gate was assumed.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04

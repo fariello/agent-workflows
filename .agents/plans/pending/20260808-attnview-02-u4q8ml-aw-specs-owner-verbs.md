@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: give the specs tree a machine-legible status + history and the OWNER write verbs that maintain them, so status transitions and `## Workflow history` are made by a validating tool (not hand-edited prose), enforcing the transition/authority table (human token for `approved`, cited evidence for `implemented`) and typed gates.
 - Scope: add `agent_workflows/specs.py` (or equivalent) providing `aw specs set`/`note`/`check`, wired as an `aw specs` namespace. Consumes the Order 01 contracts (status enum, transition/authority table, gate validators, history grammar, output safety). Does NOT build the cross-tree `aw attention` scanner (Order 03) and does NOT migrate the existing specs (Order 04). Requires Order 01 executed.
-- Status: draft
+- Status: reviewed
 - Set: attnview
 - Order: 2
 - Highest E allocated: 06
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-08 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created. Child of Set `attnview`, authored from the approved spec Sections 7 (transitions/authority), 8.2 (owner verbs), 8.4 (gates), 8.8 (output safety); requires the Order 01 contracts.
+- 2026-08-08 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. FIXED L2-01 (HIGH, security: enforce the anti-self-approval floor - `approved` mechanism must not be agent-satisfiable; V-03 asserts a no-TTY `set --status approved` is refused; do not assume flag names, consume the Order 01 frozen mechanism; escalate to Order 01 if its mechanism is hollow), L2-02 (state that `implemented` enforcement is presence + format + resolvability, not semantic verification), L2-03 (V-03 asserts the deferred gate add/remove round-trip + history-preserved resolution), L2-04 (V-03/V-04 assert no git index change after set/note). Status draft -> reviewed.
 
 ## Goal
 
@@ -36,9 +37,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: the write verbs
 
-- [ ] E-03 implement `aw specs set PATH --status STATUS [--gate-kind K --gate-ref R --gate-summary S] [--approved-by NAME] [--evidence REF] --message TEXT`: validate the transition against the Order 01 authority table; enforce that `approved` requires the human-approval token and `implemented` requires the evidence citation (refuse otherwise, leaving the file byte-identical); add gate fields on entering `deferred` and remove them on leaving; update `- Status:`; append exactly one `## Workflow history` record; validate the complete result in memory; then `artifact_core.atomic_write` the single file. Never stage/commit/push.
+- [ ] E-03 implement `aw specs set PATH --status STATUS [--gate-kind K --gate-ref R --gate-summary S] --message TEXT` plus WHATEVER approval/evidence mechanism Order 01 froze (do NOT assume specific flag names; consume the Order 01 contract): validate the transition against the Order 01 authority table; enforce that `approved` requires the frozen human-approval token and `implemented` requires the frozen evidence citation (refuse otherwise, leaving the file byte-identical); add gate fields on entering `deferred` and remove them on leaving (gate fields forbidden on a non-`deferred` result, resolution recorded in history); update `- Status:`; append exactly one `## Workflow history` record; validate the complete result in memory; then `artifact_core.atomic_write` the single file. Never stage/commit/push. SECURITY FLOOR (spec F11): the enforced `approved` mechanism MUST be one an executing agent cannot satisfy autonomously (per Order 01's frozen floor); enforcement of `implemented` is presence + format-validity + resolvability of the citation (an existing `executed/` IPD path), NOT semantic verification that the work truly happened - state this limit so V-03 does not over-claim.
   - Depends on: E-01
-  - Expected outcome: a validating, single-file, atomic status writer that enforces the authority table.
+  - Expected outcome: a validating, single-file, atomic status writer that enforces the authority table and the anti-self-approval floor.
   - Execution state: pending
 - [ ] E-04 implement `aw specs note PATH --message TEXT`: append exactly one `## Workflow history` record; change nothing else; atomic single-file write; no git.
   - Depends on: E-01
@@ -100,7 +101,7 @@ Update `.agents/docs/specs/README.md` to document the required spec status + his
 - Blocking: no
 - Status: open
 - Owner: Order 01 (E-06) freezes the mechanism; this child consumes it
-- Resolution or deferral rationale: whether the human token is `--approved-by <name>`, an interactive confirm, or a signed marker is decided in Order 01; this child enforces whatever Order 01 froze. Not blocking here.
+- Resolution or deferral rationale: whether the human token is an interactive confirm, a signed marker, or a flag paired with a non-agent-satisfiable proof is decided in Order 01, which MUST freeze it with the anti-self-approval floor (a bare string flag alone is insufficient). This child enforces whatever Order 01 froze AND verifies (V-03) that a no-TTY `set --status approved` is refused. If Order 01's frozen mechanism turns out agent-satisfiable, raise a blocking cross-plan finding against Order 01 rather than shipping a hollow gate. Not blocking at authoring time.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -115,11 +116,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: a legal `set` updates status + appends exactly one history record + atomic write; an illegal transition leaves the file byte-identical; `--status approved` without the token is refused; `--status implemented` without evidence is refused.
+  - Required evidence: a legal `set` updates status + appends exactly one history record + atomic write; an illegal transition leaves the file byte-identical; `--status approved` in a non-interactive/agent-like (no-TTY) context WITHOUT the frozen human token is refused; `--status implemented` without a well-formed, resolvable evidence citation is refused; entering `deferred` adds valid `Gate-*` fields and leaving `deferred` removes them with the resolution recorded in history; AND after `set`, `git status` shows only the working-tree file changed (nothing staged, no commit, no push).
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: `aw specs note` appends exactly one history record and leaves status + all other content unchanged (diff shows only the appended line).
+  - Required evidence: `aw specs note` appends exactly one history record and leaves status + all other content unchanged (diff shows only the appended line); after `note`, the git index is unchanged (nothing staged/committed/pushed).
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05

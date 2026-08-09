@@ -1277,7 +1277,7 @@
     "path": "pending/20260808-attnview-00-94dhrt-attention-view-orchestrator.md",
     "plan_id": "94dhrt",
     "set_id": "attnview",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-08",
@@ -1287,7 +1287,7 @@
     "path": "pending/20260808-attnview-01-0i8ass-phase0-contracts-and-fixtures.md",
     "plan_id": "0i8ass",
     "set_id": "attnview",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-08",
@@ -1297,7 +1297,7 @@
     "path": "pending/20260808-attnview-02-u4q8ml-aw-specs-owner-verbs.md",
     "plan_id": "u4q8ml",
     "set_id": "attnview",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-08",
@@ -1307,7 +1307,7 @@
     "path": "pending/20260808-attnview-03-h3dadd-aw-attention-scanner.md",
     "plan_id": "h3dadd",
     "set_id": "attnview",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-08",
@@ -1317,7 +1317,7 @@
     "path": "pending/20260808-attnview-04-dxoxgi-specs-migration.md",
     "plan_id": "dxoxgi",
     "set_id": "attnview",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-08",
@@ -1327,6 +1327,6 @@
     "path": "pending/20260808-attnview-05-9y2fz1-whatnext-and-ci.md",
     "plan_id": "9y2fz1",
     "set_id": "attnview",
-    "status": "draft"
+    "status": "reviewed"
   }
 ]

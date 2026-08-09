@@ -4,7 +4,7 @@
 - Kind: orchestrator
 - Concern: implement the approved spec `.agents/docs/specs/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md`: a read-only `aw attention` command that maps each tree's native status onto a five-value cross-tree attention class and renders an on-demand view (JSON or human board, never committed), per-tree OWNER write verbs (starting `aw specs`) that maintain status + history under a transition/authority table, and a `/whatnext` rewired to consume the view, so a human/agent/CI can answer "what needs attention?" cheaply and deterministically and the specs blind spot is closed.
 - Scope: ORCHESTRATOR for the ordered Set `attnview`. Defines the child sequence, dependencies, whole-Set completion criteria, and cross-IPD validation. It does NOT itself change files (each child does its own edits). v1 covers specs + plans + research (prompts/comms excluded per OQ3; walkthroughs/roadmaps excluded per OQ8); no committed aggregate and no persisted snapshot in v1 (OQ9).
-- Status: draft
+- Status: reviewed
 - Set: attnview
 - Order: 0
 - Highest E allocated: 07
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-08 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): authored from the human-approved spec `20260808-1945-01-attention-registry-and-cross-tree-status.spec.md`. Split into a Set because the work spans a contract/fixture-freezing phase, an owner-write verb (`aw specs`), a read-only cross-tree scanner (`aw attention`), a one-time specs migration, and the `/whatnext` + CI + docs wiring, with a clear dependency chain (contracts -> verbs/scanner -> migration -> consumer).
+- 2026-08-08 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED (parallel audit lanes). Orchestrator findings L0-01 (note Child 03 owns tree classification + the truthful `local/` non-exclusion) and L0-02/L0-04 (name `implementing` as the executor-set path to spec `active`, and research native `active` as the live source of the `active` class in v1) FIXED. Set-wide: 22 findings across the 6 plans, all Low/Low-Medium remediation risk, all FIXED in place; no deferrals, no REPLAN. Structural lint conforming at author + review-finalize. Status draft -> reviewed.
 
 ## Goal
 
@@ -31,7 +32,7 @@ The orchestrator's execution leaves gate the children and run the whole-Set chec
   - Execution state: pending
 - [ ] E-02 verify Child 02 (`aw specs` owner verbs) is executed after Child 01 and its checklists are verified.
   - Depends on: E-01
-  - Expected outcome: `aw specs set/note/check` enforce the authority table (human token for `approved`, evidence for `implemented`), typed gates, single-file atomic writes, history-append; no git side effects.
+  - Expected outcome: `aw specs set/note/check` enforce the authority table (human token for `approved`, evidence for `implemented`, `approved -> implementing` settable by the executor as the only source of a spec `active`), typed gates, single-file atomic writes, history-append; no git side effects.
   - Execution state: pending
 - [ ] E-03 verify Child 03 (read-only `aw attention` scanner) is executed after Children 01 and 02 and its checklists are verified.
   - Depends on: E-01, E-02
@@ -79,7 +80,7 @@ Execution order (dependency-correct): 01 -> 02 -> 03 -> 04 -> 05.
 ## Cross-IPD validation
 
 - Single-source contracts: the class enum, tree-policy inventory, per-tree mappings, JSON schema, gate/history/approval grammars are defined ONCE (Child 01) and consumed by `aw specs` (02), `aw attention` (03), the migration (04), and `/whatnext` (05); no child forks them. Read them together and confirm no contradiction.
-- Read-only boundary: `aw attention` performs NO writes (grep the module for any write/`atomic_write`/git call returns none); all writes go through `aw specs` (specs) or the existing `aw plans`/`aw research` verbs; no generic write router exists (OQ7).
+- Read-only boundary: `aw attention` performs NO writes (grep the module for any write/`atomic_write`/git call returns none); all writes go through `aw specs` (specs) or the existing `aw plans`/`aw research` verbs; no generic write router exists (OQ7). Confirm Child 03 owns the path->tree classification (tracked/excluded/unclassified) and does not rely on `iter_scan_files` to exclude gitignored `local/` lanes (`iter_scan_files` does NOT; the exclusion is Child 03's responsibility if such a tree enters scope).
 - Mapping totality: the coverage test proves `class_of` is total over specs/plans/research native enums; an unmapped status is a violation, not a default.
 - No per-tree regression: `aw plans index --check` and `aw research index --check` behave identically after the Set (their tests pass unchanged).
 - Dependency correctness: execution order 01 -> 02 -> 03 -> 04 -> 05; no child uses a later child's symbols; the migration (04) runs only after the verbs (02) and checker (03) exist.
@@ -94,7 +95,7 @@ Execution order (dependency-correct): 01 -> 02 -> 03 -> 04 -> 05.
 | walkthroughs/roadmaps status | scope | No real lifecycle semantics yet; excluded in the tree-policy inventory (OQ8). | Phase 3 |
 | A committed aggregate / persisted `aw attention snapshot` | complexity | The view is ephemeral by design; a snapshot waits for a demonstrated non-CLI consumer (OQ9). | Phase 2 |
 | A generic cross-tree `aw attention set` write router | complexity | Writes are owner-local; a router waits until every owner has a stable mutation API (OQ7). | not planned |
-| plans native `executing` state (for `active`) | functionality | Owner-local plans decision; until added, plans map to `ready` (OQ5). | plans owner, later |
+| plans native `executing` state (for `active`) | functionality | Owner-local plans decision; until added, plans map to `ready` (OQ5). Note: research's native `active` (research_contract.py:133) IS the live source of the `active` class in v1, and specs reach `active` via `implementing`; only plans lack `active` until an `executing` state is added. | plans owner, later |
 
 ## Scope check
 

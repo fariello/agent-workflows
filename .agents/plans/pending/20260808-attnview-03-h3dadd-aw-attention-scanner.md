@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: build the read-only `aw attention` command that scans the tracked trees on demand, validates each artifact against its tree contract, maps each native status to an attention class, and renders JSON or a human board to stdout (never a committed file), failing closed on any violation, so `/whatnext` and CI can consume one deterministic command.
 - Scope: add `agent_workflows/attention.py` providing `aw attention` (default human board), `--format json|markdown`, `--check`, `--agent`, over the tracked trees (specs/plans/research per OQ3). Read-only: writes NOTHING to disk. Consumes the Order 01 contracts and reuses the Order 02 spec validator for the specs tree. Does NOT perform writes (owner verbs do) and does NOT rewire `/whatnext` (Order 05). Requires Orders 01 and 02 executed.
-- Status: draft
+- Status: reviewed
 - Set: attnview
 - Order: 3
 - Highest E allocated: 07
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-08 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created. Child of Set `attnview`, authored from the approved spec Sections 8.1, 8.3, 8.5, 8.6, 8.8; requires Orders 01 (contracts) and 02 (specs validator).
+- 2026-08-08 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. FIXED L3-01 (HIGH: the "excludes gitignored `local/`" claim was false - `iter_scan_files` does no such filter and over-scans all `.agents/docs`+`.agents/plans`; E-01 now owns path->tree classification tracked/excluded/unclassified and the truthful `local/` note), L3-02 (bind to `Drift`'s `location<TAB>rule<TAB>detail`, third field = detail not severity, use the Order 01 catalog), L3-03 (exit 2 could-not-run is attention.py's own, not drift_exit_code; V-05 tests it), L3-04 (read `last_history_at` via the Order 01 history parser, never mtime; gate via Order 01 validators), L3-05 (name the per-tree readers; research native `active` is the live `active` source in v1). Status draft -> reviewed.
 
 ## Goal
 
@@ -25,9 +26,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the scan + record model
 
-- [ ] E-01 implement the tracked-tree scan in `agent_workflows/attention.py` using `artifact_core.iter_scan_files` over the tree-policy inventory (Order 01), EXCLUDING gitignored `local/` lanes; for each artifact read its native status (spec front-matter via the Order 02 validator; plans via disposition + readiness; research via frontmatter) and build one in-memory record `{path, tree, native_status, class, id, gate?, last_history_at}`.
+- [ ] E-01 implement the tracked-tree scan in `agent_workflows/attention.py`: call `artifact_core.iter_scan_files` (artifact_core.py:169) to get the candidate files, then CLASSIFY each returned path against the Order 01 tree-policy inventory - a path under a `tracked` tree builds a record; a path under an `excluded` tree (walkthroughs/roadmaps per OQ8, plus per-tree READMEs) is dropped; a path under no inventoried tree is an `attention.unclassified-tree` violation. NOTE (verified artifact_core.py:169-181): `iter_scan_files` does NOT consult `.gitignore` and does NOT exclude `local/`; it returns every `.md`/`.txt` under `SCAN_ROOTS` (`.agents/plans` + `.agents/docs` + the four root docs). v1 scope (specs/plans/research) has no `local/` under those roots, so this child adds no gitignore logic, but it MUST NOT rely on `iter_scan_files` to drop any future gitignored/`local/` lane - a `local/`-path guard is this child's own responsibility if such a tree enters scope. For each tracked artifact read native status via each tree's OWN reader (specs via the Order 02 validator's front-matter bullet parser; plans via `plans.read_status` + disposition, plans.py:117; research via `research_contract.parse_frontmatter` YAML `status`, research_contract.py:434), read `last_history_at` via the Order 01 history-grammar parser (E-03) and NEVER file mtime (spec 8.5), read gate fields via the Order 01 gate validators (E-05), and build one in-memory record `{path, tree, native_status, class, id, gate?, last_history_at}`.
   - Depends on: none
-  - Expected outcome: a pure builder returning the record set + a violation list for the tracked trees.
+  - Expected outcome: a pure builder that classifies paths into tracked/excluded/unclassified and returns the record set + a violation list, reading each tree with its own reader and `last_history_at` from history (never mtime).
   - Execution state: pending
 - [ ] E-02 apply the Order 01 `class_of(tree, native_status)` mapping to each record; an unknown/unmapped native status becomes a violation (never a default class); a newly discovered unclassified tree is a violation (`attention.unclassified-tree`).
   - Depends on: E-01
@@ -44,9 +45,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-01, E-02
   - Expected outcome: `aw attention` prints a deterministic, escaped human board.
   - Execution state: pending
-- [ ] E-05 implement `--check` and `--agent`: full scan collecting ALL violation classes (Section 8.3 + 8.8 output-safety), render via `artifact_core.render_agent_drift`, exit `drift_exit_code` (0 clean / 1 any violation; 2 could-not-run); fail closed, never skip a malformed included artifact.
+- [ ] E-05 implement `--check` and `--agent`: full scan collecting ALL violation classes (Section 8.3 + 8.8 output-safety), render via `artifact_core.render_agent_drift` (the `location<TAB>rule<TAB>detail` form, artifact_core.py:246; the third field is `Drift.detail`, NOT a severity column; use the Order 01 stable rule-id catalog + escaping policy), exit `drift_exit_code` (0 clean / 1 any violation). NOTE `drift_exit_code` only returns 0/1 (artifact_core.py:253-256); `attention.py` itself returns exit 2 on a could-not-run condition (an unreadable artifact, a missing Order 01 contract symbol, or front-matter so malformed the whole scan cannot proceed). Fail closed, never skip a malformed included artifact.
   - Depends on: E-01, E-02
-  - Expected outcome: `aw attention --check` fails closed with named records on any violation.
+  - Expected outcome: `aw attention --check` fails closed with stable named records on any violation; exit 0/1 from `drift_exit_code`, exit 2 self-returned on could-not-run.
   - Execution state: pending
 - [ ] E-06 wire `aw attention` into the CLI (`cli._build_parser` + `cli._dispatch`) with `--format`/`--check`/`--agent`; reachable as `aw attention` and `python -m agent_workflows attention`; confirm NO collision with the existing `aw status` verb.
   - Depends on: E-03, E-04, E-05
@@ -62,9 +63,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Project conventions discovered (Step 0)
 
-- `artifact_core.iter_scan_files`/`Drift`/`render_agent_drift`/`drift_exit_code` are the required primitives (N3); `SCAN_ROOTS` already covers `.agents/plans` and `.agents/docs`.
-- Determinism rules (Section 8.5) forbid timestamps/mtime/locale-sensitive output; the canonical JSON profile is frozen in Order 01/E-04.
-- The specs validator from Order 02 is reused for the specs tree; plans/research native-status reads use their existing modules.
+- `artifact_core.iter_scan_files`/`Drift`/`render_agent_drift`/`drift_exit_code` are the required primitives (N3); `SCAN_ROOTS` covers `.agents/plans` + `.agents/docs` + four root docs (artifact_core.py:157-164). CAUTION: `iter_scan_files` returns EVERY `.md`/`.txt` under those roots (walkthroughs, roadmaps, READMEs, specs, research, plans) and does NOT filter `.gitignore` or `local/` (artifact_core.py:169-181); this child owns the path->tree classification (tracked/excluded/unclassified), not the primitive.
+- Determinism rules (Section 8.5) forbid timestamps/mtime/locale-sensitive output; `last_history_at` comes from the Order 01 history parser, never mtime; the canonical JSON profile is frozen in Order 01/E-04.
+- Each tree has a DIFFERENT native-status reader: specs via the Order 02 validator (front-matter bullet); plans via `plans.read_status` + disposition (plans.py:117); research via `research_contract.parse_frontmatter` YAML `status` (research_contract.py:434). Research has a genuine native `active` (research_contract.py:133), so the `active` class is live in v1 via research even while plans lack it (OQ5).
 
 ## Findings
 
@@ -112,7 +113,7 @@ The `aw attention` help text is self-documenting; the AGENTS.md pointer + README
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: the builder returns records for specs/plans/research over the tracked trees, excludes `local/`, and reads native status correctly on the fixtures.
+  - Required evidence: the builder classifies each scanned path into tracked (specs/plans/research) / excluded (walkthroughs/roadmaps/READMEs) / unclassified-tree-violation; reads native status via each tree's own reader; derives `last_history_at` from parsed history NOT mtime; and (if any `local/`-style lane were in scope) does not rely on `iter_scan_files` to drop it.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
@@ -128,7 +129,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: `--check` on a clean fixture exits 0; each violation-class fixture exits 1 with a stable named record; all violations are reported together (not first-only).
+  - Required evidence: `--check` on a clean fixture exits 0; each violation-class fixture exits 1 with a stable named `location<TAB>rule<TAB>detail` record (rule ids from the Order 01 catalog); all violations reported together (not first-only); a deliberately unreadable/contract-missing fixture yields exit 2.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06
