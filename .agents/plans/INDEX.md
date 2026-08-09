@@ -7,8 +7,8 @@ Showing the 40 most-recent of 73 Sets; the full manifest is INDEX.json.
 ## attnview
 
 - `94dhrt` [pending] 00 pending/20260808-attnview-00-94dhrt-attention-view-orchestrator.md
-- `0i8ass` [pending] 01 pending/20260808-attnview-01-0i8ass-phase0-contracts-and-fixtures.md
-- `u4q8ml` [pending] 02 pending/20260808-attnview-02-u4q8ml-aw-specs-owner-verbs.md
+- `0i8ass` [executed] 01 executed/20260808-attnview-01-0i8ass-phase0-contracts-and-fixtures.md
+- `u4q8ml` [executed] 02 executed/20260808-attnview-02-u4q8ml-aw-specs-owner-verbs.md
 - `h3dadd` [pending] 03 pending/20260808-attnview-03-h3dadd-aw-attention-scanner.md
 - `dxoxgi` [pending] 04 pending/20260808-attnview-04-dxoxgi-specs-migration.md
 - `9y2fz1` [pending] 05 pending/20260808-attnview-05-9y2fz1-whatnext-and-ci.md
