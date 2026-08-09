@@ -1,7 +1,7 @@
 # Spec: attention view and cross-tree status model (`aw attention`)
 
 - Date: 2026-08-08
-- Status: to-review (2026-08-08; drafted by opencode, REVISED twice on 2026-08-08 to reconcile the external review set and the gpt-5.6-high plan-review; awaiting further model review, then human approval). Design rationale + functional contract; a follow-on IPD Set implements it. Open questions in Section 12. See Section 16 (baseline note) before judging dependency availability.
+- Status: reviewed (2026-08-08; drafted by opencode, REVISED twice to reconcile the external review set and the gpt-5.6-high plan-review, then /plan-review'd with findings PR-101..PR-105 fixed and OQ3/OQ7/OQ8/OQ9 resolved by the human; awaiting HUMAN APPROVAL). Design rationale + functional contract; a follow-on IPD Set implements it. Remaining open questions (Section 12) are Phase-0 design deliverables, not approval blockers. See Section 16 (baseline note) before judging dependency availability.
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Grounding: research survey `bv6n38` and the review set `attention-registry-spec-review` (`gpt56`/`gemini31pro`/`sonnet5` assessments + the `reconciliation` report `b1msgn`), all under `.agents/docs/research/`.
 - Relation to prior specs: builds on the artifact-organization line (`20260730-2152-01`, D123; `20260808-0004-01`, D124) and reuses `agent_workflows/artifact_core.py`. It does NOT replace the per-tree lifecycles (plans, research, prompts, comms); it adds a cross-tree ATTENTION VIEW above them.
@@ -11,7 +11,7 @@
 The first draft proposed a COMMITTED registry (`.agents/ATTENTION.*`) that `aw attention` both wrote and validated, with `aw attention set` writing across all trees. All three external reviews (and their reconciliation, `b1msgn`) converged on material corrections, which this revision adopts:
 
 1. The aggregate is a PROJECTION, not a source of truth. Compute it ON DEMAND; do NOT commit `.agents/ATTENTION.*` in v1 (avoids a materialized-view anti-pattern: stale snapshots, cross-branch merge conflicts, false CI drift, and a false promise of multi-file atomicity).
-2. FIVE attention classes (`ready`, `active`, `blocked`, `done`, `parked`), not four. `blocked` is operationally distinct from `ready`.
+2. FIVE attention classes (`ready`, `active`, `blocked`, `done`, `parked`), not four. `blocked` is operationally distinct from `ready` (adopted from the gpt56 assessment and the `b1msgn` reconciliation; the Gemini assessment kept four, and the reconciliation resolved in favour of five).
 3. `aw attention` is READ-ONLY. Writes belong to DOMAIN OWNERS: add `aw specs set`/`note`/`check`; for plans/research, `aw attention` points at the owner command. No generic cross-tree write router in v1.
 4. The mapping is PURE and EXHAUSTIVE and must not INFER activity or gate state from prose, mtime, or context. If a tree needs to distinguish (e.g.) approved-from-executing, its OWNER adds a native state; the scanner never guesses.
 5. Gates are STRUCTURED typed fields (`Gate-Kind`/`Gate-Ref`/optional `Gate-Summary`), required only for `deferred`.
@@ -66,7 +66,7 @@ The fix: standardize status/filenames/locations; provide ONE cheap deterministic
 
 ## 6. The attention-class model (G1) - the load-bearing design
 
-Each tree keeps its NATIVE status. The registry defines a PURE, TOTAL function `class_of(tree, native_status) -> AttentionClass` over five classes:
+Each tree keeps its NATIVE status. The attention view defines a PURE, TOTAL function `class_of(tree, native_status) -> AttentionClass` over five classes:
 
 | Class | Meaning | `/whatnext` behavior |
 | --- | --- | --- |
@@ -79,7 +79,7 @@ Each tree keeps its NATIVE status. The registry defines a PURE, TOTAL function `
 Purity and exhaustiveness rules (from `b1msgn` finding 2):
 
 - The mapping depends ONLY on `(tree, native_status)`. It NEVER infers activity or gate state from prose, dates, mtime, lock files, or agent context.
-- An `approved` item is `ready`, not `active`, UNLESS the tree's native lifecycle explicitly records execution in progress. If plans must distinguish approved-from-executing, the PLANS owner adds an explicit native state (e.g. `executing`) or another owner-defined machine field; the scanner does not guess. (See OQ7 dependency.)
+- An `approved` item is `ready`, not `active`, UNLESS the tree's native lifecycle explicitly records execution in progress. If plans must distinguish approved-from-executing, the PLANS owner adds an explicit native state (e.g. `executing`) or another owner-defined machine field; the scanner does not guess. (See OQ5 and the Section 11 native-state dependency.)
 - A `deferred` item is `blocked` and MUST carry a valid unresolved gate (Section 8.4). Deliberate inactivity uses a native `parked`/`archive`/`superseded`/`not-executed` state, NOT `deferred`.
 - Every native enum value of every included tree has EXACTLY ONE mapping. An unknown value is a VIOLATION, never a default or an omission.
 - Mapping fragments live NEXT TO each tree's native-enum definition and are aggregated by the attention module, so an enum change and its cross-tree mapping tend to land in the same code change. A coverage test compares each declared enum to its mapping keys and fails on any missing or extra entry.
@@ -193,7 +193,7 @@ A `deferred` artifact MUST identify the blocking condition with discrete front-m
 
 ### 8.5 Determinism (byte-for-byte)
 
-Requirements, not suggestions: full scan every run; repo-relative POSIX paths; sort by fixed class order, then normalized path, then id; UTF-8; LF endings + one final newline; fixed JSON key order/indentation/separators/ASCII-escaping; NO generation timestamps, mtimes, absolute paths, terminal width, locale/timezone-sensitive or random values; `last_history_at` parsed from validated history, never mtime; defined symlink handling and rejection of any path escaping the repo; identical output from identical source bytes across supported environments. A LOCAL canonical JSON serialization profile is defined and tested (RFC 8785 not required, but the profile must be explicit).
+The OBSERVABLE contract (WHAT): the output is byte-deterministic - identical source bytes yield identical output bytes regardless of `cwd`, timezone, or locale. Concretely this requires: a full scan every run; repo-relative POSIX paths; a fixed sort (class order, then normalized path, then id); UTF-8 with LF endings and one final newline; a stable JSON serialization; NO generation timestamps, mtimes, absolute paths, terminal width, or locale/timezone-sensitive or random values; `last_history_at` parsed from validated history, never mtime; and defined symlink handling that rejects any path escaping the repo. The EXACT canonical JSON serialization profile (key order, indentation, separators, escaping policy; RFC 8785 not required but the chosen profile must be explicit and tested) is a Phase 0 deliverable (OQ4), not fixed here, so it does not pre-stale the IPD.
 
 ### 8.6 Tree policy inventory + fail-closed
 
@@ -252,11 +252,11 @@ Descriptive metadata (`Gate-Summary`, `- Status:` neighbours, paths, URLs, and a
 - A3 Each violation class in F3 produces a stable NAMED violation and exit 1 (independently tested).
 - A4 A `deferred` fixture missing any required gate component fails; each valid `Gate-Kind` passes its kind-specific validation.
 - A5 An invalid scan reports ALL detectable violations and never returns `valid: true` or exit 0.
-- A6 Two runs over identical source bytes produce byte-identical JSON, Markdown, and agent output under different working directories, locales, timezones, and supported OSes.
+- A6 Two runs over identical source bytes produce byte-identical JSON, Markdown, and agent output when the environment varies (a test that runs the command with different `cwd`, `TZ`, and `LANG`/`LC_ALL` and asserts identical bytes; this is the in-harness proxy for cross-OS determinism, which the stdlib `unittest` suite cannot itself exercise on multiple OSes).
 - A7 Deleting/renaming/moving an artifact is reflected on the next full scan with no incremental state or cache cleanup.
 - A8 `aw specs set` validates a legal transition, updates gate fields, appends one history record, and atomically replaces one file; an invalid transition leaves the file byte-identical. `aw specs note` appends one record and changes nothing else.
 - A9 Existing `aw plans index --check` and `aw research index --check` remain byte-for-byte unchanged on unchanged fixtures.
-- A10 `/whatnext` invokes the JSON view first, stops and surfaces violations when invalid, and opens only selected paths plus explicitly-allowed git/TODO sources (tested at the workflow boundary via instrumented command invocation and path selection, NOT by asserting what a model "reads").
+- A10 `/whatnext` (a Markdown workflow, not code) documents consuming `aw attention --format json` FIRST, stopping and surfacing violations on an invalid view, and reading only selected paths plus explicitly-bounded git/TODO sources. Verification is at the workflow-contract level: the workflow text specifies this order and the stop-on-invalid behavior, and the underlying `aw attention` command it depends on has its own code-level tests (A1-A9). This is NOT verified by asserting what a model "reads" (uninstrumentable).
 - A11 CI runs the same contract check used locally and rejects every F3 violation.
 - A12 No v1 command writes an aggregate file, cache, git index entry, commit, or remote change as an implicit side effect.
 - A13 Full `unittest` suite green; new tests cover the mapping/coverage, scanner, `--check` classes, determinism, gates, and `aw specs` writes.
@@ -276,13 +276,13 @@ This spec fixes WHAT and WHY (observable behavior, contracts, compatibility, req
 
 - OQ1 The FULL per-tree mapping tables for plans, research, prompts, comms (specs table is in Section 7). Phase 0 deliverable; each must be exhaustive over the tree's native enum.
 - OQ2 The exact `## Workflow history` record grammar and whether `last_history_at` is a date or an RFC-3339 UTC timestamp (the JSON contract prefers a precise timestamp; the plans convention uses a date). Reconcile in Phase 0.
-- OQ3 Which trees are in v1 scope: specs + plans + research are in; prompts + comms are in ONLY if their full contracts + mappings are finalized in Phase 0, else deferred to Phase 3.
+- OQ3 RESOLVED (2026-08-08, human, via /plan-review): v1 tree scope = specs + plans + research IN; prompts + comms IN only if their full contracts + mappings are finalized in Phase 0, else deferred to Phase 3.
 - OQ4 The precise JSON schema (id scheme + uniqueness, path normalization, ordering, null behavior, error object) and the canonical serialization profile (Section 8.5) - Phase 0 deliverable.
 - OQ5 Whether plans should gain a native `executing` state (enabling `active` for in-execution plans) in v1 or later. If later, plans have no `active` items in the view initially. (Owner decision; see Section 11 dependency.)
 - OQ6 The `Gate-Ref` validators per kind (esp. `todo`/`decision` stable-id formats and `external` acceptance rule).
-- OQ7 Confirm the write boundary: `aw attention` read-only + `aw specs` owns spec writes + plans/research owned by their existing verbs; no generic router in v1. (Adopted; confirm.)
-- OQ8 Walkthroughs and roadmaps: `excluded` in the tree policy inventory for v1 (rationale: no real lifecycle semantics yet), revisited in Phase 3. Confirm.
-- OQ9 An optional `aw attention snapshot` (a generated, schema-versioned, deterministic projection file) is DEFERRED until a demonstrated non-executable consumer needs it. Confirm it stays out of v1.
+- OQ7 RESOLVED (2026-08-08, human, via /plan-review): the write boundary is `aw attention` read-only + `aw specs` owns spec writes + plans/research owned by their existing verbs; NO generic write router in v1.
+- OQ8 RESOLVED (2026-08-08, human, via /plan-review): walkthroughs and roadmaps are `excluded` in the tree policy inventory for v1 (no real lifecycle semantics yet), revisited in Phase 3.
+- OQ9 RESOLVED (2026-08-08, human, via /plan-review): an optional `aw attention snapshot` persisted file stays OUT of v1, deferred until a demonstrated non-executable consumer needs it.
 - OQ10 The exact human-approval token mechanism for `reviewed -> approved` and the evidence-citation format for `implementing -> implemented` (Section 7 transition table). Candidates: an interactive confirmation, a `--approved-by <human>` flag recorded in history, or a signed marker. Phase 0 deliverable.
 
 ## 13. Phasing (G7)
@@ -327,4 +327,5 @@ The prerequisites this spec relies on (`agent_workflows/artifact_core.py`, the `
 ## Workflow history
 - 2026-08-08 /spec (opencode its_direct/pt3-claude-opus-4.8-1m-us): drafted the attention-registry and cross-tree-status spec to Status: to-review, grounded in research survey bv6n38; queued for external review by gpt-5.6 and Gemini.
 - 2026-08-08 /spec (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVISED to reconcile the external review set (gpt56/gemini31pro/sonnet5 assessments + reconciliation b1msgn). Adopted: on-demand ephemeral view (no committed registry in v1), five attention classes (ready/active/blocked/done/parked), read-only aw attention with per-tree owner writes (new aw specs), pure/exhaustive non-inferring mapping, typed gate fields, spec lifecycle draft->reviewed->approved->implementing->implemented (+deferred/parked/superseded; canonical demoted to a separate field), fail-closed scanning, tree policy inventory, versioned JSON + byte determinism, and a Phase-0-contracts-first plan. Renamed the noun to attention VIEW. Held for further model review.
+- 2026-08-08 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Fixed PR-101 (residual "registry" wording in Section 6 -> "attention view"), PR-102 (OQ7->OQ5 misreference in Section 6), PR-103 (reframed A6/A10 to what the stdlib unittest harness and a Markdown workflow can actually verify), PR-104 (corrected the five-class provenance in the Section 0 note), PR-105 (deferred the exact JSON serialization profile to Phase 0/OQ4 so Section 8.5 states the observable byte-determinism contract without pre-staling the IPD). Resolved OQ3/OQ7/OQ8/OQ9 by human confirmation (v1 scope = specs+plans+research; read-only attention + aw specs writes, no router; walkthroughs/roadmaps excluded v1; no persisted snapshot v1). Structural IPD lint N/A (this is a design spec, not an agent-executable IPD). Status to-review -> reviewed. Readiness: GO - PENDING HUMAN APPROVAL.
 - 2026-08-08 /spec (opencode its_direct/pt3-claude-opus-4.8-1m-us): applied the gpt-5.6-high plan-review (w0ilhj, findings PR-001..PR-005). PR-002: added to-review to the spec enum (->ready) and a transition/authority table (human token required for approved; cited evidence required for implemented; enforced by aw specs set, F11/A15). PR-003: fixed one exact metadata grammar (bulleted - Status:/- Gate-* with no trailing prose) and made every example consistent. PR-004: added Section 8.8 output-safety + agent trust boundary (single-line bounded, control-char rejection, per-surface escaping, http(s)-only issue URLs, descriptive-fields-are-data, hostile fixtures; F10/A14). PR-005: moved code-placement detail (module names, run(args), cli.py edit points) out of normative Section 11 into non-normative Section 15 (IPD guidance). PR-001: assessed as a stale-baseline artifact (prereqs exist on the working branch, unpushed) and added Section 16 baseline note. Added OQ10 (approval-token/evidence mechanism). Held for further model review.
