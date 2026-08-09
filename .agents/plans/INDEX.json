@@ -1313,20 +1313,20 @@
     "date": "2026-08-07",
     "disposition": "pending",
     "kind": "child",
-    "order": null,
-    "path": "pending/20260807-2118-01-thorough-execution-verification-workflow.md",
-    "plan_id": null,
-    "set_id": null,
+    "order": 1,
+    "path": "pending/20260807-ipd-history-01-wrt0wq-ipd-lifecycle-history-tracking.md",
+    "plan_id": "wrt0wq",
+    "set_id": "ipd-history",
     "status": "to-review"
   },
   {
     "date": "2026-08-07",
     "disposition": "pending",
     "kind": "child",
-    "order": null,
-    "path": "pending/20260807-2128-01-ipd-lifecycle-history-tracking.md",
-    "plan_id": null,
-    "set_id": null,
+    "order": 1,
+    "path": "pending/20260807-verify-execution-01-2p9fd3-thorough-execution-verification-workflow.md",
+    "plan_id": "2p9fd3",
+    "set_id": "verify-execution",
     "status": "to-review"
   },
   {

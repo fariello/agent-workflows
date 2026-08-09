@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 74 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 75 Sets; the full manifest is INDEX.json.
 
 ## awlayout
 
@@ -41,6 +41,15 @@ Showing the 40 most-recent of 74 Sets; the full manifest is INDEX.json.
 - `xh08he` [executed] 03 executed/20260808-plansadopt-03-xh08he-plans-manifest-and-check.md
 - `qb3ubs` [executed] 04 executed/20260808-plansadopt-04-qb3ubs-plans-regroup-and-refs.md
 - `gxa8xb` [executed] 05 executed/20260808-plansadopt-05-gxa8xb-plans-shards-and-archival.md
+
+## ipd-history
+
+- `wrt0wq` [pending] 01 pending/20260807-ipd-history-01-wrt0wq-ipd-lifecycle-history-tracking.md
+
+## verify-execution
+
+- `c5685e` [executed] 00 executed/20260712-verify-execution-00-c5685e-verify-execution-workflow.md
+- `2p9fd3` [pending] 01 pending/20260807-verify-execution-01-2p9fd3-thorough-execution-verification-workflow.md
 
 ## ipdstruct
 
@@ -215,14 +224,6 @@ Showing the 40 most-recent of 74 Sets; the full manifest is INDEX.json.
 
 - `qv04dz` [executed] 00 executed/20260713-normalize-plan-00-qv04dz-normalize-plan-names-test-date-flakiness.md
 
-## agent-brain
-
-- `lhmlzo` [executed] 00 executed/20260712-agent-brain-00-lhmlzo-agent-brain-dir-plan-and-walkthrough-mirroring.md
-
-## agent-execution
-
-- `3obd0t` [executed] 00 executed/20260712-agent-execution-00-3obd0t-agent-execution-contract-in-pointer-block.md
-
 ## (singletons: no Set)
 
 - `d5tz36` [executed] executed/20260704-advise-workflow-00-d5tz36-advise-workflow-and-personas.md
@@ -235,5 +236,3 @@ Showing the 40 most-recent of 74 Sets; the full manifest is INDEX.json.
 - `vfa1tl` [executed] executed/20260709-interactive-git-00-vfa1tl-interactive-git-workflow.md
 - `vw1ich` [executed] executed/20260709-target-directory-00-vw1ich-target-directory-readmes.md
 - `4025ak` [executed] executed/20260710-plan-lifecycle-00-4025ak-plan-lifecycle-superseded-notexecuted-dirs.md
-- `??????` [pending] pending/20260807-2118-01-thorough-execution-verification-workflow.md
-- `??????` [pending] pending/20260807-2128-01-ipd-lifecycle-history-tracking.md
