@@ -4,7 +4,8 @@
 - Kind: orchestrator
 - Concern: implement the approved spec `.agents/docs/specs/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md`: a read-only `aw attention` command that maps each tree's native status onto a five-value cross-tree attention class and renders an on-demand view (JSON or human board, never committed), per-tree OWNER write verbs (starting `aw specs`) that maintain status + history under a transition/authority table, and a `/whatnext` rewired to consume the view, so a human/agent/CI can answer "what needs attention?" cheaply and deterministically and the specs blind spot is closed.
 - Scope: ORCHESTRATOR for the ordered Set `attnview`. Defines the child sequence, dependencies, whole-Set completion criteria, and cross-IPD validation. It does NOT itself change files (each child does its own edits). v1 covers specs + plans + research (prompts/comms excluded per OQ3; walkthroughs/roadmaps excluded per OQ8); no committed aggregate and no persisted snapshot in v1 (OQ9).
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-08, human maintainer ("Approved all. Go.") after /plan-review (APPROVE WITH REVISIONS APPLIED)
 - Set: attnview
 - Order: 0
 - Highest E allocated: 07
@@ -15,6 +16,7 @@
 
 - 2026-08-08 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): authored from the human-approved spec `20260808-1945-01-attention-registry-and-cross-tree-status.spec.md`. Split into a Set because the work spans a contract/fixture-freezing phase, an owner-write verb (`aw specs`), a read-only cross-tree scanner (`aw attention`), a one-time specs migration, and the `/whatnext` + CI + docs wiring, with a clear dependency chain (contracts -> verbs/scanner -> migration -> consumer).
 - 2026-08-08 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED (parallel audit lanes). Orchestrator findings L0-01 (note Child 03 owns tree classification + the truthful `local/` non-exclusion) and L0-02/L0-04 (name `implementing` as the executor-set path to spec `active`, and research native `active` as the live source of the `active` class in v1) FIXED. Set-wide: 22 findings across the 6 plans, all Low/Low-Medium remediation risk, all FIXED in place; no deferrals, no REPLAN. Structural lint conforming at author + review-finalize. Status draft -> reviewed.
+- 2026-08-08 approved (human maintainer): "Approved all. Go." Status reviewed -> approved; cleared for execution via ipd-lifecycle.
 
 ## Goal
 

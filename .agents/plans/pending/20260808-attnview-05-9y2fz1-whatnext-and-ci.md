@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: make the attention view actually change behavior: rewire the `/whatnext` workflow to CONSUME `aw attention --format json` first (stop on an invalid view) instead of re-scouring raw files, wire `aw attention --check` (and `aw specs check`) into CI, and land the docs/DECISIONS updates that record the convention.
 - Scope: edit the `/whatnext` workflow body, add the CI check, update AGENTS.md pointer + relevant READMEs + DECISIONS. Consumes the Order 03 command; does NOT change the scanner/verbs. Requires Orders 01, 02, 03 executed (04 recommended so the repo view is clean, but not a code dependency).
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-08, human maintainer ("Approved all. Go.") after /plan-review (APPROVE WITH REVISIONS APPLIED)
 - Set: attnview
 - Order: 5
 - Highest E allocated: 06
@@ -15,6 +16,7 @@
 
 - 2026-08-08 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created. Child of Set `attnview`, authored from the approved spec Sections 8.7 (whatnext), 5 (CI), and G5/G7; requires the Order 03 `aw attention` command.
 - 2026-08-08 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. FIXED L5-01 (HIGH: the CI premise was false - no existing `aw ipd lint`/`aw plans index --check` CI gate to "match"; E-03 now states the ground truth and pins the new mechanism, a GitHub Actions step, and names it the first such gate), L5-02 (confirm `aw specs check` is delivered by Order 02 before wiring it, else gate only `aw attention --check`), L5-03 (resolve OQ-01: AGENTS.md source of truth is `agents_pointer_prose()` + regenerate + empty-diff invariant; forbid hand-editing the tracked pointer), L5-04 (V-01 asserts the no-silent-rescan negative), L5-05 (preserve the comms untrusted-payload headers-only invariant among the bounded secondary sources). Status draft -> reviewed.
+- 2026-08-08 approved (human maintainer): "Approved all. Go." Status reviewed -> approved; cleared for execution via ipd-lifecycle.
 
 ## Goal
 

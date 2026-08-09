@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: freeze the load-bearing CONTRACTS the rest of the Set builds against, and the fixture corpus that tests them, so no later child has to invent product behavior. This resolves the approved spec's Phase-0 open questions OQ1/OQ2/OQ4/OQ6/OQ10 into written, testable contracts.
 - Scope: author contract documents/fixtures ONLY; write NO product code and NO scanner/verb yet. Deliverables: the five-value attention-class enum + exhaustive per-tree mapping tables (specs, plans, research; prompts/comms deferred per OQ3); the `## Workflow history` record grammar (OQ2); the versioned JSON output schema + canonical serialization profile (OQ4); the `Gate-Kind`/`Gate-Ref` per-kind validators (OQ6); the human-approval-token + implementation-evidence mechanism for `aw specs set` (OQ10); the tree policy inventory; and fixture repos covering every native status and every `--check` violation class. Requires the approved spec `.agents/docs/specs/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md`.
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-08, human maintainer ("Approved all. Go.") after /plan-review (APPROVE WITH REVISIONS APPLIED)
 - Set: attnview
 - Order: 1
 - Highest E allocated: 08
@@ -15,6 +16,7 @@
 
 - 2026-08-08 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created. Child of Set `attnview`; the foundation Orders 02 to 05 build against, authored from the approved spec Sections 6, 7, 8.3, 8.4, 8.5, 8.8 and Phase 0 (Section 13).
 - 2026-08-08 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. FIXED L1-01 (own the stable `--check`/`--agent` rule-id catalog + `location<TAB>rule<TAB>detail` escaping, third field = `Drift.detail`, so Orders 02/03 do not free-hand rule ids), L1-02 (add the 3 omitted fixture violation classes: malformed-encoding, unreadable-file, repo-escaping-symlink), L1-03 (freeze the `last_history_at` derivation rule, never mtime), L1-04 (research_contract.py:130 -> :133), L1-05 (pin plans coverage to `plans.RECOGNIZED`, name `auto-approved`), L1-06 (single contract-doc home), and the L2-01/L4-04 anti-self-approval FLOOR into OQ10/E-06 (approval mechanism must not be agent-satisfiable; `implemented` needs resolvable evidence). Status draft -> reviewed.
+- 2026-08-08 approved (human maintainer): "Approved all. Go." Status reviewed -> approved; cleared for execution via ipd-lifecycle.
 
 ## Goal
 

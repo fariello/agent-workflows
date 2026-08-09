@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: bring the existing specs corpus into conformance with the new specs contract (bare-enum `- Status:` + `## Workflow history`) via the `aw specs` verbs, WITHOUT moving any file, so `aw attention --check` passes clean on the repo's specs and the specs blind spot the whole Set targets is actually closed.
 - Scope: a one-time normalization of the existing specs under `.agents/docs/specs/` using `aw specs set`/`note` (Order 02): map each free-form prose status to a bare enum token, add a `## Workflow history` section where missing, and add typed gates to any `deferred` spec. Preserve every repository-relative path (specs stay flat). Does NOT change spec DESIGN content, does NOT touch other trees. Requires Orders 01, 02, 03 executed.
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-08, human maintainer ("Approved all. Go.") after /plan-review (APPROVE WITH REVISIONS APPLIED)
 - Set: attnview
 - Order: 4
 - Highest E allocated: 05
@@ -15,6 +16,7 @@
 
 - 2026-08-08 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created. Child of Set `attnview`, authored from the approved spec F7/A9 and Section 7 normalization guidance; requires the Order 02 verbs and the Order 03 checker.
 - 2026-08-08 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. FIXED L4-01 (corpus is 10 specs not "~8"; E-01 enumerates ALL), L4-02 (specs with both `- Status: approved` and `- Implemented: SHIPPED` map to `implemented`/done, evidence cited, the free-form bullet folded into history), L4-03 (added the self-contradictory `20260802-1904-01` APPROVED-vs-"remains a draft" case to the blocking OQ-01 for human arbitration at the E-02 gate), L4-04 (do not assume `--approved-by`/`--evidence` flag names; consume Order 02's mechanism; re-normalize THIS approved spec's trailing-prose bullet through the verb; STOP if the verb cannot set approved/implemented via a human token), L4-05 (idempotency: re-run adds no duplicate history / no re-wrap), L4-06 (handle the bare-prose and wrapped-bullet status cases), L4-07 (E-04 reworded to the non-overlapping residual). Status draft -> reviewed.
+- 2026-08-08 approved (human maintainer): "Approved all. Go." Status reviewed -> approved; cleared for execution via ipd-lifecycle.
 
 ## Goal
 

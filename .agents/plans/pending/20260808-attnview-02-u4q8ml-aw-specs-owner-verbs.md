@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: give the specs tree a machine-legible status + history and the OWNER write verbs that maintain them, so status transitions and `## Workflow history` are made by a validating tool (not hand-edited prose), enforcing the transition/authority table (human token for `approved`, cited evidence for `implemented`) and typed gates.
 - Scope: add `agent_workflows/specs.py` (or equivalent) providing `aw specs set`/`note`/`check`, wired as an `aw specs` namespace. Consumes the Order 01 contracts (status enum, transition/authority table, gate validators, history grammar, output safety). Does NOT build the cross-tree `aw attention` scanner (Order 03) and does NOT migrate the existing specs (Order 04). Requires Order 01 executed.
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-08, human maintainer ("Approved all. Go.") after /plan-review (APPROVE WITH REVISIONS APPLIED)
 - Set: attnview
 - Order: 2
 - Highest E allocated: 06
@@ -15,6 +16,7 @@
 
 - 2026-08-08 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created. Child of Set `attnview`, authored from the approved spec Sections 7 (transitions/authority), 8.2 (owner verbs), 8.4 (gates), 8.8 (output safety); requires the Order 01 contracts.
 - 2026-08-08 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. FIXED L2-01 (HIGH, security: enforce the anti-self-approval floor - `approved` mechanism must not be agent-satisfiable; V-03 asserts a no-TTY `set --status approved` is refused; do not assume flag names, consume the Order 01 frozen mechanism; escalate to Order 01 if its mechanism is hollow), L2-02 (state that `implemented` enforcement is presence + format + resolvability, not semantic verification), L2-03 (V-03 asserts the deferred gate add/remove round-trip + history-preserved resolution), L2-04 (V-03/V-04 assert no git index change after set/note). Status draft -> reviewed.
+- 2026-08-08 approved (human maintainer): "Approved all. Go." Status reviewed -> approved; cleared for execution via ipd-lifecycle.
 
 ## Goal
 

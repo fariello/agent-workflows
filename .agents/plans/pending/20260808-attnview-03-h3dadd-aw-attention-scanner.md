@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: build the read-only `aw attention` command that scans the tracked trees on demand, validates each artifact against its tree contract, maps each native status to an attention class, and renders JSON or a human board to stdout (never a committed file), failing closed on any violation, so `/whatnext` and CI can consume one deterministic command.
 - Scope: add `agent_workflows/attention.py` providing `aw attention` (default human board), `--format json|markdown`, `--check`, `--agent`, over the tracked trees (specs/plans/research per OQ3). Read-only: writes NOTHING to disk. Consumes the Order 01 contracts and reuses the Order 02 spec validator for the specs tree. Does NOT perform writes (owner verbs do) and does NOT rewire `/whatnext` (Order 05). Requires Orders 01 and 02 executed.
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-08, human maintainer ("Approved all. Go.") after /plan-review (APPROVE WITH REVISIONS APPLIED)
 - Set: attnview
 - Order: 3
 - Highest E allocated: 07
@@ -15,6 +16,7 @@
 
 - 2026-08-08 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created. Child of Set `attnview`, authored from the approved spec Sections 8.1, 8.3, 8.5, 8.6, 8.8; requires Orders 01 (contracts) and 02 (specs validator).
 - 2026-08-08 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. FIXED L3-01 (HIGH: the "excludes gitignored `local/`" claim was false - `iter_scan_files` does no such filter and over-scans all `.agents/docs`+`.agents/plans`; E-01 now owns path->tree classification tracked/excluded/unclassified and the truthful `local/` note), L3-02 (bind to `Drift`'s `location<TAB>rule<TAB>detail`, third field = detail not severity, use the Order 01 catalog), L3-03 (exit 2 could-not-run is attention.py's own, not drift_exit_code; V-05 tests it), L3-04 (read `last_history_at` via the Order 01 history parser, never mtime; gate via Order 01 validators), L3-05 (name the per-tree readers; research native `active` is the live `active` source in v1). Status draft -> reviewed.
+- 2026-08-08 approved (human maintainer): "Approved all. Go." Status reviewed -> approved; cleared for execution via ipd-lifecycle.
 
 ## Goal
 
