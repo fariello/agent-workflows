@@ -17,6 +17,7 @@
 - 2026-08-09 revision (Codex GPT-5 high): rebased onto D123 through D125; adopted stable plan identity and clustered naming, owner-written spec status, and D125's existing attention projection as the sole `/whatnext` input.
 - 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO. The Set is architecturally sound and all 12 plans lint conforming (valid DAG, dependencies match each child, E/V bijections 1:1, execution contract present, migration/uninstall preserve data by default, release boundary honored). Findings recorded per plan, NOT rewritten (another author's plans; the controlling spec is unapproved). Two gating conditions: (1) the controlling spec `20260809-2211-01` is Status: to-review, NOT approved - the orchestrator requires spec approval before any child executes; (2) several HIGH findings are FOUNDATIONAL and need the spec author / maintainer, not reviewer edits. Orchestrator findings: L0-01 (the table's "Depends on" column = prior Orders while each child's `- Depends on:` metadata = its own E-items; add a one-line note distinguishing them). L0-02 (E-12/V-12 assert all 25 spec Section 19 scenarios are "accounted for" but provide no per-scenario -> owning-child traceability map; delegate is only to Order 11 - see L11-01). Cross-Set HIGH themes returned to the author, below.
 - 2026-08-09 /plan-review cross-Set HIGH findings (return to author Codex GPT-5): (H1, Orders 07 + attention_contract) the D125 attention scanner shipped AFTER this branch and is structurally REPO-RELATIVE (`iter_scan_files` over `SCAN_ROOTS`; `attention.py::_rel_posix` raises on external paths; `RULE_IDS` is a closed catalog; `TreePolicy.root` is a repo-relative prefix), so Order 07 cannot read an EXTERNAL `state/actions/` root as written - E-01 must add an external-root discovery branch + a non-repo-relative item-path + a new stable rule id, and must declare the Order 01 resolver as a direct dependency (currently only Depends on 06). (H2, Orders 05/06) the plans assume a TRANSACTIONAL installer with rollback, but the installer has no transaction boundary today (per-file backup + a separate user-invoked `--undo`); the "rollback-safe materialization" claim rests on machinery that does not exist - either build a staging+pivot transaction or restate the recovery mechanism. (H3, Order 05) human-owned `config/` no-clobber is asserted but not gated against the hash-recorded-content model (a human value AW never wrote has no recorded hash). (H4, Order 02) `~/.aw` default AW_HOME + config store conflicts with D46 "never write under `~/`"; reconcile which store owns AW_HOME selection. (H5, Order 04) required-test command `python3 -m agent_workflows update` targets a NON-EXISTENT verb (`cli.py` has no `update`; install is idempotent) - fix the command or add the verb to scope. (H6, Order 08) the forbidden-producer-path audit is a blunt literal grep matching ~48 legitimate references and can never yield the orchestrator's "zero-match" proof - redefine as an allowlist-backed, producer-write-scoped test. (H7, Order 11) the 25-scenario acceptance matrix is asserted but not enumerated per scenario; V-04's "no scenario silently skipped" is unenforceable without an explicit 25-row scenario -> test map. Plus MEDIUM security-test gaps (path-traversal/symlink at the resolver+registry, origin-URL spoofing, fail-closed precedence+provenance) and evidence-concreteness gaps recorded on Orders 01-03. NONE are BLOCKER/REPLAN; all are repairable with bounded edits once the spec is approved and the foundational calls are made.
+- 2026-08-09 author revision (Codex GPT-5): resolved L0-01/L0-02 and H1-H7 in the orchestrator and child execution contracts. The Set now uses an external native attention source, a journaled compensating install transaction, preserve-or-explicit-replace config semantics, the D46 platform config as the saved `AW_HOME` selector, idempotent `install` as the update entry point, a producer-write inventory guard, and a 25-scenario ownership map. Human approval of the controlling specification remains an execution gate.
 
 ## Goal
 
@@ -52,8 +53,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-01, E-02, E-05
   - Expected outcome: AW operational actions, generations, lifecycle directories, short CLI verbs, and install history exist.
   - Execution state: pending
-- [ ] E-07 verify Order 07 is executed and validated after Order 06.
-  - Depends on: E-06
+- [ ] E-07 verify Order 07 is executed and validated after Orders 01 and 06.
+  - Depends on: E-01, E-06
   - Expected outcome: `aw todo` owns action state, `aw attention` exposes its native-source projection, and setup-repo, whatnext, status, and list consume the correct owner surface.
   - Execution state: pending
 - [ ] E-08 verify Order 08 is executed and validated after Orders 01, 03, and 05.
@@ -79,6 +80,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Child IPDs, sequence, and dependencies
 
+The `Depends on` column below names prior child Orders. It is distinct from each child's internal `- Depends on:` E-item metadata, which names checklist prerequisites inside that child.
+
 | Order | File | Bounded responsibility | Depends on |
 |---|---|---|---|
 | 01 | `20260809-awlayout-01-m9tqof-aw-context-and-logical-roots.md` | Canonical schema, logical roots, context/path resolver, CLI contract | none |
@@ -87,7 +90,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | 04 | `20260809-awlayout-04-q0wpk4-install-update-policy-wizard.md` | first-install wizard, update checkpoint, color/accessibility, noninteractive policy | 01, 02, 03 |
 | 05 | `20260809-awlayout-05-tg60qo-system-config-state-layout-and-ownership.md` | physical materialization, manifests, thin adapters, transactions | 01, 02, 03, 04 |
 | 06 | `20260809-awlayout-06-anlovz-operational-actions-and-install-history.md` | actions schema/lifecycle/CLI, release reconciliation, install history | 01, 02, 05 |
-| 07 | `20260809-awlayout-07-b31tuy-action-workflow-and-status-integration.md` | action attention source, setup-repo, whatnext, status, list integrations | 06 |
+| 07 | `20260809-awlayout-07-b31tuy-action-workflow-and-status-integration.md` | action attention source, setup-repo, whatnext, status, list integrations | 01, 06 |
 | 08 | `20260809-awlayout-08-0me1hr-producing-workflow-record-routing.md` | all record-producing workflow paths and commit destinations | 01, 03, 05 |
 | 09 | `20260809-awlayout-09-es1phc-layout-migration-rollback-and-uninstall.md` | transactional migration, compatibility, rollback, uninstall | 03, 05, 06, 08 |
 | 10 | `20260809-awlayout-10-jmjh97-clean-delta-skills-and-host-gates.md` | evidence-gated user skills, zero-target delivery, clean-delta verification | 01, 02, 03, 05, 08, 09; D113 evidence |
@@ -115,6 +118,38 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Migration safety: legacy records are validated at the destination before legacy ownership or adapters are removed.
 - Host evidence: Order 10 contains no host claim stronger than D113 evidence for the exact tested host/version.
 - Attention ownership: Order 06 owns action writes, Order 07 adds a pure exhaustive D125 source mapping, and `/whatnext` continues to consume `aw attention --format json` first and fail closed.
+
+## Acceptance-scenario ownership
+
+Order 11 owns the executable matrix and must preserve these exact scenario numbers and owners. A row may cite more than one owner, but it may not be removed or collapsed into a broad category.
+
+| Spec scenario | Primary owning Order | Required named evidence |
+|---|---:|---|
+| 19.1 | 04, 05 | `fresh_interactive_home_recommended` |
+| 19.2 | 04, 05 | `fresh_interactive_repository_risk_acknowledged` |
+| 19.3 | 03, 06 | `companion_local_git_opens_durability_action` |
+| 19.4 | 03 | `companion_confirmed_private_remote` |
+| 19.5 | 04, 05 | `first_noninteractive_complete_policy` |
+| 19.6 | 04 | `first_noninteractive_missing_policy_fails_before_write` |
+| 19.7 | 04, 05 | `same_version_reinstall_checkpoint_noop` |
+| 19.8 | 04, 05 | `version_update_keep_policy` |
+| 19.9 | 04, 09 | `update_repository_to_home` |
+| 19.10 | 06 | `skipped_versions_reconcile_action_generations` |
+| 19.11 | 02 | `repository_move_reattach` |
+| 19.12 | 01, 02 | `clone_worktree_resolution_matrix` |
+| 19.13 | 06, 07 | `setup_action_all_attention_surfaces` |
+| 19.14 | 06, 07 | `setup_completion_moves_completed` |
+| 19.15 | 06 | `dismissal_history_no_resurrection` |
+| 19.16 | 06 | `new_generation_supersedes_open` |
+| 19.17 | 01, 03, 08 | `split_product_and_record_commits` |
+| 19.18 | 09 | `migration_preserves_before_cleanup` |
+| 19.19 | 09 | `uninstall_preserves_external_state_records` |
+| 19.20 | 10 | `clean_delta_merge_base_zero_write` |
+| 19.21 | 01, 08 | `unavailable_external_root_stops_writes` |
+| 19.22 | 04 | `terminal_color_environment_matrix` |
+| 19.23 | 04 | `screen_reader_linear_semantics` |
+| 19.24 | 03 | `privacy_doctor_refuses_unverified_privacy` |
+| 19.25 | 01, 03 | `broken_navigation_link_resolver_succeeds` |
 
 ## Deferred / out of scope (with reason)
 
@@ -171,7 +206,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-08 validates E-08
-  - Required evidence: cite executed Order 08 and a zero-match audit for forbidden hard-coded producer output paths outside compatibility code.
+  - Required evidence: cite executed Order 08 and its maintained producer inventory test proving every producer write uses the resolver, with each allowed legacy read or fixture classified explicitly.
   - Observed evidence:
   - Result: pending
 - [ ] V-09 validates E-09

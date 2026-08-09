@@ -16,6 +16,7 @@
 - 2026-08-09 draft (Codex (GPT-5, high reasoning)): created an execution-ready child plan from the approved architecture direction.
 - 2026-08-09 revision (Codex (GPT-5, high reasoning)): adopted stable plan identity, clustered naming, and the current lifecycle execution contract after the upstream rebase.
 - 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L4-01 [HIGH/blocking] (required-test `python3 -m agent_workflows update` targets a NON-EXISTENT verb - cli.py has no `update`, install is idempotent; use `install . --dry-run` or add `update` to scope). L4-02 (add an explicit negative test: `--yes` on an UNCONFIGURED first install does NOT silently select the recommended `home`/`tracked` default and exits nonzero - §11.3). L4-03 (reconcile with the existing `_run_setup`/`_confirm` wizard in cli.py; state supersede/delegate/coexist to avoid two divergent setup surfaces). L4-04 (add `--no-color` + screen-reader linear-output to the 11.4 matrix).
+- 2026-08-09 author revision (Codex GPT-5): addressed L4-01 through L4-04. Idempotent `install` remains the update verb, the new policy model is delegated through the existing `_run_setup` and `_confirm` surface, unsafe `--yes` and policy combinations fail before writes, and the accessibility matrix now includes `--no-color` and screen-reader linear output.
 
 ## Goal
 
@@ -27,15 +28,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Policy collection
 
-- [ ] E-01 Implement pure wizard models for current policy, proposed policy, option metadata, decision transcript, cancellation, and validation; keep prompt rendering separate from selection logic.
+- [ ] E-01 Implement pure wizard models for current policy, proposed policy, option metadata, decision transcript, cancellation, and validation; reject `delivery=clean-delta` plus `records=repository` and all incomplete policies before rendering or writes, while keeping prompt rendering separate from selection logic.
   - Depends on: none
   - Expected outcome: interactive and noninteractive paths produce the same validated policy object and auditable transcript.
   - Execution state: pending
-- [ ] E-02 Implement the first-install wizard with clear explanations and pros and cons for delivery and records choices, recommending `tracked` delivery and `home` records without silently selecting them.
+- [ ] E-02 Refactor the existing CLI `_run_setup` flow to delegate policy collection to the pure wizard model and retain `_confirm` as the single final confirmation boundary; implement clear explanations and pros and cons for delivery and records choices, recommending `tracked` delivery and `home` records without silently selecting them.
   - Depends on: E-01
   - Expected outcome: an interactive first install reviews every required decision before presenting a final no-write summary and confirmation.
   - Execution state: pending
-- [ ] E-03 Implement the interactive update checkpoint with `keep current policy` as the default, a concise change and warning summary, and an explicit route into the full wizard.
+- [ ] E-03 Implement the interactive update checkpoint inside idempotent `aw install <repo>` with `keep current policy` as the default, a concise change and warning summary, and an explicit route into the full wizard; do not add a divergent `aw update` verb.
   - Depends on: E-02
   - Expected outcome: every interactive update exposes policy status without forcing users through unchanged questions.
   - Execution state: pending
@@ -46,7 +47,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-03
   - Expected outcome: unattended execution is deterministic and cannot accept privacy-sensitive defaults implicitly.
   - Execution state: pending
-- [ ] E-05 Add color as redundant emphasis using existing `Term` behavior, named labels and symbols in plain text, plus transcript tests for TTY, piped output, `NO_COLOR`, `FORCE_COLOR`, `TERM=dumb`, cancellation, and invalid input.
+- [ ] E-05 Add color as redundant emphasis using existing `Term` behavior, named labels and symbols in plain text, plus transcript tests for TTY, piped output, `NO_COLOR`, `FORCE_COLOR`, `--no-color`, `TERM=dumb`, screen-reader-friendly linear output, cancellation, and invalid input.
   - Depends on: E-04
   - Expected outcome: the wizard is colorful when appropriate and fully understandable without color or interactivity.
   - Execution state: pending
@@ -56,6 +57,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - `Term` already owns terminal color policy and uses the standard 16-color vocabulary.
 - `NO_COLOR`, `FORCE_COLOR`, TTY detection, and `TERM=dumb` must remain authoritative.
 - Agent and JSON output must never contain prompts or ANSI escapes.
+- The existing `_run_setup` and `_confirm` entry points remain the only interactive CLI surface; `install_wizard.py` supplies models and rendering helpers rather than a second independently dispatched wizard.
 - Install transactions must not begin until policy validation and final confirmation succeed.
 
 ## Findings
@@ -90,8 +92,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - `python3 -m unittest tests.test_install_wizard -v`
 - `python3 -m unittest discover -s tests -v`
-- `NO_COLOR=1 python3 -m agent_workflows install --dry-run`
-- `TERM=dumb python3 -m agent_workflows update --dry-run`
+- `NO_COLOR=1 python3 -m agent_workflows install . --dry-run`
+- `TERM=dumb python3 -m agent_workflows install . --dry-run`
+- `python3 -m agent_workflows install . --dry-run --no-color`
 
 ## Spec / documentation sync
 
@@ -107,15 +110,15 @@ No open questions.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pure tests prove equivalent validated policies from interactive selections, explicit flags, and saved profiles.
+  - Required evidence: pure tests prove equivalent validated policies from interactive selections, explicit flags, and saved profiles, plus pre-write rejection of `clean-delta` with `repository` records.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: golden transcripts contain each choice, balanced pros and cons, visible recommendation, final summary, and no write before confirmation.
+  - Required evidence: golden transcripts through `_run_setup` contain each choice, balanced pros and cons, visible recommendation, final summary, and no write before the one shared `_confirm` boundary; no second setup surface is dispatchable.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: update transcripts default to keeping policy and enter the full flow only after an explicit selection.
+  - Required evidence: second and newer `install` transcripts detect existing policy, default to keeping it, and enter the full flow only after an explicit selection; command registration contains no unsupported `update` verb.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
@@ -123,7 +126,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: terminal-mode matrix tests pass; stripped colored output matches no-color semantic content; JSON and agent output contain no ANSI bytes.
+  - Required evidence: TTY, redirected, `NO_COLOR`, `FORCE_COLOR`, `--no-color`, `TERM=dumb`, and screen-reader linear-output tests pass; stripped colored output matches no-color semantic content; JSON and agent output contain no ANSI bytes.
   - Observed evidence:
   - Result: pending
 

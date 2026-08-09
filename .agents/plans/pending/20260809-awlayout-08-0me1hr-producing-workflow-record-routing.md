@@ -16,6 +16,7 @@
 - 2026-08-09 draft (Codex (GPT-5, high reasoning)): created an execution-ready child plan from the approved architecture direction.
 - 2026-08-09 revision (Codex (GPT-5, high reasoning)): adopted stable plan identity, clustered naming, and the current lifecycle execution contract after the upstream rebase.
 - 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L8-01 [HIGH] (the forbidden-producer-path audit is a blunt `rg` matching ~48 legitimate references - inventory, specs validator, fixtures, scanner roots - and can never yield the orchestrator's 'zero-match' proof; redefine as an allowlist-backed, producer-WRITE-scoped test driven off the maintained producer inventory). L8-02 (name the resolver's DUAL consumption surface: CLI `aw path records` for workflow bodies + the Order 01 Python API for `agent_workflows` producers; carry the commit-policy value with the records root). L8-03 (add a negative test that no producer writes under the resolved `state` root - only `records`). L8-05 (concrete external-Git-absence proof: resolved external records root is outside the target work-tree; `git status` shows no external record).
+- 2026-08-09 author revision (Codex GPT-5): addressed L8-01 through L8-05 by replacing the blunt grep with an inventory-driven producer-write guard, specifying the CLI and Python resolver surfaces plus commit policy, forbidding state-root output, and adding concrete target-Git absence proof for external records.
 
 ## Goal
 
@@ -27,11 +28,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Inventory and contract
 
-- [ ] E-01 Build a checked inventory of every packaged workflow that creates, moves, archives, links, stages, or reports a generated artifact; classify each output as plan, prompt, assessment, review, report, evidence, communication, or AW state.
+- [ ] E-01 Build a maintained machine-readable inventory of every packaged workflow and Python producer that creates, moves, archives, links, stages, or reports an artifact. For each producer record its source path and symbol or instruction anchor, operation type, record category or AW-state exclusion, resolver surface, and commit-policy consumer; permit legacy literals only through a reasoned allowlist limited to compatibility readers, validators, scanners, inventory data, and test fixtures that do not perform production writes.
   - Depends on: none
   - Expected outcome: the implementation has an explicit producer-to-logical-path table and does not accidentally route AW state as records.
   - Execution state: pending
-- [ ] E-02 Add one packaged record-routing reference or CLI helper that resolves canonical record categories through `aw path records`, defines backend-neutral relative paths, and explains target-Git behavior.
+- [ ] E-02 Add one routing contract with two consumption surfaces: workflow bodies invoke `aw path records --agent` and consume the returned record commit policy, while `agent_workflows` Python producers call the Order 01 context API and consume `records_root` plus `records_commit_destination`. Define backend-neutral relative categories and fail before writes when either value is unavailable or inconsistent.
   - Depends on: E-01
   - Expected outcome: workflow authors use one concise path contract instead of repeating backend or `.agents/` assumptions.
   - Execution state: pending
@@ -46,7 +47,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-03
   - Expected outcome: external records are never offered to target Git, while repository records retain intentional Git behavior.
   - Execution state: pending
-- [ ] E-05 Add inventory completeness, forbidden-literal, backend matrix, link rendering, package-data, shim-parity, and representative end-to-end workflow tests.
+- [ ] E-05 Add inventory completeness and an allowlist-backed producer-write guard that inspects only inventoried write/move/stage call sites, plus backend matrix, state-root exclusion, link rendering, package-data, shim-parity, target-Git absence, and representative end-to-end workflow tests.
   - Depends on: E-04
   - Expected outcome: every producer is covered and no active workflow bypasses logical root resolution.
   - Execution state: pending
@@ -91,7 +92,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - `python3 -m unittest discover -s tests -p '*path*' -v`
 - `python3 -m agent_workflows shim generate`
 - `python3 -m agent_workflows parity`
-- `rg -n '\.agents/(plans|prompts|assessments|reviews|reports|comms)' .agents/workflows agent_workflows tests`
+- `python3 -m unittest tests.test_record_producer_inventory -v`
 - `python3 -m unittest discover -s tests -v`
 
 ## Spec / documentation sync
@@ -108,23 +109,23 @@ No open questions.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: inventory review accounts for every filesystem-writing packaged workflow and distinguishes record output from state.
+  - Required evidence: the machine-readable inventory accounts for every filesystem-writing workflow and Python producer, records each operation and resolver surface, distinguishes records from state, and fails when an unclassified producer is introduced.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: reference or helper tests map every record category under all three backends with no physical-root literals in callers.
+  - Required evidence: workflow fixtures prove `aw path records --agent` returns path and commit policy; Python fixtures prove the context API returns the same values; every record category maps under all three backends with no physical-root construction in a producer.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: representative document workflows produce equivalent names and lifecycle results in home, companion, and repository backends.
+  - Required evidence: representative document workflows produce equivalent names and lifecycle results in home, companion, and repository backends, and negative fixtures prove no producer can select or write beneath the resolved state root.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: evidence-producing workflow tests prove external files never enter target Git and repository records retain explicit staging behavior.
+  - Required evidence: for home and companion fixtures, the resolved records root is proven outside `git rev-parse --show-toplevel`, a uniquely named external record is created, and target `git status --porcelain` and index queries contain no trace of it; repository records retain explicit, path-scoped staging behavior.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: forbidden-literal audit has only documented compatibility exceptions; parity, package-data, representative end-to-end, and full suites pass.
+  - Required evidence: the inventory-driven producer-write guard reports no bypass and every allowed legacy reference is classified as a non-writing compatibility reader, validator, scanner, inventory row, or fixture; parity, package-data, representative end-to-end, and full suites pass.
   - Observed evidence:
   - Result: pending
 

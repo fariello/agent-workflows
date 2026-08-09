@@ -16,6 +16,7 @@
 - 2026-08-09 draft (Codex (GPT-5, high reasoning)): created an execution-ready child plan from the approved architecture direction.
 - 2026-08-09 revision (Codex (GPT-5, high reasoning)): adopted stable plan identity, clustered naming, and the current lifecycle execution contract after the upstream rebase.
 - 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L9-01 (add §15.2 rule-2 PRE-move destination-writability + free-space precondition check as a gating step). L9-02 (add coverage for the guarded deep-removal path - explicit high-warning opt-in, explains recoverability - and that uninstall never deletes a configured external remote, §15.4). L9-03 (assert the §15.3 single-authoritative-writer invariant during the compatibility window: dual-read allowed, dual-write forbidden). Positive: migration is transactional with real rollback + preserve-on-uninstall-by-default tests.
+- 2026-08-09 author revision (Codex GPT-5): addressed L9-01 through L9-03 by adding pre-move writability and capacity gates, guarded deep-removal and external-remote preservation coverage, and an explicit single-authoritative-writer compatibility invariant.
 
 ## Goal
 
@@ -27,11 +28,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Planning and execution
 
-- [ ] E-01 Implement a versioned migration planner that inventories source ownership, classifies managed, unchanged, drifted, and unknown files, maps each item to the new logical root, and emits a complete no-write plan.
+- [ ] E-01 Implement a versioned migration planner that inventories source ownership, classifies managed, unchanged, drifted, and unknown files, maps each item to the new logical root, and emits a complete no-write plan. Before approval, probe every destination parent for canonical containment, writability, required bytes plus transaction overhead, and available free space; any failed or indeterminate probe is a hard pre-move gate.
   - Depends on: none
   - Expected outcome: users and tests can inspect every create, copy, move, preserve, conflict, and cleanup action before mutation.
   - Execution state: pending
-- [ ] E-02 Execute approved migrations transactionally: copy and verify records first, preserve conflicts beside destinations, commit config and state only after verification, switch registry policy last, and retain a rollback journal.
+- [ ] E-02 Execute approved migrations transactionally: copy and verify records first, preserve conflicts beside destinations, commit config and state only after verification, switch registry policy last, and retain a rollback journal. During compatibility, legacy and new readers may coexist, but exactly one recorded authoritative destination accepts new writes at every step; refuse any state that enables dual-write.
   - Depends on: E-01
   - Expected outcome: interruption at any injected step leaves either the old layout active or a journaled, resumable state with no lost source.
   - Execution state: pending
@@ -42,11 +43,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: Recovery and removal
 
-- [ ] E-04 Implement `aw migrate-layout --dry-run`, apply, resume, rollback, and status plus ownership-aware uninstall that removes managed `system` files and adapters but preserves config, state, records, registry associations, and migration journals by default.
+- [ ] E-04 Implement `aw migrate-layout --dry-run`, apply, resume, rollback, and status plus ownership-aware uninstall that removes managed `system` files and adapters but preserves config, state, records, registry associations, migration journals, and every configured external Git remote by default. Deep record removal requires a separate explicit flag, a high-warning summary naming the exact local paths, a second confirmation, and a recoverability explanation; it never deletes or alters a remote repository or remote configuration.
   - Depends on: E-03
   - Expected outcome: lifecycle commands are explicit, idempotent, and conservative with user data.
   - Execution state: pending
-- [ ] E-05 Add `tests/test_layout_migration.py` for every legacy and backend route, drift, dirty Git, worktrees, symlinks, low-space and interrupted failures, resume, rollback, repeated migration, and uninstall preservation.
+- [ ] E-05 Add `tests/test_layout_migration.py` for every legacy and backend route, destination unwritable and insufficient-space preflight, drift, dirty Git, worktrees, symlinks, interrupted failures, resume, rollback, repeated migration, single-writer compatibility, guarded deep removal, and local plus external-remote uninstall preservation.
   - Depends on: E-04
   - Expected outcome: migration safety is demonstrated under both normal and adversarial conditions.
   - Execution state: pending
@@ -107,11 +108,11 @@ No open questions.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: fixture plans account for every source item, classify ownership and drift, and perform no filesystem or Git mutation.
+  - Required evidence: fixture plans account for every source item, classify ownership and drift, perform no filesystem or Git mutation, and refuse before copying when any destination is unwritable or available bytes are below the computed requirement.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: injected interruption at each phase proves no source loss, correct active policy, and successful resume or rollback from the journal.
+  - Required evidence: injected interruption at each phase proves no source loss, correct active policy, exactly one authoritative writer, no legacy/new dual-write, and successful resume or rollback from the journal.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
@@ -119,7 +120,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: command tests prove dry run, apply, resume, rollback, repeated invocation, and default preservation on uninstall.
+  - Required evidence: command tests prove dry run, apply, resume, rollback, repeated invocation, default preservation on uninstall, deep-removal refusal without both explicit opt-in and confirmation, exact-path and recoverability warnings, and byte-identical preservation of configured remote names and URLs in both normal and deep-removal modes.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05

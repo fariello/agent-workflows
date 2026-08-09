@@ -16,6 +16,7 @@
 - 2026-08-09 draft (Codex (GPT-5, high reasoning)): created an execution-ready child plan from the approved architecture direction.
 - 2026-08-09 revision (Codex (GPT-5, high reasoning)): adopted stable plan identity, clustered naming, and the current lifecycle execution contract after the upstream rebase.
 - 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L1-01 (§9 resolver: `aw context` needs `--repo` + must return all ~11 §9 fields incl. permitted commit destinations + root accessibility; E-03/V-02 do not enumerate them). L1-02 (§17: bind to the 6-level precedence, conflicting authoritative sources are ERRORS not last-write-wins, and `--json` must report per-value provenance; V-02 tests only generic failure). L1-03 (test resolver PURITY/determinism + no Git mutation, not just 'no writes'). L1-04 (add path-traversal/symlink-escape fail-closed tests at the resolver boundary). L1-05/L1-06 (pin the coverage guard + `rg` audit to concrete patterns/canonical enum symbol).
+- 2026-08-09 author revision (Codex GPT-5): addressed L1-01 through L1-06 by enumerating the Section 9 response, binding the six-level precedence and provenance contract, strengthening purity and path-safety tests, and defining concrete coverage and duplicate-vocabulary guards.
 
 ## Goal
 
@@ -27,22 +28,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Schema and resolution
 
-- [ ] E-01 Add canonical enums and immutable data structures for delivery mode, records backend, durability state, logical roots, project identity, and resolved project context in `agent_workflows/project_schema.py`.
+- [ ] E-01 Add canonical enums and immutable data structures for delivery mode, records backend, durability state, logical roots, project identity, root accessibility, permitted commit destinations, effective framework version, enabled host integrations, open AW actions, and resolved project context in `agent_workflows/project_schema.py`; make these symbols the only serialized vocabulary source for later Orders.
   - Depends on: none
   - Expected outcome: all later storage and installer code imports one vocabulary with stable serialized values.
   - Execution state: pending
-- [ ] E-02 Implement `agent_workflows/project_context.py` with explicit policy precedence, target-root discovery, logical-root resolution, and fail-closed errors for missing or conflicting inputs.
+- [ ] E-02 Implement `agent_workflows/project_context.py` as a deterministic, side-effect-free resolver with target-root discovery and the exact precedence `explicit flags > machine-local binding > project durable config > named global profile > global defaults > built-ins`; reject conflicting authoritative values and traversal, containment, or symlink escapes before returning a context.
   - Depends on: E-01
   - Expected outcome: one pure resolver returns all physical paths and their ownership without creating directories or mutating Git state.
   - Execution state: pending
 
 ### Task group 2: Inspection surface and tests
 
-- [ ] E-03 Add `aw context` and `aw path <system|config|state|records>` CLI inspection commands, including stable JSON output and ANSI-free `--agent` output.
+- [ ] E-03 Add `aw context [--repo PATH] [--json|--agent]` and `aw path <system|config|state|records> [--repo PATH] [--agent]`; JSON must return target root, project ID, delivery mode, effective `AW_HOME`, all four roots, records backend, durability state, framework version, enabled hosts, permitted product and record commit destinations, per-root accessibility, open AW actions, and per-value provenance.
   - Depends on: E-02
   - Expected outcome: people, workflows, and tests can inspect the same resolved context used by the implementation.
   - Execution state: pending
-- [ ] E-04 Add `tests/test_project_context.py` for precedence, all logical roots, ambiguity, missing context, JSON output, and side-effect-free inspection; audit this IPD set so later plans reference this resolver instead of constructing paths.
+- [ ] E-04 Add `tests/test_project_context.py` for every response field, all six precedence levels, authoritative conflicts, deterministic repeated calls, no filesystem or Git mutation, traversal and symlink escape refusal, ambiguity, missing context, and stable outputs; add a coverage guard that fails if a Section 9 field is absent and an `rg`-backed audit for duplicate `DeliveryMode`, `RecordsBackend`, `DurabilityState`, or logical-root literals outside `project_schema.py` and approved fixtures.
   - Depends on: E-03
   - Expected outcome: the resolver contract is regression-tested and every dependent IPD has an explicit integration point.
   - Execution state: pending
@@ -84,7 +85,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - `python3 -m unittest tests.test_project_context -v`
 - `python3 -m unittest discover -s tests -v`
-- `python3 -m agent_workflows context --json`
+- `python3 -m agent_workflows context --repo . --json`
 - `python3 -m agent_workflows path records --agent`
 
 ## Spec / documentation sync
@@ -101,19 +102,19 @@ No open questions.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: focused tests round-trip every enum and serialized context field with no duplicate literal vocabulary elsewhere in new modules.
+  - Required evidence: focused tests round-trip every canonical enum and all Section 9 response fields; the duplicate-vocabulary guard allows definitions only in `agent_workflows/project_schema.py` and explicitly named test fixtures.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: focused tests prove precedence, all four resolved roots, no filesystem writes, and explicit failure for conflicts.
+  - Required evidence: focused tests prove the exact six-level precedence, provenance for every effective value, all four resolved roots, byte-for-byte identical repeated results, no filesystem or Git mutation, and explicit failure for authoritative conflicts, traversal, containment violations, and symlink escapes.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: captured CLI output is stable JSON or plain agent text and contains no ANSI escapes.
+  - Required evidence: captured `--repo` CLI output contains every enumerated Section 9 field, stable per-value provenance, accessibility and commit-destination fields, and no ANSI escapes in JSON or agent modes.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: the focused and full suites pass, and `rg` finds no new path construction required to be replaced by the resolver.
+  - Required evidence: focused and full suites pass; the Section 9 coverage guard passes; and the recorded `rg` audit finds no duplicate canonical enum definition or producer path construction outside its explicit allowlist.
   - Observed evidence:
   - Result: pending
 

@@ -16,6 +16,7 @@
 - 2026-08-09 draft (Codex (GPT-5, high reasoning)): created an execution-ready child plan from the approved architecture direction.
 - 2026-08-09 revision (Codex (GPT-5, high reasoning)): adopted stable plan identity, clustered naming, and the current lifecycle execution contract after the upstream rebase.
 - 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L10-01 (add a V-item asserting the set of advertised clean-delta host/version claims EQUALS the set of D113-reproduced pairs - no claim without a matching evidence record - within the order that mints the claim). Positive: intent is sound - unproven combos unsupported, no claim inherited across versions, STOP gate requires D113 evidence for the exact host/version, merge-base zero-write verified; no over-claim found.
+- 2026-08-09 author revision (Codex GPT-5): addressed L10-01 by making advertised claim-set equality with the D113 reproduced evidence set an explicit implementation and validation requirement.
 
 ## Goal
 
@@ -46,7 +47,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-03
   - Expected outcome: successful clean-delta install, update, and workflow use leave the target repository byte-for-byte unchanged by AW.
   - Execution state: pending
-- [ ] E-05 Add exact-version host fixtures, capability probes, target-diff assertions, cloud-boundary cases, shared-dependency lifecycle tests, and explicit unsupported-version tests.
+- [ ] E-05 Add exact-version host fixtures, capability probes, target-diff assertions, cloud-boundary cases, shared-dependency lifecycle tests, explicit unsupported-version tests, and one deterministic claim manifest generated only from reproduced D113 evidence pairs; fail if advertised clean-delta host/version pairs are not exactly equal to that evidence set.
   - Depends on: E-04
   - Expected outcome: proven hosts pass the full behavior matrix and every unproven host or version receives an actionable refusal.
   - Execution state: pending
@@ -123,7 +124,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: exact-version, version-mismatch, missing-scope, cloud-boundary, collision, and shared-dependency suites all produce their specified pass or refusal outcome.
+  - Required evidence: exact-version, version-mismatch, missing-scope, cloud-boundary, collision, and shared-dependency suites all produce their specified pass or refusal outcome; a set-equality assertion proves advertised clean-delta host/version claims equal the D113-reproduced pairs with neither unsupported claims nor unadvertised reproduced pairs.
   - Observed evidence:
   - Result: pending
 

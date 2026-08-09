@@ -16,6 +16,7 @@
 - 2026-08-09 draft (Codex (GPT-5, high reasoning)): created an execution-ready child plan from the approved architecture direction.
 - 2026-08-09 revision (Codex (GPT-5, high reasoning)): adopted stable plan identity, clustered naming, and the current lifecycle execution contract after the upstream rebase.
 - 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L3-01 (durability HONESTY: a merely-configured remote must NOT map to `durable-private`/secrecy - gate on explicit acknowledgement per §6.2/§16). L3-02 (the `aw storage status` validation command needs a registered-fixture precondition, else it fails for environmental not logic reasons). L3-03 (add §14 identity-conflict-refusal + machine-local-paths-excluded-from-tracked-history assertions). L3-04 (name the owner of the §5.2 `clean-delta`+`repository` prohibition - Order 04 - or add a rejecting V-item).
+- 2026-08-09 author revision (Codex GPT-5): addressed L3-01 through L3-04 by separating observable remote configuration from acknowledged durability and privacy claims, adding registered-fixture prerequisites, testing identity and tracked-history boundaries, and assigning the `clean-delta` plus `repository` policy rejection to Order 04.
 
 ## Goal
 
@@ -38,7 +39,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: Durability and initialization
 
-- [ ] E-03 Implement observable durability states for uninitialized local storage, local Git only, private remote configured, repository-tracked, and user-acknowledged external backup.
+- [ ] E-03 Implement observable durability states for uninitialized local storage, local Git only, repository-tracked storage, and explicitly acknowledged external backup; report a configured remote as a separate observable fact and never map it to `durable-private` or any secrecy claim without a recorded user acknowledgement of the applicable remote privacy or backup safeguard.
   - Depends on: E-02
   - Expected outcome: `aw storage status` reports what can be proven, separates privacy from durability, and recommends the next action.
   - Execution state: pending
@@ -46,7 +47,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-03
   - Expected outcome: users can make external records durable without AW taking unrequested remote actions.
   - Execution state: pending
-- [ ] E-05 Add `tests/test_storage.py` for all backends, custom paths, symlinks, nested repositories, empty and existing Git repositories, durability states, redacted output, and failure atomicity.
+- [ ] E-05 Add `tests/test_storage.py` for all backends, custom paths, symlinks, nested repositories, empty and existing Git repositories, identity-conflicting companion refusal, durability and remote-fact combinations, acknowledgement transitions, redacted output, exclusion of machine-local registry paths from tracked record history, and failure atomicity.
   - Depends on: E-04
   - Expected outcome: supported storage modes and safety failures are deterministic and regression-tested.
   - Execution state: pending
@@ -55,6 +56,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Git operations must be noninteractive and narrowly scoped.
 - User data must not be deleted, moved, committed, or pushed without an explicit command and confirmation.
+- A remote URL, reachability result, or provider name is not evidence of privacy. `durable-private` requires an explicit acknowledgement record and remains a durability label, not a secrecy promise.
 - Stable JSON and agent output are required for workflow consumption.
 - Temporary repositories in tests must not depend on global Git configuration.
 
@@ -89,12 +91,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - `python3 -m unittest tests.test_storage -v`
 - `python3 -m unittest discover -s tests -v`
-- `python3 -m agent_workflows storage status --json`
+- Create and register the temporary project fixture required by Order 02, then run `python3 -m agent_workflows storage status --repo <fixture> --json`.
 
 ## Spec / documentation sync
 
 - Keep backend names, recommended default, and durability language aligned with the canonical 2026-08-09 layout specification.
 - Do not describe any backend as private unless access controls were independently observed.
+- Order 04 owns policy validation that rejects the forbidden `delivery=clean-delta` plus `records=repository` combination before any materialization; this plan supplies the backend facts consumed by that validator.
 
 ## Open questions
 
@@ -109,11 +112,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: tests reject traversal, symlink escape, target containment, unsafe nesting, and ambiguous Git ownership before mutation.
+  - Required evidence: tests reject traversal, symlink escape, target containment, unsafe nesting, ambiguous Git ownership, and companion identity conflict before mutation.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: fixture-based status tests distinguish every durability state and never equate external, local, durable, and private.
+  - Required evidence: registered-fixture status tests prove a configured remote alone remains a neutral observable fact, `durable-private` appears only after explicit acknowledgement, acknowledgement removal downgrades the state, and no wording equates external, local, durable, private, or secret.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
@@ -121,7 +124,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: focused and full suites pass without reading or changing the operator's global Git configuration.
+  - Required evidence: focused and full suites pass without reading or changing the operator's global Git configuration; tracked-history inspection contains no machine-local registry path; and an Order 04 contract fixture rejects `clean-delta` plus `repository` before writes.
   - Observed evidence:
   - Result: pending
 

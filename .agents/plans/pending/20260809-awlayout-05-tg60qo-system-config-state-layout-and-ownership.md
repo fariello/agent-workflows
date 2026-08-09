@@ -16,6 +16,7 @@
 - 2026-08-09 draft (Codex (GPT-5, high reasoning)): created an execution-ready child plan from the approved architecture direction.
 - 2026-08-09 revision (Codex (GPT-5, high reasoning)): adopted stable plan identity, clustered naming, and the current lifecycle execution contract after the upstream rebase.
 - 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L5-01 [HIGH] (asserts a transactional installer with rollback that does NOT exist - only per-file backup + a separate `--undo`; restate the recovery mechanism or build staging+pivot). L5-02 [HIGH] (V-items for atomicity/ownership name outcomes but no concrete fixture/oracle; add per-root sentinel-byte assertions). L5-03 [HIGH] (human-owned `config/` no-clobber is asserted but not gated - a human value AW never wrote has no recorded hash; define the preserve/merge rule + test). L5-04 (state the manifest EXTENDS manifest.py, not a second ledger; bump SCHEMA_VERSION). L5-05 (manifest location vs the legacy DEFAULT_MANIFEST_RELPATH during transitional install). L5-06 (surface §17 drift-before-overwrite + provenance as a distinct behavior).
+- 2026-08-09 author revision (Codex GPT-5): addressed L5-01 through L5-06 by choosing a journaled compensating transaction built on existing backups and undo primitives, defining preserve-or-explicit-replace config semantics, extending and versioning the existing manifest, specifying transitional manifest authority, and adding sentinel-byte and drift-provenance oracles.
 
 ## Goal
 
@@ -31,7 +32,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: fresh installs have a minimal hierarchy whose physical paths exactly match the resolved context.
   - Execution state: pending
-- [ ] E-02 Separate CLI-owned manifests and transaction data under `system/` from editable policy under `config/` and operational facts under `state/`; enforce write ownership in engine operations.
+- [ ] E-02 Separate CLI-owned manifests and transaction data under `system/` from editable policy under `config/` and operational facts under `state/`; extend `agent_workflows/manifest.py` and bump `SCHEMA_VERSION` rather than creating a second ledger. For `config/`, create a missing file from confirmed policy, preserve every existing valid file and unknown human value, merge only schema-owned fields after showing provenance and an explicit confirmed diff, and refuse malformed or conflicting content without `--replace-config` plus confirmation.
   - Depends on: E-01
   - Expected outcome: updates can replace `system/` content but do not overwrite valid user configuration, actions, or history.
   - Execution state: pending
@@ -42,7 +43,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: Installer integration
 
-- [ ] E-04 Wire validated wizard policy into install and update materialization, including dry run, idempotent re-entry, ownership-aware drift reporting, and rollback on failure.
+- [ ] E-04 Wire validated wizard policy into install and update materialization as a journaled compensating transaction: preflight and stage the complete operation list, write a transaction journal and per-file backups, use atomic replacement for each file, update the new manifest and authoritative state last, and automatically run the existing undo primitives in reverse order on failure. Report compensation failure without claiming atomicity or success; do not describe this cross-root mechanism as a filesystem-wide atomic pivot.
   - Depends on: E-03
   - Expected outcome: the installer uses one context and one policy from confirmation through commit, with no partial hierarchy after failure.
   - Execution state: pending
@@ -53,7 +54,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Project conventions discovered (Step 0)
 
-- Installer mutations use transactions and manifests; new writes must participate in rollback.
+- The current installer provides per-file backups and a separate `--undo`, not a transaction boundary. This Order composes those primitives into an automatic journaled compensating transaction with an explicit partial-compensation failure state.
 - Package-data tests protect shipped workflow and support assets.
 - Compatibility logic is centralized and must not become a second path resolver.
 - Host adapter placement is constrained by the host, not by AW's preferred hierarchy.
@@ -66,6 +67,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | `config` | user or team policy | preserve valid values; migrate explicitly |
 | `state` | AW runtime and user action commands | reconcile atomically; never blanket-replace |
 | `records` | workflows and user | route through backend; never treat as installed payload |
+
+During transition, the existing `DEFAULT_MANIFEST_RELPATH` remains the discovery bootstrap. A successful transaction writes the bumped manifest at the resolved new system location, records the legacy manifest as migrated, switches authority only after verification, and retains a compatibility reader until Order 09 removes it. There is never more than one authoritative writer.
 
 ## Proposed changes (ordered, validatable)
 
@@ -84,7 +87,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Scope check
 
 - Over-scope: no legacy relocation, record content generation, clean-delta host gates, or action reconciliation.
-- Under-scope: hierarchy, ownership, host adapters, transactions, dry run, drift, idempotence, and packaging are covered.
+- Under-scope: hierarchy, ownership, host adapters, journaled compensation, dry run, drift provenance, idempotence, and packaging are covered.
 
 ## Required tests / validation
 
@@ -106,11 +109,11 @@ No open questions.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: fresh-install tree snapshots cover each backend and prove external records do not create target `.aw/records/`.
+  - Required evidence: fresh-install tree snapshots cover each backend; unique sentinel bytes placed outside every intended root remain byte-identical; external records do not create target `.aw/records/`.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: ownership tests modify one file in each root and prove update replaces only managed `system/` content.
+  - Required evidence: fixtures place unique sentinel bytes in managed `system`, never-managed `config`, AW-managed `state`, and user `records`; update replaces only the eligible system sentinel, preserves the other three byte-for-byte, preserves unknown valid config fields, rejects malformed or conflicting config, and changes config only after an explicit field-level confirmation.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
@@ -118,11 +121,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: dry-run, second-install, drift, cancellation, and injected-failure tests prove stable output and transactional rollback.
+  - Required evidence: dry-run, second-install, drift, cancellation, and failure injection after every mutation step prove a complete journal, reverse-order compensation, byte-identical sentinel restoration, authoritative-state-last ordering, and an honest non-success result if compensation itself fails. Drift output identifies each value's Section 17 provenance before overwrite.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: focused, package-data, wheel, and full test suites pass from the built artifact as required by existing packaging tests.
+  - Required evidence: focused, manifest-schema migration, legacy bootstrap, package-data, wheel, and full test suites pass from the built artifact; exactly one manifest is authoritative after successful transition.
   - Observed evidence:
   - Result: pending
 

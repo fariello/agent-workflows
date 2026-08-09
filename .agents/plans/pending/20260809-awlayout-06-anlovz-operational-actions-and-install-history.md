@@ -16,6 +16,7 @@
 - 2026-08-09 draft (Codex (GPT-5, high reasoning)): created an execution-ready child plan from the approved architecture direction.
 - 2026-08-09 revision (Codex (GPT-5, high reasoning)): reconciled action ownership with D125's implemented attention projection and current plan lifecycle conventions.
 - 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L6-01 [Med-High] (action `(id,generation)` must exist in exactly one lifecycle dir; validate id charset; a move is one atomic rename leaving no duplicate). L6-02 [HIGH] (lifecycle 'atomic moves' + fresh-install action creation share the non-atomic install of L5-01; define ordering so install.json/installs.jsonl/action stay consistent on partial failure). L6-03 (state that superseded/history growth is intentionally unbounded per §12.6, or bound it). L6-04 (define the installs.jsonl redaction set + reuse the existing leak sanitizer, do not reinvent). L6-05 (resolve the `state` root ONLY via the Order 01 resolver, never a hardcoded path). L6-06/L6-07 (atomic append for JSONL; align the `todo` flag with §18 `--agent`, not `--json`).
+- 2026-08-09 author revision (Codex GPT-5): addressed L6-01 through L6-07 by specifying lifecycle uniqueness and ID validation, binding state paths to the resolver, ordering state publication within Order 05's compensating transaction, defining locked atomic JSONL append and leak-sanitizer reuse, documenting unbounded history, and correcting the machine command to `--agent`.
 
 ## Goal
 
@@ -27,7 +28,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Action lifecycle
 
-- [ ] E-01 Implement the versioned action document schema and atomic lifecycle moves among `state/actions/open`, `completed`, `dismissed`, and `superseded`, with immutable action ID and generation metadata.
+- [ ] E-01 Resolve the `state` root only through Order 01, then implement the versioned action document schema and lifecycle moves among `open`, `completed`, `dismissed`, and `superseded`. Accept IDs matching `[a-z][a-z0-9]*(?:-[a-z0-9]+)*` and positive integer generations; enforce that each `(id, generation)` exists in exactly one lifecycle directory; perform a transition as one same-filesystem atomic rename and verify the source disappeared and no duplicate destination exists.
   - Depends on: none
   - Expected outcome: action files are AW state, preserve resolution history, and never use an `aw-` filename prefix inside the AW-owned namespace.
   - Execution state: pending
@@ -42,7 +43,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: Installation facts
 
-- [ ] E-04 Persist an atomic current install snapshot and redacted append-only JSONL history under `state/`; fresh install opens `setup-repo`, and external records without observable durability may open `configure-durability`.
+- [ ] E-04 Persist the current install snapshot by atomic replacement and append each complete JSONL line under a state lock using one `O_APPEND` write plus `fsync`. Within Order 05's transaction, stage the snapshot and initial actions, publish system/config changes first, atomically publish actions, publish `install.json` as authoritative state last, then append the completed event; on failure compensate published state and append a redacted failed event with the same transaction ID. Fresh install opens `setup-repo`, and external records without observable durability may open `configure-durability`.
   - Depends on: E-03
   - Expected outcome: current facts, event history, and human actions remain separate, queryable concepts.
   - Execution state: pending
@@ -54,6 +55,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Project conventions discovered (Step 0)
 
 - State writes must be atomic and participate in installer rollback where they are part of installation.
+- All paths in this plan come from the resolved Order 01 `state` root. No fallback or hard-coded `.aw/state` path is permitted.
 - Human-readable Markdown actions may have front matter, but indexable facts must not depend on parsing prose.
 - Machine output must remain stable and ANSI-free.
 - Existing status commands should consume shared APIs instead of reading files ad hoc.
@@ -67,6 +69,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | Install events | `state/history/installs.jsonl` | append-only, redacted |
 | Open action | `state/actions/open/<id>-vN.md` | lifecycle move |
 | Resolved action | terminal lifecycle directory | retained evidence |
+
+Action generations and `state/history/installs.jsonl` are intentionally unbounded historical evidence under Section 12.6. Compaction, retention limits, or archival require a separate decision.
 
 ## Proposed changes (ordered, validatable)
 
@@ -91,13 +95,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - `python3 -m unittest tests.test_actions -v`
 - `python3 -m unittest discover -s tests -v`
-- `python3 -m agent_workflows todo --json`
+- `python3 -m agent_workflows todo --agent`
 
 ## Spec / documentation sync
 
 - Keep action names, lifecycle directories, generation rules, and history fields aligned with the canonical 2026-08-09 layout specification.
 - Do not add `aw-` prefixes to action filenames or require them in normal CLI input.
 - Keep direct action ownership separate from the read-only attention projection; this plan does not modify D125 mappings or `/whatnext`.
+- Reuse `agent_workflows.local_leaks` for event-field validation and redaction. The forbidden event set is credentials and tokens, URL userinfo/query/fragment values, secret-like environment values, conversation or action bodies, record contents, raw command arguments that may contain secrets, and public-output machine identifiers. Do not create a separate regex catalog.
 
 ## Open questions
 
@@ -108,7 +113,7 @@ No open questions.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: lifecycle tests prove atomic moves, immutable ID and generation, retained terminal history, and correct filenames.
+  - Required evidence: lifecycle tests prove ID regex and positive-generation validation, exactly-one-directory uniqueness before and after every transition, same-filesystem atomic rename, immutable ID and generation, retained terminal history, source disappearance, duplicate refusal, and correct filenames.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
@@ -120,7 +125,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: install tests prove snapshot replacement, ordered history append, secret redaction, fresh `setup-repo`, and conditional durability action.
+  - Required evidence: failure injection at every Order 05 transaction boundary proves no action or successful snapshot survives a compensated failure; completed and failed events share the transaction identity and match actual outcome; concurrent append tests produce complete parseable lines with no loss; the existing leak sanitizer verifies the forbidden set; fresh `setup-repo` and conditional durability actions appear only after authoritative state publication.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
