@@ -1,7 +1,7 @@
 # Spec: attention view and cross-tree status model (`aw attention`)
 
 - Date: 2026-08-08
-- Status: to-review (2026-08-08; drafted by opencode, REVISED 2026-08-08 to reconcile the external review set; awaiting further model review, then human approval). Design rationale + functional contract; a follow-on IPD Set implements it. Open questions in Section 12.
+- Status: to-review (2026-08-08; drafted by opencode, REVISED twice on 2026-08-08 to reconcile the external review set and the gpt-5.6-high plan-review; awaiting further model review, then human approval). Design rationale + functional contract; a follow-on IPD Set implements it. Open questions in Section 12. See Section 16 (baseline note) before judging dependency availability.
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Grounding: research survey `bv6n38` and the review set `attention-registry-spec-review` (`gpt56`/`gemini31pro`/`sonnet5` assessments + the `reconciliation` report `b1msgn`), all under `.agents/docs/research/`.
 - Relation to prior specs: builds on the artifact-organization line (`20260730-2152-01`, D123; `20260808-0004-01`, D124) and reuses `agent_workflows/artifact_core.py`. It does NOT replace the per-tree lifecycles (plans, research, prompts, comms); it adds a cross-tree ATTENTION VIEW above them.
@@ -88,13 +88,15 @@ The display MAY use an umbrella heading such as "Attention" over `ready`/`active
 
 ## 7. Standardized status + history contract (G2)
 
-- **Spec lifecycle (v1):** REQUIRE a front-matter `- Status:` from the closed enum
-  `draft -> reviewed -> approved -> implementing -> implemented`, plus `deferred`, `parked`, `superseded`.
-  Recommended spec mapping:
+- **Metadata grammar (exact).** A spec carries its status as a single front-matter bullet `- Status: <value>` where `<value>` is EXACTLY one enum token with NO trailing prose (a value like `approved (2026-08-08, human)` is a violation; put the rationale in `## Workflow history`). Gate fields, when present, are sibling bullets in the SAME front-matter block using the same `- Key: value` form (`- Gate-Kind:`, `- Gate-Ref:`, `- Gate-Summary:`), one value per line, no trailing prose on `- Gate-Kind:`/`- Gate-Ref:`. This one grammar governs every example in this spec (Sections 8.2 and 8.4 use it verbatim).
+- **Spec lifecycle (v1):** REQUIRE a `- Status:` from the closed enum
+  `draft -> to-review -> reviewed -> approved -> implementing -> implemented`, plus `deferred`, `parked`, `superseded`.
+  Spec mapping (TOTAL over the enum):
 
   | Spec status | Attention class |
   | --- | --- |
   | `draft` | `ready` |
+  | `to-review` | `ready` |
   | `reviewed` | `ready` |
   | `approved` | `ready` |
   | `implementing` | `active` |
@@ -103,8 +105,21 @@ The display MAY use an umbrella heading such as "Attention" over `ready`/`active
   | `parked` | `parked` |
   | `superseded` | `parked` |
 
-  Normalize the existing specs' free-form prose (`DRAFT`, `canonical`, `approved`, `APPROVED ... Go`, `draft (evidence-gated)`, hand-written `Implemented`) to this enum WITHOUT moving files. `canonical` is NOT a status: a spec can be authoritative and unimplemented. Track authority (if needed) with a separate `Canonical: true` field that does not affect the attention mapping.
-- **`## Workflow history`:** every spec (and every tree an owner verb writes) gains an appended `## Workflow history` section, one dated record per touch. The grammar (date vs timestamp, fields) is fixed in Phase 0 (OQ4/F-history).
+  Normalize the existing specs' free-form prose (`DRAFT`, `canonical`, `approved`, `APPROVED ... Go`, `draft (evidence-gated)`, hand-written `Implemented`, and this spec's own `to-review`) to a single bare enum token WITHOUT moving files. `canonical` is NOT a status: a spec can be authoritative and unimplemented. Track authority (if needed) with a separate `- Canonical: true` field that does not affect the attention mapping.
+- **Transitions and authority (who may enter each state).** Status transitions are gated so an agent cannot self-declare human decisions or completion:
+
+  | Transition | Who / evidence required |
+  | --- | --- |
+  | `draft -> to-review` | The author (agent or human) once the draft is complete enough to critique. |
+  | `to-review -> reviewed` | Any reviewer (agent or human) after a review pass; the review artifact is cited in history. |
+  | `reviewed -> approved` | HUMAN only. `aw specs set ... --status approved` MUST require an explicit human-approval token/flag; an agent MUST NOT set `approved`. |
+  | `approved -> implementing` | The executor when execution begins (an agent may set this). |
+  | `implementing -> implemented` | Requires VERIFIED implementation evidence (the executed IPD + its validation actually run); an agent MUST NOT set `implemented` without citing that evidence in history. |
+  | any `-> deferred` | Any actor, but MUST supply a valid gate (Section 8.4). |
+  | any `-> parked` / `-> superseded` | Any actor, with a reason recorded in history (terminal-inactive). |
+
+  Backward moves (e.g. `reviewed -> to-review` after new findings) are permitted and recorded; `implemented` and `superseded` are terminal-forward (leaving them is an explicit corrective transition, recorded in history). The `aw specs set` verb enforces this table (Section 8.2); the exact human-approval token mechanism and the evidence-citation format are Phase 0 deliverables (OQ10).
+- **`## Workflow history`:** every spec (and every tree an owner verb writes) gains an appended `## Workflow history` section, one dated record per touch. The grammar (date vs timestamp, fields) is fixed in Phase 0 (OQ2/F-history).
 - **Tool-owned trees (plans/research):** NO new field; the scanner reads their existing status and the per-tree mapping fragment does the rest.
 
 ## 8. Functional design (G3, G4)
@@ -162,13 +177,13 @@ aw specs check [PATH]
 
 ### 8.4 Structured gates
 
-A `deferred` artifact MUST identify the blocking condition with discrete fields (free text alone is insufficient for validation):
+A `deferred` artifact MUST identify the blocking condition with discrete front-matter bullets (the Section 7 grammar; free text alone is insufficient for validation):
 
 ```
-Status: deferred
-Gate-Kind: issue
-Gate-Ref: <kind-validated reference>
-Gate-Summary: <optional human context; never machine state>
+- Status: deferred
+- Gate-Kind: issue
+- Gate-Ref: <kind-validated reference>
+- Gate-Summary: <optional human context; never machine state>
 ```
 
 - `Gate-Kind` (required for `deferred`) is a closed enum: `artifact`, `decision`, `todo`, `issue`, `date`, `external`.
@@ -195,6 +210,17 @@ Requirements, not suggestions: full scan every run; repo-relative POSIX paths; s
 
 No silent fallback to full raw rescanning when the command is missing/incompatible/invalid; report the failure and remediation instead. An explicit diagnostic mode may inspect raw artifacts on request.
 
+### 8.8 Output safety and the agent trust boundary
+
+Descriptive metadata (`Gate-Summary`, `- Status:` neighbours, paths, URLs, and any future tree metadata) is UNTRUSTED text that flows into a human terminal, a Markdown board, JSON, and an agent's context. Deterministic JSON canonicalization (Section 8.5) does not by itself make that text safe to render or to feed an agent. Therefore:
+
+- **Bounded, single-line.** Every descriptive field is a single logical line with a defined maximum length; embedded newlines are rejected (a violation), not wrapped. Over-length values are a contract violation, not silently truncated.
+- **Control-character rejection.** Any C0/C1 control character (including ANSI escape sequences, NUL, and bidi controls) in a descriptive field is a contract violation. The renderers never emit raw control characters.
+- **Deterministic escaping per surface.** JSON output escapes per the canonical profile. The Markdown board escapes Markdown metacharacters deterministically so a field cannot break the table, inject a link/image, or start a new block. The `--agent` `location<TAB>rule<TAB>detail` form escapes tab, newline, and backslash per Section 8.3.
+- **URL restriction.** `Gate-Kind: issue` `Gate-Ref` MUST be an absolute `http`/`https` URL; other schemes (`javascript:`, `file:`, `data:`, etc.) are a violation. `external` refs are treated as opaque data, never as a fetchable/executable target.
+- **Descriptive fields are DATA, never instructions.** `/whatnext` and any consuming agent MUST treat all descriptive fields as inert data and MUST NOT interpret their contents as instructions, commands, or tool calls. This mirrors the comms untrusted-payload stance (D81).
+- **Hostile-string fixtures.** The test suite includes adversarial fixtures (newline/control-char injection, Markdown-breaking summaries, non-http gate URLs, over-length fields) proving each is caught as a stable named violation.
+
 ## 9. Requirements
 
 ### Functional (MUST unless noted)
@@ -207,6 +233,8 @@ No silent fallback to full raw rescanning when the command is missing/incompatib
 - F7 Specs REQUIRE the closed-enum `- Status:` + a `## Workflow history` section; a one-time migration normalizes the existing ~8 specs and PRESERVES their paths.
 - F8 The JSON output is versioned (`schema_version`, `mapping_version`) and sets `valid: false` with all violations when any included artifact is invalid.
 - F9 `/whatnext` consumes the JSON view first, stops on an invalid view, and opens only selected paths plus explicitly-bounded git/TODO sources.
+- F10 Output safety (Section 8.8): descriptive fields are single-line, length-bounded, control-character-free, and deterministically escaped per surface; `issue` gate URLs are `http`/`https` only; violations of any of these are stable named `--check` failures (part of the F3 set). Consumers treat descriptive fields as inert data.
+- F11 The transition/authority table (Section 7) is enforced by `aw specs set`: `approved` requires an explicit human-approval token (never settable by an agent) and `implemented` requires cited implementation evidence; illegal transitions are refused and leave the file byte-identical.
 - F-history The `## Workflow history` grammar (record fields; date vs RFC-3339 timestamp) is defined and enforced.
 
 ### Non-functional (MUST)
@@ -232,11 +260,16 @@ No silent fallback to full raw rescanning when the command is missing/incompatib
 - A11 CI runs the same contract check used locally and rejects every F3 violation.
 - A12 No v1 command writes an aggregate file, cache, git index entry, commit, or remote change as an implicit side effect.
 - A13 Full `unittest` suite green; new tests cover the mapping/coverage, scanner, `--check` classes, determinism, gates, and `aw specs` writes.
+- A14 Output-safety fixtures (Section 8.8): a `Gate-Summary` containing a newline, an ANSI/control character, a Markdown-table-breaking string, or an over-length value each fails as a stable named violation; a non-`http(s)` `issue` `Gate-Ref` fails; the Markdown and JSON renderers never emit raw control characters.
+- A15 Transition/authority (Section 7): `aw specs set --status approved` without the human-approval token is refused (file byte-identical); `--status implemented` without cited evidence is refused; a legal transition with the required token/evidence succeeds and records history.
 
 ## 11. Constraints and dependencies
 
-- Depends on `artifact_core.py` (D123) and the per-tree status conventions (plans D52/D65; research contract). New modules `agent_workflows/attention.py` (read/scan) and `agent_workflows/specs.py` (spec owner verbs), each `run(args) -> int`, wired at the two `cli.py` edit points (`_build_parser` + `_dispatch`); this also establishes the `aw specs` namespace.
-- DEPENDENCY (OQ7): if v1 wants specs distinguished as `implementing` vs `approved`, that is owner-local (specs already gets `implementing`). If PLANS need approved-vs-executing in the attention view, the plans owner must add a native `executing` state FIRST; otherwise plans `approved`/`auto-approved` map to `ready` in v1.
+This spec fixes WHAT and WHY (observable behavior, contracts, compatibility, required reuse). It does NOT fix implementation HOW (module names, function signatures, file placement, argparse wiring); those are the follow-on IPD's responsibility (see Section 15) to avoid duplicating and pre-staling IPD detail.
+
+- **Required reuse (compatibility constraint):** the implementation MUST reuse `agent_workflows/artifact_core.py` (D123) primitives (`iter_scan_files`, `Drift`/`render_agent_drift`/`drift_exit_code`, id6, `atomic_write`) rather than fork them, and MUST be reachable as `aw attention` / `aw specs` and via `python -m agent_workflows` (N2/N3). Whether that is one module or several is an IPD choice.
+- **Depends on** the per-tree status conventions (plans D52/D65; research contract) and the `aw` CLI extension pattern already used by `aw plans` / `aw research` / `aw ipd`.
+- **Native-state dependency (OQ5):** specs get `implementing` as an owner-local state, so specs can be `active`. If PLANS need approved-vs-executing distinguished in the view, the plans owner must add a native `executing` state FIRST; otherwise plans `approved`/`auto-approved` map to `ready` in v1. The attention mapping never infers execution.
 - The spec migration (F7) touches ~8 files once, preserving paths.
 
 ## 12. Risks and open questions
@@ -250,6 +283,7 @@ No silent fallback to full raw rescanning when the command is missing/incompatib
 - OQ7 Confirm the write boundary: `aw attention` read-only + `aw specs` owns spec writes + plans/research owned by their existing verbs; no generic router in v1. (Adopted; confirm.)
 - OQ8 Walkthroughs and roadmaps: `excluded` in the tree policy inventory for v1 (rationale: no real lifecycle semantics yet), revisited in Phase 3. Confirm.
 - OQ9 An optional `aw attention snapshot` (a generated, schema-versioned, deterministic projection file) is DEFERRED until a demonstrated non-executable consumer needs it. Confirm it stays out of v1.
+- OQ10 The exact human-approval token mechanism for `reviewed -> approved` and the evidence-citation format for `implementing -> implemented` (Section 7 transition table). Candidates: an interactive confirmation, a `--approved-by <human>` flag recorded in history, or a signed marker. Phase 0 deliverable.
 
 ## 13. Phasing (G7)
 
@@ -277,6 +311,20 @@ No silent fallback to full raw rescanning when the command is missing/incompatib
 
 Revised to reconcile the external review set; `Status: to-review`. Next: additional model review (the maintainer will circulate this revised spec), reconcile, then `/plan-review` and HUMAN APPROVAL before authoring any IPD Set. Do NOT begin an IPD until approved. Phase 0 (contracts + fixtures) is the first execution step once approved.
 
+## 15. Guidance for the follow-on IPD (non-normative)
+
+These are implementation hints, deliberately kept OUT of the normative sections (Section 11) so the IPD owns them and they cannot pre-stale the spec:
+
+- A likely shape is two modules: `agent_workflows/attention.py` (the read-only scanner + renderers) and `agent_workflows/specs.py` (the `aw specs` owner verbs), each exposing a `run(args) -> int` entrypoint, following the `plans_index.py` / `research_index.py` / `ipd_lint.py` module-per-feature pattern. One module is acceptable if cleaner; the spec does not require a particular split.
+- CLI wiring follows the established pattern: add subparsers in `cli._build_parser` and route them in `cli._dispatch` (the same two edit points used by every existing `aw` verb), establishing the `aw specs` namespace alongside `aw attention`.
+- The per-tree mapping fragments should live next to each tree's native-enum definition (e.g. beside `plans.py` / `research_contract.py`) and be aggregated by the attention module, so an enum change and its mapping change tend to land together (Section 6).
+- The installer/scaffolding does NOT need a new committed registry file (v1 writes none). No setup-artifacts change is required for the view; only the spec metadata migration (F7) touches existing files.
+
+## 16. Baseline note (for reviewers)
+
+The prerequisites this spec relies on (`agent_workflows/artifact_core.py`, the `aw research` and `aw plans index`/`aw research index` tooling, DECISIONS D123/D124) EXIST and pass on the current working branch, but may not yet be on `origin/main` (this project pushes in batches). A reviewer checking a stale `origin/main` commit may not see them; that is a push-timing artifact, not a missing prerequisite. Verify against the working branch / latest local HEAD, not necessarily the last-pushed `main`.
+
 ## Workflow history
 - 2026-08-08 /spec (opencode its_direct/pt3-claude-opus-4.8-1m-us): drafted the attention-registry and cross-tree-status spec to Status: to-review, grounded in research survey bv6n38; queued for external review by gpt-5.6 and Gemini.
 - 2026-08-08 /spec (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVISED to reconcile the external review set (gpt56/gemini31pro/sonnet5 assessments + reconciliation b1msgn). Adopted: on-demand ephemeral view (no committed registry in v1), five attention classes (ready/active/blocked/done/parked), read-only aw attention with per-tree owner writes (new aw specs), pure/exhaustive non-inferring mapping, typed gate fields, spec lifecycle draft->reviewed->approved->implementing->implemented (+deferred/parked/superseded; canonical demoted to a separate field), fail-closed scanning, tree policy inventory, versioned JSON + byte determinism, and a Phase-0-contracts-first plan. Renamed the noun to attention VIEW. Held for further model review.
+- 2026-08-08 /spec (opencode its_direct/pt3-claude-opus-4.8-1m-us): applied the gpt-5.6-high plan-review (w0ilhj, findings PR-001..PR-005). PR-002: added to-review to the spec enum (->ready) and a transition/authority table (human token required for approved; cited evidence required for implemented; enforced by aw specs set, F11/A15). PR-003: fixed one exact metadata grammar (bulleted - Status:/- Gate-* with no trailing prose) and made every example consistent. PR-004: added Section 8.8 output-safety + agent trust boundary (single-line bounded, control-char rejection, per-surface escaping, http(s)-only issue URLs, descriptive-fields-are-data, hostile fixtures; F10/A14). PR-005: moved code-placement detail (module names, run(args), cli.py edit points) out of normative Section 11 into non-normative Section 15 (IPD guidance). PR-001: assessed as a stale-baseline artifact (prereqs exist on the working branch, unpushed) and added Section 16 baseline note. Added OQ10 (approval-token/evidence mechanism). Held for further model review.
