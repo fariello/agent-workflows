@@ -252,6 +252,24 @@
     "topic": []
   },
   {
+    "created": "20260808",
+    "date": "20260808",
+    "id6": "b1msgn",
+    "kind": "reconciliation-report",
+    "model": "reconciliation",
+    "order": "03",
+    "outcome": "none-yet",
+    "path": "20260808-attention-registry-spec-review-03-b1msgn-attention-registry-spec-review.reconciliation.reconciliation-report.md",
+    "set_id": "attention-registry-spec-review",
+    "status": "active",
+    "summary": "Consolidated reconciliation of the gpt-5.6/Gemini/Sonnet-5 reviews of the attention-registry spec",
+    "topic": [
+      "attention-registry",
+      "spec-review",
+      "external-review"
+    ]
+  },
+  {
     "created": "20260713",
     "date": "20260713",
     "id6": "bgb5hd",
@@ -395,6 +413,24 @@
     "status": "reference",
     "summary": "Migrated from 20260726-skills-02-en5c8i-suggested-future-skill-usage.gpt56.research-report.md.",
     "topic": []
+  },
+  {
+    "created": "20260808",
+    "date": "20260808",
+    "id6": "fc2n5j",
+    "kind": "assessment",
+    "model": "sonnet5",
+    "order": "02",
+    "outcome": "none-yet",
+    "path": "20260808-attention-registry-spec-review-02-fc2n5j-attention-registry-spec-review.sonnet5.assessment.md",
+    "set_id": "attention-registry-spec-review",
+    "status": "active",
+    "summary": "Sonnet-5 review of the attention-registry spec",
+    "topic": [
+      "attention-registry",
+      "spec-review",
+      "external-review"
+    ]
   },
   {
     "created": "20260713",
@@ -579,6 +615,24 @@
     "topic": []
   },
   {
+    "created": "20260808",
+    "date": "20260808",
+    "id6": "krgxp6",
+    "kind": "assessment",
+    "model": "gpt56",
+    "order": "00",
+    "outcome": "none-yet",
+    "path": "20260808-attention-registry-spec-review-00-krgxp6-attention-registry-spec-review.gpt56.assessment.md",
+    "set_id": "attention-registry-spec-review",
+    "status": "active",
+    "summary": "gpt-5.6 (Codex) review of the attention-registry spec",
+    "topic": [
+      "attention-registry",
+      "spec-review",
+      "external-review"
+    ]
+  },
+  {
     "created": "20260802",
     "date": "20260726",
     "id6": "ktlhfx",
@@ -689,6 +743,24 @@
     "status": "reference",
     "summary": "Migrated from 20260713-occomms-04-t5xyw0-native-capabilities-and-runtime.research-report.md.",
     "topic": []
+  },
+  {
+    "created": "20260808",
+    "date": "20260808",
+    "id6": "tgmqnb",
+    "kind": "assessment",
+    "model": "gemini31pro",
+    "order": "01",
+    "outcome": "none-yet",
+    "path": "20260808-attention-registry-spec-review-01-tgmqnb-attention-registry-spec-review.gemini31pro.assessment.md",
+    "set_id": "attention-registry-spec-review",
+    "status": "active",
+    "summary": "Gemini 3.1 Pro review of the attention-registry spec",
+    "topic": [
+      "attention-registry",
+      "spec-review",
+      "external-review"
+    ]
   },
   {
     "created": "20260713",

@@ -2,11 +2,15 @@
 
 # Research index
 
-Showing the most-recent 40 of 62 hot docs (archive excluded).
+Showing the most-recent 40 of 66 hot docs (archive excluded).
 
 ## Most recent
 
 - `bv6n38` [active] 20260808-attention-registry-cross-tree-status-and-whatnext-00-bv6n38-attention-registry-cross-tree-status-and-whatnext.survey.md - Design survey for a cross-tree attention registry: standardized status vocabulary, deterministic aw attention scanner+writer, and whatnext-as-reader
+- `b1msgn` [active] 20260808-attention-registry-spec-review-03-b1msgn-attention-registry-spec-review.reconciliation.reconciliation-report.md - Consolidated reconciliation of the gpt-5.6/Gemini/Sonnet-5 reviews of the attention-registry spec
+- `fc2n5j` [active] 20260808-attention-registry-spec-review-02-fc2n5j-attention-registry-spec-review.sonnet5.assessment.md - Sonnet-5 review of the attention-registry spec
+- `krgxp6` [active] 20260808-attention-registry-spec-review-00-krgxp6-attention-registry-spec-review.gpt56.assessment.md - gpt-5.6 (Codex) review of the attention-registry spec
+- `tgmqnb` [active] 20260808-attention-registry-spec-review-01-tgmqnb-attention-registry-spec-review.gemini31pro.assessment.md - Gemini 3.1 Pro review of the attention-registry spec
 - `5zczmo` [reference] 20260731-chkplace-04-5zczmo-checklist-placement-and-instruction-audit.findings.md - Migrated from 20260731-chkplace-04-5zczmo-checklist-placement-and-instruction-audit.findings.md.
 - `72n26s` [reference] 20260731-chkplace-02-72n26s-checklist-placement-and-instruction-audit-report.gpt56medium.research-report.md - Migrated from 20260731-chkplace-02-72n26s-checklist-placement-and-instruction-audit-report.gpt56medium.research-report.md.
 - `80eqy0` [reference] 20260731-chkplace-03-80eqy0-checklist-placement-and-instruction-audit-report.sonnet5.research-report.md - Migrated from 20260731-chkplace-03-80eqy0-checklist-placement-and-instruction-audit-report.sonnet5.research-report.md.
@@ -42,7 +46,3 @@ Showing the most-recent 40 of 62 hot docs (archive excluded).
 - `vcnu3f` [reference] 20260716-ocsec-01-vcnu3f-test-evidence.test-evidence.md - Migrated from 20260716-ocsec-01-vcnu3f-test-evidence.test-evidence.md.
 - `zhkhky` [reference] 20260716-ocsec-04-zhkhky-provenance-and-cross-validation.research-report.md - Migrated from 20260716-ocsec-04-zhkhky-provenance-and-cross-validation.research-report.md.
 - `zmgkwf` [reference] 20260716-ocsec-08-zmgkwf-maintainer-scoping-question-draft-for-human.research-report.md - Migrated from 20260716-ocsec-08-zmgkwf-maintainer-scoping-question-draft-for-human.research-report.md.
-- `tt8ipb` [reference] 20260716-opencode-shared-host-hardening-howto-00-tt8ipb-opencode-shared-host-hardening-howto.howto.md - Migrated from 20260716-opencode-shared-host-hardening-howto-00-tt8ipb-opencode-shared-host-hardening-howto.howto.md.
-- `kams1a` [reference] 20260716-opencode-unauthenticated-local-server-advisory-00-kams1a-opencode-unauthenticated-local-server-advisory.advisory.md - Migrated from 20260716-opencode-unauthenticated-local-server-advisory-00-kams1a-opencode-unauthenticated-local-server-advisory.advisory.md.
-- `j2000q` [reference] 20260714-same-box-agent-wakeup-mechanisms-00-j2000q-same-box-agent-wakeup-mechanisms.research-report.md - Migrated from 20260714-same-box-agent-wakeup-mechanisms-00-j2000q-same-box-agent-wakeup-mechanisms.research-report.md.
-- `3rpcmu` [reference] 20260713-occomms-09-3rpcmu-implementation-roadmap.roadmap.md - Migrated from 20260713-occomms-09-3rpcmu-implementation-roadmap.roadmap.md.
