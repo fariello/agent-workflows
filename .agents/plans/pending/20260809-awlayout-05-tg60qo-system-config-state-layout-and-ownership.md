@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Materialize the new logical layout and enforce ownership boundaries during install and update.
 - Scope: `agent_workflows/project_layout.py`, layout integration in `agent_workflows/engine.py`, `agent_workflows/manifest.py`, `agent_workflows/_compat.py`, packaged layout assets, and `tests/test_project_layout.py`.
-- Status: to-review
+- Status: reviewed
 - Set: awlayout (AW project layout)
 - Order: 5
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 
 - 2026-08-09 draft (Codex (GPT-5, high reasoning)): created an execution-ready child plan from the approved architecture direction.
 - 2026-08-09 revision (Codex (GPT-5, high reasoning)): adopted stable plan identity, clustered naming, and the current lifecycle execution contract after the upstream rebase.
+- 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L5-01 [HIGH] (asserts a transactional installer with rollback that does NOT exist - only per-file backup + a separate `--undo`; restate the recovery mechanism or build staging+pivot). L5-02 [HIGH] (V-items for atomicity/ownership name outcomes but no concrete fixture/oracle; add per-root sentinel-byte assertions). L5-03 [HIGH] (human-owned `config/` no-clobber is asserted but not gated - a human value AW never wrote has no recorded hash; define the preserve/merge rule + test). L5-04 (state the manifest EXTENDS manifest.py, not a second ledger; bump SCHEMA_VERSION). L5-05 (manifest location vs the legacy DEFAULT_MANIFEST_RELPATH during transitional install). L5-06 (surface §17 drift-before-overwrite + provenance as a distinct behavior).
 
 ## Goal
 

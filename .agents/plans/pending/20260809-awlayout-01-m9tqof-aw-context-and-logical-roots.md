@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Define the shared project-context contract and resolve every logical AW root through one fail-closed API.
 - Scope: `agent_workflows/project_schema.py`, `agent_workflows/project_context.py`, context-related CLI wiring in `agent_workflows/cli.py`, and `tests/test_project_context.py`.
-- Status: to-review
+- Status: reviewed
 - Set: awlayout (AW project layout)
 - Order: 1
 - Highest E allocated: 04
@@ -15,6 +15,7 @@
 
 - 2026-08-09 draft (Codex (GPT-5, high reasoning)): created an execution-ready child plan from the approved architecture direction.
 - 2026-08-09 revision (Codex (GPT-5, high reasoning)): adopted stable plan identity, clustered naming, and the current lifecycle execution contract after the upstream rebase.
+- 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L1-01 (§9 resolver: `aw context` needs `--repo` + must return all ~11 §9 fields incl. permitted commit destinations + root accessibility; E-03/V-02 do not enumerate them). L1-02 (§17: bind to the 6-level precedence, conflicting authoritative sources are ERRORS not last-write-wins, and `--json` must report per-value provenance; V-02 tests only generic failure). L1-03 (test resolver PURITY/determinism + no Git mutation, not just 'no writes'). L1-04 (add path-traversal/symlink-escape fail-closed tests at the resolver boundary). L1-05/L1-06 (pin the coverage guard + `rg` audit to concrete patterns/canonical enum symbol).
 
 ## Goal
 

@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Give projects stable identities outside their target repositories and maintain an inspectable `AW_HOME` registry.
 - Scope: `agent_workflows/project_registry.py`, AW-home configuration in `agent_workflows/config.py`, registry-related CLI wiring in `agent_workflows/cli.py`, and `tests/test_project_registry.py`.
-- Status: to-review
+- Status: reviewed
 - Set: awlayout (AW project layout)
 - Order: 2
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 
 - 2026-08-09 draft (Codex (GPT-5, high reasoning)): created an execution-ready child plan from the approved architecture direction.
 - 2026-08-09 revision (Codex (GPT-5, high reasoning)): adopted stable plan identity, clustered naming, and the current lifecycle execution contract after the upstream rebase.
+- 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L2-01 [HIGH] (`~/.aw` default AW_HOME + config store conflicts with config.py/D46 'never write under ~/'; state which store owns AW_HOME selection). L2-02 [HIGH] (`git rev-parse --git-common-dir` identity primitive does NOT exist in the codebase and is unscoped; name where it is added, do not invent). L2-03 [HIGH] (add a negative test: two projects sharing an origin URL must NOT auto-attach - no identity spoofing via remote). L2-04 (registry loader must canonicalize+reject traversal/symlink-escaping paths and refuse home==target or home-ancestor-of-target). L2-05 (concurrent-writer/atomic-replace guarantee for registry.json). L2-06 (import Order 01 enums, do not restate). L2-07 (enumerate the redaction forbidden-set).
 
 ## Goal
 

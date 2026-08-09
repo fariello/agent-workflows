@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Persist AW-specific actions as state, reconcile action generations across updates, and keep append-only install history separate from the current snapshot.
 - Scope: `agent_workflows/actions.py`, the packaged action-definition catalog, action and history wiring in `agent_workflows/cli.py` and `agent_workflows/engine.py`, and `tests/test_actions.py`.
-- Status: to-review
+- Status: reviewed
 - Set: awlayout (AW project layout)
 - Order: 6
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 
 - 2026-08-09 draft (Codex (GPT-5, high reasoning)): created an execution-ready child plan from the approved architecture direction.
 - 2026-08-09 revision (Codex (GPT-5, high reasoning)): reconciled action ownership with D125's implemented attention projection and current plan lifecycle conventions.
+- 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L6-01 [Med-High] (action `(id,generation)` must exist in exactly one lifecycle dir; validate id charset; a move is one atomic rename leaving no duplicate). L6-02 [HIGH] (lifecycle 'atomic moves' + fresh-install action creation share the non-atomic install of L5-01; define ordering so install.json/installs.jsonl/action stay consistent on partial failure). L6-03 (state that superseded/history growth is intentionally unbounded per §12.6, or bound it). L6-04 (define the installs.jsonl redaction set + reuse the existing leak sanitizer, do not reinvent). L6-05 (resolve the `state` root ONLY via the Order 01 resolver, never a hardcoded path). L6-06/L6-07 (atomic append for JSONL; align the `todo` flag with §18 `--agent`, not `--json`).
 
 ## Goal
 

@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Implement repository, companion, and AW-home record backends with truthful durability reporting and safe Git boundaries.
 - Scope: `agent_workflows/storage.py`, storage-related CLI wiring in `agent_workflows/cli.py`, and `tests/test_storage.py`.
-- Status: to-review
+- Status: reviewed
 - Set: awlayout (AW project layout)
 - Order: 3
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 
 - 2026-08-09 draft (Codex (GPT-5, high reasoning)): created an execution-ready child plan from the approved architecture direction.
 - 2026-08-09 revision (Codex (GPT-5, high reasoning)): adopted stable plan identity, clustered naming, and the current lifecycle execution contract after the upstream rebase.
+- 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L3-01 (durability HONESTY: a merely-configured remote must NOT map to `durable-private`/secrecy - gate on explicit acknowledgement per §6.2/§16). L3-02 (the `aw storage status` validation command needs a registered-fixture precondition, else it fails for environmental not logic reasons). L3-03 (add §14 identity-conflict-refusal + machine-local-paths-excluded-from-tracked-history assertions). L3-04 (name the owner of the §5.2 `clean-delta`+`repository` prohibition - Order 04 - or add a rejecting V-item).
 
 ## Goal
 

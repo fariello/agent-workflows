@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Extend D125's attention projection with AW actions, surface them in status and guidance workflows, and close `setup-repo` only after successful setup.
 - Scope: action-source mapping in `agent_workflows/attention_contract.py` and `agent_workflows/attention.py`, action-facing CLI summaries, `.agents/workflows/whatnext/whatnext.md`, `.agents/workflows/setup-repo/setup-repo.md`, relevant getting-started workflow text and shims, and focused attention and workflow integration tests.
-- Status: to-review
+- Status: reviewed
 - Set: awlayout (AW project layout)
 - Order: 7
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 
 - 2026-08-09 draft (Codex (GPT-5, high reasoning)): created an execution-ready child plan from the approved architecture direction.
 - 2026-08-09 revision (Codex (GPT-5, high reasoning)): replaced the competing direct `/whatnext` query with a native action source in D125's existing read-only attention projection.
+- 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L7-01 [Med-High] (the SHIPPED D125 scanner is repo-relative - iter_scan_files over SCAN_ROOTS, _rel_posix raises on external paths - so E-01 cannot read an external `state/actions/` root as written; add an external-root discovery branch + non-repo-relative item path, name attention.py as in-scope). L7-02 (specify HOW the action mapping coexists with the repo-relative `TreePolicy.root` contract - a new external source, not a fake root). L7-05 (declare the Order 01 context resolver as a DIRECT dependency; currently Depends on 06 only). L7-07 [MEDIUM] (V-01 requires a fail-closed external-state violation but the frozen closed `RULE_IDS` catalog has none; add a stable rule id). Positive: correctly EXTENDS (not forks) D125, keeps aw attention read-only, aw todo owns writes, and the 4-row action->class mapping matches §12.7 (no `active`).
 
 ## Goal
 

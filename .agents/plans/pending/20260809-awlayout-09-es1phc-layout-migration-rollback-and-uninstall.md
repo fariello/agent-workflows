@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Migrate legacy and policy-changing installations transactionally while preserving user data, Git history, and rollback evidence.
 - Scope: `agent_workflows/layout_migration.py`, migration integration in installer and uninstall commands, migration fixtures, and `tests/test_layout_migration.py`.
-- Status: to-review
+- Status: reviewed
 - Set: awlayout (AW project layout)
 - Order: 9
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 
 - 2026-08-09 draft (Codex (GPT-5, high reasoning)): created an execution-ready child plan from the approved architecture direction.
 - 2026-08-09 revision (Codex (GPT-5, high reasoning)): adopted stable plan identity, clustered naming, and the current lifecycle execution contract after the upstream rebase.
+- 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L9-01 (add §15.2 rule-2 PRE-move destination-writability + free-space precondition check as a gating step). L9-02 (add coverage for the guarded deep-removal path - explicit high-warning opt-in, explains recoverability - and that uninstall never deletes a configured external remote, §15.4). L9-03 (assert the §15.3 single-authoritative-writer invariant during the compatibility window: dual-read allowed, dual-write forbidden). Positive: migration is transactional with real rollback + preserve-on-uninstall-by-default tests.
 
 ## Goal
 

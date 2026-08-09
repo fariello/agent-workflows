@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Collect complete layout and storage policy through an accessible first-install wizard and a safe update checkpoint.
 - Scope: `agent_workflows/install_wizard.py`, policy-related wiring in `agent_workflows/cli.py` and `agent_workflows/engine.py`, terminal presentation in `agent_workflows/term.py`, and `tests/test_install_wizard.py`.
-- Status: to-review
+- Status: reviewed
 - Set: awlayout (AW project layout)
 - Order: 4
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 
 - 2026-08-09 draft (Codex (GPT-5, high reasoning)): created an execution-ready child plan from the approved architecture direction.
 - 2026-08-09 revision (Codex (GPT-5, high reasoning)): adopted stable plan identity, clustered naming, and the current lifecycle execution contract after the upstream rebase.
+- 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L4-01 [HIGH/blocking] (required-test `python3 -m agent_workflows update` targets a NON-EXISTENT verb - cli.py has no `update`, install is idempotent; use `install . --dry-run` or add `update` to scope). L4-02 (add an explicit negative test: `--yes` on an UNCONFIGURED first install does NOT silently select the recommended `home`/`tracked` default and exits nonzero - §11.3). L4-03 (reconcile with the existing `_run_setup`/`_confirm` wizard in cli.py; state supersede/delegate/coexist to avoid two divergent setup surfaces). L4-04 (add `--no-color` + screen-reader linear-output to the 11.4 matrix).
 
 ## Goal
 

@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Make clean-delta installation use proven user-scope host capabilities while keeping the target repository free of AW-owned files.
 - Scope: user-scope skill installation and capability code, clean-delta engine and manifest integration, host fixtures and probes, and focused tests; evidence requirements remain governed by D113.
-- Status: to-review
+- Status: reviewed
 - Set: awlayout (AW project layout)
 - Order: 10
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 
 - 2026-08-09 draft (Codex (GPT-5, high reasoning)): created an execution-ready child plan from the approved architecture direction.
 - 2026-08-09 revision (Codex (GPT-5, high reasoning)): adopted stable plan identity, clustered naming, and the current lifecycle execution contract after the upstream rebase.
+- 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L10-01 (add a V-item asserting the set of advertised clean-delta host/version claims EQUALS the set of D113-reproduced pairs - no claim without a matching evidence record - within the order that mints the claim). Positive: intent is sound - unproven combos unsupported, no claim inherited across versions, STOP gate requires D113 evidence for the exact host/version, merge-base zero-write verified; no over-claim found.
 
 ## Goal
 

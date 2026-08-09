@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Align current-state documentation and release metadata with the implemented architecture, then prove the complete install, update, storage, action, migration, and uninstall lifecycle.
 - Scope: `README.md`, `ARCHITECTURE.md`, `CHANGELOG.md`, shipped getting-started and help text, relevant specification status and relation notes, end-to-end fixtures, and release preparation without tag or push.
-- Status: to-review
+- Status: reviewed
 - Set: awlayout (AW project layout)
 - Order: 11
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 
 - 2026-08-09 draft (Codex (GPT-5, high reasoning)): created an execution-ready child plan from the approved architecture direction.
 - 2026-08-09 revision (Codex (GPT-5, high reasoning)): adopted stable plan identity, clustered naming, D125 attention ownership, and the current lifecycle execution contract after the upstream rebase.
+- 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L11-01 [MEDIUM] (the 25-scenario acceptance matrix is asserted but NOT enumerated; E-04's ~12 coarse categories do not visibly cover distinct spec §19 scenarios 19.17/19.22/19.23/19.24/19.25; add a 25-row scenario -> named-test/host-evidence traceability table so V-04's 'no scenario silently skipped' is enforceable). L11-02 (do NOT hand-edit the derived git-tag-driven `VERSION` per RELEASING.md; record notes in CHANGELOG/docs only; the version is set at release-review Section 9). Positive: release boundary honored - no tag/Release/PyPI/push; honestly gates done on Orders 01-10.
 
 ## Goal
 

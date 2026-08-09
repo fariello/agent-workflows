@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Route every generated plan, prompt, assessment, review, report, evidence file, and communication through the logical records root.
 - Scope: record-producing packaged workflow bodies, one shared record-routing reference or helper, generated host shims, path-policy tests, and no unrelated workflow semantics.
-- Status: to-review
+- Status: reviewed
 - Set: awlayout (AW project layout)
 - Order: 8
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 
 - 2026-08-09 draft (Codex (GPT-5, high reasoning)): created an execution-ready child plan from the approved architecture direction.
 - 2026-08-09 revision (Codex (GPT-5, high reasoning)): adopted stable plan identity, clustered naming, and the current lifecycle execution contract after the upstream rebase.
+- 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L8-01 [HIGH] (the forbidden-producer-path audit is a blunt `rg` matching ~48 legitimate references - inventory, specs validator, fixtures, scanner roots - and can never yield the orchestrator's 'zero-match' proof; redefine as an allowlist-backed, producer-WRITE-scoped test driven off the maintained producer inventory). L8-02 (name the resolver's DUAL consumption surface: CLI `aw path records` for workflow bodies + the Order 01 Python API for `agent_workflows` producers; carry the commit-policy value with the records root). L8-03 (add a negative test that no producer writes under the resolved `state` root - only `records`). L8-05 (concrete external-Git-absence proof: resolved external records root is outside the target work-tree; `git status` shows no external record).
 
 ## Goal
 
