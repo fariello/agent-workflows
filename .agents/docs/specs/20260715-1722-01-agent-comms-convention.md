@@ -1,6 +1,7 @@
 # Spec: inter-agent comms convention (`.agents/comms/`)
+- Status: implemented
+- Canonical: true
 
-Status: canonical (supersedes and replaces the earlier draft, now removed).
 Date: 2026-07-15
 Decision: DECISIONS D81. Design source: `.agents/docs/research/20260714-same-box-agent-wakeup-mechanisms-00-j2000q-same-box-agent-wakeup-mechanisms.research-report.md`.
 
@@ -109,3 +110,6 @@ the portable, broker-free delivery mechanism and works for any agent (OpenCode o
 - Agent-side ack WRITING and the status-view aggregation.
 - Discovery/registry (mDNS / attach / filesystem descriptor), cross-instance reachability.
 - Conditional scheduling (`Depends-On`), Telegram/Signal and other transports, cross-box comms.
+
+## Workflow history
+- 2026-08-08 migrated (aw specs): normalized status to `implemented` (was: canonical (supersedes and replaces the earlier draft, now removed).)

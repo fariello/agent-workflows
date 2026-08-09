@@ -1,7 +1,8 @@
 # Spec: pip-installable distribution + config-driven multi-repo setup
 
 - Date: 2026-07-06
-- Status: DRAFT, spec-editor pass complete 2026-07-06 (all open questions resolved). Ready to
+- Status: implemented
+- Canonical: true
   split into IPD-1 (versioning) + IPD-2 (distribution) and run /plan-review on each before build.
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 
@@ -311,3 +312,6 @@ is the index.
 1. (done) `/advise spec-editor` interrogation of this spec.
 2. Write IPD-1 (versioning); `/plan-review`; implement; tag `v1.0.0`.
 3. Write IPD-2 (distribution/CLI/config/wizard/CI); `/plan-review`; implement in batches.
+
+## Workflow history
+- 2026-08-08 migrated (aw specs): normalized status to `implemented` (was: DRAFT, spec-editor pass complete 2026-07-06 (all open questions resolved). Ready to)

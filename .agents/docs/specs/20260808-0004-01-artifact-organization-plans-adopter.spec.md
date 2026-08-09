@@ -1,8 +1,7 @@
 # Spec: artifact organization, plans adopter (generalize the core; apply to `.agents/plans/`)
 
 - Date: 2026-08-08
-- Status: approved (2026-08-08, human maintainer) as the design basis for the plans-adopter IPD Set. Design rationale; the follow-on IPD Set implements it. Open questions OQ1 to OQ5 (Section 8) are resolved.
-- Implemented: SHIPPED as DECISIONS D124 via the executed plans-adopter IPD Set (orchestrator `20260808-0004-00` plus children `...-01..07`, in `.agents/plans/executed/`). This spec remains the standing design reference; the executed Set and its walkthrough carry the execution record. The Section 9 "next step / do NOT begin until approved" note below is historical.
+- Status: implemented
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Parent: `.agents/docs/specs/20260730-2152-01-agents-artifact-organization.spec.md` (the research-org
   design, now shipped as DECISIONS D123). This companion spec CORRECTS and EXTENDS the parent's
@@ -212,3 +211,6 @@ orchestrator plus focused children: the shared-core extraction; `Id` in `ipd_sch
 scaffold/sync; the plans manifest + `--check`; the set-assign/mv regroup verb; the shards + archival
 verb; the one-time migration; scaffold/directives/DECISIONS updates), scoped to `plans/`, with
 `prompts/` named the subsequent adopter. Do NOT begin any IPD until this spec is approved.
+
+## Workflow history
+- 2026-08-08 migrated (aw specs): normalized status to `implemented` (was: approved (2026-08-08, human maintainer) as the design basis for the plans-adopter IPD Set. Design rationale; the follow-on IPD Set implements it. Open questions); folded Implemented line: SHIPPED as DECISIONS D124 via the executed plans-adopter IPD Set (orchestrator `20260808-0004-00` plus children `...-01..07`, in `.agents/plans/executed/`). Thi

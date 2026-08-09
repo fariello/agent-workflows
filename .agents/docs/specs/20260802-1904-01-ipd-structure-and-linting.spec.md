@@ -1,7 +1,8 @@
 # Specification: IPD structure, stable E-*/V-* mapping, lifecycle state, and deterministic linting
 
 - Date: 2026-08-02
-- Status: APPROVED (2026-08-03, human maintainer "Approved. Go.") as the working specification for the ipd-structure implementation Set. Originated as a gpt-5.6-revised draft; approved after independent Codex gpt-5.6 review of the Set and correction of the provenance wording.
+- Status: implemented
+- Canonical: true
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us), original draft
 - Revised by: an external gpt-5.6 review (revision + change-rationale filed under the research bundle below). The maintainer asked to LOOK AT this gpt-5.6-revised draft; the maintainer has NOT formally approved it and has NOT adopted it as the working spec. It remains a draft pending maintainer review and approval.
 - Origin: checklist-placement and instruction-audit research study
@@ -747,3 +748,6 @@ After the IPD-system Set lands:
 3. run dogfood lint and semantic review;
 4. record adoption in DECISIONS and the relevant documentation;
 5. consider the deferred controlled experiment if empirical layout optimization becomes valuable.
+
+## Workflow history
+- 2026-08-08 migrated (aw specs): normalized status to `implemented` (was: APPROVED (2026-08-03, human maintainer "Approved. Go.") as the working specification for the ipd-structure implementation Set. Originated as a gpt-5.6-revised d)

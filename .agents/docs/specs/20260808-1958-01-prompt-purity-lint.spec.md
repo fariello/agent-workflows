@@ -1,7 +1,7 @@
 # Spec: prompt-purity lint (`aw prompts check`)
 
 - Date: 2026-08-08
-- Status: to-review (2026-08-08; drafted by opencode, awaiting review and human approval). Design rationale + functional contract; a follow-on IPD implements it. Open questions in Section 11.
+- Status: to-review
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Motivation: a recurring maintainer correction ("prompts are supposed to be prompts, not instructions and prompts") that the existing AGENTS.md rule states but nothing enforces or reminds at author time.
 - Relation to prior work: reuses `agent_workflows/artifact_core.py` (the `Drift`/`render_agent_drift`/`drift_exit_code` `--check` convention). Independent of, but stylistically aligned with, the attention-registry spec (`20260808-1945-01`).
@@ -110,3 +110,4 @@ Drafted to `Status: to-review` and paused. Next: review (internal `/plan-review`
 
 ## Workflow history
 - 2026-08-08 /spec (opencode its_direct/pt3-claude-opus-4.8-1m-us): drafted the prompt-purity-lint spec to Status: to-review, prompted by the maintainer's recurring "prompts must be just prompts" correction; codifies the leading-HTML-comment metadata pattern and an aw prompts check gate.
+- 2026-08-08 migrated (aw specs): normalized status to `to-review` (was: to-review (2026-08-08; drafted by opencode, awaiting review and human approval). Design rationale + functional contract; a follow-on IPD implements it. Open que)

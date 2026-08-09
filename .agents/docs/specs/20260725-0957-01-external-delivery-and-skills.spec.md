@@ -1,7 +1,10 @@
 # Spec: external / out-of-repo delivery and host-native skills for agent-workflows
 
 - Date: 2026-07-25
-- Status: draft spec (evidence-gated); produced by IPD `20260723-instsafe-05-kemhdg-external-install-and-skills-delivery-research-spec`
+- Status: deferred
+- Gate-Kind: artifact
+- Gate-Ref: TODO.md
+- Gate-Summary: host-native SKILLS delivery-model re-evaluation
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Sources: research `.agents/docs/research/20260722-agent-coding-system-file-discovery-and-write-safety-00-x41kw0-agent-coding-system-file-discovery-and-write-safety.findings.md` and `.agents/docs/research/20260722-token-efficient-managed-sections-in-agent-instruction-files-00-0jl8pv-token-efficient-managed-sections-in-agent-instruction-files.gpt56.findings.md`
 - Related: IPD `20260723-instsafe-01-920qnm-install-manifest-and-managed-sections-model` (install manifest / ownership), IPD `20260722-instsafe-06-mv7hw7-deepen-interactive-questions-convention` (interactive-questions trigger)
@@ -98,3 +101,6 @@ This protocol is run by a human or a host-with-access operator, NOT by the IPD. 
 1. Run the probe protocol per host/version; record the results table (operator work).
 2. A per-tier BUILD IPD (T1/T2/T3) for the hosts the evidence supports, keeping T0 fallback, manifest ownership, and consent gates.
 3. A `SKILL.md` mapping IPD for the skill-eligible set, reconciled with the T2 outcome.
+
+## Workflow history
+- 2026-08-08 migrated (aw specs): normalized status to `deferred` (was: draft spec (evidence-gated); produced by IPD `20260723-instsafe-05-kemhdg-external-install-and-skills-delivery-research-spec`)

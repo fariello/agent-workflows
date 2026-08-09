@@ -1,8 +1,7 @@
 # Spec: `.agents/` artifact organization (naming, identity, state, and archival at scale)
 
 - Date: 2026-07-30
-- Status: approved (2026-07-30, human maintainer) as the design basis for the research-organization IPD Set. Design rationale; the follow-on IPD Set implements it (research first). Open questions OQ1 to OQ6 (Section 10) are resolved within the Set's child IPDs.
-- Implemented: SHIPPED as DECISIONS D123 (research adopter) and D124 (plans adopter, via the follow-on spec `20260808-0004-01-artifact-organization-plans-adopter.spec.md`). This spec remains the standing design reference; the executed IPD Sets and their walkthroughs carry the execution record.
+- Status: implemented
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Scope: a GENERAL principle for organizing the durable, growing artifact trees under `.agents/` (research, plans, prompts, comms, walkthroughs) so a human and an agent can answer "what did we find / decide about X?" and "what still needs attention?" cheaply and at scale. IMPLEMENTATION is scoped to `.agents/docs/research/` first; the other areas are named future adopters.
 
@@ -241,3 +240,6 @@ The migration is a discrete child IPD with its own validation (every old file ac
 
 ## 11. Next step
 Per the agreed process: this spec is drafted and paused for HUMAN REVIEW. On approval, author an ORCHESTRATED IPD Set (a `00` orchestrator plus focused children: this spec's finalization; frontmatter schema + back-fill; the `aw research` tool; the tiered index generator; the rename/reference tool; migration of the 78 existing files; the archival mechanism; docs/AGENTS/installer scaffolding + P5/DECISIONS updates), scoped to `research/`, with `plans/executed/` named as the next adopter in TODO.md. Do NOT begin any IPD until this spec is approved.
+
+## Workflow history
+- 2026-08-08 migrated (aw specs): normalized status to `implemented` (was: approved (2026-07-30, human maintainer) as the design basis for the research-organization IPD Set. Design rationale; the follow-on IPD Set implements it (resear); folded Implemented line: SHIPPED as DECISIONS D123 (research adopter) and D124 (plans adopter, via the follow-on spec `20260808-0004-01-artifact-organization-plans-adopter.spec.md`). Th
