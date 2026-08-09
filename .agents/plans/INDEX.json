@@ -1223,6 +1223,16 @@
     "date": "2026-08-08",
     "disposition": "executed",
     "kind": "child",
+    "order": 5,
+    "path": "executed/20260808-attnview-05-9y2fz1-whatnext-and-ci.md",
+    "plan_id": "9y2fz1",
+    "set_id": "attnview",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-08",
+    "disposition": "executed",
+    "kind": "child",
     "order": 1,
     "path": "executed/20260808-plansadopt-01-qkc93l-shared-artifact-core.md",
     "plan_id": "qkc93l",
@@ -1316,16 +1326,6 @@
     "order": 0,
     "path": "pending/20260808-attnview-00-94dhrt-attention-view-orchestrator.md",
     "plan_id": "94dhrt",
-    "set_id": "attnview",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-08",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 5,
-    "path": "pending/20260808-attnview-05-9y2fz1-whatnext-and-ci.md",
-    "plan_id": "9y2fz1",
     "set_id": "attnview",
     "status": "approved"
   }

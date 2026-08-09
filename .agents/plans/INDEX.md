@@ -11,7 +11,7 @@ Showing the 40 most-recent of 73 Sets; the full manifest is INDEX.json.
 - `u4q8ml` [executed] 02 executed/20260808-attnview-02-u4q8ml-aw-specs-owner-verbs.md
 - `h3dadd` [executed] 03 executed/20260808-attnview-03-h3dadd-aw-attention-scanner.md
 - `dxoxgi` [executed] 04 executed/20260808-attnview-04-dxoxgi-specs-migration.md
-- `9y2fz1` [pending] 05 pending/20260808-attnview-05-9y2fz1-whatnext-and-ci.md
+- `9y2fz1` [executed] 05 executed/20260808-attnview-05-9y2fz1-whatnext-and-ci.md
 
 ## plans-adopter
 
