@@ -1,0 +1,134 @@
+# IPD: Records backends and durability
+
+- Date: 2026-08-09
+- Kind: child
+- Concern: Implement repository, companion, and AW-home record backends with truthful durability reporting and safe Git boundaries.
+- Scope: `agent_workflows/storage.py`, storage-related CLI wiring in `agent_workflows/cli.py`, and `tests/test_storage.py`.
+- Status: to-review
+- Set: awlayout (AW project layout)
+- Order: 3
+- Highest E allocated: 05
+- Author: Codex (GPT-5, high reasoning)
+- Id: g4y28x
+
+## Workflow history
+
+- 2026-08-09 draft (Codex (GPT-5, high reasoning)): created an execution-ready child plan from the approved architecture direction.
+- 2026-08-09 revision (Codex (GPT-5, high reasoning)): adopted stable plan identity, clustered naming, and the current lifecycle execution contract after the upstream rebase.
+
+## Goal
+
+Make records location an independent policy axis with AW-home storage as the recommended default. Report durability from observable facts and never imply that a local directory is backed up or private merely because it is outside the target repository.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.
+
+### Task group 1: Backends and boundaries
+
+- [ ] E-01 Define one records-backend interface and implement `home`, `companion`, and `repository` path resolution using the Order 01 context and Order 02 registry.
+  - Depends on: none
+  - Expected outcome: callers request the logical records root without backend-specific path construction.
+  - Execution state: pending
+- [ ] E-02 Validate containment, symlink resolution, repository boundaries, and nested-Git hazards before creating or attaching a backend; reject unsafe or ambiguous paths without partial writes.
+  - Depends on: E-01
+  - Expected outcome: external storage cannot silently resolve inside the target repository or attach to an unintended Git repository.
+  - Execution state: pending
+
+### Task group 2: Durability and initialization
+
+- [ ] E-03 Implement observable durability states for uninitialized local storage, local Git only, private remote configured, repository-tracked, and user-acknowledged external backup.
+  - Depends on: E-02
+  - Expected outcome: `aw storage status` reports what can be proven, separates privacy from durability, and recommends the next action.
+  - Execution state: pending
+- [ ] E-04 Add explicit `aw storage init`, `aw storage attach`, and `aw storage status` flows; allow local Git initialization with consent, never create a remote or push, and preserve existing repositories.
+  - Depends on: E-03
+  - Expected outcome: users can make external records durable without AW taking unrequested remote actions.
+  - Execution state: pending
+- [ ] E-05 Add `tests/test_storage.py` for all backends, custom paths, symlinks, nested repositories, empty and existing Git repositories, durability states, redacted output, and failure atomicity.
+  - Depends on: E-04
+  - Expected outcome: supported storage modes and safety failures are deterministic and regression-tested.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- Git operations must be noninteractive and narrowly scoped.
+- User data must not be deleted, moved, committed, or pushed without an explicit command and confirmation.
+- Stable JSON and agent output are required for workflow consumption.
+- Temporary repositories in tests must not depend on global Git configuration.
+
+## Findings
+
+| Backend | Target pollution | Typical durability | Main risk |
+|---|---:|---|---|
+| `home` | none | local until configured | mistaken assumption that local means backed up |
+| `companion` | none | local Git or private remote | accidental nesting or wrong repository attachment |
+| `repository` | `.aw/records/` present | target Git policy | candid material can enter the public history |
+
+## Proposed changes (ordered, validatable)
+
+1. Implement a backend-neutral records interface.
+2. Enforce filesystem and Git safety boundaries.
+3. Classify only observable durability.
+4. Provide explicit initialization and attachment commands.
+5. Exercise normal and adversarial path cases.
+
+## Deferred / out of scope (with reason)
+
+- Hosted private-repository creation, credential management, and pushing are excluded because they require provider-specific authority.
+- Record-producing workflow changes are Order 08.
+- Moving existing records between backends is Order 09.
+
+## Scope check
+
+- Over-scope: no target layout materialization, workflow edits, migrations, remote creation, commit, or push.
+- Under-scope: all three backends, custom external paths, safety boundaries, and durability states are covered.
+
+## Required tests / validation
+
+- `python3 -m unittest tests.test_storage -v`
+- `python3 -m unittest discover -s tests -v`
+- `python3 -m agent_workflows storage status --json`
+
+## Spec / documentation sync
+
+- Keep backend names, recommended default, and durability language aligned with the canonical 2026-08-09 layout specification.
+- Do not describe any backend as private unless access controls were independently observed.
+
+## Open questions
+
+No open questions.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [ ] V-01 validates E-01
+  - Required evidence: focused tests resolve all backends and prove callers use the logical records root rather than backend literals.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-02 validates E-02
+  - Required evidence: tests reject traversal, symlink escape, target containment, unsafe nesting, and ambiguous Git ownership before mutation.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-03 validates E-03
+  - Required evidence: fixture-based status tests distinguish every durability state and never equate external, local, durable, and private.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-04 validates E-04
+  - Required evidence: command transcripts show consent gates, existing-repository preservation, no remote creation, no push, and idempotent re-entry.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-05 validates E-05
+  - Required evidence: focused and full suites pass without reading or changing the operator's global Git configuration.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: the backend abstraction, its safety checks, and truthful durability state form one storage boundary.
+
+STOP if Orders 01 or 02 are incomplete. Do not execute until this plan and the parent orchestrator are approved.
+
+Execution contract: touch only the files and areas named in Scope; do not expand scope, and STOP and report if more is required. Paste actual validation output before claiming a pass. Commit only this plan's changed files, path-scoped; never use `git add -A`, bare `git add`, `git commit -a`, or push. After every E-item is performed and matching V-item passes, append the lifecycle history, set `Status: executed`, move this file from `pending/` to `executed/` with `git mv`, regenerate the plans index, and make the path-scoped lifecycle commit.
