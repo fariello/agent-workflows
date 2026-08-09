@@ -558,6 +558,81 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dir", default=None, help="Repo root (default: current directory)."
     )
 
+    p_specs = sub.add_parser(
+        "specs",
+        parents=[common],
+        help="Owner verbs for the specs tree. 'specs set'/'note' write status+history; 'specs check' validates.",
+    )
+    specs_sub = p_specs.add_subparsers(dest="specs_command")
+    p_specs_set = specs_sub.add_parser(
+        "set",
+        parents=[common],
+        help="Transition a spec's status (+ typed gates) and append history.",
+    )
+    p_specs_set.add_argument("path", help="Spec file to update.")
+    p_specs_set.add_argument(
+        "--status", required=True, help="Target spec status (the closed enum)."
+    )
+    p_specs_set.add_argument("--message", required=True, help="History record message.")
+    p_specs_set.add_argument(
+        "--gate-kind",
+        dest="gate_kind",
+        default=None,
+        help="Gate kind (required for deferred).",
+    )
+    p_specs_set.add_argument(
+        "--gate-ref",
+        dest="gate_ref",
+        default=None,
+        help="Gate reference (required for deferred).",
+    )
+    p_specs_set.add_argument(
+        "--gate-summary",
+        dest="gate_summary",
+        default=None,
+        help="Optional human gate context.",
+    )
+    p_specs_set.add_argument(
+        "--evidence",
+        default=None,
+        help="Resolvable implementation-evidence citation (for implemented).",
+    )
+    p_specs_set.add_argument(
+        "--yes-i-am-human",
+        dest="yes_i_am_human",
+        action="store_true",
+        help="Confirm human approval for reviewed -> approved (honored only on an interactive TTY).",
+    )
+    p_specs_set.add_argument(
+        "--date", default=None, help="Override the history date (YYYY-MM-DD)."
+    )
+    p_specs_note = specs_sub.add_parser(
+        "note",
+        parents=[common],
+        help="Append a history record to a spec (no status change).",
+    )
+    p_specs_note.add_argument("path", help="Spec file to annotate.")
+    p_specs_note.add_argument(
+        "--message", required=True, help="History record message."
+    )
+    p_specs_note.add_argument(
+        "--date", default=None, help="Override the history date (YYYY-MM-DD)."
+    )
+    p_specs_check = specs_sub.add_parser(
+        "check",
+        parents=[common],
+        help="Validate one spec (or all specs) against the contract; fail closed.",
+    )
+    p_specs_check.add_argument(
+        "path", nargs="?", default=None, help="A spec file (omit to check all)."
+    )
+    p_specs_check.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_specs_check.add_argument(
+        "--agent", action="store_true", help="Machine-readable tab-separated output."
+    )
+
     p_archive = sub.add_parser(
         "archive",
         parents=[common],
@@ -1790,6 +1865,22 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import research_archive as ra
 
             return ra.run_check_miscategorized(args)
+        parser.print_help()
+        return 2
+    if args.command == "specs":
+        specs_cmd = getattr(args, "specs_command", None)
+        if specs_cmd == "set":
+            from agent_workflows import specs as sp
+
+            return sp.run_set(args)
+        if specs_cmd == "note":
+            from agent_workflows import specs as sp
+
+            return sp.run_note(args)
+        if specs_cmd == "check":
+            from agent_workflows import specs as sp
+
+            return sp.run_check(args)
         parser.print_help()
         return 2
     if args.command == "archive":
