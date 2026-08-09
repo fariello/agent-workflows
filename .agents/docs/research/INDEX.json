@@ -931,6 +931,25 @@
     "topic": []
   },
   {
+    "created": "20260808",
+    "date": "20260808",
+    "id6": "w0ilhj",
+    "kind": "assessment",
+    "model": "gpt56high",
+    "order": "04",
+    "outcome": "none-yet",
+    "path": "20260808-attention-registry-spec-review-04-w0ilhj-attention-view-spec-plan-review.gpt56high.assessment.md",
+    "set_id": "attention-registry-spec-review",
+    "status": "active",
+    "summary": "gpt-5.6-high plan-review of the revised attention-view spec (REVIEWED - OPEN QUESTIONS; PR-001..PR-005)",
+    "topic": [
+      "attention-registry",
+      "spec-review",
+      "plan-review",
+      "external-review"
+    ]
+  },
+  {
     "created": "20260802",
     "date": "20260802",
     "id6": "wusyd6",

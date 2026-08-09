@@ -2,7 +2,7 @@
 
 # Research index
 
-Showing the most-recent 40 of 66 hot docs (archive excluded).
+Showing the most-recent 40 of 67 hot docs (archive excluded).
 
 ## Most recent
 
@@ -11,6 +11,7 @@ Showing the most-recent 40 of 66 hot docs (archive excluded).
 - `fc2n5j` [active] 20260808-attention-registry-spec-review-02-fc2n5j-attention-registry-spec-review.sonnet5.assessment.md - Sonnet-5 review of the attention-registry spec
 - `krgxp6` [active] 20260808-attention-registry-spec-review-00-krgxp6-attention-registry-spec-review.gpt56.assessment.md - gpt-5.6 (Codex) review of the attention-registry spec
 - `tgmqnb` [active] 20260808-attention-registry-spec-review-01-tgmqnb-attention-registry-spec-review.gemini31pro.assessment.md - Gemini 3.1 Pro review of the attention-registry spec
+- `w0ilhj` [active] 20260808-attention-registry-spec-review-04-w0ilhj-attention-view-spec-plan-review.gpt56high.assessment.md - gpt-5.6-high plan-review of the revised attention-view spec (REVIEWED - OPEN QUESTIONS; PR-001..PR-005)
 - `5zczmo` [reference] 20260731-chkplace-04-5zczmo-checklist-placement-and-instruction-audit.findings.md - Migrated from 20260731-chkplace-04-5zczmo-checklist-placement-and-instruction-audit.findings.md.
 - `72n26s` [reference] 20260731-chkplace-02-72n26s-checklist-placement-and-instruction-audit-report.gpt56medium.research-report.md - Migrated from 20260731-chkplace-02-72n26s-checklist-placement-and-instruction-audit-report.gpt56medium.research-report.md.
 - `80eqy0` [reference] 20260731-chkplace-03-80eqy0-checklist-placement-and-instruction-audit-report.sonnet5.research-report.md - Migrated from 20260731-chkplace-03-80eqy0-checklist-placement-and-instruction-audit-report.sonnet5.research-report.md.
@@ -45,4 +46,3 @@ Showing the most-recent 40 of 66 hot docs (archive excluded).
 - `nbbl7d` [reference] 20260716-ocsec-06-nbbl7d-opencode-db-incident-inspection-checklist.reference-research.md - Migrated from 20260716-ocsec-06-nbbl7d-opencode-db-incident-inspection-checklist.reference-research.md.
 - `vcnu3f` [reference] 20260716-ocsec-01-vcnu3f-test-evidence.test-evidence.md - Migrated from 20260716-ocsec-01-vcnu3f-test-evidence.test-evidence.md.
 - `zhkhky` [reference] 20260716-ocsec-04-zhkhky-provenance-and-cross-validation.research-report.md - Migrated from 20260716-ocsec-04-zhkhky-provenance-and-cross-validation.research-report.md.
-- `zmgkwf` [reference] 20260716-ocsec-08-zmgkwf-maintainer-scoping-question-draft-for-human.research-report.md - Migrated from 20260716-ocsec-08-zmgkwf-maintainer-scoping-question-draft-for-human.research-report.md.
