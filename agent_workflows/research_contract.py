@@ -76,6 +76,7 @@ MODELS: FrozenSet[str] = frozenset(
     (
         "gpt56",
         "gpt56medium",
+        "gpt56high",
         "gemini31pro",
         "gemini36flash",
         "sonnet5",
@@ -88,6 +89,8 @@ MODEL_NORMALIZATIONS: Dict[str, str] = {
     "gpt-56": "gpt56",
     "gpt-56-medium": "gpt56medium",
     "gpt56-medium": "gpt56medium",
+    "gpt-56-high": "gpt56high",
+    "gpt56-high": "gpt56high",
     "gemini-31-pro": "gemini31pro",
     "gemini-36-flash": "gemini36flash",
     "sonnet-5": "sonnet5",
