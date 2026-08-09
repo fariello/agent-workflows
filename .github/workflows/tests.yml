@@ -99,3 +99,28 @@ jobs:
           # site-packages (run from a scratch dir so the source tree does not shadow it).
           "$PY" -c "import agent_workflows, agent_workflows.cli; print('import ok', agent_workflows.__version__)"
           "$PY" -m agent_workflows --version
+
+  attention-check:
+    name: attention + specs contract check (fail-closed)
+    runs-on: ubuntu-latest
+    # The cross-tree attention view and the specs contract are validated here as a fail-closed gate,
+    # matching the secret-scan / local-leaks single-job precedent. Read-only; writes nothing; no
+    # secrets; needs the full .agents/ tree once (not per Python matrix). Zero runtime deps.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: aw specs check (spec status/gate/history contract)
+        shell: bash
+        run: python -m agent_workflows specs check
+
+      - name: aw attention --check (cross-tree attention view; fail closed)
+        shell: bash
+        run: python -m agent_workflows attention --check --agent

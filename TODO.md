@@ -34,6 +34,19 @@ Not framework bugs; external-tool finding with coordinated-disclosure obligation
 
 ## Planned next (designed, deferred; not yet drafted as IPDs)
 
+**Cross-tree attention view + owner-written spec status shipped (`attnview` Set, D125).** `aw attention`
+(read-only, on-demand, fail-closed) maps every tracked `.agents/` artifact onto a `ready`/`active`/
+`blocked`/`done`/`parked` class; `aw specs set`/`note`/`check`/`migrate` own spec status+history with an
+anti-self-approval floor; `/whatnext` consumes the view first; CI gates `aw attention --check` +
+`aw specs check`. Deferred future work from this Set: (1) `prompts/` and `comms/` are named Phase-3
+attention-view adopters (add their native-status contracts + mappings, then include them in the tree
+policy inventory); (2) `walkthroughs/`/`roadmaps/` stay excluded until they have real lifecycle
+semantics; (3) an optional persisted `aw attention snapshot` only if a non-CLI consumer needs it; (4)
+the two specs migrated to `deferred` (`20260725-external-delivery-and-skills`, `20260726-clean-delta`)
+carry `Gate-Kind: artifact -> TODO.md` and now surface as `blocked` in `aw attention` - resolve them by
+the SKILLS delivery-model re-evaluation (below) and the clean-delta build phases respectively; (5) plans
+gain a native `executing` state later if approved-vs-executing should show as `active` in the view.
+
 **Apply the artifact-organization model to `prompts/` (the next adopter after research and plans).**
 DONE: research (`research-org`, D123) and plans (`plans-adopter`, D124) now share the area-agnostic
 core (`agent_workflows/artifact_core.py`): stable id, tiered manifest + `--check`, weekly cold shards,
