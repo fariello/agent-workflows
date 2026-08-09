@@ -10,7 +10,7 @@ review only in the chat body; produce the downloadable file.
 
 ## Context you need
 
-This is a Python project called `agent-workflows`: a stdlib-only (zero runtime dependencies, Python 3.9
+This is a Python project called `agent-workflows` (https://github.com/fariello/agent-workflows): a stdlib-only (zero runtime dependencies, Python 3.9
 compatible) toolkit installed into other repositories to give AI coding agents reusable, machine-checkable
 "workflows" and conventions. It ships an importable package exposing an `aw` CLI (e.g. `aw plans`,
 `aw research`, `aw ipd`, `aw sanitize`). Durable artifacts live under an `.agents/` directory tree, split
