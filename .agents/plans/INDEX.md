@@ -2,7 +2,16 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 72 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 73 Sets; the full manifest is INDEX.json.
+
+## attnview
+
+- `94dhrt` [pending] 00 pending/20260808-2205-00-attention-view-orchestrator.md
+- `0i8ass` [pending] 01 pending/20260808-attnview-01-0i8ass-phase0-contracts-and-fixtures.md
+- `u4q8ml` [pending] 02 pending/20260808-attnview-02-u4q8ml-aw-specs-owner-verbs.md
+- `h3dadd` [pending] 03 pending/20260808-attnview-03-h3dadd-aw-attention-scanner.md
+- `dxoxgi` [pending] 04 pending/20260808-attnview-04-dxoxgi-specs-migration.md
+- `9y2fz1` [pending] 05 pending/20260808-attnview-05-9y2fz1-whatnext-and-ci.md
 
 ## plans-adopter
 
@@ -202,10 +211,6 @@ Showing the 40 most-recent of 72 Sets; the full manifest is INDEX.json.
 ## agents-docs
 
 - `98dj6q` [executed] 00 executed/20260712-agents-docs-00-98dj6q-agents-docs-research-and-walkthroughs-convention.md
-
-## assess-tests
-
-- `lc5a3x` [executed] 00 executed/20260712-assess-tests-00-lc5a3x-assess-tests.md
 
 ## (singletons: no Set)
 
