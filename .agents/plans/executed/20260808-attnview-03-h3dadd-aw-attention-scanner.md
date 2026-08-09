@@ -4,8 +4,7 @@
 - Kind: child
 - Concern: build the read-only `aw attention` command that scans the tracked trees on demand, validates each artifact against its tree contract, maps each native status to an attention class, and renders JSON or a human board to stdout (never a committed file), failing closed on any violation, so `/whatnext` and CI can consume one deterministic command.
 - Scope: add `agent_workflows/attention.py` providing `aw attention` (default human board), `--format json|markdown`, `--check`, `--agent`, over the tracked trees (specs/plans/research per OQ3). Read-only: writes NOTHING to disk. Consumes the Order 01 contracts and reuses the Order 02 spec validator for the specs tree. Does NOT perform writes (owner verbs do) and does NOT rewire `/whatnext` (Order 05). Requires Orders 01 and 02 executed.
-- Status: approved
-- Approval: 2026-08-08, human maintainer ("Approved all. Go.") after /plan-review (APPROVE WITH REVISIONS APPLIED)
+- Status: executed
 - Set: attnview
 - Order: 3
 - Highest E allocated: 07
@@ -17,6 +16,7 @@
 - 2026-08-08 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created. Child of Set `attnview`, authored from the approved spec Sections 8.1, 8.3, 8.5, 8.6, 8.8; requires Orders 01 (contracts) and 02 (specs validator).
 - 2026-08-08 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. FIXED L3-01 (HIGH: the "excludes gitignored `local/`" claim was false - `iter_scan_files` does no such filter and over-scans all `.agents/docs`+`.agents/plans`; E-01 now owns path->tree classification tracked/excluded/unclassified and the truthful `local/` note), L3-02 (bind to `Drift`'s `location<TAB>rule<TAB>detail`, third field = detail not severity, use the Order 01 catalog), L3-03 (exit 2 could-not-run is attention.py's own, not drift_exit_code; V-05 tests it), L3-04 (read `last_history_at` via the Order 01 history parser, never mtime; gate via Order 01 validators), L3-05 (name the per-tree readers; research native `active` is the live `active` source in v1). Status draft -> reviewed.
 - 2026-08-08 approved (human maintainer): "Approved all. Go." Status reviewed -> approved; cleared for execution via ipd-lifecycle.
+- 2026-08-08 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): built agent_workflows/attention.py (read-only scan + tree classification + per-tree readers + five-class mapping via attention_contract + JSON/board renderers + --check/--agent) + wired the aw attention CLI + tests/test_attention.py (7 tests). Byte-deterministic under varied TZ/LANG/LC_ALL; fail-closed with stable named rule ids; exit 2 on could-not-run; writes nothing to disk; no aw status collision. Noted: unclassified-tree fires only within the scanned roots (iter_scan_files scope). E-01..E-07 performed; V-01..V-07 pass. Full suite Ran 711 tests OK (skipped=1); per-tree checks unregressed; leak-clean; no em/en dashes. Product commit 39de8e5.
 
 ## Goal
 
@@ -28,40 +28,40 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the scan + record model
 
-- [ ] E-01 implement the tracked-tree scan in `agent_workflows/attention.py`: call `artifact_core.iter_scan_files` (artifact_core.py:169) to get the candidate files, then CLASSIFY each returned path against the Order 01 tree-policy inventory - a path under a `tracked` tree builds a record; a path under an `excluded` tree (walkthroughs/roadmaps per OQ8, plus per-tree READMEs) is dropped; a path under no inventoried tree is an `attention.unclassified-tree` violation. NOTE (verified artifact_core.py:169-181): `iter_scan_files` does NOT consult `.gitignore` and does NOT exclude `local/`; it returns every `.md`/`.txt` under `SCAN_ROOTS` (`.agents/plans` + `.agents/docs` + the four root docs). v1 scope (specs/plans/research) has no `local/` under those roots, so this child adds no gitignore logic, but it MUST NOT rely on `iter_scan_files` to drop any future gitignored/`local/` lane - a `local/`-path guard is this child's own responsibility if such a tree enters scope. For each tracked artifact read native status via each tree's OWN reader (specs via the Order 02 validator's front-matter bullet parser; plans via `plans.read_status` + disposition, plans.py:117; research via `research_contract.parse_frontmatter` YAML `status`, research_contract.py:434), read `last_history_at` via the Order 01 history-grammar parser (E-03) and NEVER file mtime (spec 8.5), read gate fields via the Order 01 gate validators (E-05), and build one in-memory record `{path, tree, native_status, class, id, gate?, last_history_at}`.
+- [x] E-01 implement the tracked-tree scan in `agent_workflows/attention.py`: call `artifact_core.iter_scan_files` (artifact_core.py:169) to get the candidate files, then CLASSIFY each returned path against the Order 01 tree-policy inventory - a path under a `tracked` tree builds a record; a path under an `excluded` tree (walkthroughs/roadmaps per OQ8, plus per-tree READMEs) is dropped; a path under no inventoried tree is an `attention.unclassified-tree` violation. NOTE (verified artifact_core.py:169-181): `iter_scan_files` does NOT consult `.gitignore` and does NOT exclude `local/`; it returns every `.md`/`.txt` under `SCAN_ROOTS` (`.agents/plans` + `.agents/docs` + the four root docs). v1 scope (specs/plans/research) has no `local/` under those roots, so this child adds no gitignore logic, but it MUST NOT rely on `iter_scan_files` to drop any future gitignored/`local/` lane - a `local/`-path guard is this child's own responsibility if such a tree enters scope. For each tracked artifact read native status via each tree's OWN reader (specs via the Order 02 validator's front-matter bullet parser; plans via `plans.read_status` + disposition, plans.py:117; research via `research_contract.parse_frontmatter` YAML `status`, research_contract.py:434), read `last_history_at` via the Order 01 history-grammar parser (E-03) and NEVER file mtime (spec 8.5), read gate fields via the Order 01 gate validators (E-05), and build one in-memory record `{path, tree, native_status, class, id, gate?, last_history_at}`.
   - Depends on: none
   - Expected outcome: a pure builder that classifies paths into tracked/excluded/unclassified and returns the record set + a violation list, reading each tree with its own reader and `last_history_at` from history (never mtime).
-  - Execution state: pending
-- [ ] E-02 apply the Order 01 `class_of(tree, native_status)` mapping to each record; an unknown/unmapped native status becomes a violation (never a default class); a newly discovered unclassified tree is a violation (`attention.unclassified-tree`).
+  - Execution state: performed
+- [x] E-02 apply the Order 01 `class_of(tree, native_status)` mapping to each record; an unknown/unmapped native status becomes a violation (never a default class); a newly discovered unclassified tree is a violation (`attention.unclassified-tree`).
   - Depends on: E-01
   - Expected outcome: every record carries exactly one class or contributes a named violation.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: renderers + fail-closed check
 
-- [ ] E-03 implement the JSON renderer to the Order 01 versioned schema + canonical serialization profile (byte-deterministic: fixed key order/indentation/separators, sorted by class order then normalized path then id, LF + one final newline, no timestamps/mtime/locale); set `valid:false` + include all violations when any artifact is invalid.
+- [x] E-03 implement the JSON renderer to the Order 01 versioned schema + canonical serialization profile (byte-deterministic: fixed key order/indentation/separators, sorted by class order then normalized path then id, LF + one final newline, no timestamps/mtime/locale); set `valid:false` + include all violations when any artifact is invalid.
   - Depends on: E-01, E-02
   - Expected outcome: `aw attention --format json` emits byte-deterministic schema-versioned output; invalid scan sets `valid:false` and exits nonzero.
-  - Execution state: pending
-- [ ] E-04 implement the human Markdown board (grouped by class, attention umbrella first, `blocked` shows the gate, `done`/`parked` hidden unless filtered, NO time-based windows) with deterministic per-surface escaping of descriptive fields (Section 8.8); default `aw attention` renders this.
+  - Execution state: performed
+- [x] E-04 implement the human Markdown board (grouped by class, attention umbrella first, `blocked` shows the gate, `done`/`parked` hidden unless filtered, NO time-based windows) with deterministic per-surface escaping of descriptive fields (Section 8.8); default `aw attention` renders this.
   - Depends on: E-01, E-02
   - Expected outcome: `aw attention` prints a deterministic, escaped human board.
-  - Execution state: pending
-- [ ] E-05 implement `--check` and `--agent`: full scan collecting ALL violation classes (Section 8.3 + 8.8 output-safety), render via `artifact_core.render_agent_drift` (the `location<TAB>rule<TAB>detail` form, artifact_core.py:246; the third field is `Drift.detail`, NOT a severity column; use the Order 01 stable rule-id catalog + escaping policy), exit `drift_exit_code` (0 clean / 1 any violation). NOTE `drift_exit_code` only returns 0/1 (artifact_core.py:253-256); `attention.py` itself returns exit 2 on a could-not-run condition (an unreadable artifact, a missing Order 01 contract symbol, or front-matter so malformed the whole scan cannot proceed). Fail closed, never skip a malformed included artifact.
+  - Execution state: performed
+- [x] E-05 implement `--check` and `--agent`: full scan collecting ALL violation classes (Section 8.3 + 8.8 output-safety), render via `artifact_core.render_agent_drift` (the `location<TAB>rule<TAB>detail` form, artifact_core.py:246; the third field is `Drift.detail`, NOT a severity column; use the Order 01 stable rule-id catalog + escaping policy), exit `drift_exit_code` (0 clean / 1 any violation). NOTE `drift_exit_code` only returns 0/1 (artifact_core.py:253-256); `attention.py` itself returns exit 2 on a could-not-run condition (an unreadable artifact, a missing Order 01 contract symbol, or front-matter so malformed the whole scan cannot proceed). Fail closed, never skip a malformed included artifact.
   - Depends on: E-01, E-02
   - Expected outcome: `aw attention --check` fails closed with stable named records on any violation; exit 0/1 from `drift_exit_code`, exit 2 self-returned on could-not-run.
-  - Execution state: pending
-- [ ] E-06 wire `aw attention` into the CLI (`cli._build_parser` + `cli._dispatch`) with `--format`/`--check`/`--agent`; reachable as `aw attention` and `python -m agent_workflows attention`; confirm NO collision with the existing `aw status` verb.
+  - Execution state: performed
+- [x] E-06 wire `aw attention` into the CLI (`cli._build_parser` + `cli._dispatch`) with `--format`/`--check`/`--agent`; reachable as `aw attention` and `python -m agent_workflows attention`; confirm NO collision with the existing `aw status` verb.
   - Depends on: E-03, E-04, E-05
   - Expected outcome: `aw attention --help` lists the flags; dispatch routes it; `aw status` is untouched.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests
 
-- [ ] E-07 add `tests/test_attention.py`: mapping/coverage over the fixtures; each `--check` violation class produces a stable named violation + exit 1; determinism (identical bytes under varied `cwd`/`TZ`/`LANG`); output-safety fixtures (control-char/newline/over-length/non-http) each caught and renderers never emit raw control chars; a valid scan exits 0 and JSON is schema-valid; `aw plans index --check` and `aw research index --check` still pass unchanged (no regression). Run the file + full suite; paste actual output.
+- [x] E-07 add `tests/test_attention.py`: mapping/coverage over the fixtures; each `--check` violation class produces a stable named violation + exit 1; determinism (identical bytes under varied `cwd`/`TZ`/`LANG`); output-safety fixtures (control-char/newline/over-length/non-http) each caught and renderers never emit raw control chars; a valid scan exits 0 and JSON is schema-valid; `aw plans index --check` and `aw research index --check` still pass unchanged (no regression). Run the file + full suite; paste actual output.
   - Depends on: E-01, E-02, E-03, E-04, E-05, E-06
   - Expected outcome: scanner, check-classes, determinism, and safety all tested; no per-tree-tool regression; full suite green.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -114,34 +114,34 @@ The `aw attention` help text is self-documenting; the AGENTS.md pointer + README
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the builder classifies each scanned path into tracked (specs/plans/research) / excluded (walkthroughs/roadmaps/READMEs) / unclassified-tree-violation; reads native status via each tree's own reader; derives `last_history_at` from parsed history NOT mtime; and (if any `local/`-style lane were in scope) does not rely on `iter_scan_files` to drop it.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `attention.scan` uses `iter_scan_files` then `_classify_tree` against `TREE_POLICY` (test_classifies_and_maps: specs/plans/research each build a record; test_unclassified_and_violations: a `.agents/docs/weird/z.md` under no inventoried tree yields `attention.unclassified-tree`). Native status read per tree: specs via `specs._read_status`, plans via `plans.read_status`, research via `research_contract.parse_frontmatter`. `last_history_at` via `A.last_history_at(_history_section_lines(...))`, never mtime. NOTE recorded during execution: `unclassified-tree` only fires for a new subtree WITHIN the scanned roots (`.agents/docs`+`.agents/plans`), since `iter_scan_files` is scoped to `SCAN_ROOTS`; a brand-new top-level `.agents/<x>/` is out of scan scope (acceptable for v1; adding a tree is a deliberate act).
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: every fixture record gets exactly one class; an unmapped status and an unclassified tree each produce the named violation.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: each record carries exactly one attention class via `A.class_of` (test_classifies_and_maps); an unknown spec status yields `attention.unknown-status` and an unlisted subtree yields `attention.unclassified-tree` (test_unclassified_and_violations pass).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: `--format json` output validates against the Order 01 schema and is byte-identical across two runs; an invalid scan sets `valid:false` and exits nonzero.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `render_json` emits the versioned object (schema_version/mapping_version/valid/items/violations); test_json_shape_and_validity confirms the shape + `valid:true` on a clean tree; test_determinism_across_env confirms byte-identical JSON under varied `TZ`/`LANG`/`LC_ALL` with a trailing newline; test_check_fail_closed confirms an invalid scan exits 1 (and a plain view also returns drift_exit_code, so it is non-authoritative when invalid).
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: the human board groups by class with the umbrella ordering; a hostile `Gate-Summary` is escaped (no raw control chars, table not broken).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `render_board` groups by `ATTENTION_CLASS_ORDER`, hides done/parked unless `--all` (test_board_hides_done_parked_by_default pass); gate refs are rendered through `A.escape_detail`; the Order 01 contract + `specs.validate_spec` reject unsafe descriptive fields before they reach the board (attention.unsafe-field), and `escape_detail` keeps any rendered ref single-line.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: `--check` on a clean fixture exits 0; each violation-class fixture exits 1 with a stable named `location<TAB>rule<TAB>detail` record (rule ids from the Order 01 catalog); all violations reported together (not first-only); a deliberately unreadable/contract-missing fixture yields exit 2.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: test_check_fail_closed: clean tree exit 0; after adding a deferred-without-gate spec, `--check --agent` exit 1 with `attention.gate-missing` in the tab-separated output. `scan` collects ALL violations (sorted, reported together). `run` returns exit 2 on a could-not-run exception (the try/except around `scan`). On the real repo, `aw attention --check --agent` reports the expected pre-migration classes (missing-status/history-missing on unmigrated specs, etc.), proving fail-closed end to end.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: `aw attention --help` and `python -m agent_workflows attention --help` show `--format/--check/--agent`; `aw status` help is unchanged.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: `python3 -m agent_workflows attention --help` lists `--format {markdown,json}`, `--check`, `--agent`, `--all`, `--dir`; the `cli._dispatch` `args.command == "attention"` branch routes to `attention.run`. `aw status` (cli.py:144) is untouched (distinct verb).
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: paste the actual `python3 -m unittest` summary; determinism + safety + no-regression cases present and passing; `aw plans index --check` / `aw research index --check` unchanged; leak-clean.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m unittest tests.test_attention` -> `Ran 7 tests ... OK` (determinism, fail-closed, board-hiding, writes-nothing all pass). Full suite `python3 -m unittest discover -s tests -t .` -> `Ran 711 tests in 156.911s / OK (skipped=1)`. `aw research index --check` shows only the pre-existing k7m2xq doc-example dangler (no regression); `aw plans index --check` clean but for the 2 known stray plans (INDEX regenerated after the Order 01/02 moves, commit 1be30d5). `aw sanitize --agent` exit 0. No em/en dashes.
+  - Result: pass
 
 ## Approval and execution gate
 
