@@ -1182,6 +1182,16 @@
   {
     "date": "2026-08-08",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260808-attnview-00-94dhrt-attention-view-orchestrator.md",
+    "plan_id": "94dhrt",
+    "set_id": "attnview",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-08",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260808-attnview-01-0i8ass-phase0-contracts-and-fixtures.md",
@@ -1318,15 +1328,5 @@
     "plan_id": null,
     "set_id": null,
     "status": "to-review"
-  },
-  {
-    "date": "2026-08-08",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260808-attnview-00-94dhrt-attention-view-orchestrator.md",
-    "plan_id": "94dhrt",
-    "set_id": "attnview",
-    "status": "approved"
   }
 ]
