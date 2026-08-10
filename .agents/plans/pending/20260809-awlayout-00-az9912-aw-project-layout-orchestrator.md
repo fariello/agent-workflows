@@ -4,7 +4,8 @@
 - Kind: orchestrator
 - Concern: coordinate the approved implementation of the four logical AW roots, external-by-default records, AW_HOME project routing, the install/update policy wizard, operational actions, workflow rewiring, migration, clean-delta delivery, and final documentation.
 - Scope: orchestration only for Set `awlayout (AW project layout)`; this file changes no product code. Orders 01 through 11 each own one bounded implementation surface and their own tests.
-- Status: executed
+- Status: approved
+- Approval: 2026-08-09, human maintainer (approved the awlayout Set for execution after /plan-review re-review; spec 20260809-2211-01 approved)
 - Set: awlayout (AW project layout)
 - Order: 0
 - Highest E allocated: 12
