@@ -652,6 +652,75 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Show what would change without modifying registry.",
     )
 
+    p_storage = sub.add_parser(
+        "storage",
+        parents=[common],
+        help="Owner verbs for records storage backends, durability, and initialization.",
+    )
+    storage_sub = p_storage.add_subparsers(dest="storage_command")
+
+    p_storage_status = storage_sub.add_parser(
+        "status",
+        parents=[common],
+        help="Inspect observable records storage status and durability.",
+    )
+    p_storage_status.add_argument(
+        "--repo", default=None, help="Target repository path (default: current dir)."
+    )
+    p_storage_status.add_argument(
+        "--json", action="store_true", help="Output status as formatted JSON."
+    )
+    p_storage_status.add_argument(
+        "--agent", action="store_true", help="Machine-readable output for LLM callers."
+    )
+
+    p_storage_init = storage_sub.add_parser(
+        "init",
+        parents=[common],
+        help="Initialize records storage and optional local Git repo.",
+    )
+    p_storage_init.add_argument(
+        "--repo", default=None, help="Target repository path (default: current dir)."
+    )
+    p_storage_init.add_argument(
+        "--no-git",
+        action="store_true",
+        help="Do not run git init in records directory.",
+    )
+    p_storage_init.add_argument(
+        "--acknowledge-remote",
+        action="store_true",
+        help="Record explicit user acknowledgement of remote durability policy.",
+    )
+    p_storage_init.add_argument(
+        "--yes", action="store_true", help="Auto-confirm initialization operation."
+    )
+    p_storage_init.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would change without modifying filesystem.",
+    )
+
+    p_storage_attach = storage_sub.add_parser(
+        "attach", parents=[common], help="Acknowledge or set storage durability policy."
+    )
+    p_storage_attach.add_argument(
+        "--repo", default=None, help="Target repository path (default: current dir)."
+    )
+    p_storage_attach.add_argument(
+        "--acknowledge-remote",
+        action="store_true",
+        help="Record explicit user acknowledgement of remote durability policy.",
+    )
+    p_storage_attach.add_argument(
+        "--yes", action="store_true", help="Auto-confirm attach operation."
+    )
+    p_storage_attach.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would change without modifying filesystem.",
+    )
+
     p_attention = sub.add_parser(
         "attention",
         parents=[common],
@@ -2075,6 +2144,106 @@ def _run_project_move(args: argparse.Namespace, term: Term) -> int:
     return 0
 
 
+def _run_storage_status(args: argparse.Namespace, term: Term) -> int:
+    import json
+    import os
+    from agent_workflows.storage import get_storage_status, StorageError
+
+    repo_path = getattr(args, "repo", None) or os.getcwd()
+    try:
+        st = get_storage_status(repo_path=repo_path)
+    except StorageError as exc:
+        if getattr(args, "json", False) or getattr(args, "agent", False):
+            print(json.dumps({"error": str(exc)}, indent=2))
+        else:
+            term.status("fail", str(exc))
+        return 1
+
+    if getattr(args, "json", False) or getattr(args, "agent", False):
+        print(json.dumps(st.to_dict(), indent=2))
+        return 0
+
+    term.heading("AW Records Storage Status")
+    term.status("info", f"Target Repo:       {st.target_repo}")
+    term.status("info", f"Project ID:        {st.project_id}")
+    term.status("info", f"Backend:           {st.records_backend}")
+    term.status("info", f"Records Path:      {st.records_path}")
+    term.status("info", f"Durability State:  {st.durability_state}")
+    term.status("info", f"Has Git:           {st.has_git}")
+    term.status("info", f"Remote URL:        {st.remote_url or '(none)'}")
+    term.status("info", f"Remote Ack:        {st.remote_acknowledged}")
+    term.status("ok", f"Recommendation:    {st.recommendation}")
+    return 0
+
+
+def _run_storage_init(args: argparse.Namespace, term: Term) -> int:
+    import os
+    from agent_workflows.storage import init_records_storage, StorageError
+
+    repo_path = getattr(args, "repo", None) or os.getcwd()
+
+    if getattr(args, "dry_run", False):
+        term.status(
+            "info", f"[DRY RUN] Would initialize records storage for {repo_path}"
+        )
+        return 0
+
+    if not _confirm(
+        term,
+        f"Initialize records storage for {repo_path}?",
+        getattr(args, "yes", False),
+    ):
+        term.status("skip", "Storage initialization cancelled; nothing changed.")
+        return 0
+
+    try:
+        st = init_records_storage(
+            repo_path=repo_path,
+            git_init=not getattr(args, "no_git", False),
+            acknowledge_remote=getattr(args, "acknowledge_remote", False),
+        )
+    except StorageError as exc:
+        term.status("fail", str(exc))
+        return 1
+
+    term.status(
+        "ok",
+        f"Successfully initialized records storage at {st.records_path} ({st.durability_state}).",
+    )
+    return 0
+
+
+def _run_storage_attach(args: argparse.Namespace, term: Term) -> int:
+    import os
+    from agent_workflows.storage import acknowledge_remote_durability, StorageError
+
+    repo_path = getattr(args, "repo", None) or os.getcwd()
+
+    if getattr(args, "dry_run", False):
+        term.status("info", f"[DRY RUN] Would update durability policy for {repo_path}")
+        return 0
+
+    if not _confirm(
+        term,
+        f"Update storage durability policy for {repo_path}?",
+        getattr(args, "yes", False),
+    ):
+        term.status("skip", "Operation cancelled; nothing changed.")
+        return 0
+
+    try:
+        st = acknowledge_remote_durability(
+            repo_path=repo_path,
+            acknowledge=getattr(args, "acknowledge_remote", False),
+        )
+    except StorageError as exc:
+        term.status("fail", str(exc))
+        return 1
+
+    term.status("ok", f"Updated durability policy status: {st.durability_state}.")
+    return 0
+
+
 def _dispatch(argv: Optional[Sequence[str]]) -> int:
     parser = _build_parser()
     # Alias: `aw plans index` / `aw plans find` -> the `plans-index` / `plans-find` parsers, so the
@@ -2120,6 +2289,16 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             return _run_project_attach(args, term)
         if project_cmd == "move":
             return _run_project_move(args, term)
+        parser.print_help()
+        return 2
+    if args.command == "storage":
+        storage_cmd = getattr(args, "storage_command", None)
+        if storage_cmd == "status":
+            return _run_storage_status(args, term)
+        if storage_cmd == "init":
+            return _run_storage_init(args, term)
+        if storage_cmd == "attach":
+            return _run_storage_attach(args, term)
         parser.print_help()
         return 2
     if args.command == "install":
