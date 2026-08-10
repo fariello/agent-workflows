@@ -91,7 +91,16 @@ class TestProjectContextResolver(unittest.TestCase):
 
     def test_purity_and_determinism(self):
         """Resolver must be side-effect-free and return byte-identical results."""
-        before_files = set(os.walk(self.tmp_dir))
+
+        def _snapshot(root):
+            # os.walk yields (dirpath, dirnames, filenames) tuples whose list members
+            # are unhashable; normalize to a sorted tuple-of-tuples so it is comparable.
+            return tuple(
+                (dirpath, tuple(sorted(dirnames)), tuple(sorted(filenames)))
+                for dirpath, dirnames, filenames in sorted(os.walk(root))
+            )
+
+        before_files = _snapshot(self.tmp_dir)
 
         ctx1 = resolve_project_context(
             target_repo=self.target_repo, aw_home=self.aw_home
@@ -100,7 +109,7 @@ class TestProjectContextResolver(unittest.TestCase):
             target_repo=self.target_repo, aw_home=self.aw_home
         )
 
-        after_files = set(os.walk(self.tmp_dir))
+        after_files = _snapshot(self.tmp_dir)
         self.assertEqual(before_files, after_files, "Resolver mutated the filesystem!")
         self.assertEqual(
             ctx1.to_json(), ctx2.to_json(), "Resolver output is not deterministic!"
