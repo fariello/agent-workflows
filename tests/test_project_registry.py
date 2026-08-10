@@ -27,10 +27,23 @@ from agent_workflows.project_registry import (
 class TestProjectRegistry(unittest.TestCase):
     """Test registry schema, AW_HOME precedence, identity matching, security boundaries, and CLI."""
 
+    @staticmethod
+    def _git_init(path: str, origin: str | None = None) -> None:
+        """Create a REAL git repository (an empty .git dir is not a valid repo, so the
+        git-common-dir and origin probes would return None and mask the behavior under test)."""
+        os.makedirs(path, exist_ok=True)
+        subprocess.run(["git", "init", "-q", path], check=True, capture_output=True)
+        if origin:
+            subprocess.run(
+                ["git", "-C", path, "remote", "add", "origin", origin],
+                check=True,
+                capture_output=True,
+            )
+
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp()
         self.target_repo = os.path.join(self.tmp_dir, "myrepo")
-        os.makedirs(os.path.join(self.target_repo, ".git"), exist_ok=True)
+        self._git_init(self.target_repo)
         self.aw_home = os.path.join(self.tmp_dir, "aw_home")
         os.makedirs(self.aw_home, exist_ok=True)
 
@@ -123,9 +136,9 @@ class TestProjectRegistry(unittest.TestCase):
 
     def test_negative_two_projects_shared_origin_no_auto_attach(self):
         """NEGATIVE TEST: Two projects with the same origin URL MUST NOT auto-attach!"""
-        # Register Repo A
+        # Register Repo A (a real repo sharing the origin)
         repo_a = os.path.join(self.tmp_dir, "repo_a")
-        os.makedirs(os.path.join(repo_a, ".git"), exist_ok=True)
+        self._git_init(repo_a, origin="https://github.com/org/shared-repo.git")
         register_or_update_project(repo_a, self.aw_home, project_id="repo-a-111111")
 
         # Manually set origin hint on entry_a
@@ -136,23 +149,9 @@ class TestProjectRegistry(unittest.TestCase):
         )
         save_registry(reg_data, reg_file)
 
-        # Create Repo B (simulating a separate clone with same origin)
+        # Create Repo B: a SEPARATE real clone with the SAME origin URL
         repo_b = os.path.join(self.tmp_dir, "repo_b")
-        os.makedirs(os.path.join(repo_b, ".git"), exist_ok=True)
-
-        # Mock origin probe by setting up git remote in repo_b
-        subprocess.run(
-            [
-                "git",
-                "-C",
-                repo_b,
-                "remote",
-                "add",
-                "origin",
-                "https://github.com/org/shared-repo.git",
-            ],
-            capture_output=True,
-        )
+        self._git_init(repo_b, origin="https://github.com/org/shared-repo.git")
 
         # Search for project from Repo B
         match_res = find_project(repo_b, aw_home=self.aw_home)
@@ -237,7 +236,7 @@ class TestProjectRegistry(unittest.TestCase):
 
         # Move to new path
         new_repo = os.path.join(self.tmp_dir, "newrepo")
-        os.makedirs(os.path.join(new_repo, ".git"), exist_ok=True)
+        self._git_init(new_repo)
         cmd_move = [
             "python3",
             "-m",
