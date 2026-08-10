@@ -26,7 +26,10 @@ class TestActionsAndInstallHistory(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp()
         self.target_repo = os.path.join(self.tmp_dir, "myrepo")
-        os.makedirs(os.path.join(self.target_repo, ".git"), exist_ok=True)
+        os.makedirs(self.target_repo, exist_ok=True)
+        subprocess.run(
+            ["git", "init", "-q", self.target_repo], check=True, capture_output=True
+        )
         self.aw_home = os.path.join(self.tmp_dir, "aw_home")
         os.makedirs(self.aw_home, exist_ok=True)
 
@@ -52,6 +55,12 @@ class TestActionsAndInstallHistory(unittest.TestCase):
 
         with self.assertRaises(InvalidActionIdError):
             validate_action_id("setup_repo")  # Underscore forbidden
+
+        with self.assertRaises(InvalidActionIdError):
+            validate_action_id("aw-setup")  # aw- prefix forbidden (spec 12.2)
+
+        with self.assertRaises(InvalidActionIdError):
+            validate_action_id("aw")  # bare 'aw' forbidden
 
         with self.assertRaises(InvalidActionIdError):
             validate_action_id("-setup")  # Leading hyphen forbidden
@@ -106,12 +115,23 @@ class TestActionsAndInstallHistory(unittest.TestCase):
 
     def test_install_history_atomic_append(self):
         """Install history appends JSONL lines with O_APPEND and fsync (E-04 & V-04)."""
-        record_install_history(self.target_repo, "install", {"version": "2026.8.9"})
-        record_install_history(self.target_repo, "update", {"version": "2026.8.9"})
-
-        history_file = (
-            Path(self.target_repo) / ".aw" / "state" / "history" / "installs.jsonl"
+        record_install_history(
+            self.target_repo, "install", {"version": "2026.8.9"}, aw_home=self.aw_home
         )
+        record_install_history(
+            self.target_repo, "update", {"version": "2026.8.9"}, aw_home=self.aw_home
+        )
+
+        # History lives under the resolver's STATE root (external for the home backend),
+        # not inside the target repo.
+        from agent_workflows.project_context import resolve_project_context
+        from agent_workflows.project_schema import LogicalRoot
+
+        ctx = resolve_project_context(
+            target_repo=self.target_repo, aw_home=self.aw_home
+        )
+        state_root = Path(ctx.logical_roots[LogicalRoot.STATE.value])
+        history_file = state_root / "history" / "installs.jsonl"
         self.assertTrue(history_file.is_file())
 
         lines = history_file.read_text(encoding="utf-8").splitlines()
@@ -121,6 +141,28 @@ class TestActionsAndInstallHistory(unittest.TestCase):
         data2 = json.loads(lines[1])
         self.assertEqual(data1["event_type"], "install")
         self.assertEqual(data2["event_type"], "update")
+
+    def test_install_history_redacts_machine_identifying_details(self):
+        """Install-history details route through the canonical leak sanitizer (L6-04): a real home
+        path is redacted while non-sensitive fields survive. The leaky value is built at runtime from
+        the current home directory so no maintainer path is hardcoded in this tracked test."""
+        leaky = os.path.join(os.path.expanduser("~"), "some", "secret", "path")
+        record_install_history(
+            self.target_repo,
+            "install",
+            {"note": f"ran from {leaky}", "version": "9.9.9"},
+            aw_home=self.aw_home,
+        )
+        from agent_workflows.project_context import resolve_project_context
+        from agent_workflows.project_schema import LogicalRoot
+
+        ctx = resolve_project_context(
+            target_repo=self.target_repo, aw_home=self.aw_home
+        )
+        state_root = Path(ctx.logical_roots[LogicalRoot.STATE.value])
+        line = (state_root / "history" / "installs.jsonl").read_text(encoding="utf-8")
+        self.assertNotIn(leaky, line)
+        self.assertIn("9.9.9", line)
 
     def test_cli_todo_agent_json_output(self):
         """Test `aw todo --agent` returns clean JSON array without ANSI bytes (E-02 & V-02)."""

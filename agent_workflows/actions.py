@@ -49,10 +49,16 @@ class ActionNotFoundError(ActionError):
 
 
 def validate_action_id(action_id: str) -> None:
-    """Validate action ID format: [a-z][a-z0-9]*(?:-[a-z0-9]+)* (E-01)."""
+    """Validate action ID format: [a-z][a-z0-9]*(?:-[a-z0-9]+)* and NOT an ``aw-`` prefix (E-01)."""
     if not ACTION_ID_PATTERN.match(action_id):
         raise InvalidActionIdError(
             f"Invalid action ID: '{action_id}'. Must match pattern [a-z][a-z0-9]*(?:-[a-z0-9]+)* without aw- prefix."
+        )
+    # The pattern alone accepts 'aw-...' (a valid kebab id); the spec (Section 12.2) forbids the
+    # scope-repeating aw- prefix, so reject it explicitly.
+    if action_id == "aw" or action_id.startswith("aw-"):
+        raise InvalidActionIdError(
+            f"Invalid action ID: '{action_id}'. The 'aw-' prefix is forbidden (spec Section 12.2)."
         )
 
 
@@ -259,6 +265,24 @@ class ActionManager:
         return actions
 
 
+def _redact_details(details: Dict[str, Any], *, repo_root: str) -> Dict[str, Any]:
+    """Redact machine-identifying values from install-history ``details`` using the canonical
+    leak sanitizer (no bespoke regex). Any string value that trips a fail/warn rule (home paths,
+    usernames, hostnames) is replaced with ``"[redacted]"`` (L6-04)."""
+    from agent_workflows import leak_sanitizer as ls
+
+    ruleset = ls.build_ruleset(Path(repo_root), include_warn=True)
+    safe: Dict[str, Any] = {}
+    for key, value in details.items():
+        if isinstance(value, str) and ls.scan_text(
+            value, "install-history", ruleset, include_warn=True
+        ):
+            safe[key] = "[redacted]"
+        else:
+            safe[key] = value
+    return safe
+
+
 def record_install_history(
     target_repo: str,
     event_type: str,
@@ -288,9 +312,15 @@ def record_install_history(
         json.dump(snapshot, f, indent=2)
     os.replace(tmp_install, install_file)
 
-    # Append to state/history/installs.jsonl with O_APPEND + fsync (E-04)
+    # Append to state/history/installs.jsonl with O_APPEND + fsync (E-04).
+    # Redaction (L6-04): route the caller-supplied ``details`` through the canonical leak
+    # sanitizer rather than a bespoke regex, so machine-identifying paths/hostnames/usernames
+    # never enter a potentially-tracked records history.
+    safe_details = _redact_details(details, repo_root=target_repo)
     history_file = history_dir / "installs.jsonl"
-    event_line = json.dumps({"timestamp": now, "details": details, **snapshot}) + "\n"
+    event_line = (
+        json.dumps({"timestamp": now, "details": safe_details, **snapshot}) + "\n"
+    )
 
     fd = os.open(str(history_file), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
     try:
