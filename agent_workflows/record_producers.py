@@ -53,7 +53,7 @@ PRODUCER_INVENTORY: List[RecordProducerEntry] = [
     ),
     RecordProducerEntry(
         name="research_create",
-        source_path="agent_workflows/research.py",
+        source_path="agent_workflows/research_cmd.py",
         anchor="create_research",
         operation="create",
         category="research",
@@ -87,7 +87,7 @@ LEGACY_ALLOWLIST = {
     "agent_workflows/artifact_core.py",
     "agent_workflows/specs.py",
     "agent_workflows/plans.py",
-    "agent_workflows/research.py",
+    "agent_workflows/research_cmd.py",
 }
 
 

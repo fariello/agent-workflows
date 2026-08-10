@@ -40,7 +40,7 @@ class TestRecordRouting(unittest.TestCase):
             "records_backend": RecordsBackend.REPOSITORY.value,
             "aw_home": self.aw_home,
         }
-        policy_file = Path(self.target_repo) / ".aw" / "config" / "policy.json"
+        policy_file = Path(self.target_repo) / ".aw" / "config" / "config.json"
         policy_file.parent.mkdir(parents=True, exist_ok=True)
         import json
 
@@ -61,7 +61,7 @@ class TestRecordRouting(unittest.TestCase):
             "records_backend": RecordsBackend.HOME.value,
             "aw_home": self.aw_home,
         }
-        policy_file = Path(self.target_repo) / ".aw" / "config" / "policy.json"
+        policy_file = Path(self.target_repo) / ".aw" / "config" / "config.json"
         policy_file.parent.mkdir(parents=True, exist_ok=True)
         import json
 
