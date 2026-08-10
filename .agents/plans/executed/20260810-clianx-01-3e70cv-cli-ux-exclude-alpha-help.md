@@ -4,12 +4,11 @@
 - Kind: child
 - Concern: The `aw` CLI has three usability gaps: (1) no way to mark repos that must never receive an install; (2) `--help` lists subcommands in code-insertion order, not alphabetical, so they are hard to scan; (3) `aw <command> --help` shows only the same one-line summary as the parent listing, with no fuller description of what the command does.
 - Scope: The `aw` CLI surface only: config schema + a repo exclude list consumed by discovery and by an interactive install guard; alphabetical ordering of subcommand listings in help; a fuller `description=` on each subparser so `aw <command> --help` is genuinely more informative. No workflow-body, records-layout, or storage-backend changes.
-- Status: approved
+- Status: executed
 - Set: clianx
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
-- Approval: 2026-08-10 human maintainer ("approved. go.") via chat, after /plan-review (APPROVE WITH REVISIONS APPLIED).
 - Id: 3e70cv
 
 ## Workflow history
@@ -17,6 +16,7 @@
 - 2026-08-10 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-10 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed; OQ-02 resolved (non-interactive/--yes on an excluded repo skips with a message, no override flag). Status draft -> reviewed. GO - PENDING HUMAN APPROVAL.
 - 2026-08-10 approved (human maintainer): "approved. go." Status reviewed -> approved; cleared for execution via ipd-lifecycle.
+- 2026-08-10 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): E-01..E-06 performed, V-01..V-06 pass with concrete evidence. Product commits f06b400 (E-01 config exclude), 0e9265d (E-02 discovery), 40109e4 (E-03 install guard), eed58b0 (E-04 config verb), a67a96e (E-05 alphabetical help), b3ce05b (E-06 descriptions), 89a0231 (docs). Full suite Ran 824 tests OK (skipped=1); sanitize clean; no ~/.aw leakage. Status approved -> executed.
 
 ## Goal
 
@@ -28,37 +28,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Repo exclude list (config + discovery + interactive install guard)
 
-- [ ] E-01 Add an `exclude` key to the config schema in `agent_workflows/config.py`: a list of repo path/glob entries, added to the fixed allowlist of recognized keys, defaulted to `[]` in `default_config()`, normalized/sanitized on load like `search_roots`/`repos`/`ignore` (expand `~`, coerce to str), and preserved on save. Add an `expanded_excludes(config)` helper (absolute, expanded paths) alongside `expanded_repos`/`expanded_search_roots`. Update the schema docstring.
+- [x] E-01 Add an `exclude` key to the config schema in `agent_workflows/config.py`: a list of repo path/glob entries, added to the fixed allowlist of recognized keys, defaulted to `[]` in `default_config()`, normalized/sanitized on load like `search_roots`/`repos`/`ignore` (expand `~`, coerce to str), and preserved on save. Add an `expanded_excludes(config)` helper (absolute, expanded paths) alongside `expanded_repos`/`expanded_search_roots`. Update the schema docstring.
   - Depends on: none
   - Expected outcome: a config carrying `exclude: ["/abs/path", "*/glob/*"]` round-trips through load/save; `expanded_excludes` returns absolute expanded paths; unknown-key stripping still holds.
-  - Execution state: pending
-- [ ] E-02 Make discovery honor the exclude list: in `agent_workflows/discovery.py`, add a NEW `excluded: List[Path]` field to the `Discovery` dataclass (discovery.py:30) and a `_is_excluded(path, exclude)` matcher (absolute-path equality OR fnmatch glob, mirroring `_is_ignored` at discovery.py:75). An excluded repo is dropped from `targets` and recorded in the new `excluded` list. Do NOT fold it into `ignored` (which is the discovery-only fnmatch NOISE filter): keeping `excluded` distinct from `ignored` preserves the two intents (deliberate blocklist vs noise) and avoids freezing an accidental shape (rubric D). Add `exclude` as a keyword arg to `discover(...)` (defaulting to `None`/`[]` for back-compat) and thread the config `exclude` list into the call site.
+  - Execution state: performed
+- [x] E-02 Make discovery honor the exclude list: in `agent_workflows/discovery.py`, add a NEW `excluded: List[Path]` field to the `Discovery` dataclass (discovery.py:30) and a `_is_excluded(path, exclude)` matcher (absolute-path equality OR fnmatch glob, mirroring `_is_ignored` at discovery.py:75). An excluded repo is dropped from `targets` and recorded in the new `excluded` list. Do NOT fold it into `ignored` (which is the discovery-only fnmatch NOISE filter): keeping `excluded` distinct from `ignored` preserves the two intents (deliberate blocklist vs noise) and avoids freezing an accidental shape (rubric D). Add `exclude` as a keyword arg to `discover(...)` (defaulting to `None`/`[]` for back-compat) and thread the config `exclude` list into the call site.
   - Depends on: E-01
   - Expected outcome: a repo whose path is in `exclude` never appears in `targets` and DOES appear in `Discovery.excluded`; `ignored` is unchanged in meaning; a unit test proves both an exact-path and a glob exclusion land in `excluded` (not `targets`, not `ignored`).
-  - Execution state: pending
-- [ ] E-03 Add an interactive install guard for an EXPLICITLY targeted excluded repo: when `aw install <path>` (or `setup`) targets a repo that matches the exclude list, print a COLORIZED warning (respecting `NO_COLOR`/`--no-color`/non-tty) that the repo is on the exclude list, and prompt `Continue anyway? [Y/n]` (default YES on empty input, since the user explicitly asked to install here). If the user declines, abort with a clear message and a "nothing changed" result (consistent with existing decline behavior). If the user accepts, THEN prompt `Remove <repo> from the exclude list? [Y/n]` (default NO); on yes, drop it from the config exclude list and save.
+  - Execution state: performed
+- [x] E-03 Add an interactive install guard for an EXPLICITLY targeted excluded repo: when `aw install <path>` (or `setup`) targets a repo that matches the exclude list, print a COLORIZED warning (respecting `NO_COLOR`/`--no-color`/non-tty) that the repo is on the exclude list, and prompt `Continue anyway? [Y/n]` (default YES on empty input, since the user explicitly asked to install here). If the user declines, abort with a clear message and a "nothing changed" result (consistent with existing decline behavior). If the user accepts, THEN prompt `Remove <repo> from the exclude list? [Y/n]` (default NO); on yes, drop it from the config exclude list and save.
   - CRITICAL (do NOT reuse `_confirm` verbatim): the existing `_confirm(term, prompt, assume_yes)` (agent_workflows/cli.py:1078) returns `True` UNCONDITIONALLY when `assume_yes` is set, and `install --yes` sets `assume_yes`. Reusing it for this guard would make `aw install --yes <excluded>` auto-proceed, silently installing into an excluded repo, which is the OPPOSITE of the intended fail-safe. The non-interactive / `--yes` path for an excluded repo MUST always SKIP-WITH-MESSAGE (fail-safe, never auto-install), independent of `assume_yes`. Per OQ-02 (resolved) there is NO override flag: to install into an excluded repo the user must first `aw config exclude rm <path>` or use the interactive continue+unexclude path. Also `_confirm` renders `[y/N]` (default-No); the continue prompt needs default-YES, so add a default-yes prompt variant or an explicit `default` parameter rather than reusing `_confirm` as-is. `NO_COLOR`/`--no-color`/non-tty color suppression still applies to the warning.
   - Depends on: E-01
   - Expected outcome: explicitly installing into an excluded repo (interactive) triggers the colorized warn + default-yes `[Y/n]` continue prompt; declining changes nothing; accepting proceeds and then offers the default-no unexclude prompt; `aw install --yes <excluded>` (non-interactive) SKIPS with a message and does NOT install and does NOT mutate config; tests drive the decline branch, the accept+unexclude-yes branch (asserting the config entry is removed), and the `--yes` skip branch (asserting no install and no config mutation), all with a stubbed prompt.
-  - Execution state: pending
-- [ ] E-04 Add CLI verbs to manage the exclude list (surface it so it is usable without hand-editing config). NOTE (verified): there is NO existing `aw config` verb today; user config (`search_roots`) is managed only through `setup` / `install --search-root` flags (agent_workflows/cli.py:1779-1816), not a dedicated verb. So this INTRODUCES a new `aw config exclude {add,list,rm}` subcommand group (the smallest consistent surface): `add <path>` appends and saves, `list` prints the current exclude list, `rm <path>` removes and saves. Use `config.save()` and the recognized-key allowlist from E-01. Seed nothing automatically (per maintainer: they will add their own entries), but document a couple of generic EXAMPLE paths (e.g. `~/src/legacy-repo`, `~/src/vendored-tool`) in the command help/description. Do NOT hardcode the maintainer's real repo paths anywhere.
+  - Execution state: performed
+- [x] E-04 Add CLI verbs to manage the exclude list (surface it so it is usable without hand-editing config). NOTE (verified): there is NO existing `aw config` verb today; user config (`search_roots`) is managed only through `setup` / `install --search-root` flags (agent_workflows/cli.py:1779-1816), not a dedicated verb. So this INTRODUCES a new `aw config exclude {add,list,rm}` subcommand group (the smallest consistent surface): `add <path>` appends and saves, `list` prints the current exclude list, `rm <path>` removes and saves. Use `config.save()` and the recognized-key allowlist from E-01. Seed nothing automatically (per maintainer: they will add their own entries), but document a couple of generic EXAMPLE paths (e.g. `~/src/legacy-repo`, `~/src/vendored-tool`) in the command help/description. Do NOT hardcode the maintainer's real repo paths anywhere.
   - Depends on: E-01
   - Expected outcome: `aw config exclude add /path`, `aw config exclude list`, `aw config exclude rm /path` mutate and display the config exclude list; a test exercises the add/list/rm round-trip against a temp config.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Alphabetical subcommand ordering in help
 
-- [ ] E-05 Present subcommands in alphabetical order in every `--help` listing (top-level `aw --help` and each group: `aw ipd`, `aw research`, `aw project`, `aw storage`). Do this WITHOUT reordering the `add_parser` calls (which would create churn and risk). Prefer a custom `HelpFormatter` (or sorting the subparser action's `_choices_actions`/`choices`) that emits the subactions sorted by name. Verify aliases (e.g. `plans index`) and metavar are preserved and that dispatch still works (ordering is display-only, never changes routing).
+- [x] E-05 Present subcommands in alphabetical order in every `--help` listing (top-level `aw --help` and each group: `aw ipd`, `aw research`, `aw project`, `aw storage`). Do this WITHOUT reordering the `add_parser` calls (which would create churn and risk). Prefer a custom `HelpFormatter` (or sorting the subparser action's `_choices_actions`/`choices`) that emits the subactions sorted by name. Verify aliases (e.g. `plans index`) and metavar are preserved and that dispatch still works (ordering is display-only, never changes routing).
   - Depends on: none
   - Expected outcome: `aw --help` and each subgroup `--help` list their commands in alphabetical order; a test parses the help text and asserts the command tokens are sorted; dispatch of a mid-alphabet and end-alphabet command still works.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Detailed per-command descriptions
 
-- [ ] E-06 Give every subparser a `description=` (distinct from the short `help=` one-liner) so `aw <command> --help` shows a fuller explanation: what the command does, its inputs/outputs, key flags/behaviors, and any important caveats (e.g. `--check` fails on drift; `--agent` prints machine-readable output; terminal-dir plans lint as legacy). Keep `help=` as the concise summary shown in the parent listing. Cover all 51 subparsers (top-level + ipd/research/project/storage subgroups). Descriptions are internal/AI-and-user-facing CLI text; write them clearly and concisely.
+- [x] E-06 Give every subparser a `description=` (distinct from the short `help=` one-liner) so `aw <command> --help` shows a fuller explanation: what the command does, its inputs/outputs, key flags/behaviors, and any important caveats (e.g. `--check` fails on drift; `--agent` prints machine-readable output; terminal-dir plans lint as legacy). Keep `help=` as the concise summary shown in the parent listing. Cover all 51 subparsers (top-level + ipd/research/project/storage subgroups). Descriptions are internal/AI-and-user-facing CLI text; write them clearly and concisely.
   - Depends on: none
   - Expected outcome: `aw install --help`, `aw specs --help` (each specs subcommand), `aw research new --help`, etc. each show a multi-sentence description beyond the one-line summary; a test asserts every registered subparser has a non-empty `description` that is longer than / distinct from its `help`.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -113,6 +113,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 - Help-ordering test: parse `aw --help` and each subgroup `--help`; assert command tokens are alphabetically sorted; assert dispatch of a mid- and end-alphabet command still works.
 - Help-description test: every registered subparser (top-level + all subgroups) has a non-empty `description` that is distinct from and longer than its `help`.
 - Full suite: `python3 -m unittest discover -s tests -t .` stays green (paste the `Ran N tests ... OK` summary). Leak-clean (`aw sanitize --agent`).
+  - Observed: `python3 -m unittest discover -s tests -t .` -> `Ran 824 tests in 160.572s OK (skipped=1)` (was 802; +22 new tests). `~/.aw/projects/` stayed at 1 and `~/.aw/config/registry.json` at 0 projects across the run (no leakage). `aw sanitize --agent` -> exit 0 (clean).
 
 ## Spec / documentation sync
 
@@ -140,30 +141,30 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a test showing a config with `exclude` round-trips load/save, unknown keys are stripped, and `expanded_excludes` returns absolute expanded paths.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `tests/test_config.py` (added `test_exclude_roundtrips_and_expands` + `test_exclude_defaults_empty`): `exclude=["~/src/legacy-repo","*/never-install/*"]` round-trips load/save, a stray `token` is dropped, `expanded_excludes` returns `[<home>/src/legacy-repo, "*/never-install/*"]`, default config exclude is `[]`. Runner: `python3 -m unittest tests.test_config` -> `Ran 14 tests in 0.008s OK`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste a `tests/test_discovery.py` run showing that a repo whose absolute path is in `exclude`, and a repo matched by an exclude GLOB, both appear in `Discovery.excluded` and NOT in `Discovery.targets`, while a non-excluded repo still lands in `targets`; and that `ignored` retains its prior meaning (an fnmatch-`ignore` entry is still recorded in `ignored`, not `excluded`). Paste the `Ran N tests ... OK` line.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `tests/test_discovery.py` (added `test_exclude_exact_path_blocklists_from_discovery`, `test_exclude_glob_blocklists_from_discovery`, `test_exclude_and_ignore_are_distinct`, `test_explicit_repo_root_exclude_lands_in_excluded`): exact-path and glob excludes both land in `.excluded` and not `.targets`; a non-excluded repo stays in `.targets`; an `ignore` match stays in `.ignored` and NOT `.excluded` (and vice versa). Runner: `python3 -m unittest tests.test_discovery` -> `Ran 14 tests in 0.011s OK`.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste tests (stubbing the prompt) proving THREE branches: (a) interactive decline -> no install, config unchanged, clear message; (b) interactive accept + unexclude-yes -> install proceeds AND the repo is removed from the config `exclude` list (assert the saved config); (c) `aw install --yes <excluded>` (assume_yes / non-interactive) -> SKIPPED with a message, NO install performed, config NOT mutated (proving the guard does not route through the auto-yes `_confirm`). Paste the `Ran N tests ... OK` line.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `tests/test_exclude_guard.py::ExcludeGuardTests`: `test_interactive_decline_changes_nothing` (returns "skip", entry still present), `test_interactive_continue_and_unexclude_removes_entry` (returns "proceed", entry removed from saved config), `test_yes_on_excluded_repo_skips_failsafe_no_config_change` (--yes -> "skip", `input` NEVER called, config intact), `test_non_interactive_excluded_repo_skips_failsafe` (non-tty -> "skip", no prompt), `test_interactive_continue_default_yes_keeps_exclude_when_unexclude_declined` (empty input defaults YES to continue). Runner: `python3 -m unittest tests.test_exclude_guard` -> `Ran 10 tests in 0.013s OK`.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste a test running `aw config exclude add <p>`, `list`, `rm <p>` against a temp config, asserting the exclude list contains `<p>` after add, prints it on list, and no longer contains it after rm (round-trip). Paste the `Ran N tests ... OK` line.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `tests/test_exclude_guard.py::ConfigExcludeVerbTests`: `test_add_list_rm_roundtrip` (add -> present, list -> rc 0 no mutation, rm -> absent), `test_rm_nonmatch_returns_nonzero` (rc 1), `test_add_glob_entry` (glob stored). Also verified live end to end via `python3 -m agent_workflows config exclude add/list/rm`. Runner: `python3 -m unittest tests.test_exclude_guard` -> `Ran 10 tests in 0.013s OK`.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste a test that parses `aw --help` and each subgroup help (`aw ipd --help`, `aw research --help`, `aw project --help`, `aw storage --help`), extracts the listed command tokens, and asserts each list equals its own sorted order; PLUS a test that dispatch of a mid-alphabet command (e.g. `path`) and an end-alphabet command (e.g. `uninstall`, `storage`) still routes correctly (ordering is display-only). Paste the `Ran N tests ... OK` line.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `tests/test_cli.py::AlphabeticalHelpTests`: `test_top_level_commands_sorted` (parsed top-level list equals its sorted order), `test_subgroups_sorted` (ipd/research/project/storage/config each sorted), `test_dispatch_unaffected_by_display_order` (`path system` routes and prints `.agents`; `storage` with no subcommand returns 2). Runner: `python3 -m unittest tests.test_cli.AlphabeticalHelpTests tests.test_cli.SubcommandDescriptionTests` -> `Ran 5 tests in 0.178s OK`.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: paste a test that enumerates every registered subparser (top-level + ipd/research/project/storage subgroups) and asserts each has a non-empty `description` that is DISTINCT from and longer than its `help`. Paste the `Ran N tests ... OK` line. (Also confirm `aw install --help` and one subgroup command show the fuller description in their output.)
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_cli.py::SubcommandDescriptionTests`: `test_every_subparser_has_fuller_description` walks all 52 subparsers and asserts each `description` is non-empty, longer than, and distinct from its `help` (0 problems); `test_install_help_shows_description` asserts `aw install --help` contains "idempotent" and "never-install exclude list". Verified live: `aw install --help` prints the multi-sentence description. Runner: `python3 -m unittest tests.test_cli...SubcommandDescriptionTests` -> `Ran 5 tests in 0.178s OK` (combined with V-05 class).
+  - Result: pass
 
 
 ## Approval and execution gate
