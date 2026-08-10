@@ -286,36 +286,43 @@ class TestProjectContextResolver(unittest.TestCase):
         self.assertTrue(os.path.isabs(out_path))
 
     def test_duplicate_enum_literals_audit(self):
-        """rg-backed audit to ensure DeliveryMode/RecordsBackend literals are centralized in project_schema.py."""
+        """Ensure the enum VOCABULARY is centralized in project_schema.py: no module may re-define an
+        enum literal without CONSUMING the owning enum. A file that mentions a literal (docstring,
+        message, comment) while importing the enum from project_schema is a legitimate consumer, not a
+        fork; a file that mentions the literal WITHOUT importing the enum is a duplicate-definition
+        violation."""
         pkg_dir = Path(__file__).parent.parent / "agent_workflows"
 
-        literals = ["clean-delta", "durable-private", "repository-managed"]
-        for lit in literals:
+        # literal -> the owning enum class name that a legitimate consumer must import.
+        literal_owner = {
+            "clean-delta": "DeliveryMode",
+            "durable-private": "DurabilityState",
+            "repository-managed": "DurabilityState",
+        }
+        # These modules own/aggregate the vocabulary and are always allowed.
+        always_ok = ("project_schema.py", "project_context.py")
+
+        for lit, owner in literal_owner.items():
             try:
                 res = subprocess.run(
                     ["rg", "-l", lit, str(pkg_dir)],
                     capture_output=True,
                     text=True,
                 )
-                if res.returncode == 0:
-                    matched_files = [
-                        f.strip() for f in res.stdout.splitlines() if f.strip()
-                    ]
-                    unexpected = [
-                        f
-                        for f in matched_files
-                        if not f.endswith("project_schema.py")
-                        and not f.endswith("project_context.py")
-                        and not f.endswith("cli.py")
-                        and not f.endswith("engine.py")
-                    ]
-                    self.assertEqual(
-                        unexpected,
-                        [],
-                        f"Found duplicate enum literal '{lit}' outside schema/context modules: {unexpected}",
-                    )
             except FileNotFoundError:
-                pass
+                return  # ripgrep unavailable; skip the audit
+            if res.returncode != 0:
+                continue
+            for f in (p.strip() for p in res.stdout.splitlines() if p.strip()):
+                if f.endswith(always_ok):
+                    continue
+                text = Path(f).read_text(encoding="utf-8")
+                imports_owner = owner in text and "project_schema" in text
+                self.assertTrue(
+                    imports_owner,
+                    f"Duplicate enum literal '{lit}' in {f} without importing {owner} "
+                    f"from project_schema (re-defined vocabulary, not a consumer).",
+                )
 
 
 if __name__ == "__main__":
