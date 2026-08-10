@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: The `aw` CLI has three usability gaps: (1) no way to mark repos that must never receive an install; (2) `--help` lists subcommands in code-insertion order, not alphabetical, so they are hard to scan; (3) `aw <command> --help` shows only the same one-line summary as the parent listing, with no fuller description of what the command does.
 - Scope: The `aw` CLI surface only: config schema + a repo exclude list consumed by discovery and by an interactive install guard; alphabetical ordering of subcommand listings in help; a fuller `description=` on each subparser so `aw <command> --help` is genuinely more informative. No workflow-body, records-layout, or storage-backend changes.
-- Status: draft
+- Status: reviewed
 - Set: clianx
 - Order: 1
 - Highest E allocated: 06
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-10 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
+- 2026-08-10 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed; OQ-02 resolved (non-interactive/--yes on an excluded repo skips with a message, no override flag). Status draft -> reviewed. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -29,17 +30,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: a config carrying `exclude: ["/abs/path", "*/glob/*"]` round-trips through load/save; `expanded_excludes` returns absolute expanded paths; unknown-key stripping still holds.
   - Execution state: pending
-- [ ] E-02 Make discovery honor the exclude list: in `agent_workflows/discovery.py`, an excluded repo (absolute-path match OR fnmatch glob match, mirroring `_is_ignored`) is dropped from discovery/`install all` results, recorded on the `Discovery` result as excluded (or folded into `ignored` with an "excluded" reason, whichever keeps the existing shape cleanest). Excludes apply to DISCOVERY like `ignore`, but are a distinct, user-curated blocklist (not the discovery-only fnmatch noise filter). Thread the config `exclude` list into the `discover(...)` call site.
+- [ ] E-02 Make discovery honor the exclude list: in `agent_workflows/discovery.py`, add a NEW `excluded: List[Path]` field to the `Discovery` dataclass (discovery.py:30) and a `_is_excluded(path, exclude)` matcher (absolute-path equality OR fnmatch glob, mirroring `_is_ignored` at discovery.py:75). An excluded repo is dropped from `targets` and recorded in the new `excluded` list. Do NOT fold it into `ignored` (which is the discovery-only fnmatch NOISE filter): keeping `excluded` distinct from `ignored` preserves the two intents (deliberate blocklist vs noise) and avoids freezing an accidental shape (rubric D). Add `exclude` as a keyword arg to `discover(...)` (defaulting to `None`/`[]` for back-compat) and thread the config `exclude` list into the call site.
   - Depends on: E-01
-  - Expected outcome: a repo whose path is in `exclude` never appears as a discovery/`install all` target; a unit test proves both an exact-path and a glob exclusion are honored.
+  - Expected outcome: a repo whose path is in `exclude` never appears in `targets` and DOES appear in `Discovery.excluded`; `ignored` is unchanged in meaning; a unit test proves both an exact-path and a glob exclusion land in `excluded` (not `targets`, not `ignored`).
   - Execution state: pending
-- [ ] E-03 Add an interactive install guard for an EXPLICITLY targeted excluded repo: when `aw install <path>` (or `setup`) targets a repo that matches the exclude list, print a COLORIZED warning (respecting `NO_COLOR`/`--no-color`/non-tty) that the repo is on the exclude list, and prompt `Continue anyway? [Y/n]`. If the user declines, abort with a clear message and nonzero-free "nothing changed" (consistent with existing decline behavior). If the user accepts, THEN prompt `Remove <repo> from the exclude list? [Y/n]`; on yes, drop it from the config exclude list and save. In non-interactive mode (no tty, or `--yes`), do NOT silently install into an excluded repo: skip it with a clear message unless an explicit override flag is passed (see OQ-02). Reuse the existing `prompt_choice`/confirmation helper for consistency.
+- [ ] E-03 Add an interactive install guard for an EXPLICITLY targeted excluded repo: when `aw install <path>` (or `setup`) targets a repo that matches the exclude list, print a COLORIZED warning (respecting `NO_COLOR`/`--no-color`/non-tty) that the repo is on the exclude list, and prompt `Continue anyway? [Y/n]` (default YES on empty input, since the user explicitly asked to install here). If the user declines, abort with a clear message and a "nothing changed" result (consistent with existing decline behavior). If the user accepts, THEN prompt `Remove <repo> from the exclude list? [Y/n]` (default NO); on yes, drop it from the config exclude list and save.
+  - CRITICAL (do NOT reuse `_confirm` verbatim): the existing `_confirm(term, prompt, assume_yes)` (agent_workflows/cli.py:1078) returns `True` UNCONDITIONALLY when `assume_yes` is set, and `install --yes` sets `assume_yes`. Reusing it for this guard would make `aw install --yes <excluded>` auto-proceed, silently installing into an excluded repo, which is the OPPOSITE of the intended fail-safe. The non-interactive / `--yes` path for an excluded repo MUST always SKIP-WITH-MESSAGE (fail-safe, never auto-install), independent of `assume_yes`. Per OQ-02 (resolved) there is NO override flag: to install into an excluded repo the user must first `aw config exclude rm <path>` or use the interactive continue+unexclude path. Also `_confirm` renders `[y/N]` (default-No); the continue prompt needs default-YES, so add a default-yes prompt variant or an explicit `default` parameter rather than reusing `_confirm` as-is. `NO_COLOR`/`--no-color`/non-tty color suppression still applies to the warning.
   - Depends on: E-01
-  - Expected outcome: explicitly installing into an excluded repo triggers the colorized warn + `[Y/n]` continue prompt; declining changes nothing; accepting proceeds and then offers to unexclude; a test drives both branches with a stubbed prompt and asserts the config mutation on the unexclude "yes" path.
+  - Expected outcome: explicitly installing into an excluded repo (interactive) triggers the colorized warn + default-yes `[Y/n]` continue prompt; declining changes nothing; accepting proceeds and then offers the default-no unexclude prompt; `aw install --yes <excluded>` (non-interactive) SKIPS with a message and does NOT install and does NOT mutate config; tests drive the decline branch, the accept+unexclude-yes branch (asserting the config entry is removed), and the `--yes` skip branch (asserting no install and no config mutation), all with a stubbed prompt.
   - Execution state: pending
-- [ ] E-04 Add CLI verbs to manage the exclude list (surface it so it is usable without hand-editing config). Follow the existing config-management pattern in the CLI (mirror how `search_roots`/`repos` are managed today; if there is no existing verb, add `aw config exclude {add,list,rm}` or the smallest consistent surface). Seed nothing automatically (per maintainer: they will add their own entries), but document the three example paths in the command help.
+- [ ] E-04 Add CLI verbs to manage the exclude list (surface it so it is usable without hand-editing config). NOTE (verified): there is NO existing `aw config` verb today; user config (`search_roots`) is managed only through `setup` / `install --search-root` flags (agent_workflows/cli.py:1779-1816), not a dedicated verb. So this INTRODUCES a new `aw config exclude {add,list,rm}` subcommand group (the smallest consistent surface): `add <path>` appends and saves, `list` prints the current exclude list, `rm <path>` removes and saves. Use `config.save()` and the recognized-key allowlist from E-01. Seed nothing automatically (per maintainer: they will add their own entries), but document a couple of generic EXAMPLE paths (e.g. `~/src/legacy-repo`, `~/src/vendored-tool`) in the command help/description. Do NOT hardcode the maintainer's real repo paths anywhere.
   - Depends on: E-01
-  - Expected outcome: `aw <verb> exclude add /path`, `... list`, `... rm /path` mutate and display the config exclude list; a test exercises add/list/rm round-trip.
+  - Expected outcome: `aw config exclude add /path`, `aw config exclude list`, `aw config exclude rm /path` mutate and display the config exclude list; a test exercises the add/list/rm round-trip against a temp config.
   - Execution state: pending
 
 ### Task group 2: Alphabetical subcommand ordering in help
@@ -72,6 +74,14 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 - Alphabetical ordering (item 4) must be display-only. argparse preserves insertion order in `_choices_actions`; a custom formatter or a one-time sort of that list achieves alphabetical display without touching dispatch.
 - Per-command descriptions (item 5): argparse shows `description=` at the top of a subcommand's own `--help`, and `help=` in the parent listing. Today all 51 subparsers set only `help=`, so `aw <cmd> --help` repeats the one-liner. Adding `description=` is additive and low-risk.
 
+### Plan-review findings (2026-08-10 /plan-review, opencode its_direct/pt3-claude-opus-4.8-1m-us)
+
+- PR-001 (HIGH, IN-SCOPE): the existing `_confirm` helper (agent_workflows/cli.py:1078-1093) returns `True` unconditionally when `assume_yes` is set, and `install --yes` sets it. Naive reuse for the exclude guard would make `aw install --yes <excluded>` auto-install into an excluded repo, defeating the guard. FIXED: E-03 now forbids verbatim `_confirm` reuse, mandates a fail-safe SKIP-with-message for the non-interactive/`--yes` path, and requires a `--yes` skip test. This also makes OQ-02 blocking (resolved below).
+- PR-002 (MEDIUM, UNDER-SCOPE): V-02..V-06 had placeholder "TODO falsifiable evidence". FIXED: each now specifies concrete, per-item evidence including the exact branches to prove and a pasted `Ran N tests ... OK` line.
+- PR-003 (MEDIUM, IN-SCOPE): plan specifies `[Y/n]` default-yes prompts but `_confirm` renders `[y/N]` default-no. FIXED: E-03 now requires a default-yes prompt variant / explicit `default` param for the continue prompt (unexclude prompt stays default-no).
+- PR-004 (LOW, IN-SCOPE): E-02 offered an ambiguous "excluded OR folded into ignored" shape. FIXED: E-02 now pins a distinct `Discovery.excluded` field, keeping it separate from noise-`ignored`.
+- PR-005 (LOW, UNDER-SCOPE): E-04 implied an existing config-management verb; there is none. FIXED: E-04 now states it INTRODUCES a new `aw config exclude {add,list,rm}` group.
+
 ## Proposed changes (ordered, validatable)
 
 1. Config: add + sanitize + expose the `exclude` list (E-01) and `expanded_excludes`.
@@ -90,7 +100,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none known; the three items are self-contained CLI-UX changes.
+- Under-scope: two gaps found and FIXED in review: concrete V-02..V-06 evidence (PR-002) and the explicit new `aw config exclude` verb group (PR-005). No remaining under-scope.
 
 ## Required tests / validation
 
@@ -119,10 +129,10 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ### OQ-02: Non-interactive behavior when an excluded repo is explicitly targeted (e.g. `--yes` or no tty)?
 
-- Blocking: no
-- Status: open
+- Blocking: yes
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: Proposed default: in non-interactive mode, SKIP an excluded repo with a clear message rather than install (fail-safe), unless a future explicit `--install-excluded` override flag is passed. Confirm this default at review; the interactive path (warn + `[Y/n]`) is already specified by the maintainer.
+- Resolution or deferral rationale: This was blocking because a wrong default would let `aw install --yes <excluded>` silently install into an excluded repo (see PR-001). RESOLVED 2026-08-10 (maintainer, via /plan-review interactive prompt): non-interactive / `--yes` targeting an excluded repo SKIPS with a clear message and NEVER installs. NO override flag is added (no `--install-excluded`); to install into an excluded repo you must first `aw config exclude rm <path>` or use the interactive continue+unexclude path. This matches the existing "refuse to change things silently" non-interactive stance (agent_workflows/cli.py:1084). The guard MUST NOT route through the auto-yes `_confirm` (PR-001).
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -133,23 +143,23 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: paste a `tests/test_discovery.py` run showing that a repo whose absolute path is in `exclude`, and a repo matched by an exclude GLOB, both appear in `Discovery.excluded` and NOT in `Discovery.targets`, while a non-excluded repo still lands in `targets`; and that `ignored` retains its prior meaning (an fnmatch-`ignore` entry is still recorded in `ignored`, not `excluded`). Paste the `Ran N tests ... OK` line.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: paste tests (stubbing the prompt) proving THREE branches: (a) interactive decline -> no install, config unchanged, clear message; (b) interactive accept + unexclude-yes -> install proceeds AND the repo is removed from the config `exclude` list (assert the saved config); (c) `aw install --yes <excluded>` (assume_yes / non-interactive) -> SKIPPED with a message, NO install performed, config NOT mutated (proving the guard does not route through the auto-yes `_confirm`). Paste the `Ran N tests ... OK` line.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: paste a test running `aw config exclude add <p>`, `list`, `rm <p>` against a temp config, asserting the exclude list contains `<p>` after add, prints it on list, and no longer contains it after rm (round-trip). Paste the `Ran N tests ... OK` line.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: paste a test that parses `aw --help` and each subgroup help (`aw ipd --help`, `aw research --help`, `aw project --help`, `aw storage --help`), extracts the listed command tokens, and asserts each list equals its own sorted order; PLUS a test that dispatch of a mid-alphabet command (e.g. `path`) and an end-alphabet command (e.g. `uninstall`, `storage`) still routes correctly (ordering is display-only). Paste the `Ran N tests ... OK` line.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: paste a test that enumerates every registered subparser (top-level + ipd/research/project/storage subgroups) and asserts each has a non-empty `description` that is DISTINCT from and longer than its `help`. Paste the `Ran N tests ... OK` line. (Also confirm `aw install --help` and one subgroup command show the fuller description in their output.)
   - Observed evidence:
   - Result: pending
 
