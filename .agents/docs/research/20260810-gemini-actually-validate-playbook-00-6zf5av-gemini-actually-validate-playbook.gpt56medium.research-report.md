@@ -968,6 +968,26 @@ This should catch the observed green-washing and cross-unit regressions without 
 
 Do not spend more prompt tokens trying to persuade Gemini to be an honest test runner. Let Gemini implement and repair. Let Antigravity provide tool telemetry. Let the Python wrapper run the real commands, own the state transition, and commit only the tree that actually passed. That separation is the practical guarantee.
 
+## Maintainer addendum: loop safety and wasted-turn circuit breakers (added on filing)
+
+The report's repair loop (R3) is bounded by `max_repairs` and mentions stopping on a repeated failure hash, and it checks agy transport (`returncode != 0 or status != SUCCESS`). Those ingredients are necessary but not sufficient. The wrapper-hardening work MUST additionally guarantee that the loop is provably finite AND that it never keeps spending model turns and full-suite runs (about 160 seconds each) when a turn contributed nothing. In particular the report does not fully address the case where agy is configured to ask for everything (or otherwise cannot act headlessly): every turn can return quickly having done no work, and a naive loop would burn all repair turns plus a suite run each time for zero benefit, or worse, loop forever if a retry-on-error path is ever added.
+
+Required loop-safety invariants for the wrapper:
+
+1. Hard iteration cap. The total number of agy turns per unit (initial execution plus repairs) is bounded by a constant (e.g. `max_repairs = 3`, so at most 4 turns). There is no code path that retries without decrementing that budget. When the budget is exhausted while still red, the unit terminates as BLOCKED, never loops.
+
+2. Abort on non-zero agy exit; do not re-run. If `agy` exits non-zero or returns a terminal status other than `SUCCESS`, the wrapper stops this unit immediately as BLOCKED and does NOT launch another agy turn and does NOT run the full suite again. A transport failure is not a repairable test failure; retrying it wastes tokens and suite time. (Optionally allow at most one bounded retry ONLY for a clearly transient transport error such as a timeout, never for a permission or agent error, and count it against the same hard budget.)
+
+3. No-work short circuit (the ask-for-everything / empty-turn case). After each agy turn, before re-running the expensive full suite, compare the candidate-tree fingerprint from before the turn to the fingerprint after the turn. If the tree is unchanged, the turn contributed no fix: do NOT re-run the full suite, and terminate as BLOCKED (or, if you allow it, spend at most one more clearly-different repair prompt, still under the hard cap). Also treat the stream-json signals as no-work evidence: if the turn recorded a permission ask/soft-denial for the required commands, or made no relevant tool call at all, classify the turn as non-productive and stop rather than spin.
+
+4. No-progress circuit breaker. If two consecutive red iterations produce the same `(candidate_fingerprint, failure_hash)` pair, declare no progress and terminate as BLOCKED immediately, even if repair budget remains. Identical inputs producing identical failures will not self-heal by repetition.
+
+5. Preflight the permission posture. Before the first real unit, run the report's one-time permission probe (see "Verify capabilities locally"). If the harmless probe command is asked/denied rather than executed, abort the whole run up front with a clear diagnostic instead of discovering it per unit after wasting turns. An ask-for-everything configuration should fail fast at preflight, not silently degrade into a wasted-turn loop.
+
+6. Every gate run is finite. Each full-suite invocation uses a wall-clock `timeout` (e.g. 600 seconds). A timeout counts as red for acceptance but must not, by itself, trigger an unbounded retry; it is subject to the same hard cap and no-progress rules.
+
+Acceptance intent for the eventual wrapper IPD: it must be demonstrable (with a test/mock) that (a) a stubbed agy that always exits non-zero causes exactly one BLOCKED termination with no suite re-run, (b) a stubbed agy that returns SUCCESS but changes nothing does not re-run the suite and terminates BLOCKED, and (c) the total agy-turn count and full-suite-run count per unit are both bounded by their configured maxima in every path.
+
 ## Primary sources
 
 - [Antigravity CLI headless mode](https://antigravity.google/docs/cli/headless)
