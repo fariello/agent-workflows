@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Keep canonical AW logic under the resolved system root while satisfying host discovery requirements with thin generated adapters and proving a truly clean target mode.
 - Scope: Adapter model/generation, AGENTS/native managed blocks, host-specific shims/skills/commands, dynamic root discovery, clean-target user-scope mechanisms, drift/uninstall, legacy adapter conversion, and focused tests.
-- Status: to-review
+- Status: reviewed
 - Set: awphysical (physical .aw hierarchy, storage policy, and migration)
 - Order: 9
 - Highest E allocated: 08
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-10 draft (Codex (GPT-5)): created to reduce `.agents` and other host paths to compatibility adapters rather than canonical storage.
+- 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
 
 ## Goal
 
@@ -112,7 +113,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - New adapter manifest/purity and claim-evidence equality tests.
 - Target baseline before/after snapshots for every supported clean-target host/mode.
 - Generated adapter diff proving no canonical workflow body duplication.
-- `python3 -m agent_workflows ipd lint --phase executor --agent <this-plan>`
+- `python3 -m agent_workflows ipd lint --phase pre-transition --agent <this-plan>`
 - Full suite after regenerating owned adapters.
 
 ## Spec / documentation sync

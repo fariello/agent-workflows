@@ -1150,6 +1150,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-07",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260807-verify-execution-01-2p9fd3-thorough-execution-verification-workflow.md",
+    "plan_id": "2p9fd3",
+    "set_id": "verify-execution",
+    "status": "executed"
+  },
+  {
     "date": "2026-08-08",
     "disposition": "executed",
     "kind": "orchestrator",
@@ -1410,6 +1420,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-10",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260810-clianx-01-3e70cv-cli-ux-exclude-alpha-help.md",
+    "plan_id": "3e70cv",
+    "set_id": "clianx",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -1440,23 +1460,133 @@
     "status": "to-review"
   },
   {
-    "date": "2026-08-07",
+    "date": "2026-08-10",
     "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260807-verify-execution-01-2p9fd3-thorough-execution-verification-workflow.md",
-    "plan_id": "2p9fd3",
-    "set_id": "verify-execution",
-    "status": "to-review"
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260810-awphysical-00-rma3j4-physical-aw-hierarchy-and-migration-orchestrator.md",
+    "plan_id": "rma3j4",
+    "set_id": "awphysical",
+    "status": "reviewed"
   },
   {
     "date": "2026-08-10",
     "disposition": "pending",
     "kind": "child",
     "order": 1,
-    "path": "pending/20260810-clianx-01-3e70cv-cli-ux-exclude-alpha-help.md",
-    "plan_id": "3e70cv",
-    "set_id": "clianx",
-    "status": "approved"
+    "path": "pending/20260810-awphysical-01-cwjnj0-physical-root-ownership-and-git-policy-contract.md",
+    "plan_id": "cwjnj0",
+    "set_id": "awphysical",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260810-awphysical-02-sywony-policy-schema-and-deterministic-context-resolution.md",
+    "plan_id": "sywony",
+    "set_id": "awphysical",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260810-awphysical-03-x2dfen-wizard-presets-custom-placement-and-persistence.md",
+    "plan_id": "x2dfen",
+    "set_id": "awphysical",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 4,
+    "path": "pending/20260810-awphysical-04-ru5pmd-canonical-system-installation-and-source-checkout-mode.md",
+    "plan_id": "ru5pmd",
+    "set_id": "awphysical",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 5,
+    "path": "pending/20260810-awphysical-05-1e9ggw-private-companion-attachment-and-durability.md",
+    "plan_id": "1e9ggw",
+    "set_id": "awphysical",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 6,
+    "path": "pending/20260810-awphysical-06-fcgala-migration-inventory-and-mapping-tools.md",
+    "plan_id": "fcgala",
+    "set_id": "awphysical",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 7,
+    "path": "pending/20260810-awphysical-07-nhv0qm-transactional-migration-rollback-and-resume.md",
+    "plan_id": "nhv0qm",
+    "set_id": "awphysical",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 8,
+    "path": "pending/20260810-awphysical-08-mb9xn2-record-producers-and-legacy-reference-cutover.md",
+    "plan_id": "mb9xn2",
+    "set_id": "awphysical",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 9,
+    "path": "pending/20260810-awphysical-09-2e2jrw-host-adapters-and-clean-delta-integration.md",
+    "plan_id": "2e2jrw",
+    "set_id": "awphysical",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 10,
+    "path": "pending/20260810-awphysical-10-n3fz8b-post-migration-independent-audit.md",
+    "plan_id": "n3fz8b",
+    "set_id": "awphysical",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 11,
+    "path": "pending/20260810-awphysical-11-g5zl1u-agent-workflows-source-repository-self-migration.md",
+    "plan_id": "g5zl1u",
+    "set_id": "awphysical",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 12,
+    "path": "pending/20260810-awphysical-12-pszk6x-documentation-release-and-end-to-end-acceptance.md",
+    "plan_id": "pszk6x",
+    "set_id": "awphysical",
+    "status": "reviewed"
   }
 ]

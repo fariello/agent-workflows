@@ -4,7 +4,7 @@
 - Kind: orchestrator
 - Concern: Replace the partially logical legacy layout with a physically compartmentalized `.aw/` model, complete placement and Git-policy choices, and a loss-resistant migration for agent-workflows and every installed project.
 - Scope: Orders 01 through 12 of Set `awphysical`, their shared contract, dependency gates, migration safety, source-repository adoption, independent postcheck, documentation, and release evidence.
-- Status: to-review
+- Status: reviewed
 - Set: awphysical (physical .aw hierarchy, storage policy, and migration)
 - Order: 0
 - Highest E allocated: 14
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-10 draft (Codex (GPT-5)): created after maintainer approval of the refined hierarchy, including durable/runtime state separation and a source-checkout role.
+- 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
 
 ## Goal
 
@@ -159,8 +160,8 @@ Orders may be implemented in parallel only when all listed dependencies are term
 
 ## Required tests / validation
 
-- Each child must run `python3 -m agent_workflows ipd lint --phase executor --agent <child>` before transition.
-- The orchestrator must run `python3 -m agent_workflows ipd lint --phase executor --agent <orchestrator>` after every child evidence update.
+- Each child must run `python3 -m agent_workflows ipd lint --phase pre-transition --agent <child>` before transition.
+- The orchestrator must run `python3 -m agent_workflows ipd lint --phase pre-transition --agent <orchestrator>` after every child evidence update.
 - The final executor must run the exact focused commands named by each child, then `python3 -m unittest discover -s tests -t .` after the final code change.
 - Run `python3 -m agent_workflows plans index --check --agent`, all generated-file and entry-point parity checks, package build/inspection, and `python3 -m agent_workflows check-local-leaks . --agent`.
 - Exercise every row in `tools/awphysical/migration-scenarios.json`; fail if the scenario set and evidence set differ.
@@ -169,7 +170,23 @@ Orders may be implemented in parallel only when all listed dependencies are term
 
 ## Open questions
 
-No open questions. The maintainer approved durable/runtime separation, ignored local/runtime data even for private repositories, preset-first placement, advanced custom placement, and an explicit source-checkout role.
+### OQ-01: The controlling physical-layout spec does not yet exist (BLOCKS the whole Set)
+
+- Blocking: yes
+- Status: open
+- Owner: GPT-5.6 High (author) + human maintainer (approval)
+- Resolution or deferral rationale: /plan-review (2026-08-10, Opus 4.8) confirmed E-01/V-01 require an approved physical-layout spec that does not exist; the only layout spec (20260809-2211-01) is `implemented` and declares the tree LOGICAL. Maintainer decision: author a NEW dated spec that SUPERSEDES 20260809-2211-01 (record supersession + DECISIONS entry); it must be human-approved before any child executes. Handoff prompt: `.agents/prompts/pending/20260810-1417-01-awphysical-superseding-spec-and-set-reconciliation.md`.
+
+### OQ-02: `tools/awphysical/` tracking + clean-checkout reconciliation
+
+- Blocking: yes
+- Status: open
+- Owner: GPT-5.6 High
+- Resolution or deferral rationale: the migration/audit tools + `migration-scenarios.json` the Set depends on are untracked, breaking the clean-checkout replay gate (E-14). GPT-5.6 to decide whether they are committed as tracked prototypes or authored/promoted during a named Order, and encode it (running `aw sanitize` first if committed).
+
+## Plan-review outcome (2026-08-10 /plan-review-long, Opus 4.8 opencode)
+
+Verdict: REVIEWED - OPEN QUESTIONS. Readiness: NO-GO (blocked on the superseding physical-layout spec being authored and human-approved; see OQ-01). All 13 plans lint `conforming` at `--phase author`; the migration design, privacy posture, and independent-postcheck approach are sound. The 13-lane parallel audit found: (BLOCKER) no approved physical spec (every child gates on E-01); (Set-wide, FIXED in review) `aw ipd lint --phase executor` was invalid across all 13 + orchestrator and was corrected to `--phase pre-transition`; (Set-wide, OPEN) `tools/awphysical/` untracked; and numerous per-plan findings (boilerplate V-evidence needing concrete falsifiable per-item evidence, "no open questions" while the spec is unwritten, orchestrator E-item dependencies flattened to E-01 vs the true child DAG, stale/nonexistent test-module and corrective-plan references, phantom producer inventory anchors in Order 08, a fabricated `clean_delta.py` proof in Order 09, `execute_migration` never copying bytes in Order 07, rehearsal-vs-real-repo baseline gap in Order 11, CHANGELOG describing the logical layout in Order 12). The full per-plan findings and required corrections were handed to GPT-5.6 High (the Set's author) in the prompt cited in OQ-01 for resolution alongside the new spec. Maintainer confirmed Order 11 (self-migrate this repo) stays IN scope but hard-gated (dogfood the physical layout; require a real before/after hash+history baseline of the actual repo, not just the rehearsal copy).
 
 ## Validation and cross-check (verify before reporting the Set complete)
 

@@ -2,11 +2,27 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 76 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 77 Sets; the full manifest is INDEX.json.
+
+## awphysical
+
+- `rma3j4` [pending] 00 pending/20260810-awphysical-00-rma3j4-physical-aw-hierarchy-and-migration-orchestrator.md
+- `cwjnj0` [pending] 01 pending/20260810-awphysical-01-cwjnj0-physical-root-ownership-and-git-policy-contract.md
+- `sywony` [pending] 02 pending/20260810-awphysical-02-sywony-policy-schema-and-deterministic-context-resolution.md
+- `x2dfen` [pending] 03 pending/20260810-awphysical-03-x2dfen-wizard-presets-custom-placement-and-persistence.md
+- `ru5pmd` [pending] 04 pending/20260810-awphysical-04-ru5pmd-canonical-system-installation-and-source-checkout-mode.md
+- `1e9ggw` [pending] 05 pending/20260810-awphysical-05-1e9ggw-private-companion-attachment-and-durability.md
+- `fcgala` [pending] 06 pending/20260810-awphysical-06-fcgala-migration-inventory-and-mapping-tools.md
+- `nhv0qm` [pending] 07 pending/20260810-awphysical-07-nhv0qm-transactional-migration-rollback-and-resume.md
+- `mb9xn2` [pending] 08 pending/20260810-awphysical-08-mb9xn2-record-producers-and-legacy-reference-cutover.md
+- `2e2jrw` [pending] 09 pending/20260810-awphysical-09-2e2jrw-host-adapters-and-clean-delta-integration.md
+- `n3fz8b` [pending] 10 pending/20260810-awphysical-10-n3fz8b-post-migration-independent-audit.md
+- `g5zl1u` [pending] 11 pending/20260810-awphysical-11-g5zl1u-agent-workflows-source-repository-self-migration.md
+- `pszk6x` [pending] 12 pending/20260810-awphysical-12-pszk6x-documentation-release-and-end-to-end-acceptance.md
 
 ## clianx
 
-- `3e70cv` [pending] 01 pending/20260810-clianx-01-3e70cv-cli-ux-exclude-alpha-help.md
+- `3e70cv` [executed] 01 executed/20260810-clianx-01-3e70cv-cli-ux-exclude-alpha-help.md
 
 ## awlayout
 
@@ -53,7 +69,7 @@ Showing the 40 most-recent of 76 Sets; the full manifest is INDEX.json.
 ## verify-execution
 
 - `c5685e` [executed] 00 executed/20260712-verify-execution-00-c5685e-verify-execution-workflow.md
-- `2p9fd3` [pending] 01 pending/20260807-verify-execution-01-2p9fd3-thorough-execution-verification-workflow.md
+- `2p9fd3` [executed] 01 executed/20260807-verify-execution-01-2p9fd3-thorough-execution-verification-workflow.md
 
 ## ipdstruct
 
@@ -219,10 +235,6 @@ Showing the 40 most-recent of 76 Sets; the full manifest is INDEX.json.
 ## unify-readiness
 
 - `c59ziz` [executed] 00 executed/20260715-unify-readiness-00-c59ziz-unify-readiness-verdict-vocabulary.md
-
-## auto-parallel
-
-- `t88woq` [executed] 00 executed/20260713-auto-parallel-00-t88woq-auto-parallel-audit-lanes-shared-convention.md
 
 ## (singletons: no Set)
 

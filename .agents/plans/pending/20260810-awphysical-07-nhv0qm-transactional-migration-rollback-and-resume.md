@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Execute approved legacy-to-physical-layout migrations without loss, silent exposure, split authority, or irreversible partial state.
 - Scope: Migration transaction state machine, immutable input verification, copy/verify/switch/retain phases, writer lock, Git-boundary staging, resume, rollback, retention, cleanup preview, CLI, and focused tests.
-- Status: to-review
+- Status: reviewed
 - Set: awphysical (physical .aw hierarchy, storage policy, and migration)
 - Order: 7
 - Highest E allocated: 08
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-10 draft (Codex (GPT-5)): created to replace move-first migration with a journaled copy-verify-switch-retain protocol.
+- 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
 
 ## Goal
 
@@ -113,7 +114,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Hash comparison with Order 06 inventory before and after copy.
 - Separate `git status --short` and `git diff --cached --name-only` assertions for every Git owner.
 - `python3 -m unittest tests.test_layout_migration tests.test_acceptance_matrix` plus new migration transaction suites.
-- `python3 -m agent_workflows ipd lint --phase executor --agent <this-plan>`
+- `python3 -m agent_workflows ipd lint --phase pre-transition --agent <this-plan>`
 
 ## Spec / documentation sync
 

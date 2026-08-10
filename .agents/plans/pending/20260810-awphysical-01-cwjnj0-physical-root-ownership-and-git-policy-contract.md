@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Replace the logical-only four-root description with an exact physical hierarchy, internal durable/runtime boundaries, placement vocabulary, and Git-policy invariants.
 - Scope: Controlling layout specification, architecture decisions, canonical schema vocabulary, contract tests, and fixtures only; no live migration or producer cutover.
-- Status: to-review
+- Status: reviewed
 - Set: awphysical (physical .aw hierarchy, storage policy, and migration)
 - Order: 1
 - Highest E allocated: 06
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-10 draft (Codex (GPT-5)): created as the foundational contract for the corrective physical-layout Set.
+- 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
 
 ## Goal
 
@@ -98,7 +99,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - `python3 -m unittest tests.test_project_schema tests.test_project_context`
 - New policy-matrix fixture test covering every supported and rejected combination.
 - `python3 -m agent_workflows specs check --agent`
-- `python3 -m agent_workflows ipd lint --phase executor --agent <this-plan>`
+- `python3 -m agent_workflows ipd lint --phase pre-transition --agent <this-plan>`
 - Scoped search proving no normative current-state text still maps tracked system to `.agents/`, excluding clearly labeled historical material.
 
 ## Spec / documentation sync

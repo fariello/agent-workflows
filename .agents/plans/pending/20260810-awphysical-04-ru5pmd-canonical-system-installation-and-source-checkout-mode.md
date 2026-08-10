@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Move canonical installed framework content from `.agents/` into `.aw/system/` while protecting the agent-workflows source checkout from self-overwrite or duplicate sources.
 - Scope: Packaged system-source layout, installer/materializer transaction, manifests, versioning, adapters' source inputs, source-checkout detection/protection, install/update/uninstall behavior, and focused tests.
-- Status: to-review
+- Status: reviewed
 - Set: awphysical (physical .aw hierarchy, storage policy, and migration)
 - Order: 4
 - Highest E allocated: 07
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-10 draft (Codex (GPT-5)): created to make `.aw/system/` the physical canonical system root and give the source repository a safe explicit role.
+- 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
 
 ## Goal
 
@@ -108,7 +109,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - New source-checkout and spoofed-source fixtures.
 - Wheel and sdist build plus archive-content and installed-resource inspection.
 - Fresh/update/failure filesystem and Git-index snapshots for tracked and external system roots.
-- `python3 -m agent_workflows ipd lint --phase executor --agent <this-plan>`
+- `python3 -m agent_workflows ipd lint --phase pre-transition --agent <this-plan>`
 - Full suite after final path-reference adaptation owned by this Order.
 
 ## Spec / documentation sync

@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Make a separately access-controlled companion repository a first-class home for portable/private config, durable state, and records without overstating privacy or durability.
 - Scope: Companion selection/identity, storage bundle layout, Git initialization and inspection, remote acknowledgement, registry bindings, commit boundaries, detach/reattach/move behavior, and focused tests.
-- Status: to-review
+- Status: reviewed
 - Set: awphysical (physical .aw hierarchy, storage policy, and migration)
 - Order: 5
 - Highest E allocated: 07
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-10 draft (Codex (GPT-5)): created for the public-project plus private-companion use case and other external durable bundles.
+- 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
 
 ## Goal
 
@@ -105,7 +106,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - New companion topology and identity fixtures with real local Git repositories and synthetic remote URLs.
 - Target and companion `git status --short` plus index assertions after every mutating fixture.
 - Sanitizer check over generated identity, policy, state, and output fixtures.
-- `python3 -m agent_workflows ipd lint --phase executor --agent <this-plan>`
+- `python3 -m agent_workflows ipd lint --phase pre-transition --agent <this-plan>`
 
 ## Spec / documentation sync
 

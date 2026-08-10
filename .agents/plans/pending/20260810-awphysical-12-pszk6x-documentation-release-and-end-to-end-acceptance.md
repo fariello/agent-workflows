@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Ship the physical-layout change as an honest major-version migration with complete user guidance, bounded compatibility, executable acceptance evidence, and no unsupported claims.
 - Scope: User/developer documentation, CLI help for new layout surfaces, compatibility/deprecation messaging, release metadata and package gates, scenario manifest, end-to-end tests, final Set evidence, and release handoff.
-- Status: to-review
+- Status: reviewed
 - Set: awphysical (physical .aw hierarchy, storage policy, and migration)
 - Order: 12
 - Highest E allocated: 08
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-10 draft (Codex (GPT-5)): created as the final documentation, compatibility, acceptance, and release boundary for the Set.
+- 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
 
 ## Goal
 
@@ -114,7 +115,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Package build, metadata/archive inspection, version derivation, and install smoke tests.
 - Plans/specs/research indexes, adapter/entry-point parity, generated-file, sanitizer, migration compare/postcheck, rollback/resume, clean-target, and uninstall gates.
 - Markdown/link/example/help snapshot checks.
-- `python3 -m agent_workflows ipd lint --phase executor --agent <this-plan>` and orchestrator pre-transition lint.
+- `python3 -m agent_workflows ipd lint --phase pre-transition --agent <this-plan>` and orchestrator pre-transition lint.
 
 ## Spec / documentation sync
 

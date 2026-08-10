@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Migrate the framework source repository itself into the physical `.aw/` model without overwriting source or losing its extensive project records and history.
 - Scope: Source-repository inventory, source-checkout policy, canonical system relocation, repository records/config/state placement choice, migration execution, reference regeneration, independent audit, rollback rehearsal, and path-scoped commits.
-- Status: to-review
+- Status: reviewed
 - Set: awphysical (physical .aw hierarchy, storage policy, and migration)
 - Order: 11
 - Highest E allocated: 07
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-10 draft (Codex (GPT-5)): created as the required dogfood migration after generic machinery is independently verified.
+- 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
 
 ## Goal
 
@@ -108,7 +109,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Sanitizer, generated-file, entry-point/adapter parity, install/update/uninstall, migration rollback/resume, and clean-target gates.
 - Separate source and companion Git status/index/merge-base evidence.
 - Fresh-agent follow-up verdict with every finding disposition.
-- `python3 -m agent_workflows ipd lint --phase executor --agent <this-plan>`
+- `python3 -m agent_workflows ipd lint --phase pre-transition --agent <this-plan>`
 
 ## Spec / documentation sync
 
