@@ -11,7 +11,7 @@ Showing the 40 most-recent of 75 Sets; the full manifest is INDEX.json.
 - `bgyymp` [executed] 02 executed/20260809-awlayout-02-bgyymp-aw-home-project-identity-and-registry.md
 - `g4y28x` [executed] 03 executed/20260809-awlayout-03-g4y28x-records-backends-and-durability.md
 - `q0wpk4` [executed] 04 executed/20260809-awlayout-04-q0wpk4-install-update-policy-wizard.md
-- `tg60qo` [pending] 05 pending/20260809-awlayout-05-tg60qo-system-config-state-layout-and-ownership.md
+- `tg60qo` [executed] 05 executed/20260809-awlayout-05-tg60qo-system-config-state-layout-and-ownership.md
 - `anlovz` [pending] 06 pending/20260809-awlayout-06-anlovz-operational-actions-and-install-history.md
 - `b31tuy` [pending] 07 pending/20260809-awlayout-07-b31tuy-action-workflow-and-status-integration.md
 - `0me1hr` [pending] 08 pending/20260809-awlayout-08-0me1hr-producing-workflow-record-routing.md

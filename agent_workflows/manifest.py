@@ -34,7 +34,7 @@ from typing import Any, Dict, Optional
 
 # Bump only on a breaking schema change; readers tolerate a newer minor by ignoring
 # unknown keys and an older one by supplying defaults.
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # Default, relative to a target repo root. The location is POLICY, not mechanism: callers
 # pass an absolute path; this constant only documents the default the engine uses.
