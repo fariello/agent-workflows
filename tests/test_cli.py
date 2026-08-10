@@ -504,6 +504,53 @@ class LeaksConfigTests(CliTestBase):
         self.assertFalse((Path(repo) / ".agents/local-leaks-allowlist.toml").exists())
 
 
+class SubcommandDescriptionTests(unittest.TestCase):
+    """clianx-01 E-06: every subparser has a fuller description distinct from its help."""
+
+    def test_every_subparser_has_fuller_description(self):
+        import argparse
+
+        parser = cli._build_parser()
+        problems = []
+
+        def walk(node, prefix=""):
+            for action in node._actions:
+                if isinstance(action, argparse._SubParsersAction):
+                    help_by = {
+                        ca.dest: (ca.help or "") for ca in action._choices_actions
+                    }
+                    for name, sub in action.choices.items():
+                        path = (prefix + " " + name).strip()
+                        desc = sub.description or ""
+                        hlp = help_by.get(name, "")
+                        if not desc.strip():
+                            problems.append(f"{path}: empty description")
+                        elif len(desc) <= len(hlp):
+                            problems.append(
+                                f"{path}: description not longer than help "
+                                f"({len(desc)} <= {len(hlp)})"
+                            )
+                        elif desc == hlp:
+                            problems.append(f"{path}: description equals help")
+                        walk(sub, path)
+
+        walk(parser)
+        self.assertEqual(
+            problems, [], "subparser description gaps: " + "; ".join(problems)
+        )
+
+    def test_install_help_shows_description(self):
+        parser = cli._build_parser()
+        import argparse
+
+        sub_action = next(
+            a for a in parser._actions if isinstance(a, argparse._SubParsersAction)
+        )
+        text = sub_action.choices["install"].format_help()
+        self.assertIn("idempotent", text)
+        self.assertIn("never-install exclude list", text)
+
+
 class AlphabeticalHelpTests(unittest.TestCase):
     """clianx-01 E-05: subcommands are listed alphabetically in every --help (display-only)."""
 

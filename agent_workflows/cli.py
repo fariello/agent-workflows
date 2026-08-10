@@ -29,6 +29,280 @@ from .term import Term
 # --------------------------------------------------------------------------------------
 
 
+# Fuller per-command descriptions shown at the top of `aw <command> --help` (clianx-01
+# E-06). Keyed by full command path. The short one-liner stays as `help=` in the parent
+# listing; this is the multi-sentence "what it does, inputs/outputs, key flags, caveats".
+_DESCRIPTIONS = {
+    "install": (
+        "Install or update the agent-workflows framework in one or more target repos "
+        "(idempotent: safe to re-run). With no target, acts on the current directory; "
+        "'install all' installs into every configured/discovered repo. Runs the policy "
+        "wizard, writes the managed AGENTS.md pointer + host shims, and backs up before "
+        "overwrite unless --no-backup. A repo on the never-install exclude list is skipped "
+        "(non-interactive) or guarded (interactive). Never pushes."
+    ),
+    "setup": (
+        "Guided first-run wizard: interview for search roots, discover git repos under "
+        "them (honoring the ignore noise filter and the never-install exclude list), save "
+        "the user config, and optionally install into the discovered repos. Use --root to "
+        "supply roots non-interactively."
+    ),
+    "uninstall": (
+        "Remove the agent-workflows framework from a repo (managed pointer block, host "
+        "shims, scaffolded dirs), asking for confirmation first unless --yes. Preserves "
+        "your own content; only the managed region is removed."
+    ),
+    "list": (
+        "List the configured and discovered repos and each one's currency (installed, "
+        "stale, current, not-installed). Read-only; makes no changes."
+    ),
+    "status": (
+        "Show an environment and currency summary: resolved versions, config location, "
+        "and per-repo install currency. Read-only diagnostics."
+    ),
+    "plans": (
+        "Show a board of plan/IPD readiness Status grouped by lifecycle (pending/reviewed/"
+        "approved/executed/...). Read-only view over .agents/plans. Alias of 'plans' verbs."
+    ),
+    "plans-index": (
+        "Regenerate .agents/plans/INDEX.json (every plan, all fields) plus a browse-by-Set "
+        "INDEX.md from plan front matter. With --check, fail (nonzero) on drift instead of "
+        "rewriting (CI gate). Alias: 'plans index'."
+    ),
+    "plans-find": (
+        "Query the plans manifest by --id/--set/--status/--disposition without reading the "
+        "corpus (token-cheap). Alias: 'plans find'."
+    ),
+    "plans-set-assign": (
+        "Group plans into a Set (shared Set id + assigned Order metadata); --rename also "
+        "clusters the filenames. Dry-run by default. Alias: 'plans set-assign'."
+    ),
+    "plans-mv": (
+        "Rename/re-slug one plan to the clustering filename grammar, preserving its stable "
+        "Id. Dry-run by default. Alias: 'plans mv'."
+    ),
+    "plans-archive": (
+        "Deep-shelve terminal plans into weekly shards (a targeted move or an aged sweep) "
+        "to keep the active lanes small. Alias: 'plans archive'."
+    ),
+    "ipd": (
+        "IPD (Implementation Plan Document) tooling for structure and state. Subcommands: "
+        "'lint' (deterministic structural/state check), 'scaffold' (new skeleton), 'sync' "
+        "(assign ids + validation skeletons)."
+    ),
+    "ipd lint": (
+        "Deterministically lint an IPD's STRUCTURE and STATE only (heading order, E-*/V-* "
+        "bijection, state legality, metadata) at a given --phase checkpoint. Read-only: no "
+        "model, network, or writes. Exit 0=conforming, 1=conformance error, 2=could-not-run. "
+        "A terminal-directory plan lints as legacy/not-evaluated. It proves nothing "
+        "semantic (coverage, correctness, evidence)."
+    ),
+    "ipd scaffold": (
+        "Write a new conformant IPD skeleton (child or orchestrator) with correct headings, "
+        "metadata, and checklists. Dry-run (preview) by default; pass --apply to write."
+    ),
+    "ipd sync": (
+        "Assign stable ids to new E-NEW execution leaves, append matching V-* validation "
+        "skeletons (the E/V bijection), and advance the 'Highest E allocated' watermark. "
+        "Dry-run by default; refuses if the watermark is below the largest existing E."
+    ),
+    "research": (
+        "Research-artifact tooling for .agents/docs/research. Subcommands create correctly "
+        "named docs ('new'/'new-comparison'), regroup them ('set-assign'/'mv'), manage the "
+        "manifest ('index'/'find'), and check/curate ('check-refs'/'promote'/etc.)."
+    ),
+    "research new": (
+        "Create a correctly-named research doc (per the naming grammar) plus starter front "
+        "matter for a given --kind/--slug/--model. Dry-run by default; --apply to write. "
+        "Follow with 'research index' to refresh the manifest."
+    ),
+    "research new-comparison": (
+        "Scaffold a multi-model comparison set: one prompt, one report per model, and a "
+        "reconciliation doc, all sharing a set id. Dry-run by default."
+    ),
+    "research set-assign": (
+        "Group research docs into a set (shared date + set-id with assigned NN order), "
+        "preserving each doc's stable id6. Dry-run by default."
+    ),
+    "research mv": (
+        "Rename/re-slug one research doc within the naming grammar, preserving its id6. "
+        "Dry-run by default."
+    ),
+    "research check-refs": (
+        "Report dangling <id6> citations (references to research docs that no longer "
+        "resolve) across the scanned trees. Read-only detector; useful as a standalone gate."
+    ),
+    "research index": (
+        "Regenerate the research INDEX.json and INDEX.md from doc front matter. With "
+        "--check, fail (nonzero) on drift instead of rewriting (CI gate)."
+    ),
+    "research find": (
+        "Query the research index by --id/--set/--topic/--status without reading the corpus "
+        "(token-cheap lookup)."
+    ),
+    "research promote": (
+        "Deliberately set a research doc's status (e.g. --to reference) and move it to the "
+        "appropriate shard. Records the disposition change."
+    ),
+    "research check-miscategorized": (
+        "Report archived-but-still-cited research docs (candidates that should be reference "
+        "instead of archived). Read-only advisory."
+    ),
+    "context": (
+        "Inspect the resolved AW project context: project id, delivery mode, AW_HOME, "
+        "records backend, durability, enabled hosts, and the four logical roots. Read-only; "
+        "--agent for machine-readable output."
+    ),
+    "path": (
+        "Resolve and print the physical filesystem path for a logical AW root "
+        "(system|config|state|records) for the target repo. --agent prints only the "
+        "absolute path (no prose), suitable for scripting."
+    ),
+    "project": (
+        "Owner verbs for AW project identity and the AW_HOME registry: 'status' (identity "
+        "and matching), 'attach' (bind a repo to a project id), 'move' (update the target "
+        "path association)."
+    ),
+    "project status": (
+        "Inspect this repo's project identity and how it matches the AW_HOME registry "
+        "(matched/unmatched, the bound entry). --json for machine-readable output."
+    ),
+    "project attach": (
+        "Attach this repository to a specific project id in the registry. --yes "
+        "auto-confirms. Use when a repo should share an existing project's external roots."
+    ),
+    "project move": (
+        "Update a project's target-path association in the registry (e.g. after moving or "
+        "renaming the checkout). --yes auto-confirms."
+    ),
+    "storage": (
+        "Owner verbs for records storage backends and durability: 'status' (inspect), "
+        "'init' (initialize storage + optional git), 'attach' (acknowledge/set durability "
+        "policy)."
+    ),
+    "storage status": (
+        "Inspect observable records-storage status and durability for the target repo "
+        "(backend, location, versioned/unversioned). --json / --agent for machine output."
+    ),
+    "storage init": (
+        "Initialize records storage for the target repo and, unless --no-git, run git init "
+        "in the records directory. --acknowledge-remote records explicit acceptance of a "
+        "remote durability policy. --dry-run previews."
+    ),
+    "storage attach": (
+        "Acknowledge or set the records-storage durability policy for the target repo "
+        "(e.g. --acknowledge-remote). --dry-run previews; --yes auto-confirms."
+    ),
+    "config": (
+        "Manage the user-level CLI config. Currently exposes the never-install exclude "
+        "blocklist via 'config exclude'."
+    ),
+    "config exclude": (
+        "Manage the never-install exclude blocklist: repos that must never receive an "
+        "install. Entries may be absolute repo paths or fnmatch globs. Distinct from the "
+        "discovery-only 'ignore' noise filter. Subcommands: add, list, rm."
+    ),
+    "config exclude add": (
+        "Add a repo path (e.g. ~/src/legacy-repo) or fnmatch glob (e.g. */vendored-tool) to "
+        "the never-install exclude list. Stored ~-preserved; a duplicate is a no-op."
+    ),
+    "config exclude list": (
+        "List the current never-install exclude entries (paths and globs), or report that "
+        "the list is empty."
+    ),
+    "config exclude rm": (
+        "Remove the entry matching the given repo path or entry (exact or glob) from the "
+        "never-install exclude list. Returns nonzero if nothing matched."
+    ),
+    "todo": (
+        "List the open operational AW actions (the action ledger). --all includes "
+        "non-open (completed/dismissed) actions; --agent prints machine-readable output."
+    ),
+    "show": (
+        "Inspect a single action document by ID (or ID@generation), printing its full "
+        "current state and metadata."
+    ),
+    "complete": "Mark an operational action as completed (a lifecycle transition in the action ledger).",
+    "dismiss": "Mark an operational action as dismissed (a lifecycle transition in the action ledger).",
+    "reopen": "Reopen a completed or dismissed action, returning it to the open lane.",
+    "history": "Show the lifecycle history (state transitions over time) of a single action.",
+    "migrate-layout": (
+        "Transactional AW layout migration and records-backend cutover, with a rollback "
+        "journal. Moves/copies records to the chosen backend and updates the registry "
+        "policy. Recoverable on failure; --dry-run previews."
+    ),
+    "attention": (
+        "Read-only cross-tree attention view mapping every tracked .agents artifact's native "
+        "status onto a ready/active/blocked/done/parked class. Prints a board (or --format "
+        "json). --check fails closed on an invalid view (CI gate); --agent for machine output."
+    ),
+    "specs": (
+        "Owner verbs for the specs tree: 'set' (transition status + typed gates, append "
+        "history), 'note' (append history without a status change), 'check' (validate "
+        "against the contract), 'migrate' (first-normalize a legacy status)."
+    ),
+    "specs set": (
+        "Transition a spec's status (enforcing the legal transition table, the "
+        "anti-self-approval floor, and typed deferral gates) and append a workflow-history "
+        "record. An agent cannot drive a spec to 'approved' (human-only, TTY-confirmed) or "
+        "'implemented' (needs cited evidence)."
+    ),
+    "specs note": (
+        "Append a workflow-history record to a spec WITHOUT changing its status. Use to log "
+        "a decision, review, or correction."
+    ),
+    "specs check": (
+        "Validate one spec (or all specs) against the spec contract (status enum, required "
+        "sections, gate typing) and fail closed on a violation. CI-friendly."
+    ),
+    "specs migrate": (
+        "One-time first-normalization of a legacy/free-form spec status to the bare enum "
+        "and canonical shape. Use only on pre-contract specs."
+    ),
+    "archive": (
+        "Deliberately deep-shelve research docs: a targeted move, or a bare aged-and-uncited "
+        "sweep (with a preview) that shelves stale, unreferenced research."
+    ),
+    "plan-names": (
+        "Check (or, with --apply, fix) that plan/prompt filenames match the "
+        "YYYYMMDD-HHMM-NN-<slug>.md naming convention. --check-style gate."
+    ),
+    "check-local-leaks": (
+        "Detect (and, with --fix, rewrite) identifying info that must not appear in a public "
+        "artifact: home paths, usernames, hostnames, private repo names, and session ids. "
+        "Prints one record per finding; --agent for machine-readable output; exits nonzero "
+        "on a fail. Alias: 'sanitize'."
+    ),
+    "sanitize": (
+        "Alias of 'check-local-leaks': detect (and with --fix rewrite) identifying info "
+        "(home paths, usernames, hostnames, private repo names, session ids) that must not "
+        "appear in a public artifact. --agent for machine-readable output; exits nonzero on "
+        "a fail."
+    ),
+}
+
+
+def _apply_descriptions(parser: argparse.ArgumentParser) -> None:
+    """Set each subparser's ``description`` from ``_DESCRIPTIONS`` (clianx-01 E-06).
+
+    Walks every subparser by full command path and assigns the authored fuller
+    description so ``aw <command> --help`` explains the command beyond the one-line help.
+    Purely additive: it never changes registration order or dispatch.
+    """
+
+    def walk(node: argparse.ArgumentParser, prefix: str) -> None:
+        for action in node._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                for name, subparser in action.choices.items():
+                    path = (prefix + " " + name).strip()
+                    desc = _DESCRIPTIONS.get(path)
+                    if desc:
+                        subparser.description = desc
+                    walk(subparser, path)
+
+    walk(parser, "")
+
+
 class _AlphaHelpFormatter(argparse.HelpFormatter):
     """Help formatter that lists subcommands alphabetically (clianx-01 E-05).
 
@@ -1126,6 +1400,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "(allowlist, IP/hostname toggles, personal hints) instead of scanning.",
     )
 
+    _apply_descriptions(parser)
     return parser
 
 
