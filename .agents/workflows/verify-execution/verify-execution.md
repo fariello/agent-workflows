@@ -15,6 +15,14 @@ It shares this framework's policies rather than redefining them:
 - **Evidence discipline**: re-open the actual `path:line` and diff; never trust a commit message
   or a walkthrough's claim of success.
 
+This workflow also loads two sibling files in this directory:
+
+- **`intent-audit.md`** - the 5-dimension Intent & Spirit Audit Harness (explicit requirements,
+  implicit intent, empirical validation, scope, artifacts/conventions). Applied in Step 2.
+- **`rubric.md`** - the Execution Fidelity rubric (`FIDELITY_*`) and the false-completion failure
+  signature catalog. Applied in Step 4; it MAPS onto the verdict + D65 rule below (it does not
+  replace them).
+
 If the sibling policy files are absent, apply the same rules from memory.
 
 ---
@@ -74,10 +82,17 @@ into the wrong commit, and a detached-HEAD investigation stranded a file.)
 
 ---
 
-## Step 2: Check each required change was actually done
+## Step 2: Run the 5-dimension Intent & Spirit Audit
 
-For every item from the Step 0 checklist, re-open the evidence at `path:line` in the diff and
-classify it:
+Apply the harness in `intent-audit.md` against the real diff and (in Step 3) the real logs. It
+covers five dimensions: (1) Explicit Requirements, (2) Implicit Intent & Spirit, (3) Empirical
+Validation, (4) Scope & Boundaries, (5) Artifact & Convention Compliance. Dimensions 1, 4, and 5 are
+performed here against the diff; Dimension 3 is performed in Step 3. Dimension 2 is the deep check
+that a touched line actually honors the architectural intent (not a superficial edit or a
+false-completion signature).
+
+For every item from the Step 0 checklist (Dimension 1), re-open the evidence at `path:line` in the
+diff and classify it:
 
 - **done** - implemented as specified;
 - **partial** - started but incomplete;
@@ -87,18 +102,31 @@ classify it:
 - **over-scope** - done but NOT in the plan (unrequested work; the Fix Bar default for over-scope is
   removal or a separate reviewed plan). Judge over-scope by COMPLEXITY/risk, not raw size.
 
+Then apply Dimension 2 (Implicit Intent & Spirit): even for an item classified "done", check that it
+honors the architectural intent and is free of the false-completion signatures catalogued in
+`rubric.md` (swallowed exceptions, silent fallbacks, empty mock returns, deleted/weakened
+assertions, stubbed-to-pass functions, always-true guards). A line touched but with the intent
+defeated is a gap (`FIDELITY_SURFACE_ONLY`), not "done".
+
 Record each with `path:line` evidence and a Severity + Remediation Risk (for the corrective IPD).
 
 ---
 
-## Step 3: Re-run the repo's real validation
+## Step 3: Re-run the repo's real validation (Dimension 3: Empirical Validation)
+
+This step is MANDATORY and empirical. A "tests pass" / "lint clean" claim is NOT evidence; you must
+re-run the commands yourself and capture their real output.
 
 1. Run the project's actual validation by reusing `/verify` (discover and run the repo's own
    test/lint/build/type-check commands; capture real exit codes). If `/verify` is unavailable, run the
    validation the plan itself specified.
-2. **Attribute honestly:** distinguish failures INTRODUCED by this execution from a pre-existing red
+2. CAPTURE the real stdout/stderr tail and the real exit code, and paste them into the run record and
+   report (e.g. the `Ran N tests ... OK` summary line, the `aw ipd lint` disposition, the `--check`
+   exit). An execution whose validation you did not actually re-run and capture is rated
+   `FIDELITY_UNVERIFIED` (verdict INCOMPLETE), never GO.
+3. **Attribute honestly:** distinguish failures INTRODUCED by this execution from a pre-existing red
    baseline. Never blame the execution for failures it did not cause; never excuse failures it did.
-3. A red result that this execution introduced or left (when the plan required green) is a gap.
+4. A red result that this execution introduced or left (when the plan required green) is a gap.
 
 ---
 
@@ -115,8 +143,15 @@ State exactly one:
 - **INCOMPLETE** - required changes are missing or partial, or the plan was marked executed while its
   own validation does not pass (false completion).
 
+Also assign a **fidelity level** from `rubric.md` (`FIDELITY_EXEMPLARY` / `FIDELITY_SURFACE_ONLY` /
+`FIDELITY_PARTIAL` / `FIDELITY_UNVERIFIED` / `FIDELITY_DIVERGED`) from the 5-dimension audit. The
+fidelity level is a diagnostic that MAPS onto the verdict above (per `rubric.md`): EXEMPLARY ->
+MATCHES; DIVERGED -> DIVERGES; PARTIAL / SURFACE_ONLY / UNVERIFIED -> INCOMPLETE. It does not replace
+the verdict vocabulary.
+
 Then a **GO / NO-GO** on the real question: "should this plan be considered truly executed as
-approved?" GO only when MATCHES and validation is genuinely green.
+approved?" GO only when the verdict is MATCHES (fidelity EXEMPLARY) and validation is genuinely
+green.
 
 ### Run record (ALWAYS)
 
@@ -152,6 +187,7 @@ rationale. Otherwise born `to-review`. Err toward `to-review` ONLY on genuine co
 ```
 ## Verify Execution - <plan name>
 Verdict: <MATCHES | DIVERGES | INCOMPLETE>
+Fidelity: <FIDELITY_EXEMPLARY | FIDELITY_SURFACE_ONLY | FIDELITY_PARTIAL | FIDELITY_UNVERIFIED | FIDELITY_DIVERGED>
 Readiness: <GO | NO-GO> - <one-line reason>
 
 ### Execution evidence
