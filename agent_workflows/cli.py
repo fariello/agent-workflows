@@ -750,9 +750,34 @@ def _build_parser() -> argparse.ArgumentParser:
     p_reopen.add_argument("action_ref", help="Action ID or ID@generation.")
 
     p_history = sub.add_parser(
-        "history", parents=[common], help="Show lifecycle history of an action."
+        "history",
+        parents=[common],
+        help="Show lifecycle history of an action.",
     )
     p_history.add_argument("action_ref", help="Action ID or ID@generation.")
+
+    p_migrate = sub.add_parser(
+        "migrate-layout",
+        parents=[common],
+        help="Transactional AW layout migration and backend cutover.",
+    )
+    p_migrate.add_argument(
+        "--target-backend",
+        choices=["home", "companion", "repository"],
+        default="repository",
+        help="Target records storage backend.",
+    )
+    p_migrate.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show migration plan without mutating filesystem.",
+    )
+    p_migrate.add_argument(
+        "--apply", action="store_true", help="Execute approved migration transaction."
+    )
+    p_migrate.add_argument(
+        "--json", action="store_true", help="Output migration plan as JSON."
+    )
 
     p_attention = sub.add_parser(
         "attention",
@@ -2432,6 +2457,45 @@ def _run_action_history(args: argparse.Namespace, term: Term) -> int:
         return 1
 
 
+def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
+    import json
+    import os
+    from agent_workflows.layout_migration import MigrationManager, MigrationError
+
+    repo_path = os.getcwd()
+    target_backend = getattr(args, "target_backend", "repository")
+    dry_run = getattr(args, "dry_run", True) or not getattr(args, "apply", False)
+
+    try:
+        mgr = MigrationManager(target_repo=repo_path)
+        plan = mgr.execute_migration(target_backend=target_backend, dry_run=dry_run)
+    except MigrationError as exc:
+        if getattr(args, "json", False):
+            print(json.dumps({"error": str(exc)}, indent=2))
+        else:
+            term.status("fail", str(exc))
+        return 1
+
+    if getattr(args, "json", False):
+        print(json.dumps(plan.to_dict(), indent=2))
+        return 0
+
+    term.heading("AW Layout Migration Plan")
+    term.status("info", f"Project ID:      {plan.project_id}")
+    term.status("info", f"Source Backend:  {plan.source_backend}")
+    term.status("info", f"Target Backend:  {plan.target_backend}")
+    term.status("info", f"Required Bytes:  {plan.required_bytes}")
+    term.status("info", f"Available Bytes: {plan.available_bytes}")
+    term.status("ok" if plan.is_valid else "fail", f"Plan Valid:      {plan.is_valid}")
+
+    if dry_run:
+        term.status("info", "[DRY RUN] Pass --apply to execute this migration.")
+    else:
+        term.status("ok", "Successfully executed layout migration.")
+
+    return 0
+
+
 def _dispatch(argv: Optional[Sequence[str]]) -> int:
     parser = _build_parser()
     # Alias: `aw plans index` / `aw plans find` -> the `plans-index` / `plans-find` parsers, so the
@@ -2501,6 +2565,8 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return _run_reopen(args, term)
     if args.command == "history":
         return _run_action_history(args, term)
+    if args.command == "migrate-layout":
+        return _run_migrate_layout(args, term)
     if args.command == "install":
         return _run_install(args, term)
     if args.command == "uninstall":

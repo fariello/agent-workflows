@@ -15,7 +15,7 @@ Showing the 40 most-recent of 75 Sets; the full manifest is INDEX.json.
 - `anlovz` [executed] 06 executed/20260809-awlayout-06-anlovz-operational-actions-and-install-history.md
 - `b31tuy` [executed] 07 executed/20260809-awlayout-07-b31tuy-action-workflow-and-status-integration.md
 - `0me1hr` [executed] 08 executed/20260809-awlayout-08-0me1hr-producing-workflow-record-routing.md
-- `es1phc` [pending] 09 pending/20260809-awlayout-09-es1phc-layout-migration-rollback-and-uninstall.md
+- `es1phc` [executed] 09 executed/20260809-awlayout-09-es1phc-layout-migration-rollback-and-uninstall.md
 - `jmjh97` [pending] 10 pending/20260809-awlayout-10-jmjh97-clean-delta-skills-and-host-gates.md
 - `blw6qp` [pending] 11 pending/20260809-awlayout-11-blw6qp-docs-release-and-end-to-end-cutover.md
 
