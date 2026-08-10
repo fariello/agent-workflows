@@ -2,10 +2,15 @@
 
 # Research index
 
-Showing the most-recent 40 of 67 hot docs (archive excluded).
+Showing the most-recent 40 of 68 hot docs (archive excluded).
+
+## Needs addressing (intake)
+
+- `6zf5av` 20260810-gemini-actually-validate-playbook-00-6zf5av-gemini-actually-validate-playbook.gpt56medium.research-report.md - Gemini/agy-specific controls to make headless Gemini actually run validation and stop green-washing
 
 ## Most recent
 
+- `6zf5av` [intake] 20260810-gemini-actually-validate-playbook-00-6zf5av-gemini-actually-validate-playbook.gpt56medium.research-report.md - Gemini/agy-specific controls to make headless Gemini actually run validation and stop green-washing
 - `bv6n38` [active] 20260808-attention-registry-cross-tree-status-and-whatnext-00-bv6n38-attention-registry-cross-tree-status-and-whatnext.survey.md - Design survey for a cross-tree attention registry: standardized status vocabulary, deterministic aw attention scanner+writer, and whatnext-as-reader
 - `b1msgn` [active] 20260808-attention-registry-spec-review-03-b1msgn-attention-registry-spec-review.reconciliation.reconciliation-report.md - Consolidated reconciliation of the gpt-5.6/Gemini/Sonnet-5 reviews of the attention-registry spec
 - `fc2n5j` [active] 20260808-attention-registry-spec-review-02-fc2n5j-attention-registry-spec-review.sonnet5.assessment.md - Sonnet-5 review of the attention-registry spec
@@ -45,4 +50,3 @@ Showing the most-recent 40 of 67 hot docs (archive excluded).
 - `jfoccf` [reference] 20260716-ocsec-03-jfoccf-patch-proposal.patch-proposal.md - Migrated from 20260716-ocsec-03-jfoccf-patch-proposal.patch-proposal.md.
 - `nbbl7d` [reference] 20260716-ocsec-06-nbbl7d-opencode-db-incident-inspection-checklist.reference-research.md - Migrated from 20260716-ocsec-06-nbbl7d-opencode-db-incident-inspection-checklist.reference-research.md.
 - `vcnu3f` [reference] 20260716-ocsec-01-vcnu3f-test-evidence.test-evidence.md - Migrated from 20260716-ocsec-01-vcnu3f-test-evidence.test-evidence.md.
-- `zhkhky` [reference] 20260716-ocsec-04-zhkhky-provenance-and-cross-validation.research-report.md - Migrated from 20260716-ocsec-04-zhkhky-provenance-and-cross-validation.research-report.md.

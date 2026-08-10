@@ -126,6 +126,26 @@
     "topic": []
   },
   {
+    "created": "20260810",
+    "date": "20260810",
+    "id6": "6zf5av",
+    "kind": "research-report",
+    "model": "gpt56medium",
+    "order": "00",
+    "outcome": "none-yet",
+    "path": "20260810-gemini-actually-validate-playbook-00-6zf5av-gemini-actually-validate-playbook.gpt56medium.research-report.md",
+    "set_id": "gemini-actually-validate-playbook",
+    "status": "intake",
+    "summary": "Gemini/agy-specific controls to make headless Gemini actually run validation and stop green-washing",
+    "topic": [
+      "agent-reliability",
+      "gemini",
+      "antigravity",
+      "validation",
+      "ci-gates"
+    ]
+  },
+  {
     "created": "20260802",
     "date": "20260731",
     "id6": "72n26s",
