@@ -80,6 +80,16 @@ git status && git commit -m "chore: add agent-workflows"
 (Preview first with `aw install . --dry-run`; re-run any time to update, it is idempotent;
 `aw uninstall .` removes it. Prefer color off? Set `NO_COLOR=1` or pass `--no-color`.)
 
+**Never install into certain repos.** Keep a blocklist of repos that must never receive an
+install with `aw config exclude add <path-or-glob>` (and `aw config exclude list` / `rm`).
+Entries can be absolute paths (e.g. `~/src/legacy-repo`) or fnmatch globs (e.g.
+`*/vendored-tool`). This is distinct from the discovery-only `ignore` noise filter: excluded
+repos are dropped from `aw install all` and from setup discovery, and if you explicitly target
+one, `aw install <excluded>` warns and asks whether to continue (then offers to remove it from
+the list). Under `--yes` or a non-interactive run it is skipped rather than silently installed,
+so scripts and CI cannot install into an excluded repo by accident. To install into one anyway,
+remove it from the list first (or confirm at the interactive prompt).
+
 **Developing agent-workflows itself, or installing without pip?** Clone the repo and run
 the installer directly (the deprecated but supported path); an editable install exposes
 the same CLI:

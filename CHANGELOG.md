@@ -32,6 +32,9 @@ Major storage-layout boundary specified by `20260809-2211-01-aw-project-layout-s
 - Added: Dual-surface record routing (`aw path records --agent` and `resolve_record_routing()`).
 - Added: Transactional layout migration with rollback journal (`aw migrate-layout`) and conservative uninstall preserving config, state, and records by default.
 - Added: Clean-delta mode zero-target-write repository guarantees with D113 host evidence gating.
+- Added: Never-install exclude list (`aw config exclude {add,list,rm}`). A user-curated blocklist of repos (absolute paths or fnmatch globs) that must never receive an install, distinct from the discovery-only `ignore` noise filter. Discovery drops excluded repos into a separate `excluded` bucket; an explicitly targeted excluded repo warns and asks to continue interactively (default yes, then an offer to unexclude), and is skipped fail-safe under `--yes` or non-interactive runs so automation never silently installs into one.
+- Changed: `aw --help` and every subcommand group now list their subcommands in alphabetical order (display only; dispatch is unchanged).
+- Changed: `aw <command> --help` now shows a fuller description of what each command does (inputs, outputs, key flags, and caveats), not just the one-line summary from the parent listing.
 
 ## 1.3.0 (pending) - new conventions/features, internal install unification, and install-path fixes
 
