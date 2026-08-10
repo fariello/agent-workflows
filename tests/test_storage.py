@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from agent_workflows.project_registry import (
@@ -92,24 +93,41 @@ class TestStorageBackendsAndDurability(unittest.TestCase):
             capture_output=True,
         )
 
-        # Remote present WITHOUT explicit user acknowledgement STILL maps to local-git (spec Section 6.2 & L3-01!)
+        # A configured remote is observable but not acknowledged durable.
         st3 = get_storage_status(repo_path=self.target_repo)
-        self.assertEqual(st3.durability_state, DurabilityState.LOCAL_GIT.value)
+        self.assertEqual(
+            st3.durability_state, DurabilityState.UNACKNOWLEDGED_REMOTE.value
+        )
         self.assertIsNotNone(st3.remote_url)
         self.assertFalse(st3.remote_acknowledged)
 
         # Explicit remote acknowledgement -> durable-private
-        st4 = acknowledge_remote_durability(
-            repo_path=self.target_repo, acknowledge=True
+        with patch("agent_workflows.storage._remote_reachable", return_value=True):
+            st4 = acknowledge_remote_durability(
+                repo_path=self.target_repo, acknowledge=True
+            )
+        self.assertEqual(
+            st4.durability_state, DurabilityState.ACKNOWLEDGED_DURABLE.value
         )
-        self.assertEqual(st4.durability_state, DurabilityState.DURABLE_PRIVATE.value)
         self.assertTrue(st4.remote_acknowledged)
+
+        with patch("agent_workflows.storage._remote_reachable", return_value=False):
+            unreachable = get_storage_status(repo_path=self.target_repo)
+        self.assertEqual(
+            unreachable.durability_state, DurabilityState.UNREACHABLE.value
+        )
+
+        with patch("agent_workflows.storage._remote_reachable", return_value=None):
+            unknown = get_storage_status(repo_path=self.target_repo)
+        self.assertEqual(unknown.durability_state, DurabilityState.UNKNOWN.value)
 
         # Revoking acknowledgement -> downgrades back to local-git
         st5 = acknowledge_remote_durability(
             repo_path=self.target_repo, acknowledge=False
         )
-        self.assertEqual(st5.durability_state, DurabilityState.LOCAL_GIT.value)
+        self.assertEqual(
+            st5.durability_state, DurabilityState.UNACKNOWLEDGED_REMOTE.value
+        )
         self.assertFalse(st5.remote_acknowledged)
 
     def test_repository_backend_managed_durability(self):

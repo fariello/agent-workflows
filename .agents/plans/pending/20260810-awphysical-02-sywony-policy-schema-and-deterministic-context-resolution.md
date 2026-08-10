@@ -17,6 +17,7 @@
 - 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
 - 2026-08-10 /plan-review (Codex (GPT-5)): REVIEWED - OPEN QUESTIONS; reconciled the Set to the superseding physical-layout spec, corrected the child DAG and implementation anchors, resolved tracked prototype ownership, and replaced generic validation evidence with per-item commands/fixtures/failure conditions. NO-GO until the human maintainer approves the superseding spec.
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): independent re-review (14 parallel evidence lanes) VERIFIED prior handoff findings resolved from repository evidence; REVIEWED - OPEN QUESTIONS, NO-GO pending human spec approval. Residual LOW/MEDIUM findings (crosswalk evidence gap, V-evidence discrimination, durability-enum drift, postcheck independence, Order-11 packaging/integrity) handed back to GPT-5.6 High; see the orchestrator's independent re-review outcome + the residual-reconciliation prompt. Status unchanged (reviewed); human-approval blocker preserved.
+- 2026-08-10 /plan-review (Codex (GPT-5)): residual reconciliation resolved R1-R5 and LOW follow-ups across the spec, catalog, prototypes, schema, storage classifier, and affected E/V contracts. NO-GO remains until human approval of the superseding spec.
 
 ## Goal
 
@@ -28,7 +29,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Version and persist policy
 
-- [ ] E-01 Implement a versioned portable project-policy schema for `.aw/config/project.json` and a separate machine-local binding schema outside tracked Git for local paths, companion attachment, runtime roots, and host-specific data.
+- [ ] E-01 Implement a versioned portable project-policy schema for `.aw/config/project.json`, the Section 10 durability enum and `durable-private` input alias, and a separate machine-local binding schema outside tracked Git for local paths, companion attachment, runtime roots, and host-specific data.
   - Depends on: none
   - Expected outcome: Portable policy contains no machine-local absolute paths or secrets; local bindings identify the project durably and can be rebuilt or reattached safely.
   - Execution state: pending
@@ -68,6 +69,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - `project_context.py` is a pure resolver and must not become a wizard or filesystem materializer.
 - Global configuration follows the repository's XDG/AW_HOME rules; project-local absolute paths belong only in machine-local bindings.
 - JSON output is a compatibility surface and requires an explicit schema version.
+- Spec traceability: E-01/E-02 implement Sections 4.2 and 10; E-03 through E-06 implement Sections 5, 7, and 13. Coordinate the shared durability schema with Order 05 before either Order commits.
 
 ## Findings
 

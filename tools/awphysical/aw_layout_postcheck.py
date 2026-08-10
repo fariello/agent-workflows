@@ -9,6 +9,7 @@ must preserve the rule IDs and fail-closed behavior represented here.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -88,6 +89,16 @@ def _ignored(repo: Path, path: Path) -> Optional[bool]:
     rel = path.absolute().relative_to(repo.absolute()).as_posix()
     proc = _git(repo, ["check-ignore", "-q", "--", rel])
     return proc.returncode == 0
+
+
+def _git_owner(path: Path) -> Optional[Path]:
+    """Resolve the actual owning Git worktree for an existing path."""
+
+    probe = path if path.is_dir() else path.parent
+    proc = _git(probe, ["rev-parse", "--show-toplevel"])
+    if proc.returncode != 0:
+        return None
+    return Path(proc.stdout.strip()).absolute()
 
 
 def _finding(
@@ -206,7 +217,19 @@ def check_context(context: Mapping[str, Any]) -> Dict[str, Any]:
                     )
                 )
 
-    authoritative = context.get("authoritative_layout")
+    authority_path = context.get("authority_file")
+    if not isinstance(authority_path, str):
+        findings.append(
+            _finding("authority-evidence-missing", "authority_file is required")
+        )
+        authority = {}
+    else:
+        try:
+            authority = load_json(Path(authority_path).expanduser().absolute())
+        except PostcheckError as exc:
+            findings.append(_finding("authority-evidence-invalid", str(exc)))
+            authority = {}
+    authoritative = authority.get("authoritative_layout")
     if authoritative != "physical-aw-v2":
         findings.append(
             _finding(
@@ -214,7 +237,15 @@ def check_context(context: Mapping[str, Any]) -> Dict[str, Any]:
                 f"unexpected authoritative_layout: {authoritative!r}",
             )
         )
-    migration = context.get("migration")
+    receipt_path = context.get("transaction_receipt")
+    if not isinstance(receipt_path, str):
+        migration = None
+    else:
+        try:
+            migration = load_json(Path(receipt_path).expanduser().absolute())
+        except PostcheckError as exc:
+            findings.append(_finding("migration-evidence-invalid", str(exc)))
+            migration = None
     if isinstance(migration, dict):
         phase = migration.get("phase")
         if phase not in {"verified", "independently-reviewed", "not-required"}:
@@ -253,6 +284,7 @@ def check_context(context: Mapping[str, Any]) -> Dict[str, Any]:
                 continue
             producer = str(route.get("producer", ""))
             destination = str(route.get("logical_destination", ""))
+            observed_raw = route.get("observed_path")
             if not producer or producer in seen:
                 findings.append(
                     _finding(
@@ -273,13 +305,98 @@ def check_context(context: Mapping[str, Any]) -> Dict[str, Any]:
                         "producer-unverified", f"{producer} lacks a verified route"
                     )
                 )
+            if not isinstance(observed_raw, str):
+                findings.append(
+                    _finding(
+                        "producer-observation-missing",
+                        f"{producer} has no observed_path",
+                    )
+                )
+                continue
+            observed = Path(observed_raw).expanduser().absolute()
+            allowed = [
+                path
+                for key, path in paths.items()
+                if key in {"records", "state_durable", "state_runtime"}
+            ]
+            if not observed.exists():
+                findings.append(
+                    _finding(
+                        "producer-output-missing",
+                        f"{producer} output does not exist: {observed}",
+                    )
+                )
+            if not any(_is_within(observed, root) for root in allowed):
+                findings.append(
+                    _finding(
+                        "producer-output-wrong-root",
+                        f"{producer} wrote outside records/state roots: {observed}",
+                    )
+                )
+            declared_owner = route.get("git_owner")
+            actual_owner = _git_owner(observed) if observed.exists() else None
+            if (
+                declared_owner is not None
+                and actual_owner != Path(str(declared_owner)).expanduser().absolute()
+            ):
+                findings.append(
+                    _finding(
+                        "wrong-git-index",
+                        f"{producer} actual Git owner {actual_owner} != {declared_owner}",
+                    )
+                )
 
+    adapter_manifest_path = context.get("adapter_manifest")
+    if not isinstance(adapter_manifest_path, str):
+        findings.append(
+            _finding("adapter-evidence-missing", "adapter_manifest is required")
+        )
+    else:
+        try:
+            adapter_manifest = load_json(
+                Path(adapter_manifest_path).expanduser().absolute()
+            )
+            adapters = adapter_manifest.get("adapters")
+            if not isinstance(adapters, list):
+                raise PostcheckError("adapter_manifest requires an adapters array")
+            for raw in adapters:
+                adapter = Path(str(raw)).expanduser().absolute()
+                if not adapter.is_file():
+                    findings.append(
+                        _finding(
+                            "adapter-missing", f"adapter does not exist: {adapter}"
+                        )
+                    )
+                    continue
+                text = adapter.read_text(encoding="utf-8")
+                if (
+                    len(text.splitlines()) > 80
+                    or "## Detailed Implementation Checklist" in text
+                    or "# Workflow:" in text
+                ):
+                    findings.append(
+                        _finding(
+                            "adapter-copied-logic",
+                            f"adapter appears to copy normative workflow logic: {adapter}",
+                        )
+                    )
+        except (OSError, UnicodeError, PostcheckError) as exc:
+            findings.append(_finding("adapter-evidence-invalid", str(exc)))
+
+    findings.sort(key=lambda item: (item["rule"], item.get("root", ""), item["detail"]))
+    checked_roots = sorted(paths)
+    digest_material = json.dumps(
+        {"findings": findings, "checked_roots": checked_roots},
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
     return {
         "schema_version": SCHEMA_VERSION,
         "valid": not any(item["severity"] == "fail" for item in findings),
         "finding_count": len(findings),
         "findings": findings,
-        "checked_roots": sorted(paths),
+        "checked_roots": checked_roots,
+        "postcheck_id": hashlib.sha256(digest_material).hexdigest(),
     }
 
 

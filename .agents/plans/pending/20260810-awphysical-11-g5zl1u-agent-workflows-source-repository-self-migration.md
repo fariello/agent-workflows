@@ -17,6 +17,7 @@
 - 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
 - 2026-08-10 /plan-review (Codex (GPT-5)): REVIEWED - OPEN QUESTIONS; reconciled the Set to the superseding physical-layout spec, corrected the child DAG and implementation anchors, resolved tracked prototype ownership, and replaced generic validation evidence with per-item commands/fixtures/failure conditions. NO-GO until the human maintainer approves the superseding spec.
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): independent re-review (14 parallel evidence lanes) VERIFIED prior handoff findings resolved from repository evidence; REVIEWED - OPEN QUESTIONS, NO-GO pending human spec approval. Residual LOW/MEDIUM findings (crosswalk evidence gap, V-evidence discrimination, durability-enum drift, postcheck independence, Order-11 packaging/integrity) handed back to GPT-5.6 High; see the orchestrator's independent re-review outcome + the residual-reconciliation prompt. Status unchanged (reviewed); human-approval blocker preserved.
+- 2026-08-10 /plan-review (Codex (GPT-5)): residual reconciliation resolved R1-R5 and LOW follow-ups across the spec, catalog, prototypes, schema, storage classifier, and affected E/V contracts. NO-GO remains until human approval of the superseding spec.
 
 ## Goal
 
@@ -28,12 +29,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Prepare and freeze the source repository
 
-- [ ] E-01 Require all prior implementation Orders 04 through 10 to be terminal, ensure the worktree/index and concurrent branches are coordinated, select and persist the human-approved source-repository preset, and establish a no-writer migration window.
+- [ ] E-01 Require all prior implementation Orders 04 through 10 to be terminal, cite the actual passing Order 04 source-checkout, copied-marker spoof, origin-only spoof, and ambiguous-evidence outputs, ensure the worktree/index and concurrent branches are coordinated, select and persist the human-approved source-repository preset, and establish a no-writer migration window.
   - Depends on: none
   - Expected outcome: No active agent or workflow writes during inventory/cutover; source-checkout role and config/state/records Git destinations are explicit; unrelated concurrent commits are not absorbed.
   - Execution state: pending
 
-- [ ] E-02 Before mutation, freeze the real source filesystem/Git baseline, then run the production inventory/plan against all source-repository legacy and partial-layout material, including canonical workflows, Python/package sources, plans, specs, research, prompts, comms, run records, backups, adapters, ignored content, open actions, and externally resolved roots; obtain human approval of every disposition.
+- [ ] E-02 Before mutation, freeze the real source filesystem/Git baseline, then run the production inventory/plan against all source-repository legacy and partial-layout material, including canonical workflows, Python/package sources, plans, specs, research, prompts, comms, run records, backups, adapters, ignored content, open actions, and every external root declared with an explicit repeatable `--root LABEL=PATH`; obtain human approval of every disposition.
   - Depends on: E-01
   - Expected outcome: Expected source-item set equals inventoried set, developer-owned product source is distinguished from project records, and no unknown/collision remains.
   - Execution state: pending
@@ -41,29 +42,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ### Task group 2: Rehearse and execute
 
 - [ ] E-03 Create a full `git clone --mirror` baseline plus a disposable worktree clone and copied external roots; record real pre-mutation content digests and `git rev-list --count` plus tip hashes for every artifact Git tree before rehearsal; then execute migration, run comparison/postcheck/fresh-agent review, exercise representative producing workflows, and prove rollback plus resume before touching the real checkout.
-  - Depends on: E-01
+  - Depends on: E-02
   - Expected outcome: Rehearsal produces actual green evidence for source protection, record preservation, Git boundaries, routing, adapters, package build, rollback, and resumed completion.
   - Execution state: pending
 
 - [ ] E-04 Execute the approved transaction on the real repository without auto-staging, committing, pushing, or deleting retained legacy data; verify hashes after every phase and stop on any difference from rehearsal inputs or expected Git identities.
-  - Depends on: E-01
+  - Depends on: E-03
   - Expected outcome: Canonical workflow source, including current `.agents/workflows`, adopts approved `.aw/system` without breaking package or self-host resolution, project durable material reaches approved roots, and only one writer becomes authoritative.
   - Execution state: pending
 
 ### Task group 3: Regenerate, audit, and commit safely
 
-- [ ] E-05 Regenerate owner-managed indexes, adapters, manifests, version/resource references, docs links, test fixtures, and package metadata; update only current references while retaining clearly labeled historical evidence.
-  - Depends on: E-01
+- [ ] E-05 Regenerate owner-managed indexes, adapters, manifests, version/resource references, docs links, test fixtures, and package metadata. Verify the Order 04-owned packaging edits at `pyproject.toml`, `agent_workflows/_compat.py` `_DATA_RELATIVE`, `hatch_build.py`, and `versioning.py`; do not reimplement them in this Order. Update only current references while retaining clearly labeled historical evidence.
+  - Depends on: E-04
   - Expected outcome: Source checkout builds/tests from the canonical system source; current docs/tools contain no executable legacy writes; historical citations remain intelligible.
   - Execution state: pending
 
-- [ ] E-06 Compare real post-migration bytes and every artifact repository history count/tip to the frozen baseline, then run deterministic compare/postcheck and the fresh-agent follow-up, inspect target/external Git repositories independently, and resolve every HIGH/MEDIUM finding through owning Orders or new corrective IPDs before completion.
-  - Depends on: E-01
+- [ ] E-06 Compare real post-migration bytes and every artifact repository's full history and refs to the frozen baseline. Hard fail if any post count is less than pre, any pre tip is unreachable from retained refs, or any tracked baseline path is missing or byte/mode changed except an approved mapped relocation. Then run deterministic compare/postcheck and the fresh-agent follow-up, inspect target/external Git repositories independently, and resolve every HIGH/MEDIUM finding through owning Orders or new corrective IPDs before completion.
+  - Depends on: E-05
   - Expected outcome: Completion is independently evidenced; residual low-risk retained/deprecation items have explicit owner and removal trigger.
   - Execution state: pending
 
 - [ ] E-07 Prepare separate path-scoped commits for source repository and any companion repository, review staged and merge-base deltas, commit only after human confirmation, never push, and retain rollback/legacy material through the defined window.
-  - Depends on: E-01
+  - Depends on: E-06
   - Expected outcome: Git history separates source relocation, generated derivatives, project-record movement, and external companion changes as policy requires; no unrelated active-agent work is committed.
   - Execution state: pending
 
@@ -73,6 +74,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - The repository may be actively edited by multiple agents; a migration window and exact commit/base coordination are mandatory.
 - Executed plans and historical records are immutable evidence; path/citation tooling may relocate them without rewriting bodies.
 - Source checkout cannot use ordinary installer ownership for developer-edited canonical system source.
+- Spec traceability: E-01/E-02 implement Sections 9 and 11.1; E-03/E-04 implement Sections 11.2 and 13; E-05 implements Section 9; E-06/E-07 implement Sections 11.3 and 13.
 
 ## Findings
 
@@ -119,12 +121,12 @@ Each row is mandatory for its matching `V-*` item. The executor creates the name
 
 | E | Exact command | Named fixture/input | Required positive assertion | Required failure condition |
 |---|---|---|---|---|
-| E-01 | `python3 -m unittest tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e01` | `tests/fixtures/awphysical/order11/e01-*` | No active agent or workflow writes during inventory/cutover; source-checkout role and config/state/records Git destinations are explicit; unrelated concurrent commits are not absorbed. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
-| E-02 | `python3 -m unittest tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e02` | `tests/fixtures/awphysical/order11/e02-*` | Expected source-item set equals inventoried set, developer-owned product source is distinguished from project records, and no unknown/collision remains. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-01 | `python3 -m unittest tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e01` | real Order 04 source-positive/spoof/ambiguous output citations plus frozen writer/index snapshot | Every cited Order 04 command is green with zero source writes; writer window is locked; source role and all Git destinations are explicit; baseline excludes unrelated work. | any citation/output is absent or stale, source write occurred, writer/index changed, or destination is ambiguous |
+| E-02 | `python3 -m unittest tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e02` | real repo inventory plus one canary per explicit `--root LABEL=PATH` | Expected source and external canary sets equal inventory sets; every external root is explicitly declared; product source, records, state, and unknowns have distinct dispositions. | an external canary is absent, any root was implicitly discovered, or an unknown/collision remains |
 | E-03 | `python3 -m unittest tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e03` | `tests/fixtures/awphysical/order11/e03-*` | Rehearsal produces actual green evidence for source protection, record preservation, Git boundaries, routing, adapters, package build, rollback, and resumed completion. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
 | E-04 | `python3 -m unittest tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e04` | `tests/fixtures/awphysical/order11/e04-*` | Canonical workflow source, including current `.agents/workflows`, adopts approved `.aw/system` without breaking package or self-host resolution, project durable material reaches approved roots, and only one writer becomes authoritative. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
 | E-05 | `python3 -m unittest tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e05` | `tests/fixtures/awphysical/order11/e05-*` | Source checkout builds/tests from the canonical system source; current docs/tools contain no executable legacy writes; historical citations remain intelligible. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
-| E-06 | `python3 -m unittest tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e06` | `tests/fixtures/awphysical/order11/e06-*` | Completion is independently evidenced; residual low-risk retained/deprecation items have explicit owner and removal trigger. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-06 | `python3 -m unittest tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e06` | real pre/post manifests, refs, counts, modes, hashes, compare/postcheck reports | For every artifact Git tree and the full source history, post count is at least pre and every pre tip is reachable; every baseline tracked path is byte/mode identical or has one approved relocation; compare/postcheck are valid. | any count decreases, pre tip is unreachable, tracked path is missing/changed without mapped relocation, or independent report fails |
 | E-07 | `python3 -m unittest tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e07` | `tests/fixtures/awphysical/order11/e07-*` | Git history separates source relocation, generated derivatives, project-record movement, and external companion changes as policy requires; no unrelated active-agent work is committed. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
 
 ## Spec / documentation sync

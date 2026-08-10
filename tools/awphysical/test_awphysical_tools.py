@@ -123,6 +123,23 @@ class InventoryTests(unittest.TestCase):
         self.assertIsNone(item["sha256"])
         self.assertEqual(item["symlink_target"], str(external))
 
+    def test_git_classification_is_closed_and_deterministic(self) -> None:
+        """External, exact unmerged, and mixed states use stable spellings."""
+
+        self.assertEqual(
+            INVENTORY._git_state(None, set(), set(), set(), set()), "external"
+        )
+        self.assertEqual(
+            INVENTORY._git_state(
+                "conflict.md", {"conflict.md"}, set(), set(), {"conflict.md"}
+            ),
+            "unmerged",
+        )
+        self.assertEqual(
+            INVENTORY._git_state("tree", {"tree/a"}, set(), {"tree/b"}, set()),
+            "mixed:ignored,tracked",
+        )
+
 
 class CompareTests(unittest.TestCase):
     """Verify complete map accounting and byte comparison."""
@@ -218,9 +235,32 @@ class PostcheckTests(unittest.TestCase):
         self.target = base / "target"
         self.target.mkdir()
         external = base / "external"
+        authority = base / "authority.json"
+        authority.write_text(
+            '{"authoritative_layout":"physical-aw-v2"}\n', encoding="utf-8"
+        )
+        receipt = base / "receipt.json"
+        receipt.write_text(
+            '{"phase":"verified","legacy_writer_enabled":false,"rollback_ready":true}\n',
+            encoding="utf-8",
+        )
+        adapter = base / "adapter.md"
+        adapter.write_text("Read .aw/system/workflows/example.md\n", encoding="utf-8")
+        adapter_manifest = base / "adapters.json"
+        adapter_manifest.write_text(
+            json.dumps({"adapters": [str(adapter)]}), encoding="utf-8"
+        )
+        plan_output = self.target / ".aw/records/plans/plan.md"
+        plan_output.parent.mkdir(parents=True)
+        plan_output.write_text("plan\n", encoding="utf-8")
+        action_output = self.target / ".aw/state/durable/actions/setup.json"
+        action_output.parent.mkdir(parents=True)
+        action_output.write_text("{}\n", encoding="utf-8")
         self.context: Dict[str, Any] = {
             "target_repo": str(self.target),
-            "authoritative_layout": "physical-aw-v2",
+            "authority_file": str(authority),
+            "transaction_receipt": str(receipt),
+            "adapter_manifest": str(adapter_manifest),
             "roots": {
                 "system": {
                     "path": str(self.target / ".aw/system"),
@@ -257,11 +297,13 @@ class PostcheckTests(unittest.TestCase):
                     "producer": "plans",
                     "logical_destination": "records/plans",
                     "verified": True,
+                    "observed_path": str(plan_output),
                 },
                 {
                     "producer": "actions",
                     "logical_destination": "state/durable/actions",
                     "verified": True,
+                    "observed_path": str(action_output),
                 },
             ],
         }
@@ -274,6 +316,40 @@ class PostcheckTests(unittest.TestCase):
 
         report = POSTCHECK.check_context(self.context)
         self.assertTrue(report["valid"], report["findings"])
+        self.assertRegex(report["postcheck_id"], r"^[0-9a-f]{64}$")
+        reordered = dict(reversed(list(self.context.items())))
+        self.assertEqual(
+            report["postcheck_id"], POSTCHECK.check_context(reordered)["postcheck_id"]
+        )
+
+    def test_fabricated_clean_context_fails_without_external_evidence(self) -> None:
+        """Self-reported clean fields cannot replace authority and receipt artifacts."""
+
+        self.context.pop("authority_file")
+        self.context.pop("transaction_receipt")
+        self.context["authoritative_layout"] = "physical-aw-v2"
+        self.context["migration"] = {
+            "phase": "verified",
+            "legacy_writer_enabled": False,
+            "rollback_ready": True,
+        }
+        report = POSTCHECK.check_context(self.context)
+        rules = {item["rule"] for item in report["findings"]}
+        self.assertFalse(report["valid"])
+        self.assertIn("authority-evidence-missing", rules)
+        self.assertIn("migration-evidence-missing", rules)
+
+    def test_copied_adapter_logic_and_wrong_git_owner_fail(self) -> None:
+        """Postcheck reads adapter bytes and actual Git ownership."""
+
+        manifest = Path(self.context["adapter_manifest"])
+        adapter = Path(json.loads(manifest.read_text())["adapters"][0])
+        adapter.write_text("# Workflow:\n" + "copied\n" * 90, encoding="utf-8")
+        self.context["producer_routes"][0]["git_owner"] = str(self.target)
+        report = POSTCHECK.check_context(self.context)
+        rules = {item["rule"] for item in report["findings"]}
+        self.assertIn("adapter-copied-logic", rules)
+        self.assertIn("wrong-git-index", rules)
 
     def test_tracked_runtime_and_legacy_route_fail(self) -> None:
         """Prohibited tracking and legacy writes produce stable failures."""
@@ -284,6 +360,7 @@ class PostcheckTests(unittest.TestCase):
                 "producer": "bad-plan-writer",
                 "logical_destination": ".agents/plans/pending",
                 "verified": True,
+                "observed_path": str(self.target / ".aw/records/plans/plan.md"),
             }
         )
         report = POSTCHECK.check_context(self.context)
@@ -305,12 +382,29 @@ class ScenarioCatalogTests(unittest.TestCase):
         scenarios = payload["scenarios"]
         ids = [item["id"] for item in scenarios]
         self.assertEqual(len(ids), len(set(ids)))
-        self.assertGreaterEqual(len(ids), 40)
+        self.assertEqual(len(ids), 44)
         for item in scenarios:
             self.assertTrue(item["name"])
             self.assertTrue(item["preset"])
             self.assertTrue(item["expected"])
             self.assertTrue(item["orders"])
+
+    def test_legacy_crosswalk_assertions_bind_to_scenarios(self) -> None:
+        """Every retained old behavior has a concrete expected-token assertion."""
+
+        payload = json.loads(
+            (TOOLS_DIR / "migration-scenarios.json").read_text(encoding="utf-8")
+        )
+        by_id = {item["id"]: item for item in payload["scenarios"]}
+        crosswalk = payload["legacy_crosswalk"]
+        self.assertEqual([row["legacy_id"] for row in crosswalk], list(range(1, 26)))
+        for row in crosswalk:
+            tokens = {
+                token
+                for scenario_id in row["scenarios"]
+                for token in by_id[scenario_id]["expected"]
+            }
+            self.assertTrue(set(row["assertions"]).issubset(tokens), row)
 
 
 if __name__ == "__main__":

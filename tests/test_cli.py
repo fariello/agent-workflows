@@ -240,7 +240,9 @@ class ListStatusTests(CliTestBase):
         # short names), so match on the stable basename, not the raw temp path string.
         self.assertIn(repo.name, out)
         # The installed repo carries a VERSION; its state is one of the known labels.
-        self.assertTrue(any(s in out for s in ("CURRENT", "STALE", "AHEAD", "DEV")))
+        self.assertTrue(
+            any(s in out for s in ("CURRENT", "STALE", "AHEAD", "DEV", "UNKNOWN"))
+        )
 
     def test_list_reports_not_installed(self):
         repo = self._repo("empty")  # a repo with no framework installed

@@ -17,6 +17,7 @@
 - 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
 - 2026-08-10 /plan-review (Codex (GPT-5)): REVIEWED - OPEN QUESTIONS; reconciled the Set to the superseding physical-layout spec, corrected the child DAG and implementation anchors, resolved tracked prototype ownership, and replaced generic validation evidence with per-item commands/fixtures/failure conditions. NO-GO until the human maintainer approves the superseding spec.
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): independent re-review (14 parallel evidence lanes) VERIFIED prior handoff findings resolved from repository evidence; REVIEWED - OPEN QUESTIONS, NO-GO pending human spec approval. Residual LOW/MEDIUM findings (crosswalk evidence gap, V-evidence discrimination, durability-enum drift, postcheck independence, Order-11 packaging/integrity) handed back to GPT-5.6 High; see the orchestrator's independent re-review outcome + the residual-reconciliation prompt. Status unchanged (reviewed); human-approval blocker preserved.
+- 2026-08-10 /plan-review (Codex (GPT-5)): residual reconciliation resolved R1-R5 and LOW follow-ups across the spec, catalog, prototypes, schema, storage classifier, and affected E/V contracts. NO-GO remains until human approval of the superseding spec.
 
 ## Goal
 
@@ -78,6 +79,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Order 06 output is immutable transaction input, not a hint to recompute during apply.
 - Migration never commits, pushes, deletes external repos/remotes, or removes legacy content during cutover.
 - System source checkout is developer-owned and cannot be treated as an ordinary installed target.
+- Spec traceability: E-01/E-02 implement Sections 7 and 11.2; E-03 through E-06 implement Section 11.2; E-07/E-08 implement Sections 11.2, 11.3, and 13.
 
 ## Findings
 
@@ -131,7 +133,7 @@ Each row is mandatory for its matching `V-*` item. The executor creates the name
 | E-05 | `python3 -m unittest tests.test_layout_migration.TransactionalMigrationTests.test_e05` | `tests/fixtures/awphysical/order07/e05-*` | Users can inspect or roll back after cutover; retained candid material does not become newly tracked or copied into the wrong repository. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
 | E-06 | `python3 -m unittest tests.test_layout_migration.TransactionalMigrationTests.test_e06` | `tests/fixtures/awphysical/order07/e06-*` | Cross-repository moves are represented as independent deltas and recovery instructions; a failure in one Git owner cannot be presented as globally committed. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
 | E-07 | `python3 -m unittest tests.test_layout_migration.TransactionalMigrationTests.test_e07` | `tests/fixtures/awphysical/order07/e07-*` | Repeated resume/rollback is safe; cleanup cannot run as part of migration, cannot touch foreign/changed items, and defaults to preview. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
-| E-08 | `python3 -m unittest tests.test_layout_migration.TransactionalMigrationTests.test_e08` | `tests/fixtures/awphysical/order07/e08-*` | Every injected failure has exact authoritative-root, retained-source, journal, Git-index, exit-code, and recovery assertions. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-08 | `python3 -m unittest tests.test_layout_migration.TransactionalMigrationTests.test_e08` | named injections: `stale-input`, `concurrent-writer`, `copy-failure`, `verify-mismatch`, `switch-failure`, `kill-after-switch-before-receipt`, `disk-loss`, `permission-loss`, `cross-git-partial-stage`, `resume`, `rollback`, `cleanup-refusal`, `source-protection` | Every injection asserts exact exit and journal phase. In `kill-after-switch-before-receipt`, exactly one physical backend is authoritative, legacy writers are disabled, every retained-source hash equals the frozen inventory, target and companion indexes are clean, and resume or rollback is explicitly available. | any injection is absent, authority is zero/dual, a retained hash/index differs, exit is wrong, or recovery is unavailable |
 
 ## Spec / documentation sync
 

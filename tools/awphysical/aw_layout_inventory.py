@@ -80,20 +80,25 @@ def _nul_paths(repo: Path, args: Sequence[str]) -> Set[str]:
     }
 
 
-def git_sets(repo: Path) -> Tuple[Set[str], Set[str], Set[str], Optional[str]]:
-    """Collect tracked, untracked, ignored paths and the Git common directory."""
+def git_sets(
+    repo: Path,
+) -> Tuple[Set[str], Set[str], Set[str], Set[str], Optional[str]]:
+    """Collect tracked, untracked, ignored, unmerged paths and Git common dir."""
 
     inside = _run_git(repo, ["rev-parse", "--is-inside-work-tree"])
     if inside.returncode != 0 or inside.stdout.strip() != "true":
-        return set(), set(), set(), None
+        return set(), set(), set(), set(), None
     tracked = _nul_paths(repo, ["ls-files", "-z"])
     untracked = _nul_paths(repo, ["ls-files", "--others", "--exclude-standard", "-z"])
     ignored = _nul_paths(
         repo, ["ls-files", "--others", "--ignored", "--exclude-standard", "-z"]
     )
+    unmerged_raw = _nul_paths(repo, ["ls-files", "-u", "-z"])
+    # -u records contain metadata, a tab, then the path.
+    unmerged = {item.split("\t", 1)[-1] for item in unmerged_raw}
     common = _run_git(repo, ["rev-parse", "--path-format=absolute", "--git-common-dir"])
     common_dir = common.stdout.strip() if common.returncode == 0 else None
-    return tracked, untracked, ignored, common_dir
+    return tracked, untracked, ignored, unmerged, common_dir
 
 
 def sha256_file(path: Path) -> str:
@@ -164,14 +169,25 @@ def _repo_relative(path: Path, repo: Path) -> Optional[str]:
 
 
 def _git_state(
-    rel: Optional[str], tracked: Set[str], untracked: Set[str], ignored: Set[str]
+    rel: Optional[str],
+    tracked: Set[str],
+    untracked: Set[str],
+    ignored: Set[str],
+    unmerged: Set[str],
 ) -> str:
     """Classify one repo-relative entry using exact or descendant Git membership."""
 
     if rel is None:
         return "external"
     prefix = rel.rstrip("/") + "/"
-    groups = (("tracked", tracked), ("untracked", untracked), ("ignored", ignored))
+    if rel in unmerged:
+        return "unmerged"
+    groups = (
+        ("tracked", tracked),
+        ("untracked", untracked),
+        ("ignored", ignored),
+        ("unmerged", unmerged),
+    )
     matched = [
         name
         for name, paths in groups
@@ -180,7 +196,7 @@ def _git_state(
     if len(matched) == 1:
         return matched[0]
     if len(matched) > 1:
-        return "mixed:" + ",".join(matched)
+        return "mixed:" + ",".join(sorted(matched))
     return "not-listed"
 
 
@@ -204,7 +220,7 @@ def inventory(
 ) -> Dict[str, Any]:
     """Build a complete JSON-serializable inventory for declared roots."""
 
-    tracked, untracked, ignored, common_dir = git_sets(repo)
+    tracked, untracked, ignored, unmerged, common_dir = git_sets(repo)
     items: List[Dict[str, Any]] = []
     root_docs: List[Dict[str, Any]] = []
     errors: List[Dict[str, str]] = []
@@ -267,7 +283,9 @@ def inventory(
                     "mode": stat.S_IMODE(st.st_mode),
                     "sha256": digest,
                     "symlink_target": link_target,
-                    "git_state": _git_state(repo_rel, tracked, untracked, ignored),
+                    "git_state": _git_state(
+                        repo_rel, tracked, untracked, ignored, unmerged
+                    ),
                     "repo_relpath": repo_rel,
                 }
                 items.append(item)

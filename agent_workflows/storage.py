@@ -6,7 +6,7 @@ safety boundary validation, and truthful durability state reporting specified by
 
 Invariants:
 - TRUTHFUL DURABILITY: A configured remote alone remains a neutral observable fact. The
-  ``DurabilityState.DURABLE_PRIVATE`` state is assigned ONLY when the user explicitly acknowledges
+  ``DurabilityState.ACKNOWLEDGED_DURABLE`` state is assigned ONLY when the user explicitly acknowledges
   the remote/backup policy (L3-01 / spec Section 6.2).
 - SAFE BOUNDARIES: Rejects path traversal, accidental repository nesting, and identity-conflicting companion repos.
 - NO UNREQUESTED REMOTE ACTIONS: Never creates remotes, commits code, or pushes data.
@@ -65,6 +65,7 @@ class StorageStatus:
     has_git: bool
     remote_url: Optional[str]
     remote_acknowledged: bool
+    remote_reachable: Optional[bool]
     recommendation: str
 
     def to_dict(self) -> Dict[str, Any]:
@@ -77,6 +78,7 @@ class StorageStatus:
             "has_git": self.has_git,
             "remote_url": self.remote_url,
             "remote_acknowledged": self.remote_acknowledged,
+            "remote_reachable": self.remote_reachable,
             "recommendation": self.recommendation,
         }
 
@@ -130,6 +132,23 @@ def _get_ack_file_path(state_root: str) -> Path:
     return Path(state_root) / "remote_durability_ack.json"
 
 
+def _remote_reachable(records_path: str) -> Optional[bool]:
+    """Probe the configured origin without writing, prompting, or hanging indefinitely."""
+
+    try:
+        proc = subprocess.run(
+            ["git", "-C", records_path, "ls-remote", "--exit-code", "origin", "HEAD"],
+            capture_output=True,
+            check=False,
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return proc.returncode == 0
+
+
 def get_storage_status(
     repo_path: Optional[str] = None, aw_home: Optional[str] = None
 ) -> StorageStatus:
@@ -150,6 +169,7 @@ def get_storage_status(
     remote_url = None
     if has_git:
         remote_url = get_git_origin_url(records_path)
+    remote_reachable = _remote_reachable(records_path) if remote_url else None
 
     # Check explicit remote acknowledgement record
     ack_file = _get_ack_file_path(ctx.logical_roots[LogicalRoot.STATE.value])
@@ -164,20 +184,31 @@ def get_storage_status(
 
     # Truthful durability state classification (spec Section 6.2), one DurabilityState per case:
     # - repository backend -> REPOSITORY_MANAGED
-    # - has_git + remote_acknowledged -> DURABLE_PRIVATE
-    # - has_git -> LOCAL_GIT
+    # - acknowledged remote + reachable -> ACKNOWLEDGED_DURABLE
+    # - acknowledged remote + unreachable -> UNREACHABLE
+    # - configured, unacknowledged remote -> UNACKNOWLEDGED_REMOTE
+    # - local Git without remote -> LOCAL_GIT
     # - uninitialized -> UNVERSIONED
     if backend == RecordsBackend.REPOSITORY.value:
         durability_state = DurabilityState.REPOSITORY_MANAGED.value
         rec = "Records are stored in target repository Git tree."
-    elif has_git and remote_acknowledged:
-        durability_state = DurabilityState.DURABLE_PRIVATE.value
+    elif has_git and remote_url and remote_acknowledged and remote_reachable is True:
+        durability_state = DurabilityState.ACKNOWLEDGED_DURABLE.value
         rec = "Records storage is backed by local Git and acknowledged remote policy."
+    elif has_git and remote_url and remote_acknowledged and remote_reachable is False:
+        durability_state = DurabilityState.UNREACHABLE.value
+        rec = "The acknowledged records remote could not be verified as reachable."
+    elif has_git and remote_url and remote_acknowledged:
+        durability_state = DurabilityState.UNKNOWN.value
+        rec = "The acknowledged records remote reachability result was inconclusive."
+    elif has_git and remote_url:
+        durability_state = DurabilityState.UNACKNOWLEDGED_REMOTE.value
+        rec = "Records have a configured remote whose durability policy is not acknowledged."
     elif has_git:
         durability_state = DurabilityState.LOCAL_GIT.value
         rec = (
             "Records storage has local Git history. Configure a remote or acknowledge the "
-            f"backup policy to reach the {DurabilityState.DURABLE_PRIVATE.value} state."
+            f"backup policy to reach the {DurabilityState.ACKNOWLEDGED_DURABLE.value} state."
         )
     else:
         durability_state = DurabilityState.UNVERSIONED.value
@@ -192,6 +223,7 @@ def get_storage_status(
         has_git=has_git,
         remote_url=remote_url,
         remote_acknowledged=remote_acknowledged,
+        remote_reachable=remote_reachable,
         recommendation=rec,
     )
 

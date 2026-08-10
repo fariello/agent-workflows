@@ -13,7 +13,8 @@ Invariants:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
+from pathlib import Path
+from typing import List, Optional, Set
 
 from agent_workflows.project_context import resolve_project_context
 from agent_workflows.project_schema import LogicalRoot, RecordsBackend
@@ -35,8 +36,8 @@ class RecordProducerEntry:
 PRODUCER_INVENTORY: List[RecordProducerEntry] = [
     RecordProducerEntry(
         name="plans_create",
-        source_path="agent_workflows/plans.py",
-        anchor="scaffold_plan",
+        source_path="agent_workflows/ipd_authoring.py",
+        anchor="run_scaffold",
         operation="create",
         category="plans",
         resolver_surface="python_api",
@@ -45,8 +46,8 @@ PRODUCER_INVENTORY: List[RecordProducerEntry] = [
     RecordProducerEntry(
         name="specs_create",
         source_path="agent_workflows/specs.py",
-        anchor="create_spec",
-        operation="create",
+        anchor="_set_status",
+        operation="move",
         category="specs",
         resolver_surface="python_api",
         commit_policy_consumer="prompt_and_run_commit",
@@ -54,16 +55,43 @@ PRODUCER_INVENTORY: List[RecordProducerEntry] = [
     RecordProducerEntry(
         name="research_create",
         source_path="agent_workflows/research_cmd.py",
-        anchor="create_research",
+        anchor="plan_new",
         operation="create",
         category="research",
         resolver_surface="python_api",
         commit_policy_consumer="prompt_and_run_commit",
     ),
     RecordProducerEntry(
-        name="ipd_workflow",
-        source_path=".agents/workflows/ipd/ipd.md",
-        anchor="scaffold",
+        name="research_write",
+        source_path="agent_workflows/research_cmd.py",
+        anchor="_emit_and_write",
+        operation="create",
+        category="research",
+        resolver_surface="python_api",
+        commit_policy_consumer="prompt_and_run_commit",
+    ),
+    RecordProducerEntry(
+        name="artifact_move",
+        source_path="agent_workflows/artifact_core.py",
+        anchor="git_mv",
+        operation="move",
+        category="records",
+        resolver_surface="python_api",
+        commit_policy_consumer="caller_owned",
+    ),
+    RecordProducerEntry(
+        name="setup_artifacts",
+        source_path="agent_workflows/engine.py",
+        anchor="create_setup_artifacts",
+        operation="create",
+        category="records",
+        resolver_surface="python_api",
+        commit_policy_consumer="prompt_and_run_commit",
+    ),
+    RecordProducerEntry(
+        name="scaffold_workflow",
+        source_path=".agents/workflows/scaffold/scaffold.md",
+        anchor="Step 5: Finish",
         operation="create",
         category="plans",
         resolver_surface="cli_aw_path",
@@ -84,11 +112,30 @@ PRODUCER_INVENTORY: List[RecordProducerEntry] = [
 LEGACY_ALLOWLIST = {
     "agent_workflows/attention.py",
     "agent_workflows/attention_contract.py",
-    "agent_workflows/artifact_core.py",
-    "agent_workflows/specs.py",
-    "agent_workflows/plans.py",
-    "agent_workflows/research_cmd.py",
 }
+
+LEGACY_WRITER_CANDIDATES = {
+    "agent_workflows/artifact_core.py",
+    "agent_workflows/engine.py",
+    "agent_workflows/ipd_authoring.py",
+    "agent_workflows/research_cmd.py",
+    "agent_workflows/specs.py",
+}
+_WRITE_MARKERS = ("atomic_write(", "write_text(", "git_mv(", "_create_if_absent(")
+
+
+def discover_legacy_write_sinks(repo_root: Path) -> Set[str]:
+    """Statically identify known writer modules that still contain legacy AW paths."""
+
+    sinks: Set[str] = set()
+    for relpath in sorted(LEGACY_WRITER_CANDIDATES):
+        path = repo_root / relpath
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if ".agents/" in text and any(marker in text for marker in _WRITE_MARKERS):
+            sinks.add(relpath)
+    return sinks
 
 
 @dataclass(frozen=True)

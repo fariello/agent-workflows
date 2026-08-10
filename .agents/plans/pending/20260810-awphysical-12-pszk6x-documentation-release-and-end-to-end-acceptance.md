@@ -17,6 +17,7 @@
 - 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
 - 2026-08-10 /plan-review (Codex (GPT-5)): REVIEWED - OPEN QUESTIONS; reconciled the Set to the superseding physical-layout spec, corrected the child DAG and implementation anchors, resolved tracked prototype ownership, and replaced generic validation evidence with per-item commands/fixtures/failure conditions. NO-GO until the human maintainer approves the superseding spec.
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): independent re-review (14 parallel evidence lanes) VERIFIED prior handoff findings resolved from repository evidence; REVIEWED - OPEN QUESTIONS, NO-GO pending human spec approval. Residual LOW/MEDIUM findings (crosswalk evidence gap, V-evidence discrimination, durability-enum drift, postcheck independence, Order-11 packaging/integrity) handed back to GPT-5.6 High; see the orchestrator's independent re-review outcome + the residual-reconciliation prompt. Status unchanged (reviewed); human-approval blocker preserved.
+- 2026-08-10 /plan-review (Codex (GPT-5)): residual reconciliation resolved R1-R5 and LOW follow-ups across the spec, catalog, prototypes, schema, storage classifier, and affected E/V contracts. NO-GO remains until human approval of the superseding spec.
 
 ## Goal
 
@@ -57,7 +58,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: Prove every scenario and prepare release
 
-- [ ] E-06 Finalize `tools/awphysical/migration-scenarios.json` as the closed 42-scenario acceptance manifest, add a machine-checkable crosswalk for all 25 old scenarios, and bind every row to named automated tests, required deterministic tools, expected target/companion/source deltas, rollback result, and documentation section.
+- [ ] E-06 Finalize `tools/awphysical/migration-scenarios.json` as the closed 44-scenario acceptance manifest, require every `legacy_crosswalk` row 1 through 25 to name assertion tokens present in its cited scenarios, and bind every scenario and crosswalk assertion to named automated tests, deterministic tools, expected target/companion/source deltas, rollback result, and documentation section.
   - Depends on: E-01
   - Expected outcome: Scenario set equals test/evidence set; no row is silently skipped; adding/removing a claim requires updating the manifest.
   - Execution state: pending
@@ -67,7 +68,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: Actual outputs and artifacts support every claim; failures return to the owning Order and block release.
   - Execution state: pending
 
-- [ ] E-08 Rewrite CHANGELOG 2.0 logical-layout claims to the physical contract, then prepare the major-version changelog/decision/release notes and compatibility warning, derive version through the existing release tooling, and follow bake/tag rungs in `RELEASING.md` and stop at the explicit release-review human GO before any tag, push, GitHub release, or registry upload.
+- [ ] E-08 Rewrite the CHANGELOG 2.0 `Four logical roots` bullet and the citation to superseded spec `20260809-2211-01` to the physical contract, then prepare the major-version changelog/decision/release notes and compatibility warning, derive version through the existing release tooling without hand-editing `VERSION`, and follow bake/tag rungs in `RELEASING.md` and stop at the explicit release-review human GO before any tag, push, GitHub release, or registry upload.
   - Depends on: E-01
   - Expected outcome: Release materials are complete and accurate, generated `VERSION` is not hand-edited, and no publication side effect occurs in this IPD without the repository's separate release gate.
   - Execution state: pending
@@ -79,6 +80,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Generated indexes, adapters, version files, and package metadata are updated through owner tools.
 - Tags, pushes, releases, and registry uploads require release-review Section 9 and explicit human GO.
 - Concurrent CLI-help/order work owns general cleanup; this Order documents only new layout surfaces and coordinates shared files.
+- Spec traceability: E-01 through E-05 implement Sections 8, 11.3, and 12; E-06 implements Sections 12 and 13; E-07 implements Section 13; E-08 implements Sections 11.3, 13, and the release boundary.
 
 ## Findings
 
@@ -130,7 +132,7 @@ Each row is mandatory for its matching `V-*` item. The executor creates the name
 | E-03 | `python3 -m unittest tests.test_acceptance_matrix.PhysicalLayoutAcceptanceTests.test_e03` | `tests/fixtures/awphysical/order12/e03-*` | Contributors know which files are source, generated, installed, human-owned, durable, runtime, and records, and which owner tool regenerates derivatives. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
 | E-04 | `python3 -m unittest tests.test_acceptance_matrix.PhysicalLayoutAcceptanceTests.test_e04` | `tests/fixtures/awphysical/order12/e04-*` | `aw install`, context/path, storage/companion, migrate inventory/plan/apply/status/resume/rollback/cleanup, postcheck, and uninstall explain safety, defaults, outputs, and examples. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
 | E-05 | `python3 -m unittest tests.test_acceptance_matrix.PhysicalLayoutAcceptanceTests.test_e05` | `tests/fixtures/awphysical/order12/e05-*` | Existing users receive actionable migration choices; compatibility cannot become an indefinite second writer or conceal partial migration. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
-| E-06 | `python3 -m unittest tests.test_acceptance_matrix.PhysicalLayoutAcceptanceTests.test_e06` | `tests/fixtures/awphysical/order12/e06-*` | Scenario set equals test/evidence set; no row is silently skipped; adding/removing a claim requires updating the manifest. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-06 | `python3 -m unittest tools.awphysical.test_awphysical_tools.ScenarioCatalogTests tests.test_acceptance_matrix.PhysicalLayoutAcceptanceTests.test_e06` | 44 scenarios, 25 legacy crosswalk rows, named test/evidence/doc bindings | Scenario IDs equal test/evidence/doc scenario IDs; old IDs are exactly 1 through 25; every crosswalk assertion token exists in its cited scenarios and in a named test assertion; no row is skipped. | any set differs, assertion token lacks behavior evidence, parent ID alone is used as proof, or count differs |
 | E-07 | `python3 -m unittest tests.test_acceptance_matrix.PhysicalLayoutAcceptanceTests.test_e07` | `tests/fixtures/awphysical/order12/e07-*` | Actual outputs and artifacts support every claim; failures return to the owning Order and block release. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
 | E-08 | `python3 -m unittest tests.test_acceptance_matrix.PhysicalLayoutAcceptanceTests.test_e08` | `tests/fixtures/awphysical/order12/e08-*` | Release materials are complete and accurate, generated `VERSION` is not hand-edited, and no publication side effect occurs in this IPD without the repository's separate release gate. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
 

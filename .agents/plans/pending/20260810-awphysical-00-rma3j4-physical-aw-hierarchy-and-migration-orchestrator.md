@@ -17,10 +17,13 @@
 - 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
 - 2026-08-10 /plan-review (Codex (GPT-5)): REVIEWED - OPEN QUESTIONS; reconciled the Set to the superseding physical-layout spec, corrected the child DAG and implementation anchors, resolved tracked prototype ownership, and replaced generic validation evidence with per-item commands/fixtures/failure conditions. NO-GO until the human maintainer approves the superseding spec.
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): independent re-review (14 parallel evidence lanes) VERIFIED prior handoff findings resolved from repository evidence; REVIEWED - OPEN QUESTIONS, NO-GO pending human spec approval. Residual LOW/MEDIUM findings (crosswalk evidence gap, V-evidence discrimination, durability-enum drift, postcheck independence, Order-11 packaging/integrity) handed back to GPT-5.6 High; see the orchestrator's independent re-review outcome + the residual-reconciliation prompt. Status unchanged (reviewed); human-approval blocker preserved.
+- 2026-08-10 /plan-review (Codex (GPT-5)): residual reconciliation resolved R1-R5 and LOW follow-ups across the spec, catalog, prototypes, schema, storage classifier, and affected E/V contracts. NO-GO remains until human approval of the superseding spec.
 
 ## Goal
 
 Deliver one coherent major-version cutover in which canonical AW material is physically separated into `system`, `config`, `state`, and `records`, every durable placement and Git consequence is chosen and previewed, and legacy projects can migrate without losing or silently exposing information. The Set must work both for ordinary target repositories and for the agent-workflows source repository itself.
+
+Spec traceability: E-01 controls Sections 3 through 15; E-02 through E-10 delegate the corresponding child-owned sections; E-11/E-12 enforce Sections 11 and 13; E-13/E-14 enforce Sections 12, 13, and the release boundary.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -188,7 +191,7 @@ Each row is mandatory for its matching `V-*` item. Child completion requires bot
 | E-10 | `python3 -m agent_workflows ipd lint --phase post-transition --agent .agents/plans/executed/20260810-awphysical-09-*.md` | Order 09 executed IPD and observed E/V evidence | Adapters and clean-target behavior are terminal, conforming, and independently evidenced. | structural nonconformance or any E/V evidence is missing/stale |
 | E-11 | `python3 -m agent_workflows ipd lint --phase post-transition --agent .agents/plans/executed/20260810-awphysical-10-*.md` | Order 10 executed IPD and observed E/V evidence | Independent comparison/postcheck is terminal, conforming, and catches every deceptive fixture. | structural nonconformance, unmapped deceptive fixture, or missing actual evidence |
 | E-12 | `python3 -m agent_workflows ipd lint --phase post-transition --agent .agents/plans/executed/20260810-awphysical-11-*.md` | Order 11 executed IPD plus real pre/post baseline | Source-repository dogfood migration is terminal and preserves bytes and every artifact Git history. | any digest/history count or tip is missing/reduced, or structural/evidence check fails |
-| E-13 | `python3 -m agent_workflows ipd lint --phase post-transition --agent .agents/plans/executed/20260810-awphysical-12-*.md` | Order 12 executed IPD plus 25-to-42 crosswalk | Documentation/release acceptance is terminal and claim set equals evidence set without publication. | scenario/crosswalk/claim mismatch, structural failure, or unauthorized publication |
+| E-13 | `python3 -m agent_workflows ipd lint --phase post-transition --agent .agents/plans/executed/20260810-awphysical-12-*.md` | Order 12 executed IPD plus 25-to-44 behavior crosswalk | Documentation/release acceptance is terminal and claim set equals evidence set without publication. | scenario/crosswalk/claim mismatch, structural failure, or unauthorized publication |
 | E-14 | `python3 -m unittest discover -s tests -t . && python3 -m agent_workflows plans index --check --agent && python3 -m agent_workflows specs check --agent && python3 -m agent_workflows check-local-leaks . --agent` | clean checkout, all terminal children, package/scenario evidence | Full regression and owner-tool gates pass and retained legacy removal triggers remain explicit. | any command is nonzero, any child/evidence is absent, or claim set differs from evidence set |
 
 ## Open questions
@@ -198,7 +201,7 @@ Each row is mandatory for its matching `V-*` item. Child completion requires bot
 - Blocking: yes
 - Status: open
 - Owner: human maintainer
-- Resolution or deferral rationale: `.agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` now exists at `to-review`, supersedes the implemented logical-layout spec, and contains the physical tree, presets, migration retention, 25-to-42 scenario crosswalk, compatibility, and release boundary. No child may execute until independent review and human approval transition it through the owner tool.
+- Resolution or deferral rationale: `.agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` now exists at `to-review`, supersedes the implemented logical-layout spec, and contains the physical tree, presets, migration retention, 25-to-44 behavior scenario crosswalk, compatibility, and release boundary. No child may execute until independent review and human approval transition it through the owner tool.
 
 ### OQ-02: Tracked prototype ownership and clean-checkout replay
 
@@ -224,6 +227,10 @@ Residual findings (all LOW/MEDIUM remediation-risk, several HIGH-severity-but-lo
 - OQ-R5 (Order 11 packaging-move ownership + integrity predicate, MEDIUM; Order 11 + Order 04): the `.agents/workflows` dual role (live system root AND packaged distribution source: `pyproject.toml` force-include, `agent_workflows/_compat.py` `_DATA_RELATIVE`, `hatch_build.py`, `versioning.py`) is not named, Order 04's source-checkout protection is not required to be evidence-cited before Order 11 mutates the real repo, the intra-plan E-DAG is flattened to E-01 (real mutation E-04 could run before a green rehearsal E-03), and the E-06 hard-fail predicate ("post commit-count >= pre for every artifact tree and full history; any missing/changed tracked path fails") is not stated.
 
 All residuals keep the spec at `to-review` and the human-approval blocker intact. Next action: GPT-5.6 addresses OQ-R1..R5; then a re-review; then human approval of the spec is the sole remaining design gate.
+
+## Residual reconciliation outcome (2026-08-10, Codex GPT-5.6)
+
+OQ-R1 through OQ-R5 are resolved for re-review. The catalog now has 44 scenarios and a behavior-level 1-through-25 crosswalk; safety-critical matrices name separate planted failures and observable predicates; Order 02 owns the seven-state durability vocabulary and compatibility alias while Order 05 owns classification; the postcheck reads independent artifacts, actual paths, adapter bytes, and Git ownership and emits `postcheck_id`; Order 11 now has the sequential E-DAG, Order 04 evidence gate, explicit external roots, named packaging ownership, and hard history/content predicates. LOW follow-ups add spec traceability, exact CHANGELOG targets, closed deterministic Git classifications, physical-layout test-module ownership, and static producer discovery/legacy-sink guards. The spec remains `to-review`; OQ-01 is still the sole execution blocker.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 

@@ -35,8 +35,12 @@ class DurabilityState(str, Enum):
 
     UNVERSIONED = "unversioned"
     LOCAL_GIT = "local-git"
-    DURABLE_PRIVATE = "durable-private"
+    UNACKNOWLEDGED_REMOTE = "unacknowledged-remote"
+    ACKNOWLEDGED_DURABLE = "acknowledged-durable"
+    # Source-compatible alias. Serialized policy must use acknowledged-durable.
+    DURABLE_PRIVATE = "acknowledged-durable"
     REPOSITORY_MANAGED = "repository-managed"
+    UNREACHABLE = "unreachable"
     UNKNOWN = "unknown"
 
 
@@ -52,6 +56,20 @@ class LogicalRoot(str, Enum):
 DELIVERY_MODES: Tuple[str, ...] = tuple(m.value for m in DeliveryMode)
 RECORDS_BACKENDS: Tuple[str, ...] = tuple(b.value for b in RecordsBackend)
 DURABILITY_STATES: Tuple[str, ...] = tuple(d.value for d in DurabilityState)
+LEGACY_DURABILITY_STATE_ALIASES = {
+    "durable-private": DurabilityState.ACKNOWLEDGED_DURABLE.value,
+}
+
+
+def normalize_durability_state(value: str) -> str:
+    """Normalize a historical durability value without weakening validation."""
+
+    normalized = LEGACY_DURABILITY_STATE_ALIASES.get(value, value)
+    if normalized not in DURABILITY_STATES:
+        raise ValueError(f"unknown durability state: {value!r}")
+    return normalized
+
+
 LOGICAL_ROOTS: Tuple[str, ...] = tuple(r.value for r in LogicalRoot)
 
 

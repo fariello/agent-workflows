@@ -134,7 +134,7 @@ The agent-workflows source repository uses role `source-checkout`. Its developer
 
 A portable companion identity records stable project ID, schema version, and selected durable classes without a machine-local absolute path. The local attachment records canonical path and Git common-dir. Origin URL is matching evidence only, never identity or proof of privacy.
 
-Attachment rejects nested or overlapping Git repositories, unsafe symlinks, case aliases, conflicting identities, and target leakage before writes. AW reports `unversioned`, `local-git`, `acknowledged-durable`, `repository-managed`, `unreachable`, or `unknown` from observable facts. It does not create or mutate remotes, authenticate, commit, push, or delete companion content. Target and companion deltas, indexes, and commit instructions remain separate.
+Attachment rejects nested or overlapping Git repositories, unsafe symlinks, case aliases, conflicting identities, and target leakage before writes. AW reports `unversioned`, `local-git`, `unacknowledged-remote`, `acknowledged-durable`, `repository-managed`, `unreachable`, or `unknown` from observable facts. Historical `durable-private` input normalizes to `acknowledged-durable`, but current serialization never emits the historical value. A configured remote is `unacknowledged-remote`; an acknowledged and reachable arrangement is `acknowledged-durable`; an acknowledged remote that cannot be reached is `unreachable`; inconclusive inspection is `unknown`. It does not create or mutate remotes, authenticate, commit, push, or delete companion content. Target and companion deltas, indexes, and commit instructions remain separate. Order 02 owns the enum, alias normalization, and schema. Order 05 consumes it and owns observation/classification. Their shared-schema edit is subject to the Section 14 coordination gate.
 
 ## 11. Migration and compatibility
 
@@ -163,20 +163,20 @@ Failure before switch leaves legacy authoritative. Failure after switch has an e
 
 ### 11.3 Compatibility and release boundary
 
-This is a major-version physical cutover. During one documented compatibility window, read-only discovery MAY find legacy records and report `migration-required`; new writes have exactly one resolver-selected destination. Compatibility readers are closed and tested, emit a deprecation notice, and have a stated removal release. The product MUST NOT claim the physical layout shipped until all 42 scenarios pass, the source repository has been migrated and independently compared, packaging and clean-checkout gates pass, and the release workflow's bake and human tag/release gates are satisfied.
+This is a major-version physical cutover. During one documented compatibility window, read-only discovery MAY find legacy records and report `migration-required`; new writes have exactly one resolver-selected destination. Compatibility readers are closed and tested, emit a deprecation notice, and have a stated removal release. The product MUST NOT claim the physical layout shipped until all 44 scenarios pass, the source repository has been migrated and independently compared, packaging and clean-checkout gates pass, and the release workflow's bake and human tag/release gates are satisfied.
 
 ## 12. Legacy 25-scenario crosswalk
 
-The 42-scenario catalog at `tools/awphysical/migration-scenarios.json` is the controlling physical-layout catalog. The prior 25 scenarios are not silently discarded:
+The 44-scenario catalog at `tools/awphysical/migration-scenarios.json` is the controlling physical-layout catalog. The prior 25 scenarios are not silently discarded:
 
-| Old | Disposition in the 42-scenario catalog |
+| Old | Disposition in the 44-scenario catalog |
 |---:|---|
 | 1 recommended home records | Extended by AWP-005 and AWP-007 |
 | 2 repository records with publication warning | Superseded by AWP-001 and privacy-negative AWP-027 |
 | 3 local companion without remote | Extended by AWP-004 |
 | 4 acknowledged private companion remote | Extended by AWP-003 |
 | 5 explicit noninteractive policy | Extended by AWP-001, AWP-005, and AWP-008 |
-| 6 incomplete noninteractive install fails | Extended by AWP-041 |
+| 6 incomplete noninteractive install fails | Asserted by AWP-043: `first-install-eof-fails-closed` and `no-write-before-complete-choice` |
 | 7 same-version no-op checkpoint | Retained as an Order 03 acceptance case paired with AWP-001 |
 | 8 update keeping policy | Retained as an Order 03 acceptance case paired with AWP-028 |
 | 9 repository-to-home change | Superseded by AWP-002 plus AWP-005 transactional migration |
@@ -192,12 +192,12 @@ The 42-scenario catalog at `tools/awphysical/migration-scenarios.json` is the co
 | 19 uninstall preserves external roots | Extended by AWP-032 |
 | 20 clean-delta merge-base proof | Extended by AWP-005, AWP-006, and AWP-036 |
 | 21 unavailable external root stops writes | Extended by AWP-037 |
-| 22 color and terminal modes | Retained as an Order 03/12 acceptance case paired with AWP-001 |
-| 23 screen-reader text without color | Retained as an Order 03/12 acceptance case paired with AWP-001 |
+| 22 color and terminal modes | Asserted by AWP-044: `color-auto-always-never` and `no-color-and-term-dumb` |
+| 23 screen-reader text without color | Asserted by AWP-044: `screen-reader-text-without-color` |
 | 24 privacy doctor makes no unverifiable claim | Extended by AWP-003, AWP-004, and AWP-027 |
 | 25 optional link absent or broken | Retained as an Order 09 acceptance case paired with AWP-005 |
 
-Order 12 MUST encode this crosswalk in a machine-checkable map. `retained` means the behavior remains required even where the physical catalog gives it a parent scenario rather than a separate top-level ID. No old scenario may disappear from the evidence set.
+The top-level `legacy_crosswalk` in the catalog is controlling. Every old ID 1 through 25 MUST name one or more AWP scenarios and one or more behavior-level assertion tokens. A crosswalk row passes only when every named assertion exists in the union of those scenarios' `expected` sets and maps to a named automated test assertion. Parent-ID existence alone is insufficient. `retained` means the behavior remains required even where the physical catalog gives it a parent scenario rather than a separate top-level ID. No old scenario or assertion may disappear from the test or evidence set.
 
 ## 13. Acceptance criteria
 
@@ -211,7 +211,7 @@ Order 12 MUST encode this crosswalk in a machine-checkable map. `retained` means
 - Every producer resolves its record destination and a forbidden legacy write raises before filesystem mutation.
 - The independent compare/postcheck maps every deceptive fixture to a named rule and fails for every planted violation.
 - A full mirror-backed source-repository rehearsal and real pre/post digest comparison preserve every artifact tree and Git-history tip/count.
-- The 25-to-42 crosswalk, all 42 scenario tests, full unittest suite, spec checks, indexes, sanitizer, package inspection, clean-delta gates, and release bake all pass from a clean checkout.
+- The 25-to-44 behavior crosswalk, all 44 scenario tests, full unittest suite, spec checks, indexes, sanitizer, package inspection, clean-delta gates, and release bake all pass from a clean checkout.
 
 ## 14. Constraints, risks, and open questions
 
@@ -233,3 +233,4 @@ Order 12 MUST encode this crosswalk in a machine-checkable map. `retained` means
 - 2026-08-10 /spec (Codex (GPT-5)): drafted the superseding physical-layout specification from the maintainer-approved direction and the 2026-08-10 cross-Set plan review.
 - 2026-08-10 to-review (aw specs): physical-layout superseding draft ready for independent review and human approval
 - 2026-08-10 note (aw specs): 2026-08-10 independent review (opencode Opus 4.8 /plan-review-long): spec verified coherent and implementable on all 8 prior-blocker axes (physical contract, config.json migration, git-policy invariants, source-checkout, migration loss-prevention, release boundary, to-review + human-approval gate). One PARTIAL: the Section 12 crosswalk maps old #6 (first-install EOF fail-closed) and #22/#23 (color/screen-reader accessibility) to AWP scenarios (AWP-041, AWP-001) whose expected sets do not encode those behaviors, so a scenario==evidence gate can pass while they ship untested; the retained/paired disposition is not machine-verifiable at the behavior level. Minor: durability enum drift (acknowledged-durable/unreachable vs shipped DurabilityState); define postcheck 'independence' and all-preset scenario counting. Handed to GPT-5.6 High for reconciliation with tools/awphysical/migration-scenarios.json + Order 12. Spec kept to-review; human approval remains the sole design gate.
+- 2026-08-10 note (aw specs): residual reconciliation: added 44-scenario behavior-level legacy crosswalk, seven-state durability ownership and legacy alias, independent postcheck evidence requirements, safety-critical negative fixtures, source self-migration integrity gates, and LOW traceability/tooling corrections; status remains to-review and human approval remains blocking

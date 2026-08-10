@@ -2,13 +2,40 @@
   "schema_version": 1,
   "set": "awphysical",
   "contract": "Every scenario must map to named automated tests, deterministic evidence, and a documentation section before Order 12 completes.",
+  "legacy_crosswalk": [
+    {"legacy_id": 1, "scenarios": ["AWP-005", "AWP-007"], "assertions": ["external-system", "external-local-roots"]},
+    {"legacy_id": 2, "scenarios": ["AWP-001", "AWP-027"], "assertions": ["durable-material-target-tracked", "privacy-boundary-failure"]},
+    {"legacy_id": 3, "scenarios": ["AWP-004"], "assertions": ["local-git-not-durable-private"]},
+    {"legacy_id": 4, "scenarios": ["AWP-003"], "assertions": ["acknowledged-remote"]},
+    {"legacy_id": 5, "scenarios": ["AWP-001", "AWP-005", "AWP-008"], "assertions": ["no-migration-required", "all-paths-previewed"]},
+    {"legacy_id": 6, "scenarios": ["AWP-043"], "assertions": ["first-install-eof-fails-closed", "no-write-before-complete-choice"]},
+    {"legacy_id": 7, "scenarios": ["AWP-001"], "assertions": ["same-version-noop-checkpoint"]},
+    {"legacy_id": 8, "scenarios": ["AWP-028"], "assertions": ["update-keeps-policy"]},
+    {"legacy_id": 9, "scenarios": ["AWP-002", "AWP-005"], "assertions": ["copy-verify-switch-retain", "external-config-state-records"]},
+    {"legacy_id": 10, "scenarios": ["AWP-028"], "assertions": ["applicable-actions-only"]},
+    {"legacy_id": 11, "scenarios": ["AWP-040"], "assertions": ["local-binding-updated"]},
+    {"legacy_id": 12, "scenarios": ["AWP-019", "AWP-020", "AWP-022"], "assertions": ["correct-git-owner", "attachment-rejected", "origin-not-identity"]},
+    {"legacy_id": 13, "scenarios": ["AWP-001"], "assertions": ["setup-action-visible-on-status-surfaces"]},
+    {"legacy_id": 14, "scenarios": ["AWP-001"], "assertions": ["setup-completion-closes-action"]},
+    {"legacy_id": 15, "scenarios": ["AWP-028"], "assertions": ["dismissal-history-no-resurrection"]},
+    {"legacy_id": 16, "scenarios": ["AWP-028"], "assertions": ["action-generations-supersede"]},
+    {"legacy_id": 17, "scenarios": ["AWP-003", "AWP-027"], "assertions": ["separate-git-evidence", "no-candid-public-delta"]},
+    {"legacy_id": 18, "scenarios": ["AWP-002", "AWP-023", "AWP-033"], "assertions": ["source-retained", "cleanup-refused"]},
+    {"legacy_id": 19, "scenarios": ["AWP-032"], "assertions": ["external-repo-never-deleted"]},
+    {"legacy_id": 20, "scenarios": ["AWP-005", "AWP-006", "AWP-036"], "assertions": ["zero-target-delta", "no-target-write"]},
+    {"legacy_id": 21, "scenarios": ["AWP-037"], "assertions": ["fail-closed-context"]},
+    {"legacy_id": 22, "scenarios": ["AWP-044"], "assertions": ["color-auto-always-never", "no-color-and-term-dumb"]},
+    {"legacy_id": 23, "scenarios": ["AWP-044"], "assertions": ["screen-reader-text-without-color"]},
+    {"legacy_id": 24, "scenarios": ["AWP-003", "AWP-004", "AWP-027"], "assertions": ["privacy-status-observable-only"]},
+    {"legacy_id": 25, "scenarios": ["AWP-005"], "assertions": ["optional-link-absent-or-broken-safe"]}
+  ],
   "scenarios": [
     {
       "id": "AWP-001",
       "name": "fresh-private-target",
       "preset": "private-target",
       "legacy_features": [],
-      "expected": ["durable-material-target-tracked", "local-config-ignored", "runtime-ignored", "no-migration-required"],
+      "expected": ["durable-material-target-tracked", "local-config-ignored", "runtime-ignored", "no-migration-required", "same-version-noop-checkpoint", "setup-action-visible-on-status-surfaces", "setup-completion-closes-action"],
       "orders": [1, 2, 3, 4, 8, 9, 12]
     },
     {
@@ -24,7 +51,7 @@
       "name": "public-target-existing-private-companion",
       "preset": "public-private-companion",
       "legacy_features": ["public-target-records", "existing-companion-git", "acknowledged-remote"],
-      "expected": ["public-system-only", "private-durable-bundle", "no-candid-public-delta", "separate-git-evidence"],
+      "expected": ["public-system-only", "private-durable-bundle", "no-candid-public-delta", "separate-git-evidence", "acknowledged-remote", "privacy-status-observable-only"],
       "orders": [3, 5, 6, 7, 8, 10, 12]
     },
     {
@@ -32,7 +59,7 @@
       "name": "public-target-new-local-companion",
       "preset": "public-private-companion",
       "legacy_features": ["new-companion", "no-remote"],
-      "expected": ["explicit-git-init", "local-git-not-durable-private", "durability-action-open", "never-push"],
+      "expected": ["explicit-git-init", "local-git-not-durable-private", "durability-action-open", "never-push", "privacy-status-observable-only"],
       "orders": [3, 5, 10, 12]
     },
     {
@@ -40,7 +67,7 @@
       "name": "clean-target-home-records",
       "preset": "clean-target",
       "legacy_features": [],
-      "expected": ["zero-target-delta", "external-system", "external-config-state-records", "host-support-evidence"],
+      "expected": ["zero-target-delta", "external-system", "external-config-state-records", "host-support-evidence", "optional-link-absent-or-broken-safe"],
       "orders": [2, 3, 4, 8, 9, 10, 12]
     },
     {
@@ -216,7 +243,7 @@
       "name": "candid-public-leak",
       "preset": "public-private-companion",
       "legacy_features": ["record-staged-in-public-target", "machine-path-in-public-config"],
-      "expected": ["privacy-boundary-failure", "sanitizer-failure", "release-blocked"],
+      "expected": ["privacy-boundary-failure", "sanitizer-failure", "release-blocked", "privacy-status-observable-only"],
       "orders": [5, 7, 10, 12]
     },
     {
@@ -224,7 +251,7 @@
       "name": "skipped-version-upgrade",
       "preset": "private-target",
       "legacy_features": ["multiple-old-schema-versions", "action-generations"],
-      "expected": ["single-current-schema", "applicable-actions-only", "history-preserved"],
+      "expected": ["single-current-schema", "applicable-actions-only", "history-preserved", "update-keeps-policy", "dismissal-history-no-resurrection", "action-generations-supersede"],
       "orders": [2, 7, 8, 12]
     },
     {
@@ -338,6 +365,22 @@
       "legacy_features": ["target-no-git", "records-no-git"],
       "expected": ["honest-unversioned-status", "no-stage-attempt", "explicit-durability-choice"],
       "orders": [2, 3, 5, 12]
+    },
+    {
+      "id": "AWP-043",
+      "name": "first-install-incomplete-input-or-eof",
+      "preset": "all",
+      "legacy_features": ["first-install", "closed-stdin", "missing-required-choice"],
+      "expected": ["first-install-eof-fails-closed", "no-write-before-complete-choice", "actionable-incomplete-policy-diagnostic"],
+      "orders": [3, 4, 12]
+    },
+    {
+      "id": "AWP-044",
+      "name": "terminal-color-and-screen-reader-accessibility",
+      "preset": "all",
+      "legacy_features": ["color-modes", "no-color", "term-dumb", "screen-reader"],
+      "expected": ["color-auto-always-never", "no-color-and-term-dumb", "screen-reader-text-without-color", "meaning-never-color-only"],
+      "orders": [3, 12]
     }
   ]
 }

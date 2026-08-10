@@ -17,6 +17,7 @@
 - 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
 - 2026-08-10 /plan-review (Codex (GPT-5)): REVIEWED - OPEN QUESTIONS; reconciled the Set to the superseding physical-layout spec, corrected the child DAG and implementation anchors, resolved tracked prototype ownership, and replaced generic validation evidence with per-item commands/fixtures/failure conditions. NO-GO until the human maintainer approves the superseding spec.
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): independent re-review (14 parallel evidence lanes) VERIFIED prior handoff findings resolved from repository evidence; REVIEWED - OPEN QUESTIONS, NO-GO pending human spec approval. Residual LOW/MEDIUM findings (crosswalk evidence gap, V-evidence discrimination, durability-enum drift, postcheck independence, Order-11 packaging/integrity) handed back to GPT-5.6 High; see the orchestrator's independent re-review outcome + the residual-reconciliation prompt. Status unchanged (reviewed); human-approval blocker preserved.
+- 2026-08-10 /plan-review (Codex (GPT-5)): residual reconciliation resolved R1-R5 and LOW follow-ups across the spec, catalog, prototypes, schema, storage classifier, and affected E/V contracts. NO-GO remains until human approval of the superseding spec.
 
 ## Goal
 
@@ -40,7 +41,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: Audit behavior and boundaries
 
-- [ ] E-03 Promote tracked prototype `tools/awphysical/aw_layout_postcheck.py` into the production owner surface to run context/policy validation, physical-root ownership checks, target/companion/source Git checks, ignored/runtime checks, legacy-write scans, adapter purity, producer-routing probes, indexes, attention, package/source role, and sanitizer gates.
+- [ ] E-03 Promote tracked development prototype `tools/awphysical/aw_layout_postcheck.py` into `.aw/system/tools/` as the installed production helper. Make the core independently read authority/transaction artifacts, actual producer outputs, adapter bytes, filesystem facts, and actual Git owners, then delegate target/companion/source Git cleanliness, indexes/attention, package/source role, and sanitizer to named Order 06-09 commands whose raw result records are mandatory inputs.
   - Depends on: E-01
   - Expected outcome: Postcheck sorts every emitted collection for byte determinism and records exact commands, exit codes, normalized output digests, skipped/unsupported reasons, and overall validity; partial execution can never be labeled pass.
   - Execution state: pending
@@ -62,7 +63,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: Migration CLI status distinguishes copied, switched, verified, independently reviewed, and cleanup-eligible states.
   - Execution state: pending
 
-- [ ] E-07 Add a fixture-to-rule mapping for each deceptive class, including wrong Git index, and deceptive fixtures where migrator receipts claim success despite missing files, stale hashes, wrong destinations, wrong Git indexes, ignored leakage, legacy writes, copied adapter logic, inaccessible external roots, broken rollback, and skipped checks.
+- [ ] E-07 Add a fixture-to-rule mapping for each deceptive class: `fabricated-clean-context`, `missing-file`, `stale-hash`, `wrong-destination`, `wrong-git-index`, `ignored-leakage`, `legacy-write`, `copied-adapter-logic`, `inaccessible-external-root`, `broken-rollback`, and `skipped-companion-check`. Each fixture names the exact rule, exit code, and filesystem/Git predicate that must fail.
   - Depends on: E-01
   - Expected outcome: Deterministic tools catch every planted defect; clean fixtures remain clean so the audit does not manufacture findings.
   - Execution state: pending
@@ -73,6 +74,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Independent means a separate read-only evidence pass, not necessarily a second expensive model.
 - Deterministic failures outrank agent prose; the agent reviews residual judgment areas only.
 - Evidence may contain machine paths and must be stored/sanitized according to the selected private/public policy.
+- Spec traceability: E-01/E-02 implement Sections 11.2 and 13; E-03/E-04 implement Sections 7, 9, 11.2, and 13; E-05/E-06 implement Sections 11.3 and 13; E-07 implements Section 13.
+- `tools/awphysical/` is the tracked review/development home. Order 04 owns packaging and installation of promoted deterministic helpers under `.aw/system/tools/`; this Order consumes that packaging contract and does not create a second installed source.
 
 ## Findings
 
@@ -118,11 +121,11 @@ Each row is mandatory for its matching `V-*` item. The executor creates the name
 |---|---|---|---|---|
 | E-01 | `python3 -m unittest tests.test_layout_migration.IndependentPostcheckTests.test_e01` | `tests/fixtures/awphysical/order10/e01-*` | Every source item has exactly one allowed disposition and matching bytes/metadata where required; missing, changed, unexpected duplicate, unapproved exclusion, stale input, or unaccounted destination fails. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
 | E-02 | `python3 -m unittest tests.test_layout_migration.IndependentPostcheckTests.test_e02` | `tests/fixtures/awphysical/order10/e02-*` | A successful comparison proves legacy remains recoverable and non-authoritative; cleanup remains blocked until its independent retention trigger. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
-| E-03 | `python3 -m unittest tests.test_layout_migration.IndependentPostcheckTests.test_e03` | `tests/fixtures/awphysical/order10/e03-*` | Postcheck sorts every emitted collection for byte determinism and records exact commands, exit codes, normalized output digests, skipped/unsupported reasons, and overall validity; partial execution can never be labeled pass. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-03 | `python3 -m unittest tools.awphysical.test_awphysical_tools.PostcheckTests` | `clean-independent`, `fabricated-clean-context`, `reordered-input`, plus named Git/package/attention/sanitizer result artifacts | Core reads authority receipt, transaction receipt, observed producer paths, adapter bytes, and actual Git ownership; fabricated context fails; reordering preserves `postcheck_id`; every delegated command record has exact command, exit, digest, and supported/skipped reason; a missing delegate is failure. | fabricated context passes, digest changes under reorder, any required artifact/delegate is absent, or actual and declared Git owner differ |
 | E-04 | `python3 -m unittest tests.test_layout_migration.IndependentPostcheckTests.test_e04` | `tests/fixtures/awphysical/order10/e04-*` | Legacy, wrong-Git, system/config/state confusion, inaccessible root, and dual-authority regressions are detected after migration. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
 | E-05 | `python3 -m unittest tests.test_layout_migration.IndependentPostcheckTests.test_e05` | `tests/fixtures/awphysical/order10/e05-*` | The reviewer does not accept migrator summaries, does not rerun destructive migration, and produces a severity-ranked evidence table plus GO/NO-GO/REVIEW verdict. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
 | E-06 | `python3 -m unittest tests.test_layout_migration.IndependentPostcheckTests.test_e06` | `tests/fixtures/awphysical/order10/e06-*` | Migration CLI status distinguishes copied, switched, verified, independently reviewed, and cleanup-eligible states. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
-| E-07 | `python3 -m unittest tests.test_layout_migration.IndependentPostcheckTests.test_e07` | `tests/fixtures/awphysical/order10/e07-*` | Deterministic tools catch every planted defect; clean fixtures remain clean so the audit does not manufacture findings. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-07 | `python3 -m unittest tools.awphysical.test_awphysical_tools.PostcheckTests tests.test_awphysical_postcheck_deception` | the eleven named deceptive fixtures in E-07 plus `clean-independent` | Each planted class fails only its mapped rule and expected exit; clean fixture is valid; fixture names equal rule-map names; copied logic is detected from adapter bytes and wrong index from `git rev-parse --show-toplevel`, not context claims. | any deceptive fixture passes, wrong rule fires, clean fixture fails, or fixture/rule sets differ |
 
 ## Spec / documentation sync
 

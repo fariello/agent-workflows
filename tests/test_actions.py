@@ -183,8 +183,14 @@ class TestActionsAndInstallHistory(unittest.TestCase):
             "todo",
             "--agent",
         ]
+        source_root = str(Path(__file__).resolve().parent.parent)
+        python_path = os.environ.get("PYTHONPATH")
+        env = dict(os.environ)
+        env["PYTHONPATH"] = (
+            source_root if not python_path else source_root + os.pathsep + python_path
+        )
         res = subprocess.run(
-            cmd, capture_output=True, text=True, cwd=Path(self.target_repo)
+            cmd, capture_output=True, text=True, cwd=Path(self.target_repo), env=env
         )
         self.assertEqual(res.returncode, 0, f"CLI error: {res.stderr}")
         self.assertNotIn("\033[", res.stdout)
