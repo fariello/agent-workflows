@@ -10,6 +10,15 @@ The workflows are plain instruction files plus a few small dependency-free Pytho
 substance works in **any** agent; tools that support native slash commands (OpenCode,
 Claude Code) also get `/release-review`, `/assess security`, etc. for free.
 
+> **Direction (2.x, in progress).** A major rewrite, update, and upgrade is under way.
+> The goals: broader first-class support across the hosts we use daily (OpenCode, Hermes,
+> Codex CLI, Antigravity CLI, and Claude Code); lower token cost to invoke and run
+> workflows and tools; higher compliance and rigor (deterministic gates and honest
+> validation, so "done" and "tests passed" mean what they say); more consistency and
+> formality across commands, documents, and workflows; and more dependable tools for both
+> agents and users. Some of this has shipped and some is still landing; see `CHANGELOG.md`
+> for what is actually released versus in progress.
+
 ---
 
 ## Quick start

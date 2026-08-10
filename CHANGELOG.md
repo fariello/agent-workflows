@@ -6,6 +6,22 @@ semantic versioning (see `RELEASING.md`); the authoritative "why" for decisions 
 
 ## 2.0.0 (pending) - AW project layout, storage backends, install wizard, and operational state
 
+This is the first release of a MAJOR rewrite, update, and upgrade of `agent-workflows`
+now under way. The direction of the 2.x line (in progress, not all shipped in this entry):
+
+- Broader multi-platform support. First-class, tested behavior across the hosts the
+  maintainer uses daily: OpenCode, Hermes, Codex CLI, Antigravity CLI, and Claude Code
+  (plus continued best-effort support for any other agent that reads instruction files).
+- Lower token cost to run commands. Reduce the tokens an agent spends invoking and
+  running workflows and tools, so day-to-day operation is cheaper and faster.
+- Higher compliance and rigor. Stronger, harder-to-bypass execution guarantees
+  (deterministic gates, honest validation, wrapper-owned test verdicts) so "done" and
+  "tests passed" mean what they say.
+- More consistency and formality. A more uniform, predictable surface across commands,
+  documents, and workflows, with clearer contracts and conventions.
+- More tools for agents and users. A growing set of dependable, dependency-free tools
+  (and CLI verbs) that both agents and humans can rely on.
+
 Major storage-layout boundary specified by `20260809-2211-01-aw-project-layout-storage-wizard-and-state.spec.md` (D126-D129):
 
 - Added: Four logical roots (`system`, `config`, `state`, `records`) and dual delivery/records orthogonal axes.
