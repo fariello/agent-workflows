@@ -1448,5 +1448,25 @@
     "plan_id": "2p9fd3",
     "set_id": "verify-execution",
     "status": "to-review"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260810-clianx-01-3e70cv-cli-ux-exclude-alpha-help.md",
+    "plan_id": "3e70cv",
+    "set_id": "clianx",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "pending",
+    "kind": "child",
+    "order": null,
+    "path": "pending/20260810-install-followup-01-791mt4-install-follow-up-guidance-and-action-reconciliation.md",
+    "plan_id": "791mt4",
+    "set_id": null,
+    "status": "to-review"
   }
 ]

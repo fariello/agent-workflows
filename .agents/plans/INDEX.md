@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 75 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 76 Sets; the full manifest is INDEX.json.
+
+## clianx
+
+- `3e70cv` [pending] 01 pending/20260810-clianx-01-3e70cv-cli-ux-exclude-alpha-help.md
 
 ## awlayout
 
@@ -220,10 +224,6 @@ Showing the 40 most-recent of 75 Sets; the full manifest is INDEX.json.
 
 - `t88woq` [executed] 00 executed/20260713-auto-parallel-00-t88woq-auto-parallel-audit-lanes-shared-convention.md
 
-## normalize-plan
-
-- `qv04dz` [executed] 00 executed/20260713-normalize-plan-00-qv04dz-normalize-plan-names-test-date-flakiness.md
-
 ## (singletons: no Set)
 
 - `d5tz36` [executed] executed/20260704-advise-workflow-00-d5tz36-advise-workflow-and-personas.md
@@ -236,3 +236,4 @@ Showing the 40 most-recent of 75 Sets; the full manifest is INDEX.json.
 - `vfa1tl` [executed] executed/20260709-interactive-git-00-vfa1tl-interactive-git-workflow.md
 - `vw1ich` [executed] executed/20260709-target-directory-00-vw1ich-target-directory-readmes.md
 - `4025ak` [executed] executed/20260710-plan-lifecycle-00-4025ak-plan-lifecycle-superseded-notexecuted-dirs.md
+- `791mt4` [pending] pending/20260810-install-followup-01-791mt4-install-follow-up-guidance-and-action-reconciliation.md
