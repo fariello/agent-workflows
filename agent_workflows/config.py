@@ -27,7 +27,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 CONFIG_VERSION = 1
 _APP_DIR = "agent-workflows"
@@ -35,7 +35,7 @@ _CONFIG_NAME = "config.json"
 
 # The only keys ever persisted. Anything else on load is dropped (R-5).
 _ALLOWED_TOP_KEYS = frozenset(
-    {"config_version", "search_roots", "repos", "ignore", "defaults"}
+    {"config_version", "search_roots", "repos", "ignore", "defaults", "aw_home"}
 )
 _ALLOWED_DEFAULT_KEYS = frozenset({"backup", "prune"})
 
@@ -84,7 +84,7 @@ def _preserve_home(path: str) -> str:
         return "~"
     prefix = home + os.sep
     if norm.startswith(prefix):
-        rel = norm[len(prefix):]
+        rel = norm[len(prefix) :]
         # Store with forward slashes so the config is portable across OSes; both
         # os.path.expanduser and pathlib.Path accept "/" on Windows at expand-time.
         return "~/" + rel.replace(os.sep, "/")
@@ -127,9 +127,41 @@ def normalize(config: Dict[str, Any]) -> Dict[str, Any]:
             if isinstance(defaults.get(k), bool):
                 out["defaults"][k] = defaults[k]
 
+    aw_home_val = config.get("aw_home")
+    if isinstance(aw_home_val, str) and aw_home_val.strip():
+        out["aw_home"] = _preserve_home(aw_home_val.strip())
+
     # config_version is managed by migrate(); keep the current version on write.
     out["config_version"] = CONFIG_VERSION
     return out
+
+
+def get_aw_home(explicit_flag: Optional[str] = None) -> Tuple[Path, str]:
+    """Resolve effective AW_HOME and explain the source without side effects (spec Section 7.1).
+
+    Precedence:
+      1. explicit_flag (--aw-home flag)
+      2. AW_HOME environment variable
+      3. saved XDG config value (~/.config/agent-workflows/config.json)
+      4. platform default (~/.aw)
+    """
+    if explicit_flag:
+        p = Path(os.path.expandvars(os.path.expanduser(explicit_flag))).resolve()
+        return p, f"--aw-home flag ({explicit_flag})"
+
+    env_val = os.environ.get("AW_HOME")
+    if env_val:
+        p = Path(os.path.expandvars(os.path.expanduser(env_val))).resolve()
+        return p, "AW_HOME environment variable"
+
+    cfg = load()
+    saved_home = cfg.get("aw_home")
+    if saved_home:
+        p = expand_path(saved_home).resolve()
+        return p, f"saved user config ({config_path()})"
+
+    default_home = Path.home() / ".aw"
+    return default_home.resolve(), "platform default (~/.aw)"
 
 
 def migrate(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -169,7 +201,9 @@ def save(config: Dict[str, Any]) -> Path:
 
     payload = json.dumps(normalize(config), indent=2, sort_keys=True) + "\n"
 
-    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=".config.", suffix=".tmp")
+    fd, tmp_name = tempfile.mkstemp(
+        dir=str(path.parent), prefix=".config.", suffix=".tmp"
+    )
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(payload)

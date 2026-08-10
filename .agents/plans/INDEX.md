@@ -8,7 +8,7 @@ Showing the 40 most-recent of 75 Sets; the full manifest is INDEX.json.
 
 - `az9912` [pending] 00 pending/20260809-awlayout-00-az9912-aw-project-layout-orchestrator.md
 - `m9tqof` [executed] 01 executed/20260809-awlayout-01-m9tqof-aw-context-and-logical-roots.md
-- `bgyymp` [pending] 02 pending/20260809-awlayout-02-bgyymp-aw-home-project-identity-and-registry.md
+- `bgyymp` [executed] 02 executed/20260809-awlayout-02-bgyymp-aw-home-project-identity-and-registry.md
 - `g4y28x` [pending] 03 pending/20260809-awlayout-03-g4y28x-records-backends-and-durability.md
 - `q0wpk4` [pending] 04 pending/20260809-awlayout-04-q0wpk4-install-update-policy-wizard.md
 - `tg60qo` [pending] 05 pending/20260809-awlayout-05-tg60qo-system-config-state-layout-and-ownership.md

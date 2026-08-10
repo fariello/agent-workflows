@@ -600,6 +600,58 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Print only the absolute resolved path with no prose.",
     )
 
+    p_project = sub.add_parser(
+        "project",
+        parents=[common],
+        help="Owner verbs for project identity, registry status, attach, and move.",
+    )
+    project_sub = p_project.add_subparsers(dest="project_command")
+
+    p_project_status = project_sub.add_parser(
+        "status",
+        parents=[common],
+        help="Inspect project identity & registry matching status.",
+    )
+    p_project_status.add_argument(
+        "--repo", default=None, help="Target repository path (default: current dir)."
+    )
+    p_project_status.add_argument(
+        "--json", action="store_true", help="Output status as formatted JSON."
+    )
+    p_project_status.add_argument(
+        "--agent", action="store_true", help="Machine-readable output for LLM callers."
+    )
+
+    p_project_attach = project_sub.add_parser(
+        "attach", parents=[common], help="Attach repository to a project ID."
+    )
+    p_project_attach.add_argument("project_id", help="Target project ID to attach to.")
+    p_project_attach.add_argument(
+        "--repo", default=None, help="Target repository path (default: current dir)."
+    )
+    p_project_attach.add_argument(
+        "--yes", action="store_true", help="Auto-confirm attach operation."
+    )
+    p_project_attach.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would change without modifying registry.",
+    )
+
+    p_project_move = project_sub.add_parser(
+        "move", parents=[common], help="Update project target path association."
+    )
+    p_project_move.add_argument("project_id", help="Target project ID to move.")
+    p_project_move.add_argument("new_path", help="New target path for the project.")
+    p_project_move.add_argument(
+        "--yes", action="store_true", help="Auto-confirm move operation."
+    )
+    p_project_move.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would change without modifying registry.",
+    )
+
     p_attention = sub.add_parser(
         "attention",
         parents=[common],
@@ -1912,6 +1964,117 @@ def _run_path(args: argparse.Namespace, term: Term) -> int:
     return 0
 
 
+def _run_project_status(args: argparse.Namespace, term: Term) -> int:
+    import json
+    import os
+    from agent_workflows import config
+    from agent_workflows.project_registry import (
+        find_project,
+        load_registry,
+        get_registry_path,
+    )
+
+    repo_path = getattr(args, "repo", None) or os.getcwd()
+    aw_home, home_source = config.get_aw_home()
+    reg_path = get_registry_path(str(aw_home))
+    reg_data = load_registry(reg_path)
+    match_res = find_project(repo_path, registry_data=reg_data, aw_home=str(aw_home))
+
+    status_data = {
+        "target_repo": repo_path,
+        "effective_aw_home": str(aw_home),
+        "aw_home_source": home_source,
+        "matched": bool(match_res.entry),
+        "match_kind": match_res.match_kind,
+        "ambiguous": match_res.ambiguous,
+        "project_entry": match_res.entry.to_dict() if match_res.entry else None,
+        "candidate_hint": match_res.candidate_hint.to_dict()
+        if match_res.candidate_hint
+        else None,
+    }
+
+    if getattr(args, "json", False) or getattr(args, "agent", False):
+        print(json.dumps(status_data, indent=2))
+        return 0
+
+    term.heading("AW Project Registry Status")
+    term.status("info", f"Target Repo:       {repo_path}")
+    term.status("info", f"AW_HOME:           {aw_home} ({home_source})")
+    if match_res.entry:
+        term.status(
+            "ok",
+            f"Matched Project:   {match_res.entry.project_id} (via {match_res.match_kind})",
+        )
+    elif match_res.ambiguous and match_res.candidate_hint:
+        term.status(
+            "warn",
+            f"Candidate Hint:    {match_res.candidate_hint.project_id} (origin matched; requires 'aw project attach')",
+        )
+    else:
+        term.status("warn", "No registered project association found.")
+    return 0
+
+
+def _run_project_attach(args: argparse.Namespace, term: Term) -> int:
+    import os
+    from agent_workflows import config
+    from agent_workflows.project_registry import register_or_update_project
+
+    repo_path = getattr(args, "repo", None) or os.getcwd()
+    pid = args.project_id
+    aw_home, _ = config.get_aw_home()
+
+    if getattr(args, "dry_run", False):
+        term.status(
+            "info",
+            f"[DRY RUN] Would attach {repo_path} to project ID '{pid}' in {aw_home}",
+        )
+        return 0
+
+    if not _confirm(
+        term, f"Attach {repo_path} to project ID '{pid}'?", getattr(args, "yes", False)
+    ):
+        term.status("skip", "Attach cancelled; nothing changed.")
+        return 0
+
+    entry = register_or_update_project(repo_path, str(aw_home), project_id=pid)
+    term.status(
+        "ok", f"Successfully attached {repo_path} to project ID '{entry.project_id}'."
+    )
+    return 0
+
+
+def _run_project_move(args: argparse.Namespace, term: Term) -> int:
+    from agent_workflows import config
+    from agent_workflows.project_registry import register_or_update_project
+
+    pid = args.project_id
+    new_path = args.new_path
+    aw_home, _ = config.get_aw_home()
+
+    if getattr(args, "dry_run", False):
+        term.status(
+            "info",
+            f"[DRY RUN] Would move association of project ID '{pid}' to {new_path}",
+        )
+        return 0
+
+    if not _confirm(
+        term,
+        f"Move association of project ID '{pid}' to {new_path}?",
+        getattr(args, "yes", False),
+    ):
+        term.status("skip", "Move cancelled; nothing changed.")
+        return 0
+
+    entry = register_or_update_project(new_path, str(aw_home), project_id=pid)
+    term.status(
+        "ok",
+        f"Successfully moved project ID '{entry.project_id}' association to {new_path}.",
+    )
+    return 0
+
+
 def _dispatch(argv: Optional[Sequence[str]]) -> int:
     parser = _build_parser()
     # Alias: `aw plans index` / `aw plans find` -> the `plans-index` / `plans-find` parsers, so the
@@ -1949,6 +2112,16 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         )
         return 0
 
+    if args.command == "project":
+        project_cmd = getattr(args, "project_command", None)
+        if project_cmd == "status":
+            return _run_project_status(args, term)
+        if project_cmd == "attach":
+            return _run_project_attach(args, term)
+        if project_cmd == "move":
+            return _run_project_move(args, term)
+        parser.print_help()
+        return 2
     if args.command == "install":
         return _run_install(args, term)
     if args.command == "uninstall":
