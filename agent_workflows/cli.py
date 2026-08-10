@@ -2110,7 +2110,20 @@ def _run_path(args: argparse.Namespace, term: Term) -> int:
         return 1
 
     if getattr(args, "agent", False):
-        print(resolved_path)
+        if root_name == "records":
+            import json
+            from agent_workflows.record_producers import resolve_record_routing
+
+            info = resolve_record_routing(target_repo=getattr(args, "repo", None))
+            out = {
+                "records_root": info.records_root,
+                "records_backend": info.records_backend,
+                "commit_destination": info.commit_destination,
+                "allow_git_stage": info.allow_git_stage,
+            }
+            print(json.dumps(out, indent=2))
+        else:
+            print(resolved_path)
     else:
         term.status("ok", f"{root_name}: {resolved_path}")
     return 0
