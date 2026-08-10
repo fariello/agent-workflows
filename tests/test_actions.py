@@ -33,6 +33,7 @@ class TestActionsAndInstallHistory(unittest.TestCase):
         self.aw_home = os.path.join(self.tmp_dir, "aw_home")
         os.makedirs(self.aw_home, exist_ok=True)
 
+        self._prev_aw_home = os.environ.get("AW_HOME")
         os.environ["AW_HOME"] = self.aw_home
 
         # Register project fixture
@@ -41,7 +42,13 @@ class TestActionsAndInstallHistory(unittest.TestCase):
         )
 
     def tearDown(self):
-        os.environ.pop("AW_HOME", None)
+        # Restore the prior AW_HOME (the tests package sets a sandbox value in
+        # tests/__init__.py); popping it unconditionally would clobber that
+        # sandbox for later tests and leak into the real ~/.aw.
+        if self._prev_aw_home is None:
+            os.environ.pop("AW_HOME", None)
+        else:
+            os.environ["AW_HOME"] = self._prev_aw_home
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
     def test_action_id_validation_format(self):

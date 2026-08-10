@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from agent_workflows import config
 from agent_workflows.project_registry import (
@@ -52,37 +53,42 @@ class TestProjectRegistry(unittest.TestCase):
 
     def test_aw_home_precedence(self):
         """Test AW_HOME resolution precedence (explicit > env > config > platform default)."""
-        # 1. Platform default
-        p_def, src_def = config.get_aw_home()
-        self.assertIn("platform default", src_def)
-
-        # 2. Config value
-        cfg = config.default_config()
-        cfg["aw_home"] = self.aw_home
+        # Fully control the environment for this precedence test: the tests
+        # package sets a sandbox AW_HOME/XDG_CONFIG_HOME (tests/__init__.py) to
+        # keep test writes out of the real ~/.aw, but this test must exercise
+        # the platform-default branch, so start from a clean, sandboxed env and
+        # remove AW_HOME entirely. patch.dict restores the prior env on exit.
         user_cfg_dir = os.path.join(self.tmp_dir, "user_cfg")
         os.makedirs(user_cfg_dir, exist_ok=True)
-        os.environ["XDG_CONFIG_HOME"] = user_cfg_dir
-        config.save(cfg)
+        with mock.patch.dict(
+            os.environ, {"XDG_CONFIG_HOME": user_cfg_dir}, clear=False
+        ):
+            os.environ.pop("AW_HOME", None)
 
-        p_cfg, src_cfg = config.get_aw_home()
-        self.assertEqual(p_cfg, Path(self.aw_home).resolve())
+            # 1. Platform default (no AW_HOME env, no config value yet)
+            p_def, src_def = config.get_aw_home()
+            self.assertIn("platform default", src_def)
 
-        # 3. Environment variable overrides config
-        env_home = os.path.join(self.tmp_dir, "env_aw_home")
-        os.environ["AW_HOME"] = env_home
-        p_env, src_env = config.get_aw_home()
-        self.assertEqual(p_env, Path(env_home).resolve())
-        self.assertIn("environment variable", src_env)
+            # 2. Config value
+            cfg = config.default_config()
+            cfg["aw_home"] = self.aw_home
+            config.save(cfg)
 
-        # 4. Explicit flag overrides environment variable
-        flag_home = os.path.join(self.tmp_dir, "flag_aw_home")
-        p_flag, src_flag = config.get_aw_home(explicit_flag=flag_home)
-        self.assertEqual(p_flag, Path(flag_home).resolve())
-        self.assertIn("--aw-home flag", src_flag)
+            p_cfg, src_cfg = config.get_aw_home()
+            self.assertEqual(p_cfg, Path(self.aw_home).resolve())
 
-        # Clean up env
-        os.environ.pop("AW_HOME", None)
-        os.environ.pop("XDG_CONFIG_HOME", None)
+            # 3. Environment variable overrides config
+            env_home = os.path.join(self.tmp_dir, "env_aw_home")
+            os.environ["AW_HOME"] = env_home
+            p_env, src_env = config.get_aw_home()
+            self.assertEqual(p_env, Path(env_home).resolve())
+            self.assertIn("environment variable", src_env)
+
+            # 4. Explicit flag overrides environment variable
+            flag_home = os.path.join(self.tmp_dir, "flag_aw_home")
+            p_flag, src_flag = config.get_aw_home(explicit_flag=flag_home)
+            self.assertEqual(p_flag, Path(flag_home).resolve())
+            self.assertIn("--aw-home flag", src_flag)
 
     def test_origin_hint_normalization_and_redaction(self):
         """Test origin URL normalization and credential/token redaction."""

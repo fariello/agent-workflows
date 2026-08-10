@@ -30,13 +30,20 @@ class TestCleanDeltaSkillsAndHostGates(unittest.TestCase):
         self.user_skills_dir = os.path.join(self.tmp_dir, "user_skills")
         os.makedirs(self.user_skills_dir, exist_ok=True)
 
+        self._prev_aw_home = os.environ.get("AW_HOME")
         os.environ["AW_HOME"] = self.aw_home
         register_or_update_project(
             self.target_repo, self.aw_home, project_id="myrepo-123456"
         )
 
     def tearDown(self):
-        os.environ.pop("AW_HOME", None)
+        # Restore the prior AW_HOME (sandbox value set in tests/__init__.py);
+        # popping it unconditionally would clobber the sandbox for later tests
+        # and leak into the real ~/.aw.
+        if self._prev_aw_home is None:
+            os.environ.pop("AW_HOME", None)
+        else:
+            os.environ["AW_HOME"] = self._prev_aw_home
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
     def test_claim_set_equality_assertion(self):

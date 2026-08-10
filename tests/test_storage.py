@@ -38,6 +38,8 @@ class TestStorageBackendsAndDurability(unittest.TestCase):
         os.makedirs(self.aw_home, exist_ok=True)
 
         # Environment setup for isolated test runs
+        self._prev_aw_home = os.environ.get("AW_HOME")
+        self._prev_xdg = os.environ.get("XDG_CONFIG_HOME")
         os.environ["AW_HOME"] = self.aw_home
         self.user_cfg_dir = os.path.join(self.tmp_dir, "user_cfg")
         os.makedirs(self.user_cfg_dir, exist_ok=True)
@@ -49,8 +51,17 @@ class TestStorageBackendsAndDurability(unittest.TestCase):
         )
 
     def tearDown(self):
-        os.environ.pop("AW_HOME", None)
-        os.environ.pop("XDG_CONFIG_HOME", None)
+        # Restore prior AW_HOME/XDG_CONFIG_HOME (sandbox values set in
+        # tests/__init__.py); popping them unconditionally would clobber the
+        # sandbox for later tests and leak into the real ~/.aw.
+        if self._prev_aw_home is None:
+            os.environ.pop("AW_HOME", None)
+        else:
+            os.environ["AW_HOME"] = self._prev_aw_home
+        if self._prev_xdg is None:
+            os.environ.pop("XDG_CONFIG_HOME", None)
+        else:
+            os.environ["XDG_CONFIG_HOME"] = self._prev_xdg
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
     def test_durability_classification_truthfulness(self):
