@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -22,7 +23,10 @@ class TestLayoutMigration(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp()
         self.target_repo = os.path.join(self.tmp_dir, "myrepo")
-        os.makedirs(os.path.join(self.target_repo, ".git"), exist_ok=True)
+        os.makedirs(self.target_repo, exist_ok=True)
+        subprocess.run(
+            ["git", "init", "-q", self.target_repo], check=True, capture_output=True
+        )
         self.aw_home = os.path.join(self.tmp_dir, "aw_home")
         os.makedirs(self.aw_home, exist_ok=True)
 
@@ -66,8 +70,9 @@ class TestLayoutMigration(unittest.TestCase):
 
         self.assertTrue(plan.is_valid)
 
-        # Policy MUST be updated to target_backend
-        policy_file = Path(self.target_repo) / ".aw" / "config" / "policy.json"
+        # Policy switch MUST be written to the resolver's durable source (config.json), so a
+        # subsequent resolve honors the new backend.
+        policy_file = Path(self.target_repo) / ".aw" / "config" / "config.json"
         policy_data = json.loads(policy_file.read_text(encoding="utf-8"))
         self.assertEqual(
             policy_data["records_backend"], RecordsBackend.REPOSITORY.value
@@ -116,6 +121,24 @@ class TestLayoutMigration(unittest.TestCase):
         mgr.uninstall_layout(preserve_records=False, deep_remove_records=True)
 
         self.assertFalse((target_aw / "records").exists())
+
+    def test_preserve_records_wins_over_deep_remove(self):
+        """SAFETY: preserve_records=True is authoritative and protects records even if a caller ALSO
+        passes deep_remove_records=True (spec 15.4 / L9-02 - deep removal is unambiguous-intent only)."""
+        target_aw = Path(self.target_repo) / ".aw"
+        (target_aw / "system").mkdir(parents=True, exist_ok=True)
+        (target_aw / "records").mkdir(parents=True, exist_ok=True)
+        (target_aw / "records" / "precious.md").write_text(
+            "# PRECIOUS", encoding="utf-8"
+        )
+
+        mgr = MigrationManager(target_repo=self.target_repo, aw_home=self.aw_home)
+        mgr.uninstall_layout(preserve_records=True, deep_remove_records=True)
+
+        self.assertTrue(
+            (target_aw / "records" / "precious.md").exists(),
+            "preserve_records=True must protect records even when deep_remove_records=True",
+        )
 
 
 if __name__ == "__main__":

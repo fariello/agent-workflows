@@ -144,8 +144,8 @@ class MigrationManager:
         if dry_run:
             return plan
 
-        # Write migration journal
-        system_dir = Path(self.ctx.logical_roots[LogicalRoot.SYSTEM.value])
+        # Write migration journal under the target-side system dir the uninstall path manages.
+        system_dir = Path(self.target_repo) / ".aw" / "system"
         system_dir.mkdir(parents=True, exist_ok=True)
         journal_p = system_dir / "migration_journal.json"
         tmp_journal = system_dir / ".tmp_migration_journal.json"
@@ -159,15 +159,24 @@ class MigrationManager:
             json.dump(journal_data, f, indent=2)
         os.replace(tmp_journal, journal_p)
 
-        # Complete policy switch
-        policy_file = Path(self.target_repo) / ".aw" / "config" / "policy.json"
-        if policy_file.exists():
-            policy_data = json.loads(policy_file.read_text(encoding="utf-8"))
-            policy_data["records_backend"] = target_backend
-            tmp_pol = policy_file.parent / ".tmp_policy.json"
-            with open(tmp_pol, "w", encoding="utf-8") as f:
-                json.dump(policy_data, f, indent=2)
-            os.replace(tmp_pol, policy_file)
+        # Complete the policy switch by writing the resolver's DURABLE project-config source
+        # (.aw/config/config.json, spec 9/17) so the new backend is actually honored on re-resolve.
+        # Seed from any existing config.json (falling back to a legacy policy.json) so unknown keys survive.
+        config_dir = Path(self.target_repo) / ".aw" / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        durable_file = config_dir / "config.json"
+        legacy_policy = config_dir / "policy.json"
+        if durable_file.exists():
+            policy_data = json.loads(durable_file.read_text(encoding="utf-8"))
+        elif legacy_policy.exists():
+            policy_data = json.loads(legacy_policy.read_text(encoding="utf-8"))
+        else:
+            policy_data = {}
+        policy_data["records_backend"] = target_backend
+        tmp_pol = config_dir / ".tmp_config.json"
+        with open(tmp_pol, "w", encoding="utf-8") as f:
+            json.dump(policy_data, f, indent=2)
+        os.replace(tmp_pol, durable_file)
 
         # Update journal to complete
         journal_data["status"] = "completed"
@@ -202,7 +211,11 @@ class MigrationManager:
 
         records_dir = target_aw / "records"
         if records_dir.exists():
-            if deep_remove_records:
+            # Records are destroyed ONLY on an unambiguous, explicit deep-removal request:
+            # deep_remove_records=True AND preserve_records=False. `preserve_records` is
+            # authoritative and wins any contradiction, so a caller can never lose records by
+            # passing both flags (spec 15.4 / L9-02: deep removal is a guarded, explicit act).
+            if deep_remove_records and not preserve_records:
                 shutil.rmtree(records_dir, ignore_errors=True)
                 removed_paths.append(str(records_dir))
             else:
