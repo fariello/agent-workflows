@@ -60,6 +60,28 @@ class ScanTests(unittest.TestCase):
                 by_tree["research"].attention_class, "active"
             )  # active -> active (live source)
 
+    def test_scans_external_aw_actions(self):
+        import tempfile
+        from agent_workflows.actions import ActionManager
+
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / "myrepo"
+            root.mkdir(parents=True, exist_ok=True)
+            _mk_repo(root)
+
+            mgr = ActionManager(target_repo=str(root))
+            mgr.create_action("setup-repo", 1, "Setup Repo", "Desc")
+
+            items, drift = att.scan(root)
+            self.assertEqual(drift, [])
+            action_items = [it for it in items if it.tree == "actions"]
+            self.assertEqual(len(action_items), 1)
+            self.assertEqual(action_items[0].id, "setup-repo")
+            self.assertEqual(
+                action_items[0].path, "aw-state/actions/open/setup-repo-v1.md"
+            )
+            self.assertEqual(action_items[0].attention_class, "ready")
+
     def test_unclassified_and_violations(self):
         import tempfile
 

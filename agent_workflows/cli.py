@@ -2462,8 +2462,8 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         _run_status(term)
         term.line()
         term.line(
-            "Commands: install <dir>|all, setup, uninstall <dir>, list, status, plans, "
-            "plan-names, check-local-leaks. See 'aw --help'."
+            "Commands: install <dir>|all, setup, todo, complete, dismiss, status, plans, "
+            "check-local-leaks. See 'aw --help'."
         )
         return 0
 

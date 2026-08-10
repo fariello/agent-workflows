@@ -142,6 +142,51 @@ def scan(repo_root: Path) -> Tuple[List[Item], List[core.Drift]]:
                 seen_ids[rec.id] = rel
         items.append(rec)
 
+    # External AW operational actions scan (spec Section 12.7 & E-01)
+    try:
+        from agent_workflows.actions import ActionManager, ActionDocument
+
+        mgr = ActionManager(target_repo=str(repo_root))
+        actions_root = mgr.actions_dir
+        for status in ("open", "completed", "dismissed", "superseded"):
+            status_dir = actions_root / status
+            if not status_dir.is_dir():
+                continue
+            for action_file in status_dir.glob("*-v*.md"):
+                if action_file.name.startswith(".tmp_"):
+                    continue
+                logical_path = f"aw-state/actions/{status}/{action_file.name}"
+                try:
+                    text = action_file.read_text(encoding="utf-8")
+                    doc = ActionDocument.from_markdown(text)
+                    cls_name = A.class_of("actions", doc.status)
+                    item = Item(
+                        id=doc.id,
+                        path=logical_path,
+                        tree="actions",
+                        native_status=doc.status,
+                        attention_class=cls_name,
+                        gate=None,
+                        last_history_at=None,
+                    )
+                    items.append(item)
+                except Exception as exc:
+                    drift.append(
+                        core.Drift(
+                            logical_path,
+                            "attention.external-state-invalid",
+                            A.escape_detail(f"invalid action document: {exc}"),
+                        )
+                    )
+    except Exception as exc:
+        drift.append(
+            core.Drift(
+                "aw-state/actions",
+                "attention.external-state-invalid",
+                A.escape_detail(f"external state root error: {exc}"),
+            )
+        )
+
     items.sort(
         key=lambda it: (
             A.ATTENTION_CLASS_ORDER.index(it.attention_class),

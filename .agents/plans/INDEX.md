@@ -13,7 +13,7 @@ Showing the 40 most-recent of 75 Sets; the full manifest is INDEX.json.
 - `q0wpk4` [executed] 04 executed/20260809-awlayout-04-q0wpk4-install-update-policy-wizard.md
 - `tg60qo` [executed] 05 executed/20260809-awlayout-05-tg60qo-system-config-state-layout-and-ownership.md
 - `anlovz` [executed] 06 executed/20260809-awlayout-06-anlovz-operational-actions-and-install-history.md
-- `b31tuy` [pending] 07 pending/20260809-awlayout-07-b31tuy-action-workflow-and-status-integration.md
+- `b31tuy` [executed] 07 executed/20260809-awlayout-07-b31tuy-action-workflow-and-status-integration.md
 - `0me1hr` [pending] 08 pending/20260809-awlayout-08-0me1hr-producing-workflow-record-routing.md
 - `es1phc` [pending] 09 pending/20260809-awlayout-09-es1phc-layout-migration-rollback-and-uninstall.md
 - `jmjh97` [pending] 10 pending/20260809-awlayout-10-jmjh97-clean-delta-skills-and-host-gates.md

@@ -220,11 +220,20 @@ _RESEARCH_MAP: Dict[str, str] = {
     "archive": PARKED,
 }
 
+# Actions (AW operational actions). Map open -> ready, completed -> done, dismissed/superseded -> parked (spec Section 12.7).
+_ACTIONS_MAP: Dict[str, str] = {
+    "open": READY,
+    "completed": DONE,
+    "dismissed": PARKED,
+    "superseded": PARKED,
+}
+
 # The registry of mapping fragments, one per tracked tree.
 CLASS_MAPS: Dict[str, Dict[str, str]] = {
     "specs": _SPEC_MAP,
     "plans": _PLANS_MAP,
     "research": _RESEARCH_MAP,
+    "actions": _ACTIONS_MAP,
 }
 
 
@@ -423,6 +432,7 @@ RULE_IDS: FrozenSet[str] = frozenset(
         "attention.unreadable",  # unreadable / unsupported-encoding / malformed front matter
         "attention.unclassified-tree",
         "attention.unsafe-field",  # control-char / over-length / newline / non-http issue url
+        "attention.external-state-invalid",  # invalid, unreadable, or escaping external AW state root
     )
 )
 
