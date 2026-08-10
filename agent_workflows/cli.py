@@ -29,6 +29,28 @@ from .term import Term
 # --------------------------------------------------------------------------------------
 
 
+class _AlphaHelpFormatter(argparse.HelpFormatter):
+    """Help formatter that lists subcommands alphabetically (clianx-01 E-05).
+
+    Display-only: it sorts the sub-actions shown under a ``{cmd ...}`` listing by their
+    name so ``--help`` is scannable, WITHOUT reordering how parsers were registered and
+    WITHOUT affecting dispatch (argparse still routes by the parsed command name).
+    """
+
+    def _iter_indented_subactions(self, action):
+        get_subactions = getattr(action, "_get_subactions", None)
+        if get_subactions is not None:
+            self._indent()
+            for subaction in sorted(
+                get_subactions(), key=lambda a: (a.dest or "", str(a.metavar or ""))
+            ):
+                yield subaction
+            self._dedent()
+        else:
+            for subaction in super()._iter_indented_subactions(action):
+                yield subaction
+
+
 def _build_parser() -> argparse.ArgumentParser:
     # A shared parent so --no-color works both before AND after the subcommand.
     common = argparse.ArgumentParser(add_help=False)
@@ -42,6 +64,7 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="agent-workflows",
         description="Install and manage the agent-workflows framework across your repos.",
         parents=[common],
+        formatter_class=_AlphaHelpFormatter,
     )
     parser.add_argument(
         "-V",
@@ -285,6 +308,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "ipd",
         parents=[common],
         help="IPD tooling (structure/state). 'ipd lint' deterministically checks an IPD.",
+        formatter_class=_AlphaHelpFormatter,
     )
     ipd_sub = p_ipd.add_subparsers(dest="ipd_command")
     p_ipd_lint = ipd_sub.add_parser(
@@ -364,6 +388,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "research",
         parents=[common],
         help="Research artifact tooling. 'research new'/'new-comparison' create correctly-named docs.",
+        formatter_class=_AlphaHelpFormatter,
     )
     research_sub = p_research.add_subparsers(dest="research_command")
     p_research_new = research_sub.add_parser(
@@ -605,6 +630,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "project",
         parents=[common],
         help="Owner verbs for project identity, registry status, attach, and move.",
+        formatter_class=_AlphaHelpFormatter,
     )
     project_sub = p_project.add_subparsers(dest="project_command")
 
@@ -657,6 +683,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "storage",
         parents=[common],
         help="Owner verbs for records storage backends, durability, and initialization.",
+        formatter_class=_AlphaHelpFormatter,
     )
     storage_sub = p_storage.add_subparsers(dest="storage_command")
 
@@ -726,6 +753,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "config",
         parents=[common],
         help="Manage user CLI config (the never-install exclude list).",
+        formatter_class=_AlphaHelpFormatter,
     )
     config_sub = p_config.add_subparsers(dest="config_command")
 

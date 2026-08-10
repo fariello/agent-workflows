@@ -504,5 +504,61 @@ class LeaksConfigTests(CliTestBase):
         self.assertFalse((Path(repo) / ".agents/local-leaks-allowlist.toml").exists())
 
 
+class AlphabeticalHelpTests(unittest.TestCase):
+    """clianx-01 E-05: subcommands are listed alphabetically in every --help (display-only)."""
+
+    @staticmethod
+    def _listed_commands(help_text):
+        # Sub-actions are indented four spaces under the choices line; the first token is
+        # the command name. Stop at a blank line / a new section.
+        cmds = []
+        for line in help_text.splitlines():
+            m = re.match(r"^ {4}([A-Za-z][\w-]*)\b", line)
+            if m:
+                cmds.append(m.group(1))
+        return cmds
+
+    def _help_of(self, *argv):
+        parser = cli._build_parser()
+        if not argv:
+            return parser.format_help()
+        # Descend to the named subparser and format ITS help.
+        node = parser
+        for name in argv:
+            sub_action = next(
+                a
+                for a in node._actions
+                if isinstance(a, __import__("argparse")._SubParsersAction)
+            )
+            node = sub_action.choices[name]
+        return node.format_help()
+
+    def test_top_level_commands_sorted(self):
+        cmds = self._listed_commands(self._help_of())
+        self.assertTrue(cmds, "no commands parsed from --help")
+        self.assertEqual(cmds, sorted(cmds), f"top-level not sorted: {cmds}")
+
+    def test_subgroups_sorted(self):
+        for grp in ("ipd", "research", "project", "storage", "config"):
+            cmds = self._listed_commands(self._help_of(grp))
+            self.assertTrue(cmds, f"no subcommands parsed for {grp}")
+            self.assertEqual(cmds, sorted(cmds), f"{grp} not sorted: {cmds}")
+
+    def test_dispatch_unaffected_by_display_order(self):
+        # Ordering is display-only; a mid-alphabet and an end-alphabet command still route.
+        with tempfile.TemporaryDirectory() as d:
+            repo = init_repo(Path(d) / "r")
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                code = cli.main(["path", "system", "--repo", str(repo), "--agent"])
+            self.assertEqual(code, 0)
+            self.assertIn(".agents", buf.getvalue())
+        # An end-alphabet group command prints its usage/help without error routing.
+        buf2 = io.StringIO()
+        with redirect_stdout(buf2):
+            code2 = cli.main(["storage"])
+        self.assertEqual(code2, 2)  # no subcommand -> prints help, returns 2
+
+
 if __name__ == "__main__":
     unittest.main()
