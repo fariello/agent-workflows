@@ -400,7 +400,7 @@
       "host": "",
       "kind": "file",
       "logical_id": "",
-      "sha256": "a2bb54749d718779ea435a4b483f9f46f4976b071562825484a8137fa95a2c9c"
+      "sha256": "739ae4fd672c0a76591c4c663b4612b5dd60ddcbd65c39cf036728e4dbc941e3"
     },
     ".agents/workflows/ipd-lifecycle/README.md": {
       "host": "",
@@ -694,7 +694,7 @@
       "host": "",
       "kind": "file",
       "logical_id": "",
-      "sha256": "af894e73e1529541d72588a9e68362dc9b30fd203271e67754c122f7cde09d99"
+      "sha256": "8125d00e8db3d6b44d04afde58b069c2b191d78c07f45121bab5ae4a1b6f35fc"
     },
     ".agents/workflows/setup-repo/tools/normalize_plan_names.py": {
       "host": "",
@@ -852,11 +852,23 @@
       "logical_id": "",
       "sha256": "2971d3a0caff6452fbe03c9de54eece574d055401dafd64de01eb6c9a205c5f0"
     },
+    ".agents/workflows/verify-execution/intent-audit.md": {
+      "host": "",
+      "kind": "file",
+      "logical_id": "",
+      "sha256": "1d85ecddfcfdeb9ca020f594396436d8ad17b07452d11bcc04c609103b9a9174"
+    },
+    ".agents/workflows/verify-execution/rubric.md": {
+      "host": "",
+      "kind": "file",
+      "logical_id": "",
+      "sha256": "48afaedb0ab851ea4202befdf280af86eb2da164450ab4e33375db87861fbcb8"
+    },
     ".agents/workflows/verify-execution/verify-execution.md": {
       "host": "",
       "kind": "file",
       "logical_id": "",
-      "sha256": "74d30076b814e2b3bb3303852ca2c4e5ce255f87fe4cf84605298cbf6ee7da4f"
+      "sha256": "a939fb5158c71a9a54291a3929b53f2107e6ef875c15612862ce0b868200f717"
     },
     ".agents/workflows/verify/README.md": {
       "host": "",
@@ -880,13 +892,13 @@
       "host": "",
       "kind": "file",
       "logical_id": "",
-      "sha256": "84e4b9a86203a53a67eae815bae2490dd66aa978f73d6eaa55f03b77b7dbf9e8"
+      "sha256": "cd55570b1998006b06dd05509c53447c5dd0005ed11e99be1812ca1f1d041e25"
     },
     ".agents/workflows/whatnext/whatnext.md": {
       "host": "",
       "kind": "file",
       "logical_id": "",
-      "sha256": "110b15a1453ef42ed35ac24278782a052dace8e9845fd11bb4f03e60efe8b510"
+      "sha256": "e862bc286bc45d48f192ff7ad6b39cdc714e39ac047fc002afd4dc6a65197883"
     },
     ".claude/commands/README.md": {
       "host": "claude",
