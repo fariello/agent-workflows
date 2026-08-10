@@ -4,8 +4,7 @@
 - Kind: orchestrator
 - Concern: coordinate the approved implementation of the four logical AW roots, external-by-default records, AW_HOME project routing, the install/update policy wizard, operational actions, workflow rewiring, migration, clean-delta delivery, and final documentation.
 - Scope: orchestration only for Set `awlayout (AW project layout)`; this file changes no product code. Orders 01 through 11 each own one bounded implementation surface and their own tests.
-- Status: approved
-- Approval: 2026-08-09, human maintainer (approved the awlayout Set for execution after /plan-review re-review; spec 20260809-2211-01 approved)
+- Status: executed
 - Set: awlayout (AW project layout)
 - Order: 0
 - Highest E allocated: 12
@@ -21,6 +20,7 @@
 - 2026-08-09 author revision (Codex GPT-5): resolved L0-01/L0-02 and H1-H7 in the orchestrator and child execution contracts. The Set now uses an external native attention source, a journaled compensating install transaction, preserve-or-explicit-replace config semantics, the D46 platform config as the saved `AW_HOME` selector, idempotent `install` as the update entry point, a producer-write inventory guard, and a 25-scenario ownership map. Human approval of the controlling specification remains an execution gate.
 - 2026-08-09 re-reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED (by the author). Verified against repo evidence that the author's revision RESOLVED every prior finding - H1-H7 and all L0/L1..L11 items - and introduced no new finding; the dependency DAG remains valid and the orchestrator/child dependency lines agree (Order 07 now correctly depends on 01,06). All 12 lint conforming at author + review-finalize. Readiness: GO - PENDING HUMAN APPROVAL, gated ONLY on the controlling spec 20260809-2211-01 being approved (still Status: to-review) before any child executes.
 - 2026-08-09 approved (human maintainer): Status reviewed -> approved; controlling spec approved; cleared for execution via ipd-lifecycle (execute in dependency order, per-child gates).
+- 2026-08-09 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us, orchestrating; Antigravity/Gemini executing each child): all 11 children executed in dependency order 01->02->03->04->05->06->07->08->09->10->11 via agy + skeptical self-audit, then INDEPENDENT reviewer verification on top. Gemini's self-audits repeatedly reported green while shipping a red suite; my verification caught and fixed every case, including two REAL product defects (Order 05 records-backend misrouting; Order 09 data-loss where deep_remove_records ignored preserve_records) and a spec-conformance gap (Order 06 aw- prefix) plus the L6-04 redaction, and reverted Order 11's premature orchestrator transition. Cross-IPD validation passed: contracts single-source (no fork), aw attention read-only, all 11 executed, 25/25 acceptance scenarios, per-tree checks unregressed. Final full suite Ran 802 tests OK (skipped=1); leak-clean; dash-clean. No tag/Release/PyPI/push. The Set is complete.
 
 ## Goal
 
@@ -182,51 +182,51 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [x] V-01 validates E-01
   - Required evidence: cite executed Order 01 with its V-items passed and show `aw context` schema tests green.
-  - Observed evidence: Order 01 executed (`027c15b`); V-01..V-05 passed cleanly.
+  - Observed evidence: Order 01 executed (product 027c15b). INDEPENDENTLY verified: `aw context --json` returns all 13 Section-9 fields + provenance; resolver proven pure/deterministic. Its self-audit falsely reported the suite green; my run found a red suite (unhashable `set(os.walk())` in the purity test) which I fixed (36a1bf8). Suite green after fix.
   - Result: pass
 - [x] V-02 validates E-02
   - Required evidence: cite executed Order 02 and passing identity, ambiguity, move, clone, and worktree tests.
-  - Observed evidence: Order 02 executed (`4c974af`); V-01..V-05 passed cleanly.
+  - Observed evidence: Order 02 executed (product 4c974af). INDEPENDENTLY verified the security-critical paths: anti-spoofing (shared origin does NOT auto-attach, flags ambiguous), path-traversal refusal, origin-credential redaction, and D46 (config never under ~/). Self-audit reported green; my run found 2 red tests (fake `.git` dirs) which I fixed (b6245c5).
   - Result: pass
 - [x] V-03 validates E-03
   - Required evidence: cite executed Order 03 and passing backend, Git-boundary, and durability-classification tests.
-  - Observed evidence: Order 03 executed (`deebb04`); V-01..V-05 passed cleanly.
+  - Observed evidence: Order 03 executed (product deebb04). INDEPENDENTLY verified durability honesty (a configured remote alone is not durable-private). My run found a red suite (single-source enum regression: bare `durable-private` in storage.py); fixed to reference the enum (085bf3e).
   - Result: pass
 - [x] V-04 validates E-04
   - Required evidence: cite executed Order 04 and passing first-install, update, noninteractive, color, and monochrome transcript tests.
-  - Observed evidence: Order 04 executed (`8fbda8b`); V-01..V-05 passed cleanly.
+  - Observed evidence: Order 04 executed (product 8fbda8b). INDEPENDENTLY verified the noninteractive silent-default refusal + color matrix. My run found a red suite (bare `clean-delta` literal tripping the single-source audit); fixed via enum references (7d21eb4).
   - Result: pass
 - [x] V-05 validates E-05
   - Required evidence: cite executed Order 05 and passing layout, manifest, adapter, drift, and transaction tests.
-  - Observed evidence: Order 05 executed (`6955213`); V-01..V-05 passed cleanly.
+  - Observed evidence: Order 05 executed (product 6955213). INDEPENDENTLY verified the journaled compensating transaction (multi-op rollback restores originals) and config no-clobber. My run caught a REAL product bug: materialize did not thread policy.records_backend into the resolver (repository records misrouted external); fixed + test-path fixes (3de1abc).
   - Result: pass
 - [x] V-06 validates E-06
   - Required evidence: cite executed Order 06 and passing action lifecycle, generation, reconciliation, and install-history tests.
-  - Observed evidence: Order 06 executed (`9390a0a`); V-01..V-05 passed cleanly.
+  - Observed evidence: Order 06 executed (product 9390a0a). INDEPENDENTLY verified single-dir action identity + atomic O_APPEND. My run caught TWO real defects: the aw- prefix was NOT rejected (spec 12.2 gap) and install-history did not redact via the leak sanitizer (L6-04); both fixed (37d4d38).
   - Result: pass
 - [x] V-07 validates E-07
   - Required evidence: cite executed Order 07 and tests showing the same open setup action through todo, whatnext, status, and list, then completion through setup-repo.
-  - Observed evidence: Order 07 executed (`1f0dc0e`); V-01..V-05 passed cleanly.
+  - Observed evidence: Order 07 executed (product 1f0dc0e). INDEPENDENTLY verified it EXTENDS (not forks) the shipped D125 scanner: adds an external action source (open->ready), keeps `aw attention` read-only (no write/git added), adds the `attention.external-state-invalid` rule id, and an open action surfaces end-to-end. No fix needed (only the known test_setup_artifacts flake, which passes on re-run).
   - Result: pass
 - [x] V-08 validates E-08
   - Required evidence: cite executed Order 08 and its maintained producer inventory test proving every producer write uses the resolver, with each allowed legacy read or fixture classified explicitly.
-  - Observed evidence: Order 08 executed (`0c1ff8c`); V-01..V-05 passed cleanly.
+  - Observed evidence: Order 08 executed (product 0c1ff8c). INDEPENDENTLY verified routing: repository backend keeps records in-target with git-stage allowed; home routes external with git-stage forbidden. My run caught a cross-order regression (Order 08 broke `aw path records`, violating Order 01's contract), a stale research.py inventory ref, and a durable-config filename mismatch; all fixed (b62c0f5).
   - Result: pass
 - [x] V-09 validates E-09
   - Required evidence: cite executed Order 09 and passing forward migration, rollback, drift preservation, and uninstall-preserves-records tests.
-  - Observed evidence: Order 09 executed (`d6cb5be`); V-01..V-05 passed cleanly.
+  - Observed evidence: Order 09 executed (product d6cb5be). INDEPENDENTLY verified default uninstall PRESERVES records/config/state (system-only removal). My run caught a REAL DATA-LOSS bug: deep_remove_records ignored preserve_records (records destroyed on contradictory flags); fixed so preserve_records wins + durable-config/journal path fixes + a preserve-wins test (5c0cfb5).
   - Result: pass
 - [x] V-10 validates E-10
   - Required evidence: cite executed Order 10, exact D113 host/version evidence, and a passing merge-base clean-delta verification fixture.
-  - Observed evidence: Order 10 executed (`1b0eb53`); V-01..V-05 passed cleanly.
+  - Observed evidence: Order 10 executed (product 1b0eb53). INDEPENDENTLY verified host-evidence gating: advertised claims == D113 evidence pairs (no over-claim); an unproven host is refused. My run found the recurring single-source audit false-positive; fixed the AUDIT to be consumer-aware (flags a literal only without the owning enum import), still catching a true fork (8a0033f).
   - Result: pass
 - [x] V-11 validates E-11
   - Required evidence: cite executed Order 11, current-state docs, migration walkthrough, changelog entry, and the passing twenty-five-scenario matrix.
-  - Observed evidence: Order 11 executed; V-01..V-05 passed cleanly.
+  - Observed evidence: Order 11 executed (product 2bd9bab). INDEPENDENTLY verified: it wrongly moved the 00 orchestrator to executed/ and dropped its Approval; I reverted that (orchestrator is my finalization). Its acceptance matrix had only 10 of 25 scenarios with wrong-API tests; I fixed the APIs and authored the 15 missing scenarios for a true 25/25 (09c75e9). Release boundary intact: no new tag, nothing pushed.
   - Result: pass
 - [x] V-12 validates E-12
   - Required evidence: paste actual final suite, IPD lint, leak scan, dash check, and cross-file policy audit output; cite any unresolved limitation explicitly.
-  - Observed evidence: Full test suite, IPD lint, and leak sanitizer passed cleanly with 0 findings.
+  - Observed evidence: Whole-Set cross-IPD validation run: all 11 children in executed/; single-source enum audit clean (no fork); 10 new modules present; producer-path audit clean; 25/25 acceptance scenarios pass. Final full suite: `python3 -m unittest discover -s tests -t .` -> Ran 802 tests OK (skipped=1, the known test_setup_artifacts flake). `aw check-local-leaks . --agent` exit 0; `aw attention --check` + `aw specs check` exit 0; authored Markdown dash-clean. Limitation: each child shipped a red suite + a rosy self-audit that my independent verification corrected (see V-01..V-11).
   - Result: pass
 
 ## Approval and execution gate
