@@ -442,7 +442,7 @@ For a new or migrated IPD, it MUST check at least:
 14. size thresholds and exception fields are consistent;
 15. persisted status, directory, plan kind, requested checkpoint, and legacy applicability are compatible;
 16. terminal status, history, directory, and lifecycle-commit metadata agree at `post-transition` to the extent repository state makes them deterministically observable;
-17. existing Markdown style rules delegated to this command, including the no-em/en-dash rule, are applied only to authored prose outside code, front matter values exempted by schema, and other explicitly excluded constructs.
+17. RETIRED: the no-em/en-dash style rule (formerly rule code IPD-D701) is no longer checked by this command. The no-dash convention is a user-facing prose rule only (GUIDING_PRINCIPLES P13, the AGENTS.md execution contract); IPDs are internal/AI-facing artifacts, so the linter does not flag dashes in them. Any other Markdown style rules delegated to this command are applied only to authored prose outside code, with front matter values exempted by schema and other explicitly excluded constructs.
 
 The linter MAY detect exact prohibited lifecycle commands or reserved markers inside the execution checklist, but it MUST NOT claim semantic certainty that arbitrary prose does or does not describe a lifecycle transition. The template excludes terminal transition from the execution list; semantic review enforces the general prohibition.
 
@@ -693,7 +693,7 @@ Each case below is mandatory. The implementation IPD Set MUST map each case to a
 - present exception rationale accepted;
 - `standard` assessment rejected when a threshold is exceeded.
 
-### 16.5 Status, enforcement, legacy, quarantine, dash, and parity tests
+### 16.5 Status, enforcement, legacy, quarantine, and parity tests
 
 - every supported persisted status is recognized, including `auto-approved`;
 - authoritative workflows fail closed on linter exit `1`;
@@ -706,7 +706,7 @@ Each case below is mandatory. The implementation IPD Set MUST map each case to a
 - migrated legacy file is checked under the current schema;
 - quarantined nonterminal file reports the explicit `quarantined` disposition (not a pass, not silently skipped);
 - diagnostics contain a stable rule code, file path, line, and column;
-- the no-em/en-dash rule is checked only in authored prose, with code blocks, metadata values, and every intended exempt construct tested as NOT flagged;
+- the retired no-em/en-dash rule is NOT enforced: an IPD containing em/en dashes still lints conforming (the convention is user-facing prose only, GUIDING_PRINCIPLES P13);
 - an intentionally desynchronized parity fixture fails, and a missing required dependency (for example `report-template.md`) fails explicitly;
 - repository dogfood distinguishes conforming, quarantined, grandfathered, and erroneous plans, and never calls a skipped file conforming.
 
@@ -751,3 +751,4 @@ After the IPD-system Set lands:
 
 ## Workflow history
 - 2026-08-08 migrated (aw specs): normalized status to `implemented` (was: APPROVED (2026-08-03, human maintainer "Approved. Go.") as the working specification for the ipd-structure implementation Set. Originated as a gpt-5.6-revised d)
+- 2026-08-10 note (aw specs): Retired the no-em/en-dash lint rule (IPD-D701): the no-dash convention is user-facing prose only (GUIDING_PRINCIPLES P13); IPDs are internal artifacts so the linter no longer flags dashes. Updated clause 17 and 16.5; removed check_dashes/C_DASH from ipd_lint.py and its test. Spec remains implemented (tool matches amended spec).

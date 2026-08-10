@@ -102,7 +102,11 @@ instruction prose (prose is reviewed by `/assess prose`, not unit-tested).
   (`GUIDING_PRINCIPLES.md` P2).
 - Keep each policy or rule in exactly one canonical place and link to it, rather than
   duplicating it (P8).
-- Do not use em or en dashes in authored Markdown; use hyphens or parenthetical dashes.
+- Do not use em or en dashes in USER-FACING prose you author (READMEs, CHANGELOG, and
+  docs meant for end users); use hyphens or parenthetical dashes. The point is to keep
+  user-facing text from reading as machine-written. This does NOT apply to internal or
+  AI-facing artifacts (IPDs/plans, research findings, prompts, specs, walkthroughs, commit
+  messages, code comments); spend no effort avoiding dashes there.
 - The standing agent execution contract (commit only your own files path-scoped, never
   `git add -A`/bare/`-a`, never push; paste the actual runner output when you claim tests
   passed; review-means-read-only; no in-place edits to a plan already in `executed/`) lives

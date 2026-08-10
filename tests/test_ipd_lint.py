@@ -347,19 +347,22 @@ class DispositionTests(unittest.TestCase):
 
 
 class DashTests(unittest.TestCase):
-    def test_dash_in_prose_flagged_but_not_in_code(self):
+    def test_dashes_no_longer_flagged_in_ipds(self):
+        # The no-em/en-dash convention is a USER-FACING prose rule only
+        # (GUIDING_PRINCIPLES P13). IPDs are internal/AI-facing artifacts, so the
+        # linter must NOT flag em/en dashes and an IPD containing them still lints
+        # conforming. The rule code IPD-D701 was retired.
+        self.assertFalse(hasattr(L, "C_DASH"))
         prose = _conforming_child().replace(
-            "Sample goal.", "Sample goal \u2014 with an em dash."
+            "Sample goal.", "Sample goal \u2014 with an em dash \u2013 and an en dash."
         )
         res = L.lint_text(prose, directory="pending")
-        self.assertTrue(any(d.code == L.C_DASH for d in res.diagnostics))
-        # A dash inside a fenced code block is NOT flagged.
-        coded = _conforming_child().replace(
-            "Gate prose.",
-            "Gate prose.\n\n```\nsome code \u2014 with a dash\n```\n",
+        self.assertEqual(
+            res.disposition,
+            S.DISPOSITION_CONFORMING,
+            f"dashes should not affect linting; got {res.diagnostics}",
         )
-        res2 = L.lint_text(coded, directory="pending")
-        self.assertFalse(any(d.code == L.C_DASH for d in res2.diagnostics))
+        self.assertFalse(any("dash" in d.message.lower() for d in res.diagnostics))
 
 
 class DiagnosticShapeTests(unittest.TestCase):

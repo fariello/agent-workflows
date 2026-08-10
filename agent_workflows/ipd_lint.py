@@ -66,7 +66,9 @@ C_CROSS_STATE = "IPD-S403"
 C_CHECKPOINT = "IPD-S404"
 C_OQ = "IPD-Q501"
 C_SIZE = "IPD-Z601"
-C_DASH = "IPD-D701"
+# IPD-D701 (em/en dash in authored prose) was RETIRED: the no-dash convention is a
+# user-facing prose rule only (see GUIDING_PRINCIPLES P13, AGENTS.md execution contract).
+# IPDs are internal/AI-facing artifacts, so the linter no longer flags dashes in them.
 
 
 # --------------------------------------------------------------------------------------
@@ -640,24 +642,6 @@ def check_checkpoint(
     return diags
 
 
-_DASH_RE = re.compile(r"[\u2013\u2014]")
-
-
-def check_dashes(text: str) -> List[Diagnostic]:
-    """No em/en dashes in AUTHORED prose only (outside code/front matter). Uses the structural
-    line view so fenced code is exempt."""
-    diags: List[Diagnostic] = []
-    for lineno, raw in _structural_lines(text):
-        m = _DASH_RE.search(raw)
-        if m:
-            diags.append(
-                Diagnostic(
-                    lineno, m.start() + 1, C_DASH, "em/en dash in authored prose"
-                )
-            )
-    return diags
-
-
 # --------------------------------------------------------------------------------------
 # Top-level lint
 # --------------------------------------------------------------------------------------
@@ -700,7 +684,6 @@ def lint_text(
     diags += check_open_questions(doc)
     diags += check_size(doc)
     diags += check_checkpoint(doc, checkpoint, directory)
-    diags += check_dashes(text)
     disposition = S.DISPOSITION_CONFORMING if not diags else S.DISPOSITION_ERROR
     return LintResult(disposition, diags)
 

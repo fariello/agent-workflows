@@ -132,3 +132,11 @@ Before asking, silently confirm:
 - Is every included fact necessary?
 - Is the reason for asking clear?
 - Have I avoided repeating the tool's choices?
+
+## 13. Style rules for prose apply to user-facing text, not internal artifacts
+
+Prose style rules whose whole purpose is to keep human-facing text from reading as machine-written apply ONLY to user-facing text you author: READMEs, the CHANGELOG, and documentation meant for end users. The specific rule here is the no em/en dash convention (use hyphens or parenthetical dashes), but the principle is general: the goal is that user-facing prose not feel auto-generated.
+
+These rules do NOT apply to internal or AI-facing artifacts: IPDs and plans, research findings and prompts, specs, walkthroughs, commit messages, and code comments. Spending effort to strip dashes (or otherwise groom the style) of those artifacts wastes time and tokens for no reader benefit, because no end user consumes them as polished prose. Deterministic tooling MUST reflect this scope: a gate that mechanically enforces a user-facing style rule must not fail an internal artifact for it (see P11; the IPD linter does not check dashes).
+
+When in doubt about whether an artifact is user-facing, ask who reads it as finished prose. If the answer is an end user, apply the style rule; if the answer is a maintainer, an executing agent, or a reviewer of internal process, do not.
