@@ -15,6 +15,7 @@ All output goes through `term.Term` for accessible, degrade-when-piped styling (
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 from typing import List, Optional, Sequence
@@ -1093,6 +1094,86 @@ def _confirm(term: Term, prompt: str, assume_yes: bool) -> bool:
     return answer in ("y", "yes")
 
 
+def _prompt_yes_no(prompt: str, default: bool) -> bool:
+    """Interactive yes/no prompt with an explicit default on empty input.
+
+    Unlike ``_confirm`` this does NOT consult ``assume_yes`` and never auto-answers: the
+    exclude guard must decide the ``--yes``/non-interactive case itself (fail-safe skip),
+    so this helper is only ever called on an interactive TTY. ``default=True`` renders
+    ``[Y/n]`` (empty -> yes); ``default=False`` renders ``[y/N]`` (empty -> no).
+    """
+
+    suffix = "[Y/n]" if default else "[y/N]"
+    try:
+        answer = input(f"{prompt} {suffix} ").strip().lower()
+    except EOFError:
+        return default
+    if not answer:
+        return default
+    return answer in ("y", "yes")
+
+
+def _exclude_guard(term: Term, repo_root: Path, args) -> str:
+    """Guard an explicitly targeted repo against the never-install exclude blocklist.
+
+    Returns one of:
+      - "proceed": the repo is not excluded, or the user chose to continue anyway.
+      - "skip": the repo is excluded and must NOT be installed (declined, or a fail-safe
+        non-interactive/``--yes`` skip).
+
+    Fail-safe contract (clianx-01 E-03 / OQ-02): a NON-interactive run or ``--yes`` NEVER
+    silently installs into an excluded repo; it skips with a message. Interactively, it
+    warns (colorized) and asks ``Continue anyway? [Y/n]`` (default YES, since the user
+    explicitly asked to install here); on continue it then offers ``Remove <repo> from the
+    exclude list? [Y/n]`` (default NO) and unexcludes on yes. This does NOT reuse
+    ``_confirm`` (which auto-returns True under ``--yes`` and would defeat the guard).
+    """
+
+    cfg = config.load()
+    excludes = config.expanded_excludes(cfg)
+    if not discovery._is_excluded(repo_root.resolve(), excludes):
+        return "proceed"
+
+    term.status(
+        "warn",
+        f"{repo_root} is on the never-install exclude list.",
+    )
+
+    # Fail-safe: never auto-install into an excluded repo non-interactively / under --yes.
+    if getattr(args, "yes", False) or not sys.stdin.isatty():
+        term.status(
+            "skip",
+            f"{repo_root}: excluded; skipped (run 'aw config exclude rm <path>' or use "
+            "an interactive install to override). Nothing changed.",
+        )
+        return "skip"
+
+    if not _prompt_yes_no("Continue anyway?", default=True):
+        term.status("skip", f"{repo_root}: excluded; declined. Nothing changed.")
+        return "skip"
+
+    # They chose to install anyway: offer to drop it from the exclude list.
+    if _prompt_yes_no(f"Remove {repo_root} from the exclude list?", default=False):
+        _exclude_remove(cfg, repo_root)
+        term.status("ok", f"Removed {repo_root} from the exclude list.")
+    return "proceed"
+
+
+def _exclude_remove(cfg, repo_root: Path) -> None:
+    """Remove any exclude entry that matches ``repo_root`` (exact or glob) and save."""
+
+    rp = repo_root.resolve()
+    kept = [
+        entry
+        for entry in cfg.get("exclude", [])
+        if not discovery._is_excluded(
+            rp, [os.path.expandvars(os.path.expanduser(str(entry)))]
+        )
+    ]
+    cfg["exclude"] = kept
+    config.save(cfg)
+
+
 def _has_uncommitted_changes(repo_root: Path) -> bool:
     """True if the git working tree has staged or unstaged changes (best-effort)."""
 
@@ -1320,6 +1401,12 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
         if len(repo_roots) > 1:
             term.line()
             term.heading(f"Target Repo: {repo_root}")
+
+        # Never-install exclude guard (clianx-01 E-03): an explicitly targeted excluded
+        # repo warns + asks to continue interactively, and is skipped fail-safe under
+        # --yes / non-interactive. This runs BEFORE any policy/interview work.
+        if _exclude_guard(term, repo_root, args) == "skip":
+            continue
 
         # Resolve policy via install_wizard (E-01..E-04)
         from agent_workflows.install_wizard import (
@@ -1833,6 +1920,8 @@ def _run_setup(args: argparse.Namespace, term: Term) -> int:
         term.status("skip", f"{repo} ({reason})")
     for repo in found.ignored:
         term.status("ignored", str(repo))
+    for repo in found.excluded:
+        term.status("skip", f"{repo} (excluded: never-install list)")
 
     # Record discovered repos into the allowlist.
     if found.targets:
