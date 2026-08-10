@@ -126,6 +126,22 @@ Two DISTINCT ordered Sets came out of the 2026-07-16 discussion, reconciled 2026
 Ideas worth revisiting; each needs a real decision before it becomes a plan. Do not implement any of
 these without an approved IPD.
 
+- **Refine the `aw specs` `reviewed -> approved` approval mechanism ergonomics (attention-registry spec OQ10).**
+  D125's anti-self-approval floor is working as intended: an AGENT cannot set a spec to `approved` - the
+  `aw specs set --status approved` path requires an interactive TTY human confirmation, and a `--yes-i-am-human`
+  flag is honored ONLY when stdin is a real TTY. That correctly stops an agent from self-declaring a human
+  decision. But it produced a real ergonomic rough edge in practice (2026-08-09, awlayout spec approval): when a
+  human says "approved, go" in chat, the orchestrating AGENT cannot record it (no TTY), so approval had to be
+  hand-run by the human in their own terminal - a clunky round-trip for an approval the human already gave.
+  Note the asymmetry that caused the surprise: PLANS/IPDs still approve via the simple metadata convention (an
+  agent records the human's chat "approved, go" as `Status: approved` + an `- Approval:` line - unchanged), while
+  only SPECS carry the strict TTY floor. Consider a cleaner human-token design that keeps the "agent can never
+  self-approve" guarantee without forcing the human into a terminal: e.g. accept a maintainer's explicit
+  in-session approval when the operator is demonstrably human (an out-of-band token/marker the human issues, a
+  one-time approval file the human drops, or a signed marker), rather than only a live TTY prompt. This resolves
+  attention-registry spec OQ10 (still an open Phase-0 candidate). Keep the floor's INTENT intact; only improve HOW
+  the human's real approval is captured. Do NOT weaken it into something an agent harness can satisfy.
+
 - **Re-evaluate the bounded-iteration + agent-agnostic skill-modifiers roadmap
   (`.agents/docs/roadmaps/20260712-1426-agent-workflows-bounded-iteration-skills-roadmap-for-consideration.md`).**
   It was drafted 2026-07-12 against version 1.1.0 and is now stale relative to the many changes since
