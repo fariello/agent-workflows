@@ -50,13 +50,26 @@ _CITE_RSCH_RE = re.compile(r"\bRSCH-([0-9a-z]{6})\b")
 # A candidate research-filename token to test with parse_name (a conservative superset).
 _CITE_FILENAME_TOKEN_RE = re.compile(r"\d{8}-[a-z0-9.\-]+\.md")
 
+# Illustrative/example id6 tokens that appear inside documentation and IPD test-evidence prose
+# (e.g. a doc that shows "the id regex matches `k7m2xq` in `...-k7m2xq-...md`"). These are examples
+# demonstrating the grammar, NOT references to a real research doc, so the dangling-citation
+# detector must not flag them. Add a token here (with a one-line justification) when a doc needs a
+# stable example id6 that will never resolve to a real file.
+EXAMPLE_ID6S: FrozenSet[str] = frozenset(
+    (
+        "k7m2xq",  # research-naming contract IPD (executed): id-regex + name-parse test evidence
+        "ab12cd",  # research-naming contract IPD (executed): singleton no-model example name
+    )
+)
+
 
 def iter_id6_citations(text: str) -> List[str]:
     """Return every research-id CITATION in ``text`` (``RSCH-<id6>`` or a valid research-name ref).
 
     Unlike ``iter_id6_in_text`` this does NOT match bare 6-letter words, and a filename token counts
     only if it PARSES as a valid new-grammar research name (so old-style pre-migration names and
-    prose do not produce false positives).
+    prose do not produce false positives). Known illustrative example tokens (``EXAMPLE_ID6S``) are
+    excluded so documentation/IPD examples are not mistaken for citations.
     """
 
     out = list(_CITE_RSCH_RE.findall(text))
@@ -64,7 +77,7 @@ def iter_id6_citations(text: str) -> List[str]:
         parsed, _err = parse_name(token)
         if parsed is not None:
             out.append(parsed.id6)
-    return out
+    return [tok for tok in out if tok not in EXAMPLE_ID6S]
 
 
 # --------------------------------------------------------------------------------------

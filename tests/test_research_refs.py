@@ -152,6 +152,20 @@ class DanglingTests(unittest.TestCase):
         danglers = RF.find_dangling_citations(self.root)
         self.assertEqual(danglers, [])
 
+    def test_example_id6_not_a_citation(self):
+        # An illustrative example id6 (EXAMPLE_ID6S) inside a valid-looking research name
+        # used as documentation/IPD test-evidence is NOT a dangling citation, even though it
+        # resolves to no real file. Guards the k7m2xq false positive from the research-naming IPD.
+        import agent_workflows.research_contract as R
+
+        example = next(iter(R.EXAMPLE_ID6S))
+        (self.root / "DECISIONS.md").write_text(
+            f"the id regex matches `{example}` in `20260726-aw-delivery-02-{example}-notes.gpt56.research-report.md`\n",
+            encoding="utf-8",
+        )
+        danglers = RF.find_dangling_citations(self.root)
+        self.assertFalse(any(d.id6 == example for d in danglers))
+
 
 class ScanRootTests(unittest.TestCase):
     def test_single_pinned_constant(self):
