@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows.install_wizard import ProjectPolicy
-from agent_workflows.manifest import Manifest, SCHEMA_VERSION
+from agent_workflows.manifest import SCHEMA_VERSION, load as load_manifest
 from agent_workflows.project_layout import (
     ConfigMergeError,
     TransactionJournal,
@@ -37,42 +37,50 @@ class TestProjectLayoutAndOwnership(unittest.TestCase):
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
     def test_materialize_tracked_home_backend_omits_target_records_dir(self):
-        """Tracked delivery with home records backend MUST NOT create target `.aw/records/` directory (E-01 & V-01)."""
+        """Tracked delivery with home records backend materializes the resolver roots and puts records
+        OUTSIDE the target repo (E-01 & V-01)."""
         policy = ProjectPolicy(
             delivery_mode=DeliveryMode.TRACKED.value,
             records_backend=RecordsBackend.HOME.value,
             aw_home=self.aw_home,
         )
 
-        materialize_project_layout(
+        roots = materialize_project_layout(
             target_repo=self.target_repo, policy=policy, aw_home=self.aw_home
         )
 
-        target_aw = Path(self.target_repo) / ".aw"
-        self.assertTrue((target_aw / "system").is_dir())
-        self.assertTrue((target_aw / "config").is_dir())
-        self.assertTrue((target_aw / "state").is_dir())
+        # system/config/state are materialized at the resolver's logical roots.
+        self.assertTrue(Path(roots["system"]).is_dir())
+        self.assertTrue(Path(roots["config"]).is_dir())
+        self.assertTrue(Path(roots["state"]).is_dir())
 
-        # INVARIANT: Target repo MUST NOT contain `.aw/records/` directory for external backend!
+        # INVARIANT: for an external (home) backend, records live OUTSIDE the target repo.
+        target_root = Path(self.target_repo).resolve()
+        records_root = Path(roots["records"]).resolve()
         self.assertFalse(
-            (target_aw / "records").exists(),
-            "Target repository contained .aw/records/ for an external records backend!",
+            str(records_root).startswith(str(target_root) + os.sep),
+            f"home-backend records {records_root} must not be inside the target {target_root}",
         )
 
     def test_materialize_tracked_repository_backend_creates_records_dir(self):
-        """Tracked delivery with repository backend creates `.aw/records/` directory in target repo."""
+        """Tracked delivery with repository backend keeps records INSIDE the target repo (E-01)."""
         policy = ProjectPolicy(
             delivery_mode=DeliveryMode.TRACKED.value,
             records_backend=RecordsBackend.REPOSITORY.value,
             aw_home=self.aw_home,
         )
 
-        materialize_project_layout(
+        roots = materialize_project_layout(
             target_repo=self.target_repo, policy=policy, aw_home=self.aw_home
         )
 
-        target_aw = Path(self.target_repo) / ".aw"
-        self.assertTrue((target_aw / "records").is_dir())
+        target_root = Path(self.target_repo).resolve()
+        records_root = Path(roots["records"]).resolve()
+        self.assertTrue(records_root.is_dir())
+        self.assertTrue(
+            str(records_root).startswith(str(target_root)),
+            f"repository-backend records {records_root} must be inside the target {target_root}",
+        )
 
     def test_sentinel_bytes_preserved_outside_intended_roots(self):
         """Sentinel bytes outside intended roots remain byte-identical after layout materialization (V-01 & V-02)."""
@@ -181,16 +189,14 @@ class TestProjectLayoutAndOwnership(unittest.TestCase):
             aw_home=self.aw_home,
         )
 
-        materialize_project_layout(
+        roots = materialize_project_layout(
             target_repo=self.target_repo, policy=policy, aw_home=self.aw_home
         )
 
-        manifest_file = (
-            Path(self.target_repo) / ".aw" / "system" / "managed-sections.json"
-        )
+        manifest_file = Path(roots["system"]) / "managed-sections.json"
         self.assertTrue(manifest_file.is_file())
 
-        mf = Manifest.load_from(manifest_file)
+        mf = load_manifest(manifest_file)
         self.assertEqual(mf.schema_version, 2)
         self.assertEqual(SCHEMA_VERSION, 2)
 

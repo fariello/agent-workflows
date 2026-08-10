@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from agent_workflows.install_wizard import ProjectPolicy
-from agent_workflows.manifest import Manifest
+from agent_workflows.manifest import Manifest, save as save_manifest
 from agent_workflows.project_context import resolve_project_context
 from agent_workflows.project_schema import LogicalRoot, RecordsBackend
 
@@ -166,7 +166,12 @@ def materialize_project_layout(
       - Omits target `.aw/records/` directory when external backend (`home`/`companion`) is selected.
       - Preserves unknown keys in `config/policy.json`.
     """
-    ctx = resolve_project_context(target_repo=target_repo, aw_home=aw_home)
+    ctx = resolve_project_context(
+        target_repo=target_repo,
+        aw_home=aw_home,
+        delivery_mode=policy.delivery_mode,
+        records_backend=policy.records_backend,
+    )
     roots = ctx.logical_roots
 
     system_p = Path(roots[LogicalRoot.SYSTEM.value])
@@ -207,6 +212,6 @@ def materialize_project_layout(
     # Write system manifest (SCHEMA_VERSION = 2) under system/ (E-02)
     manifest_file = system_p / "managed-sections.json"
     mf = Manifest(installed_version="2026.8.9", schema_version=2)
-    mf.save_to(manifest_file)
+    save_manifest(mf, manifest_file)
 
     return {k: str(v) for k, v in roots.items()}
