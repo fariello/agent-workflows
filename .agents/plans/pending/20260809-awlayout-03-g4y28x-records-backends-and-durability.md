@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Implement repository, companion, and AW-home record backends with truthful durability reporting and safe Git boundaries.
 - Scope: `agent_workflows/storage.py`, storage-related CLI wiring in `agent_workflows/cli.py`, and `tests/test_storage.py`.
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-09, human maintainer (approved the awlayout Set for execution after /plan-review re-review; spec 20260809-2211-01 approved)
 - Set: awlayout (AW project layout)
 - Order: 3
 - Highest E allocated: 05
@@ -18,6 +19,7 @@
 - 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L3-01 (durability HONESTY: a merely-configured remote must NOT map to `durable-private`/secrecy - gate on explicit acknowledgement per §6.2/§16). L3-02 (the `aw storage status` validation command needs a registered-fixture precondition, else it fails for environmental not logic reasons). L3-03 (add §14 identity-conflict-refusal + machine-local-paths-excluded-from-tracked-history assertions). L3-04 (name the owner of the §5.2 `clean-delta`+`repository` prohibition - Order 04 - or add a rejecting V-item).
 - 2026-08-09 author revision (Codex GPT-5): addressed L3-01 through L3-04 by separating observable remote configuration from acknowledged durability and privacy claims, adding registered-fixture prerequisites, testing identity and tracked-history boundaries, and assigning the `clean-delta` plus `repository` policy rejection to Order 04.
 - 2026-08-09 re-reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED (by the author). Verified against repo evidence that the author's revision RESOLVED every prior finding - H1-H7 and all L0/L1..L11 items - and introduced no new finding; the dependency DAG remains valid and the orchestrator/child dependency lines agree (Order 07 now correctly depends on 01,06). All 12 lint conforming at author + review-finalize. Readiness: GO - PENDING HUMAN APPROVAL, gated ONLY on the controlling spec 20260809-2211-01 being approved (still Status: to-review) before any child executes.
+- 2026-08-09 approved (human maintainer): Status reviewed -> approved; controlling spec approved; cleared for execution via ipd-lifecycle (execute in dependency order, per-child gates).
 
 ## Goal
 

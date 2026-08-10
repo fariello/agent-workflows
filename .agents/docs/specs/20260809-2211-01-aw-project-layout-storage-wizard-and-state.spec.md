@@ -1,7 +1,7 @@
 # Specification: AW project layout, storage, install wizard, and operational state
 
 - Date: 2026-08-09
-- Status: to-review
+- Status: approved
 - Canonical: true
 - Author: Codex (GPT-5, high reasoning)
 - Origin: maintainer design discussion on 2026-08-09
@@ -687,3 +687,5 @@ This specification and the full Set require `/plan-review` and explicit human ap
 ## Workflow history
 - 2026-08-09 migrated (aw specs): normalized status to `to-review` (was: draft for plan review and human approval; no product behavior described here has shipped)
 - 2026-08-09 note (aw specs): rebased onto current main; renumbered decisions to D126-D129, adopted D123/D124 artifact identity and plan naming, and integrated AW actions as a native source in D125's existing attention projection
+- 2026-08-09 reviewed (aw specs): reviewed alongside the awlayout Set /plan-review (re-review verified all findings resolved)
+- 2026-08-09 approved (aw specs): approved as the basis for executing the awlayout IPD Set

@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Persist AW-specific actions as state, reconcile action generations across updates, and keep append-only install history separate from the current snapshot.
 - Scope: `agent_workflows/actions.py`, the packaged action-definition catalog, action and history wiring in `agent_workflows/cli.py` and `agent_workflows/engine.py`, and `tests/test_actions.py`.
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-09, human maintainer (approved the awlayout Set for execution after /plan-review re-review; spec 20260809-2211-01 approved)
 - Set: awlayout (AW project layout)
 - Order: 6
 - Highest E allocated: 05
@@ -18,6 +19,7 @@
 - 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L6-01 [Med-High] (action `(id,generation)` must exist in exactly one lifecycle dir; validate id charset; a move is one atomic rename leaving no duplicate). L6-02 [HIGH] (lifecycle 'atomic moves' + fresh-install action creation share the non-atomic install of L5-01; define ordering so install.json/installs.jsonl/action stay consistent on partial failure). L6-03 (state that superseded/history growth is intentionally unbounded per §12.6, or bound it). L6-04 (define the installs.jsonl redaction set + reuse the existing leak sanitizer, do not reinvent). L6-05 (resolve the `state` root ONLY via the Order 01 resolver, never a hardcoded path). L6-06/L6-07 (atomic append for JSONL; align the `todo` flag with §18 `--agent`, not `--json`).
 - 2026-08-09 author revision (Codex GPT-5): addressed L6-01 through L6-07 by specifying lifecycle uniqueness and ID validation, binding state paths to the resolver, ordering state publication within Order 05's compensating transaction, defining locked atomic JSONL append and leak-sanitizer reuse, documenting unbounded history, and correcting the machine command to `--agent`.
 - 2026-08-09 re-reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED (by the author). Verified against repo evidence that the author's revision RESOLVED every prior finding - H1-H7 and all L0/L1..L11 items - and introduced no new finding; the dependency DAG remains valid and the orchestrator/child dependency lines agree (Order 07 now correctly depends on 01,06). All 12 lint conforming at author + review-finalize. Readiness: GO - PENDING HUMAN APPROVAL, gated ONLY on the controlling spec 20260809-2211-01 being approved (still Status: to-review) before any child executes.
+- 2026-08-09 approved (human maintainer): Status reviewed -> approved; controlling spec approved; cleared for execution via ipd-lifecycle (execute in dependency order, per-child gates).
 
 ## Goal
 

@@ -1337,7 +1337,7 @@
     "path": "pending/20260809-awlayout-00-az9912-aw-project-layout-orchestrator.md",
     "plan_id": "az9912",
     "set_id": "awlayout",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-09",
@@ -1347,7 +1347,7 @@
     "path": "pending/20260809-awlayout-01-m9tqof-aw-context-and-logical-roots.md",
     "plan_id": "m9tqof",
     "set_id": "awlayout",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-09",
@@ -1357,7 +1357,7 @@
     "path": "pending/20260809-awlayout-02-bgyymp-aw-home-project-identity-and-registry.md",
     "plan_id": "bgyymp",
     "set_id": "awlayout",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-09",
@@ -1367,7 +1367,7 @@
     "path": "pending/20260809-awlayout-03-g4y28x-records-backends-and-durability.md",
     "plan_id": "g4y28x",
     "set_id": "awlayout",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-09",
@@ -1377,7 +1377,7 @@
     "path": "pending/20260809-awlayout-04-q0wpk4-install-update-policy-wizard.md",
     "plan_id": "q0wpk4",
     "set_id": "awlayout",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-09",
@@ -1387,7 +1387,7 @@
     "path": "pending/20260809-awlayout-05-tg60qo-system-config-state-layout-and-ownership.md",
     "plan_id": "tg60qo",
     "set_id": "awlayout",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-09",
@@ -1397,7 +1397,7 @@
     "path": "pending/20260809-awlayout-06-anlovz-operational-actions-and-install-history.md",
     "plan_id": "anlovz",
     "set_id": "awlayout",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-09",
@@ -1407,7 +1407,7 @@
     "path": "pending/20260809-awlayout-07-b31tuy-action-workflow-and-status-integration.md",
     "plan_id": "b31tuy",
     "set_id": "awlayout",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-09",
@@ -1417,7 +1417,7 @@
     "path": "pending/20260809-awlayout-08-0me1hr-producing-workflow-record-routing.md",
     "plan_id": "0me1hr",
     "set_id": "awlayout",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-09",
@@ -1427,7 +1427,7 @@
     "path": "pending/20260809-awlayout-09-es1phc-layout-migration-rollback-and-uninstall.md",
     "plan_id": "es1phc",
     "set_id": "awlayout",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-09",
@@ -1437,7 +1437,7 @@
     "path": "pending/20260809-awlayout-10-jmjh97-clean-delta-skills-and-host-gates.md",
     "plan_id": "jmjh97",
     "set_id": "awlayout",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-09",
@@ -1447,6 +1447,6 @@
     "path": "pending/20260809-awlayout-11-blw6qp-docs-release-and-end-to-end-cutover.md",
     "plan_id": "blw6qp",
     "set_id": "awlayout",
-    "status": "reviewed"
+    "status": "approved"
   }
 ]

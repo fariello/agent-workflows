@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Define the shared project-context contract and resolve every logical AW root through one fail-closed API.
 - Scope: `agent_workflows/project_schema.py`, `agent_workflows/project_context.py`, context-related CLI wiring in `agent_workflows/cli.py`, and `tests/test_project_context.py`.
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-09, human maintainer (approved the awlayout Set for execution after /plan-review re-review; spec 20260809-2211-01 approved)
 - Set: awlayout (AW project layout)
 - Order: 1
 - Highest E allocated: 04
@@ -18,6 +19,7 @@
 - 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L1-01 (§9 resolver: `aw context` needs `--repo` + must return all ~11 §9 fields incl. permitted commit destinations + root accessibility; E-03/V-02 do not enumerate them). L1-02 (§17: bind to the 6-level precedence, conflicting authoritative sources are ERRORS not last-write-wins, and `--json` must report per-value provenance; V-02 tests only generic failure). L1-03 (test resolver PURITY/determinism + no Git mutation, not just 'no writes'). L1-04 (add path-traversal/symlink-escape fail-closed tests at the resolver boundary). L1-05/L1-06 (pin the coverage guard + `rg` audit to concrete patterns/canonical enum symbol).
 - 2026-08-09 author revision (Codex GPT-5): addressed L1-01 through L1-06 by enumerating the Section 9 response, binding the six-level precedence and provenance contract, strengthening purity and path-safety tests, and defining concrete coverage and duplicate-vocabulary guards.
 - 2026-08-09 re-reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED (by the author). Verified against repo evidence that the author's revision RESOLVED every prior finding - H1-H7 and all L0/L1..L11 items - and introduced no new finding; the dependency DAG remains valid and the orchestrator/child dependency lines agree (Order 07 now correctly depends on 01,06). All 12 lint conforming at author + review-finalize. Readiness: GO - PENDING HUMAN APPROVAL, gated ONLY on the controlling spec 20260809-2211-01 being approved (still Status: to-review) before any child executes.
+- 2026-08-09 approved (human maintainer): Status reviewed -> approved; controlling spec approved; cleared for execution via ipd-lifecycle (execute in dependency order, per-child gates).
 
 ## Goal
 

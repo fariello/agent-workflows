@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Make clean-delta installation use proven user-scope host capabilities while keeping the target repository free of AW-owned files.
 - Scope: user-scope skill installation and capability code, clean-delta engine and manifest integration, host fixtures and probes, and focused tests; evidence requirements remain governed by D113.
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-09, human maintainer (approved the awlayout Set for execution after /plan-review re-review; spec 20260809-2211-01 approved)
 - Set: awlayout (AW project layout)
 - Order: 10
 - Highest E allocated: 05
@@ -18,6 +19,7 @@
 - 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L10-01 (add a V-item asserting the set of advertised clean-delta host/version claims EQUALS the set of D113-reproduced pairs - no claim without a matching evidence record - within the order that mints the claim). Positive: intent is sound - unproven combos unsupported, no claim inherited across versions, STOP gate requires D113 evidence for the exact host/version, merge-base zero-write verified; no over-claim found.
 - 2026-08-09 author revision (Codex GPT-5): addressed L10-01 by making advertised claim-set equality with the D113 reproduced evidence set an explicit implementation and validation requirement.
 - 2026-08-09 re-reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED (by the author). Verified against repo evidence that the author's revision RESOLVED every prior finding - H1-H7 and all L0/L1..L11 items - and introduced no new finding; the dependency DAG remains valid and the orchestrator/child dependency lines agree (Order 07 now correctly depends on 01,06). All 12 lint conforming at author + review-finalize. Readiness: GO - PENDING HUMAN APPROVAL, gated ONLY on the controlling spec 20260809-2211-01 being approved (still Status: to-review) before any child executes.
+- 2026-08-09 approved (human maintainer): Status reviewed -> approved; controlling spec approved; cleared for execution via ipd-lifecycle (execute in dependency order, per-child gates).
 
 ## Goal
 

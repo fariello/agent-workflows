@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Materialize the new logical layout and enforce ownership boundaries during install and update.
 - Scope: `agent_workflows/project_layout.py`, layout integration in `agent_workflows/engine.py`, `agent_workflows/manifest.py`, `agent_workflows/_compat.py`, packaged layout assets, and `tests/test_project_layout.py`.
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-09, human maintainer (approved the awlayout Set for execution after /plan-review re-review; spec 20260809-2211-01 approved)
 - Set: awlayout (AW project layout)
 - Order: 5
 - Highest E allocated: 05
@@ -18,6 +19,7 @@
 - 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L5-01 [HIGH] (asserts a transactional installer with rollback that does NOT exist - only per-file backup + a separate `--undo`; restate the recovery mechanism or build staging+pivot). L5-02 [HIGH] (V-items for atomicity/ownership name outcomes but no concrete fixture/oracle; add per-root sentinel-byte assertions). L5-03 [HIGH] (human-owned `config/` no-clobber is asserted but not gated - a human value AW never wrote has no recorded hash; define the preserve/merge rule + test). L5-04 (state the manifest EXTENDS manifest.py, not a second ledger; bump SCHEMA_VERSION). L5-05 (manifest location vs the legacy DEFAULT_MANIFEST_RELPATH during transitional install). L5-06 (surface §17 drift-before-overwrite + provenance as a distinct behavior).
 - 2026-08-09 author revision (Codex GPT-5): addressed L5-01 through L5-06 by choosing a journaled compensating transaction built on existing backups and undo primitives, defining preserve-or-explicit-replace config semantics, extending and versioning the existing manifest, specifying transitional manifest authority, and adding sentinel-byte and drift-provenance oracles.
 - 2026-08-09 re-reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED (by the author). Verified against repo evidence that the author's revision RESOLVED every prior finding - H1-H7 and all L0/L1..L11 items - and introduced no new finding; the dependency DAG remains valid and the orchestrator/child dependency lines agree (Order 07 now correctly depends on 01,06). All 12 lint conforming at author + review-finalize. Readiness: GO - PENDING HUMAN APPROVAL, gated ONLY on the controlling spec 20260809-2211-01 being approved (still Status: to-review) before any child executes.
+- 2026-08-09 approved (human maintainer): Status reviewed -> approved; controlling spec approved; cleared for execution via ipd-lifecycle (execute in dependency order, per-child gates).
 
 ## Goal
 

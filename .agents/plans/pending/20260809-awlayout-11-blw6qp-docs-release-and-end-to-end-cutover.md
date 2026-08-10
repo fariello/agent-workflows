@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Align current-state documentation and release metadata with the implemented architecture, then prove the complete install, update, storage, action, migration, and uninstall lifecycle.
 - Scope: `README.md`, `ARCHITECTURE.md`, `CHANGELOG.md`, shipped getting-started and help text, relevant specification status and relation notes, end-to-end fixtures, and release preparation without tag or push.
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-09, human maintainer (approved the awlayout Set for execution after /plan-review re-review; spec 20260809-2211-01 approved)
 - Set: awlayout (AW project layout)
 - Order: 11
 - Highest E allocated: 05
@@ -18,6 +19,7 @@
 - 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L11-01 [MEDIUM] (the 25-scenario acceptance matrix is asserted but NOT enumerated; E-04's ~12 coarse categories do not visibly cover distinct spec §19 scenarios 19.17/19.22/19.23/19.24/19.25; add a 25-row scenario -> named-test/host-evidence traceability table so V-04's 'no scenario silently skipped' is enforceable). L11-02 (do NOT hand-edit the derived git-tag-driven `VERSION` per RELEASING.md; record notes in CHANGELOG/docs only; the version is set at release-review Section 9). Positive: release boundary honored - no tag/Release/PyPI/push; honestly gates done on Orders 01-10.
 - 2026-08-09 author revision (Codex GPT-5): addressed L11-01 and L11-02 by adding the complete 25-row acceptance traceability contract and explicitly excluding hand-edits to the tag-derived `VERSION` from release preparation.
 - 2026-08-09 re-reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED (by the author). Verified against repo evidence that the author's revision RESOLVED every prior finding - H1-H7 and all L0/L1..L11 items - and introduced no new finding; the dependency DAG remains valid and the orchestrator/child dependency lines agree (Order 07 now correctly depends on 01,06). All 12 lint conforming at author + review-finalize. Readiness: GO - PENDING HUMAN APPROVAL, gated ONLY on the controlling spec 20260809-2211-01 being approved (still Status: to-review) before any child executes.
+- 2026-08-09 approved (human maintainer): Status reviewed -> approved; controlling spec approved; cleared for execution via ipd-lifecycle (execute in dependency order, per-child gates).
 
 ## Goal
 

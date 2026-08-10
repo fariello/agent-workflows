@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Collect complete layout and storage policy through an accessible first-install wizard and a safe update checkpoint.
 - Scope: `agent_workflows/install_wizard.py`, policy-related wiring in `agent_workflows/cli.py` and `agent_workflows/engine.py`, terminal presentation in `agent_workflows/term.py`, and `tests/test_install_wizard.py`.
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-09, human maintainer (approved the awlayout Set for execution after /plan-review re-review; spec 20260809-2211-01 approved)
 - Set: awlayout (AW project layout)
 - Order: 4
 - Highest E allocated: 05
@@ -18,6 +19,7 @@
 - 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L4-01 [HIGH/blocking] (required-test `python3 -m agent_workflows update` targets a NON-EXISTENT verb - cli.py has no `update`, install is idempotent; use `install . --dry-run` or add `update` to scope). L4-02 (add an explicit negative test: `--yes` on an UNCONFIGURED first install does NOT silently select the recommended `home`/`tracked` default and exits nonzero - §11.3). L4-03 (reconcile with the existing `_run_setup`/`_confirm` wizard in cli.py; state supersede/delegate/coexist to avoid two divergent setup surfaces). L4-04 (add `--no-color` + screen-reader linear-output to the 11.4 matrix).
 - 2026-08-09 author revision (Codex GPT-5): addressed L4-01 through L4-04. Idempotent `install` remains the update verb, the new policy model is delegated through the existing `_run_setup` and `_confirm` surface, unsafe `--yes` and policy combinations fail before writes, and the accessibility matrix now includes `--no-color` and screen-reader linear output.
 - 2026-08-09 re-reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED (by the author). Verified against repo evidence that the author's revision RESOLVED every prior finding - H1-H7 and all L0/L1..L11 items - and introduced no new finding; the dependency DAG remains valid and the orchestrator/child dependency lines agree (Order 07 now correctly depends on 01,06). All 12 lint conforming at author + review-finalize. Readiness: GO - PENDING HUMAN APPROVAL, gated ONLY on the controlling spec 20260809-2211-01 being approved (still Status: to-review) before any child executes.
+- 2026-08-09 approved (human maintainer): Status reviewed -> approved; controlling spec approved; cleared for execution via ipd-lifecycle (execute in dependency order, per-child gates).
 
 ## Goal
 
