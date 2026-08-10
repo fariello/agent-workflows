@@ -4,10 +4,9 @@
 - Kind: child
 - Concern: verification-rigor
 - Scope: `.agents/workflows/verify-execution/`, `.opencode/commands/`, `.claude/commands/`, `.agents/agent-workflows/`
-- Status: approved
+- Status: executed
 - Highest E allocated: 04
 - Author: Antigravity Agent
-- Approval: 2026-08-10 human maintainer ("approved. Go.") via chat, after /plan-review (APPROVE WITH REVISIONS APPLIED).
 - Id: 2p9fd3
 - Set: verify-execution
 - Order: 1
@@ -18,6 +17,7 @@
 - 2026-08-07 to-review (Antigravity Agent): populated complete implementation tasks, rubric, and validation gates for high-standard execution and intent verification.
 - 2026-08-10 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001/002/003/005 fixed in place (E-04 regenerate-not-hand-edit shims; V-* strengthened to concrete evidence; E-04 scoped to manifest update; E-03 preserves+maps to the existing MATCHES/DIVERGES/INCOMPLETE verdict and D65 corrective-IPD status). No open questions. Status to-review -> reviewed. GO - PENDING HUMAN APPROVAL.
 - 2026-08-10 approved (human maintainer): "approved. Go." Status reviewed -> approved; cleared for execution via ipd-lifecycle.
+- 2026-08-10 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): E-01..E-04 performed, V-01..V-04 pass with concrete evidence. Product: intent-audit.md + rubric.md + verify-execution.md upgrade + index.md manifest row (commit 98f097d); shims regenerated via installer (commit 79fb4b9). Existing MATCHES/DIVERGES/INCOMPLETE verdict and D65 corrective-IPD status preserved; FIDELITY_* mapped onto them. Full suite Ran 824 tests OK (skipped=1); manifest parses (59 workflows). Status approved -> executed.
 
 ## Goal
 
@@ -29,27 +29,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Execution & Intent Verification Protocol Design
 
-- [ ] E-01 Author the comprehensive Intent & Spirit Audit Harness (`.agents/workflows/verify-execution/intent-audit.md`) defining a 5-dimension verification process (Explicit Requirements, Implicit Intent & Spirit, Empirical Validation, Scope Discipline, and Repository Hygiene).
+- [x] E-01 Author the comprehensive Intent & Spirit Audit Harness (`.agents/workflows/verify-execution/intent-audit.md`) defining a 5-dimension verification process (Explicit Requirements, Implicit Intent & Spirit, Empirical Validation, Scope Discipline, and Repository Hygiene).
   - Depends on: none
   - Expected outcome: A reusable, tool-agnostic verification harness instructing auditing agents how to evaluate completed IPDs or prompts against actual git diffs and runtime logs.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Define the Execution Fidelity Scoring Rubric & Failure Signature Catalog (`.agents/workflows/verify-execution/rubric.md`).
+- [x] E-02 Define the Execution Fidelity Scoring Rubric & Failure Signature Catalog (`.agents/workflows/verify-execution/rubric.md`).
   - Depends on: E-01
   - Expected outcome: A deterministic rating framework (`FIDELITY_EXEMPLARY`, `FIDELITY_SURFACE_ONLY`, `FIDELITY_PARTIAL`, `FIDELITY_UNVERIFIED`, `FIDELITY_DIVERGED`) and a catalog of false-completion signatures (e.g. swallowed exceptions, silent try-excepts, empty mock returns, deleted failing assertions).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Workflow Enhancement & Integration
 
-- [ ] E-03 Upgrade the core `/verify-execution` workflow (`.agents/workflows/verify-execution/verify-execution.md`) to integrate the intent audit protocol and mandate empirical re-execution of test suites with log capture. PRESERVE, do not silently replace, the workflow's existing contracts: the current verdict vocabulary (MATCHES / DIVERGES / INCOMPLETE, verify-execution.md:107) and the D65 corrective-IPD status logic (born `auto-approved` vs `to-review` by COMPLEXITY, verify-execution.md:138-146). The new FIDELITY_* rubric (E-02) MUST be defined as an ADDITIONAL fidelity dimension that MAPS ONTO the existing verdict + D65 rule (state the mapping explicitly, e.g. which fidelity levels correspond to DIVERGES/INCOMPLETE and when a corrective IPD is born auto-approved vs to-review); it must not introduce a contradictory parallel scheme or weaken the "auto-approved is set by the checker, never by an executor" and "still must pass validation" guarantees (D64/D65). The existing run-record location `workflow-artifacts/verify-execution/<RUN_ID>/` (verify-execution.md:123) is retained.
+- [x] E-03 Upgrade the core `/verify-execution` workflow (`.agents/workflows/verify-execution/verify-execution.md`) to integrate the intent audit protocol and mandate empirical re-execution of test suites with log capture. PRESERVE, do not silently replace, the workflow's existing contracts: the current verdict vocabulary (MATCHES / DIVERGES / INCOMPLETE, verify-execution.md:107) and the D65 corrective-IPD status logic (born `auto-approved` vs `to-review` by COMPLEXITY, verify-execution.md:138-146). The new FIDELITY_* rubric (E-02) MUST be defined as an ADDITIONAL fidelity dimension that MAPS ONTO the existing verdict + D65 rule (state the mapping explicitly, e.g. which fidelity levels correspond to DIVERGES/INCOMPLETE and when a corrective IPD is born auto-approved vs to-review); it must not introduce a contradictory parallel scheme or weaken the "auto-approved is set by the checker, never by an executor" and "still must pass validation" guarantees (D64/D65). The existing run-record location `workflow-artifacts/verify-execution/<RUN_ID>/` (verify-execution.md:123) is retained.
   - Depends on: E-01, E-02
   - Expected outcome: Updated `verify-execution.md` requiring strict proof of execution (pasted real runner output, raw git-diff inspection at path:line) and corrective IPD emission, with the FIDELITY_* rubric explicitly reconciled to the existing MATCHES/DIVERGES/INCOMPLETE verdict and the D65 auto-approved/to-review status rule (no contradictory duplicate scheme).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Update the workflow manifest row for `verify-execution` in `.agents/workflows/index.md` (the `description` column) to reflect the enhanced intent-audit capability, then REGENERATE the command shims via the installer (`aw install .`) rather than hand-editing them. IMPORTANT (repo architecture, engine.py:6-7,24): the `.opencode/commands/*` and `.claude/commands/*` shims are GENERATED from the index.md manifest and are "never hand-maintained"; the shim body is a static `Read and execute @.agents/workflows/verify-execution/verify-execution.md` pointer whose only content-bearing field is the `description` copied from the manifest row. Do NOT hand-edit the shim files (a hand-edit is flagged as customized and/or overwritten). Antigravity and other non-slash-command hosts use the universal fallback (read index.md), so they need no per-host shim. `verify-execution` is ALREADY registered in the index and both shims already exist; this task UPDATES the manifest description and regenerates, it does not create new shims.
+- [x] E-04 Update the workflow manifest row for `verify-execution` in `.agents/workflows/index.md` (the `description` column) to reflect the enhanced intent-audit capability, then REGENERATE the command shims via the installer (`aw install .`) rather than hand-editing them. IMPORTANT (repo architecture, engine.py:6-7,24): the `.opencode/commands/*` and `.claude/commands/*` shims are GENERATED from the index.md manifest and are "never hand-maintained"; the shim body is a static `Read and execute @.agents/workflows/verify-execution/verify-execution.md` pointer whose only content-bearing field is the `description` copied from the manifest row. Do NOT hand-edit the shim files (a hand-edit is flagged as customized and/or overwritten). Antigravity and other non-slash-command hosts use the universal fallback (read index.md), so they need no per-host shim. `verify-execution` is ALREADY registered in the index and both shims already exist; this task UPDATES the manifest description and regenerates, it does not create new shims.
   - Depends on: E-03
   - Expected outcome: the index.md manifest row for verify-execution reflects the enhanced capability, and `aw install .` (or the documented regeneration path) produces shims whose description matches the updated manifest row (verified by re-reading the generated shim, not by hand-editing it). No hand-edited shim files.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -125,25 +125,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `.agents/workflows/verify-execution/intent-audit.md` exists AND each of the 5 named dimensions (Explicit Requirements, Implicit Intent & Spirit, Empirical Validation, Scope Discipline, Repository Hygiene) is present as its own section with concrete, agent-followable instructions (not just headings). Paste the heading list (e.g. `grep -nE "^#" intent-audit.md`) and quote one dimension's instruction body to show it is usable, not a stub.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `intent-audit.md` created. `grep -nE "^## Dimension"` -> `Dimension 1: Explicit Requirements Audit` (l.15), `Dimension 2: Implicit Intent & Spirit Audit` (l.30), `Dimension 3: Empirical Runtime Validation` (l.47), `Dimension 4: Scope & Boundaries Audit` (l.61), `Dimension 5: Artifact & Convention Compliance` (l.72). Each has an agent-followable body, e.g. Dimension 3 instructs "run the project's own commands (reuse /verify ...); paste the real stdout/stderr tail and the real exit code into the run record; attribute honestly ... A required-green result that is red (and this execution owns it) is a gap." Not stubs.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: `.agents/workflows/verify-execution/rubric.md` exists AND defines all five fidelity levels (FIDELITY_EXEMPLARY, FIDELITY_SURFACE_ONLY, FIDELITY_PARTIAL, FIDELITY_UNVERIFIED, FIDELITY_DIVERGED) each with a decision/corrective action, AND a failure-signature catalog naming concrete signatures (swallowed exceptions, silent try/except, empty mock returns, deleted failing assertions). Paste the level list and at least three catalog entries. Confirm the file states how the fidelity levels MAP to the existing MATCHES/DIVERGES/INCOMPLETE verdict (PR-005).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rubric.md` created. All five levels defined (l.12-22): FIDELITY_EXEMPLARY/SURFACE_ONLY/PARTIAL/UNVERIFIED/DIVERGED. Catalog entries include "Swallowed exception: `except Exception: pass`", "Deleted or weakened assertion", "Empty or no-op mock return", "Stubbed-to-pass function", "Un-run validation reported green". Mapping section (l.24-33): EXEMPLARY->MATCHES/GO; DIVERGED->DIVERGES/NO-GO; PARTIAL|SURFACE_ONLY|UNVERIFIED->INCOMPLETE/NO-GO. D65 status mapping preserved (l.35-52, auto-approved vs to-review by complexity, checker-only, must still pass validation).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: `git diff` of `.agents/workflows/verify-execution/verify-execution.md` showing the intent-audit integration and mandatory empirical re-execution (pasted real runner output requirement). Prove PRESERVATION: the MATCHES/DIVERGES/INCOMPLETE verdict and the D65 auto-approved/to-review corrective-IPD status logic are still present (quote the retained lines) and the new FIDELITY_* rubric is reconciled to them (quote the mapping). Confirm the run-record path `workflow-artifacts/verify-execution/<RUN_ID>/` is retained.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `verify-execution.md` updated (committed 98f097d). Integration: Step 2 renamed "Run the 5-dimension Intent & Spirit Audit" (l.85) loading `intent-audit.md`; Step 3 now "MANDATORY and empirical ... A 'tests pass' claim is NOT evidence; you must re-run ... CAPTURE the real stdout/stderr tail and the real exit code" (l.117-126). PRESERVED: verdict definitions MATCHES (l.139) / DIVERGES (l.141) / INCOMPLETE (l.143) unchanged; the D65 block "born `auto-approved` ... otherwise born `to-review` ... `auto-approved` is set by THIS checker, never by an executor ... still must pass its stated validation (D64)" retained verbatim (verify-execution.md:~155-163). Mapping added (l.147): "EXEMPLARY -> MATCHES; DIVERGED -> DIVERGES; PARTIAL / SURFACE_ONLY / UNVERIFIED -> INCOMPLETE. It does not replace the verdict vocabulary." Run-record path `workflow-artifacts/verify-execution/<RUN_ID>/` retained (unchanged Run record section).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: `git diff` of `.agents/workflows/index.md` showing ONLY the verify-execution manifest-row `description` updated; then evidence that the shims were REGENERATED (not hand-edited): run `aw install . --dry-run` (or the documented regen path) and paste that it would refresh the verify-execution shim, and paste the regenerated `.opencode/commands/verify-execution.md` / `.claude/commands/verify-execution.md` description matching the manifest row. There must be NO hand-authored shim edit. Confirm `parse_manifest`/install still succeeds (no manifest breakage).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: index.md manifest row for verify-execution updated (committed 98f097d) with the "5-dimension Intent & Spirit Audit ... MANDATES re-running ... rates execution fidelity" description. Shims REGENERATED via `python3 -m agent_workflows install . --yes` which reported "installed/updated 3 file(s)" and auto-committed ONLY the 3 managed files (79fb4b9: `.claude/commands/verify-execution.md`, `.opencode/commands/verify-execution.md`, `managed-sections.json`); no hand-edit. Both regenerated shim `description:` lines now contain "5-dimension Intent & Spirit Audit" and match the manifest row. `engine.parse_manifest('.agents/workflows')` -> "parsed 59 workflows; verify-execution present: True" (no manifest breakage). Full suite Ran 824 tests OK (skipped=1).
+  - Result: pass
 
 ## Approval and execution gate
 
