@@ -4,17 +4,19 @@
 - Kind: child
 - Concern: The `aw` CLI has three usability gaps: (1) no way to mark repos that must never receive an install; (2) `--help` lists subcommands in code-insertion order, not alphabetical, so they are hard to scan; (3) `aw <command> --help` shows only the same one-line summary as the parent listing, with no fuller description of what the command does.
 - Scope: The `aw` CLI surface only: config schema + a repo exclude list consumed by discovery and by an interactive install guard; alphabetical ordering of subcommand listings in help; a fuller `description=` on each subparser so `aw <command> --help` is genuinely more informative. No workflow-body, records-layout, or storage-backend changes.
-- Status: reviewed
+- Status: approved
 - Set: clianx
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: 2026-08-10 human maintainer ("approved. go.") via chat, after /plan-review (APPROVE WITH REVISIONS APPLIED).
 - Id: 3e70cv
 
 ## Workflow history
 
 - 2026-08-10 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-10 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed; OQ-02 resolved (non-interactive/--yes on an excluded repo skips with a message, no override flag). Status draft -> reviewed. GO - PENDING HUMAN APPROVAL.
+- 2026-08-10 approved (human maintainer): "approved. go." Status reviewed -> approved; cleared for execution via ipd-lifecycle.
 
 ## Goal
 
