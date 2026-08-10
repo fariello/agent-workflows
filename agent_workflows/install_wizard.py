@@ -6,7 +6,7 @@ concise update checkpoint, and noninteractive policy resolution specified by
 
 Invariants:
 - SEPARATION: Choice logic and policy validation are separate from terminal rendering.
-- INVARIANT ENFORCEMENT: Rejects `delivery=clean-delta` plus `records=repository` before any write.
+- INVARIANT ENFORCEMENT: Rejects the CLEAN_DELTA delivery mode plus the REPOSITORY records backend before any write.
 - AUTOMATION SAFETY: Noninteractive first install with incomplete flags or `--yes` alone FAILS CLOSED
   before writes, identifying missing required policy fields.
 - SINGLE CONFIRMATION: Interactive setup delegates policy collection here and uses `_confirm`
@@ -36,7 +36,7 @@ class PolicyError(Exception):
 
 
 class InvalidPolicyError(PolicyError):
-    """Raised when policy validation rules are violated (e.g. clean-delta + repository records)."""
+    """Raised when policy validation rules are violated (e.g. the CLEAN_DELTA + REPOSITORY combination)."""
 
     pass
 
@@ -71,13 +71,14 @@ class ProjectPolicy:
                 f"Invalid records_backend: '{self.records_backend}'. Must be one of {RECORDS_BACKENDS}."
             )
 
-        # Invariant: clean-delta delivery mode MUST NOT use 'repository' records backend (spec Section 5.2)
+        # Invariant: the CLEAN_DELTA delivery mode MUST NOT use the REPOSITORY records backend (spec Section 5.2)
         if (
             self.delivery_mode == DeliveryMode.CLEAN_DELTA.value
             and self.records_backend == RecordsBackend.REPOSITORY.value
         ):
             raise InvalidPolicyError(
-                "Forbidden policy combination: 'clean-delta' delivery mode MUST NOT use 'repository' records backend."
+                f"Forbidden policy combination: {DeliveryMode.CLEAN_DELTA.value!r} delivery mode "
+                f"MUST NOT use {RecordsBackend.REPOSITORY.value!r} records backend."
             )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -143,7 +144,9 @@ def resolve_policy_noninteractive(
     # First install noninteractive resolution
     missing_fields: List[str] = []
     if not explicit_delivery:
-        missing_fields.append("--delivery-mode (tracked | clean-delta)")
+        missing_fields.append(
+            f"--delivery-mode ({DeliveryMode.TRACKED.value} | {DeliveryMode.CLEAN_DELTA.value})"
+        )
     if not explicit_backend:
         missing_fields.append("--records-backend (home | companion | repository)")
 
@@ -232,7 +235,7 @@ def collect_policy_interactive(
         "   [1] tracked (RECOMMENDED): Target repository carries selected AW system content."
     )
     term.line(
-        "   [2] clean-delta: Target repository carries no AW files; host discovers AW locally."
+        f"   [2] {DeliveryMode.CLEAN_DELTA.value}: Target repository carries no AW files; host discovers AW locally."
     )
     try:
         dm_choice = input("Select delivery mode [1]: ").strip()
