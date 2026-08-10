@@ -109,6 +109,32 @@ class SaveLoadTests(unittest.TestCase):
         CFG.save(cfg)
         self.assertTrue(CFG.is_configured())
 
+    def test_exclude_roundtrips_and_expands(self):
+        # E-01: the exclude blocklist round-trips load/save (home-preserved), unknown keys
+        # still stripped, and expanded_excludes returns expanded strings (paths AND globs).
+        cfg = CFG.default_config()
+        cfg["exclude"] = ["~/src/legacy-repo", "*/never-install/*"]
+        cfg["token"] = "SECRET-should-not-persist"  # unknown -> must be dropped
+        CFG.save(cfg)
+        loaded = CFG.load()
+        self.assertEqual(loaded["exclude"], ["~/src/legacy-repo", "*/never-install/*"])
+        self.assertNotIn("token", loaded)
+        on_disk = json.loads(CFG.config_path().read_text(encoding="utf-8"))
+        self.assertIn("exclude", on_disk)
+        self.assertNotIn("token", on_disk)
+
+        expanded = CFG.expanded_excludes(loaded)
+        self.assertEqual(
+            expanded,
+            [str(Path.home() / "src" / "legacy-repo"), "*/never-install/*"],
+        )
+        # An absolute path entry expands to itself; a default config has no excludes.
+        self.assertEqual(CFG.expanded_excludes(CFG.default_config()), [])
+
+    def test_exclude_defaults_empty(self):
+        self.assertEqual(CFG.default_config()["exclude"], [])
+        self.assertEqual(CFG.load()["exclude"], [])
+
 
 class PathExpansionTests(unittest.TestCase):
     def test_expand_path_tilde(self):

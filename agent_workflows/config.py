@@ -12,9 +12,15 @@ per-project sensitive data is ever stored (spec Non-goal; IPD-2 R-5):
       "config_version": 1,
       "search_roots": [ "~/src", ... ],   # dirs to discover repos under
       "repos":        [ "~/src/foo", ... ],  # the explicit allowlist install-all uses
-      "ignore":       [ "*/vendor/*", ... ], # fnmatch globs, discovery-only
+      "ignore":       [ "*/vendor/*", ... ], # fnmatch globs, discovery-only NOISE filter
+      "exclude":      [ "~/src/legacy", "*/never-install/*", ... ], # deliberate NEVER-install blocklist
       "defaults":     { "backup": true, "prune": true }
     }
+
+``ignore`` and ``exclude`` are distinct: ``ignore`` is a discovery-only fnmatch NOISE filter
+(hide uninteresting paths from discovery), while ``exclude`` is a deliberate, user-curated
+blocklist of repos that must NEVER be installed into. ``exclude`` is honored by discovery AND
+guards an explicitly targeted install (interactive continue prompt; non-interactive skip).
 
 Paths are stored ``~``-preserved (portable, human-readable) and expanded at use-time.
 Writes are atomic (temp file + ``os.replace``) so an interrupted write cannot corrupt an
@@ -35,7 +41,15 @@ _CONFIG_NAME = "config.json"
 
 # The only keys ever persisted. Anything else on load is dropped (R-5).
 _ALLOWED_TOP_KEYS = frozenset(
-    {"config_version", "search_roots", "repos", "ignore", "defaults", "aw_home"}
+    {
+        "config_version",
+        "search_roots",
+        "repos",
+        "ignore",
+        "exclude",
+        "defaults",
+        "aw_home",
+    }
 )
 _ALLOWED_DEFAULT_KEYS = frozenset({"backup", "prune"})
 
@@ -65,6 +79,7 @@ def default_config() -> Dict[str, Any]:
         "search_roots": [],
         "repos": [],
         "ignore": [],
+        "exclude": [],
         "defaults": {"backup": True, "prune": True},
     }
 
@@ -112,7 +127,7 @@ def normalize(config: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(config, dict):
         return out
 
-    for key in ("search_roots", "repos"):
+    for key in ("search_roots", "repos", "exclude"):
         value = config.get(key)
         if isinstance(value, list):
             out[key] = [_preserve_home(str(v)) for v in value]
@@ -236,3 +251,18 @@ def expanded_repos(config: Dict[str, Any]) -> List[Path]:
     """Return the config's repo allowlist expanded to absolute Paths."""
 
     return [expand_path(p) for p in config.get("repos", [])]
+
+
+def expanded_excludes(config: Dict[str, Any]) -> List[str]:
+    """Return the config's exclude entries with ``~``/vars expanded, as strings.
+
+    Entries may be absolute repo paths OR fnmatch globs (a deliberate NEVER-install
+    blocklist), so this returns expanded STRINGS (not resolved ``Path`` objects) suitable
+    for both exact-path comparison and ``fnmatch`` matching by the discovery/install guard.
+    A leading ``~`` (or ``$VAR``) is expanded; a glob with no ``~`` is returned unchanged.
+    """
+
+    return [
+        os.path.expandvars(os.path.expanduser(str(e)))
+        for e in config.get("exclude", [])
+    ]
