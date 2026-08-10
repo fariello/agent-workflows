@@ -722,6 +722,42 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Show what would change without modifying filesystem.",
     )
 
+    p_config = sub.add_parser(
+        "config",
+        parents=[common],
+        help="Manage user CLI config (the never-install exclude list).",
+    )
+    config_sub = p_config.add_subparsers(dest="config_command")
+
+    p_config_exclude = config_sub.add_parser(
+        "exclude",
+        parents=[common],
+        help="Manage the never-install exclude blocklist (add/list/rm).",
+    )
+    exclude_sub = p_config_exclude.add_subparsers(dest="exclude_command")
+
+    p_exclude_add = exclude_sub.add_parser(
+        "add",
+        parents=[common],
+        help="Add a repo path or fnmatch glob to the never-install exclude list.",
+    )
+    p_exclude_add.add_argument(
+        "path",
+        help="Repo path (e.g. ~/src/legacy-repo) or fnmatch glob (e.g. */vendored-tool) "
+        "to never install into.",
+    )
+    exclude_sub.add_parser(
+        "list", parents=[common], help="List the current never-install exclude entries."
+    )
+    p_exclude_rm = exclude_sub.add_parser(
+        "rm",
+        parents=[common],
+        help="Remove a matching entry from the never-install exclude list.",
+    )
+    p_exclude_rm.add_argument(
+        "path", help="Repo path or entry to remove from the exclude list."
+    )
+
     p_todo = sub.add_parser(
         "todo", parents=[common], help="List operational AW actions."
     )
@@ -1977,6 +2013,57 @@ def _orient(term: Term) -> None:
 # --------------------------------------------------------------------------------------
 
 
+def _run_config_exclude(args: argparse.Namespace, term: Term) -> int:
+    """Manage the never-install exclude blocklist (clianx-01 E-04): add/list/rm."""
+
+    sub = getattr(args, "exclude_command", None)
+    cfg = config.load()
+    current = list(cfg.get("exclude", []))
+
+    if sub == "add":
+        entry = config._preserve_home(str(args.path))
+        if entry in current:
+            term.status("ok", f"Already excluded: {entry}")
+            return 0
+        current.append(entry)
+        cfg["exclude"] = current
+        config.save(cfg)
+        term.status("ok", f"Added to the never-install exclude list: {entry}")
+        return 0
+
+    if sub == "list":
+        if not current:
+            term.status("ok", "The never-install exclude list is empty.")
+            return 0
+        term.heading("Never-install exclude list")
+        for e in current:
+            term.line(f"  {e}")
+        return 0
+
+    if sub == "rm":
+        want = config._preserve_home(str(args.path))
+        target = config.expand_path(str(args.path)).resolve()
+        kept = []
+        removed = []
+        for e in current:
+            expanded = os.path.expandvars(os.path.expanduser(str(e)))
+            if e == want or discovery._is_excluded(target, [expanded]):
+                removed.append(e)
+            else:
+                kept.append(e)
+        if not removed:
+            term.status("warn", f"No exclude entry matched: {args.path}")
+            return 1
+        cfg["exclude"] = kept
+        config.save(cfg)
+        for e in removed:
+            term.status("ok", f"Removed from the exclude list: {e}")
+        return 0
+
+    term.status("fail", "Usage: aw config exclude {add|list|rm} ...")
+    return 2
+
+
 def _run_plans(args: argparse.Namespace, term: Term) -> int:
     from . import plans as plans_mod
 
@@ -2646,6 +2733,11 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             return _run_storage_init(args, term)
         if storage_cmd == "attach":
             return _run_storage_attach(args, term)
+        parser.print_help()
+        return 2
+    if args.command == "config":
+        if getattr(args, "config_command", None) == "exclude":
+            return _run_config_exclude(args, term)
         parser.print_help()
         return 2
     if args.command == "todo":

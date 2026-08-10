@@ -93,5 +93,48 @@ class ExcludeGuardTests(unittest.TestCase):
         self.assertEqual(CFG.load()["exclude"], [])
 
 
+class ConfigExcludeVerbTests(unittest.TestCase):
+    """clianx-01 E-04: aw config exclude {add,list,rm} round-trip."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self._prev_xdg = os.environ.get("XDG_CONFIG_HOME")
+        os.environ["XDG_CONFIG_HOME"] = self._tmp.name
+
+    def tearDown(self):
+        if self._prev_xdg is None:
+            os.environ.pop("XDG_CONFIG_HOME", None)
+        else:
+            os.environ["XDG_CONFIG_HOME"] = self._prev_xdg
+        self._tmp.cleanup()
+
+    def test_add_list_rm_roundtrip(self):
+        term = Term(color=False)
+
+        add_args = mock.Mock(exclude_command="add", path="~/src/legacy-repo")
+        self.assertEqual(CLI._run_config_exclude(add_args, term), 0)
+        self.assertIn("~/src/legacy-repo", CFG.load()["exclude"])
+
+        # list returns 0 and does not mutate.
+        list_args = mock.Mock(exclude_command="list")
+        self.assertEqual(CLI._run_config_exclude(list_args, term), 0)
+        self.assertIn("~/src/legacy-repo", CFG.load()["exclude"])
+
+        rm_args = mock.Mock(exclude_command="rm", path="~/src/legacy-repo")
+        self.assertEqual(CLI._run_config_exclude(rm_args, term), 0)
+        self.assertNotIn("~/src/legacy-repo", CFG.load()["exclude"])
+
+    def test_rm_nonmatch_returns_nonzero(self):
+        term = Term(color=False)
+        rm_args = mock.Mock(exclude_command="rm", path="~/nope")
+        self.assertEqual(CLI._run_config_exclude(rm_args, term), 1)
+
+    def test_add_glob_entry(self):
+        term = Term(color=False)
+        add_args = mock.Mock(exclude_command="add", path="*/vendored-tool")
+        self.assertEqual(CLI._run_config_exclude(add_args, term), 0)
+        self.assertIn("*/vendored-tool", CFG.load()["exclude"])
+
+
 if __name__ == "__main__":
     unittest.main()
