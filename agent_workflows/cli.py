@@ -1238,6 +1238,31 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
             term.line()
             term.heading(f"Target Repo: {repo_root}")
 
+        # Resolve policy via install_wizard (E-01..E-04)
+        from agent_workflows.install_wizard import (
+            collect_policy_interactive,
+            format_policy_summary,
+            PolicyError,
+        )
+
+        try:
+            policy = collect_policy_interactive(
+                term=term,
+                repo_path=str(repo_root),
+                assume_yes=getattr(args, "yes", False),
+            )
+        except PolicyError as exc:
+            term.status("fail", str(exc))
+            return 1
+
+        if getattr(args, "dry_run", False):
+            term.status("ok", f"[DRY RUN] Install policy for {repo_root}:")
+            term.line(format_policy_summary(policy))
+            term.status(
+                "ok", "[DRY RUN] No changes written to filesystem or Git state."
+            )
+            continue
+
         for w in _preflight_warnings(repo_root, packaged):
             term.status("warn", w)
         # Git diagnostics pre-flight FIRST (dirty/behind handling, shared with the engine);

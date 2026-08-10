@@ -1320,6 +1320,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-09",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 4,
+    "path": "executed/20260809-awlayout-04-q0wpk4-install-update-policy-wizard.md",
+    "plan_id": "q0wpk4",
+    "set_id": "awlayout",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -1366,16 +1376,6 @@
     "order": 0,
     "path": "pending/20260809-awlayout-00-az9912-aw-project-layout-orchestrator.md",
     "plan_id": "az9912",
-    "set_id": "awlayout",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-09",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 4,
-    "path": "pending/20260809-awlayout-04-q0wpk4-install-update-policy-wizard.md",
-    "plan_id": "q0wpk4",
     "set_id": "awlayout",
     "status": "approved"
   },
