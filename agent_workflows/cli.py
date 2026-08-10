@@ -558,6 +558,48 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dir", default=None, help="Repo root (default: current directory)."
     )
 
+    p_context = sub.add_parser(
+        "context",
+        parents=[common],
+        help="Inspect resolved AW project context, logical roots, and policy.",
+    )
+    p_context.add_argument(
+        "--repo",
+        default=None,
+        help="Target repository directory (default: current directory).",
+    )
+    p_context.add_argument(
+        "--json",
+        action="store_true",
+        help="Output context as formatted JSON (no ANSI).",
+    )
+    p_context.add_argument(
+        "--agent",
+        action="store_true",
+        help="Machine-readable JSON output for LLM callers.",
+    )
+
+    p_path = sub.add_parser(
+        "path",
+        parents=[common],
+        help="Resolve the physical path for a logical AW root (system|config|state|records).",
+    )
+    p_path.add_argument(
+        "root",
+        choices=("system", "config", "state", "records"),
+        help="Logical root to resolve.",
+    )
+    p_path.add_argument(
+        "--repo",
+        default=None,
+        help="Target repository directory (default: current directory).",
+    )
+    p_path.add_argument(
+        "--agent",
+        action="store_true",
+        help="Print only the absolute resolved path with no prose.",
+    )
+
     p_attention = sub.add_parser(
         "attention",
         parents=[common],
@@ -1801,6 +1843,75 @@ def _run_check_local_leaks(args: argparse.Namespace, term: Term) -> int:
     return leak_sanitizer.main(passthrough)
 
 
+def _run_context(args: argparse.Namespace, term: Term) -> int:
+    """Inspect resolved AW project context (spec Section 9)."""
+    import json
+    from agent_workflows.project_context import (
+        resolve_project_context,
+        ProjectContextError,
+    )
+
+    try:
+        ctx = resolve_project_context(target_repo=getattr(args, "repo", None))
+    except ProjectContextError as exc:
+        if getattr(args, "json", False) or getattr(args, "agent", False):
+            print(json.dumps({"error": str(exc)}, indent=2))
+        else:
+            term.status("fail", str(exc))
+        return 1
+
+    if getattr(args, "json", False) or getattr(args, "agent", False):
+        print(ctx.to_json(indent=2))
+        return 0
+
+    term.heading("AW Resolved Project Context")
+    term.status("info", f"Target Repo:       {ctx.target_repo}")
+    term.status("info", f"Project ID:        {ctx.project_id}")
+    term.status("info", f"Delivery Mode:     {ctx.delivery_mode}")
+    term.status("info", f"AW_HOME:           {ctx.effective_aw_home}")
+    term.status("info", f"Records Backend:   {ctx.records_backend}")
+    term.status("info", f"Durability State:  {ctx.durability_state}")
+    term.status("info", f"Framework Version: {ctx.effective_framework_version}")
+    term.status("info", f"Enabled Hosts:     {', '.join(ctx.enabled_hosts)}")
+    term.line()
+    term.heading("Logical Roots:")
+    for root_name, root_path in ctx.logical_roots.items():
+        accessible = (
+            "accessible" if ctx.root_accessibility.get(root_name) else "UNREADABLE"
+        )
+        term.status("info", f"  {root_name:<8} -> {root_path} ({accessible})")
+    return 0
+
+
+def _run_path(args: argparse.Namespace, term: Term) -> int:
+    """Resolve physical path for a logical AW root (system|config|state|records)."""
+    from agent_workflows.project_context import (
+        resolve_project_context,
+        ProjectContextError,
+    )
+
+    try:
+        ctx = resolve_project_context(target_repo=getattr(args, "repo", None))
+    except ProjectContextError as exc:
+        if getattr(args, "agent", False):
+            print(f"ERROR: {exc}")
+        else:
+            term.status("fail", str(exc))
+        return 1
+
+    root_name = getattr(args, "root", "")
+    resolved_path = ctx.logical_roots.get(root_name)
+    if not resolved_path:
+        term.status("fail", f"Unknown logical root: {root_name}")
+        return 1
+
+    if getattr(args, "agent", False):
+        print(resolved_path)
+    else:
+        term.status("ok", f"{root_name}: {resolved_path}")
+    return 0
+
+
 def _dispatch(argv: Optional[Sequence[str]]) -> int:
     parser = _build_parser()
     # Alias: `aw plans index` / `aw plans find` -> the `plans-index` / `plans-find` parsers, so the
@@ -1928,6 +2039,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             return ra.run_check_miscategorized(args)
         parser.print_help()
         return 2
+    if args.command == "context":
+        return _run_context(args, term)
+    if args.command == "path":
+        return _run_path(args, term)
     if args.command == "attention":
         from agent_workflows import attention as att
 
