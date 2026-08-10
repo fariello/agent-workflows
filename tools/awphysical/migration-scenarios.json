@@ -1,0 +1,343 @@
+{
+  "schema_version": 1,
+  "set": "awphysical",
+  "contract": "Every scenario must map to named automated tests, deterministic evidence, and a documentation section before Order 12 completes.",
+  "scenarios": [
+    {
+      "id": "AWP-001",
+      "name": "fresh-private-target",
+      "preset": "private-target",
+      "legacy_features": [],
+      "expected": ["durable-material-target-tracked", "local-config-ignored", "runtime-ignored", "no-migration-required"],
+      "orders": [1, 2, 3, 4, 8, 9, 12]
+    },
+    {
+      "id": "AWP-002",
+      "name": "legacy-private-target-full-migration",
+      "preset": "private-target",
+      "legacy_features": ["tracked-system", "tracked-records", "ignored-runs", "actions", "installer-backups"],
+      "expected": ["complete-inventory", "copy-verify-switch-retain", "target-tracked-durable", "rollback-ready"],
+      "orders": [6, 7, 8, 9, 10, 12]
+    },
+    {
+      "id": "AWP-003",
+      "name": "public-target-existing-private-companion",
+      "preset": "public-private-companion",
+      "legacy_features": ["public-target-records", "existing-companion-git", "acknowledged-remote"],
+      "expected": ["public-system-only", "private-durable-bundle", "no-candid-public-delta", "separate-git-evidence"],
+      "orders": [3, 5, 6, 7, 8, 10, 12]
+    },
+    {
+      "id": "AWP-004",
+      "name": "public-target-new-local-companion",
+      "preset": "public-private-companion",
+      "legacy_features": ["new-companion", "no-remote"],
+      "expected": ["explicit-git-init", "local-git-not-durable-private", "durability-action-open", "never-push"],
+      "orders": [3, 5, 10, 12]
+    },
+    {
+      "id": "AWP-005",
+      "name": "clean-target-home-records",
+      "preset": "clean-target",
+      "legacy_features": [],
+      "expected": ["zero-target-delta", "external-system", "external-config-state-records", "host-support-evidence"],
+      "orders": [2, 3, 4, 8, 9, 10, 12]
+    },
+    {
+      "id": "AWP-006",
+      "name": "clean-target-private-companion",
+      "preset": "clean-target",
+      "legacy_features": ["existing-companion-git"],
+      "expected": ["zero-target-delta", "companion-durable", "external-runtime", "no-repository-records"],
+      "orders": [3, 5, 8, 9, 10, 12]
+    },
+    {
+      "id": "AWP-007",
+      "name": "local-only-unversioned",
+      "preset": "local-only",
+      "legacy_features": [],
+      "expected": ["external-local-roots", "unversioned-honest-status", "durability-action-or-acknowledgement"],
+      "orders": [2, 3, 5, 10, 12]
+    },
+    {
+      "id": "AWP-008",
+      "name": "advanced-custom-valid-split",
+      "preset": "custom",
+      "legacy_features": ["custom-config", "custom-runtime", "companion-records"],
+      "expected": ["all-paths-previewed", "valid-git-destinations", "portable-local-separation"],
+      "orders": [1, 2, 3, 5, 10]
+    },
+    {
+      "id": "AWP-009",
+      "name": "advanced-custom-invalid-overlap",
+      "preset": "custom",
+      "legacy_features": ["records-inside-system"],
+      "expected": ["fail-before-write", "root-overlap-rule"],
+      "orders": [1, 2, 3, 10]
+    },
+    {
+      "id": "AWP-010",
+      "name": "partial-prior-aw-layout",
+      "preset": "private-target",
+      "legacy_features": ["partial-aw-system", "legacy-agents-records", "duplicate-identical-file"],
+      "expected": ["partial-layout-classified", "explicit-deduplication", "one-authority"],
+      "orders": [6, 7, 8, 10]
+    },
+    {
+      "id": "AWP-011",
+      "name": "interrupted-before-switch",
+      "preset": "private-target",
+      "legacy_features": ["process-kill-during-copy"],
+      "expected": ["legacy-authoritative", "resume-safe", "rollback-safe", "no-success-claim"],
+      "orders": [7, 10]
+    },
+    {
+      "id": "AWP-012",
+      "name": "interrupted-after-switch",
+      "preset": "public-private-companion",
+      "legacy_features": ["process-kill-after-policy-switch"],
+      "expected": ["new-authority-explicit", "legacy-writer-disabled", "rollback-ready", "postcheck-required"],
+      "orders": [7, 8, 10]
+    },
+    {
+      "id": "AWP-013",
+      "name": "resume-every-transaction-phase",
+      "preset": "private-target",
+      "legacy_features": ["fault-injection-all-phases"],
+      "expected": ["idempotent-resume", "stable-transaction-id", "no-duplicate-copy"],
+      "orders": [7, 10]
+    },
+    {
+      "id": "AWP-014",
+      "name": "rollback-every-transaction-phase",
+      "preset": "private-target",
+      "legacy_features": ["fault-injection-all-phases"],
+      "expected": ["byte-identical-rollback", "policy-restored", "git-index-restored", "journal-retained"],
+      "orders": [7, 10]
+    },
+    {
+      "id": "AWP-015",
+      "name": "destination-content-collision",
+      "preset": "public-private-companion",
+      "legacy_features": ["different-bytes-same-destination"],
+      "expected": ["blocking-collision", "no-overwrite", "no-policy-switch"],
+      "orders": [6, 7]
+    },
+    {
+      "id": "AWP-016",
+      "name": "case-and-unicode-path-collision",
+      "preset": "custom",
+      "legacy_features": ["case-alias", "unicode-normalization-alias"],
+      "expected": ["filesystem-aware-preflight", "human-disposition-required"],
+      "orders": [1, 2, 6]
+    },
+    {
+      "id": "AWP-017",
+      "name": "symlink-escape",
+      "preset": "custom",
+      "legacy_features": ["symlink-outside-root"],
+      "expected": ["do-not-follow", "blocking-symlink-rule", "external-bytes-untouched"],
+      "orders": [2, 6, 7]
+    },
+    {
+      "id": "AWP-018",
+      "name": "permission-or-space-loss",
+      "preset": "public-private-companion",
+      "legacy_features": ["destination-unwritable", "space-preflight-failure"],
+      "expected": ["fail-before-switch", "recoverable-staging", "no-success-claim"],
+      "orders": [6, 7]
+    },
+    {
+      "id": "AWP-019",
+      "name": "git-worktree-target",
+      "preset": "private-target",
+      "legacy_features": ["linked-worktree", "shared-git-common-dir"],
+      "expected": ["stable-project-identity", "correct-worktree-path", "correct-git-owner"],
+      "orders": [1, 2, 5, 7]
+    },
+    {
+      "id": "AWP-020",
+      "name": "nested-or-overlapping-companion-git",
+      "preset": "public-private-companion",
+      "legacy_features": ["companion-inside-target", "nested-git"],
+      "expected": ["attachment-rejected", "no-writes"],
+      "orders": [2, 5]
+    },
+    {
+      "id": "AWP-021",
+      "name": "companion-project-identity-conflict",
+      "preset": "public-private-companion",
+      "legacy_features": ["companion-bound-to-other-project"],
+      "expected": ["identity-conflict", "no-reattach-without-explicit-recovery"],
+      "orders": [5]
+    },
+    {
+      "id": "AWP-022",
+      "name": "origin-url-spoofing",
+      "preset": "public-private-companion",
+      "legacy_features": ["matching-origin-wrong-identity"],
+      "expected": ["origin-not-identity", "attachment-rejected"],
+      "orders": [2, 5]
+    },
+    {
+      "id": "AWP-023",
+      "name": "ignored-and-untracked-legacy-records",
+      "preset": "public-private-companion",
+      "legacy_features": ["ignored-records", "untracked-records", "empty-directories"],
+      "expected": ["all-inventoried", "bytes-preserved", "private-destination", "source-retained"],
+      "orders": [6, 7, 10]
+    },
+    {
+      "id": "AWP-024",
+      "name": "modified-managed-system-file",
+      "preset": "private-target",
+      "legacy_features": ["manifest-hash-mismatch"],
+      "expected": ["human-owned-review", "no-overwrite", "explicit-disposition"],
+      "orders": [4, 6, 7]
+    },
+    {
+      "id": "AWP-025",
+      "name": "unknown-legacy-file",
+      "preset": "private-target",
+      "legacy_features": ["unknown-agents-content"],
+      "expected": ["inventory-blocking-unknown", "no-silent-drop"],
+      "orders": [6]
+    },
+    {
+      "id": "AWP-026",
+      "name": "runtime-or-local-config-tracked",
+      "preset": "private-target",
+      "legacy_features": ["tracked-runtime", "tracked-local-config"],
+      "expected": ["postcheck-failure", "explicit-untrack-plan", "content-not-lost"],
+      "orders": [1, 7, 10]
+    },
+    {
+      "id": "AWP-027",
+      "name": "candid-public-leak",
+      "preset": "public-private-companion",
+      "legacy_features": ["record-staged-in-public-target", "machine-path-in-public-config"],
+      "expected": ["privacy-boundary-failure", "sanitizer-failure", "release-blocked"],
+      "orders": [5, 7, 10, 12]
+    },
+    {
+      "id": "AWP-028",
+      "name": "skipped-version-upgrade",
+      "preset": "private-target",
+      "legacy_features": ["multiple-old-schema-versions", "action-generations"],
+      "expected": ["single-current-schema", "applicable-actions-only", "history-preserved"],
+      "orders": [2, 7, 8, 12]
+    },
+    {
+      "id": "AWP-029",
+      "name": "agent-workflows-source-self-migration",
+      "preset": "source-checkout",
+      "legacy_features": ["canonical-workflow-source", "large-record-corpus", "generated-adapters", "active-branches"],
+      "expected": ["source-not-overwritten", "one-canonical-system-source", "all-records-preserved", "package-green"],
+      "orders": [4, 6, 7, 8, 9, 10, 11, 12]
+    },
+    {
+      "id": "AWP-030",
+      "name": "source-role-spoof-attempt",
+      "preset": "source-checkout",
+      "legacy_features": ["copied-lookalike-files", "matching-origin"],
+      "expected": ["ordinary-target-role", "no-source-trust", "safe-install-or-refusal"],
+      "orders": [2, 4]
+    },
+    {
+      "id": "AWP-031",
+      "name": "package-install-without-source-checkout",
+      "preset": "private-target",
+      "legacy_features": ["wheel-install"],
+      "expected": ["complete-packaged-system", "correct-version-manifest", "no-development-records"],
+      "orders": [4, 12]
+    },
+    {
+      "id": "AWP-032",
+      "name": "conservative-uninstall-all-presets",
+      "preset": "all",
+      "legacy_features": ["modified-adapter", "foreign-files", "external-companion"],
+      "expected": ["owned-system-adapters-only", "config-state-records-preserved", "external-repo-never-deleted"],
+      "orders": [4, 5, 9, 12]
+    },
+    {
+      "id": "AWP-033",
+      "name": "cleanup-before-retention-gate",
+      "preset": "private-target",
+      "legacy_features": ["retained-legacy", "postcheck-not-complete"],
+      "expected": ["cleanup-refused", "preview-only-default", "legacy-preserved"],
+      "orders": [7, 10]
+    },
+    {
+      "id": "AWP-034",
+      "name": "cleanup-after-content-changed",
+      "preset": "private-target",
+      "legacy_features": ["retained-source-edited-after-switch"],
+      "expected": ["fresh-inventory-required", "changed-content-not-deleted"],
+      "orders": [7, 10]
+    },
+    {
+      "id": "AWP-035",
+      "name": "windows-and-case-insensitive-filesystem",
+      "preset": "private-target",
+      "legacy_features": ["windows-paths", "no-posix-directory-pivot"],
+      "expected": ["safe-fallback-transaction", "case-collision-check", "rollback-ready"],
+      "orders": [1, 2, 4, 7, 12]
+    },
+    {
+      "id": "AWP-036",
+      "name": "unsupported-clean-target-host",
+      "preset": "clean-target",
+      "legacy_features": ["host-without-user-scope-discovery"],
+      "expected": ["honest-unsupported-result", "no-target-write", "explicit-fallback-not-called-clean"],
+      "orders": [3, 9, 12]
+    },
+    {
+      "id": "AWP-037",
+      "name": "inaccessible-external-root-after-switch",
+      "preset": "public-private-companion",
+      "legacy_features": ["companion-unmounted-or-permission-denied"],
+      "expected": ["fail-closed-context", "no-legacy-fallback-write", "recovery-guidance"],
+      "orders": [2, 7, 8, 10]
+    },
+    {
+      "id": "AWP-038",
+      "name": "dual-writer-regression",
+      "preset": "private-target",
+      "legacy_features": ["new-and-legacy-producer-enabled"],
+      "expected": ["authority-invalid", "postcheck-failure", "cleanup-blocked"],
+      "orders": [7, 8, 10]
+    },
+    {
+      "id": "AWP-039",
+      "name": "concurrent-writer-during-migration",
+      "preset": "private-target",
+      "legacy_features": ["second-agent-write", "stale-lock"],
+      "expected": ["writer-lock-or-hash-drift-stop", "no-switch", "explicit-reinventory"],
+      "orders": [6, 7, 11]
+    },
+    {
+      "id": "AWP-040",
+      "name": "companion-move-and-reattach",
+      "preset": "public-private-companion",
+      "legacy_features": ["path-changed", "same-git-common-dir", "new-worktree"],
+      "expected": ["stable-identity", "local-binding-updated", "tracked-paths-portable"],
+      "orders": [2, 5, 10]
+    },
+    {
+      "id": "AWP-041",
+      "name": "malformed-or-future-policy",
+      "preset": "all",
+      "legacy_features": ["malformed-json", "future-schema-version", "conflicting-precedence"],
+      "expected": ["fail-closed", "no-policy-overwrite", "source-specific-diagnostic"],
+      "orders": [1, 2, 3]
+    },
+    {
+      "id": "AWP-042",
+      "name": "non-git-target-and-unversioned-records",
+      "preset": "local-only",
+      "legacy_features": ["target-no-git", "records-no-git"],
+      "expected": ["honest-unversioned-status", "no-stage-attempt", "explicit-durability-choice"],
+      "orders": [2, 3, 5, 12]
+    }
+  ]
+}
