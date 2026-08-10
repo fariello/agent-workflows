@@ -721,6 +721,39 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Show what would change without modifying filesystem.",
     )
 
+    p_todo = sub.add_parser(
+        "todo", parents=[common], help="List operational AW actions."
+    )
+    p_todo.add_argument("--agent", action="store_true", help="Machine-readable output.")
+    p_todo.add_argument("--all", action="store_true", help="Include non-open actions.")
+
+    p_show = sub.add_parser(
+        "show",
+        parents=[common],
+        help="Inspect an action document by ID or ID@generation.",
+    )
+    p_show.add_argument("action_ref", help="Action ID or ID@generation.")
+
+    p_complete = sub.add_parser(
+        "complete", parents=[common], help="Mark an action as completed."
+    )
+    p_complete.add_argument("action_ref", help="Action ID or ID@generation.")
+
+    p_dismiss = sub.add_parser(
+        "dismiss", parents=[common], help="Mark an action as dismissed."
+    )
+    p_dismiss.add_argument("action_ref", help="Action ID or ID@generation.")
+
+    p_reopen = sub.add_parser(
+        "reopen", parents=[common], help="Reopen a completed or dismissed action."
+    )
+    p_reopen.add_argument("action_ref", help="Action ID or ID@generation.")
+
+    p_history = sub.add_parser(
+        "history", parents=[common], help="Show lifecycle history of an action."
+    )
+    p_history.add_argument("action_ref", help="Action ID or ID@generation.")
+
     p_attention = sub.add_parser(
         "attention",
         parents=[common],
@@ -1190,6 +1223,31 @@ def _install_one(
             f"{repo_root}: installed/updated {n} file(s); version {result['version']}.",
         )
         outcome = "ok"
+
+    # Record install history event & create initial setup-repo action (E-04)
+    try:
+        from agent_workflows.actions import ActionManager, record_install_history
+
+        record_install_history(
+            target_repo=str(repo_root),
+            event_type="install" if outcome == "ok" else "check",
+            details={
+                "version": result.get("version", ""),
+                "installed_files": len(result.get("installed", [])),
+            },
+        )
+        mgr = ActionManager(target_repo=str(repo_root))
+        try:
+            mgr.create_action(
+                action_id="setup-repo",
+                generation=1,
+                title="Setup repository stack-tailored conformance",
+                description="Run the LLM '/setup-repo' workflow in this repo for stack-tailored conformance (CI, .gitignore, lifecycle contract).",
+            )
+        except Exception:
+            pass  # Action already exists or already resolved
+    except Exception:
+        pass
 
     # Offer to commit (auto under --yes; prompt otherwise; on decline it prints how to commit, so
     # nothing is left SILENTLY staged). This is the step batch paths previously skipped (the bug).
@@ -2269,6 +2327,109 @@ def _run_storage_attach(args: argparse.Namespace, term: Term) -> int:
     return 0
 
 
+def _run_todo(args: argparse.Namespace, term: Term) -> int:
+    import json
+    from agent_workflows.actions import ActionManager, ActionError
+
+    try:
+        mgr = ActionManager()
+        status_filter = None if getattr(args, "all", False) else "open"
+        actions = mgr.list_actions(status_filter=status_filter)
+    except ActionError as exc:
+        term.status("fail", str(exc))
+        return 1
+
+    if getattr(args, "agent", False):
+        out = [
+            {
+                "id": a.id,
+                "generation": a.generation,
+                "status": a.status,
+                "title": a.title,
+            }
+            for a in actions
+        ]
+        print(json.dumps(out, indent=2))
+        return 0
+
+    term.heading("Operational Actions (AW Todo)")
+    if not actions:
+        term.status("ok", "No pending operational actions.")
+        return 0
+
+    for a in actions:
+        term.status(a.status, f"{a.id} (v{a.generation}): {a.title}")
+    return 0
+
+
+def _run_show(args: argparse.Namespace, term: Term) -> int:
+    from agent_workflows.actions import ActionManager, ActionError
+
+    try:
+        mgr = ActionManager()
+        status, path = mgr.find_action_file(args.action_ref)
+        content = path.read_text(encoding="utf-8")
+        print(content)
+        return 0
+    except ActionError as exc:
+        term.status("fail", str(exc))
+        return 1
+
+
+def _run_complete(args: argparse.Namespace, term: Term) -> int:
+    from agent_workflows.actions import ActionManager, ActionError
+
+    try:
+        mgr = ActionManager()
+        doc = mgr.transition_action(args.action_ref, "completed")
+        term.status("ok", f"Completed action {doc.id} (v{doc.generation}).")
+        return 0
+    except ActionError as exc:
+        term.status("fail", str(exc))
+        return 1
+
+
+def _run_dismiss(args: argparse.Namespace, term: Term) -> int:
+    from agent_workflows.actions import ActionManager, ActionError
+
+    try:
+        mgr = ActionManager()
+        doc = mgr.transition_action(args.action_ref, "dismissed")
+        term.status("ok", f"Dismissed action {doc.id} (v{doc.generation}).")
+        return 0
+    except ActionError as exc:
+        term.status("fail", str(exc))
+        return 1
+
+
+def _run_reopen(args: argparse.Namespace, term: Term) -> int:
+    from agent_workflows.actions import ActionManager, ActionError
+
+    try:
+        mgr = ActionManager()
+        doc = mgr.transition_action(args.action_ref, "open")
+        term.status("ok", f"Reopened action {doc.id} (v{doc.generation}).")
+        return 0
+    except ActionError as exc:
+        term.status("fail", str(exc))
+        return 1
+
+
+def _run_action_history(args: argparse.Namespace, term: Term) -> int:
+    from agent_workflows.actions import ActionManager, ActionError
+
+    try:
+        mgr = ActionManager()
+        status, path = mgr.find_action_file(args.action_ref)
+        term.heading(f"Action History for {args.action_ref}")
+        term.status("info", f"Current Status: {status}")
+        term.status("info", f"File Path:      {path}")
+        return 0
+    except ActionError as exc:
+        term.status("fail", str(exc))
+        return 1
+
+
 def _dispatch(argv: Optional[Sequence[str]]) -> int:
     parser = _build_parser()
     # Alias: `aw plans index` / `aw plans find` -> the `plans-index` / `plans-find` parsers, so the
@@ -2326,6 +2487,18 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             return _run_storage_attach(args, term)
         parser.print_help()
         return 2
+    if args.command == "todo":
+        return _run_todo(args, term)
+    if args.command == "show":
+        return _run_show(args, term)
+    if args.command == "complete":
+        return _run_complete(args, term)
+    if args.command == "dismiss":
+        return _run_dismiss(args, term)
+    if args.command == "reopen":
+        return _run_reopen(args, term)
+    if args.command == "history":
+        return _run_action_history(args, term)
     if args.command == "install":
         return _run_install(args, term)
     if args.command == "uninstall":
