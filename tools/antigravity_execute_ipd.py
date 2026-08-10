@@ -1,37 +1,43 @@
 #!/usr/bin/env python3
-"""Execute an AW IPD with Antigravity, then make it audit its own work.
+"""Execute an AW IPD with the Antigravity CLI, then audit the result.
 
-This script targets the Antigravity session bridge API:
+Run this script from anywhere inside the target repository. The IPD argument
+may be a repository-relative path, a filename, or the plan's six-character
+stable ID. The script runs two blocking, headless ``agy`` turns:
 
-    import antigravity
-    agent = antigravity.get_agent(conversation_id="...")
-    result = agent.execute("...")
+1. execute the pending IPD; and
+2. resume that exact conversation and perform a skeptical self-audit.
 
-Run it from anywhere inside the target repository. The IPD argument may be a
-repository-relative path, a filename, or the plan's six-character stable ID.
+By default, the first turn continues the most recent Antigravity conversation
+for the current repository. If no conversation exists, Antigravity creates a
+new one. Pass ``--session-id`` to select a particular conversation instead.
 """
 
 from __future__ import annotations
 
 import argparse
-import asyncio
-import importlib
-import importlib.util
-import inspect
+import json
 import os
-from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
-import sysconfig
-from typing import Any, Iterable
-
-
-PLAN_STATES = ("pending", "executed")
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterable
 
 
 class ScriptError(RuntimeError):
     """A user-actionable script failure."""
+
+
+@dataclass(frozen=True)
+class AgyResult:
+    """The fields this workflow requires from an ``agy`` JSON result."""
+
+    conversation_id: str
+    response: str
+    status: str
 
 
 def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
@@ -51,8 +57,26 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
         dest="session_id",
         help=(
             "Existing Antigravity conversation ID. If omitted, use "
-            "ANTIGRAVITY_CONVERSATION_ID, then the bridge's current project "
-            "session, or lease a new session for the repository."
+            "ANTIGRAVITY_CONVERSATION_ID when set; otherwise continue the "
+            "current project's most recent conversation or create a new one."
+        ),
+    )
+    parser.add_argument(
+        "--agy",
+        dest="agy_executable",
+        help="Path to the agy executable (default: find agy on PATH)",
+    )
+    parser.add_argument(
+        "--timeout",
+        default="120m",
+        help="Maximum time for each Antigravity turn (default: 120m)",
+    )
+    parser.add_argument(
+        "--dangerously-skip-permissions",
+        action="store_true",
+        help=(
+            "Allow Antigravity to execute every requested tool without review. "
+            "Prefer scoped permissions in Antigravity settings when practical."
         ),
     )
     return parser.parse_args(argv)
@@ -97,9 +121,14 @@ def resolve_ipd(root: Path, value: str, states: Iterable[str]) -> Path:
         resolved = direct.resolve()
         plans_root = (root / ".agents" / "plans").resolve()
         try:
-            resolved.relative_to(plans_root)
+            relative = resolved.relative_to(plans_root)
         except ValueError as exc:
             raise ScriptError(f"IPD must be under {plans_root}: {resolved}") from exc
+        if not relative.parts or relative.parts[0] not in states:
+            state_text = ", ".join(states)
+            raise ScriptError(
+                f"IPD {resolved} is not in an allowed plan state: {state_text}."
+            )
         return resolved
 
     candidates = _candidate_plans(root, states)
@@ -134,103 +163,87 @@ def relative_posix(root: Path, path: Path) -> str:
     return path.resolve().relative_to(root.resolve()).as_posix()
 
 
-def load_session_bridge() -> Any:
-    spec = importlib.util.find_spec("antigravity")
-    if spec is None or spec.origin is None:
-        raise ScriptError(
-            "No Antigravity session bridge is importable in this Python environment."
-        )
-    stdlib_module = Path(sysconfig.get_path("stdlib")) / "antigravity.py"
-    if Path(spec.origin).resolve() == stdlib_module.resolve():
-        raise ScriptError(
-            "Python resolves 'antigravity' to its unrelated standard-library novelty "
-            f"module at {spec.origin}. Run the script in the Antigravity environment "
-            "that provides the session bridge used by your get_agent/execute example."
-        )
-    module = importlib.import_module("antigravity")
-    if callable(getattr(module, "get_agent", None)):
-        return module
-    origin = getattr(module, "__file__", "unknown location")
+def resolve_agy(explicit_path: str | None) -> str:
+    """Return an executable ``agy`` path or raise an actionable error."""
+    if explicit_path:
+        candidate = Path(explicit_path).expanduser()
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate.resolve())
+        raise ScriptError(f"The --agy path is not executable: {candidate}")
+
+    discovered = shutil.which("agy")
+    if discovered:
+        return discovered
     raise ScriptError(
-        "The imported 'antigravity' module does not provide get_agent(). "
-        f"Imported: {origin}. This is commonly Python's unrelated standard-library "
-        "antigravity module. Run the script in the Antigravity environment that "
-        "provides the session bridge used by your get_agent/execute example."
+        "Cannot find 'agy' on PATH. Install Antigravity CLI or pass --agy PATH."
     )
 
 
-def get_project_agent(bridge: Any, root: Path, session_id: str | None) -> Any:
-    selected_session = session_id or os.environ.get("ANTIGRAVITY_CONVERSATION_ID")
-    if selected_session:
-        return bridge.get_agent(conversation_id=selected_session)
+def run_agy(
+    *,
+    executable: str,
+    root: Path,
+    prompt: str,
+    session_id: str | None,
+    timeout: str,
+    skip_permissions: bool,
+) -> AgyResult:
+    """Run one blocking headless Antigravity turn and validate its JSON result.
 
-    # The supplied bridge contract is expected to bind a no-argument call to the
-    # current project, selecting its most recent session or creating one. Run from
-    # the repository root so that project discovery has an unambiguous cwd.
-    os.chdir(root)
+    ``agy --output-format json`` does not return until the turn reaches a
+    terminal state, so completion requires neither polling nor an SDK-specific
+    job handle. The repository root is the subprocess working directory because
+    Antigravity scopes ``--continue`` to the active project.
+    """
+    command = [
+        executable,
+        "-p",
+        prompt,
+        "--output-format",
+        "json",
+        "--print-timeout",
+        timeout,
+    ]
+    if session_id:
+        command.extend(("--conversation", session_id))
+    else:
+        command.append("--continue")
+    if skip_permissions:
+        command.append("--dangerously-skip-permissions")
+
+    completed = subprocess.run(
+        command,
+        cwd=root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    stdout = completed.stdout.strip()
     try:
-        agent = bridge.get_agent()
-    except TypeError:
-        agent = None
-    if agent is not None:
-        return agent
+        payload = json.loads(stdout)
+    except json.JSONDecodeError as exc:
+        detail = completed.stderr.strip() or stdout or "no output"
+        raise ScriptError(
+            f"Antigravity returned invalid JSON (exit {completed.returncode}): {detail}"
+        ) from exc
 
-    lease_agent = getattr(bridge, "lease_agent", None)
-    if callable(lease_agent):
-        agent = lease_agent(workspace=str(root))
-        if agent is not None:
-            return agent
+    status = str(payload.get("status", ""))
+    error = str(payload.get("error", "")).strip()
+    if completed.returncode != 0 or status != "SUCCESS":
+        detail = error or completed.stderr.strip() or "no error detail"
+        raise ScriptError(
+            f"Antigravity ended with status {status or 'UNKNOWN'} "
+            f"(exit {completed.returncode}): {detail}"
+        )
 
-    raise ScriptError(
-        "No current project session was available and this bridge could not lease "
-        "a new one. Pass --session-id or set ANTIGRAVITY_CONVERSATION_ID."
+    conversation_id = str(payload.get("conversation_id", "")).strip()
+    if not conversation_id:
+        raise ScriptError("Antigravity succeeded but returned no conversation_id.")
+    return AgyResult(
+        conversation_id=conversation_id,
+        response=str(payload.get("response", "")),
+        status=status,
     )
-
-
-async def maybe_await(value: Any) -> Any:
-    if inspect.isawaitable(value):
-        return await value
-    return value
-
-
-async def wait_for_completion(value: Any) -> Any:
-    """Wait for common blocking, async, or job-handle execute results."""
-    value = await maybe_await(value)
-
-    wait = getattr(value, "wait", None)
-    if callable(wait):
-        waited = await maybe_await(wait())
-        if waited is not None:
-            value = waited
-
-    result = getattr(value, "result", None)
-    if callable(result):
-        completed = await maybe_await(result())
-        if completed is not None:
-            value = completed
-    return value
-
-
-async def execute_and_wait(agent: Any, prompt: str) -> Any:
-    execute = getattr(agent, "execute", None)
-    if not callable(execute):
-        raise ScriptError("The selected Antigravity agent does not provide execute().")
-    return await wait_for_completion(execute(prompt))
-
-
-async def result_text(value: Any) -> str:
-    if value is None:
-        return ""
-    text_member = getattr(value, "text", None)
-    if callable(text_member):
-        rendered = await maybe_await(text_member())
-        return str(rendered)
-    if text_member is not None:
-        return str(text_member)
-    output_text = getattr(value, "output_text", None)
-    if output_text is not None:
-        return str(output_text)
-    return str(value)
 
 
 def audit_prompt(ipd_path: str) -> str:
@@ -272,39 +285,65 @@ Report back with:
 The audit is incomplete until every E-item and V-item has an evidence-backed disposition. "The code looks right," your prior memory, prior checkmarks, and a generally green test suite are insufficient evidence."""
 
 
-async def async_main(argv: Iterable[str] | None = None) -> int:
-    args = parse_args(argv)
-    root = repository_root(Path.cwd())
-    pending = resolve_ipd(root, args.ipd, ("pending",))
-    plan_id = stable_id_from_filename(pending)
-    pending_rel = relative_posix(root, pending)
-
-    bridge = load_session_bridge()
-    agent = get_project_agent(bridge, root, args.session_id)
-
-    print(f"Executing {pending_rel} in Antigravity...", file=sys.stderr, flush=True)
-    await execute_and_wait(agent, f"read and execute `{pending_rel}`")
-
-    # A successful IPD lifecycle normally moves the plan from pending to executed.
-    # Resolve it again rather than assuming the first filename or disposition.
-    audited = resolve_ipd(root, plan_id, ("executed", "pending"))
-    audited_rel = relative_posix(root, audited)
-
-    print(f"Auditing {audited_rel} in the same session...", file=sys.stderr, flush=True)
-    audit_result = await execute_and_wait(agent, audit_prompt(audited_rel))
-    print(await result_text(audit_result))
-    return 0
-
-
-def main() -> int:
+def main(argv: Iterable[str] | None = None) -> int:
+    """Resolve the IPD, execute it, audit it, and print both agent reports."""
     try:
-        return asyncio.run(async_main())
+        return run(argv)
     except KeyboardInterrupt:
         print("Interrupted.", file=sys.stderr)
         return 130
     except ScriptError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+
+
+def run(argv: Iterable[str] | None = None) -> int:
+    """Implement the command after top-level exception handling."""
+    args = parse_args(argv)
+    root = repository_root(Path.cwd())
+    pending = resolve_ipd(root, args.ipd, ("pending",))
+    plan_id = stable_id_from_filename(pending)
+    pending_rel = relative_posix(root, pending)
+
+    executable = resolve_agy(args.agy_executable)
+    initial_session = args.session_id or os.environ.get("ANTIGRAVITY_CONVERSATION_ID")
+
+    print(f"Executing {pending_rel} in Antigravity...", file=sys.stderr, flush=True)
+    execution = run_agy(
+        executable=executable,
+        root=root,
+        prompt=f"read and execute `{pending_rel}`",
+        session_id=initial_session,
+        timeout=args.timeout,
+        skip_permissions=args.dangerously_skip_permissions,
+    )
+    print("\n=== Antigravity execution report ===\n")
+    print(execution.response.rstrip())
+
+    # A successful IPD lifecycle normally moves the plan from pending to executed.
+    # Prefer the executed location, but audit the pending copy when execution did
+    # not move it. Resolving states separately also avoids false ambiguity if a
+    # broken execution accidentally leaves copies in both locations.
+    try:
+        audited = resolve_ipd(root, plan_id, ("executed",))
+    except ScriptError:
+        audited = resolve_ipd(root, plan_id, ("pending",))
+    audited_rel = relative_posix(root, audited)
+
+    print(f"Auditing {audited_rel} in the same session...", file=sys.stderr, flush=True)
+    audit = run_agy(
+        executable=executable,
+        root=root,
+        prompt=audit_prompt(audited_rel),
+        # Always pin the second turn to the ID returned by the first. This avoids
+        # a race with any other process that changes the project's latest session.
+        session_id=execution.conversation_id,
+        timeout=args.timeout,
+        skip_permissions=args.dangerously_skip_permissions,
+    )
+    print("\n=== Antigravity self-audit report ===\n")
+    print(audit.response.rstrip())
+    return 0
 
 
 if __name__ == "__main__":
