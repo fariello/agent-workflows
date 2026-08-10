@@ -5,8 +5,9 @@ safety boundary validation, and truthful durability state reporting specified by
 ``.agents/docs/specs/20260809-2211-01-aw-project-layout-storage-wizard-and-state.spec.md`` Section 5 & 6.
 
 Invariants:
-- TRUTHFUL DURABILITY: A configured remote alone remains a neutral observable fact.
-  `durable-private` is assigned ONLY when user explicitly acknowledges remote/backup policy (L3-01 / spec Section 6.2).
+- TRUTHFUL DURABILITY: A configured remote alone remains a neutral observable fact. The
+  ``DurabilityState.DURABLE_PRIVATE`` state is assigned ONLY when the user explicitly acknowledges
+  the remote/backup policy (L3-01 / spec Section 6.2).
 - SAFE BOUNDARIES: Rejects path traversal, accidental repository nesting, and identity-conflicting companion repos.
 - NO UNREQUESTED REMOTE ACTIONS: Never creates remotes, commits code, or pushes data.
 """
@@ -161,11 +162,11 @@ def get_storage_status(
         except Exception:
             pass
 
-    # Truthful durability state classification (spec Section 6.2):
-    # - repository backend -> repository-managed
-    # - has_git + remote_acknowledged -> durable-private
-    # - has_git -> local-git
-    # - uninitialized -> unversioned
+    # Truthful durability state classification (spec Section 6.2), one DurabilityState per case:
+    # - repository backend -> REPOSITORY_MANAGED
+    # - has_git + remote_acknowledged -> DURABLE_PRIVATE
+    # - has_git -> LOCAL_GIT
+    # - uninitialized -> UNVERSIONED
     if backend == RecordsBackend.REPOSITORY.value:
         durability_state = DurabilityState.REPOSITORY_MANAGED.value
         rec = "Records are stored in target repository Git tree."
@@ -174,7 +175,10 @@ def get_storage_status(
         rec = "Records storage is backed by local Git and acknowledged remote policy."
     elif has_git:
         durability_state = DurabilityState.LOCAL_GIT.value
-        rec = "Records storage has local Git history. Configure remote or acknowledge backup policy for durable-private status."
+        rec = (
+            "Records storage has local Git history. Configure a remote or acknowledge the "
+            f"backup policy to reach the {DurabilityState.DURABLE_PRIVATE.value} state."
+        )
     else:
         durability_state = DurabilityState.UNVERSIONED.value
         rec = "Records storage is unversioned local files. Run 'aw storage init' to create a local Git repository."
