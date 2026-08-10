@@ -15,6 +15,8 @@
 
 - 2026-08-10 draft (Codex (GPT-5)): created to replace the current two-question, non-persisted policy interview with complete preset-first configuration.
 - 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
+- 2026-08-10 /plan-review (Codex (GPT-5)): REVIEWED - OPEN QUESTIONS; reconciled the Set to the superseding physical-layout spec, corrected the child DAG and implementation anchors, resolved tracked prototype ownership, and replaced generic validation evidence with per-item commands/fixtures/failure conditions. NO-GO until the human maintainer approves the superseding spec.
+
 
 ## Goal
 
@@ -28,7 +30,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 Replace the current coarse `ProjectPolicy` interview model with a pure wizard state machine over the Order 01/02 schema, distinguishing truly unconfigured projects from configured projects and separating choice logic from rendering and writes.
   - Depends on: none
-  - Expected outcome: First install cannot be mistaken for an update; every wizard result fully resolves all root classes, Git policies, role, hosts, and durability intent.
+  - Expected outcome: First install, including EOF/closed stdin, cannot be mistaken for an update or silently defaulted; every wizard result fully resolves all root classes, Git policies, role, hosts, and durability intent.
   - Execution state: pending
 
 - [ ] E-02 Implement the four approved presets with concise pros, cons, visibility, durability, portability, and collaboration explanations, plus an advanced custom path that exposes only valid combinations.
@@ -45,7 +47,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-04 Render one exact pre-write plan showing every resolved path, containing Git repository, track/ignore policy, public/private acknowledgement, adapter exception, expected target delta, companion delta, and unresolved durability action.
   - Depends on: E-01
-  - Expected outcome: Confirmation is informed and self-contained; color improves navigation but all meaning remains in labels and monochrome output.
+  - Expected outcome: Confirmation is informed and self-contained; home-relative paths are displayed portably where possible and absolute machine paths are never persisted into public/tracked policy; color improves navigation but all meaning remains in labels and monochrome output.
   - Execution state: pending
 
 - [ ] E-05 Wire the confirmed policy through atomic Order 02 persistence and materialization handoffs used by `aw install`, `aw install all`, and `aw setup`; add complete noninteractive flags and fail closed when required first-install choices are absent.
@@ -55,7 +57,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-06 Implement update review/change flows that preserve current policy by default, preview migrations before policy switches, and never conflate `aw setup` with the `/setup-repo` workflow or its action.
   - Depends on: E-01
-  - Expected outcome: Ordinary updates are concise; material placement changes invoke migration planning rather than mutating roots in place; setup terminology is consistent with corrective plan `791mt4`.
+  - Expected outcome: Ordinary updates are concise; material placement changes invoke migration planning rather than mutating roots in place; setup terminology follows the shipped `aw setup` versus `/setup-repo` distinction and the persisted `setup-repo` action contract in the superseding spec.
   - Execution state: pending
 
 ### Task group 3: Test all interaction modes
@@ -76,7 +78,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - The current interview asks only delivery mode and records backend.
 - It does not collect companion path, AW_HOME, config/state placement, tracking policies, source role, enabled hosts, or durability details.
-- The current install CLI exposes none of the explicit policy flags expected by the noninteractive resolver.
+- The `ProjectPolicy` blast radius spans `install_wizard.py`, `project_layout.py`, and `cli.py`; update all three consumers and compatibility tests together.
 - Normal installation collects a policy but does not call `materialize_project_layout()` or otherwise persist and apply the complete result.
 - Default context resolution can make an unconfigured repository look configured.
 
@@ -111,46 +113,65 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - `python3 -m agent_workflows ipd lint --phase pre-transition --agent <this-plan>`
 - Full suite after coordinating parser changes with concurrent CLI work.
 
+### Per-item evidence matrix
+
+Each row is mandatory for its matching `V-*` item. The executor creates the named fixture/test where it does not yet exist and records actual output, never reconstructed output.
+
+| E | Exact command | Named fixture/input | Required positive assertion | Required failure condition |
+|---|---|---|---|---|
+| E-01 | `python3 -m unittest tests.test_install_wizard.PhysicalLayoutWizardTests.test_e01` | `tests/fixtures/awphysical/order03/e01-*` | First install, including EOF/closed stdin, cannot be mistaken for an update or silently defaulted; every wizard result fully resolves all root classes, Git policies, role, hosts, and durability intent. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-02 | `python3 -m unittest tests.test_install_wizard.PhysicalLayoutWizardTests.test_e02` | `tests/fixtures/awphysical/order03/e02-*` | Private-target, public-plus-private-companion, clean-target, and local-only choices are screen-sized and safe by default; custom mode cannot bypass Order 01 invariants. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-03 | `python3 -m unittest tests.test_install_wizard.PhysicalLayoutWizardTests.test_e03` | `tests/fixtures/awphysical/order03/e03-*` | The wizard does not infer remote privacy or repository ownership and does not silently initialize Git, choose a remote, push, or migrate. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-04 | `python3 -m unittest tests.test_install_wizard.PhysicalLayoutWizardTests.test_e04` | `tests/fixtures/awphysical/order03/e04-*` | Confirmation is self-contained; home-relative display is portable; absolute-path canaries are absent from public/tracked policy; color adds no exclusive meaning. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-05 | `python3 -m unittest tests.test_install_wizard.PhysicalLayoutWizardTests.test_e05` | `tests/fixtures/awphysical/order03/e05-*` | Wizard selections survive the process, update checkpoints show the saved policy, dry-run writes nothing, and `--yes` never invents first-install consent. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-06 | `python3 -m unittest tests.test_install_wizard.PhysicalLayoutWizardTests.test_e06` | `tests/fixtures/awphysical/order03/e06-*` | Ordinary updates are concise; material placement changes invoke migration planning rather than mutating roots in place; setup terminology follows the shipped `aw setup` versus `/setup-repo` distinction and the persisted `setup-repo` action contract in the superseding spec. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-07 | `python3 -m unittest tests.test_install_wizard.PhysicalLayoutWizardTests.test_e07` | `tests/fixtures/awphysical/order03/e07-*` | Prompt sequences and outputs are stable, accessible, resumable where appropriate, and behaviorally equivalent across entry points. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+
 ## Spec / documentation sync
 
-- Update the controlling spec's wizard, noninteractive, update, preview, and accessibility contracts.
+- Verify implementation against the controlling specification's wizard, noninteractive, update, preview, and accessibility contracts. If implementation conflicts, stop and return the specification to review rather than silently editing approved requirements.
 - Add user-facing wizard help for new flags and presets without rewriting unrelated command help owned by concurrent work.
 - Keep screenshots or ANSI output out of normative tests; use semantic transcript fixtures.
 
 ## Open questions
 
-No open questions. Presets lead, custom mode is optional, and every final choice receives exact path and Git consequences before confirmation.
+### OQ-01: Has the human maintainer approved the superseding physical-layout specification?
+
+- Blocking: yes
+- Status: open
+- Owner: human maintainer
+- Resolution or deferral rationale: `.agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` is `to-review`. This plan MUST NOT execute until that spec is independently reviewed and human-approved; approval is a design gate, not an executor inference.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Pure-state tests prove a new repository enters the full interview, an existing saved policy enters the update checkpoint, and every terminal wizard result includes all required Order 02 fields with no filesystem writes.
+  - Required evidence: Run Evidence matrix row E-01 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-02: Private-target, public-plus-private-companion, clean-target, and local-only choices are screen-sized and safe by default; custom mode cannot bypass Order 01 invariants. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-02 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-03: The wizard does not infer remote privacy or repository ownership and does not silently initialize Git, choose a remote, push, or migrate. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-03 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-04: Confirmation is informed and self-contained; color improves navigation but all meaning remains in labels and monochrome output. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-04 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-05: Wizard selections survive the process, update checkpoints show the saved policy, dry-run writes nothing, and `--yes` never invents first-install consent. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-05 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-06: Ordinary updates are concise; material placement changes invoke migration planning rather than mutating roots in place; setup terminology is consistent with corrective plan `791mt4`. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-06 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-07 validates E-07
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-07: Prompt sequences and outputs are stable, accessible, resumable where appropriate, and behaviorally equivalent across entry points. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-07 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 

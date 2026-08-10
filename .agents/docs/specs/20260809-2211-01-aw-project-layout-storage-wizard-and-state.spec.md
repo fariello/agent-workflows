@@ -1,8 +1,7 @@
 # Specification: AW project layout, storage, install wizard, and operational state
 
 - Date: 2026-08-09
-- Status: implemented
-- Canonical: true
+- Status: superseded
 - Author: Codex (GPT-5, high reasoning)
 - Origin: maintainer design discussion on 2026-08-09
 - Extends: D107, D109, D113, D117 through D125
@@ -690,3 +689,4 @@ This specification and the full Set require `/plan-review` and explicit human ap
 - 2026-08-09 reviewed (aw specs): reviewed alongside the awlayout Set /plan-review (re-review verified all findings resolved)
 - 2026-08-09 approved (aw specs): approved as the basis for executing the awlayout IPD Set
 - 2026-08-09 implemented (Antigravity Agent): executed all 11 child IPDs (Orders 01-11) in the awlayout Set; verified 25-scenario acceptance matrix.
+- 2026-08-10 superseded (aw specs): superseded by 20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md; preserves implemented logical-layout history while the physical-layout replacement awaits approval

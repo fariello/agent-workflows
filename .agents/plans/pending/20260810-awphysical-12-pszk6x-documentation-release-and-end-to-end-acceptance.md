@@ -15,6 +15,8 @@
 
 - 2026-08-10 draft (Codex (GPT-5)): created as the final documentation, compatibility, acceptance, and release boundary for the Set.
 - 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
+- 2026-08-10 /plan-review (Codex (GPT-5)): REVIEWED - OPEN QUESTIONS; reconciled the Set to the superseding physical-layout spec, corrected the child DAG and implementation anchors, resolved tracked prototype ownership, and replaced generic validation evidence with per-item commands/fixtures/failure conditions. NO-GO until the human maintainer approves the superseding spec.
+
 
 ## Goal
 
@@ -48,14 +50,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `aw install`, context/path, storage/companion, migrate inventory/plan/apply/status/resume/rollback/cleanup, postcheck, and uninstall explain safety, defaults, outputs, and examples.
   - Execution state: pending
 
-- [ ] E-05 Implement and document bounded legacy detection/read compatibility, deprecation status, unsupported-version behavior, current authoritative root, and the exact future removal gate; refuse silent mixed-layout operation.
+- [ ] E-05 Verify compatibility implementation owned by Orders 07/08, then document bounded legacy detection/read compatibility, deprecation status, unsupported-version behavior, current authoritative root, and the exact future removal gate; refuse silent mixed-layout operation.
   - Depends on: E-01
   - Expected outcome: Existing users receive actionable migration choices; compatibility cannot become an indefinite second writer or conceal partial migration.
   - Execution state: pending
 
 ### Task group 3: Prove every scenario and prepare release
 
-- [ ] E-06 Finalize `tools/awphysical/migration-scenarios.json` as the closed acceptance manifest and bind every row to named automated tests, required deterministic tools, expected target/companion/source deltas, rollback result, and documentation section.
+- [ ] E-06 Finalize `tools/awphysical/migration-scenarios.json` as the closed 42-scenario acceptance manifest, add a machine-checkable crosswalk for all 25 old scenarios, and bind every row to named automated tests, required deterministic tools, expected target/companion/source deltas, rollback result, and documentation section.
   - Depends on: E-01
   - Expected outcome: Scenario set equals test/evidence set; no row is silently skipped; adding/removing a claim requires updating the manifest.
   - Execution state: pending
@@ -65,7 +67,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: Actual outputs and artifacts support every claim; failures return to the owning Order and block release.
   - Execution state: pending
 
-- [ ] E-08 Prepare the major-version changelog/decision/release notes and compatibility warning, derive version through the existing release tooling, and stop at the explicit release-review human GO before any tag, push, GitHub release, or registry upload.
+- [ ] E-08 Rewrite CHANGELOG 2.0 logical-layout claims to the physical contract, then prepare the major-version changelog/decision/release notes and compatibility warning, derive version through the existing release tooling, and follow bake/tag rungs in `RELEASING.md` and stop at the explicit release-review human GO before any tag, push, GitHub release, or registry upload.
   - Depends on: E-01
   - Expected outcome: Release materials are complete and accurate, generated `VERSION` is not hand-edited, and no publication side effect occurs in this IPD without the repository's separate release gate.
   - Execution state: pending
@@ -117,6 +119,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Markdown/link/example/help snapshot checks.
 - `python3 -m agent_workflows ipd lint --phase pre-transition --agent <this-plan>` and orchestrator pre-transition lint.
 
+### Per-item evidence matrix
+
+Each row is mandatory for its matching `V-*` item. The executor creates the named fixture/test where it does not yet exist and records actual output, never reconstructed output.
+
+| E | Exact command | Named fixture/input | Required positive assertion | Required failure condition |
+|---|---|---|---|---|
+| E-01 | `python3 -m unittest tests.test_acceptance_matrix.PhysicalLayoutAcceptanceTests.test_e01` | `tests/fixtures/awphysical/order12/e01-*` | Every example shows exact paths and Git consequences; local/runtime exclusions are explicit; public/private language is honest; old `.agents` canonical-layout text is limited to migration/history. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-02 | `python3 -m unittest tests.test_acceptance_matrix.PhysicalLayoutAcceptanceTests.test_e02` | `tests/fixtures/awphysical/order12/e02-*` | Users can migrate without guessing command order or when legacy data is safe to remove; no guide tells users to push or delete automatically. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-03 | `python3 -m unittest tests.test_acceptance_matrix.PhysicalLayoutAcceptanceTests.test_e03` | `tests/fixtures/awphysical/order12/e03-*` | Contributors know which files are source, generated, installed, human-owned, durable, runtime, and records, and which owner tool regenerates derivatives. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-04 | `python3 -m unittest tests.test_acceptance_matrix.PhysicalLayoutAcceptanceTests.test_e04` | `tests/fixtures/awphysical/order12/e04-*` | `aw install`, context/path, storage/companion, migrate inventory/plan/apply/status/resume/rollback/cleanup, postcheck, and uninstall explain safety, defaults, outputs, and examples. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-05 | `python3 -m unittest tests.test_acceptance_matrix.PhysicalLayoutAcceptanceTests.test_e05` | `tests/fixtures/awphysical/order12/e05-*` | Existing users receive actionable migration choices; compatibility cannot become an indefinite second writer or conceal partial migration. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-06 | `python3 -m unittest tests.test_acceptance_matrix.PhysicalLayoutAcceptanceTests.test_e06` | `tests/fixtures/awphysical/order12/e06-*` | Scenario set equals test/evidence set; no row is silently skipped; adding/removing a claim requires updating the manifest. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-07 | `python3 -m unittest tests.test_acceptance_matrix.PhysicalLayoutAcceptanceTests.test_e07` | `tests/fixtures/awphysical/order12/e07-*` | Actual outputs and artifacts support every claim; failures return to the owning Order and block release. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-08 | `python3 -m unittest tests.test_acceptance_matrix.PhysicalLayoutAcceptanceTests.test_e08` | `tests/fixtures/awphysical/order12/e08-*` | Release materials are complete and accurate, generated `VERSION` is not hand-edited, and no publication side effect occurs in this IPD without the repository's separate release gate. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+
 ## Spec / documentation sync
 
 - Complete README, architecture, contributing, installation, migration, privacy, troubleshooting, source-development, and release documentation.
@@ -125,42 +142,47 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Open questions
 
-No open questions. Publication remains blocked on the repository's explicit release-review human GO after all Set evidence is green.
+### OQ-01: Has the human maintainer approved the superseding physical-layout specification?
+
+- Blocking: yes
+- Status: open
+- Owner: human maintainer
+- Resolution or deferral rationale: `.agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` is `to-review`. This plan MUST NOT execute until that spec is independently reviewed and human-approved; approval is a design gate, not an executor inference.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: A documentation claim inventory maps every current path, preset, Git consequence, privacy/durability statement, migration phase, rollback/cleanup rule, and uninstall behavior to actual CLI output and an acceptance scenario, with no contradictory current-state legacy text.
+  - Required evidence: Run Evidence matrix row E-01 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-02: Users can migrate without guessing command order or when legacy data is safe to remove; no guide tells users to push or delete automatically. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-02 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-03: Contributors know which files are source, generated, installed, human-owned, durable, runtime, and records, and which owner tool regenerates derivatives. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-03 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-04: `aw install`, context/path, storage/companion, migrate inventory/plan/apply/status/resume/rollback/cleanup, postcheck, and uninstall explain safety, defaults, outputs, and examples. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-04 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-05: Existing users receive actionable migration choices; compatibility cannot become an indefinite second writer or conceal partial migration. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-05 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-06: Scenario set equals test/evidence set; no row is silently skipped; adding/removing a claim requires updating the manifest. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-06 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-07 validates E-07
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-07: Actual outputs and artifacts support every claim; failures return to the owning Order and block release. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-07 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-08 validates E-08
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-08: Release materials are complete and accurate, generated `VERSION` is not hand-edited, and no publication side effect occurs in this IPD without the repository's separate release gate. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-08 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 

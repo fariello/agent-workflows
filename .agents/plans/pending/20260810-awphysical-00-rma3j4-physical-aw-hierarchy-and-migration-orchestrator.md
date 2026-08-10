@@ -15,6 +15,8 @@
 
 - 2026-08-10 draft (Codex (GPT-5)): created after maintainer approval of the refined hierarchy, including durable/runtime state separation and a source-checkout role.
 - 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
+- 2026-08-10 /plan-review (Codex (GPT-5)): REVIEWED - OPEN QUESTIONS; reconciled the Set to the superseding physical-layout spec, corrected the child DAG and implementation anchors, resolved tracked prototype ownership, and replaced generic validation evidence with per-item commands/fixtures/failure conditions. NO-GO until the human maintainer approves the superseding spec.
+
 
 ## Goal
 
@@ -26,7 +28,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Freeze the cross-Set contract
 
-- [ ] E-01 Obtain human approval of the amended physical-layout specification and record the exact cross-Set invariants, root vocabulary, preset semantics, compatibility window, and release boundary that every child must implement.
+- [ ] E-01 Obtain human approval of the superseding physical-layout specification and record the exact cross-Set invariants, root vocabulary, preset semantics, compatibility window, and release boundary that every child must implement.
   - Depends on: none
   - Expected outcome: No child begins implementation against an ambiguous logical-only hierarchy; the approved spec explicitly distinguishes portable config from local config and durable state from runtime state.
   - Execution state: pending
@@ -39,68 +41,68 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Execution state: pending
 
 - [ ] E-03 Execute Order 02 and independently verify the versioned policy schema, precedence, provenance, path safety, and pure resolver.
-  - Depends on: E-01
+  - Depends on: E-02
   - Expected outcome: `aw context` can explain every resolved path and tracking destination without reading prose or prompting.
   - Execution state: pending
 
 ### Task group 3: Execute configuration and installation surfaces
 
 - [ ] E-04 Execute Order 03 and independently verify all wizard presets, custom choices, update review, persistence, accessibility, and noninteractive parity.
-  - Depends on: E-01
+  - Depends on: E-02, E-03
   - Expected outcome: Users can select all-in-private-target, public-plus-private-companion, clean-target, local-only, or safe custom placement with an exact pre-write preview.
   - Execution state: pending
 
 - [ ] E-05 Execute Order 04 and independently verify canonical `.aw/system/` installation, atomic update, manifest ownership, packaging, and protected source-checkout behavior.
-  - Depends on: E-01
+  - Depends on: E-02, E-03
   - Expected outcome: Installed system content is isolated from mutable config, state, and records, while the framework source repository remains editable and cannot be overwritten by self-install.
   - Execution state: pending
 
 - [ ] E-06 Execute Order 05 and independently verify companion selection, identity attachment, Git initialization, durability reporting, and privacy-honest remote acknowledgement.
-  - Depends on: E-01
+  - Depends on: E-02, E-03, E-04
   - Expected outcome: A public target can keep candid durable material in an explicitly selected private companion without storing machine paths or private content in the public repository.
   - Execution state: pending
 
 ### Task group 4: Execute migration machinery and cutover
 
 - [ ] E-07 Execute Order 06 and independently verify complete legacy inventory, deterministic classification, migration mapping, hash manifests, and collision/preflight reporting.
-  - Depends on: E-01
+  - Depends on: E-02, E-03
   - Expected outcome: Every legacy file is known before mutation, including tracked, untracked, ignored, symlinked, external, and cross-Git-boundary material.
   - Execution state: pending
 
 - [ ] E-08 Execute Order 07 and independently verify copy-verify-switch-retain migration, resume, rollback, cross-repository commit boundaries, and explicit cleanup.
-  - Depends on: E-01
+  - Depends on: E-03, E-05, E-06, E-07
   - Expected outcome: Interruption or failure cannot produce two authoritative writers or a success claim with missing or changed content.
   - Execution state: pending
 
 - [ ] E-09 Execute Order 08 and independently verify every record producer, reader, index, attention source, workflow instruction, and legacy compatibility reader against resolved roots.
-  - Depends on: E-01
+  - Depends on: E-03, E-07, E-08
   - Expected outcome: New writes use exactly one resolved destination and no producing workflow silently recreates a legacy tree.
   - Execution state: pending
 
 - [ ] E-10 Execute Order 09 and independently verify thin host adapters, root pointers, generated shims, source ownership, clean-target discovery, uninstall, and zero-target-delta proof.
-  - Depends on: E-01
+  - Depends on: E-03, E-05, E-08, E-09
   - Expected outcome: Host-required exceptions contain no canonical logic or records, and clean-target mode leaves no AW-owned target files.
   - Execution state: pending
 
 ### Task group 5: Audit, dogfood, and release
 
 - [ ] E-11 Execute Order 10 and independently verify the deterministic postcheck plus fresh-agent follow-up review against successful, partial, interrupted, and deceptive fixtures.
-  - Depends on: E-01
+  - Depends on: E-07, E-08, E-09, E-10
   - Expected outcome: Migration completion depends on independently reproduced evidence, not the migrator's own summary.
   - Execution state: pending
 
 - [ ] E-12 Execute Order 11 and independently migrate the agent-workflows repository, verifying source-checkout protection and preservation of its existing plans, specifications, research, prompts, communications, and history.
-  - Depends on: E-01
+  - Depends on: E-05, E-06, E-07, E-08, E-09, E-10, E-11
   - Expected outcome: The source repository dogfoods the same policy and migration machinery without duplicating or overwriting canonical framework source.
   - Execution state: pending
 
 - [ ] E-13 Execute Order 12 and independently verify documentation, compatibility messaging, upgrade/release behavior, and the complete acceptance scenario matrix.
-  - Depends on: E-01
+  - Depends on: E-04, E-05, E-06, E-07, E-08, E-09, E-10, E-11, E-12
   - Expected outcome: User guidance, CLI help, schemas, examples, generated material, tests, and release metadata describe one behavior and every named scenario has executable evidence.
   - Execution state: pending
 
 - [ ] E-14 Perform the whole-Set closeout from a clean checkout, compare the implementation and evidence sets, run the complete regression and package gates, and record any intentionally retained legacy material plus its removal trigger.
-  - Depends on: E-01
+  - Depends on: E-13
   - Expected outcome: Claim set equals evidence set; all children are terminal and conforming; no legacy writer remains; rollback and retention evidence exist; no release, tag, push, or cleanup occurs without its separate human gate.
   - Execution state: pending
 
@@ -168,84 +170,105 @@ Orders may be implemented in parallel only when all listed dependencies are term
 - Run `tools/awphysical/aw_layout_inventory.py`, `aw_layout_compare.py`, and `aw_layout_postcheck.py` against fixtures and the agent-workflows self-migration; preserve their actual JSON and exit statuses.
 - Prove `git status --short`, `git diff --cached --name-only`, and merge-base deltas separately for target, companion, and source repositories.
 
+### Per-item evidence matrix
+
+Each row is mandatory for its matching `V-*` item. Child completion requires both terminal structural conformance and the actual observed E/V evidence recorded in that child; the linter alone is never sufficient.
+
+| E | Exact command | Named fixture/input | Required positive assertion | Required failure condition |
+|---|---|---|---|---|
+| E-01 | `python3 -m agent_workflows specs check .agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md --agent && grep -Fx -- '- Status: approved' .agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` | superseding spec plus owner-tool history | Spec conforms, is human-approved, and contains the complete cross-Set contract before any child starts. | spec is nonconforming/not approved, approval lacks owner-tool history, or a child starts early |
+| E-02 | `python3 -m agent_workflows ipd lint --phase post-transition --agent .agents/plans/executed/20260810-awphysical-01-*.md` | Order 01 executed IPD and observed E/V evidence | Physical-root and Git-policy contract is terminal, conforming, and independently evidenced. | structural nonconformance or any E/V evidence is missing/stale |
+| E-03 | `python3 -m agent_workflows ipd lint --phase post-transition --agent .agents/plans/executed/20260810-awphysical-02-*.md` | Order 02 executed IPD and observed E/V evidence | Policy schema and resolver are terminal, conforming, and independently evidenced. | structural nonconformance or any E/V evidence is missing/stale |
+| E-04 | `python3 -m agent_workflows ipd lint --phase post-transition --agent .agents/plans/executed/20260810-awphysical-03-*.md` | Order 03 executed IPD and observed E/V evidence | Wizard and persistence behavior are terminal, conforming, and independently evidenced. | structural nonconformance or any E/V evidence is missing/stale |
+| E-05 | `python3 -m agent_workflows ipd lint --phase post-transition --agent .agents/plans/executed/20260810-awphysical-04-*.md` | Order 04 executed IPD and observed E/V evidence | System installation/source-checkout behavior is terminal, conforming, and independently evidenced. | structural nonconformance or any E/V evidence is missing/stale |
+| E-06 | `python3 -m agent_workflows ipd lint --phase post-transition --agent .agents/plans/executed/20260810-awphysical-05-*.md` | Order 05 executed IPD and observed E/V evidence | Companion privacy/durability behavior is terminal, conforming, and independently evidenced. | structural nonconformance or any E/V evidence is missing/stale |
+| E-07 | `python3 -m agent_workflows ipd lint --phase post-transition --agent .agents/plans/executed/20260810-awphysical-06-*.md` | Order 06 executed IPD and observed E/V evidence | Inventory and mapping are terminal, conforming, and independently evidenced. | structural nonconformance or any E/V evidence is missing/stale |
+| E-08 | `python3 -m agent_workflows ipd lint --phase post-transition --agent .agents/plans/executed/20260810-awphysical-07-*.md` | Order 07 executed IPD and observed E/V evidence | Migration, rollback, and resume are terminal, conforming, and independently evidenced. | structural nonconformance or any E/V evidence is missing/stale |
+| E-09 | `python3 -m agent_workflows ipd lint --phase post-transition --agent .agents/plans/executed/20260810-awphysical-08-*.md` | Order 08 executed IPD and observed E/V evidence | Producer and compatibility cutover is terminal, conforming, and independently evidenced. | structural nonconformance or any E/V evidence is missing/stale |
+| E-10 | `python3 -m agent_workflows ipd lint --phase post-transition --agent .agents/plans/executed/20260810-awphysical-09-*.md` | Order 09 executed IPD and observed E/V evidence | Adapters and clean-target behavior are terminal, conforming, and independently evidenced. | structural nonconformance or any E/V evidence is missing/stale |
+| E-11 | `python3 -m agent_workflows ipd lint --phase post-transition --agent .agents/plans/executed/20260810-awphysical-10-*.md` | Order 10 executed IPD and observed E/V evidence | Independent comparison/postcheck is terminal, conforming, and catches every deceptive fixture. | structural nonconformance, unmapped deceptive fixture, or missing actual evidence |
+| E-12 | `python3 -m agent_workflows ipd lint --phase post-transition --agent .agents/plans/executed/20260810-awphysical-11-*.md` | Order 11 executed IPD plus real pre/post baseline | Source-repository dogfood migration is terminal and preserves bytes and every artifact Git history. | any digest/history count or tip is missing/reduced, or structural/evidence check fails |
+| E-13 | `python3 -m agent_workflows ipd lint --phase post-transition --agent .agents/plans/executed/20260810-awphysical-12-*.md` | Order 12 executed IPD plus 25-to-42 crosswalk | Documentation/release acceptance is terminal and claim set equals evidence set without publication. | scenario/crosswalk/claim mismatch, structural failure, or unauthorized publication |
+| E-14 | `python3 -m unittest discover -s tests -t . && python3 -m agent_workflows plans index --check --agent && python3 -m agent_workflows specs check --agent && python3 -m agent_workflows check-local-leaks . --agent` | clean checkout, all terminal children, package/scenario evidence | Full regression and owner-tool gates pass and retained legacy removal triggers remain explicit. | any command is nonzero, any child/evidence is absent, or claim set differs from evidence set |
+
 ## Open questions
 
-### OQ-01: The controlling physical-layout spec does not yet exist (BLOCKS the whole Set)
+### OQ-01: Human approval of the superseding physical-layout spec (BLOCKS the whole Set)
 
 - Blocking: yes
 - Status: open
-- Owner: GPT-5.6 High (author) + human maintainer (approval)
-- Resolution or deferral rationale: /plan-review (2026-08-10, Opus 4.8) confirmed E-01/V-01 require an approved physical-layout spec that does not exist; the only layout spec (20260809-2211-01) is `implemented` and declares the tree LOGICAL. Maintainer decision: author a NEW dated spec that SUPERSEDES 20260809-2211-01 (record supersession + DECISIONS entry); it must be human-approved before any child executes. Handoff prompt: `.agents/prompts/pending/20260810-1417-01-awphysical-superseding-spec-and-set-reconciliation.md`.
+- Owner: human maintainer
+- Resolution or deferral rationale: `.agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` now exists at `to-review`, supersedes the implemented logical-layout spec, and contains the physical tree, presets, migration retention, 25-to-42 scenario crosswalk, compatibility, and release boundary. No child may execute until independent review and human approval transition it through the owner tool.
 
-### OQ-02: `tools/awphysical/` tracking + clean-checkout reconciliation
+### OQ-02: Tracked prototype ownership and clean-checkout replay
 
-- Blocking: yes
-- Status: open
-- Owner: GPT-5.6 High
-- Resolution or deferral rationale: the migration/audit tools + `migration-scenarios.json` the Set depends on are untracked, breaking the clean-checkout replay gate (E-14). GPT-5.6 to decide whether they are committed as tracked prototypes or authored/promoted during a named Order, and encode it (running `aw sanitize` first if committed).
+- Blocking: no
+- Status: resolved
+- Owner: Order 06 and Order 10
+- Resolution or deferral rationale: Commit `767d98c` tracks `tools/awphysical/` and the scenario catalog. Order 06 owns promotion of inventory/map prototypes into the production command surface; Order 10 owns promotion of compare/postcheck prototypes and deceptive-fixture coverage. The tracked prototypes are review inputs, not proof that production behavior exists.
 
-## Plan-review outcome (2026-08-10 /plan-review-long, Opus 4.8 opencode)
+## Plan-review outcome (2026-08-10 /plan-review, Codex GPT-5)
 
-Verdict: REVIEWED - OPEN QUESTIONS. Readiness: NO-GO (blocked on the superseding physical-layout spec being authored and human-approved; see OQ-01). All 13 plans lint `conforming` at `--phase author`; the migration design, privacy posture, and independent-postcheck approach are sound. The 13-lane parallel audit found: (BLOCKER) no approved physical spec (every child gates on E-01); (Set-wide, FIXED in review) `aw ipd lint --phase executor` was invalid across all 13 + orchestrator and was corrected to `--phase pre-transition`; (Set-wide, OPEN) `tools/awphysical/` untracked; and numerous per-plan findings (boilerplate V-evidence needing concrete falsifiable per-item evidence, "no open questions" while the spec is unwritten, orchestrator E-item dependencies flattened to E-01 vs the true child DAG, stale/nonexistent test-module and corrective-plan references, phantom producer inventory anchors in Order 08, a fabricated `clean_delta.py` proof in Order 09, `execute_migration` never copying bytes in Order 07, rehearsal-vs-real-repo baseline gap in Order 11, CHANGELOG describing the logical layout in Order 12). The full per-plan findings and required corrections were handed to GPT-5.6 High (the Set's author) in the prompt cited in OQ-01 for resolution alongside the new spec. Maintainer confirmed Order 11 (self-migrate this repo) stays IN scope but hard-gated (dogfood the physical layout; require a real before/after hash+history baseline of the actual repo, not just the rehearsal copy).
+Verdict: REVIEWED - OPEN QUESTIONS. Readiness: NO-GO solely because the superseding physical-layout spec is `to-review`, not human-approved (OQ-01). The Opus findings are reconciled: the child DAG now controls orchestrator dependencies; every E/V pair names an executable test, fixture, positive assertion, and failure condition; stale test/plan references are removed; existing resolver, installer, migration, producer, adapter, audit, dogfood, and release anchors are explicit; and tracked prototypes from commit `767d98c` have named promotion owners. All 13 plans conform at `--phase review-finalize`. Human spec approval is the required next step; no child execution is authorized by this review.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: The controlling spec is approved by the human maintainer and contains the complete physical tree, placement/preset matrix, Git-policy invariants, source-checkout exception, migration retention rule, and compatibility/release boundary cited by every child.
+  - Required evidence: Run Evidence matrix row E-01 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-02: One normative mapping governs target, home, companion, clean-target, and source-checkout placements. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-02 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-03: `aw context` can explain every resolved path and tracking destination without reading prose or prompting. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-03 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-04: Users can select all-in-private-target, public-plus-private-companion, clean-target, local-only, or safe custom placement with an exact pre-write preview. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-04 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-05: Installed system content is isolated from mutable config, state, and records, while the framework source repository remains editable and cannot be overwritten by self-install. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-05 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-06: A public target can keep candid durable material in an explicitly selected private companion without storing machine paths or private content in the public repository. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-06 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-07 validates E-07
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-07: Every legacy file is known before mutation, including tracked, untracked, ignored, symlinked, external, and cross-Git-boundary material. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-07 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-08 validates E-08
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-08: Interruption or failure cannot produce two authoritative writers or a success claim with missing or changed content. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-08 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-09 validates E-09
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-09: New writes use exactly one resolved destination and no producing workflow silently recreates a legacy tree. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-09 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-10 validates E-10
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-10: Host-required exceptions contain no canonical logic or records, and clean-target mode leaves no AW-owned target files. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-10 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-11 validates E-11
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-11: Migration completion depends on independently reproduced evidence, not the migrator's own summary. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-11 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-12 validates E-12
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-12: The source repository dogfoods the same policy and migration machinery without duplicating or overwriting canonical framework source. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-12 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-13 validates E-13
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-13: User guidance, CLI help, schemas, examples, generated material, tests, and release metadata describe one behavior and every named scenario has executable evidence. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-13 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-14 validates E-14
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-14: Claim set equals evidence set; all children are terminal and conforming; no legacy writer remains; rollback and retention evidence exist; no release, tag, push, or cleanup occurs without its separate human gate. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-14 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 

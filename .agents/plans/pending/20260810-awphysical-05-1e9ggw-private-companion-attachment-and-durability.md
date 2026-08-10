@@ -15,6 +15,8 @@
 
 - 2026-08-10 draft (Codex (GPT-5)): created for the public-project plus private-companion use case and other external durable bundles.
 - 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
+- 2026-08-10 /plan-review (Codex (GPT-5)): REVIEWED - OPEN QUESTIONS; reconciled the Set to the superseding physical-layout spec, corrected the child DAG and implementation anchors, resolved tracked prototype ownership, and replaced generic validation evidence with per-item commands/fixtures/failure conditions. NO-GO until the human maintainer approves the superseding spec.
+
 
 ## Goal
 
@@ -26,7 +28,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Define and validate companion identity
 
-- [ ] E-01 Implement a portable companion identity document and machine-local attachment record binding project ID, target identity hints, schema version, selected root classes, and companion Git common-dir without exposing machine-local paths in tracked content.
+- [ ] E-01 Implement a portable companion identity document and, without duplicating Order 02 path ownership, a machine-local attachment record binding project ID, target identity hints, schema version, selected root classes, and companion Git common-dir without exposing machine-local paths in tracked content.
   - Depends on: none
   - Expected outcome: A companion can move and reattach safely, cannot silently attach to a different project, and does not trust origin URL alone as identity.
   - Execution state: pending
@@ -50,7 +52,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: Operate the attachment safely
 
-- [ ] E-05 Add dry-run-first attach, detach, move, reattach, status, and doctor flows with exact target/companion deltas, confirmation boundaries, recovery notes, and safeguards against deleting companion content or remotes.
+- [ ] E-05 Add dry-run-first attach, detach, move, reattach, and `aw storage status`/preflight warning flows with exact target/companion deltas, confirmation boundaries, recovery notes, and safeguards against deleting companion content or remotes.
   - Depends on: E-01
   - Expected outcome: Path changes update local bindings atomically; identity remains stable; detach preserves durable content; uninstall never deletes an external Git repository.
   - Execution state: pending
@@ -104,50 +106,69 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - `python3 -m unittest tests.test_storage tests.test_project_registry tests.test_project_context tests.test_acceptance_matrix`
 - New companion topology and identity fixtures with real local Git repositories and synthetic remote URLs.
-- Target and companion `git status --short` plus index assertions after every mutating fixture.
+- For target and companion separately, record `git status --short`, `git ls-files`, `git diff --cached --name-only`, and merge-base deltas; plant a candid record and absolute-path canary and require both absent from public target evidence.
 - Sanitizer check over generated identity, policy, state, and output fixtures.
 - `python3 -m agent_workflows ipd lint --phase pre-transition --agent <this-plan>`
 
+### Per-item evidence matrix
+
+Each row is mandatory for its matching `V-*` item. The executor creates the named fixture/test where it does not yet exist and records actual output, never reconstructed output.
+
+| E | Exact command | Named fixture/input | Required positive assertion | Required failure condition |
+|---|---|---|---|---|
+| E-01 | `python3 -m unittest tests.test_storage.CompanionAttachmentTests.test_e01` | `tests/fixtures/awphysical/order05/e01-*` | A companion can move and reattach safely, cannot silently attach to a different project, and does not trust origin URL alone as identity. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-02 | `python3 -m unittest tests.test_storage.CompanionAttachmentTests.test_e02` | `tests/fixtures/awphysical/order05/e02-*` | Unsafe or ambiguous attachment stops before writes and reports recovery choices without modifying either repository. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-03 | `python3 -m unittest tests.test_storage.CompanionAttachmentTests.test_e03` | `tests/fixtures/awphysical/order05/e03-*` | The public-plus-private-companion preset has one private durable Git boundary and no candid target records; exact permitted commit destinations are available to producers and migration. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-04 | `python3 -m unittest tests.test_storage.CompanionAttachmentTests.test_e04` | `tests/fixtures/awphysical/order05/e04-*` | Durability states distinguish unversioned, local Git, observed remote without acknowledgement, acknowledged durable arrangement, unreachable/unknown, and repository-managed cases honestly. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-05 | `python3 -m unittest tests.test_storage.CompanionAttachmentTests.test_e05` | `tests/fixtures/awphysical/order05/e05-*` | Path changes update local bindings atomically; identity remains stable; detach preserves durable content; uninstall never deletes an external Git repository. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-06 | `python3 -m unittest tests.test_storage.CompanionAttachmentTests.test_e06` | `tests/fixtures/awphysical/order05/e06-*` | AW identifies each Git owner, stages only within that owner when authorized, never commits or pushes across boundaries, and reports both worktrees independently. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-07 | `python3 -m unittest tests.test_storage.CompanionAttachmentTests.test_e07` | `tests/fixtures/awphysical/order05/e07-*` | Every attachment and durability state has exact filesystem, identity, Git, output, and no-side-effect assertions. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+
 ## Spec / documentation sync
 
-- Update companion bundle, identity, durability, privacy, Git boundary, detach/reattach, and uninstall sections of the controlling spec.
+- Verify implementation against the controlling specification's companion bundle, identity, durability, privacy, Git-boundary, detach/reattach, and uninstall requirements. Stop and return the specification to review on conflict.
 - Document only observable privacy/durability claims and explicit user responsibilities.
 - End-user migration instructions remain Order 12.
 
 ## Open questions
 
-No open questions. The companion may hold selected durable classes; runtime/local material remains untracked; remote changes require separate explicit user action.
+### OQ-01: Has the human maintainer approved the superseding physical-layout specification?
+
+- Blocking: yes
+- Status: open
+- Owner: human maintainer
+- Resolution or deferral rationale: `.agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` is `to-review`. This plan MUST NOT execute until that spec is independently reviewed and human-approved; approval is a design gate, not an executor inference.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Move/reattach and conflict tests prove stable identity without tracked machine paths, reject a mismatched project and origin-spoofing case, and preserve both repositories byte-for-byte on failed attachment.
+  - Required evidence: Run Evidence matrix row E-01 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-02: Unsafe or ambiguous attachment stops before writes and reports recovery choices without modifying either repository. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-02 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-03: The public-plus-private-companion preset has one private durable Git boundary and no candid target records; exact permitted commit destinations are available to producers and migration. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-03 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-04: Durability states distinguish unversioned, local Git, observed remote without acknowledgement, acknowledged durable arrangement, unreachable/unknown, and repository-managed cases honestly. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-04 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-05: Path changes update local bindings atomically; identity remains stable; detach preserves durable content; uninstall never deletes an external Git repository. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-05 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-06: AW identifies each Git owner, stages only within that owner when authorized, never commits or pushes across boundaries, and reports both worktrees independently. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-06 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-07 validates E-07
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-07: Every attachment and durability state has exact filesystem, identity, Git, output, and no-side-effect assertions. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-07 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 

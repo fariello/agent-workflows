@@ -15,6 +15,8 @@
 
 - 2026-08-10 draft (Codex (GPT-5)): created to complete the writer cutover and prevent post-migration legacy-tree regeneration.
 - 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
+- 2026-08-10 /plan-review (Codex (GPT-5)): REVIEWED - OPEN QUESTIONS; reconciled the Set to the superseding physical-layout spec, corrected the child DAG and implementation anchors, resolved tracked prototype ownership, and replaced generic validation evidence with per-item commands/fixtures/failure conditions. NO-GO until the human maintainer approves the superseding spec.
+
 
 ## Goal
 
@@ -33,12 +35,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-02 Add a centralized write guard that rejects legacy destinations, unresolved/inaccessible roots, active pre-switch migrations, stale context, unsafe symlinks, cross-Git staging, and writes into installed system or runtime from record producers.
   - Depends on: E-01
-  - Expected outcome: A literal or indirect legacy write fails before file creation; post-switch compatibility readers cannot become writers.
+  - Expected outcome: A literal or indirect legacy write raises before any file, directory, index, or status mutation; post-switch compatibility readers cannot become writers.
   - Execution state: pending
 
 ### Task group 2: Cut over all producers and consumers
 
-- [ ] E-03 Migrate plans/IPDs, specifications, research, prompts, assessments, incidents, communications, workflow run evidence, and generated indexes to router-owned paths, preserving lifecycle identity, set/index behavior, and record Git destinations.
+- [ ] E-03 Re-derive the closed writer and reader inventory from code, including `ipd_authoring.run_scaffold`, `research_cmd.plan_new*`, `specs._set_status`, plan/research index/archive/ref owners, `attention*`, and `engine.py` scaffolders; do not trust current `record_producers.PRODUCER_INVENTORY` anchors. Then migrate those producers and consumers to router-owned paths while preserving lifecycle identity and Git destinations.
   - Depends on: E-01
   - Expected outcome: Every producing CLI/workflow returns the actual resolved destination and commits/stages only where policy permits; repository and external backends behave equivalently apart from Git owner.
   - Execution state: pending
@@ -55,7 +57,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: Bound compatibility and prove no legacy writes
 
-- [ ] E-06 Implement a read-only compatibility adapter for retained legacy data, enabled only by migration state and time/version bound, with duplicate-authority detection and explicit deprecation output.
+- [ ] E-06 Replace the unenforced `LEGACY_ALLOWLIST` claim with an enforced closed compatibility-reader catalog, then implement a read-only compatibility adapter for retained legacy data, enabled only by migration state and time/version bound, with duplicate-authority detection and explicit deprecation output.
   - Depends on: E-01
   - Expected outcome: Old content remains readable during retention, but new writes cannot target it and ambiguous new/old duplicates invalidate the view.
   - Execution state: pending
@@ -116,50 +118,70 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - `python3 -m agent_workflows plans index --check --agent` and corresponding specs/research checks.
 - `python3 -m agent_workflows ipd lint --phase pre-transition --agent <this-plan>`
 
+### Per-item evidence matrix
+
+Each row is mandatory for its matching `V-*` item. The executor creates the named fixture/test where it does not yet exist and records actual output, never reconstructed output.
+
+| E | Exact command | Named fixture/input | Required positive assertion | Required failure condition |
+|---|---|---|---|---|
+| E-01 | `python3 -m unittest tests.test_record_routing.PhysicalProducerRoutingTests.test_e01` | `tests/fixtures/awphysical/order08/e01-*` | Producers cannot pass arbitrary relative paths, escape roots, mix records with state, or stage against the wrong repository; unsupported classes fail explicitly. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-02 | `python3 -m unittest tests.test_record_routing.PhysicalProducerRoutingTests.test_e02` | `tests/fixtures/awphysical/order08/e02-*` | A literal or indirect legacy write raises before any file, directory, index, or status mutation; post-switch compatibility readers cannot become writers. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-03 | `python3 -m unittest tests.test_record_routing.PhysicalProducerRoutingTests.test_e03` | `tests/fixtures/awphysical/order08/e03-*` | Every producing CLI/workflow returns the actual resolved destination and commits/stages only where policy permits; repository and external backends behave equivalently apart from Git owner. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-04 | `python3 -m unittest tests.test_record_routing.PhysicalProducerRoutingTests.test_e04` | `tests/fixtures/awphysical/order08/e04-*` | Durable state remains inspectable and optionally trackable; runtime data never enters a Git index or records tree. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-05 | `python3 -m unittest tests.test_record_routing.PhysicalProducerRoutingTests.test_e05` | `tests/fixtures/awphysical/order08/e05-*` | External records/state work without fake repo-relative paths; D125 remains the one attention projection; failure is explicit and public-safe. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-06 | `python3 -m unittest tests.test_record_routing.PhysicalProducerRoutingTests.test_e06` | `tests/fixtures/awphysical/order08/e06-*` | Old content remains readable during retention, but new writes cannot target it and ambiguous new/old duplicates invalidate the view. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-07 | `python3 -m unittest tests.test_record_routing.PhysicalProducerRoutingTests.test_e07` | `tests/fixtures/awphysical/order08/e07-*` | Legitimate historical/docs references remain allowed, while executable producers and instructions cannot write to forbidden paths. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-08 | `python3 -m unittest tests.test_record_routing.PhysicalProducerRoutingTests.test_e08` | `tests/fixtures/awphysical/order08/e08-*` | The producer/consumer inventory equals the test inventory, and filesystem/Git assertions prove one authoritative destination with no legacy recreation. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+
 ## Spec / documentation sync
 
-- Update producing-workflow, state-class, attention, compatibility, and path-rendering sections of the controlling spec.
+- Verify implementation against the controlling specification's producing-workflow, state-class, attention, compatibility, and path-rendering requirements. Stop and return the specification to review on conflict.
 - Regenerate all owner-managed workflow indexes and host-source templates touched by source path changes.
 - Do not hand-edit generated shims; Order 09 owns their final regeneration.
 
 ## Open questions
 
-No open questions. Compatibility is read-only and bounded; all new writes use one router-selected authority.
+### OQ-01: Has the human maintainer approved the superseding physical-layout specification?
+
+- Blocking: yes
+- Status: open
+- Owner: human maintainer
+- Resolution or deferral rationale: `.agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` is `to-review`. This plan MUST NOT execute until that spec is independently reviewed and human-approved; approval is a design gate, not an executor inference.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Router unit tests enumerate every closed record/state class, exact root and Git owner for every preset, traversal/symlink failures, and rejection of state-record-system-runtime class confusion.
+  - Required evidence: Run Evidence matrix row E-01 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-02: A literal or indirect legacy write fails before file creation; post-switch compatibility readers cannot become writers. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-02 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-03: Every producing CLI/workflow returns the actual resolved destination and commits/stages only where policy permits; repository and external backends behave equivalently apart from Git owner. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-03 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-04: Durable state remains inspectable and optionally trackable; runtime data never enters a Git index or records tree. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-04 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-05: External records/state work without fake repo-relative paths; D125 remains the one attention projection; failure is explicit and public-safe. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-05 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-06: Old content remains readable during retention, but new writes cannot target it and ambiguous new/old duplicates invalidate the view. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-06 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-07 validates E-07
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-07: Legitimate historical/docs references remain allowed, while executable producers and instructions cannot write to forbidden paths. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-07 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-08 validates E-08
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-08: The producer/consumer inventory equals the test inventory, and filesystem/Git assertions prove one authoritative destination with no legacy recreation. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-08 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 

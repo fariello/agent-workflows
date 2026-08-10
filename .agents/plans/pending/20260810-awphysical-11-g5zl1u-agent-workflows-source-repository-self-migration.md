@@ -15,6 +15,8 @@
 
 - 2026-08-10 draft (Codex (GPT-5)): created as the required dogfood migration after generic machinery is independently verified.
 - 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
+- 2026-08-10 /plan-review (Codex (GPT-5)): REVIEWED - OPEN QUESTIONS; reconciled the Set to the superseding physical-layout spec, corrected the child DAG and implementation anchors, resolved tracked prototype ownership, and replaced generic validation evidence with per-item commands/fixtures/failure conditions. NO-GO until the human maintainer approves the superseding spec.
+
 
 ## Goal
 
@@ -31,21 +33,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: No active agent or workflow writes during inventory/cutover; source-checkout role and config/state/records Git destinations are explicit; unrelated concurrent commits are not absorbed.
   - Execution state: pending
 
-- [ ] E-02 Run the production inventory/plan against all source-repository legacy and partial-layout material, including canonical workflows, Python/package sources, plans, specs, research, prompts, comms, run records, backups, adapters, ignored content, open actions, and externally resolved roots; obtain human approval of every disposition.
+- [ ] E-02 Before mutation, freeze the real source filesystem/Git baseline, then run the production inventory/plan against all source-repository legacy and partial-layout material, including canonical workflows, Python/package sources, plans, specs, research, prompts, comms, run records, backups, adapters, ignored content, open actions, and externally resolved roots; obtain human approval of every disposition.
   - Depends on: E-01
   - Expected outcome: Expected source-item set equals inventoried set, developer-owned product source is distinguished from project records, and no unknown/collision remains.
   - Execution state: pending
 
 ### Task group 2: Rehearse and execute
 
-- [ ] E-03 Clone or copy the repository plus required external roots into a disposable rehearsal environment, execute migration, run comparison/postcheck/fresh-agent review, exercise representative producing workflows, and prove rollback plus resume before touching the real checkout.
+- [ ] E-03 Create a full `git clone --mirror` baseline plus a disposable worktree clone and copied external roots; record real pre-mutation content digests and `git rev-list --count` plus tip hashes for every artifact Git tree before rehearsal; then execute migration, run comparison/postcheck/fresh-agent review, exercise representative producing workflows, and prove rollback plus resume before touching the real checkout.
   - Depends on: E-01
   - Expected outcome: Rehearsal produces actual green evidence for source protection, record preservation, Git boundaries, routing, adapters, package build, rollback, and resumed completion.
   - Execution state: pending
 
 - [ ] E-04 Execute the approved transaction on the real repository without auto-staging, committing, pushing, or deleting retained legacy data; verify hashes after every phase and stop on any difference from rehearsal inputs or expected Git identities.
   - Depends on: E-01
-  - Expected outcome: Canonical workflow source adopts the approved `.aw/system` source-checkout location, project durable material reaches approved roots, and only one writer becomes authoritative.
+  - Expected outcome: Canonical workflow source, including current `.agents/workflows`, adopts approved `.aw/system` without breaking package or self-host resolution, project durable material reaches approved roots, and only one writer becomes authoritative.
   - Execution state: pending
 
 ### Task group 3: Regenerate, audit, and commit safely
@@ -55,7 +57,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: Source checkout builds/tests from the canonical system source; current docs/tools contain no executable legacy writes; historical citations remain intelligible.
   - Execution state: pending
 
-- [ ] E-06 Run deterministic compare/postcheck and the fresh-agent follow-up over the real migration, inspect target/external Git repositories independently, and resolve every HIGH/MEDIUM finding through owning Orders or new corrective IPDs before completion.
+- [ ] E-06 Compare real post-migration bytes and every artifact repository history count/tip to the frozen baseline, then run deterministic compare/postcheck and the fresh-agent follow-up, inspect target/external Git repositories independently, and resolve every HIGH/MEDIUM finding through owning Orders or new corrective IPDs before completion.
   - Depends on: E-01
   - Expected outcome: Completion is independently evidenced; residual low-risk retained/deprecation items have explicit owner and removal trigger.
   - Execution state: pending
@@ -111,6 +113,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Fresh-agent follow-up verdict with every finding disposition.
 - `python3 -m agent_workflows ipd lint --phase pre-transition --agent <this-plan>`
 
+### Per-item evidence matrix
+
+Each row is mandatory for its matching `V-*` item. The executor creates the named fixture/test where it does not yet exist and records actual output, never reconstructed output.
+
+| E | Exact command | Named fixture/input | Required positive assertion | Required failure condition |
+|---|---|---|---|---|
+| E-01 | `python3 -m unittest tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e01` | `tests/fixtures/awphysical/order11/e01-*` | No active agent or workflow writes during inventory/cutover; source-checkout role and config/state/records Git destinations are explicit; unrelated concurrent commits are not absorbed. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-02 | `python3 -m unittest tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e02` | `tests/fixtures/awphysical/order11/e02-*` | Expected source-item set equals inventoried set, developer-owned product source is distinguished from project records, and no unknown/collision remains. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-03 | `python3 -m unittest tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e03` | `tests/fixtures/awphysical/order11/e03-*` | Rehearsal produces actual green evidence for source protection, record preservation, Git boundaries, routing, adapters, package build, rollback, and resumed completion. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-04 | `python3 -m unittest tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e04` | `tests/fixtures/awphysical/order11/e04-*` | Canonical workflow source, including current `.agents/workflows`, adopts approved `.aw/system` without breaking package or self-host resolution, project durable material reaches approved roots, and only one writer becomes authoritative. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-05 | `python3 -m unittest tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e05` | `tests/fixtures/awphysical/order11/e05-*` | Source checkout builds/tests from the canonical system source; current docs/tools contain no executable legacy writes; historical citations remain intelligible. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-06 | `python3 -m unittest tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e06` | `tests/fixtures/awphysical/order11/e06-*` | Completion is independently evidenced; residual low-risk retained/deprecation items have explicit owner and removal trigger. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-07 | `python3 -m unittest tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e07` | `tests/fixtures/awphysical/order11/e07-*` | Git history separates source relocation, generated derivatives, project-record movement, and external companion changes as policy requires; no unrelated active-agent work is committed. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+
 ## Spec / documentation sync
 
 - Record the self-migration transaction/evidence in a walkthrough under the new records destination through the router.
@@ -119,38 +135,43 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Open questions
 
-No open questions in this plan. The exact private-target versus companion placement remains a human wizard choice recorded before E-01 execution, not an author assumption.
+### OQ-01: Has the human maintainer approved the superseding physical-layout specification?
+
+- Blocking: yes
+- Status: open
+- Owner: human maintainer
+- Resolution or deferral rationale: `.agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` is `to-review`. This plan MUST NOT execute until that spec is independently reviewed and human-approved. The exact private-target versus companion placement remains a wizard choice recorded at E-01, not an author assumption.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Signed-off context/policy output, clean writer-lock evidence, explicit concurrent-branch/worktree inventory, and terminal status/evidence for Orders 04 through 10 before any source-repository inventory or mutation.
+  - Required evidence: Run Evidence matrix row E-01 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-02: Expected source-item set equals inventoried set, developer-owned product source is distinguished from project records, and no unknown/collision remains. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-02 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-03: Rehearsal produces actual green evidence for source protection, record preservation, Git boundaries, routing, adapters, package build, rollback, and resumed completion. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-03 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-04: Canonical workflow source adopts the approved `.aw/system` source-checkout location, project durable material reaches approved roots, and only one writer becomes authoritative. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-04 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-05: Source checkout builds/tests from the canonical system source; current docs/tools contain no executable legacy writes; historical citations remain intelligible. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-05 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-06: Completion is independently evidenced; residual low-risk retained/deprecation items have explicit owner and removal trigger. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-06 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-07 validates E-07
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-07: Git history separates source relocation, generated derivatives, project-record movement, and external companion changes as policy requires; no unrelated active-agent work is committed. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-07 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 

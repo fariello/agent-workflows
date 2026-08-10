@@ -15,6 +15,8 @@
 
 - 2026-08-10 draft (Codex (GPT-5)): created to replace default-derived pseudo-policy with explicit persisted and explainable project context.
 - 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
+- 2026-08-10 /plan-review (Codex (GPT-5)): REVIEWED - OPEN QUESTIONS; reconciled the Set to the superseding physical-layout spec, corrected the child DAG and implementation anchors, resolved tracked prototype ownership, and replaced generic validation evidence with per-item commands/fixtures/failure conditions. NO-GO until the human maintainer approves the superseding spec.
+
 
 ## Goal
 
@@ -31,7 +33,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: Portable policy contains no machine-local absolute paths or secrets; local bindings identify the project durably and can be rebuilt or reattached safely.
   - Execution state: pending
 
-- [ ] E-02 Add strict parsing, validation, atomic no-clobber merge, schema migration, unknown-key preservation rules, and explicit configured/unconfigured state rather than manufacturing an existing policy from built-in defaults.
+- [ ] E-02 Add strict parsing, validation, atomic no-clobber merge, schema migration, unknown-key preservation rules, and explicit configured/unconfigured state rather than manufacturing an existing policy from built-in defaults. Migrate the shipped or legacy `.aw/config/config.json` by placing portable fields in `config/project.json` and absolute paths, aliases, attachment, runtime, and other machine-local fields in untracked `config/local.json`; preserve and block on conflicts or unknowns.
   - Depends on: E-01
   - Expected outcome: Malformed, conflicting, unsafe, or future-version policy fails closed with source-specific diagnostics; human-owned permitted fields survive updates.
   - Execution state: pending
@@ -40,10 +42,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-03 Refactor `project_context.py` to resolve Order 01 vocabulary through one precedence table and return physical root/class mappings, Git policies and commit destinations, project role, preset, durability, accessibility, migration phase, and provenance for every value.
   - Depends on: E-01
-  - Expected outcome: The resolver is side-effect free, never prompts, does not infer repository privacy, and distinguishes absent policy, inherited defaults, explicit flags, local binding, portable project policy, profile, and global default.
+  - Expected outcome: The resolver is side-effect free, never prompts, does not infer repository privacy, and distinguishes absent policy from configured policy while preserving the existing six `PrecedenceLevel` values: explicit flags, machine-local binding, portable project policy, named profile, global defaults, and built-in defaults.
   - Execution state: pending
 
-- [ ] E-04 Add safe root-resolution primitives for canonicalization, symlinks, non-existing destinations, Git common-dir/worktrees, case normalization, filesystem boundaries, companion identity, and containment constraints.
+- [ ] E-04 Extend and harden the existing `_canonical_path`, `_is_safe_subpath`, and `_check_path_security` primitives for non-existing destinations, symlink escape, Git common-dir/worktrees, case normalization, filesystem boundaries, companion identity, and containment constraints; do not create a second path-safety stack.
   - Depends on: E-01
   - Expected outcome: Path traversal, ambiguous identity, unsafe overlap, target/companion aliasing, recursive placement, and clean-target containment violations fail before writes.
   - Execution state: pending
@@ -97,48 +99,66 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-- `python3 -m unittest tests.test_project_schema tests.test_project_context tests.test_config tests.test_project_registry`
+- `python3 -m unittest tests.test_project_layout tests.test_project_context tests.test_storage`
 - New table-driven policy-version, configured/unconfigured, precedence, path-safety, worktree, and source-role tests.
 - CLI snapshots for `aw context --json`, `--agent`, and every `aw path <root-class>` surface.
 - `python3 -m agent_workflows ipd lint --phase pre-transition --agent <this-plan>`
 - Full suite after integration with Order 01.
 
+### Per-item evidence matrix
+
+Each row is mandatory for its matching `V-*` item. The executor creates the named fixture/test where it does not yet exist and records actual output, never reconstructed output.
+
+| E | Exact command | Named fixture/input | Required positive assertion | Required failure condition |
+|---|---|---|---|---|
+| E-01 | `python3 -m unittest tests.test_project_context.PhysicalContextResolutionTests.test_e01` | `tests/fixtures/awphysical/order02/e01-*` | Portable policy contains no machine-local absolute paths or secrets; local bindings identify the project durably and can be rebuilt or reattached safely. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-02 | `python3 -m unittest tests.test_project_context.PhysicalContextResolutionTests.test_e02` | `tests/fixtures/awphysical/order02/e02-*` | Legacy `.aw/config/config.json` is split into portable `project.json` and untracked `local.json`; malformed, conflicting, unknown, unsafe, or future-version data fails closed and remains preserved; human-owned permitted fields survive updates. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-03 | `python3 -m unittest tests.test_project_context.PhysicalContextResolutionTests.test_e03` | `tests/fixtures/awphysical/order02/e03-*` | The resolver is side-effect free, never prompts, does not infer repository privacy, and distinguishes absent policy from configured policy while preserving the existing six `PrecedenceLevel` values: explicit flags, machine-local binding, portable project policy, named profile, global defaults, and built-in defaults. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-04 | `python3 -m unittest tests.test_project_context.PhysicalContextResolutionTests.test_e04` | `tests/fixtures/awphysical/order02/e04-*` | Path traversal, ambiguous identity, unsafe overlap, target/companion aliasing, recursive placement, and clean-target containment violations fail before writes. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-05 | `python3 -m unittest tests.test_project_context.PhysicalContextResolutionTests.test_e05` | `tests/fixtures/awphysical/order02/e05-*` | Users and agents can predict exact writes and commits before installation; stable machine output supports wizard, migration, postcheck, and tests. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-06 | `python3 -m unittest tests.test_project_context.PhysicalContextResolutionTests.test_e06` | `tests/fixtures/awphysical/order02/e06-*` | Every precedence edge and invalid path has a falsifiable test; the legacy policy parser is bounded and emits migration-required state rather than silently rewriting. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+
 ## Spec / documentation sync
 
-- Update the controlling spec's policy schema, precedence, context output, and public-safe reporting sections.
+- Verify implementation against the controlling specification's policy schema, precedence, context output, and public-safe reporting sections. If implementation conflicts, stop and return the specification to review rather than silently editing approved requirements.
 - Update architecture documentation only through an append-only clarification if implementation forces a new decision.
 - Document legacy schema compatibility and the migration-required state, without claiming migration has shipped in this Order.
 
 ## Open questions
 
-No open questions. The resolver is deterministic and noninteractive; the wizard owns choices and persistence requests.
+### OQ-01: Has the human maintainer approved the superseding physical-layout specification?
+
+- Blocking: yes
+- Status: open
+- Owner: human maintainer
+- Resolution or deferral rationale: `.agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` is `to-review`. This plan MUST NOT execute until that spec is independently reviewed and human-approved; approval is a design gate, not an executor inference.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Round-trip fixtures prove portable policy contains no local absolute paths, local bindings resolve the intended project, schema versions are explicit, and malformed/future versions fail without modifying either file.
+  - Required evidence: Run Evidence matrix row E-01 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-02: Malformed, conflicting, unsafe, or future-version policy fails closed with source-specific diagnostics; human-owned permitted fields survive updates. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-02 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-03: The resolver is side-effect free, never prompts, does not infer repository privacy, and distinguishes absent policy, inherited defaults, explicit flags, local binding, portable project policy, profile, and global default. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-03 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-04: Path traversal, ambiguous identity, unsafe overlap, target/companion aliasing, recursive placement, and clean-target containment violations fail before writes. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-04 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-05: Users and agents can predict exact writes and commits before installation; stable machine output supports wizard, migration, postcheck, and tests. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-05 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-06: Every precedence edge and invalid path has a falsifiable test; the legacy policy parser is bounded and emits migration-required state rather than silently rewriting. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-06 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 

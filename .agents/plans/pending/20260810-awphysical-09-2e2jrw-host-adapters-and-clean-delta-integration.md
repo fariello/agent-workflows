@@ -15,6 +15,8 @@
 
 - 2026-08-10 draft (Codex (GPT-5)): created to reduce `.agents` and other host paths to compatibility adapters rather than canonical storage.
 - 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
+- 2026-08-10 /plan-review (Codex (GPT-5)): REVIEWED - OPEN QUESTIONS; reconciled the Set to the superseding physical-layout spec, corrected the child DAG and implementation anchors, resolved tracked prototype ownership, and replaced generic validation evidence with per-item commands/fixtures/failure conditions. NO-GO until the human maintainer approves the superseding spec.
+
 
 ## Goal
 
@@ -26,7 +28,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Define and generate thin adapters
 
-- [ ] E-01 Define a versioned adapter manifest whose entries name host, required exact path, adapter kind, canonical system command/body identity, generated hash, ownership marker, tracking policy, and uninstall behavior.
+- [ ] E-01 Replace dead hard-coded-zero evidence in `agent_workflows/clean_delta.py`, then define a versioned adapter manifest whose entries name host, required exact path, adapter kind, canonical system command/body identity, generated hash, ownership marker, tracking policy, and uninstall behavior.
   - Depends on: none
   - Expected outcome: Every out-of-`.aw` AW file has a host-evidence justification and manifest owner; adapters contain pointers/invocation metadata only and cannot fork workflow instructions.
   - Execution state: pending
@@ -36,7 +38,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: Tracked adapters use portable target-relative references when system is target-resident; external-system modes use a stable resolver invocation or proven user-scope mechanism.
   - Execution state: pending
 
-- [ ] E-03 Add adapter purity validation that rejects copied workflow bodies, records, mutable state, unowned prose, stale hashes, unsafe commands, or references to legacy canonical roots.
+- [ ] E-03 Define adapter purity against the actual generator boundary in `engine.py`, including embedded assess/advise prose, then reject copied workflow bodies, records, mutable state, unowned prose, stale hashes, unsafe commands, or references to legacy canonical roots.
   - Depends on: E-01
   - Expected outcome: Generated adapter set equals manifest set, and every canonical instruction remains single-sourced under system.
   - Execution state: pending
@@ -48,7 +50,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: No fabricated universal mechanism; support claims cite executable host gates; unavailable integrations do not silently write target adapters.
   - Execution state: pending
 
-- [ ] E-05 Add target baseline snapshots before and after install, update, representative workflow resolution, status, and uninstall, including tracked, untracked, ignored, index, managed-block, and filesystem metadata checks.
+- [ ] E-05 Define zero delta from the target merge-base tree and Git index, not a momentary `git status`, then add target baseline snapshots before and after install, update, representative workflow resolution, status, and uninstall, including tracked, untracked, ignored, index, managed-block, and filesystem metadata checks.
   - Depends on: E-01
   - Expected outcome: Clean-target mode proves zero AW-owned target delta; target-resident modes show exactly the adapter/system delta previewed by policy.
   - Execution state: pending
@@ -116,50 +118,70 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - `python3 -m agent_workflows ipd lint --phase pre-transition --agent <this-plan>`
 - Full suite after regenerating owned adapters.
 
+### Per-item evidence matrix
+
+Each row is mandatory for its matching `V-*` item. The executor creates the named fixture/test where it does not yet exist and records actual output, never reconstructed output.
+
+| E | Exact command | Named fixture/input | Required positive assertion | Required failure condition |
+|---|---|---|---|---|
+| E-01 | `python3 -m unittest tests.test_clean_delta.PhysicalAdapterAndDeltaTests.test_e01` | `tests/fixtures/awphysical/order09/e01-*` | Every out-of-`.aw` AW file has a host-evidence justification and manifest owner; adapters contain pointers/invocation metadata only and cannot fork workflow instructions. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-02 | `python3 -m unittest tests.test_clean_delta.PhysicalAdapterAndDeltaTests.test_e02` | `tests/fixtures/awphysical/order09/e02-*` | Tracked adapters use portable target-relative references when system is target-resident; external-system modes use a stable resolver invocation or proven user-scope mechanism. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-03 | `python3 -m unittest tests.test_clean_delta.PhysicalAdapterAndDeltaTests.test_e03` | `tests/fixtures/awphysical/order09/e03-*` | Generated adapter set equals manifest set, and every canonical instruction remains single-sourced under system. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-04 | `python3 -m unittest tests.test_clean_delta.PhysicalAdapterAndDeltaTests.test_e04` | `tests/fixtures/awphysical/order09/e04-*` | No fabricated universal mechanism; support claims cite executable host gates; unavailable integrations do not silently write target adapters. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-05 | `python3 -m unittest tests.test_clean_delta.PhysicalAdapterAndDeltaTests.test_e05` | `tests/fixtures/awphysical/order09/e05-*` | Clean-target mode proves zero AW-owned target delta; target-resident modes show exactly the adapter/system delta previewed by policy. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-06 | `python3 -m unittest tests.test_clean_delta.PhysicalAdapterAndDeltaTests.test_e06` | `tests/fixtures/awphysical/order09/e06-*` | Migration creates one current adapter per enabled host, preserves sibling/foreign content byte-for-byte, and reports ambiguous or modified owned adapters for review. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-07 | `python3 -m unittest tests.test_clean_delta.PhysicalAdapterAndDeltaTests.test_e07` | `tests/fixtures/awphysical/order09/e07-*` | Repair touches only verified owned adapters; uninstall removes only manifest-owned content; disabling a host prunes its adapter without touching other host/user files. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-08 | `python3 -m unittest tests.test_clean_delta.PhysicalAdapterAndDeltaTests.test_e08` | `tests/fixtures/awphysical/order09/e08-*` | Every advertised host/mode has an executable proof and no unproven capability appears in help or docs. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+
 ## Spec / documentation sync
 
-- Update host adapter, clean-target, source resolution, conversion, drift, and uninstall sections of the controlling spec.
+- Verify implementation against the controlling specification's host-adapter, clean-target, source-resolution, conversion, drift, and uninstall requirements. Stop and return the specification to review on conflict.
 - Regenerate adapters through owner tools; do not hand-edit generated files.
 - Record unsupported combinations honestly for Order 12 documentation.
 
 ## Open questions
 
-No open questions. Clean-target support is evidence-gated per host; exact-path adapters remain thin and manifest-owned.
+### OQ-01: Has the human maintainer approved the superseding physical-layout specification?
+
+- Blocking: yes
+- Status: open
+- Owner: human maintainer
+- Resolution or deferral rationale: `.agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` is `to-review`. This plan MUST NOT execute until that spec is independently reviewed and human-approved; approval is a design gate, not an executor inference.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Adapter manifest tests prove every AW-owned exception outside `.aw` has a host requirement, canonical target, generated hash, tracking policy, and uninstall rule, with no unmanifested generated adapter.
+  - Required evidence: Run Evidence matrix row E-01 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-02: Tracked adapters use portable target-relative references when system is target-resident; external-system modes use a stable resolver invocation or proven user-scope mechanism. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-02 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-03: Generated adapter set equals manifest set, and every canonical instruction remains single-sourced under system. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-03 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-04: No fabricated universal mechanism; support claims cite executable host gates; unavailable integrations do not silently write target adapters. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-04 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-05: Clean-target mode proves zero AW-owned target delta; target-resident modes show exactly the adapter/system delta previewed by policy. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-05 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-06: Migration creates one current adapter per enabled host, preserves sibling/foreign content byte-for-byte, and reports ambiguous or modified owned adapters for review. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-06 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-07 validates E-07
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-07: Repair touches only verified owned adapters; uninstall removes only manifest-owned content; disabling a host prunes its adapter without touching other host/user files. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-07 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-08 validates E-08
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-08: Every advertised host/mode has an executable proof and no unproven capability appears in help or docs. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-08 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 

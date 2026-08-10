@@ -15,6 +15,8 @@
 
 - 2026-08-10 draft (Codex (GPT-5)): created to make `.aw/system/` the physical canonical system root and give the source repository a safe explicit role.
 - 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
+- 2026-08-10 /plan-review (Codex (GPT-5)): REVIEWED - OPEN QUESTIONS; reconciled the Set to the superseding physical-layout spec, corrected the child DAG and implementation anchors, resolved tracked prototype ownership, and replaced generic validation evidence with per-item commands/fixtures/failure conditions. NO-GO until the human maintainer approves the superseding spec.
+
 
 ## Goal
 
@@ -31,7 +33,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: Wheel, sdist, source checkout, installer, tests, and generated adapters consume one manifest-backed source; no duplicate normative workflow tree exists.
   - Execution state: pending
 
-- [ ] E-02 Update manifest/version/resource lookup and build metadata so packaged installs are location-independent, stdlib-only at runtime, deterministic, and reject incomplete or mixed-version system sources.
+- [ ] E-02 Update `pyproject.toml`, `agent_workflows/_compat.py` `_DATA_RELATIVE`, `versioning.py`, `hatch_build.py`, and manifest/resource lookup so packaged installs are location-independent, stdlib-only at runtime, deterministic, and reject incomplete or mixed-version system sources.
   - Depends on: E-01
   - Expected outcome: Package inspection proves every required system file is present once, development-only records are absent, and version/manifest hashes agree.
   - Execution state: pending
@@ -50,7 +52,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: Protect source checkouts and ownership
 
-- [ ] E-05 Implement cryptographically or structurally evidenced source-checkout detection and an explicit `source-checkout` project role; refuse any installer operation that would overwrite developer-owned canonical source, and resolve the system provider without creating a duplicate installed copy.
+- [ ] E-05 Implement positive structurally evidenced source-checkout detection reusing the existing `engine.py` `is_self` mechanism and an explicit `source-checkout` project role; refuse any installer operation that would overwrite developer-owned canonical source, and resolve the system provider without creating a duplicate installed copy.
   - Depends on: E-01
   - Expected outcome: The agent-workflows repository can dogfood its own workflows; copied lookalike files cannot spoof source role; source edits remain ordinary project changes and system update reports an actionable source-mode result.
   - Execution state: pending
@@ -106,52 +108,71 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Required tests / validation
 
 - `python3 -m unittest tests.test_installer tests.test_project_layout tests.test_packaging tests.test_versioning`
-- New source-checkout and spoofed-source fixtures.
+- Positive source-checkout, copied-marker spoof, wrong-origin, and ambiguous-evidence fixtures with no-write assertions.
 - Wheel and sdist build plus archive-content and installed-resource inspection.
 - Fresh/update/failure filesystem and Git-index snapshots for tracked and external system roots.
 - `python3 -m agent_workflows ipd lint --phase pre-transition --agent <this-plan>`
 - Full suite after final path-reference adaptation owned by this Order.
 
+### Per-item evidence matrix
+
+Each row is mandatory for its matching `V-*` item. The executor creates the named fixture/test where it does not yet exist and records actual output, never reconstructed output.
+
+| E | Exact command | Named fixture/input | Required positive assertion | Required failure condition |
+|---|---|---|---|---|
+| E-01 | `python3 -m unittest tests.test_installer.PhysicalSystemInstallTests.test_e01` | `tests/fixtures/awphysical/order04/e01-*` | Wheel, sdist, source checkout, installer, tests, and generated adapters consume one manifest-backed source; no duplicate normative workflow tree exists. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-02 | `python3 -m unittest tests.test_installer.PhysicalSystemInstallTests.test_e02` | `tests/fixtures/awphysical/order04/e02-*` | Package inspection proves every required system file is present once, development-only records are absent, and version/manifest hashes agree. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-03 | `python3 -m unittest tests.test_installer.PhysicalSystemInstallTests.test_e03` | `tests/fixtures/awphysical/order04/e03-*` | Tracked targets receive `.aw/system/`; external-system modes write only to their resolved external root; partial updates cannot become authoritative; failed validation rolls back. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-04 | `python3 -m unittest tests.test_installer.PhysicalSystemInstallTests.test_e04` | `tests/fixtures/awphysical/order04/e04-*` | System updates do not pollute repository root, tracked durable state, or records with transient data, and rollback artifacts are excluded from Git. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-05 | `python3 -m unittest tests.test_installer.PhysicalSystemInstallTests.test_e05` | `tests/fixtures/awphysical/order04/e05-*` | The agent-workflows repository can dogfood its own workflows; copied lookalike files cannot spoof source role; source edits remain ordinary project changes and system update reports an actionable source-mode result. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-06 | `python3 -m unittest tests.test_installer.PhysicalSystemInstallTests.test_e06` | `tests/fixtures/awphysical/order04/e06-*` | Modified human files, foreign files, source content, durable state, and records are preserved with explicit reports. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-07 | `python3 -m unittest tests.test_installer.PhysicalSystemInstallTests.test_e07` | `tests/fixtures/awphysical/order04/e07-*` | Every install mode has exact filesystem, manifest, state, Git-index, and exit-code assertions, including Windows fallback semantics where atomic directory replacement differs. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+
 ## Spec / documentation sync
 
-- Update the controlling spec's system ownership, source provider, transaction, packaging, uninstall, and source-checkout sections.
+- Verify implementation against the controlling specification's system ownership, source provider, transaction, packaging, uninstall, and source-checkout sections. If implementation conflicts, stop and return the specification to review rather than silently editing approved requirements.
 - Update internal developer documentation for canonical system sources and regeneration commands.
 - Do not publish end-user migration instructions before Order 12.
 
 ## Open questions
 
-No open questions. Installed system is AW-owned; verified source-checkout system is developer-owned and protected from installer mutation.
+### OQ-01: Has the human maintainer approved the superseding physical-layout specification?
+
+- Blocking: yes
+- Status: open
+- Owner: human maintainer
+- Resolution or deferral rationale: `.agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` is `to-review`. This plan MUST NOT execute until that spec is independently reviewed and human-approved; approval is a design gate, not an executor inference.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Package/source manifest comparison proves one canonical workflow body for every manifest entry, ordinary targets materialize it under `.aw/system/`, and no second normative workflow tree remains after the bounded compatibility mapping.
+  - Required evidence: Run Evidence matrix row E-01 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-02: Package inspection proves every required system file is present once, development-only records are absent, and version/manifest hashes agree. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-02 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-03: Tracked targets receive `.aw/system/`; external-system modes write only to their resolved external root; partial updates cannot become authoritative; failed validation rolls back. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-03 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-04: System updates do not pollute repository root, tracked durable state, or records with transient data, and rollback artifacts are excluded from Git. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-04 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-05: The agent-workflows repository can dogfood its own workflows; copied lookalike files cannot spoof source role; source edits remain ordinary project changes and system update reports an actionable source-mode result. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-05 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-06: Modified human files, foreign files, source content, durable state, and records are preserved with explicit reports. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-06 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-07 validates E-07
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-07: Every install mode has exact filesystem, manifest, state, Git-index, and exit-code assertions, including Windows fallback semantics where atomic directory replacement differs. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-07 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 

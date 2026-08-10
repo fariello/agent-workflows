@@ -15,6 +15,8 @@
 
 - 2026-08-10 draft (Codex (GPT-5)): created to make migration planning exhaustive, read-only, and independently comparable.
 - 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
+- 2026-08-10 /plan-review (Codex (GPT-5)): REVIEWED - OPEN QUESTIONS; reconciled the Set to the superseding physical-layout spec, corrected the child DAG and implementation anchors, resolved tracked prototype ownership, and replaced generic validation evidence with per-item commands/fixtures/failure conditions. NO-GO until the human maintainer approves the superseding spec.
+
 
 ## Goal
 
@@ -26,12 +28,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Discover and classify all legacy material
 
-- [ ] E-01 Define a versioned inventory/migration-map JSON schema and a closed legacy-source catalog covering `.agents/workflows`, `.agents/agent-workflows`, `.agents/plans`, `.agents/prompts`, `.agents/docs`, `.agents/comms`, `workflow-artifacts`, installer backups/manifests, managed blocks, host shims, prior partial `.aw` trees, and externally resolved legacy roots.
+- [ ] E-01 Define a versioned inventory/migration-map JSON schema and a closed legacy-source catalog covering `.agents/workflows`, `.agents/agent-workflows`, `.agents/plans`, `.agents/prompts`, `.agents/docs`, `.agents/comms`, `workflow-artifacts`, installer backups/manifests, managed blocks, host shims, prior partial `.aw` trees, and external legacy roots supplied explicitly with repeatable operator `--root` declarations.
   - Depends on: none
   - Expected outcome: Every discovered item receives source root, relative path, kind, ownership, lifecycle class, expected destination class, and disposition; unknowns are blocking, not dropped.
   - Execution state: pending
 
-- [ ] E-02 Implement a read-only inventory engine, using or promoting `tools/awphysical/aw_layout_inventory.py`, that records regular files, directories, symlinks, sizes, modes, timestamps, SHA-256, Git tracked/untracked/ignored/conflict status, containing Git common-dir, and sanitized path identifiers.
+- [ ] E-02 Implement a read-only inventory engine, using or promoting `tools/awphysical/aw_layout_inventory.py`, that records regular files, directories, symlinks, sizes, modes, SHA-256, containing Git common-dir, and sanitized path identifiers. Isolate capture timestamps as run metadata, and use the closed Git classification `tracked`, `untracked`, `ignored`, `not-listed`, `unmerged`, or `mixed:<sorted-members>`.
   - Depends on: E-01
   - Expected outcome: Repeated inventory on unchanged input is content-stable apart from explicitly isolated run metadata; it never follows unsafe symlinks or reads outside declared roots.
   - Execution state: pending
@@ -108,46 +110,65 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - `python3 tools/awphysical/aw_layout_inventory.py --help` and fixture runs for the supplied reference tool.
 - `python3 -m agent_workflows ipd lint --phase pre-transition --agent <this-plan>`
 
+### Per-item evidence matrix
+
+Each row is mandatory for its matching `V-*` item. The executor creates the named fixture/test where it does not yet exist and records actual output, never reconstructed output.
+
+| E | Exact command | Named fixture/input | Required positive assertion | Required failure condition |
+|---|---|---|---|---|
+| E-01 | `python3 -m unittest tests.test_layout_migration.InventoryAndMapTests.test_e01` | `tests/fixtures/awphysical/order06/e01-*` | Every discovered item, including every repeatable `--root` external tree, receives source root, relative path, kind, ownership, lifecycle class, expected destination class, and disposition; unknowns are blocking, not dropped. | omitting a declared external-root canary or adding an unknown item does not produce a nonzero result |
+| E-02 | `python3 -m unittest tests.test_layout_migration.InventoryAndMapTests.test_e02` | `tests/fixtures/awphysical/order06/e02-*` | Repeated inventory is stable after excluding normalized run timestamp metadata; symlink escapes are not followed; `tracked`, `untracked`, `ignored`, `not-listed`, `unmerged`, and deterministic `mixed:<sorted-members>` fixtures receive exact classifications. | any classification is absent/wrong, ordering changes bytes, a symlink escape is read, or command is nonzero on the clean fixture |
+| E-03 | `python3 -m unittest tests.test_layout_migration.InventoryAndMapTests.test_e03` | `tests/fixtures/awphysical/order06/e03-*` | Managed manifests/hashes take precedence; modified/foreign files are flagged for human mapping; record classes preserve relative identities and lifecycle directories. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-04 | `python3 -m unittest tests.test_layout_migration.InventoryAndMapTests.test_e04` | `tests/fixtures/awphysical/order06/e04-*` | No destination is derived from hard-coded `.agents` paths; one source item cannot silently overwrite or merge with another; identical-content deduplication is explicit and reversible. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-05 | `python3 -m unittest tests.test_layout_migration.InventoryAndMapTests.test_e05` | `tests/fixtures/awphysical/order06/e05-*` | Blocking risks produce nonzero machine output before mutation; warnings require explicit acknowledgement in the later transaction plan. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-06 | `python3 -m unittest tests.test_layout_migration.InventoryAndMapTests.test_e06` | `tests/fixtures/awphysical/order06/e06-*` | A human can review every move and Git consequence; Order 07 can consume the exact saved map without recomputing against changed inputs. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-07 | `python3 -m unittest tests.test_layout_migration.InventoryAndMapTests.test_e07` | `tests/fixtures/awphysical/order06/e07-*` | Fixture expected-item set equals inventory-item set and every unsupported/unknown case blocks rather than disappearing. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+
 ## Spec / documentation sync
 
-- Update migration inventory, preflight, classification, evidence, and no-write preview sections of the controlling spec.
+- Verify implementation against the controlling specification's migration inventory, preflight, classification, evidence, and no-write preview requirements. Stop and return the specification to review on conflict.
 - Document the JSON schema and sanitization boundary for downstream Orders.
-- Keep support scripts under `tools/awphysical/` until promoted or replaced; record their disposition explicitly.
+- Treat tracked `tools/awphysical/` files from commit `767d98c` as review prototypes. This Order owns inventory/map promotion; Order 10 owns compare/postcheck promotion. Preserve prototypes until parity tests prove replacement.
 
 ## Open questions
 
-No open questions. Unknown, ambiguous, unsafe, or unaccounted items block migration and require an explicit human disposition.
+### OQ-01: Has the human maintainer approved the superseding physical-layout specification?
+
+- Blocking: yes
+- Status: open
+- Owner: human maintainer
+- Resolution or deferral rationale: `.agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` is `to-review`. This plan MUST NOT execute until that spec is independently reviewed and human-approved; approval is a design gate, not an executor inference.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Schema fixtures and catalog tests prove every named legacy home and prior partial-layout form has a closed classification path, while a planted unknown item appears as blocking and remains present in the saved manifest.
+  - Required evidence: Run Evidence matrix row E-01 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-02: Repeated inventory on unchanged input is content-stable apart from explicitly isolated run metadata; it never follows unsafe symlinks or reads outside declared roots. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-02 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-03: Managed manifests/hashes take precedence; modified/foreign files are flagged for human mapping; record classes preserve relative identities and lifecycle directories. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-03 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-04: No destination is derived from hard-coded `.agents` paths; one source item cannot silently overwrite or merge with another; identical-content deduplication is explicit and reversible. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-04 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-05: Blocking risks produce nonzero machine output before mutation; warnings require explicit acknowledgement in the later transaction plan. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-05 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-06: A human can review every move and Git consequence; Order 07 can consume the exact saved map without recomputing against changed inputs. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-06 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-07 validates E-07
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-07: Fixture expected-item set equals inventory-item set and every unsupported/unknown case blocks rather than disappearing. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-07 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 

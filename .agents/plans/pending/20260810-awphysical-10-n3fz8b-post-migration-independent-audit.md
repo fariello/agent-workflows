@@ -15,6 +15,8 @@
 
 - 2026-08-10 draft (Codex (GPT-5)): created to make independent evidence, not same-process narrative, the migration completion authority.
 - 2026-08-10 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO pending the superseding physical-layout spec (authored+approved by GPT-5.6 High + human). Set-wide invalid `--phase executor` corrected to `--phase pre-transition`; `tools/awphysical/` tracking + per-plan findings handed to GPT-5.6 in .agents/prompts/pending/20260810-1417-01-...md. Status to-review -> reviewed.
+- 2026-08-10 /plan-review (Codex (GPT-5)): REVIEWED - OPEN QUESTIONS; reconciled the Set to the superseding physical-layout spec, corrected the child DAG and implementation anchors, resolved tracked prototype ownership, and replaced generic validation evidence with per-item commands/fixtures/failure conditions. NO-GO until the human maintainer approves the superseding spec.
+
 
 ## Goal
 
@@ -26,7 +28,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Compare every inventoried item
 
-- [ ] E-01 Implement or promote `tools/awphysical/aw_layout_compare.py` as a deterministic comparison engine over the frozen inventory, approved migration map, transaction receipt, current policy/context, and destination filesystem.
+- [ ] E-01 Promote tracked prototype `tools/awphysical/aw_layout_compare.py` into the production owner surface as a deterministic comparison engine over the frozen inventory, approved migration map, transaction receipt, current policy/context, and destination filesystem.
   - Depends on: none
   - Expected outcome: Every source item has exactly one allowed disposition and matching bytes/metadata where required; missing, changed, unexpected duplicate, unapproved exclusion, stale input, or unaccounted destination fails.
   - Execution state: pending
@@ -38,9 +40,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: Audit behavior and boundaries
 
-- [ ] E-03 Implement or promote `tools/awphysical/aw_layout_postcheck.py` to run context/policy validation, physical-root ownership checks, target/companion/source Git checks, ignored/runtime checks, legacy-write scans, adapter purity, producer-routing probes, indexes, attention, package/source role, and sanitizer gates.
+- [ ] E-03 Promote tracked prototype `tools/awphysical/aw_layout_postcheck.py` into the production owner surface to run context/policy validation, physical-root ownership checks, target/companion/source Git checks, ignored/runtime checks, legacy-write scans, adapter purity, producer-routing probes, indexes, attention, package/source role, and sanitizer gates.
   - Depends on: E-01
-  - Expected outcome: Postcheck records exact commands, exit codes, normalized output digests, skipped/unsupported reasons, and overall validity; partial execution can never be labeled pass.
+  - Expected outcome: Postcheck sorts every emitted collection for byte determinism and records exact commands, exit codes, normalized output digests, skipped/unsupported reasons, and overall validity; partial execution can never be labeled pass.
   - Execution state: pending
 
 - [ ] E-04 Add non-mutating canary or sandbox probes for each producer class and preset, proving writes resolve to intended test destinations without touching real records or relying on self-reported paths.
@@ -55,12 +57,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: The reviewer does not accept migrator summaries, does not rerun destructive migration, and produces a severity-ranked evidence table plus GO/NO-GO/REVIEW verdict.
   - Execution state: pending
 
-- [ ] E-06 Make successful deterministic compare and postcheck mandatory before migration can be marked complete or cleanup can be enabled; store evidence in the selected records Git owner, sanitized according to policy.
+- [ ] E-06 Make successful deterministic compare and postcheck mandatory before migration can be marked complete or cleanup can be enabled; sanitize evidence before any commit, especially absolute paths, then store it in the selected records Git owner.
   - Depends on: E-01
   - Expected outcome: Migration CLI status distinguishes copied, switched, verified, independently reviewed, and cleanup-eligible states.
   - Execution state: pending
 
-- [ ] E-07 Add deceptive fixtures where migrator receipts claim success despite missing files, stale hashes, wrong destinations, wrong Git indexes, ignored leakage, legacy writes, copied adapter logic, inaccessible external roots, broken rollback, and skipped checks.
+- [ ] E-07 Add a fixture-to-rule mapping for each deceptive class, including wrong Git index, and deceptive fixtures where migrator receipts claim success despite missing files, stale hashes, wrong destinations, wrong Git indexes, ignored leakage, legacy writes, copied adapter logic, inaccessible external roots, broken rollback, and skipped checks.
   - Depends on: E-01
   - Expected outcome: Deterministic tools catch every planted defect; clean fixtures remain clean so the audit does not manufacture findings.
   - Execution state: pending
@@ -108,46 +110,65 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Run the follow-up instruction with a fresh agent against at least one clean and one deceptive fixture; compare its findings to planted truth.
 - `python3 -m agent_workflows ipd lint --phase pre-transition --agent <this-plan>`
 
+### Per-item evidence matrix
+
+Each row is mandatory for its matching `V-*` item. The executor creates the named fixture/test where it does not yet exist and records actual output, never reconstructed output.
+
+| E | Exact command | Named fixture/input | Required positive assertion | Required failure condition |
+|---|---|---|---|---|
+| E-01 | `python3 -m unittest tests.test_layout_migration.IndependentPostcheckTests.test_e01` | `tests/fixtures/awphysical/order10/e01-*` | Every source item has exactly one allowed disposition and matching bytes/metadata where required; missing, changed, unexpected duplicate, unapproved exclusion, stale input, or unaccounted destination fails. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-02 | `python3 -m unittest tests.test_layout_migration.IndependentPostcheckTests.test_e02` | `tests/fixtures/awphysical/order10/e02-*` | A successful comparison proves legacy remains recoverable and non-authoritative; cleanup remains blocked until its independent retention trigger. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-03 | `python3 -m unittest tests.test_layout_migration.IndependentPostcheckTests.test_e03` | `tests/fixtures/awphysical/order10/e03-*` | Postcheck sorts every emitted collection for byte determinism and records exact commands, exit codes, normalized output digests, skipped/unsupported reasons, and overall validity; partial execution can never be labeled pass. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-04 | `python3 -m unittest tests.test_layout_migration.IndependentPostcheckTests.test_e04` | `tests/fixtures/awphysical/order10/e04-*` | Legacy, wrong-Git, system/config/state confusion, inaccessible root, and dual-authority regressions are detected after migration. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-05 | `python3 -m unittest tests.test_layout_migration.IndependentPostcheckTests.test_e05` | `tests/fixtures/awphysical/order10/e05-*` | The reviewer does not accept migrator summaries, does not rerun destructive migration, and produces a severity-ranked evidence table plus GO/NO-GO/REVIEW verdict. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-06 | `python3 -m unittest tests.test_layout_migration.IndependentPostcheckTests.test_e06` | `tests/fixtures/awphysical/order10/e06-*` | Migration CLI status distinguishes copied, switched, verified, independently reviewed, and cleanup-eligible states. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+| E-07 | `python3 -m unittest tests.test_layout_migration.IndependentPostcheckTests.test_e07` | `tests/fixtures/awphysical/order10/e07-*` | Deterministic tools catch every planted defect; clean fixtures remain clean so the audit does not manufacture findings. | command is nonzero, fixture is absent, or the stated positive assertion is not observed |
+
 ## Spec / documentation sync
 
-- Update independent verification, evidence storage, completion status, cleanup gate, and residual-review sections of the controlling spec.
+- Verify implementation against the controlling specification's independent-verification, evidence-storage, completion-status, cleanup-gate, and residual-review requirements. Stop and return the specification to review on conflict.
 - Document deterministic versus agent responsibilities and privacy/sanitization of evidence.
 - Keep the instruction set self-contained and repo-relative.
 
 ## Open questions
 
-No open questions. Deterministic compare/postcheck own ground truth; a fresh agent reviews residual judgment areas and cannot override failed gates.
+### OQ-01: Has the human maintainer approved the superseding physical-layout specification?
+
+- Blocking: yes
+- Status: open
+- Owner: human maintainer
+- Resolution or deferral rationale: `.agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` is `to-review`. This plan MUST NOT execute until that spec is independently reviewed and human-approved; approval is a design gate, not an executor inference.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Clean and deceptive comparison fixtures prove exact source-disposition accounting, hash/path/Git detection, stale-input rejection, no writes, and stable machine output with distinct rule IDs.
+  - Required evidence: Run Evidence matrix row E-01 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-02: A successful comparison proves legacy remains recoverable and non-authoritative; cleanup remains blocked until its independent retention trigger. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-02 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-03: Postcheck records exact commands, exit codes, normalized output digests, skipped/unsupported reasons, and overall validity; partial execution can never be labeled pass. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-03 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-04: Legacy, wrong-Git, system/config/state confusion, inaccessible root, and dual-authority regressions are detected after migration. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-04 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-05: The reviewer does not accept migrator summaries, does not rerun destructive migration, and produces a severity-ranked evidence table plus GO/NO-GO/REVIEW verdict. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-05 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-06: Migration CLI status distinguishes copied, switched, verified, independently reviewed, and cleanup-eligible states. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-06 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-07 validates E-07
-  - Required evidence: A scoped diff, the exact focused commands named in this plan, and direct filesystem/Git/output assertions prove E-07: Deterministic tools catch every planted defect; clean fixtures remain clean so the audit does not manufacture findings. Record actual exit codes and relevant output; fail this V item if any stated condition is absent, skipped, stale, or inferred only from prose.
+  - Required evidence: Run Evidence matrix row E-07 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence:
   - Result: pending
 
