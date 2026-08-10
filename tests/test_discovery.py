@@ -54,7 +54,9 @@ class DiscoverTests(unittest.TestCase):
             res = DISC.discover([root])
             self.assertEqual(set(res.targets), {a.resolve(), b.resolve()})
             self.assertIn((root / "not_a_repo").resolve(), res.skipped)
-            self.assertEqual(res.skipped[(root / "not_a_repo").resolve()], "not-a-git-repo")
+            self.assertEqual(
+                res.skipped[(root / "not_a_repo").resolve()], "not-a-git-repo"
+            )
 
     def test_submodule_is_skipped(self):
         with tempfile.TemporaryDirectory() as d:
@@ -80,6 +82,55 @@ class DiscoverTests(unittest.TestCase):
             self.assertIn(keep.resolve(), res.targets)
             self.assertNotIn(skip.resolve(), res.targets)
             self.assertIn(skip.resolve(), res.ignored)
+
+    def test_exclude_exact_path_blocklists_from_discovery(self):
+        # E-02: an exact-path exclude lands in `excluded`, not `targets`, and NOT `ignored`.
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / "src"
+            root.mkdir()
+            keep = _make_repo(root / "keep")
+            blocked = _make_repo(root / "legacy")
+            res = DISC.discover([root], exclude=[str(blocked.resolve())])
+            self.assertIn(keep.resolve(), res.targets)
+            self.assertNotIn(blocked.resolve(), res.targets)
+            self.assertIn(blocked.resolve(), res.excluded)
+            self.assertNotIn(blocked.resolve(), res.ignored)
+
+    def test_exclude_glob_blocklists_from_discovery(self):
+        # E-02: a glob exclude also lands in `excluded` (distinct from the ignore filter).
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / "src"
+            root.mkdir()
+            keep = _make_repo(root / "keep")
+            blocked = _make_repo(root / "never_install_me")
+            res = DISC.discover([root], exclude=["*/never_install_*"])
+            self.assertIn(keep.resolve(), res.targets)
+            self.assertIn(blocked.resolve(), res.excluded)
+            self.assertNotIn(blocked.resolve(), res.targets)
+
+    def test_exclude_and_ignore_are_distinct(self):
+        # E-02: ignore keeps its own meaning; an ignore match goes to `ignored`, an
+        # exclude match goes to `excluded`, never conflated.
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / "src"
+            root.mkdir()
+            ignored = _make_repo(root / "vendor_pkg")
+            excluded = _make_repo(root / "legacy")
+            res = DISC.discover(
+                [root], ignore=["*/vendor_*"], exclude=[str(excluded.resolve())]
+            )
+            self.assertIn(ignored.resolve(), res.ignored)
+            self.assertNotIn(ignored.resolve(), res.excluded)
+            self.assertIn(excluded.resolve(), res.excluded)
+            self.assertNotIn(excluded.resolve(), res.ignored)
+
+    def test_explicit_repo_root_exclude_lands_in_excluded(self):
+        # A configured path that IS a repo and is excluded goes to `excluded`, not targets.
+        with tempfile.TemporaryDirectory() as d:
+            r = _make_repo(Path(d) / "legacy")
+            res = DISC.discover([r], exclude=[str(r.resolve())])
+            self.assertIn(r.resolve(), res.excluded)
+            self.assertEqual(res.targets, [])
 
     def test_missing_root_is_skipped(self):
         with tempfile.TemporaryDirectory() as d:

@@ -1695,7 +1695,10 @@ def _repos_for_report(recursive: bool) -> List[Path]:
     roots = config.expanded_search_roots(cfg)
     if roots:
         found = discovery.discover(
-            roots, ignore=cfg.get("ignore", []), recursive=recursive
+            roots,
+            ignore=cfg.get("ignore", []),
+            recursive=recursive,
+            exclude=config.expanded_excludes(cfg),
         )
         repos.extend(found.targets)
     seen = set()
@@ -1815,7 +1818,10 @@ def _run_setup(args: argparse.Namespace, term: Term) -> int:
     # Discover repos under the roots.
     expanded_roots = [config.expand_path(r) for r in cfg.get("search_roots", [])]
     found = discovery.discover(
-        expanded_roots, ignore=cfg.get("ignore", []), recursive=args.recursive
+        expanded_roots,
+        ignore=cfg.get("ignore", []),
+        recursive=args.recursive,
+        exclude=config.expanded_excludes(cfg),
     )
     term.line()
     term.heading("Discovered repositories")
