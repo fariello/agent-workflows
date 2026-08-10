@@ -1292,6 +1292,16 @@
   {
     "date": "2026-08-09",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260809-awlayout-00-az9912-aw-project-layout-orchestrator.md",
+    "plan_id": "az9912",
+    "set_id": "awlayout",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-09",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260809-awlayout-01-m9tqof-aw-context-and-logical-roots.md",
@@ -1390,6 +1400,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-09",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 11,
+    "path": "executed/20260809-awlayout-11-blw6qp-docs-release-and-end-to-end-cutover.md",
+    "plan_id": "blw6qp",
+    "set_id": "awlayout",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -1428,25 +1448,5 @@
     "plan_id": "2p9fd3",
     "set_id": "verify-execution",
     "status": "to-review"
-  },
-  {
-    "date": "2026-08-09",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260809-awlayout-00-az9912-aw-project-layout-orchestrator.md",
-    "plan_id": "az9912",
-    "set_id": "awlayout",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-09",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 11,
-    "path": "pending/20260809-awlayout-11-blw6qp-docs-release-and-end-to-end-cutover.md",
-    "plan_id": "blw6qp",
-    "set_id": "awlayout",
-    "status": "approved"
   }
 ]

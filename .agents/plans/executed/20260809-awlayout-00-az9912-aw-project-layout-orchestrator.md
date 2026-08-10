@@ -4,8 +4,7 @@
 - Kind: orchestrator
 - Concern: coordinate the approved implementation of the four logical AW roots, external-by-default records, AW_HOME project routing, the install/update policy wizard, operational actions, workflow rewiring, migration, clean-delta delivery, and final documentation.
 - Scope: orchestration only for Set `awlayout (AW project layout)`; this file changes no product code. Orders 01 through 11 each own one bounded implementation surface and their own tests.
-- Status: approved
-- Approval: 2026-08-09, human maintainer (approved the awlayout Set for execution after /plan-review re-review; spec 20260809-2211-01 approved)
+- Status: executed
 - Set: awlayout (AW project layout)
 - Order: 0
 - Highest E allocated: 12
@@ -32,54 +31,54 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Child gates and final cross-check
 
-- [ ] E-01 verify Order 01 is executed and validated before any dependent child begins.
+- [x] E-01 verify Order 01 is executed and validated before any dependent child begins.
   - Depends on: none
   - Expected outcome: one canonical logical-root schema and context resolver exist with stable human and machine interfaces.
-  - Execution state: pending
-- [ ] E-02 verify Order 02 is executed and validated after Order 01.
+  - Execution state: performed
+- [x] E-02 verify Order 02 is executed and validated after Order 01.
   - Depends on: E-01
   - Expected outcome: AW_HOME resolution, stable project identity, registry matching, and safe attach or move behavior exist.
-  - Execution state: pending
-- [ ] E-03 verify Order 03 is executed and validated after Orders 01 and 02.
+  - Execution state: performed
+- [x] E-03 verify Order 03 is executed and validated after Orders 01 and 02.
   - Depends on: E-01, E-02
   - Expected outcome: home, companion, and repository record backends plus honest durability classification exist.
-  - Execution state: pending
-- [ ] E-04 verify Order 04 is executed and validated after Orders 01 through 03.
+  - Execution state: performed
+- [x] E-04 verify Order 04 is executed and validated after Orders 01 through 03.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: first install and update use the accessible color-aware policy wizard and deterministic noninteractive rules.
-  - Execution state: pending
-- [ ] E-05 verify Order 05 is executed and validated after Orders 01 through 04.
+  - Execution state: performed
+- [x] E-05 verify Order 05 is executed and validated after Orders 01 through 04.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: system, config, and state materialization plus manifest ownership use the new layout contract.
-  - Execution state: pending
-- [ ] E-06 verify Order 06 is executed and validated after Orders 01, 02, and 05.
+  - Execution state: performed
+- [x] E-06 verify Order 06 is executed and validated after Orders 01, 02, and 05.
   - Depends on: E-01, E-02, E-05
   - Expected outcome: AW operational actions, generations, lifecycle directories, short CLI verbs, and install history exist.
-  - Execution state: pending
-- [ ] E-07 verify Order 07 is executed and validated after Orders 01 and 06.
+  - Execution state: performed
+- [x] E-07 verify Order 07 is executed and validated after Orders 01 and 06.
   - Depends on: E-01, E-06
   - Expected outcome: `aw todo` owns action state, `aw attention` exposes its native-source projection, and setup-repo, whatnext, status, and list consume the correct owner surface.
-  - Execution state: pending
-- [ ] E-08 verify Order 08 is executed and validated after Orders 01, 03, and 05.
+  - Execution state: performed
+- [x] E-08 verify Order 08 is executed and validated after Orders 01, 03, and 05.
   - Depends on: E-01, E-03, E-05
   - Expected outcome: every producing workflow routes records and record commits through context instead of legacy hard-coded paths.
-  - Execution state: pending
-- [ ] E-09 verify Order 09 is executed and validated after Orders 03, 05, 06, and 08.
+  - Execution state: performed
+- [x] E-09 verify Order 09 is executed and validated after Orders 03, 05, 06, and 08.
   - Depends on: E-03, E-05, E-06, E-08
   - Expected outcome: migration, rollback, compatibility detection, and conservative uninstall preserve records and user edits.
-  - Execution state: pending
-- [ ] E-10 verify Order 10 is executed and validated after Orders 01, 02, 03, 05, 08, and 09 and only for host mechanisms reproduced by D113 fixtures.
+  - Execution state: performed
+- [x] E-10 verify Order 10 is executed and validated after Orders 01, 02, 03, 05, 08, and 09 and only for host mechanisms reproduced by D113 fixtures.
   - Depends on: E-01, E-02, E-03, E-05, E-08, E-09
   - Expected outcome: local clean-delta uses evidence-gated user-scope skills and verifies the target merge-base diff.
-  - Execution state: pending
-- [ ] E-11 verify Order 11 is executed and validated after Orders 01 through 10.
+  - Execution state: performed
+- [x] E-11 verify Order 11 is executed and validated after Orders 01 through 10.
   - Depends on: E-01, E-02, E-03, E-04, E-05, E-06, E-07, E-08, E-09, E-10
   - Expected outcome: current-state docs, migration walkthrough, changelog, release boundary, full test matrix, and dogfood scenarios agree with shipped behavior.
-  - Execution state: pending
-- [ ] E-12 perform the whole-Set cross-check against the canonical specification and paste actual validation output.
+  - Execution state: performed
+- [x] E-12 perform the whole-Set cross-check against the canonical specification and paste actual validation output.
   - Depends on: E-11
   - Expected outcome: no unresolved legacy output path, no duplicated policy source, all twenty-five spec acceptance scenarios accounted for, full suite green, leak scan clean, and authored Markdown dash-clean.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Child IPDs, sequence, and dependencies
 
@@ -180,54 +179,54 @@ No open questions.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: cite executed Order 01 with its V-items passed and show `aw context` schema tests green.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: Order 01 executed (`027c15b`); V-01..V-05 passed cleanly.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: cite executed Order 02 and passing identity, ambiguity, move, clone, and worktree tests.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: Order 02 executed (`4c974af`); V-01..V-05 passed cleanly.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: cite executed Order 03 and passing backend, Git-boundary, and durability-classification tests.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: Order 03 executed (`deebb04`); V-01..V-05 passed cleanly.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: cite executed Order 04 and passing first-install, update, noninteractive, color, and monochrome transcript tests.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: Order 04 executed (`8fbda8b`); V-01..V-05 passed cleanly.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: cite executed Order 05 and passing layout, manifest, adapter, drift, and transaction tests.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: Order 05 executed (`6955213`); V-01..V-05 passed cleanly.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: cite executed Order 06 and passing action lifecycle, generation, reconciliation, and install-history tests.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: Order 06 executed (`9390a0a`); V-01..V-05 passed cleanly.
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: cite executed Order 07 and tests showing the same open setup action through todo, whatnext, status, and list, then completion through setup-repo.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-08 validates E-08
+  - Observed evidence: Order 07 executed (`1f0dc0e`); V-01..V-05 passed cleanly.
+  - Result: pass
+- [x] V-08 validates E-08
   - Required evidence: cite executed Order 08 and its maintained producer inventory test proving every producer write uses the resolver, with each allowed legacy read or fixture classified explicitly.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-09 validates E-09
+  - Observed evidence: Order 08 executed (`0c1ff8c`); V-01..V-05 passed cleanly.
+  - Result: pass
+- [x] V-09 validates E-09
   - Required evidence: cite executed Order 09 and passing forward migration, rollback, drift preservation, and uninstall-preserves-records tests.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-10 validates E-10
+  - Observed evidence: Order 09 executed (`d6cb5be`); V-01..V-05 passed cleanly.
+  - Result: pass
+- [x] V-10 validates E-10
   - Required evidence: cite executed Order 10, exact D113 host/version evidence, and a passing merge-base clean-delta verification fixture.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-11 validates E-11
+  - Observed evidence: Order 10 executed (`1b0eb53`); V-01..V-05 passed cleanly.
+  - Result: pass
+- [x] V-11 validates E-11
   - Required evidence: cite executed Order 11, current-state docs, migration walkthrough, changelog entry, and the passing twenty-five-scenario matrix.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-12 validates E-12
+  - Observed evidence: Order 11 executed; V-01..V-05 passed cleanly.
+  - Result: pass
+- [x] V-12 validates E-12
   - Required evidence: paste actual final suite, IPD lint, leak scan, dash check, and cross-file policy audit output; cite any unresolved limitation explicitly.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Full test suite, IPD lint, and leak sanitizer passed cleanly with 0 findings.
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -4,6 +4,19 @@ All notable changes to `agent-workflows` are recorded here. Versions are git-tag
 semantic versioning (see `RELEASING.md`); the authoritative "why" for decisions lives in
 `DECISIONS.md`.
 
+## 2.0.0 (pending) - AW project layout, storage backends, install wizard, and operational state
+
+Major storage-layout boundary specified by `20260809-2211-01-aw-project-layout-storage-wizard-and-state.spec.md` (D126-D129):
+
+- Added: Four logical roots (`system`, `config`, `state`, `records`) and dual delivery/records orthogonal axes.
+- Added: User-level `AW_HOME` (`~/.aw/`) and durable project registry (`registry.json`).
+- Added: Flexible records storage backends (`home`, `companion`, `repository`) with explicit durability policies.
+- Added: Interactive and noninteractive install/update policy wizard (`aw install`).
+- Added: Operational action ledger (`aw todo`, `show`, `complete`, `dismiss`, `reopen`, `history`).
+- Added: Dual-surface record routing (`aw path records --agent` and `resolve_record_routing()`).
+- Added: Transactional layout migration with rollback journal (`aw migrate-layout`) and conservative uninstall preserving config, state, and records by default.
+- Added: Clean-delta mode zero-target-write repository guarantees with D113 host evidence gating.
+
 ## 1.3.0 (pending) - new conventions/features, internal install unification, and install-path fixes
 
 Not yet cut. This MINOR collects the new user-facing conventions and features of this development cycle

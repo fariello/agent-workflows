@@ -1,7 +1,7 @@
 # Specification: AW project layout, storage, install wizard, and operational state
 
 - Date: 2026-08-09
-- Status: approved
+- Status: implemented
 - Canonical: true
 - Author: Codex (GPT-5, high reasoning)
 - Origin: maintainer design discussion on 2026-08-09
@@ -689,3 +689,4 @@ This specification and the full Set require `/plan-review` and explicit human ap
 - 2026-08-09 note (aw specs): rebased onto current main; renumbered decisions to D126-D129, adopted D123/D124 artifact identity and plan naming, and integrated AW actions as a native source in D125's existing attention projection
 - 2026-08-09 reviewed (aw specs): reviewed alongside the awlayout Set /plan-review (re-review verified all findings resolved)
 - 2026-08-09 approved (aw specs): approved as the basis for executing the awlayout IPD Set
+- 2026-08-09 implemented (Antigravity Agent): executed all 11 child IPDs (Orders 01-11) in the awlayout Set; verified 25-scenario acceptance matrix.

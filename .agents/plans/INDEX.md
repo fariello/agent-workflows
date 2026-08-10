@@ -6,7 +6,7 @@ Showing the 40 most-recent of 75 Sets; the full manifest is INDEX.json.
 
 ## awlayout
 
-- `az9912` [pending] 00 pending/20260809-awlayout-00-az9912-aw-project-layout-orchestrator.md
+- `az9912` [executed] 00 executed/20260809-awlayout-00-az9912-aw-project-layout-orchestrator.md
 - `m9tqof` [executed] 01 executed/20260809-awlayout-01-m9tqof-aw-context-and-logical-roots.md
 - `bgyymp` [executed] 02 executed/20260809-awlayout-02-bgyymp-aw-home-project-identity-and-registry.md
 - `g4y28x` [executed] 03 executed/20260809-awlayout-03-g4y28x-records-backends-and-durability.md
@@ -17,7 +17,7 @@ Showing the 40 most-recent of 75 Sets; the full manifest is INDEX.json.
 - `0me1hr` [executed] 08 executed/20260809-awlayout-08-0me1hr-producing-workflow-record-routing.md
 - `es1phc` [executed] 09 executed/20260809-awlayout-09-es1phc-layout-migration-rollback-and-uninstall.md
 - `jmjh97` [executed] 10 executed/20260809-awlayout-10-jmjh97-clean-delta-skills-and-host-gates.md
-- `blw6qp` [pending] 11 pending/20260809-awlayout-11-blw6qp-docs-release-and-end-to-end-cutover.md
+- `blw6qp` [executed] 11 executed/20260809-awlayout-11-blw6qp-docs-release-and-end-to-end-cutover.md
 
 ## attnview
 
