@@ -194,6 +194,24 @@ _DESCRIPTIONS = {
         "Acknowledge or set the records-storage durability policy for the target repo "
         "(e.g. --acknowledge-remote). --dry-run previews; --yes auto-confirms."
     ),
+    "storage detach": (
+        "Detach the private companion storage binding from the target repo, leaving the "
+        "companion directory and its contents in place. --dry-run previews the change."
+    ),
+    "storage move": (
+        "Move the private companion storage binding to a new directory given by --new-dir, "
+        "updating the machine-local binding so records resolve to the relocated companion. "
+        "--dry-run previews the change."
+    ),
+    "storage reattach": (
+        "Reattach an existing private companion repository to the target repo by rebinding "
+        "its --companion-dir, restoring records resolution after a clone or path change. "
+        "--dry-run previews the change."
+    ),
+    "storage preflight": (
+        "Run companion storage preflight checks for the target repo against --companion-dir "
+        "(identity, reachability, durability) before attach or move. --json for machine output."
+    ),
     "config": (
         "Manage the user-level CLI config. Currently exposes the never-install exclude "
         "blocklist via 'config exclude'."
