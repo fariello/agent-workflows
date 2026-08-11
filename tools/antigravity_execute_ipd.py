@@ -131,8 +131,8 @@ workflow is incomplete.
     )
     parser.add_argument(
         "--timeout",
-        default="120m",
-        help="Maximum time for each Antigravity turn (default: 120m)",
+        default="240m",
+        help="Maximum time for each Antigravity turn (default: 240m)",
     )
     parser.add_argument(
         "--dangerously-skip-permissions",
