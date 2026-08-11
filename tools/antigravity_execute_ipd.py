@@ -3,7 +3,8 @@
 
 Run this script from anywhere inside the target repository. The IPD argument
 may be a repository-relative path, a filename, or the plan's six-character
-stable ID. The script runs two blocking, headless ``agy`` turns:
+stable ID. The script runs two headless ``agy`` turns and writes their streaming event
+logs under the repository's ignored ``tmp/antigravity/`` directory:
 
 1. execute the pending IPD; and
 2. resume that exact conversation and perform a skeptical self-audit.
@@ -22,6 +23,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -209,19 +211,20 @@ def run_agy(
     timeout: str,
     skip_permissions: bool,
 ) -> AgyResult:
-    """Run one blocking headless Antigravity turn and validate its JSON result.
+    """Run one headless Antigravity turn, persist its stream, and validate it.
 
-    ``agy --output-format json`` does not return until the turn reaches a
-    terminal state, so completion requires neither polling nor an SDK-specific
-    job handle. The repository root is the subprocess working directory because
-    Antigravity scopes ``--continue`` to the active project.
+    Antigravity emits newline-delimited events with ``stream-json``. Every
+    event is flushed to an ignored log below ``tmp/antigravity/``, allowing
+    another terminal to follow a long-running turn without attaching to or
+    disrupting the conversation. The terminal ``result`` event supplies the
+    same fields previously read from the single JSON response.
     """
     command = [
         executable,
         "-p",
         prompt,
         "--output-format",
-        "json",
+        "stream-json",
         "--print-timeout",
         timeout,
     ]
@@ -232,29 +235,48 @@ def run_agy(
     if skip_permissions:
         command.append("--dangerously-skip-permissions")
 
-    completed = subprocess.run(
+    log_directory = root / "tmp" / "antigravity"
+    log_directory.mkdir(parents=True, exist_ok=True)
+    log_path = log_directory / f"agy-{os.getpid()}-{time.time_ns()}.jsonl"
+    print(f"Antigravity event stream: {log_path}", file=sys.stderr, flush=True)
+
+    process = subprocess.Popen(
         command,
         cwd=root,
-        check=False,
-        capture_output=True,
+        stdout=subprocess.PIPE,
         text=True,
+        bufsize=1,
     )
-    stdout = completed.stdout.strip()
-    try:
-        payload = json.loads(stdout)
-    except json.JSONDecodeError as exc:
-        detail = completed.stderr.strip() or stdout or "no output"
+    if process.stdout is None:
+        process.kill()
+        raise ScriptError("Antigravity stdout stream was not available.")
+
+    payload: dict[str, object] | None = None
+    with log_path.open("w", encoding="utf-8") as stream:
+        for line in process.stdout:
+            stream.write(line)
+            stream.flush()
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("event") == "result" and isinstance(event.get("result"), dict):
+                payload = event["result"]
+
+    returncode = process.wait()
+    if payload is None:
         raise ScriptError(
-            f"Antigravity returned invalid JSON (exit {completed.returncode}): {detail}"
-        ) from exc
+            f"Antigravity emitted no terminal result event (exit {returncode}); "
+            f"inspect {log_path}."
+        )
 
     status = str(payload.get("status", ""))
     error = str(payload.get("error", "")).strip()
-    if completed.returncode != 0 or status != "SUCCESS":
-        detail = error or completed.stderr.strip() or "no error detail"
+    if returncode != 0 or status != "SUCCESS":
+        detail = error or f"inspect {log_path}"
         raise ScriptError(
             f"Antigravity ended with status {status or 'UNKNOWN'} "
-            f"(exit {completed.returncode}): {detail}"
+            f"(exit {returncode}): {detail}"
         )
 
     conversation_id = str(payload.get("conversation_id", "")).strip()
