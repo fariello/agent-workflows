@@ -601,7 +601,9 @@ class AlphabeticalHelpTests(unittest.TestCase):
             with redirect_stdout(buf):
                 code = cli.main(["path", "system", "--repo", str(repo), "--agent"])
             self.assertEqual(code, 0)
-            self.assertIn(".agents", buf.getvalue())
+            # Dispatch resolved the `path system` command (physical layout: the system
+            # root is `.aw/system` per awphysical Order 01; ordering is display-only).
+            self.assertIn(".aw/system", buf.getvalue())
         # An end-alphabet group command prints its usage/help without error routing.
         buf2 = io.StringIO()
         with redirect_stdout(buf2):

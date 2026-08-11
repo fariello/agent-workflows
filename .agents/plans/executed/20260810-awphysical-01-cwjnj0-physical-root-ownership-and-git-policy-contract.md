@@ -4,13 +4,12 @@
 - Kind: child
 - Concern: Replace the logical-only four-root description with an exact physical hierarchy, internal durable/runtime boundaries, placement vocabulary, and Git-policy invariants.
 - Scope: Controlling layout specification, architecture decisions, canonical schema vocabulary, contract tests, and fixtures only; no live migration or producer cutover.
-- Status: approved
+- Status: executed
 - Set: awphysical (physical .aw hierarchy, storage policy, and migration)
 - Order: 1
 - Highest E allocated: 06
 - Author: Codex (GPT-5)
 - Id: cwjnj0
-- Approval: 2026-08-10 human maintainer (chat, after approving the controlling spec 20260810-1447-01) - approved to execute the awphysical Set; recorded by opencode Opus 4.8.
 
 ## Workflow history
 
@@ -23,6 +22,7 @@
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): final cursory re-review after GPT-5.6 1544-01 closeout (0f6f238) - all 13 conforming at review-finalize, residuals closed (Order 01/02/05/06 canary fixtures, Order 04 path-equality-only, Order 07 test-module + per-fault, Order 09 clean_delta planted-write, Order 12 token->test binding), full suite 825 OK. Controlling spec 20260810-1447-01 advanced to reviewed. Set remains NO-GO pending HUMAN approval of the spec (the sole remaining gate); Status unchanged (reviewed).
 - 2026-08-10 approved (human maintainer via chat, recorded by opencode Opus 4.8): controlling spec 20260810-1447-01 human-approved; Set cleared to execute. Status reviewed -> approved; OQ-01 resolved. Not yet executed.
 - 2026-08-10 re-executed (Antigravity Agent): re-executed E-01..E-06 properly. Wired physical classes into project_context.py (.aw/system resolved, git tracking prohibition enforced via PathSecurityError), enums & placement validators & parser added to project_schema.py, falsifiability (RED -> GREEN) proven for all 6 tests.
+- 2026-08-10 executed (opencode Opus 4.8 orchestrator, executor Antigravity/Gemini): re-execution fd31d37 INDEPENDENTLY VERIFIED - resolver wired to six physical classes with system->.aw/system and enforced never-track (PathSecurityError), test_e01 falsifiability proven by mutation (RED with enforcement disabled, GREEN restored), full suite Ran 831 tests OK after updating the stale test_cli .agents assumption. E-01..E-06 performed, V-01..V-06 pass. First attempt 7c6fb70 (green-washed) was rejected + reverted (71daca8); see corrective-review 20260810-2052-01. Status approved -> executed; orchestrator owns this terminal transition.
 
 ## Goal
 
@@ -145,7 +145,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [x] V-01 validates E-01
   - Required evidence: Run Evidence matrix row E-01 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence: `python3 -m unittest tests.test_project_layout.PhysicalPolicyMatrixTests.test_e01` returned exit status 0 (OK). System root resolved to `.aw/system` (not `.agents`). Staging local config in Git index triggered `PathSecurityError: Git policy violation: local config file '.aw/config/local.json' is tracked or staged in Git`. Red-then-green proof confirmed.
+  - Observed evidence: `python3 -m unittest tests.test_project_layout.PhysicalPolicyMatrixTests.test_e01` returned exit status 0 (OK). System root resolved to `.aw/system` (not `.agents`). Staging local config in Git index triggered `PathSecurityError: Git policy violation: local config file '.aw/config/local.json' is tracked or staged in Git`. Red-then-green proof confirmed. ORCHESTRATOR INDEPENDENT VERIFICATION (opencode Opus 4.8, 2026-08-10): re-inspected the test body (asserts `.aw/system` != `.agents`, plants + `git add -f`s the canary, asserts `PathSecurityError`), confirmed the resolver in `project_context.py` genuinely maps `system -> .aw/system` and enforces never-track via `validate_physical_git_policy`, and PROVED falsifiability by mutation: neutering the enforcement (early `return`) makes `test_e01` FAIL, restoring it makes it pass. Full independent suite `Ran 831 tests OK (skipped=1)` after updating the stale `tests/test_cli.py` `.agents`->`.aw/system` assumption (anti-regression: the resolver cutover is E-01 behavior, so the old test was updated, not frozen). `aw specs check` conforms; scoped search finds no current `.agents` system mapping in the resolver.
   - Result: pass
 - [x] V-02 validates E-02
   - Required evidence: Run Evidence matrix row E-02 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
