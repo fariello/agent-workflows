@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import List, Optional, Sequence
 
 from . import __version__, config, discovery, engine, versioning
-from .project_schema import Preset
+from .project_schema import DeliveryMode, Preset, RecordsBackend
 from .term import Term
 
 
@@ -383,24 +383,17 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_install.add_argument(
         "--preset",
-        choices=[
-            "private-target",
-            "public-private-companion",
-            "public-companion",
-            "clean-target",
-            "local-only",
-            "custom",
-        ],
+        choices=[p.value for p in Preset],
         help="Select a physical placement preset.",
     )
     p_install.add_argument(
         "--delivery-mode",
-        choices=["tracked", "clean-delta"],
+        choices=[d.value for d in DeliveryMode],
         help="Select framework delivery mode.",
     )
     p_install.add_argument(
         "--records-backend",
-        choices=["home", "companion", "repository"],
+        choices=[r.value for r in RecordsBackend],
         help="Select records storage location.",
     )
     p_install.add_argument(
@@ -430,24 +423,17 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_setup.add_argument(
         "--preset",
-        choices=[
-            "private-target",
-            "public-private-companion",
-            "public-companion",
-            "clean-target",
-            "local-only",
-            "custom",
-        ],
+        choices=[p.value for p in Preset],
         help="Select a physical placement preset.",
     )
     p_setup.add_argument(
         "--delivery-mode",
-        choices=["tracked", "clean-delta"],
+        choices=[d.value for d in DeliveryMode],
         help="Select framework delivery mode.",
     )
     p_setup.add_argument(
         "--records-backend",
-        choices=["home", "companion", "repository"],
+        choices=[r.value for r in RecordsBackend],
         help="Select records storage location.",
     )
     p_setup.add_argument(
