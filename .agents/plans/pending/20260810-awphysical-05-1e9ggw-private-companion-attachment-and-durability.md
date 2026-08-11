@@ -4,13 +4,12 @@
 - Kind: child
 - Concern: Make a separately access-controlled companion repository a first-class home for portable/private config, durable state, and records without overstating privacy or durability.
 - Scope: Companion selection/identity, storage bundle layout, Git initialization and inspection, remote acknowledgement, registry bindings, commit boundaries, detach/reattach/move behavior, and focused tests.
-- Status: approved
+- Status: executed
 - Set: awphysical (physical .aw hierarchy, storage policy, and migration)
 - Order: 5
 - Highest E allocated: 07
 - Author: Codex (GPT-5)
 - Id: 1e9ggw
-- Approval: 2026-08-10 human maintainer (chat, after approving the controlling spec 20260810-1447-01) - approved to execute the awphysical Set; recorded by opencode Opus 4.8.
 
 ## Workflow history
 
@@ -22,7 +21,8 @@
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): SECOND independent re-review after GPT-5.6 1530-01 reconciliation (cc2d184) VERIFIED residuals materially resolved from repository evidence (full suite 825 OK; gates conform). Remaining LOW/MEDIUM residuals (spec text S2.1-S2.3; L07-01 Order-07 test-module collision; L04-01 is_self positive-identity; S-02 enum alias; R2 set-wide V-evidence; NEW-01 clean_delta) appended to prompt 20260810-1544-01. REVIEWED - OPEN QUESTIONS, NO-GO pending human spec approval. Status unchanged (reviewed); human-approval blocker preserved.
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): final cursory re-review after GPT-5.6 1544-01 closeout (0f6f238) - all 13 conforming at review-finalize, residuals closed (Order 01/02/05/06 canary fixtures, Order 04 path-equality-only, Order 07 test-module + per-fault, Order 09 clean_delta planted-write, Order 12 token->test binding), full suite 825 OK. Controlling spec 20260810-1447-01 advanced to reviewed. Set remains NO-GO pending HUMAN approval of the spec (the sole remaining gate); Status unchanged (reviewed).
 - 2026-08-10 approved (human maintainer via chat, recorded by opencode Opus 4.8): controlling spec 20260810-1447-01 human-approved; Set cleared to execute. Status reviewed -> approved; OQ-01 resolved. Not yet executed.
-- 2026-08-11 executed (Antigravity CLI): implemented companion identity, preflight validation, storage materialization, durability classification, attachment lifecycle, commit boundaries, and falsifiable tests (Order 05).
+- 2026-08-11 executed (Antigravity CLI): implemented companion identity, preflight validation, storage materialization, durability classification, attachment lifecycle, commit boundaries, and falsifiable tests (Order 05). Execute commit 249796a (storage.py +452, cli.py +243, test_storage.py +358, 7 order05 fixtures). Wrapper reported ERROR: timeout waiting for response; work + plan bookkeeping completed and committed.
+- 2026-08-11 orchestrator verification + fix + terminal transition (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): Independent full-suite verification of the execute commit was RED on ONE test: tests.test_cli.SubcommandDescriptionTests.test_every_subparser_has_fuller_description failed because the 4 new storage subcommands (detach, move, reattach, preflight) were added without entries in the central _DESCRIPTIONS map, violating the clianx-01 E-06 contract (every subparser needs a description strictly longer than its help). The companion/durability logic itself was correct. Orchestrator fix-forward: added the 4 _DESCRIPTIONS entries (commit 6dffe13, cli.py only). Independent re-verification: full suite Ran 851 OK (skipped=2) exit 0 (baseline 844 + 7 Order-05 E-tests). Read the Order-05 tests: test_e04 walks the durability state machine UNVERSIONED -> LOCAL_GIT -> UNACKNOWLEDGED_REMOTE -> ACKNOWLEDGED_DURABLE (only after explicit ack + reachable) and asserts revocation downgrades back and clears the ack (truthful durability, no false-durable claims); test_e05 asserts detach preserves companion content (companion_deleted False); test_e06 asserts separate target/companion git owners. Mutation-probe: forcing remote_acknowledged=True unconditionally in get_storage_status makes test_e04 fail RED; restored -> GREEN. Pre-transition ipd lint conforming. Status approved -> executed; Approval line removed; moved pending/ -> executed/.
 
 
 ## Goal
