@@ -85,8 +85,15 @@ class TestLayoutMigration(unittest.TestCase):
             policy_data["records_backend"], RecordsBackend.REPOSITORY.value
         )
 
-        # Migration journal MUST be written in system/
-        journal_p = Path(self.target_repo) / ".aw" / "system" / "migration_journal.json"
+        # Migration journal MUST be written under state/runtime/transactions/
+        journal_p = (
+            Path(self.target_repo)
+            / ".aw"
+            / "state"
+            / "runtime"
+            / "transactions"
+            / "migration_transaction.json"
+        )
         self.assertTrue(journal_p.is_file())
         journal_data = json.loads(journal_p.read_text(encoding="utf-8"))
         self.assertEqual(journal_data["status"], "completed")

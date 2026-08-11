@@ -3388,6 +3388,15 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
             res = mgr.cleanup_migration(confirm=confirm, fault_injection=fault_inj)
             if json_out:
                 print(json.dumps(res, indent=2))
+            elif res.get("status") == "preview":
+                term.heading("AW Layout Legacy Source Cleanup (PREVIEW)")
+                term.status(
+                    "info",
+                    f"Items to remove: {len(res.get('would_remove', []))}",
+                )
+                for p in res.get("would_remove", []):
+                    term.status("info", f"  - {p}")
+                term.status("warn", res.get("message", ""))
             else:
                 term.status(
                     "ok",

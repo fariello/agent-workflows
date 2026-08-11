@@ -148,12 +148,16 @@ class MigrationManager:
         self.runtime_state_dir = self.aw_dir / "state" / "runtime"
         self.records_dir = self.aw_dir / "records"
 
-        # Durable transaction artifacts
-        self.transaction_file = self.durable_state_dir / "migration_transaction.json"
-        self.lock_file = self.durable_state_dir / "migration_writer.lock"
-        self.switch_receipt_file = self.durable_state_dir / "switch_receipt.json"
+        # Durable & Runtime transaction artifacts (Spec 4.1 Table 4.1)
+        self.transaction_file = (
+            self.runtime_state_dir / "transactions" / "migration_transaction.json"
+        )
+        self.lock_file = self.runtime_state_dir / "locks" / "migration_writer.lock"
+        self.switch_receipt_file = (
+            self.durable_state_dir / "migrations" / "switch_receipt.json"
+        )
         self.retention_manifest_file = (
-            self.durable_state_dir / "retention_manifest.json"
+            self.durable_state_dir / "migrations" / "retention_manifest.json"
         )
 
     def plan_migration(self, target_backend: str) -> MigrationPlan:
@@ -206,9 +210,31 @@ class MigrationManager:
             error_message=err_msg,
         )
 
+    def generate_git_staging_plans(
+        self, items: List[Dict[str, Any]]
+    ) -> Dict[str, Dict[str, Any]]:
+        """Generate separate target, companion, and source Git staging plans (E-06)."""
+        plans: Dict[str, Dict[str, Any]] = {
+            "target": {"owner": "target", "staged_paths": [], "index_clean": True},
+            "companion": {
+                "owner": "companion",
+                "staged_paths": [],
+                "index_clean": True,
+            },
+            "source": {"owner": "source", "staged_paths": [], "index_clean": True},
+        }
+        for item in items:
+            owner = item.get("git_owner") or item.get("owner") or "target"
+            if owner not in plans:
+                owner = "target"
+            dst_rel = item.get("destination_relpath") or item.get("target_relpath")
+            if dst_rel:
+                plans[owner]["staged_paths"].append(dst_rel)
+        return plans
+
     def _acquire_lock(self, transaction_id: str) -> None:
         """Acquire writer lock or throw TransactionLockError."""
-        self.durable_state_dir.mkdir(parents=True, exist_ok=True)
+        self.lock_file.parent.mkdir(parents=True, exist_ok=True)
         if self.lock_file.exists():
             try:
                 data = json.loads(self.lock_file.read_text(encoding="utf-8"))
@@ -233,7 +259,7 @@ class MigrationManager:
             "pid": os.getpid(),
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
-        tmp_lock = self.durable_state_dir / f".tmp_lock_{os.getpid()}"
+        tmp_lock = self.lock_file.parent / f".tmp_lock_{os.getpid()}"
         with open(tmp_lock, "w", encoding="utf-8") as f:
             json.dump(lock_data, f, indent=2)
         os.replace(tmp_lock, self.lock_file)
@@ -250,11 +276,11 @@ class MigrationManager:
 
     def _save_transaction(self, tx_data: Dict[str, Any]) -> None:
         """Save transaction journal atomically."""
-        self.durable_state_dir.mkdir(parents=True, exist_ok=True)
+        self.transaction_file.parent.mkdir(parents=True, exist_ok=True)
         tx_data["timestamps"]["updated_at"] = time.strftime(
             "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
         )
-        tmp_tx = self.durable_state_dir / f".tmp_tx_{os.getpid()}.json"
+        tmp_tx = self.transaction_file.parent / f".tmp_tx_{os.getpid()}.json"
         with open(tmp_tx, "w", encoding="utf-8") as f:
             json.dump(tx_data, f, indent=2, sort_keys=True)
         os.replace(tmp_tx, self.transaction_file)
@@ -511,6 +537,7 @@ class MigrationManager:
         os.replace(tmp_cfg, config_file)
 
         # Durable switch receipt
+        self.switch_receipt_file.parent.mkdir(parents=True, exist_ok=True)
         receipt_data = {
             "transaction_id": tx_id,
             "target_backend": target_backend,
@@ -543,6 +570,7 @@ class MigrationManager:
         self._save_transaction(tx_data)
 
         # Retention phase (E-05)
+        self.retention_manifest_file.parent.mkdir(parents=True, exist_ok=True)
         retention_data = {
             "transaction_id": tx_id,
             "retained_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -565,6 +593,9 @@ class MigrationManager:
         self._save_transaction(tx_data)
 
         # Git boundary staging plan generation (E-06)
+        git_plans = self.generate_git_staging_plans(tx_data["items"])
+        tx_data["git_staging_plans"] = git_plans
+
         if fault_injection == "cross-git-partial-stage":
             tx_data["status"] = "failed"
             self._save_transaction(tx_data)
@@ -724,10 +755,8 @@ class MigrationManager:
         fault_injection: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Perform post-retention legacy source cleanup preview or apply (E-07)."""
-        if fault_injection == "cleanup-refusal" or not confirm:
-            raise CleanupError(
-                "Cleanup refused: requires explicit high-warning confirmation (--confirm)"
-            )
+        if fault_injection == "cleanup-refusal":
+            raise CleanupError("Cleanup refused: fault injected cleanup-refusal")
 
         tx = self._load_transaction()
         if not tx or tx.get("status") != "completed":
@@ -739,22 +768,36 @@ class MigrationManager:
             raise CleanupError("Cleanup refused: missing retention manifest.")
 
         ret_data = json.loads(self.retention_manifest_file.read_text(encoding="utf-8"))
+        mappings = ret_data.get("mappings", [])
 
-        # Verify no foreign or modified items in legacy sources
-        cleaned_paths = []
-        for item in ret_data.get("mappings", []):
+        # Check for modified or foreign items in legacy sources
+        legacy_sources = [Path(item["source"]) for item in mappings]
+        would_remove = [str(p) for p in legacy_sources if p.exists() or p.is_symlink()]
+
+        for item in mappings:
             src_p = Path(item["source"])
-            if src_p.exists():
+            if src_p.exists() and not src_p.is_symlink():
                 cur_hash = _sha256_file(src_p)
                 if cur_hash != item.get("hash"):
                     raise CleanupError(
                         f"Cleanup refused: legacy source modified since migration: {src_p}"
                     )
 
-        for item in ret_data.get("mappings", []):
-            src_p = Path(item["source"])
+        if not confirm:
+            return {
+                "status": "preview",
+                "would_remove": would_remove,
+                "confirm_required": True,
+                "message": "Preview only. Pass confirm=True (--confirm) to execute deletion.",
+            }
+
+        cleaned_paths = []
+        for src_p in legacy_sources:
             if src_p.exists() or src_p.is_symlink():
-                src_p.unlink()
+                if src_p.is_file() or src_p.is_symlink():
+                    src_p.unlink()
+                elif src_p.is_dir():
+                    shutil.rmtree(src_p, ignore_errors=True)
                 cleaned_paths.append(str(src_p))
 
         return {"status": "cleaned", "removed": cleaned_paths}

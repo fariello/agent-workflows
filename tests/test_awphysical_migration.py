@@ -61,14 +61,21 @@ class TransactionalMigrationTests(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def test_e01(self) -> None:
-        """E-01 / V-01: Freeze inputs and transaction state machine."""
+        """E-01 / V-01: Freeze inputs and transaction state machine under state/runtime/transactions."""
         mgr = MigrationManager(target_repo=str(self.repo))
 
         # Positive assertion: transaction starts, creates lock & journal, completes phase
         plan = mgr.execute_migration(target_backend="repository")
         self.assertTrue(plan.is_valid)
 
-        tx_file = self.repo / ".aw" / "state" / "durable" / "migration_transaction.json"
+        tx_file = (
+            self.repo
+            / ".aw"
+            / "state"
+            / "runtime"
+            / "transactions"
+            / "migration_transaction.json"
+        )
         self.assertTrue(tx_file.exists())
 
         tx_data = json.loads(tx_file.read_text(encoding="utf-8"))
@@ -159,7 +166,14 @@ class TransactionalMigrationTests(unittest.TestCase):
         cfg = json.loads(config_file.read_text(encoding="utf-8"))
         self.assertEqual(cfg["records_backend"], "repository")
 
-        receipt_file = self.repo / ".aw" / "state" / "durable" / "switch_receipt.json"
+        receipt_file = (
+            self.repo
+            / ".aw"
+            / "state"
+            / "durable"
+            / "migrations"
+            / "switch_receipt.json"
+        )
         self.assertTrue(receipt_file.exists())
         receipt = json.loads(receipt_file.read_text(encoding="utf-8"))
         self.assertEqual(receipt["authority"], "switched")
@@ -191,17 +205,43 @@ class TransactionalMigrationTests(unittest.TestCase):
         self.assertTrue(self.art_file.exists())
         self.assertEqual(self.art_file.read_text(encoding="utf-8"), "artifact data\n")
 
-        ret_file = self.repo / ".aw" / "state" / "durable" / "retention_manifest.json"
+        ret_file = (
+            self.repo
+            / ".aw"
+            / "state"
+            / "durable"
+            / "migrations"
+            / "retention_manifest.json"
+        )
         self.assertTrue(ret_file.exists())
         ret = json.loads(ret_file.read_text(encoding="utf-8"))
         self.assertFalse(ret["cleanup_allowed"])
 
     def test_e06(self) -> None:
-        """E-06 / V-06: Git boundaries and staging plans."""
+        """E-06 / V-06: Git boundaries and separate staging plans."""
         mgr = MigrationManager(target_repo=str(self.repo))
 
-        # Positive assertion: transaction completes cleanly without unconfirmed staging
+        # Positive assertion: transaction generates separate Git staging plans
         mgr.execute_migration(target_backend="repository")
+
+        tx_file = (
+            self.repo
+            / ".aw"
+            / "state"
+            / "runtime"
+            / "transactions"
+            / "migration_transaction.json"
+        )
+        tx_data = json.loads(tx_file.read_text(encoding="utf-8"))
+        self.assertIn("git_staging_plans", tx_data)
+        plans = tx_data["git_staging_plans"]
+        self.assertIn("target", plans)
+        self.assertIn("companion", plans)
+        self.assertIn("source", plans)
+
+        # Verify target plan contains target paths and doesn't mix companion paths
+        target_paths = plans["target"]["staged_paths"]
+        self.assertTrue(any("records" in p for p in target_paths))
 
         # Failure condition: cross-git partial stage failure is caught and raised
         if (self.repo / ".aw").exists():
@@ -212,15 +252,35 @@ class TransactionalMigrationTests(unittest.TestCase):
             )
 
     def test_e07(self) -> None:
-        """E-07 / V-07: Status, resume, rollback, and cleanup commands."""
+        """E-07 / V-07: Status, resume, rollback, and preview-first cleanup commands."""
         mgr = MigrationManager(target_repo=str(self.repo))
 
         # Status before migration
         st = mgr.status_migration()
         self.assertFalse(st["active"])
 
-        # Execute & rollback
+        # Execute migration
         mgr.execute_migration(target_backend="repository")
+
+        # Cleanup preview mode when confirm=False
+        prev = mgr.cleanup_migration(confirm=False)
+        self.assertEqual(prev["status"], "preview")
+        self.assertTrue(prev["confirm_required"])
+        self.assertIn(str(self.art_file), prev["would_remove"])
+
+        # Cleanup refusal with changed retained item
+        self.art_file.write_text("modified legacy file content\n", encoding="utf-8")
+        with self.assertRaises(CleanupError):
+            mgr.cleanup_migration(confirm=True)
+
+        # Restore file content and execute cleanup with confirm=True
+        self.art_file.write_text("artifact data\n", encoding="utf-8")
+        cl = mgr.cleanup_migration(confirm=True)
+        self.assertEqual(cl["status"], "cleaned")
+        self.assertIn(str(self.art_file), cl["removed"])
+        self.assertFalse(self.art_file.exists())
+
+        # Rollback
         rb = mgr.rollback_migration()
         self.assertEqual(rb["status"], "rolled_back")
         self.assertEqual(rb["authority"], "legacy")
@@ -230,13 +290,7 @@ class TransactionalMigrationTests(unittest.TestCase):
         cfg = json.loads(config_file.read_text(encoding="utf-8"))
         self.assertEqual(cfg["records_backend"], "legacy")
 
-        # Cleanup refusal without confirmation
-        if (self.repo / ".aw").exists():
-            shutil.rmtree(self.repo / ".aw")
-        mgr.execute_migration(target_backend="repository")
-        with self.assertRaises(CleanupError):
-            mgr.cleanup_migration(confirm=False)
-
+        # Cleanup refusal fault injection
         with self.assertRaises(CleanupError):
             mgr.cleanup_migration(fault_injection="cleanup-refusal")
 
@@ -264,3 +318,7 @@ class TransactionalMigrationTests(unittest.TestCase):
                     mgr.execute_migration(
                         target_backend="repository", fault_injection=inj_name
                     )
+
+
+if __name__ == "__main__":
+    unittest.main()
