@@ -171,15 +171,24 @@ these without an approved IPD.
   tool (an error: it should have been per-file edits at minimum, and ideally a verb) - there was no
   `aw` verb to record a plan approval. Desired design (discuss + IPD before building):
   1. A SINGLE consistent transition verb usable across every artifact that carries a lifecycle status
-     (specs, plans/IPDs, and anything else that is `draft`/`to-review`/`reviewed`/`approved`/terminal) -
-     PREFERABLY the same verb name/shape everywhere (e.g. `aw <area> set --status <enum> --message ...`,
-     or a top-level `aw status set`), so the muscle memory and the enforcement (legal transition table,
-     honest human-approval capture per the item above, required history line) are uniform rather than
-     one-off per area.
+     (specs, plans/IPDs, and anything else that is `draft`/`to-review`/`reviewed`/`approved`/terminal),
+     with the SAME syntax for every artifact type. SYNTAX DIRECTION (maintainer, 2026-08-10): prefer
+     POSITIONAL arguments over `--long`/`-short` flags wherever possible. The target shape is a top-level
+     `aw set <status> <identifier...>` where `<status>` is the bare enum positional (`aw set approved ...`,
+     `aw set to-review ...`, `aw set reviewed ...`, `aw set executed ...`) and `<identifier...>` is one or
+     MORE positionals, each of which may be an `<id6>`, a `<set-id>`, or a filename - mixed freely. The
+     tool AUTO-DETECTS what each identifier refers to (IPD/plan vs spec vs other) and applies the correct
+     per-artifact transition table + enforcement; the caller does not name the area or pass `--status`.
+     Reserve flags only for things that cannot be positional (e.g. the human-approval token/`--message` if
+     still required, though see the delegated-approval item above about capturing approval honestly).
+     Keep the enforcement uniform (legal transition table, honest human-approval capture, required history
+     line) rather than one-off per area. (Contrast today's inconsistent, flag-heavy surface: `aw specs set
+     --status <enum> --message ...` positional path last; no plan verb at all.)
   2. GROUP/Set transitions: because we frequently act on a whole IPD Set at once (e.g. approve all 13
-     awphysical plans, or move a Set reviewed->approved together), the verb MUST accept a Set selector
-     (`--set <id>`) or an explicit multi-file list and apply the transition to all members atomically,
-     with one shared `--message`/approval record and a single consolidated history stamp - not 13 manual
+     awphysical plans, or move a Set reviewed->approved together), passing a `<set-id>` positional to
+     `aw set <status> <set-id>` MUST apply the transition to all members atomically (the set-id is one of
+     the accepted identifier kinds in item 1), as must an explicit multi-identifier list, with one shared
+     approval record and a single consolidated history stamp - not 13 manual
      edits. Respect the anti-self-approval floor for the human-only transitions even in group mode.
   3. A FORMAT/SYNTAX CHECKER that validates the structure/metadata/status-legality of one file, a named
      subset, or a whole directory class - `one | some | --pending | --executed | --all` (and per area:
