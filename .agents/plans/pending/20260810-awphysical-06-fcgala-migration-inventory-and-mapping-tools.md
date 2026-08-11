@@ -4,13 +4,13 @@
 - Kind: child
 - Concern: Inventory every legacy AW-related item and produce a complete, deterministic, non-mutating migration map before any repository is changed.
 - Scope: Legacy discovery/classification, content-hash inventory, Git/ignore/symlink metadata, destination mapping, collision and risk analysis, JSON schemas, CLI preview, support-script integration, and focused tests.
-- Status: approved
+- Status: executed
 - Set: awphysical (physical .aw hierarchy, storage policy, and migration)
 - Order: 6
 - Highest E allocated: 07
 - Author: Codex (GPT-5)
 - Id: fcgala
-- Approval: 2026-08-10 human maintainer (chat, after approving the controlling spec 20260810-1447-01) - approved to execute the awphysical Set; recorded by opencode Opus 4.8.
+
 
 ## Workflow history
 
@@ -22,7 +22,8 @@
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): SECOND independent re-review after GPT-5.6 1530-01 reconciliation (cc2d184) VERIFIED residuals materially resolved from repository evidence (full suite 825 OK; gates conform). Remaining LOW/MEDIUM residuals (spec text S2.1-S2.3; L07-01 Order-07 test-module collision; L04-01 is_self positive-identity; S-02 enum alias; R2 set-wide V-evidence; NEW-01 clean_delta) appended to prompt 20260810-1544-01. REVIEWED - OPEN QUESTIONS, NO-GO pending human spec approval. Status unchanged (reviewed); human-approval blocker preserved.
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): final cursory re-review after GPT-5.6 1544-01 closeout (0f6f238) - all 13 conforming at review-finalize, residuals closed (Order 01/02/05/06 canary fixtures, Order 04 path-equality-only, Order 07 test-module + per-fault, Order 09 clean_delta planted-write, Order 12 token->test binding), full suite 825 OK. Controlling spec 20260810-1447-01 advanced to reviewed. Set remains NO-GO pending HUMAN approval of the spec (the sole remaining gate); Status unchanged (reviewed).
 - 2026-08-10 approved (human maintainer via chat, recorded by opencode Opus 4.8): controlling spec 20260810-1447-01 human-approved; Set cleared to execute. Status reviewed -> approved; OQ-01 resolved. Not yet executed.
-- 2026-08-11 executed (Antigravity CLI): implemented inventory/map JSON schemas, legacy classification, migration map builder, preflight risk analysis, CLI preview surfaces, and falsifiable tests (Order 06).
+- 2026-08-11 executed (Antigravity CLI): implemented inventory/map JSON schemas, legacy classification, migration map builder, preflight risk analysis, CLI preview surfaces, and falsifiable tests (Order 06). Execute commit 9c6b98b (tools/awphysical/aw_layout_inventory.py +416, test_awphysical_tools.py +228, cli.py +113, 7 order06 fixtures). Wrapper reported ERROR: timeout waiting for response; work + plan bookkeeping completed and committed.
+- 2026-08-11 orchestrator verification + terminal transition (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): Independent verification, NO fix required. tests/ full suite Ran 851 OK (skipped=2) exit 0 (unchanged: Order-06 tests live in tools/awphysical/, outside the tests/ discovery root). Ran the tools suite directly: python3 -m unittest tools.awphysical.test_awphysical_tools = Ran 18 OK. CLI change added inventory/plan as choices on the migrate command (no new subparsers, so the clianx-01 description contract still passes - verified). Read the postcheck tests: they assert specific failure RULES fire on fabricated/missing evidence (authority-evidence-missing, migration-evidence-missing, adapter-copied-logic, wrong-git-index, prohibited-tracking-policy, producer-legacy-write) - postcheck cannot self-certify clean. Mutation-probe: forcing check_context to return valid with no findings makes all 3 fabrication-resistance tests fail RED; restored -> GREEN. Pre-transition ipd lint conforming. RECORDED RESIDUAL (see tmp/residuals-to-revisit.md): tools/awphysical tests are not wired into CI/Makefile; running them manually per order until the maintainer decides to wire or migrate them. Status approved -> executed; Approval line removed; moved pending/ -> executed/.
 
 
 ## Goal
