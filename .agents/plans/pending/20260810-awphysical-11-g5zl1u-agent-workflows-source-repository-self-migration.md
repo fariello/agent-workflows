@@ -4,12 +4,13 @@
 - Kind: child
 - Concern: Migrate the framework source repository itself into the physical `.aw/` model without overwriting source or losing its extensive project records and history.
 - Scope: Source-repository inventory, source-checkout policy, canonical system relocation, repository records/config/state placement choice, migration execution, reference regeneration, independent audit, rollback rehearsal, and path-scoped commits.
-- Status: reviewed
+- Status: approved
 - Set: awphysical (physical .aw hierarchy, storage policy, and migration)
 - Order: 11
 - Highest E allocated: 07
 - Author: Codex (GPT-5)
 - Id: g5zl1u
+- Approval: 2026-08-10 human maintainer (chat, after approving the controlling spec 20260810-1447-01) - approved to execute the awphysical Set; recorded by opencode Opus 4.8.
 
 ## Workflow history
 
@@ -20,6 +21,7 @@
 - 2026-08-10 /plan-review (Codex (GPT-5)): residual reconciliation resolved R1-R5 and LOW follow-ups across the spec, catalog, prototypes, schema, storage classifier, and affected E/V contracts. NO-GO remains until human approval of the superseding spec.
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): SECOND independent re-review after GPT-5.6 1530-01 reconciliation (cc2d184) VERIFIED residuals materially resolved from repository evidence (full suite 825 OK; gates conform). Remaining LOW/MEDIUM residuals (spec text S2.1-S2.3; L07-01 Order-07 test-module collision; L04-01 is_self positive-identity; S-02 enum alias; R2 set-wide V-evidence; NEW-01 clean_delta) appended to prompt 20260810-1544-01. REVIEWED - OPEN QUESTIONS, NO-GO pending human spec approval. Status unchanged (reviewed); human-approval blocker preserved.
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): final cursory re-review after GPT-5.6 1544-01 closeout (0f6f238) - all 13 conforming at review-finalize, residuals closed (Order 01/02/05/06 canary fixtures, Order 04 path-equality-only, Order 07 test-module + per-fault, Order 09 clean_delta planted-write, Order 12 token->test binding), full suite 825 OK. Controlling spec 20260810-1447-01 advanced to reviewed. Set remains NO-GO pending HUMAN approval of the spec (the sole remaining gate); Status unchanged (reviewed).
+- 2026-08-10 approved (human maintainer via chat, recorded by opencode Opus 4.8): controlling spec 20260810-1447-01 human-approved; Set cleared to execute. Status reviewed -> approved; OQ-01 resolved. Not yet executed.
 
 ## Goal
 
@@ -141,10 +143,10 @@ Each row is mandatory for its matching `V-*` item. The executor creates the name
 
 ### OQ-01: Has the human maintainer approved the superseding physical-layout specification?
 
-- Blocking: yes
-- Status: open
+- Blocking: no
+- Status: resolved
 - Owner: human maintainer
-- Resolution or deferral rationale: `.agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` is `to-review`. This plan MUST NOT execute until that spec is independently reviewed and human-approved. The exact private-target versus companion placement remains a wizard choice recorded at E-01, not an author assumption.
+- Resolution or deferral rationale: RESOLVED 2026-08-10 - the controlling spec `.agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` was human-approved (Status: approved). The Set is cleared to execute via ipd-lifecycle in dependency order.
 
 ## Validation and cross-check (verify before reporting done)
 
