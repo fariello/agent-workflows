@@ -168,22 +168,26 @@ class TestAcceptanceMatrixScenarios(unittest.TestCase):
             json.dump(kw, f)
 
     def test_19_3_companion_local_git_no_remote_durability(self):
-        """Scenario 19.3: companion + local git, no remote -> not durable-private (durability action)."""
+        """Scenario 19.3: local Git without a remote is not acknowledged durable."""
         from agent_workflows.storage import get_storage_status
         from agent_workflows.project_schema import DurabilityState
 
         self._config(delivery_mode="tracked", records_backend="companion")
         st = get_storage_status(repo_path=self.target_repo, aw_home=self.aw_home)
-        self.assertNotEqual(st.durability_state, DurabilityState.DURABLE_PRIVATE.value)
+        self.assertNotEqual(
+            st.durability_state, DurabilityState.ACKNOWLEDGED_DURABLE.value
+        )
 
     def test_19_4_companion_confirmed_private_remote(self):
-        """Scenario 19.4: durable-private requires explicit acknowledgement, not a mere remote."""
+        """Scenario 19.4: a remote is not durable until acknowledged."""
         from agent_workflows.storage import get_storage_status
         from agent_workflows.project_schema import DurabilityState
 
         st = get_storage_status(repo_path=self.target_repo, aw_home=self.aw_home)
-        # Without acknowledgement, status is never durable-private.
-        self.assertNotEqual(st.durability_state, DurabilityState.DURABLE_PRIVATE.value)
+        # Without acknowledgement, status is never acknowledged durable.
+        self.assertNotEqual(
+            st.durability_state, DurabilityState.ACKNOWLEDGED_DURABLE.value
+        )
 
     def test_19_7_same_version_reinstall_is_noop(self):
         """Scenario 19.7: reinstall of the same version is idempotent (install, not a separate verb)."""

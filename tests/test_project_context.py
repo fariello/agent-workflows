@@ -22,8 +22,10 @@ from agent_workflows.project_schema import (
     PRECEDENCE_ORDER,
     RECORDS_BACKENDS,
     DeliveryMode,
+    DurabilityState,
     PrecedenceLevel,
     RecordsBackend,
+    normalize_durability_state,
 )
 
 
@@ -44,6 +46,12 @@ class TestProjectSchema(unittest.TestCase):
         self.assertIn("repository", RECORDS_BACKENDS)
 
         self.assertIn("unversioned", DURABILITY_STATES)
+        self.assertNotIn("durable-private", DURABILITY_STATES)
+        self.assertFalse(hasattr(DurabilityState, "DURABLE_PRIVATE"))
+        self.assertEqual(
+            normalize_durability_state("durable-private"),
+            DurabilityState.ACKNOWLEDGED_DURABLE.value,
+        )
         self.assertIn("system", LOGICAL_ROOTS)
         self.assertIn("explicit_flags", PRECEDENCE_ORDER)
         self.assertIn("named_global_profile", PRECEDENCE_ORDER)

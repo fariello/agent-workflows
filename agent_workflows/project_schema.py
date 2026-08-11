@@ -37,8 +37,6 @@ class DurabilityState(str, Enum):
     LOCAL_GIT = "local-git"
     UNACKNOWLEDGED_REMOTE = "unacknowledged-remote"
     ACKNOWLEDGED_DURABLE = "acknowledged-durable"
-    # Source-compatible alias. Serialized policy must use acknowledged-durable.
-    DURABLE_PRIVATE = "acknowledged-durable"
     REPOSITORY_MANAGED = "repository-managed"
     UNREACHABLE = "unreachable"
     UNKNOWN = "unknown"
