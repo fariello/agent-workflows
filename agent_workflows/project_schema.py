@@ -419,8 +419,257 @@ class ProjectIdentity:
 
 
 @dataclass(frozen=True)
+class ProjectPolicySchema:
+    """Portable project policy schema for .aw/config/project.json (spec Section 4.2 & 10)."""
+
+    schema_version: int = 2
+    preset: str = Preset.PRIVATE_TARGET.value
+    role: str = ProjectRole.TARGET.value
+    placements: Dict[str, str] = None  # type: ignore
+    git_policies: Dict[str, str] = None  # type: ignore
+    enabled_hosts: List[str] = None  # type: ignore
+    non_secret_consent: Dict[str, bool] = None  # type: ignore
+    unknown_fields: Dict[str, Any] = None  # type: ignore
+
+    def to_dict(self) -> Dict[str, Any]:
+        res: Dict[str, Any] = {
+            "schema_version": self.schema_version,
+            "preset": self.preset,
+            "role": self.role,
+            "placements": dict(self.placements or {}),
+            "git_policies": dict(self.git_policies or {}),
+            "enabled_hosts": list(self.enabled_hosts or []),
+            "non_secret_consent": dict(self.non_secret_consent or {}),
+        }
+        if self.unknown_fields:
+            for k, v in self.unknown_fields.items():
+                if k not in res:
+                    res[k] = v
+        return res
+
+
+@dataclass(frozen=True)
+class LocalBindingSchema:
+    """Machine-local binding schema for .aw/config/local.json (spec Section 4.2 & 10)."""
+
+    schema_version: int = 2
+    project_id: str = ""
+    human_slug: str = ""
+    common_dir: Optional[str] = None
+    worktree_path: Optional[str] = None
+    companion_dir: Optional[str] = None
+    runtime_overrides: Dict[str, Any] = None  # type: ignore
+    local_aliases: Dict[str, str] = None  # type: ignore
+    unknown_fields: Dict[str, Any] = None  # type: ignore
+
+    def to_dict(self) -> Dict[str, Any]:
+        res: Dict[str, Any] = {
+            "schema_version": self.schema_version,
+            "project_id": self.project_id,
+            "human_slug": self.human_slug,
+            "common_dir": self.common_dir,
+            "worktree_path": self.worktree_path,
+            "companion_dir": self.companion_dir,
+            "runtime_overrides": dict(self.runtime_overrides or {}),
+            "local_aliases": dict(self.local_aliases or {}),
+        }
+        if self.unknown_fields:
+            for k, v in self.unknown_fields.items():
+                if k not in res:
+                    res[k] = v
+        return res
+
+
+def parse_portable_policy(data: Dict[str, Any]) -> ProjectPolicySchema:
+    """Strict parsing and fail-closed validation of project.json policy."""
+    ver = data.get("schema_version", 2)
+    if ver > 2:
+        raise ValueError(
+            f"Unsupported schema_version {ver}: exceeds current supported version 2"
+        )
+
+    preset_str = data.get("preset", Preset.PRIVATE_TARGET.value)
+    if preset_str not in PRESETS and preset_str != "custom":
+        raise ValueError(f"Unknown preset: {preset_str!r}")
+
+    role_str = data.get("role", ProjectRole.TARGET.value)
+    if role_str not in PROJECT_ROLES:
+        raise ValueError(f"Unknown project role: {role_str!r}")
+
+    known_keys = {
+        "schema_version",
+        "preset",
+        "role",
+        "placements",
+        "git_policies",
+        "enabled_hosts",
+        "non_secret_consent",
+        "delivery_mode",
+        "records_backend",
+    }
+    unknown_fields = {k: v for k, v in data.items() if k not in known_keys}
+
+    placements = data.get("placements", {})
+    git_policies = data.get("git_policies", {})
+
+    return ProjectPolicySchema(
+        schema_version=ver,
+        preset=preset_str,
+        role=role_str,
+        placements=dict(placements),
+        git_policies=dict(git_policies),
+        enabled_hosts=list(
+            data.get("enabled_hosts", ["opencode", "claude", "antigravity"])
+        ),
+        non_secret_consent=dict(data.get("non_secret_consent", {})),
+        unknown_fields=unknown_fields,
+    )
+
+
+def parse_local_binding(data: Dict[str, Any]) -> LocalBindingSchema:
+    """Strict parsing and fail-closed validation of local.json binding."""
+    ver = data.get("schema_version", 2)
+    if ver > 2:
+        raise ValueError(
+            f"Unsupported schema_version {ver}: exceeds current supported version 2"
+        )
+
+    known_keys = {
+        "schema_version",
+        "project_id",
+        "human_slug",
+        "common_dir",
+        "worktree_path",
+        "companion_dir",
+        "runtime_overrides",
+        "local_aliases",
+    }
+    unknown_fields = {k: v for k, v in data.items() if k not in known_keys}
+
+    return LocalBindingSchema(
+        schema_version=ver,
+        project_id=data.get("project_id", ""),
+        human_slug=data.get("human_slug", ""),
+        common_dir=data.get("common_dir"),
+        worktree_path=data.get("worktree_path"),
+        companion_dir=data.get("companion_dir"),
+        runtime_overrides=dict(data.get("runtime_overrides", {})),
+        local_aliases=dict(data.get("local_aliases", {})),
+        unknown_fields=unknown_fields,
+    )
+
+
+def migrate_legacy_config(
+    legacy_data: Dict[str, Any],
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Migrate shipped or legacy .aw/config/config.json or policy.json into portable & local parts.
+    Preserves human-owned unknown keys in their respective targets.
+    """
+    ver = legacy_data.get("schema_version", 1)
+    if ver > 2:
+        raise ValueError(
+            f"Unsupported legacy schema_version {ver}: exceeds current supported version 2"
+        )
+
+    # Portable fields
+    preset = legacy_data.get("preset", Preset.PRIVATE_TARGET.value)
+    role = legacy_data.get("role", ProjectRole.TARGET.value)
+
+    # Infer placements/git_policies if legacy config has delivery_mode or records_backend
+    placements = dict(legacy_data.get("placements", {}))
+    git_policies = dict(legacy_data.get("git_policies", {}))
+
+    if (
+        legacy_data.get("records_backend") == "companion"
+        or legacy_data.get("delivery_mode") == "clean-delta"
+    ):
+        preset = Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
+
+    if not placements:
+        placements = get_preset_placements(preset)
+
+    portable_dict: Dict[str, Any] = {
+        "schema_version": 2,
+        "preset": preset,
+        "role": role,
+        "placements": placements,
+        "git_policies": git_policies,
+        "enabled_hosts": legacy_data.get(
+            "enabled_hosts", ["opencode", "claude", "antigravity"]
+        ),
+        "non_secret_consent": legacy_data.get("non_secret_consent", {}),
+    }
+
+    # Machine-local fields
+    local_dict: Dict[str, Any] = {
+        "schema_version": 2,
+        "project_id": legacy_data.get("project_id", ""),
+        "human_slug": legacy_data.get("human_slug", ""),
+        "common_dir": legacy_data.get("common_dir"),
+        "worktree_path": legacy_data.get("worktree_path"),
+        "companion_dir": legacy_data.get("companion_dir"),
+        "runtime_overrides": legacy_data.get("runtime_overrides", {}),
+        "local_aliases": legacy_data.get("local_aliases", {}),
+    }
+
+    # Preserve unknown keys
+    known_portable = {
+        "schema_version",
+        "preset",
+        "role",
+        "placements",
+        "git_policies",
+        "enabled_hosts",
+        "non_secret_consent",
+        "delivery_mode",
+        "records_backend",
+    }
+    known_local = {
+        "schema_version",
+        "project_id",
+        "human_slug",
+        "common_dir",
+        "worktree_path",
+        "companion_dir",
+        "runtime_overrides",
+        "local_aliases",
+    }
+
+    for k, v in legacy_data.items():
+        if k not in known_portable and k not in known_local:
+            # Place unknown field into portable_dict by default
+            portable_dict[k] = v
+
+    return portable_dict, local_dict
+
+
+def atomic_save_json(
+    path_str: str, data: Dict[str, Any], no_clobber: bool = False
+) -> None:
+    """Atomic write of JSON object with optional no_clobber protection."""
+    import tempfile
+    import os
+    from pathlib import Path
+
+    p = Path(path_str)
+    if no_clobber and p.exists():
+        raise FileExistsError(
+            f"Target config file already exists and no_clobber is True: {path_str}"
+        )
+
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        "w", dir=p.parent, delete=False, encoding="utf-8"
+    ) as tf:
+        json.dump(data, tf, indent=2)
+        tmp_name = tf.name
+
+    os.replace(tmp_name, p)
+
+
+@dataclass(frozen=True)
 class ProjectContext:
-    """Resolved AW project context containing all Section 9 requirements (spec Section 9)."""
+    """Resolved AW project context containing all Section 9 & Order 02 requirements (spec Section 9)."""
 
     target_repo: str
     project_id: str
@@ -436,6 +685,10 @@ class ProjectContext:
     open_aw_actions: List[Dict[str, Any]]
     provenance: Dict[str, Dict[str, str]]
     physical_classes: Optional[Dict[str, str]] = None
+    git_policies: Optional[Dict[str, str]] = None
+    project_role: str = ProjectRole.TARGET.value
+    preset: str = Preset.PRIVATE_TARGET.value
+    is_configured: bool = True
 
     def to_dict(self) -> Dict[str, Any]:
         d = {
@@ -452,9 +705,14 @@ class ProjectContext:
             "root_accessibility": dict(self.root_accessibility),
             "open_aw_actions": [dict(a) for a in self.open_aw_actions],
             "provenance": {k: dict(v) for k, v in self.provenance.items()},
+            "project_role": self.project_role,
+            "preset": self.preset,
+            "is_configured": self.is_configured,
         }
         if self.physical_classes:
             d["physical_classes"] = dict(self.physical_classes)
+        if self.git_policies:
+            d["git_policies"] = dict(self.git_policies)
         return d
 
     def to_json(self, indent: Optional[int] = 2) -> str:

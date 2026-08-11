@@ -333,5 +333,178 @@ class TestProjectContextResolver(unittest.TestCase):
                 )
 
 
+class PhysicalContextResolutionTests(unittest.TestCase):
+    """Exhaustive contract, precedence, and security tests for Order 02 (E-01..E-06 & V-01..V-06)."""
+
+    def setUp(self):
+        self.tmp_dir = tempfile.mkdtemp()
+        self.target_repo = os.path.join(self.tmp_dir, "myrepo")
+        os.makedirs(os.path.join(self.target_repo, ".git"), exist_ok=True)
+        self.aw_home = os.path.join(self.tmp_dir, "aw_home")
+        self.fixture_dir = os.path.join(
+            os.path.dirname(__file__), "fixtures", "awphysical", "order02"
+        )
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def test_e01(self):
+        """E-01 & V-01: Portable project policy schema and machine-local binding separation."""
+        fixture_path = os.path.join(self.fixture_dir, "e01-portable-and-local.json")
+        with open(fixture_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        from agent_workflows.project_schema import (
+            parse_portable_policy,
+            parse_local_binding,
+            atomic_save_json,
+        )
+
+        portable = parse_portable_policy(data["portable_policy"])
+        local_b = parse_local_binding(data["local_binding"])
+
+        # Assertion: Portable policy contains no machine-local absolute paths or secrets
+        port_dict = portable.to_dict()
+        for v in port_dict["placements"].values():
+            self.assertFalse(
+                os.path.isabs(v),
+                f"Portable policy placement contains machine-local absolute path: {v}",
+            )
+
+        # Save files into .aw/config/
+        config_dir = os.path.join(self.target_repo, ".aw", "config")
+        os.makedirs(config_dir, exist_ok=True)
+        atomic_save_json(os.path.join(config_dir, "project.json"), port_dict)
+        atomic_save_json(os.path.join(config_dir, "local.json"), local_b.to_dict())
+
+        ctx = resolve_project_context(
+            target_repo=self.target_repo, aw_home=self.aw_home
+        )
+        self.assertTrue(ctx.is_configured)
+        self.assertEqual(ctx.preset, "private-target")
+        self.assertEqual(ctx.project_role, "target")
+
+    def test_e02(self):
+        """E-02 & V-02: Legacy config migration, unknown key preservation, and fail-closed versioning."""
+        fixture_path = os.path.join(self.fixture_dir, "e02-legacy-and-merge.json")
+        with open(fixture_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        from agent_workflows.project_schema import (
+            migrate_legacy_config,
+            parse_portable_policy,
+        )
+
+        leg_data = data["legacy_config"]
+        port_dict, local_dict = migrate_legacy_config(leg_data)
+
+        # Unknown human key MUST be preserved
+        self.assertIn("human_custom_note", port_dict)
+        self.assertEqual(port_dict["human_custom_note"], "preserved-custom-value-12345")
+
+        # Unsupported schema_version MUST fail closed with ValueError
+        with self.assertRaises(ValueError) as cm:
+            parse_portable_policy(data["invalid_schema_version"])
+        self.assertIn("Unsupported schema_version", str(cm.exception))
+
+    def test_e03(self):
+        """E-03 & V-03: Precedence level resolution and unlawful same-path alias rejection."""
+        fixture_path = os.path.join(self.fixture_dir, "e03-precedence-and-alias.json")
+        with open(fixture_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        # Precedence test: explicit flag overrides local binding and project config
+        ctx_explicit = resolve_project_context(
+            target_repo=self.target_repo,
+            aw_home=self.aw_home,
+            preset=data["explicit_preset"],
+        )
+        self.assertEqual(ctx_explicit.preset, "completely-clean-target")
+        self.assertEqual(ctx_explicit.provenance["preset"]["source"], "explicit_flags")
+
+        # Alias canary test: distinct root classes aliased to same path raise PathSecurityError
+        config_dir = os.path.join(self.target_repo, ".aw", "config")
+        os.makedirs(config_dir, exist_ok=True)
+        alias_canary = {
+            "schema_version": 2,
+            "system_root": os.path.join(self.target_repo, ".aw", "shared_root"),
+            "config_root": os.path.join(self.target_repo, ".aw", "shared_root"),
+        }
+        with open(os.path.join(config_dir, "local.json"), "w", encoding="utf-8") as f:
+            json.dump(alias_canary, f)
+
+        with self.assertRaises(PathSecurityError) as cm:
+            resolve_project_context(target_repo=self.target_repo, aw_home=self.aw_home)
+        self.assertIn("Unlawful class aliasing detected", str(cm.exception))
+
+    def test_e04(self):
+        """E-04 & V-04: Hardened path security, traversal check, and clean-delta containment."""
+        fixture_path = os.path.join(self.fixture_dir, "e04-path-security.json")
+        with open(fixture_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        from agent_workflows.project_context import _check_path_security
+
+        # Path traversal with '..' MUST raise PathSecurityError
+        with self.assertRaises(PathSecurityError) as cm:
+            _check_path_security(data["traversal_path"], "test_label")
+        self.assertIn("traversal '..'", str(cm.exception))
+
+        # Clean-delta with repository backend MUST raise PathSecurityError
+        with self.assertRaises(PathSecurityError) as cm2:
+            resolve_project_context(
+                target_repo=self.target_repo,
+                aw_home=self.aw_home,
+                delivery_mode="clean-delta",
+                records_backend="repository",
+            )
+        self.assertIn(
+            "clean-delta delivery mode MUST NOT use 'repository'", str(cm2.exception)
+        )
+
+    def test_e05(self):
+        """E-05 & V-05: Public context output redaction and leak sanitizer integration."""
+        fixture_path = os.path.join(self.fixture_dir, "e05-public-redaction.json")
+        with open(fixture_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        from agent_workflows.project_context import redact_public_context
+
+        ctx = resolve_project_context(
+            target_repo=self.target_repo, aw_home=self.aw_home
+        )
+        redacted = redact_public_context(ctx.to_dict())
+
+        # Public output MUST replace absolute local paths with <REDACTED_LOCAL_PATH>
+        self.assertEqual(redacted["target_repo"], data["expected_redacted"])
+        self.assertEqual(redacted["effective_aw_home"], data["expected_redacted"])
+
+        # Retains required physical classes and git policies
+        self.assertIn("physical_classes", redacted)
+        self.assertIn("git_policies", redacted)
+
+    def test_e06(self):
+        """E-06 & V-06: Round-trip compatibility and atomic save no_clobber protection."""
+        fixture_path = os.path.join(self.fixture_dir, "e06-compatibility.json")
+        with open(fixture_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        from agent_workflows.project_schema import (
+            migrate_legacy_config,
+            atomic_save_json,
+        )
+
+        port_dict, local_dict = migrate_legacy_config(data["legacy_policy"])
+        self.assertEqual(port_dict["schema_version"], 2)
+
+        test_file = os.path.join(self.tmp_dir, "test_config.json")
+        atomic_save_json(test_file, port_dict)
+
+        # Atomic save with no_clobber=True on existing file MUST raise FileExistsError
+        with self.assertRaises(FileExistsError) as cm:
+            atomic_save_json(test_file, port_dict, no_clobber=True)
+        self.assertIn("no_clobber is True", str(cm.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

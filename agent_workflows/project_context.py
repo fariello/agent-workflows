@@ -23,12 +23,16 @@ from agent_workflows.project_schema import (
     RECORDS_BACKENDS,
     DeliveryMode,
     DurabilityState,
+    GitPolicy,
     LogicalRoot,
     PrecedenceLevel,
+    Preset,
     ProjectContext,
+    ProjectRole,
     Provenance,
     RecordsBackend,
     RootClass,
+    migrate_legacy_config,
 )
 
 
@@ -180,6 +184,48 @@ def _derive_project_id(target_repo: str) -> str:
     return f"{clean_slug}-{path_hash}"
 
 
+def redact_public_context(ctx_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """Redact absolute machine-local paths and sensitive data from context dictionary (spec Section 9 & Order 02 E-05)."""
+    import copy
+
+    d = copy.deepcopy(ctx_dict)
+
+    if "target_repo" in d:
+        d["target_repo"] = "<REDACTED_LOCAL_PATH>"
+    if "effective_aw_home" in d:
+        d["effective_aw_home"] = "<REDACTED_LOCAL_PATH>"
+
+    if "logical_roots" in d and isinstance(d["logical_roots"], dict):
+        for k in d["logical_roots"]:
+            d["logical_roots"][k] = "<REDACTED_LOCAL_PATH>"
+
+    if "physical_classes" in d and isinstance(d["physical_classes"], dict):
+        for k in d["physical_classes"]:
+            d["physical_classes"][k] = "<REDACTED_LOCAL_PATH>"
+
+    if "permitted_commit_destinations" in d and isinstance(
+        d["permitted_commit_destinations"], dict
+    ):
+        for k, v in d["permitted_commit_destinations"].items():
+            if v:
+                d["permitted_commit_destinations"][k] = "<REDACTED_LOCAL_PATH>"
+
+    if "provenance" in d and isinstance(d["provenance"], dict):
+        for field, prov in d["provenance"].items():
+            if isinstance(prov, dict) and "detail" in prov:
+                val = str(prov["detail"])
+                if (
+                    "/" in val
+                    or "\\" in val
+                    or "~" in val
+                    or "home" in val.lower()
+                    or "user" in val.lower()
+                ):
+                    prov["detail"] = "<REDACTED_LOCAL_PATH>"
+
+    return d
+
+
 def resolve_project_context(
     target_repo: Optional[str] = None,
     aw_home: Optional[str] = None,
@@ -188,13 +234,15 @@ def resolve_project_context(
     enabled_hosts: Optional[List[str]] = None,
     profile: Optional[str] = None,
     user_config_dir: Optional[str] = None,
+    preset: Optional[str] = None,
+    role: Optional[str] = None,
 ) -> ProjectContext:
     """Pure, side-effect-free resolver for AW project context (spec Section 9 & 17).
 
     Six Precedence Levels (spec Section 17):
       1. EXPLICIT_FLAGS (explicit arguments passed to invocation)
-      2. MACHINE_LOCAL_BINDING (user local config per-repo entry)
-      3. PROJECT_DURABLE_CONFIG (.aw/config/config.json in target repo)
+      2. MACHINE_LOCAL_BINDING (.aw/config/local.json in target repo or user repo binding)
+      3. PROJECT_DURABLE_CONFIG (.aw/config/project.json in target repo)
       4. NAMED_GLOBAL_PROFILE (~/.config/agent-workflows/profiles/<profile>.json)
       5. GLOBAL_DEFAULTS (~/.config/agent-workflows/config.json default keys)
       6. BUILTIN_DEFAULTS (built-in fallbacks)
@@ -258,35 +306,68 @@ def resolve_project_context(
     user_cfg_file = os.path.join(user_cfg_dir_effective, "config.json")
     user_cfg_data = _read_json_file(user_cfg_file) or {}
 
-    # Level 2: Machine-local binding per-repo
+    # Level 2: Machine-local binding per-repo (.aw/config/local.json or user config repo section)
+    local_binding_file = os.path.join(repo_abs, ".aw", "config", "local.json")
+    local_binding_data = _read_json_file(local_binding_file) or {}
+
     user_repos = user_cfg_data.get("repos")
     repo_cfg_in_user: Dict[str, Any] = {}
     if isinstance(user_repos, dict):
         repo_cfg_in_user = user_repos.get(repo_abs, {}) or {}
-    elif isinstance(user_repos, list):
-        repo_cfg_in_user = {}
 
-    # Level 3: Project durable config
-    target_durable_cfg_file = os.path.join(repo_abs, ".aw", "config", "config.json")
-    target_durable_cfg = _read_json_file(target_durable_cfg_file) or {}
+    # Merge local_binding_data with repo_cfg_in_user (local_binding_file takes priority for Level 2)
+    merged_local_binding = dict(repo_cfg_in_user)
+    merged_local_binding.update(local_binding_data)
 
-    # Check for contradictory settings at same precedence level
-    if target_durable_cfg and repo_cfg_in_user:
+    # Level 3: Project durable config (.aw/config/project.json or legacy config.json / policy.json)
+    project_policy_file = os.path.join(repo_abs, ".aw", "config", "project.json")
+    legacy_config_file = os.path.join(repo_abs, ".aw", "config", "config.json")
+    legacy_policy_file = os.path.join(repo_abs, ".aw", "config", "policy.json")
+
+    is_configured = False
+    project_policy_data: Dict[str, Any] = {}
+
+    if os.path.exists(project_policy_file):
+        is_configured = True
+        project_policy_data = _read_json_file(project_policy_file) or {}
+    elif os.path.exists(legacy_policy_file):
+        is_configured = True
+        leg_data = _read_json_file(legacy_policy_file) or {}
+        port, loc = migrate_legacy_config(leg_data)
+        project_policy_data = port
+        merged_local_binding.update(loc)
+    elif os.path.exists(legacy_config_file):
+        is_configured = True
+        leg_data = _read_json_file(legacy_config_file) or {}
+        port, loc = migrate_legacy_config(leg_data)
+        project_policy_data = port
+        merged_local_binding.update(loc)
+    elif os.path.exists(local_binding_file):
+        is_configured = True
+
+    if project_policy_data.get("schema_version", 2) > 2:
+        raise ValueError(
+            f"Unsupported schema_version {project_policy_data.get('schema_version')}"
+        )
+
+    # Check for conflicting settings at same precedence level
+    if project_policy_data and merged_local_binding:
         if (
-            target_durable_cfg.get("delivery_mode")
-            and repo_cfg_in_user.get("delivery_mode")
-            and target_durable_cfg["delivery_mode"] != repo_cfg_in_user["delivery_mode"]
+            project_policy_data.get("delivery_mode")
+            and merged_local_binding.get("delivery_mode")
+            and project_policy_data["delivery_mode"]
+            != merged_local_binding["delivery_mode"]
         ):
             raise ConflictingConfigurationError(
-                f"Conflicting delivery_mode settings between durable config ({target_durable_cfg['delivery_mode']}) "
-                f"and user local binding ({repo_cfg_in_user['delivery_mode']})"
+                f"Conflicting delivery_mode settings between durable config ({project_policy_data['delivery_mode']}) "
+                f"and user local binding ({merged_local_binding['delivery_mode']})"
             )
 
     # Level 4: Named Global Profile
     selected_profile_name = (
         profile
-        or repo_cfg_in_user.get("profile")
-        or target_durable_cfg.get("profile")
+        or merged_local_binding.get("profile")
+        or project_policy_data.get("profile")
         or user_cfg_data.get("profile")
     )
     profile_cfg_data: Dict[str, Any] = {}
@@ -296,7 +377,64 @@ def resolve_project_context(
         )
         profile_cfg_data = _read_json_file(profile_file) or {}
 
-    # 3. Delivery Mode Resolution (following exact 6-level precedence)
+    # 3. Preset & Role Resolution
+    if preset:
+        resolved_preset = preset
+        provenance_map["preset"] = Provenance(
+            source=PrecedenceLevel.EXPLICIT_FLAGS.value,
+            detail=f"--preset flag ({preset})",
+        )
+    elif merged_local_binding.get("preset"):
+        resolved_preset = merged_local_binding["preset"]
+        provenance_map["preset"] = Provenance(
+            source=PrecedenceLevel.MACHINE_LOCAL_BINDING.value,
+            detail="machine-local binding",
+        )
+    elif project_policy_data.get("preset"):
+        resolved_preset = project_policy_data["preset"]
+        provenance_map["preset"] = Provenance(
+            source=PrecedenceLevel.PROJECT_DURABLE_CONFIG.value,
+            detail="portable project policy",
+        )
+    elif profile_cfg_data.get("preset"):
+        resolved_preset = profile_cfg_data["preset"]
+        provenance_map["preset"] = Provenance(
+            source=PrecedenceLevel.NAMED_GLOBAL_PROFILE.value,
+            detail=f"named profile ({selected_profile_name})",
+        )
+    else:
+        resolved_preset = Preset.PRIVATE_TARGET.value
+        provenance_map["preset"] = Provenance(
+            source=PrecedenceLevel.BUILTIN_DEFAULTS.value,
+            detail="built-in default (private-target)",
+        )
+
+    if role:
+        resolved_role = role
+        provenance_map["role"] = Provenance(
+            source=PrecedenceLevel.EXPLICIT_FLAGS.value,
+            detail=f"--role flag ({role})",
+        )
+    elif merged_local_binding.get("role"):
+        resolved_role = merged_local_binding["role"]
+        provenance_map["role"] = Provenance(
+            source=PrecedenceLevel.MACHINE_LOCAL_BINDING.value,
+            detail="machine-local binding",
+        )
+    elif project_policy_data.get("role"):
+        resolved_role = project_policy_data["role"]
+        provenance_map["role"] = Provenance(
+            source=PrecedenceLevel.PROJECT_DURABLE_CONFIG.value,
+            detail="portable project policy",
+        )
+    else:
+        resolved_role = ProjectRole.TARGET.value
+        provenance_map["role"] = Provenance(
+            source=PrecedenceLevel.BUILTIN_DEFAULTS.value,
+            detail="built-in default (target)",
+        )
+
+    # 4. Delivery Mode Resolution
     if delivery_mode:
         if delivery_mode not in DELIVERY_MODES:
             raise ProjectContextError(f"Invalid delivery_mode: {delivery_mode}")
@@ -305,17 +443,23 @@ def resolve_project_context(
             source=PrecedenceLevel.EXPLICIT_FLAGS.value,
             detail=f"--delivery-mode flag ({delivery_mode})",
         )
-    elif repo_cfg_in_user.get("delivery_mode"):
-        resolved_delivery_mode = repo_cfg_in_user["delivery_mode"]
+    elif merged_local_binding.get("delivery_mode"):
+        resolved_delivery_mode = merged_local_binding["delivery_mode"]
         provenance_map["delivery_mode"] = Provenance(
             source=PrecedenceLevel.MACHINE_LOCAL_BINDING.value,
             detail=f"user local binding for {repo_abs}",
         )
-    elif target_durable_cfg.get("delivery_mode"):
-        resolved_delivery_mode = target_durable_cfg["delivery_mode"]
+    elif project_policy_data.get("delivery_mode"):
+        resolved_delivery_mode = project_policy_data["delivery_mode"]
         provenance_map["delivery_mode"] = Provenance(
             source=PrecedenceLevel.PROJECT_DURABLE_CONFIG.value,
-            detail=f"durable config ({target_durable_cfg_file})",
+            detail=f"durable config ({project_policy_file})",
+        )
+    elif resolved_preset == Preset.COMPLETELY_CLEAN_TARGET.value:
+        resolved_delivery_mode = DeliveryMode.CLEAN_DELTA.value
+        provenance_map["delivery_mode"] = Provenance(
+            source=PrecedenceLevel.PROJECT_DURABLE_CONFIG.value,
+            detail="derived from completely-clean-target preset",
         )
     elif profile_cfg_data.get("delivery_mode"):
         resolved_delivery_mode = profile_cfg_data["delivery_mode"]
@@ -336,7 +480,7 @@ def resolve_project_context(
             detail="built-in default (tracked)",
         )
 
-    # 4. Records Backend Resolution (following exact 6-level precedence)
+    # 5. Records Backend Resolution
     if records_backend:
         if records_backend not in RECORDS_BACKENDS:
             raise ProjectContextError(f"Invalid records_backend: {records_backend}")
@@ -345,17 +489,23 @@ def resolve_project_context(
             source=PrecedenceLevel.EXPLICIT_FLAGS.value,
             detail=f"--records-backend flag ({records_backend})",
         )
-    elif repo_cfg_in_user.get("records_backend"):
-        resolved_records_backend = repo_cfg_in_user["records_backend"]
+    elif merged_local_binding.get("records_backend"):
+        resolved_records_backend = merged_local_binding["records_backend"]
         provenance_map["records_backend"] = Provenance(
             source=PrecedenceLevel.MACHINE_LOCAL_BINDING.value,
             detail=f"user local binding for {repo_abs}",
         )
-    elif target_durable_cfg.get("records_backend"):
-        resolved_records_backend = target_durable_cfg["records_backend"]
+    elif project_policy_data.get("records_backend"):
+        resolved_records_backend = project_policy_data["records_backend"]
         provenance_map["records_backend"] = Provenance(
             source=PrecedenceLevel.PROJECT_DURABLE_CONFIG.value,
-            detail=f"durable config ({target_durable_cfg_file})",
+            detail=f"durable config ({project_policy_file})",
+        )
+    elif resolved_preset == Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value:
+        resolved_records_backend = RecordsBackend.COMPANION.value
+        provenance_map["records_backend"] = Provenance(
+            source=PrecedenceLevel.PROJECT_DURABLE_CONFIG.value,
+            detail="derived from public-target-private-companion preset",
         )
     elif profile_cfg_data.get("records_backend"):
         resolved_records_backend = profile_cfg_data["records_backend"]
@@ -376,8 +526,7 @@ def resolve_project_context(
             detail="built-in default (home)",
         )
 
-    # Clean-delta security invariant check (spec Section 5.2):
-    # clean-delta delivery mode MUST NOT route records into target repository
+    # Clean-delta security invariant check
     if (
         resolved_delivery_mode == DeliveryMode.CLEAN_DELTA.value
         and resolved_records_backend == RecordsBackend.REPOSITORY.value
@@ -386,39 +535,46 @@ def resolve_project_context(
             "Invalid configuration: clean-delta delivery mode MUST NOT use 'repository' records backend."
         )
 
-    # 5. Project ID Resolution
-    project_id = repo_cfg_in_user.get(
+    # 6. Project ID Resolution
+    project_id = merged_local_binding.get(
         "project_id",
-        target_durable_cfg.get("project_id", _derive_project_id(repo_abs)),
+        project_policy_data.get("project_id", _derive_project_id(repo_abs)),
     )
     provenance_map["project_id"] = Provenance(
         source=(
             PrecedenceLevel.MACHINE_LOCAL_BINDING.value
-            if "project_id" in repo_cfg_in_user
+            if "project_id" in merged_local_binding
             else (
                 PrecedenceLevel.PROJECT_DURABLE_CONFIG.value
-                if "project_id" in target_durable_cfg
+                if "project_id" in project_policy_data
                 else PrecedenceLevel.BUILTIN_DEFAULTS.value
             )
         ),
         detail=f"project identity ({project_id})",
     )
+    provenance_map["is_configured"] = Provenance(
+        source=(
+            PrecedenceLevel.PROJECT_DURABLE_CONFIG.value
+            if is_configured
+            else PrecedenceLevel.BUILTIN_DEFAULTS.value
+        ),
+        detail=f"persisted policy configured={is_configured}",
+    )
 
-    # 6. Logical Roots Resolution
-    # 6. Physical Classes & Logical Roots Resolution
+    # 7. Physical Classes & Logical Roots Resolution
     project_aw_dir = os.path.join(aw_home_abs, "projects", project_id)
 
-    # system root (spec Section 4 & 4.1: <container>/.aw/system)
-    if repo_cfg_in_user.get("system_root"):
-        system_root = _canonical_path(repo_cfg_in_user["system_root"])
+    # system root
+    if merged_local_binding.get("system_root"):
+        system_root = _canonical_path(merged_local_binding["system_root"])
     elif resolved_delivery_mode == DeliveryMode.TRACKED.value:
         system_root = _canonical_path(os.path.join(repo_abs, ".aw", "system"))
     else:
         system_root = _canonical_path(os.path.join(project_aw_dir, "system"))
 
     # config root
-    if repo_cfg_in_user.get("config_root"):
-        config_root = _canonical_path(repo_cfg_in_user["config_root"])
+    if merged_local_binding.get("config_root"):
+        config_root = _canonical_path(merged_local_binding["config_root"])
     elif resolved_delivery_mode == DeliveryMode.TRACKED.value:
         config_root = _canonical_path(os.path.join(repo_abs, ".aw", "config"))
     else:
@@ -428,8 +584,8 @@ def resolve_project_context(
     config_local_path = _canonical_path(os.path.join(config_root, "local.json"))
 
     # state root
-    if repo_cfg_in_user.get("state_root"):
-        state_root = _canonical_path(repo_cfg_in_user["state_root"])
+    if merged_local_binding.get("state_root"):
+        state_root = _canonical_path(merged_local_binding["state_root"])
     elif resolved_delivery_mode == DeliveryMode.TRACKED.value:
         state_root = _canonical_path(os.path.join(repo_abs, ".aw", "state"))
     else:
@@ -442,7 +598,7 @@ def resolve_project_context(
     if resolved_records_backend == RecordsBackend.REPOSITORY.value:
         records_root = _canonical_path(os.path.join(repo_abs, ".aw", "records"))
     elif resolved_records_backend == RecordsBackend.COMPANION.value:
-        companion_dir = repo_cfg_in_user.get("companion_dir", f"{repo_abs}.aw")
+        companion_dir = merged_local_binding.get("companion_dir", f"{repo_abs}.aw")
         records_root = _canonical_path(os.path.join(companion_dir, "records"))
     else:  # HOME
         records_root = _canonical_path(os.path.join(project_aw_dir, "records"))
@@ -462,10 +618,63 @@ def resolve_project_context(
         LogicalRoot.STATE.value: state_root,
         LogicalRoot.RECORDS.value: records_root,
     }
+
+    # Same-path alias detection (spec Section 4.1 & E-03)
+    # Distinct physical classes or logical roots MUST NOT alias each other unless explicitly permitted
+    all_class_paths = list(physical_classes.items()) + list(logical_roots.items())
+    local_aliases = merged_local_binding.get("local_aliases", {})
+    for i in range(len(all_class_paths)):
+        for j in range(i + 1, len(all_class_paths)):
+            name_a, path_a = all_class_paths[i]
+            name_b, path_b = all_class_paths[j]
+            if (
+                path_a == path_b
+                and name_a != name_b
+                and not (name_a.startswith("config") and name_b.startswith("config"))
+            ):
+                if (
+                    local_aliases.get(name_a) != path_a
+                    and local_aliases.get(name_b) != path_b
+                ):
+                    raise PathSecurityError(
+                        f"Unlawful class aliasing detected between '{name_a}' and '{name_b}': {path_a}"
+                    )
     provenance_map["logical_roots"] = Provenance(
         source=PrecedenceLevel.PROJECT_DURABLE_CONFIG.value,
         detail="resolved physical roots mapping",
     )
+
+    # Git Policies calculation per physical class
+    git_policies = {
+        RootClass.SYSTEM.value: GitPolicy.TARGET_GIT.value
+        if resolved_preset
+        in (Preset.PRIVATE_TARGET.value, ProjectRole.SOURCE_CHECKOUT.value)
+        and resolved_delivery_mode == DeliveryMode.TRACKED.value
+        else GitPolicy.IGNORED.value,
+        RootClass.CONFIG_PROJECT.value: GitPolicy.TARGET_GIT.value
+        if resolved_preset
+        in (Preset.PRIVATE_TARGET.value, ProjectRole.SOURCE_CHECKOUT.value)
+        and resolved_delivery_mode == DeliveryMode.TRACKED.value
+        else GitPolicy.IGNORED.value,
+        RootClass.CONFIG_LOCAL.value: GitPolicy.IGNORED.value,
+        RootClass.STATE_DURABLE.value: GitPolicy.TARGET_GIT.value
+        if resolved_preset
+        in (Preset.PRIVATE_TARGET.value, ProjectRole.SOURCE_CHECKOUT.value)
+        and resolved_delivery_mode == DeliveryMode.TRACKED.value
+        else (
+            GitPolicy.COMPANION_GIT.value
+            if resolved_preset == Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
+            else GitPolicy.IGNORED.value
+        ),
+        RootClass.STATE_RUNTIME.value: GitPolicy.IGNORED.value,
+        RootClass.RECORDS.value: GitPolicy.TARGET_GIT.value
+        if resolved_records_backend == RecordsBackend.REPOSITORY.value
+        else (
+            GitPolicy.COMPANION_GIT.value
+            if resolved_records_backend == RecordsBackend.COMPANION.value
+            else GitPolicy.UNTRACKED.value
+        ),
+    }
 
     # Containment check: clean-delta mode MUST NOT route ANY root into target repo
     if resolved_delivery_mode == DeliveryMode.CLEAN_DELTA.value:
@@ -475,10 +684,10 @@ def resolve_project_context(
                     f"Clean-delta security violation: {root_name} root ({root_path}) is inside target repository ({repo_abs})"
                 )
 
-    # Enforce physical Git policy invariants (spec Section 4.1 & 5.2)
+    # Enforce physical Git policy invariants
     validate_physical_git_policy(repo_abs, physical_classes)
 
-    # 7. Durability State
+    # 8. Durability State
     if resolved_records_backend == RecordsBackend.REPOSITORY.value:
         durability_state = DurabilityState.REPOSITORY_MANAGED.value
     elif os.path.exists(os.path.join(records_root, ".git")):
@@ -490,7 +699,7 @@ def resolve_project_context(
         detail=f"observable records repository state ({durability_state})",
     )
 
-    # 8. Framework Version
+    # 9. Framework Version
     framework_version = DEFAULT_FRAMEWORK_VERSION
     version_file = os.path.join(system_root, "workflows", "VERSION")
     if os.path.isfile(version_file):
@@ -504,7 +713,7 @@ def resolve_project_context(
         detail=f"framework version ({framework_version})",
     )
 
-    # 9. Enabled Hosts
+    # 10. Enabled Hosts
     resolved_hosts = (
         enabled_hosts if enabled_hosts is not None else DEFAULT_ENABLED_HOSTS
     )
@@ -517,7 +726,7 @@ def resolve_project_context(
         detail=f"enabled third-party hosts ({','.join(resolved_hosts)})",
     )
 
-    # 10. Permitted Commit Destinations
+    # 11. Permitted Commit Destinations
     product_dest = (
         repo_abs if resolved_delivery_mode == DeliveryMode.TRACKED.value else None
     )
@@ -533,7 +742,7 @@ def resolve_project_context(
         detail="permitted commit targets based on delivery mode and backend",
     )
 
-    # 11. Root Accessibility
+    # 12. Root Accessibility
     accessibility = {
         "system": os.access(
             system_root if os.path.exists(system_root) else repo_abs, os.R_OK
@@ -553,7 +762,7 @@ def resolve_project_context(
         detail="filesystem readability checks for resolved roots",
     )
 
-    # 12. Open AW Actions
+    # 13. Open AW Actions
     open_actions: List[Dict[str, Any]] = []
     open_actions_dir = os.path.join(state_root, "actions", "open")
     if os.path.isdir(open_actions_dir):
@@ -587,4 +796,8 @@ def resolve_project_context(
         open_aw_actions=open_actions,
         provenance={k: v.to_dict() for k, v in provenance_map.items()},
         physical_classes=physical_classes,
+        git_policies=git_policies,
+        project_role=resolved_role,
+        preset=resolved_preset,
+        is_configured=is_configured,
     )

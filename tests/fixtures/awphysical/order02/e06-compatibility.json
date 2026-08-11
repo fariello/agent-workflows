@@ -1,0 +1,8 @@
+{
+  "legacy_policy": {
+    "schema_version": 1,
+    "delivery_mode": "tracked",
+    "records_backend": "repository",
+    "preset": "private-target"
+  }
+}

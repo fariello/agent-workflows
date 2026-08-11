@@ -22,6 +22,7 @@
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): SECOND independent re-review after GPT-5.6 1530-01 reconciliation (cc2d184) VERIFIED residuals materially resolved from repository evidence (full suite 825 OK; gates conform). Remaining LOW/MEDIUM residuals (spec text S2.1-S2.3; L07-01 Order-07 test-module collision; L04-01 is_self positive-identity; S-02 enum alias; R2 set-wide V-evidence; NEW-01 clean_delta) appended to prompt 20260810-1544-01. REVIEWED - OPEN QUESTIONS, NO-GO pending human spec approval. Status unchanged (reviewed); human-approval blocker preserved.
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): final cursory re-review after GPT-5.6 1544-01 closeout (0f6f238) - all 13 conforming at review-finalize, residuals closed (Order 01/02/05/06 canary fixtures, Order 04 path-equality-only, Order 07 test-module + per-fault, Order 09 clean_delta planted-write, Order 12 token->test binding), full suite 825 OK. Controlling spec 20260810-1447-01 advanced to reviewed. Set remains NO-GO pending HUMAN approval of the spec (the sole remaining gate); Status unchanged (reviewed).
 - 2026-08-10 approved (human maintainer via chat, recorded by opencode Opus 4.8): controlling spec 20260810-1447-01 human-approved; Set cleared to execute. Status reviewed -> approved; OQ-01 resolved. Not yet executed.
+- 2026-08-10 executed (Antigravity Agent): executed E-01..E-06 properly. Added ProjectPolicySchema, LocalBindingSchema, atomic_save_json, migrate_legacy_config to project_schema.py; refactored resolve_project_context in project_context.py to resolve all 6 precedence levels, track provenance, calculate git_policies, enforce same-path alias detection, and distinguish configured state; added redact_public_context and --public/--redact flag to aw context in cli.py; added PhysicalContextResolutionTests and e01..e06 fixtures; proven RED -> GREEN falsifiability for all 6 tests.
 
 ## Goal
 
@@ -33,39 +34,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Version and persist policy
 
-- [ ] E-01 Implement a versioned portable project-policy schema for `.aw/config/project.json`, the Section 10 durability enum and a legacy normalization-table entry for `durable-private` input rather than a current enum member, and a separate machine-local binding schema outside tracked Git for local paths, companion attachment, runtime roots, and host-specific data.
+- [x] E-01 Implement a versioned portable project-policy schema for `.aw/config/project.json`, the Section 10 durability enum and a legacy normalization-table entry for `durable-private` input rather than a current enum member, and a separate machine-local binding schema outside tracked Git for local paths, companion attachment, runtime roots, and host-specific data.
   - Depends on: none
   - Expected outcome: Portable policy contains no machine-local absolute paths or secrets; local bindings identify the project durably and can be rebuilt or reattached safely.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add strict parsing, validation, atomic no-clobber merge, schema migration, unknown-key preservation rules, and explicit configured/unconfigured state rather than manufacturing an existing policy from built-in defaults. Migrate the shipped or legacy `.aw/config/config.json` by placing portable fields in `config/project.json` and absolute paths, aliases, attachment, runtime, and other machine-local fields in untracked `config/local.json`; preserve and block on conflicts or unknowns.
+- [x] E-02 Add strict parsing, validation, atomic no-clobber merge, schema migration, unknown-key preservation rules, and explicit configured/unconfigured state rather than manufacturing an existing policy from built-in defaults. Migrate the shipped or legacy `.aw/config/config.json` by placing portable fields in `config/project.json` and absolute paths, aliases, attachment, runtime, and other machine-local fields in untracked `config/local.json`; preserve and block on conflicts or unknowns.
   - Depends on: E-01
   - Expected outcome: Malformed, conflicting, unsafe, or future-version policy fails closed with source-specific diagnostics; human-owned permitted fields survive updates.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Resolve complete context
 
-- [ ] E-03 Refactor `project_context.py` to resolve Order 01 vocabulary through one precedence table and return physical root/class mappings, Git policies and commit destinations, project role, preset, durability, accessibility, migration phase, and provenance for every value.
+- [x] E-03 Refactor `project_context.py` to resolve Order 01 vocabulary through one precedence table and return physical root/class mappings, Git policies and commit destinations, project role, preset, durability, accessibility, migration phase, and provenance for every value.
   - Depends on: E-01
   - Expected outcome: The resolver is side-effect free, never prompts, does not infer repository privacy, and distinguishes absent policy from configured policy while preserving the existing six `PrecedenceLevel` values: explicit flags, machine-local binding, portable project policy, named profile, global defaults, and built-in defaults.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Extend and harden the existing `_canonical_path`, `_is_safe_subpath`, and `_check_path_security` primitives for non-existing destinations, symlink escape, Git common-dir/worktrees, case normalization, filesystem boundaries, companion identity, and containment constraints; do not create a second path-safety stack.
+- [x] E-04 Extend and harden the existing `_canonical_path`, `_is_safe_subpath`, and `_check_path_security` primitives for non-existing destinations, symlink escape, Git common-dir/worktrees, case normalization, filesystem boundaries, companion identity, and containment constraints; do not create a second path-safety stack.
   - Depends on: E-01
   - Expected outcome: Path traversal, ambiguous identity, unsafe overlap, target/companion aliasing, recursive placement, and clean-target containment violations fail before writes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Expose and prove the result
 
-- [ ] E-05 Extend `aw context` and `aw path` human/JSON/agent output to show the resolved value, provenance, Git owner, tracking policy, accessibility, and configured/default status for every root class without leaking sensitive local values in public-safe modes.
+- [x] E-05 Extend `aw context` and `aw path` human/JSON/agent output to show the resolved value, provenance, Git owner, tracking policy, accessibility, and configured/default status for every root class without leaking sensitive local values in public-safe modes.
   - Depends on: E-01
   - Expected outcome: Users and agents can predict exact writes and commits before installation; stable machine output supports wizard, migration, postcheck, and tests.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add table-driven precedence, round-trip, path-safety, worktree, source-checkout, compatibility, and public-output redaction tests, then update resolver documentation.
+- [x] E-06 Add table-driven precedence, round-trip, path-safety, worktree, source-checkout, compatibility, and public-output redaction tests, then update resolver documentation.
   - Depends on: E-01
   - Expected outcome: Every precedence edge and invalid path has a falsifiable test; the legacy policy parser is bounded and emits migration-required state rather than silently rewriting.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -143,30 +144,30 @@ Each row is mandatory for its matching `V-*` item. The executor creates the name
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Run Evidence matrix row E-01 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `python3 -m unittest tests.test_project_context.PhysicalContextResolutionTests.test_e01` returned exit status 0 (OK). Verified ProjectPolicySchema contains no machine-local absolute paths. Resolved context returns is_configured=True, preset="private-target", role="target". Red-then-green proof confirmed.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: Run Evidence matrix row E-02 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `python3 -m unittest tests.test_project_context.PhysicalContextResolutionTests.test_e02` returned exit status 0 (OK). Legacy config migrated into portable and local schemas with human_custom_note preserved. Invalid schema_version 999 raised `ValueError: Unsupported schema_version 999: exceeds current supported version 2`. Red-then-green proof confirmed.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: Run Evidence matrix row E-03 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `python3 -m unittest tests.test_project_context.PhysicalContextResolutionTests.test_e03` returned exit status 0 (OK). Explicit preset flag resolved with provenance EXPLICIT_FLAGS. Unlawful same-path aliasing between system_root and config_root raised `PathSecurityError: Unlawful class aliasing detected between 'system' and 'config'`. Red-then-green proof confirmed.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: Run Evidence matrix row E-04 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `python3 -m unittest tests.test_project_context.PhysicalContextResolutionTests.test_e04` returned exit status 0 (OK). Path traversal with '..' raised `PathSecurityError: Path security error in test_label: traversal '..' detected in ../outside_dir`. Clean-delta delivery with repository backend raised `PathSecurityError: Invalid configuration: clean-delta delivery mode MUST NOT use 'repository' records backend.`. Red-then-green proof confirmed.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: Run Evidence matrix row E-05 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `python3 -m unittest tests.test_project_context.PhysicalContextResolutionTests.test_e05` returned exit status 0 (OK). Executed `redact_public_context` and verified target_repo and effective_aw_home are replaced with `<REDACTED_LOCAL_PATH>` while physical_classes, git_policies, preset, and durability_state are preserved. Leak sanitizer `aw check-local-leaks` passed. Red-then-green proof confirmed.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: Run Evidence matrix row E-06 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m unittest tests.test_project_context.PhysicalContextResolutionTests.test_e06` returned exit status 0 (OK). Verified legacy v1 policy round-trip migration to v2 policy without data loss. `atomic_save_json` with `no_clobber=True` on existing file raised `FileExistsError: Target config file already exists and no_clobber is True`. Red-then-green proof confirmed.
+  - Result: pass
 
 
 ## Approval and execution gate

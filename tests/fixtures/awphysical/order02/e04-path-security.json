@@ -1,0 +1,7 @@
+{
+  "traversal_path": "../outside_dir",
+  "clean_delta_invalid": {
+    "delivery_mode": "clean-delta",
+    "records_backend": "repository"
+  }
+}

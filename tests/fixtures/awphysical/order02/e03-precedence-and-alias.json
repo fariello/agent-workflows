@@ -1,0 +1,11 @@
+{
+  "explicit_preset": "completely-clean-target",
+  "local_preset": "public-target-private-companion",
+  "project_preset": "private-target",
+  "alias_canary": {
+    "local_aliases": {
+      "state_durable": "/forbidden/aliased/path",
+      "state_runtime": "/forbidden/aliased/path"
+    }
+  }
+}

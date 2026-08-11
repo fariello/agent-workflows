@@ -878,6 +878,13 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Machine-readable JSON output for LLM callers.",
     )
+    p_context.add_argument(
+        "--public",
+        "--redact",
+        action="store_true",
+        dest="public",
+        help="Redact absolute local paths and secrets for public-safe output.",
+    )
 
     p_path = sub.add_parser(
         "path",
@@ -2558,21 +2565,31 @@ def _run_check_local_leaks(args: argparse.Namespace, term: Term) -> int:
 
 
 def _run_context(args: argparse.Namespace, term: Term) -> int:
-    """Inspect resolved AW project context (spec Section 9)."""
+    """Inspect resolved AW project context (spec Section 9 & Order 02 E-05)."""
     import json
     from agent_workflows.project_context import (
         resolve_project_context,
+        redact_public_context,
         ProjectContextError,
     )
 
     try:
         ctx = resolve_project_context(target_repo=getattr(args, "repo", None))
     except ProjectContextError as exc:
-        if getattr(args, "json", False) or getattr(args, "agent", False):
+        if (
+            getattr(args, "json", False)
+            or getattr(args, "agent", False)
+            or getattr(args, "public", False)
+        ):
             print(json.dumps({"error": str(exc)}, indent=2))
         else:
             term.status("fail", str(exc))
         return 1
+
+    if getattr(args, "public", False):
+        redacted = redact_public_context(ctx.to_dict())
+        print(json.dumps(redacted, indent=2))
+        return 0
 
     if getattr(args, "json", False) or getattr(args, "agent", False):
         print(ctx.to_json(indent=2))

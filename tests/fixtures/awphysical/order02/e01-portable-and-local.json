@@ -1,0 +1,31 @@
+{
+  "portable_policy": {
+    "schema_version": 2,
+    "preset": "private-target",
+    "role": "target",
+    "placements": {
+      "system": "target-tracked",
+      "config_project": "target-tracked",
+      "config_local": "target-ignored",
+      "state_durable": "target-tracked",
+      "state_runtime": "target-ignored",
+      "records": "target-tracked"
+    },
+    "git_policies": {
+      "system": "target-git",
+      "config_project": "target-git",
+      "config_local": "ignored",
+      "state_durable": "target-git",
+      "state_runtime": "ignored",
+      "records": "target-git"
+    },
+    "enabled_hosts": ["opencode", "claude", "antigravity"]
+  },
+  "local_binding": {
+    "schema_version": 2,
+    "project_id": "proj-order02-test",
+    "human_slug": "test-project",
+    "runtime_overrides": {},
+    "local_aliases": {}
+  }
+}
