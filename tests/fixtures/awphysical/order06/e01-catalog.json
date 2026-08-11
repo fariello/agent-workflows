@@ -1,0 +1,5 @@
+{
+  "test": "e01-catalog",
+  "roots": ["agents", "workflow-artifacts", "installer-backups", "partial-aw", "claude-adapters", "opencode-adapters", "agents-pointer", "claude-pointer", "gemini-pointer"],
+  "unknown_must_block": true
+}

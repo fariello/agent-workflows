@@ -1,0 +1,5 @@
+{
+  "test": "e02-stability",
+  "git_states": ["tracked", "untracked", "ignored", "not-listed", "unmerged", "external"],
+  "timestamp_isolated": true
+}

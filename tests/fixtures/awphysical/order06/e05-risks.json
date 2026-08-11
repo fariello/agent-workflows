@@ -1,0 +1,12 @@
+{
+  "test": "e05-risks",
+  "blocking_rules": [
+    "unknown-owner",
+    "inaccessible-root",
+    "destination-collision",
+    "unsafe-symlink",
+    "unmerged-git-state",
+    "missing-disposition",
+    "stale-policy-digest"
+  ]
+}

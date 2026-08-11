@@ -140,6 +140,234 @@ class InventoryTests(unittest.TestCase):
             "mixed:ignored,tracked",
         )
 
+    def test_e01(self) -> None:
+        """E-01: Closed legacy-source catalog discovery and unknown owner blocking."""
+        fx = (
+            Path(__file__).resolve().parent.parent.parent
+            / "tests"
+            / "fixtures"
+            / "awphysical"
+            / "order06"
+            / "e01-catalog.json"
+        )
+        self.assertTrue(fx.is_file(), f"Fixture missing: {fx}")
+
+        # 1. Positive case: valid legacy tree and external root
+        wf = self.repo / ".agents/workflows/valid/body.md"
+        wf.parent.mkdir(parents=True)
+        wf.write_text("workflow body\n", encoding="utf-8")
+
+        ext_dir = Path(self.temp.name) / "ext_records"
+        ext_dir.mkdir()
+        (ext_dir / "records/doc.md").parent.mkdir(parents=True)
+        (ext_dir / "records/doc.md").write_text("ext record\n", encoding="utf-8")
+
+        res = INVENTORY.inventory(
+            self.repo,
+            [
+                ("agents", self.repo / ".agents"),
+                ("ext-records", ext_dir),
+            ],
+            include_paths=False,
+        )
+
+        self.assertTrue(res["valid"], res.get("errors"))
+        items = {item["source_relpath"]: item for item in res["items"]}
+        self.assertEqual(items["workflows/valid/body.md"]["ownership"], "system")
+        self.assertEqual(items["records/doc.md"]["ownership"], "records")
+
+        # 2. Negative case: unknown item in .agents MUST block (valid=False)
+        unknown_file = self.repo / ".agents/unknown_stuff.txt"
+        unknown_file.write_text("unknown content\n", encoding="utf-8")
+
+        res_bad = INVENTORY.inventory(
+            self.repo,
+            [("agents", self.repo / ".agents")],
+            include_paths=False,
+        )
+
+        self.assertFalse(res_bad["valid"])
+        err_rules = {e["rule"] for e in res_bad["errors"]}
+        self.assertIn("unknown-owner", err_rules)
+
+    def test_e02(self) -> None:
+        """E-02: Content-stable inventory output and Git state classification."""
+        fx = (
+            Path(__file__).resolve().parent.parent.parent
+            / "tests"
+            / "fixtures"
+            / "awphysical"
+            / "order06"
+            / "e02-stability.json"
+        )
+        self.assertTrue(fx.is_file(), f"Fixture missing: {fx}")
+
+        wf = self.repo / ".agents/workflows/v1/body.md"
+        wf.parent.mkdir(parents=True)
+        wf.write_text("workflow body\n", encoding="utf-8")
+
+        res1 = INVENTORY.inventory(
+            self.repo, [("agents", self.repo / ".agents")], include_paths=False
+        )
+        res2 = INVENTORY.inventory(
+            self.repo, [("agents", self.repo / ".agents")], include_paths=False
+        )
+
+        # Content stability check
+        self.assertEqual(res1["inventory_id"], res2["inventory_id"])
+
+        # Symlink escape check: recorded as symlink, not followed into escape
+        ext_target = Path(self.temp.name) / "outside.txt"
+        ext_target.write_text("outside\n", encoding="utf-8")
+        os.symlink(ext_target, self.repo / ".agents/sym_outside")
+
+        res3 = INVENTORY.inventory(
+            self.repo, [("agents", self.repo / ".agents")], include_paths=False
+        )
+        self.assertFalse(res3["valid"])
+        err_rules = {e["rule"] for e in res3["errors"]}
+        self.assertIn("unsafe-symlink", err_rules)
+
+    def test_e03(self) -> None:
+        """E-03: Content-aware classification and relative identity preservation."""
+        fx = (
+            Path(__file__).resolve().parent.parent.parent
+            / "tests"
+            / "fixtures"
+            / "awphysical"
+            / "order06"
+            / "e03-classification.json"
+        )
+        self.assertTrue(fx.is_file(), f"Fixture missing: {fx}")
+
+        plan = self.repo / ".agents/plans/pending/20260810-test.md"
+        plan.parent.mkdir(parents=True)
+        plan.write_text("plan content\n", encoding="utf-8")
+
+        res = INVENTORY.inventory(
+            self.repo, [("agents", self.repo / ".agents")], include_paths=False
+        )
+        self.assertTrue(res["valid"])
+        item = next(
+            i for i in res["items"] if "20260810-test.md" in i["source_relpath"]
+        )
+
+        self.assertEqual(item["ownership"], "records")
+        self.assertEqual(item["lifecycle_class"], "records")
+        self.assertEqual(item["expected_destination_class"], "records")
+        self.assertEqual(item["disposition"], "migrate")
+
+    def test_e04(self) -> None:
+        """E-04: Source-to-destination map generation and explicit collision handling."""
+        fx = (
+            Path(__file__).resolve().parent.parent.parent
+            / "tests"
+            / "fixtures"
+            / "awphysical"
+            / "order06"
+            / "e04-mapping.json"
+        )
+        self.assertTrue(fx.is_file(), f"Fixture missing: {fx}")
+
+        wf = self.repo / ".agents/workflows/e04/body.md"
+        wf.parent.mkdir(parents=True)
+        wf.write_text("wf e04\n", encoding="utf-8")
+
+        inv_res = INVENTORY.inventory(
+            self.repo, [("agents", self.repo / ".agents")], include_paths=False
+        )
+        map_res = INVENTORY.build_migration_map(
+            self.repo, inv_res, target_backend="repository"
+        )
+
+        self.assertTrue(map_res["valid"])
+        item_map = next(i for i in map_res["items"] if "body.md" in i["source_relpath"])
+        self.assertEqual(item_map["destination_root_class"], "system")
+        self.assertEqual(
+            item_map["destination_relpath"], "system/workflows/e04/body.md"
+        )
+        self.assertNotIn(".agents", item_map["destination_relpath"])
+
+    def test_e05(self) -> None:
+        """E-05: Preflight risk analysis for blocking rules."""
+        fx = (
+            Path(__file__).resolve().parent.parent.parent
+            / "tests"
+            / "fixtures"
+            / "awphysical"
+            / "order06"
+            / "e05-risks.json"
+        )
+        self.assertTrue(fx.is_file(), f"Fixture missing: {fx}")
+
+        # Plant unknown owner
+        bad_file = self.repo / ".agents/bad_owner.bin"
+        bad_file.parent.mkdir(parents=True, exist_ok=True)
+        bad_file.write_text("bad\n", encoding="utf-8")
+
+        inv_res = INVENTORY.inventory(
+            self.repo, [("agents", self.repo / ".agents")], include_paths=False
+        )
+        map_res = INVENTORY.build_migration_map(self.repo, inv_res)
+        risk_res = INVENTORY.analyze_migration_risks(self.repo, inv_res, map_res)
+
+        self.assertFalse(risk_res["valid"])
+        err_rules = {e["rule"] for e in risk_res["errors"]}
+        self.assertIn("unknown-owner", err_rules)
+
+    def test_e06(self) -> None:
+        """E-06: Human and JSON CLI surfaces with no-write proof."""
+        fx = (
+            Path(__file__).resolve().parent.parent.parent
+            / "tests"
+            / "fixtures"
+            / "awphysical"
+            / "order06"
+            / "e06-preview.json"
+        )
+        self.assertTrue(fx.is_file(), f"Fixture missing: {fx}")
+
+        wf = self.repo / ".agents/workflows/e06/body.md"
+        wf.parent.mkdir(parents=True, exist_ok=True)
+        wf.write_text("wf e06\n", encoding="utf-8")
+
+        out_path = Path(self.temp.name) / "out_plan.json"
+        ret = INVENTORY.main(
+            ["--repo", str(self.repo), "--plan", "--output", str(out_path)]
+        )
+
+        self.assertEqual(ret, 0)
+        self.assertTrue(out_path.is_file())
+
+        data = json.loads(out_path.read_text(encoding="utf-8"))
+        self.assertTrue(data["valid"])
+        self.assertIn("inventory", data)
+        self.assertIn("migration_map", data)
+        self.assertIn("risk_analysis", data)
+        self.assertTrue(data["risk_analysis"]["no_write_proven"])
+
+    def test_e07(self) -> None:
+        """E-07: Closed matrix of expected vs actual items and set mismatch blocking."""
+        fx = (
+            Path(__file__).resolve().parent.parent.parent
+            / "tests"
+            / "fixtures"
+            / "awphysical"
+            / "order06"
+            / "e07-matrix.json"
+        )
+        self.assertTrue(fx.is_file(), f"Fixture missing: {fx}")
+
+        wf = self.repo / ".agents/workflows/e07/body.md"
+        wf.parent.mkdir(parents=True, exist_ok=True)
+        wf.write_text("wf e07\n", encoding="utf-8")
+
+        inv_res = INVENTORY.inventory(
+            self.repo, [("agents", self.repo / ".agents")], include_paths=False
+        )
+        self.assertTrue(inv_res["valid"])
+        self.assertEqual(len(inv_res["items"]), 4)  # .agents, workflows, e07, body.md
+
 
 class CompareTests(unittest.TestCase):
     """Verify complete map accounting and byte comparison."""

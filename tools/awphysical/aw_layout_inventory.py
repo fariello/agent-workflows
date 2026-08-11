@@ -20,6 +20,7 @@ import json
 import os
 import re
 import stat
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -133,6 +134,172 @@ def _default_roots(repo: Path) -> List[Tuple[str, Path]]:
         for label, rel in DEFAULT_ROOTS
         if (repo / rel).exists() or (repo / rel).is_symlink()
     ]
+
+
+def classify_item(
+    label: str, relpath: str, repo_relpath: Optional[str] = None
+) -> Dict[str, str]:
+    """Classify legacy item into ownership, lifecycle, destination class, and disposition (E-01/E-03)."""
+    posix = relpath.strip("/")
+    if not posix or posix == ".":
+        if label == "agents":
+            return {
+                "ownership": "system",
+                "lifecycle_class": "system",
+                "expected_destination_class": "system",
+                "disposition": "migrate",
+            }
+        if label == "workflow-artifacts":
+            return {
+                "ownership": "records",
+                "lifecycle_class": "records",
+                "expected_destination_class": "records",
+                "disposition": "migrate",
+            }
+        if label == "installer-backups":
+            return {
+                "ownership": "state-runtime",
+                "lifecycle_class": "state-runtime",
+                "expected_destination_class": "durable_state",
+                "disposition": "preserve",
+            }
+        if label == "partial-aw":
+            return {
+                "ownership": "config",
+                "lifecycle_class": "config",
+                "expected_destination_class": "config",
+                "disposition": "migrate",
+            }
+        if (
+            label.startswith("ext-")
+            or label.startswith("old-")
+            or label.startswith("extra-")
+        ):
+            return {
+                "ownership": "records",
+                "lifecycle_class": "records",
+                "expected_destination_class": "records",
+                "disposition": "migrate",
+            }
+        if label.endswith("adapters") or label.endswith("pointer"):
+            return {
+                "ownership": "host-adapter-candidate",
+                "lifecycle_class": "host-adapter-candidate",
+                "expected_destination_class": "host_adapters",
+                "disposition": "migrate",
+            }
+
+    if label == "agents":
+        first = posix.split("/", 1)[0] if posix else ""
+        if first == "workflows":
+            return {
+                "ownership": "system",
+                "lifecycle_class": "system",
+                "expected_destination_class": "system",
+                "disposition": "migrate",
+            }
+        if first in {"plans", "prompts", "docs", "comms"}:
+            return {
+                "ownership": "records",
+                "lifecycle_class": "records",
+                "expected_destination_class": "records",
+                "disposition": "migrate",
+            }
+        if first == "agent-workflows":
+            return {
+                "ownership": "unknown",
+                "lifecycle_class": "review-required",
+                "expected_destination_class": "unknown",
+                "disposition": "block-unknown",
+            }
+        return {
+            "ownership": "unknown",
+            "lifecycle_class": "review-required",
+            "expected_destination_class": "unknown",
+            "disposition": "block-unknown",
+        }
+    if label == "workflow-artifacts":
+        return {
+            "ownership": "records",
+            "lifecycle_class": "records",
+            "expected_destination_class": "records",
+            "disposition": "migrate",
+        }
+    if label == "installer-backups":
+        return {
+            "ownership": "state-runtime",
+            "lifecycle_class": "state-runtime",
+            "expected_destination_class": "durable_state",
+            "disposition": "preserve",
+        }
+    if label == "partial-aw":
+        first = posix.split("/", 1)[0] if posix else ""
+        if first in {"config", "policy"}:
+            return {
+                "ownership": "config",
+                "lifecycle_class": "config",
+                "expected_destination_class": "config",
+                "disposition": "migrate",
+            }
+        if first in {"state", "durable", "runtime"}:
+            return {
+                "ownership": "state-runtime",
+                "lifecycle_class": "state-runtime",
+                "expected_destination_class": "durable_state",
+                "disposition": "migrate",
+            }
+        if first == "records":
+            return {
+                "ownership": "records",
+                "lifecycle_class": "records",
+                "expected_destination_class": "records",
+                "disposition": "migrate",
+            }
+        return {
+            "ownership": "unknown",
+            "lifecycle_class": "review-required",
+            "expected_destination_class": "unknown",
+            "disposition": "block-unknown",
+        }
+    if label.endswith("adapters") or label.endswith("pointer"):
+        return {
+            "ownership": "host-adapter-candidate",
+            "lifecycle_class": "host-adapter-candidate",
+            "expected_destination_class": "host_adapters",
+            "disposition": "migrate",
+        }
+    if (
+        label.startswith("ext-")
+        or label.startswith("old-")
+        or label.startswith("extra-")
+    ):
+        first = posix.split("/", 1)[0] if posix else ""
+        if first in {"records", "plans", "docs", "prompts"}:
+            return {
+                "ownership": "records",
+                "lifecycle_class": "records",
+                "expected_destination_class": "records",
+                "disposition": "migrate",
+            }
+        if first in {"config", "state"}:
+            return {
+                "ownership": "config",
+                "lifecycle_class": "config",
+                "expected_destination_class": "config",
+                "disposition": "migrate",
+            }
+        return {
+            "ownership": "records",
+            "lifecycle_class": "records",
+            "expected_destination_class": "records",
+            "disposition": "migrate",
+        }
+    return {
+        "ownership": "unknown",
+        "lifecycle_class": "unknown",
+        "expected_destination_class": "unknown",
+        "disposition": "block-unknown",
+    }
 
 
 def _legacy_class(label: str, relpath: str) -> str:
@@ -271,24 +438,72 @@ def inventory(
                 identity_material = (
                     f"{label}\0{rel}\0{kind}\0{digest or ''}\0{link_target or ''}"
                 )
+                item_id = hashlib.sha256(
+                    identity_material.encode("utf-8", "surrogateescape")
+                ).hexdigest()
+                cls_info = classify_item(label, rel, repo_rel)
+                git_st = _git_state(repo_rel, tracked, untracked, ignored, unmerged)
+
                 item: Dict[str, Any] = {
-                    "item_id": hashlib.sha256(
-                        identity_material.encode("utf-8", "surrogateescape")
-                    ).hexdigest(),
+                    "item_id": item_id,
                     "source_root": label,
                     "source_relpath": rel,
                     "kind": kind,
                     "legacy_class": _legacy_class(label, rel),
+                    "ownership": cls_info["ownership"],
+                    "lifecycle_class": cls_info["lifecycle_class"],
+                    "expected_destination_class": cls_info[
+                        "expected_destination_class"
+                    ],
+                    "disposition": cls_info["disposition"],
                     "size": st.st_size,
                     "mode": stat.S_IMODE(st.st_mode),
                     "sha256": digest,
                     "symlink_target": link_target,
-                    "git_state": _git_state(
-                        repo_rel, tracked, untracked, ignored, unmerged
-                    ),
+                    "git_state": git_st,
                     "repo_relpath": repo_rel,
                 }
                 items.append(item)
+
+                if kind == "unsupported":
+                    errors.append(
+                        {
+                            "rule": "unsupported-type",
+                            "detail": f"{label}:{rel} has unsupported file type",
+                            "item_id": item_id,
+                        }
+                    )
+                if (
+                    item["ownership"] == "unknown"
+                    or item["disposition"] == "block-unknown"
+                ):
+                    errors.append(
+                        {
+                            "rule": "unknown-owner",
+                            "detail": f"{label}:{rel} has unknown owner/disposition",
+                            "item_id": item_id,
+                        }
+                    )
+                if kind == "symlink" and link_target:
+                    target_path = (path.parent / link_target).resolve()
+                    try:
+                        target_path.relative_to(repo.resolve())
+                    except ValueError:
+                        errors.append(
+                            {
+                                "rule": "unsafe-symlink",
+                                "detail": f"Symlink {label}:{rel} targets outside repository: {link_target}",
+                                "item_id": item_id,
+                            }
+                        )
+                if git_st == "unmerged":
+                    errors.append(
+                        {
+                            "rule": "unmerged-git-state",
+                            "detail": f"Git file {label}:{rel} is in unmerged state",
+                            "item_id": item_id,
+                        }
+                    )
         except (OSError, ValueError) as exc:
             errors.append(
                 {"rule": "inventory-read-failed", "detail": f"{label}: {exc}"}
@@ -313,6 +528,166 @@ def inventory(
     if include_paths and common_dir is not None:
         result["repository"]["git_common_dir"] = common_dir
     return result
+
+
+def build_migration_map(
+    repo: Path,
+    inv_doc: Dict[str, Any],
+    target_backend: str = "repository",
+    policy: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Generate deterministic source-to-destination migration map (E-04)."""
+    items = inv_doc.get("items", [])
+    map_items: List[Dict[str, Any]] = []
+    errors: List[Dict[str, str]] = list(inv_doc.get("errors", []))
+    dest_seen: Dict[Tuple[str, str], Dict[str, Any]] = {}
+
+    for item in items:
+        source_id = item["item_id"]
+        source_root = item["source_root"]
+        source_relpath = item["source_relpath"]
+        dest_class = item.get("expected_destination_class", "unknown")
+
+        if dest_class == "system":
+            dest_relpath = f"system/{source_relpath}"
+        elif dest_class == "records":
+            dest_relpath = f"records/{source_relpath}"
+        elif dest_class == "durable_state":
+            dest_relpath = f"state/durable/{source_relpath}"
+        elif dest_class == "config":
+            dest_relpath = f"config/{source_relpath}"
+        elif dest_class == "host_adapters":
+            dest_relpath = f"adapters/{source_relpath}"
+        else:
+            dest_relpath = f"unknown/{source_relpath}"
+
+        dest_key = (dest_class, dest_relpath)
+        collision_policy = "fail_on_collision"
+        if dest_key in dest_seen:
+            prev = dest_seen[dest_key]
+            if prev["sha256"] == item["sha256"] and item["sha256"] is not None:
+                collision_policy = "deduplicate_identical"
+            else:
+                errors.append(
+                    {
+                        "rule": "destination-collision",
+                        "detail": f"Destination collision at {dest_class}:{dest_relpath} between {prev['source_root']}:{prev['source_relpath']} and {source_root}:{source_relpath}",
+                        "item_id": source_id,
+                    }
+                )
+
+        dest_seen[dest_key] = item
+
+        map_item: Dict[str, Any] = {
+            "item_id": source_id,
+            "source_root": source_root,
+            "source_relpath": source_relpath,
+            "target_git_boundary": target_backend,
+            "destination_root_class": dest_class,
+            "destination_relpath": dest_relpath,
+            "copy_method": "copy"
+            if item.get("disposition") == "migrate"
+            else "preserve",
+            "track_ignore_expectation": "tracked"
+            if item.get("git_state") == "tracked"
+            else "untracked",
+            "collision_policy": collision_policy,
+            "compatibility_retention": "pointer"
+            if source_root.endswith("pointer")
+            else "none",
+            "rollback_source": source_relpath,
+            "disposition": item.get("disposition", "unknown"),
+        }
+        map_items.append(map_item)
+
+    map_items.sort(key=lambda m: (m["source_root"], m["source_relpath"]))
+    canonical = json.dumps(map_items, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "map_id": hashlib.sha256(canonical).hexdigest(),
+        "inventory_id": inv_doc.get("inventory_id"),
+        "target_backend": target_backend,
+        "items": map_items,
+        "errors": errors,
+        "valid": not errors,
+    }
+
+
+def analyze_migration_risks(
+    repo: Path,
+    inv_doc: Dict[str, Any],
+    map_doc: Optional[Dict[str, Any]] = None,
+    policy: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Analyze migration preflight risks and return structured report (E-05)."""
+    errors: List[Dict[str, Any]] = []
+    warnings: List[Dict[str, Any]] = []
+
+    for err in inv_doc.get("errors", []):
+        if err not in errors:
+            errors.append(err)
+    if map_doc:
+        for err in map_doc.get("errors", []):
+            if err not in errors:
+                errors.append(err)
+
+    for root in inv_doc.get("roots", []):
+        if not root.get("exists", False):
+            warnings.append(
+                {
+                    "rule": "inaccessible-root",
+                    "detail": f"Root {root.get('name')} does not exist or is inaccessible",
+                }
+            )
+
+    total_bytes = sum(item.get("size", 0) for item in inv_doc.get("items", []))
+    try:
+        usage = shutil.disk_usage(repo)
+        available = usage.free
+        if total_bytes > available:
+            errors.append(
+                {
+                    "rule": "insufficient-space",
+                    "detail": f"Insufficient disk space: required {total_bytes} bytes, available {available} bytes",
+                }
+            )
+    except Exception:
+        pass
+
+    target_aw = repo / ".aw"
+    if target_aw.exists() and not os.access(target_aw, os.W_OK):
+        errors.append(
+            {
+                "rule": "permission-failure",
+                "detail": f"Target directory is not writable: {target_aw}",
+            }
+        )
+
+    item_counts = {
+        "total": len(inv_doc.get("items", [])),
+        "files": sum(
+            1 for item in inv_doc.get("items", []) if item.get("kind") == "file"
+        ),
+        "directories": sum(
+            1 for item in inv_doc.get("items", []) if item.get("kind") == "directory"
+        ),
+        "symlinks": sum(
+            1 for item in inv_doc.get("items", []) if item.get("kind") == "symlink"
+        ),
+    }
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "valid": not errors,
+        "errors": errors,
+        "warnings": warnings,
+        "item_counts": item_counts,
+        "total_bytes": total_bytes,
+        "no_write_proven": True,
+    }
 
 
 def _atomic_json(path: Path, payload: Mapping[str, Any]) -> None:
@@ -359,6 +734,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Include absolute root and Git paths in private evidence output.",
     )
     parser.add_argument(
+        "--plan",
+        action="store_true",
+        help="Generate migration map and risk analysis in addition to inventory.",
+    )
+    parser.add_argument(
+        "--target-backend",
+        default="repository",
+        choices=["repository", "companion", "home"],
+        help="Target backend for migration map generation.",
+    )
+    parser.add_argument(
         "--output",
         default=None,
         help="Write JSON atomically to this path; otherwise print to stdout.",
@@ -388,7 +774,23 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             raise InventoryError(
                 "no existing default roots and no --root values were supplied"
             )
-        result = inventory(repo, roots, args.include_root_paths)
+        inv_res = inventory(repo, roots, args.include_root_paths)
+        if args.plan:
+            map_res = build_migration_map(
+                repo, inv_res, target_backend=args.target_backend
+            )
+            risk_res = analyze_migration_risks(repo, inv_res, map_res)
+            result = {
+                "schema_version": SCHEMA_VERSION,
+                "inventory": inv_res,
+                "migration_map": map_res,
+                "risk_analysis": risk_res,
+                "valid": inv_res.get("valid", False)
+                and map_res.get("valid", False)
+                and risk_res.get("valid", False),
+            }
+        else:
+            result = inv_res
     except InventoryError as exc:
         result = {
             "schema_version": SCHEMA_VERSION,

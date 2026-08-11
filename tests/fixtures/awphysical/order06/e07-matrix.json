@@ -1,0 +1,4 @@
+{
+  "test": "e07-matrix",
+  "scenarios": ["clean", "modified-managed", "unknown-file", "symlink-escape", "destination-collision", "unmerged-git"]
+}

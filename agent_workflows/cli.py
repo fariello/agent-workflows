@@ -1232,10 +1232,29 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Transactional AW layout migration and backend cutover.",
     )
     p_migrate.add_argument(
+        "action",
+        nargs="?",
+        choices=["inventory", "plan"],
+        default=None,
+        help="Action to perform: inventory or plan (default: full plan preview).",
+    )
+    p_migrate.add_argument(
         "--target-backend",
         choices=["home", "companion", "repository"],
         default="repository",
         help="Target records storage backend.",
+    )
+    p_migrate.add_argument(
+        "--root",
+        action="append",
+        default=[],
+        metavar="LABEL=PATH",
+        help="Additional legacy root to inventory (repeatable).",
+    )
+    p_migrate.add_argument(
+        "--output",
+        default=None,
+        help="Write JSON output to file path.",
     )
     p_migrate.add_argument(
         "--dry-run",
@@ -3270,39 +3289,87 @@ def _run_action_history(args: argparse.Namespace, term: Term) -> int:
 def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
     import json
     import os
+    from pathlib import Path
+    from tools.awphysical import aw_layout_inventory as inv_mod
     from agent_workflows.layout_migration import MigrationManager, MigrationError
 
-    repo_path = os.getcwd()
-    target_backend = getattr(args, "target_backend", "repository")
-    dry_run = getattr(args, "dry_run", True) or not getattr(args, "apply", False)
+    repo_path = Path(os.getcwd())
+    action = getattr(args, "action", None)
+    output = getattr(args, "output", None)
+    json_out = getattr(args, "json", False)
 
+    if action == "inventory":
+        roots = inv_mod._default_roots(repo_path)
+        for r_arg in getattr(args, "root", []):
+            roots.append(inv_mod.parse_root(r_arg, repo_path))
+        inv_res = inv_mod.inventory(
+            repo_path, roots, include_paths=getattr(args, "include_root_paths", False)
+        )
+        if output:
+            inv_mod._atomic_json(Path(output).expanduser().absolute(), inv_res)
+        elif json_out:
+            print(json.dumps(inv_res, indent=2, sort_keys=True))
+        else:
+            term.heading("AW Layout Inventory")
+            term.status("info", f"Total Items: {len(inv_res.get('items', []))}")
+            term.status(
+                "ok" if inv_res.get("valid") else "fail",
+                f"Inventory Valid: {inv_res.get('valid')}",
+            )
+        return 0 if inv_res.get("valid") else 2
+
+    if (
+        action == "plan"
+        or getattr(args, "dry_run", True)
+        and not getattr(args, "apply", False)
+    ):
+        roots = inv_mod._default_roots(repo_path)
+        for r_arg in getattr(args, "root", []):
+            roots.append(inv_mod.parse_root(r_arg, repo_path))
+        inv_res = inv_mod.inventory(
+            repo_path, roots, include_paths=getattr(args, "include_root_paths", False)
+        )
+        target_backend = getattr(args, "target_backend", "repository")
+        map_res = inv_mod.build_migration_map(
+            repo_path, inv_res, target_backend=target_backend
+        )
+        risk_res = inv_mod.analyze_migration_risks(repo_path, inv_res, map_res)
+        plan_doc = {
+            "schema_version": inv_mod.SCHEMA_VERSION,
+            "inventory": inv_res,
+            "migration_map": map_res,
+            "risk_analysis": risk_res,
+            "valid": inv_res.get("valid", False)
+            and map_res.get("valid", False)
+            and risk_res.get("valid", False),
+        }
+        if output:
+            inv_mod._atomic_json(Path(output).expanduser().absolute(), plan_doc)
+        elif json_out or action == "plan":
+            print(json.dumps(plan_doc, indent=2, sort_keys=True))
+        else:
+            term.heading("AW Layout Migration Plan")
+            term.status("info", f"Target Backend: {target_backend}")
+            term.status("info", f"Total Items:    {risk_res['item_counts']['total']}")
+            term.status("info", f"Total Bytes:    {risk_res['total_bytes']}")
+            term.status(
+                "ok" if plan_doc["valid"] else "fail",
+                f"Plan Valid:     {plan_doc['valid']}",
+            )
+        return 0 if plan_doc["valid"] else 2
+
+    target_backend = getattr(args, "target_backend", "repository")
     try:
-        mgr = MigrationManager(target_repo=repo_path)
-        plan = mgr.execute_migration(target_backend=target_backend, dry_run=dry_run)
+        mgr = MigrationManager(target_repo=str(repo_path))
+        mgr.execute_migration(target_backend=target_backend, dry_run=False)
     except MigrationError as exc:
-        if getattr(args, "json", False):
+        if json_out:
             print(json.dumps({"error": str(exc)}, indent=2))
         else:
             term.status("fail", str(exc))
         return 1
 
-    if getattr(args, "json", False):
-        print(json.dumps(plan.to_dict(), indent=2))
-        return 0
-
-    term.heading("AW Layout Migration Plan")
-    term.status("info", f"Project ID:      {plan.project_id}")
-    term.status("info", f"Source Backend:  {plan.source_backend}")
-    term.status("info", f"Target Backend:  {plan.target_backend}")
-    term.status("info", f"Required Bytes:  {plan.required_bytes}")
-    term.status("info", f"Available Bytes: {plan.available_bytes}")
-    term.status("ok" if plan.is_valid else "fail", f"Plan Valid:      {plan.is_valid}")
-
-    if dry_run:
-        term.status("info", "[DRY RUN] Pass --apply to execute this migration.")
-    else:
-        term.status("ok", "Successfully executed layout migration.")
-
+    term.status("ok", "Successfully executed layout migration.")
     return 0
 
 

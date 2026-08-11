@@ -1,0 +1,4 @@
+{
+  "test": "e04-mapping",
+  "boundaries": ["target_git_boundary", "destination_root_class", "copy_method", "collision_policy"]
+}

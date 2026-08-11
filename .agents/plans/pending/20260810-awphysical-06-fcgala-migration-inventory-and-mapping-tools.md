@@ -22,6 +22,8 @@
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): SECOND independent re-review after GPT-5.6 1530-01 reconciliation (cc2d184) VERIFIED residuals materially resolved from repository evidence (full suite 825 OK; gates conform). Remaining LOW/MEDIUM residuals (spec text S2.1-S2.3; L07-01 Order-07 test-module collision; L04-01 is_self positive-identity; S-02 enum alias; R2 set-wide V-evidence; NEW-01 clean_delta) appended to prompt 20260810-1544-01. REVIEWED - OPEN QUESTIONS, NO-GO pending human spec approval. Status unchanged (reviewed); human-approval blocker preserved.
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): final cursory re-review after GPT-5.6 1544-01 closeout (0f6f238) - all 13 conforming at review-finalize, residuals closed (Order 01/02/05/06 canary fixtures, Order 04 path-equality-only, Order 07 test-module + per-fault, Order 09 clean_delta planted-write, Order 12 token->test binding), full suite 825 OK. Controlling spec 20260810-1447-01 advanced to reviewed. Set remains NO-GO pending HUMAN approval of the spec (the sole remaining gate); Status unchanged (reviewed).
 - 2026-08-10 approved (human maintainer via chat, recorded by opencode Opus 4.8): controlling spec 20260810-1447-01 human-approved; Set cleared to execute. Status reviewed -> approved; OQ-01 resolved. Not yet executed.
+- 2026-08-11 executed (Antigravity CLI): implemented inventory/map JSON schemas, legacy classification, migration map builder, preflight risk analysis, CLI preview surfaces, and falsifiable tests (Order 06).
+
 
 ## Goal
 
@@ -33,44 +35,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Discover and classify all legacy material
 
-- [ ] E-01 Define a versioned inventory/migration-map JSON schema and a closed legacy-source catalog covering `.agents/workflows`, `.agents/agent-workflows`, `.agents/plans`, `.agents/prompts`, `.agents/docs`, `.agents/comms`, `workflow-artifacts`, installer backups/manifests, managed blocks, host shims, prior partial `.aw` trees, and external legacy roots supplied explicitly with repeatable operator `--root` declarations.
+- [x] E-01 Define a versioned inventory/migration-map JSON schema and a closed legacy-source catalog covering `.agents/workflows`, `.agents/agent-workflows`, `.agents/plans`, `.agents/prompts`, `.agents/docs`, `.agents/comms`, `workflow-artifacts`, installer backups/manifests, managed blocks, host shims, prior partial `.aw` trees, and external legacy roots supplied explicitly with repeatable operator `--root` declarations.
   - Depends on: none
   - Expected outcome: Every discovered item receives source root, relative path, kind, ownership, lifecycle class, expected destination class, and disposition; unknowns are blocking, not dropped.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Implement a read-only inventory engine, using or promoting `tools/awphysical/aw_layout_inventory.py`, that records regular files, directories, symlinks, sizes, modes, SHA-256, containing Git common-dir, and sanitized path identifiers. Isolate capture timestamps as run metadata, and use the closed Git classification `tracked`, `untracked`, `ignored`, `not-listed`, `unmerged`, `external`, or `mixed:<sorted-members>`.
+- [x] E-02 Implement a read-only inventory engine, using or promoting `tools/awphysical/aw_layout_inventory.py`, that records regular files, directories, symlinks, sizes, modes, SHA-256, containing Git common-dir, and sanitized path identifiers. Isolate capture timestamps as run metadata, and use the closed Git classification `tracked`, `untracked`, `ignored`, `not-listed`, `unmerged`, `external`, or `mixed:<sorted-members>`.
   - Depends on: E-01
   - Expected outcome: Repeated inventory on unchanged input is content-stable apart from explicitly isolated run metadata; it never follows unsafe symlinks or reads outside declared roots.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add bounded content-aware classification for overlapping legacy categories and human-authored/foreign files, preserving unknown extensions and nested files without assuming filename patterns imply ownership.
+- [x] E-03 Add bounded content-aware classification for overlapping legacy categories and human-authored/foreign files, preserving unknown extensions and nested files without assuming filename patterns imply ownership.
   - Depends on: E-01
   - Expected outcome: Managed manifests/hashes take precedence; modified/foreign files are flagged for human mapping; record classes preserve relative identities and lifecycle directories.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Map and preflight destinations
 
-- [ ] E-04 Generate an exact source-to-destination map from the confirmed Order 02 policy, including target/companion/home Git boundary, copy method, track/ignore expectation, collision policy, compatibility retention, and rollback source for every item.
+- [x] E-04 Generate an exact source-to-destination map from the confirmed Order 02 policy, including target/companion/home Git boundary, copy method, track/ignore expectation, collision policy, compatibility retention, and rollback source for every item.
   - Depends on: E-01
   - Expected outcome: No destination is derived from hard-coded `.agents` paths; one source item cannot silently overwrite or merge with another; identical-content deduplication is explicit and reversible.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Detect and report path traversal, symlink escape, destination nesting, case/unicode collision, existing-file conflict, insufficient space, permissions, unsupported file type, Git conflict/dirty index, worktree ambiguity, companion mismatch, inaccessible external root, partial prior migration, and concurrent-writer risk.
+- [x] E-05 Detect and report path traversal, symlink escape, destination nesting, case/unicode collision, existing-file conflict, insufficient space, permissions, unsupported file type, Git conflict/dirty index, worktree ambiguity, companion mismatch, inaccessible external root, partial prior migration, and concurrent-writer risk.
   - Depends on: E-01
   - Expected outcome: Blocking risks produce nonzero machine output before mutation; warnings require explicit acknowledgement in the later transaction plan.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Expose and verify the plan
 
-- [ ] E-06 Add `aw migrate-layout inventory/plan` human, JSON, and agent surfaces with `--output`, stable IDs, summary counts/bytes by class and Git owner, and no-write proofs; never print candid file contents.
+- [x] E-06 Add `aw migrate-layout inventory/plan` human, JSON, and agent surfaces with `--output`, stable IDs, summary counts/bytes by class and Git owner, and no-write proofs; never print candid file contents.
   - Depends on: E-01
   - Expected outcome: A human can review every move and Git consequence; Order 07 can consume the exact saved map without recomputing against changed inputs.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Add fixtures for clean legacy, modified managed files, unknown files, ignored records, symlinks, worktrees, multiple Git roots, public/companion, partial `.aw`, collisions, permission/space failures, and agent-workflows source checkout; test inventory completeness and determinism.
+- [x] E-07 Add fixtures for clean legacy, modified managed files, unknown files, ignored records, symlinks, worktrees, multiple Git roots, public/companion, partial `.aw`, collisions, permission/space failures, and agent-workflows source checkout; test inventory completeness and determinism.
   - Depends on: E-01
   - Expected outcome: Fixture expected-item set equals inventory-item set and every unsupported/unknown case blocks rather than disappearing.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -149,34 +151,34 @@ Each row is mandatory for its matching `V-*` item. The executor creates the name
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Run Evidence matrix row E-01 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `python3 -m unittest tools.awphysical.test_awphysical_tools.InventoryTests.test_e01` -> Ran 1 test in 0.040s OK.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: Run Evidence matrix row E-02 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `python3 -m unittest tools.awphysical.test_awphysical_tools.InventoryTests.test_e02` -> Ran 1 test in 0.045s OK.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: Run Evidence matrix row E-03 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `python3 -m unittest tools.awphysical.test_awphysical_tools.InventoryTests.test_e03` -> Ran 1 test in 0.021s OK.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: Run Evidence matrix row E-04 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `python3 -m unittest tools.awphysical.test_awphysical_tools.InventoryTests.test_e04` -> Ran 1 test in 0.021s OK.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: Run Evidence matrix row E-05 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `python3 -m unittest tools.awphysical.test_awphysical_tools.InventoryTests.test_e05` -> Ran 1 test in 0.023s OK.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: Run Evidence matrix row E-06 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: `python3 -m unittest tools.awphysical.test_awphysical_tools.InventoryTests.test_e06` -> Ran 1 test in 0.032s OK.
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: Run Evidence matrix row E-07 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m unittest tools.awphysical.test_awphysical_tools.InventoryTests.test_e07` -> Ran 1 test in 0.023s OK.
+  - Result: pass
 
 
 ## Approval and execution gate

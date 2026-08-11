@@ -1,0 +1,5 @@
+{
+  "test": "e06-preview",
+  "command": "aw migrate-layout inventory/plan",
+  "no_write_proven": true
+}

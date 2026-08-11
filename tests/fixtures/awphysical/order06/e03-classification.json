@@ -1,0 +1,4 @@
+{
+  "test": "e03-classification",
+  "classes": ["system", "records", "state-runtime", "config", "host-adapter-candidate", "review-required"]
+}
