@@ -31,6 +31,27 @@ class ScriptError(RuntimeError):
     """A user-actionable script failure."""
 
 
+# Durable, version-controlled prompt files that raise the diligence bar for the
+# Antigravity/Gemini executor (see the awphysical orchestration lessons). If a file is
+# missing, the tool falls back to a built-in default so it still runs.
+_PROMPT_DIR = Path(__file__).resolve().parent / "awphysical"
+_EXECUTION_PREAMBLE_FILE = _PROMPT_DIR / "agy-execution-preamble.md"
+_SELF_AUDIT_PROMPT_FILE = _PROMPT_DIR / "agy-self-audit-prompt.md"
+
+
+def _strip_html_comments(text: str) -> str:
+    """Remove leading HTML-comment metadata blocks so only the prompt body is sent."""
+    return re.sub(r"<!--.*?-->\s*", "", text, flags=re.S).strip()
+
+
+def _load_prompt_file(path: Path) -> str | None:
+    """Return the prompt body from a durable prompt file, or None if unavailable."""
+    try:
+        return _strip_html_comments(path.read_text(encoding="utf-8"))
+    except OSError:
+        return None
+
+
 @dataclass(frozen=True)
 class AgyResult:
     """The fields this workflow requires from an ``agy`` JSON result."""
@@ -247,6 +268,9 @@ def run_agy(
 
 
 def audit_prompt(ipd_path: str) -> str:
+    durable = _load_prompt_file(_SELF_AUDIT_PROMPT_FILE)
+    if durable is not None:
+        return durable.replace("{IPD_PATH}", ipd_path)
     return f"""Perform a skeptical post-execution audit of this executed Implementation Plan Document:
 
 `{ipd_path}`
@@ -309,10 +333,15 @@ def run(argv: Iterable[str] | None = None) -> int:
     initial_session = args.session_id or os.environ.get("ANTIGRAVITY_CONVERSATION_ID")
 
     print(f"Executing {pending_rel} in Antigravity...", file=sys.stderr, flush=True)
+    preamble = _load_prompt_file(_EXECUTION_PREAMBLE_FILE)
+    execute_instruction = f"read and execute `{pending_rel}`"
+    execute_prompt = (
+        f"{preamble}\n\n{execute_instruction}" if preamble else execute_instruction
+    )
     execution = run_agy(
         executable=executable,
         root=root,
-        prompt=f"read and execute `{pending_rel}`",
+        prompt=execute_prompt,
         session_id=initial_session,
         timeout=args.timeout,
         skip_permissions=args.dangerously_skip_permissions,
