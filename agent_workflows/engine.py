@@ -1283,6 +1283,8 @@ def in_framework_namespace(relative_posix: str) -> bool:
 
     if relative_posix.startswith(WORKFLOWS_DIR + "/"):
         return True
+    if relative_posix.startswith(".aw/system/"):
+        return True
     return any(
         relative_posix.startswith(shim_dir + "/") for shim_dir in COMMAND_SHIM_DIRS
     )
