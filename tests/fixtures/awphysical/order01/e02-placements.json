@@ -1,0 +1,12 @@
+{
+  "test_id": "e02-placements",
+  "placements": [
+    "target-tracked",
+    "target-ignored",
+    "home-untracked",
+    "companion-tracked",
+    "companion-untracked",
+    "source-checkout",
+    "custom"
+  ]
+}
