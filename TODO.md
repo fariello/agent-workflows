@@ -157,8 +157,37 @@ these without an approved IPD.
     approval path for specs (candidate: an attributed `Approval:` line like plans, or a human-issued out-of-band
     token/one-time approval file), plus fix the CLI ergonomics (make the interactive prompt the whole story / drop
     the redundant flag / default or relax `--message` for approvals). Preserve the "an agent harness alone cannot
-    self-approve" guarantee; the goal is proportionality + honest delegation, not removing the human from the loop.
+    self-approve" guarantee;     the goal is proportionality + honest delegation, not removing the human from the loop.
     Source: awphysical spec approval session 2026-08-10.
+
+- **Unify lifecycle-status transitions behind ONE verb across every status-bearing artifact, with
+  group/Set operations and a format/syntax checker (maintainer request 2026-08-10).** Today the
+  status-transition surface is inconsistent and incomplete: SPECS have `aw specs set --status <enum>`
+  (enforces the transition table + anti-self-approval floor + typed gates); RESEARCH has `aw research
+  promote`; but PLANS/IPDs have NO status-setting verb at all - `--status` on `aw plans find` is only a
+  FILTER, and setting a plan `to-review`/`reviewed`/`approved` (plus its `- Approval:` line and resolving
+  the human-approval OQ) is a hand-edit metadata convention. That gap is exactly why, in the awphysical
+  approval (2026-08-10), the 13 plan approvals were applied by a hand-written bulk script instead of a
+  tool (an error: it should have been per-file edits at minimum, and ideally a verb) - there was no
+  `aw` verb to record a plan approval. Desired design (discuss + IPD before building):
+  1. A SINGLE consistent transition verb usable across every artifact that carries a lifecycle status
+     (specs, plans/IPDs, and anything else that is `draft`/`to-review`/`reviewed`/`approved`/terminal) -
+     PREFERABLY the same verb name/shape everywhere (e.g. `aw <area> set --status <enum> --message ...`,
+     or a top-level `aw status set`), so the muscle memory and the enforcement (legal transition table,
+     honest human-approval capture per the item above, required history line) are uniform rather than
+     one-off per area.
+  2. GROUP/Set transitions: because we frequently act on a whole IPD Set at once (e.g. approve all 13
+     awphysical plans, or move a Set reviewed->approved together), the verb MUST accept a Set selector
+     (`--set <id>`) or an explicit multi-file list and apply the transition to all members atomically,
+     with one shared `--message`/approval record and a single consolidated history stamp - not 13 manual
+     edits. Respect the anti-self-approval floor for the human-only transitions even in group mode.
+  3. A FORMAT/SYNTAX CHECKER that validates the structure/metadata/status-legality of one file, a named
+     subset, or a whole directory class - `one | some | --pending | --executed | --all` (and per area:
+     specs, plans, research). Today `aw ipd lint` checks a single IPD and `aw specs check` does one-or-all
+     specs; unify/extend into a consistent "check the format+status of these artifacts" surface with the
+     same selector vocabulary as the transition verb, deterministic `--agent` output, and fail-closed
+     `--check` for CI. Keep the existing deterministic guarantees (structure/state only; no semantic
+     claims). Source: maintainer request during the awphysical plan-approval session, 2026-08-10.
 
 - **Re-evaluate the bounded-iteration + agent-agnostic skill-modifiers roadmap
   (`.agents/docs/roadmaps/20260712-1426-agent-workflows-bounded-iteration-skills-roadmap-for-consideration.md`).**
