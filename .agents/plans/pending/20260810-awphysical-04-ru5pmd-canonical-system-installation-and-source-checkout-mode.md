@@ -4,13 +4,12 @@
 - Kind: child
 - Concern: Move canonical installed framework content from `.agents/` into `.aw/system/` while protecting the agent-workflows source checkout from self-overwrite or duplicate sources.
 - Scope: Packaged system-source layout, installer/materializer transaction, manifests, versioning, adapters' source inputs, source-checkout detection/protection, install/update/uninstall behavior, and focused tests.
-- Status: approved
+- Status: executed
 - Set: awphysical (physical .aw hierarchy, storage policy, and migration)
 - Order: 4
 - Highest E allocated: 07
 - Author: Codex (GPT-5)
 - Id: ru5pmd
-- Approval: 2026-08-10 human maintainer (chat, after approving the controlling spec 20260810-1447-01) - approved to execute the awphysical Set; recorded by opencode Opus 4.8.
 
 ## Workflow history
 
@@ -22,7 +21,8 @@
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): SECOND independent re-review after GPT-5.6 1530-01 reconciliation (cc2d184) VERIFIED residuals materially resolved from repository evidence (full suite 825 OK; gates conform). Remaining LOW/MEDIUM residuals (spec text S2.1-S2.3; L07-01 Order-07 test-module collision; L04-01 is_self positive-identity; S-02 enum alias; R2 set-wide V-evidence; NEW-01 clean_delta) appended to prompt 20260810-1544-01. REVIEWED - OPEN QUESTIONS, NO-GO pending human spec approval. Status unchanged (reviewed); human-approval blocker preserved.
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): final cursory re-review after GPT-5.6 1544-01 closeout (0f6f238) - all 13 conforming at review-finalize, residuals closed (Order 01/02/05/06 canary fixtures, Order 04 path-equality-only, Order 07 test-module + per-fault, Order 09 clean_delta planted-write, Order 12 token->test binding), full suite 825 OK. Controlling spec 20260810-1447-01 advanced to reviewed. Set remains NO-GO pending HUMAN approval of the spec (the sole remaining gate); Status unchanged (reviewed).
 - 2026-08-10 approved (human maintainer via chat, recorded by opencode Opus 4.8): controlling spec 20260810-1447-01 human-approved; Set cleared to execute. Status reviewed -> approved; OQ-01 resolved. Not yet executed.
-- 2026-08-11 executed (Antigravity CLI): implemented canonical system installation, source checkout detection, staging/pivot transactions, and falsifiable tests (Order 04).
+- 2026-08-11 executed (Antigravity CLI): implemented canonical system installation, source checkout detection, staging/pivot transactions, and falsifiable tests (Order 04). Execute commits ce6441d (feat), 5752127 (engine namespace .aw/system/). Wrapper reported ERROR: timeout waiting for response because the turn exceeded the print-timeout, but work and plan bookkeeping completed and were committed.
+- 2026-08-11 orchestrator verification + terminal transition (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): Independent verification, NO fix required. Full suite `python3 -m unittest discover -s tests -t .` = Ran 844 OK (skipped=2) exit 0 (baseline 843 + Order-04 tests). Confirmed the install machinery is dual-path: pyproject force-include + sdist include add `.aw/system` alongside legacy `.agents/workflows`; `_compat` resolves SYSTEM_DATA_RELATIVE then LEGACY; `engine.is_source_checkout` and `in_framework_namespace` accept `.aw/system/`. The PHYSICAL relocation of this repo's own `.agents/workflows/` -> `.aw/system/` is correctly NOT performed here: the plan defers "the actual agent-workflows self-migration" to Order 11 and the scope fence forbids "the final source-repository migration", so today's install still materializes from `.agents/workflows/` (legacy default) - in scope and intended. Read the Order-04 tests: test_e05 asserts real spoof REJECTION (copied-marker, origin-only, ambiguous, path-equality-only all return is_source_checkout False) beyond the prior path-equality-only check (closes review finding L04-01); test_e06 asserts human files + config_local survive uninstall (conservative ownership). Mutation-probe: neutralizing the package-metadata gate in engine.is_source_checkout makes test_e05 fail RED (spoof wrongly accepted); restored -> GREEN. Pre-transition ipd lint conforming. Status approved -> executed; Approval line removed; moved pending/ -> executed/.
 
 
 ## Goal
