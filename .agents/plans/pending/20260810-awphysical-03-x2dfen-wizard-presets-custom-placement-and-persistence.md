@@ -1,30 +1,29 @@
----
-Id: 20260810-awphysical-03-x2dfen
-Set: awphysical (AW Physical Layout & Storage Spec Realization)
-Sequence: 3
-Title: Wizard presets, custom placement, pre-write plan preview, and persistence
-Status: approved
-Type: implementation
-Scope: agent_workflows/install_wizard.py, agent_workflows/project_layout.py, agent_workflows/cli.py, tests/test_install_wizard.py, tests/fixtures/awphysical/order03/
-Role: executor
-Created: 2026-08-10
-Spec-Ref: .agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md
-Parent-Plan: .agents/plans/pending/20260810-awphysical-00-cwjnj0-orchestrator-physical-layout-spec-realization.md
----
+# IPD: Wizard presets, custom placement, pre-write plan preview, and persistence
 
-# Wizard presets, custom placement, pre-write plan preview, and persistence
+- Date: 2026-08-10
+- Kind: child
+- Concern: physical-layout
+- Scope: agent_workflows/install_wizard.py, agent_workflows/project_layout.py, agent_workflows/cli.py, tests/test_install_wizard.py, tests/fixtures/awphysical/order03/
+- Status: approved
+- Set: awphysical (physical .aw hierarchy, storage policy, and migration)
+- Order: 3
+- Highest E allocated: 07
+- Author: agent
+- Id: x2dfen
+- Approval: 2026-08-10 human maintainer (chat, after approving the controlling spec 20260810-1447-01) - approved to execute the awphysical Set; recorded by opencode Opus 4.8.
+
+## Workflow history
+
+- 2026-08-10: Created by aw layout orchestrator plan.
+- 2026-08-10: Executed task groups 1-3, implemented wizard state machine, 4 presets, custom placement validation, pre-write plan preview, accessibility matrix, and atomic policy persistence; validated all V-01..V-07 items with red-then-green proof.
+
+## Goal
 
 Implement the complete AW policy wizard state machine, four approved presets (`private-target`, `public-private-companion`, `clean-target`, `local-only`), custom placement validation, exact pre-write plan preview, update checkpoints, and atomic persistence specified by Sections 5, 6, 8, 11, and 13 of `.agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md`.
 
-## Context & Objectives
+## Detailed Implementation Checklist (TODO)
 
-- Realize spec Sections 5, 6, 8, 11, and 13 as a pure state machine with explicit CLI/TTY entry points, clear preset choices, and pre-write consequences.
-- Enforce policy invariants before writes: clean-delta mode cannot use repository records, local config and runtime state cannot be Git-tracked, system root cannot be placed in companion.
-- Provide one exact pre-write plan preview showing resolved physical paths, Git tracking, public/private acknowledgement, host adapter exceptions, expected target & companion deltas, and durability risks.
-- Support atomic policy persistence to `.aw/config/project.json` and `.aw/config/local.json`.
-- Fail closed under noninteractive execution when required policy choices are missing without explicit flags.
-
-## Execution checklist (ordered tasks)
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.
 
 ### Task group 1: Wizard state machine, presets, and subflows
 
@@ -176,15 +175,9 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence: `python3 -m unittest tests.test_install_wizard.PhysicalLayoutWizardTests.test_e07` -> Ran 1 test in 0.009s OK. Negative demonstration: omitting PolicyCancelledError raise failed test with `AssertionError: PolicyCancelledError not raised`.
   - Result: pass
 
-
 ## Approval and execution gate
 
 - Size assessment: standard
 - Cohesion rationale: Presets, custom selection, exact preview, persistence, update behavior, and interaction tests form one user-consent boundary.
 
 Execution requires verified Orders 01 and 02, a GO `/plan-review`, and human approval. Scope fence: wizard/policy CLI surfaces, persistence handoff, terminal rendering, and focused tests/docs. Coordinate before editing parser/help files touched by the active concurrent agent; do not modify exclusion semantics or unrelated help ordering. Paste actual outputs, path-scope every commit, never broad-stage, never push, and stop if any choice can write before complete confirmation or can misstate privacy/durability. Complete evidence and pre-transition lint before moving this plan to `executed/`.
-
-## Workflow history
-
-- 2026-08-10: Created by aw layout orchestrator plan.
-- 2026-08-10: Executed task groups 1-3, implemented wizard state machine, 4 presets, custom placement validation, pre-write plan preview, accessibility matrix, and atomic policy persistence; validated all V-01..V-07 items with red-then-green proof.
