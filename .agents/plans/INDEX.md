@@ -12,7 +12,7 @@ Showing the 40 most-recent of 77 Sets; the full manifest is INDEX.json.
 - `x2dfen` [executed] 03 executed/20260810-awphysical-03-x2dfen-wizard-presets-custom-placement-and-persistence.md
 - `ru5pmd` [executed] 04 executed/20260810-awphysical-04-ru5pmd-canonical-system-installation-and-source-checkout-mode.md
 - `1e9ggw` [executed] 05 executed/20260810-awphysical-05-1e9ggw-private-companion-attachment-and-durability.md
-- `fcgala` [pending] 06 pending/20260810-awphysical-06-fcgala-migration-inventory-and-mapping-tools.md
+- `fcgala` [executed] 06 executed/20260810-awphysical-06-fcgala-migration-inventory-and-mapping-tools.md
 - `nhv0qm` [pending] 07 pending/20260810-awphysical-07-nhv0qm-transactional-migration-rollback-and-resume.md
 - `mb9xn2` [pending] 08 pending/20260810-awphysical-08-mb9xn2-record-producers-and-legacy-reference-cutover.md
 - `2e2jrw` [pending] 09 pending/20260810-awphysical-09-2e2jrw-host-adapters-and-clean-delta-integration.md
