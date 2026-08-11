@@ -63,6 +63,7 @@ packages = ["agent_workflows"]
 # 3.8-safe __file__/_data lookup in _compat.packaged_source_root() finds it (OQ5, R-1).
 [tool.hatch.build.targets.wheel.force-include]
 ".agents/workflows" = "agent_workflows/_data/.agents/workflows"
+".aw/system" = "agent_workflows/_data/.aw/system"
 
 [tool.hatch.build.targets.sdist]
 # The sdist carries what a build needs: the package, the data tree, the version hook, and
@@ -70,6 +71,7 @@ packages = ["agent_workflows"]
 include = [
     "/agent_workflows",
     "/.agents/workflows",
+    "/.aw/system",
     "/hatch_build.py",
     "/pyproject.toml",
     "/README.md",

@@ -1,0 +1,8 @@
+{
+  "target_system_root": ".aw/system",
+  "preserve_human_files": true,
+  "preserve_config": true,
+  "preserve_durable_state": true,
+  "preserve_records": true,
+  "source_checkout_uninstall_policy": "never-remove-canonical-source"
+}

@@ -1,0 +1,7 @@
+{
+  "source_root": ".aw/system",
+  "legacy_source_root": ".agents/workflows",
+  "package_data_relative": ["_data", ".aw", "system"],
+  "manifest_filename": "managed-sections.json",
+  "version_filename": "VERSION"
+}

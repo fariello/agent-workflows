@@ -38,9 +38,10 @@ from agent_workflows.pypi_links import (  # noqa: E402  (must follow the sys.pat
 )
 from agent_workflows.versioning import resolve_version  # noqa: E402
 
-VERSION = resolve_version(
-    _ROOT, version_file=_ROOT / ".agents" / "workflows" / "VERSION"
-)
+v_file = _ROOT / ".aw" / "system" / "VERSION"
+if not v_file.exists():
+    v_file = _ROOT / ".agents" / "workflows" / "VERSION"
+VERSION = resolve_version(_ROOT, version_file=v_file)
 
 
 try:

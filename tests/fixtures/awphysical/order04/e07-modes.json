@@ -1,0 +1,16 @@
+{
+  "modes": [
+    "fresh-tracked",
+    "fresh-external",
+    "update",
+    "same-version",
+    "corrupt-candidate",
+    "interrupted-pivot",
+    "rollback",
+    "source-positive",
+    "source-spoof",
+    "wheel",
+    "uninstall",
+    "windows-fallback"
+  ]
+}

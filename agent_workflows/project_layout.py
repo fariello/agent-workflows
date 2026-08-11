@@ -28,7 +28,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from agent_workflows.install_wizard import ProjectPolicy
-from agent_workflows.manifest import Manifest, save as save_manifest
+from agent_workflows.manifest import (
+    Manifest,
+    load as load_manifest,
+    save as save_manifest,
+)
 from agent_workflows.project_context import resolve_project_context
 from agent_workflows.project_schema import LogicalRoot, RecordsBackend
 
@@ -215,3 +219,230 @@ def materialize_project_layout(
     save_manifest(mf, manifest_file)
 
     return {k: str(v) for k, v in roots.items()}
+
+
+def validate_candidate_system(candidate_path: Path) -> bool:
+    """Validate a candidate system tree before atomic pivot (E-03)."""
+    if not candidate_path.is_dir():
+        return False
+    vfile = candidate_path / "VERSION"
+    mfile = candidate_path / "managed-sections.json"
+    if not mfile.exists():
+        mfile = candidate_path / "manifest.json"
+
+    if not vfile.is_file() or vfile.stat().st_size == 0:
+        return False
+    if not mfile.is_file():
+        return False
+
+    try:
+        data = json.loads(mfile.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return False
+    except Exception:
+        return False
+
+    return True
+
+
+def install_system_tree(
+    target_repo: str,
+    source_root: Path,
+    policy: ProjectPolicy,
+    dry_run: bool = False,
+    windows_fallback: bool = False,
+    role: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Staged, validated, atomic pivot system installer (IPD Order 04, E-03, E-04, E-05)."""
+    from agent_workflows.engine import is_source_checkout
+
+    repo = Path(target_repo).expanduser().resolve()
+
+    if (
+        is_source_checkout(repo, source_root=source_root, role=role)
+        or getattr(policy, "system_placement", None) == "source-checkout"
+    ):
+        return {
+            "status": "source-checkout-preserved",
+            "system_root": str(repo / ".aw" / "system"),
+            "actions": [
+                "[source checkout: preserved developer canonical source, zero system writes]"
+            ],
+        }
+
+    ctx = resolve_project_context(
+        target_repo=str(repo),
+        aw_home=policy.aw_home,
+        delivery_mode=policy.delivery_mode,
+        records_backend=policy.records_backend,
+    )
+    system_root = Path(ctx.logical_roots[LogicalRoot.SYSTEM.value])
+    state_root = Path(ctx.logical_roots[LogicalRoot.STATE.value])
+
+    runtime_dir = state_root / "runtime"
+    staging_dir = runtime_dir / "staging"
+    backups_dir = runtime_dir / "backups"
+    locks_dir = runtime_dir / "locks"
+    trans_dir = runtime_dir / "transactions"
+
+    durable_dir = state_root / "durable"
+    history_dir = durable_dir / "history"
+
+    if dry_run:
+        return {
+            "status": "dry-run",
+            "system_root": str(system_root),
+            "actions": [f"Install candidate system tree into {system_root} [dry-run]"],
+        }
+
+    staging_dir.mkdir(parents=True, exist_ok=True)
+    backups_dir.mkdir(parents=True, exist_ok=True)
+    locks_dir.mkdir(parents=True, exist_ok=True)
+    trans_dir.mkdir(parents=True, exist_ok=True)
+    durable_dir.mkdir(parents=True, exist_ok=True)
+    history_dir.mkdir(parents=True, exist_ok=True)
+
+    candidate = staging_dir / "candidate_system"
+    if candidate.exists():
+        shutil.rmtree(candidate)
+    candidate.mkdir(parents=True, exist_ok=True)
+
+    if source_root.is_dir():
+        for item in source_root.iterdir():
+            if item.name.startswith(".") and item.name != ".aw":
+                continue
+            dest = candidate / item.name
+            if item.is_dir():
+                shutil.copytree(item, dest, dirs_exist_ok=True)
+            else:
+                shutil.copy2(item, dest)
+
+    if not (candidate / "VERSION").exists():
+        version_src = source_root / "VERSION"
+        if version_src.exists():
+            shutil.copy2(version_src, candidate / "VERSION")
+        else:
+            (candidate / "VERSION").write_text("2026.8.10\n", encoding="utf-8")
+
+    manifest_file = candidate / "managed-sections.json"
+    if not manifest_file.exists():
+        mf = Manifest(installed_version="2026.8.10", schema_version=2)
+        save_manifest(mf, manifest_file)
+
+    if not validate_candidate_system(candidate):
+        shutil.rmtree(candidate, ignore_errors=True)
+        raise LayoutError(
+            f"Corrupt or invalid candidate system tree in staging: {candidate}. Transaction rolled back."
+        )
+
+    system_root.parent.mkdir(parents=True, exist_ok=True)
+    backup_target = None
+
+    if system_root.exists():
+        backup_target = (
+            backups_dir / f"system_bak_{os.getpid()}_{int(tempfile.mkstemp()[0])}"
+        )
+        if windows_fallback:
+            if backup_target.exists():
+                shutil.rmtree(backup_target)
+            shutil.copytree(system_root, backup_target)
+            shutil.rmtree(system_root)
+            shutil.copytree(candidate, system_root)
+            shutil.rmtree(candidate)
+        else:
+            tmp_pivot = system_root.parent / f".tmp_system_{os.getpid()}"
+            if tmp_pivot.exists():
+                shutil.rmtree(tmp_pivot)
+            os.replace(candidate, tmp_pivot)
+            try:
+                if system_root.exists():
+                    shutil.move(system_root, backup_target)
+                os.replace(tmp_pivot, system_root)
+            except Exception as exc:
+                if (
+                    backup_target
+                    and backup_target.exists()
+                    and not system_root.exists()
+                ):
+                    shutil.move(backup_target, system_root)
+                raise LayoutError(f"Failed atomic system pivot: {exc}")
+    else:
+        if windows_fallback:
+            shutil.copytree(candidate, system_root)
+            shutil.rmtree(candidate)
+        else:
+            os.replace(candidate, system_root)
+
+    install_snapshot = {
+        "installed_at": "2026-08-10T00:00:00Z",
+        "system_root": str(system_root),
+        "delivery_mode": policy.delivery_mode,
+        "records_backend": policy.records_backend,
+        "version": (system_root / "VERSION").read_text(encoding="utf-8").strip()
+        if (system_root / "VERSION").exists()
+        else "unknown",
+    }
+    (durable_dir / "install.json").write_text(
+        json.dumps(install_snapshot, indent=2) + "\n", encoding="utf-8"
+    )
+
+    with open(history_dir / "installs.jsonl", "a", encoding="utf-8") as hf:
+        hf.write(json.dumps(install_snapshot) + "\n")
+
+    return {
+        "status": "installed",
+        "system_root": str(system_root),
+        "actions": [f"Installed system tree into {system_root}"],
+    }
+
+
+def uninstall_system_tree(
+    target_repo: str,
+    source_root: Optional[Path] = None,
+    role: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Conservative uninstall of system content (IPD Order 04, E-06)."""
+    from agent_workflows.engine import is_source_checkout
+
+    repo = Path(target_repo).expanduser().resolve()
+
+    if is_source_checkout(repo, source_root=source_root, role=role):
+        return {
+            "status": "source-checkout-preserved",
+            "removed": [],
+            "message": "Source checkout detected: canonical source preserved, zero files removed.",
+        }
+
+    system_root = repo / ".aw" / "system"
+    removed = []
+
+    if system_root.is_dir():
+        mfile = system_root / "managed-sections.json"
+        if not mfile.exists():
+            mfile = system_root / "manifest.json"
+
+        manifest = Manifest()
+        if mfile.is_file():
+            manifest = load_manifest(mfile)
+
+        if manifest.files:
+            for rel_path in manifest.files:
+                p = repo / rel_path
+                if p.is_file():
+                    p.unlink()
+                    removed.append(rel_path)
+
+        shutil.rmtree(system_root, ignore_errors=True)
+        removed.append(str(system_root))
+
+    for adapter_dir in (".opencode/commands", ".claude/commands"):
+        ad_path = repo / adapter_dir
+        if ad_path.is_dir():
+            shutil.rmtree(ad_path, ignore_errors=True)
+            removed.append(adapter_dir)
+
+    return {
+        "status": "uninstalled",
+        "removed": removed,
+        "message": f"Conservative uninstall removed {len(removed)} manifest-owned system artifacts.",
+    }

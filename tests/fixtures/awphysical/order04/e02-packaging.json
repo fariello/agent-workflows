@@ -1,0 +1,14 @@
+{
+  "package_name": "agent-workflows",
+  "wheel_force_include": {
+    ".aw/system": "agent_workflows/_data/.aw/system",
+    ".agents/workflows": "agent_workflows/_data/.agents/workflows"
+  },
+  "sdist_include": [
+    "/agent_workflows",
+    "/.agents/workflows",
+    "/.aw/system",
+    "/hatch_build.py",
+    "/pyproject.toml"
+  ]
+}

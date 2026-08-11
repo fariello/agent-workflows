@@ -18,43 +18,38 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-# Relative location of the bundled tree inside the installed package.
-_DATA_RELATIVE = ("_data", ".agents", "workflows")
+# Relative locations of the bundled tree inside the installed package.
+SYSTEM_DATA_RELATIVE = ("_data", ".aw", "system")
+LEGACY_DATA_RELATIVE = ("_data", ".agents", "workflows")
+_DATA_RELATIVE = LEGACY_DATA_RELATIVE
 
 
 def packaged_source_root() -> Optional[Path]:
-    """Return the bundled `.agents/workflows/` dir if this package carries it, else None.
+    """Return the bundled `.aw/system/` or `.agents/workflows/` dir if this package carries it, else None.
 
     None means the package has no bundled data (a source checkout / editable install
     where the tree lives at the repo root instead); the caller then uses the repo-root or
     `--source` path.
     """
 
-    # Preferred path on 3.9+: importlib.resources.files() gives a traversable to the
-    # package, from which we can reach the bundled data directory.
-    try:
-        from importlib.resources import files  # 3.9+
-
+    for rel in (SYSTEM_DATA_RELATIVE, LEGACY_DATA_RELATIVE):
         try:
-            base = files("agent_workflows")
-            candidate = base.joinpath(*_DATA_RELATIVE)
-            # `candidate` is a Traversable; for a normal filesystem install it maps to a
-            # real path. Convert via str() and Path(); is_dir() confirms presence.
-            path = Path(str(candidate))
-            if path.is_dir():
-                return path
-        except (ModuleNotFoundError, FileNotFoundError, TypeError):
-            pass
-    except ImportError:
-        # Below 3.9 importlib.resources.files does not exist; use the fallback below.
-        pass
+            from importlib.resources import files  # 3.9+
 
-    # Fallback (and belt-and-suspenders for 3.9+ non-zip installs): resolve the
-    # data dir relative to this module's file. Works whenever the package is unpacked on
-    # disk (our wheel is non-zip-safe).
-    here = Path(__file__).resolve().parent
-    path = here.joinpath(*_DATA_RELATIVE)
-    if path.is_dir():
-        return path
+            try:
+                base = files("agent_workflows")
+                candidate = base.joinpath(*rel)
+                path = Path(str(candidate))
+                if path.is_dir():
+                    return path
+            except (ModuleNotFoundError, FileNotFoundError, TypeError):
+                pass
+        except ImportError:
+            pass
+
+        here = Path(__file__).resolve().parent
+        path = here.joinpath(*rel)
+        if path.is_dir():
+            return path
 
     return None

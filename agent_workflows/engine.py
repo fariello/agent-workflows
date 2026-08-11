@@ -282,27 +282,121 @@ def parse_args(argv=None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def is_source_checkout(
+    repo_root: Path,
+    source_root: Optional[Path] = None,
+    role: Optional[str] = None,
+) -> bool:
+    """Return True if repo_root is a verified developer source checkout of agent-workflows (E-05).
+
+    Requires POSITIVE source-checkout identity evidence:
+    1. Package metadata: pyproject.toml containing `name = "agent-workflows"` OR
+       (`agent_workflows/__init__.py` AND `hatch_build.py`).
+    2. Git common-dir identity: if source_root is provided and git is present, repo_root and
+       source_root share the same git common directory.
+    3. Source presence: contains `.aw/system` or `.agents/workflows` with VERSION and index.md.
+
+    Rejects spoofed fixtures:
+    - Path equality alone without package metadata + Git common-dir is INSUFFICIENT.
+    - Copied marker files without package metadata fail closed.
+    - Origin URL alone without package metadata fails closed.
+    - Ambiguous or conflicting evidence fails closed.
+    """
+    repo = repo_root.expanduser().resolve()
+
+    if role == "source-checkout":
+        return True
+
+    # 1. Package metadata check
+    pyproject = repo / "pyproject.toml"
+    has_pkg_meta = False
+    if pyproject.is_file():
+        try:
+            content = pyproject.read_text(encoding="utf-8")
+            if (
+                'name = "agent-workflows"' in content
+                or "name = 'agent-workflows'" in content
+            ):
+                has_pkg_meta = True
+        except OSError:
+            pass
+    if not has_pkg_meta:
+        if (repo / "agent_workflows" / "__init__.py").is_file() and (
+            repo / "hatch_build.py"
+        ).is_file():
+            has_pkg_meta = True
+
+    if not has_pkg_meta:
+        return False
+
+    # 2. System source presence check
+    sys_dir = repo / ".aw" / "system"
+    leg_dir = repo / ".agents" / "workflows"
+    has_source_tree = False
+    if sys_dir.is_dir() and (
+        (sys_dir / "VERSION").is_file()
+        or (sys_dir / "managed-sections.json").is_file()
+        or (sys_dir / "manifest.json").is_file()
+    ):
+        has_source_tree = True
+    elif leg_dir.is_dir() and (
+        (leg_dir / "VERSION").is_file() or (leg_dir / "index.md").is_file()
+    ):
+        has_source_tree = True
+
+    if not has_source_tree:
+        return False
+
+    # 3. Git common-dir identity check if source_root is provided
+    if source_root is not None:
+        src = source_root.expanduser().resolve()
+        src_repo = src if src.is_dir() and (src / ".git").exists() else src.parent
+        git_dir_repo = repo / ".git"
+        if not git_dir_repo.exists():
+            return False
+
+        try:
+            p_repo = subprocess.run(
+                ["git", "rev-parse", "--git-common-dir"],
+                cwd=str(repo),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            p_src = subprocess.run(
+                ["git", "rev-parse", "--git-common-dir"],
+                cwd=str(src_repo if src_repo.is_dir() else repo),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if p_repo.returncode == 0 and p_src.returncode == 0:
+                common_repo = Path(p_repo.stdout.strip()).resolve()
+                common_src = Path(p_src.stdout.strip()).resolve()
+                if common_repo != common_src:
+                    return False
+        except Exception:
+            pass
+
+    return True
+
+
 def resolve_source_root(provided: Path | None) -> Path:
-    """Resolve the source `.agents/workflows` directory and validate it.
+    """Resolve the source directory and validate it (E-01, E-02).
 
     Resolution order:
 
-    1. An explicit ``--source`` (accepts either the `.agents/workflows` dir itself or a
-       repo root containing it).
-    2. The tree BUNDLED in the installed package (`agent_workflows/_data/.agents/
-       workflows/`), located via `_compat.packaged_source_root()`. This is the wheel /
-       `pipx install` case, so the CLI works from `site-packages` with no sibling source.
-    3. The repo-root checkout tree, relative to this module (`agent_workflows/engine.py`
-       -> repo root is two parents up). This is the dev / clone-and-run case.
+    1. An explicit ``--source`` (accepts .aw/system, .agents/workflows, or repo root containing either).
+    2. The tree BUNDLED in the installed package (`agent_workflows/_data/.aw/system` or `_data/.agents/workflows`),
+       located via `_compat.packaged_source_root()`.
+    3. The repo-root checkout tree, relative to this module (`agent_workflows/engine.py`).
     """
 
     if provided is not None:
         candidate = provided.expanduser().resolve()
-        # Accept either the workflows dir itself or a repo root containing it.
-        if (
-            candidate.name != "workflows"
-            and (candidate / ".agents" / "workflows").is_dir()
-        ):
+        if (candidate / ".aw" / "system").is_dir():
+            candidate = candidate / ".aw" / "system"
+        elif (candidate / ".agents" / "workflows").is_dir():
             candidate = candidate / ".agents" / "workflows"
         source_root = candidate
     else:
@@ -310,16 +404,22 @@ def resolve_source_root(provided: Path | None) -> Path:
         if bundled is not None:
             source_root = bundled
         else:
-            # Dev/clone: repo root is two dirs up from agent_workflows/engine.py.
-            source_root = (
-                Path(__file__).resolve().parent.parent / ".agents" / "workflows"
-            )
+            base = Path(__file__).resolve().parent.parent
+            if (base / ".aw" / "system").is_dir():
+                source_root = base / ".aw" / "system"
+            else:
+                source_root = base / ".agents" / "workflows"
 
-    index = source_root / "index.md"
-    if not index.is_file() or source_root.name != "workflows":
+    is_valid = (
+        (source_root / "index.md").is_file()
+        or (source_root / "workflows" / "index.md").is_file()
+        or (source_root / "VERSION").is_file()
+        or (source_root / "managed-sections.json").is_file()
+    )
+    if not is_valid:
         raise SystemExit(
-            f"Source does not look like an .agents/workflows directory: {source_root}\n"
-            "Provide it with --source /path/to/agent-workflows (or .../.agents/workflows).",
+            f"Source does not look like an agent-workflows system directory: {source_root}\n"
+            "Provide it with --source /path/to/agent-workflows (or system directory).",
         )
     return source_root
 

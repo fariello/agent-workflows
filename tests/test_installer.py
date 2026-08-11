@@ -1919,5 +1919,262 @@ class PreManifestCharacterizationTests(unittest.TestCase):
         )
 
 
+class PhysicalSystemInstallTests(unittest.TestCase):
+    """Falsifiable unit and integration tests for IPD Order 04 (E-01 .. E-07)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp_dir = Path(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_e01(self):
+        """E-01: Canonical source tree and package-resource resolver."""
+        from agent_workflows.engine import resolve_source_root
+
+        fx = (
+            REPO_ROOT
+            / "tests"
+            / "fixtures"
+            / "awphysical"
+            / "order04"
+            / "e01-source-tree.json"
+        )
+        self.assertTrue(fx.is_file(), f"Fixture missing: {fx}")
+
+        src = resolve_source_root(None)
+        self.assertTrue(src.is_dir(), f"Source root is not a directory: {src}")
+        self.assertTrue(
+            (src / "index.md").is_file()
+            or (src / "workflows" / "index.md").is_file()
+            or (src / "VERSION").is_file()
+            or (src / "managed-sections.json").is_file(),
+            "Manifest/VERSION absent from source root",
+        )
+
+    def test_e02(self):
+        """E-02: Package inspection, versioning, and stdlib-only runtime."""
+        fx = (
+            REPO_ROOT
+            / "tests"
+            / "fixtures"
+            / "awphysical"
+            / "order04"
+            / "e02-packaging.json"
+        )
+        self.assertTrue(fx.is_file(), f"Fixture missing: {fx}")
+
+        pyproject_text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        self.assertIn(".aw/system", pyproject_text)
+        self.assertIn(".agents/workflows", pyproject_text)
+
+    def test_e03(self):
+        """E-03: Staged candidate system tree, validation, and atomic pivot."""
+        from agent_workflows.install_wizard import ProjectPolicy
+        from agent_workflows.project_layout import (
+            install_system_tree,
+            validate_candidate_system,
+        )
+
+        fx = (
+            REPO_ROOT
+            / "tests"
+            / "fixtures"
+            / "awphysical"
+            / "order04"
+            / "e03-pivot.json"
+        )
+        self.assertTrue(fx.is_file(), f"Fixture missing: {fx}")
+
+        target = self.tmp_dir / "target_repo"
+        target.mkdir()
+        policy = ProjectPolicy(preset="private-target")
+        source = REPO_ROOT / ".agents" / "workflows"
+
+        res = install_system_tree(str(target), source_root=source, policy=policy)
+        self.assertEqual(res["status"], "installed")
+        self.assertTrue((target / ".aw" / "system" / "VERSION").is_file())
+
+        corrupt_cand = self.tmp_dir / "corrupt_cand"
+        corrupt_cand.mkdir()
+        (corrupt_cand / "VERSION").write_text("", encoding="utf-8")
+        self.assertFalse(validate_candidate_system(corrupt_cand))
+
+    def test_e04(self):
+        """E-04: Transient state in state/runtime/ and durable state in state/durable/."""
+        from agent_workflows.install_wizard import ProjectPolicy
+        from agent_workflows.project_layout import install_system_tree
+
+        fx = (
+            REPO_ROOT
+            / "tests"
+            / "fixtures"
+            / "awphysical"
+            / "order04"
+            / "e04-transient-state.json"
+        )
+        self.assertTrue(fx.is_file(), f"Fixture missing: {fx}")
+
+        target = self.tmp_dir / "target_e04"
+        target.mkdir()
+        policy = ProjectPolicy(preset="private-target")
+        source = REPO_ROOT / ".agents" / "workflows"
+
+        install_system_tree(str(target), source_root=source, policy=policy)
+
+        durable_file = target / ".aw" / "state" / "durable" / "install.json"
+        history_file = (
+            target / ".aw" / "state" / "durable" / "history" / "installs.jsonl"
+        )
+        self.assertTrue(durable_file.is_file(), "Durable install snapshot missing")
+        self.assertTrue(history_file.is_file(), "Durable install history missing")
+
+        runtime_dir = target / ".aw" / "state" / "runtime"
+        self.assertTrue(runtime_dir.is_dir(), "Runtime dir missing")
+
+    def test_e05(self):
+        """E-05: Positive source-checkout identity and spoofing protection."""
+        from agent_workflows.engine import is_source_checkout
+        from agent_workflows.install_wizard import ProjectPolicy
+        from agent_workflows.project_layout import install_system_tree
+
+        source = REPO_ROOT / ".agents" / "workflows"
+
+        src_repo = self.tmp_dir / "src_positive"
+        src_repo.mkdir()
+        (src_repo / ".git").mkdir()
+        (src_repo / "pyproject.toml").write_text(
+            '[project]\nname = "agent-workflows"\n', encoding="utf-8"
+        )
+        (src_repo / ".aw" / "system").mkdir(parents=True)
+        (src_repo / ".aw" / "system" / "VERSION").write_text(
+            "2026.8.10\n", encoding="utf-8"
+        )
+
+        self.assertTrue(is_source_checkout(src_repo, source_root=source))
+        pol = ProjectPolicy(preset="private-target")
+        res = install_system_tree(str(src_repo), source_root=source, policy=pol)
+        self.assertEqual(res["status"], "source-checkout-preserved")
+
+        path_eq = self.tmp_dir / "path_equality_only"
+        path_eq.mkdir()
+        (path_eq / ".git").mkdir()
+        self.assertFalse(is_source_checkout(path_eq, source_root=path_eq))
+
+        spoof1 = self.tmp_dir / "copied_marker_spoof"
+        spoof1.mkdir()
+        (spoof1 / ".git").mkdir()
+        (spoof1 / ".aw" / "system").mkdir(parents=True)
+        (spoof1 / ".aw" / "system" / "VERSION").write_text(
+            "2026.8.10\n", encoding="utf-8"
+        )
+        self.assertFalse(is_source_checkout(spoof1, source_root=source))
+
+        spoof2 = self.tmp_dir / "origin_only_spoof"
+        spoof2.mkdir()
+        (spoof2 / ".git").mkdir()
+        self.assertFalse(is_source_checkout(spoof2, source_root=source))
+
+        ambig = self.tmp_dir / "ambiguous_evidence"
+        ambig.mkdir()
+        self.assertFalse(is_source_checkout(ambig, source_root=source))
+
+    def test_e06(self):
+        """E-06: Conservative uninstall and ownership checks."""
+        from agent_workflows.install_wizard import ProjectPolicy
+        from agent_workflows.project_layout import (
+            install_system_tree,
+            uninstall_system_tree,
+        )
+
+        fx = (
+            REPO_ROOT
+            / "tests"
+            / "fixtures"
+            / "awphysical"
+            / "order04"
+            / "e06-uninstall.json"
+        )
+        self.assertTrue(fx.is_file(), f"Fixture missing: {fx}")
+
+        target = self.tmp_dir / "target_e06"
+        target.mkdir()
+        policy = ProjectPolicy(preset="private-target")
+        source = REPO_ROOT / ".agents" / "workflows"
+
+        install_system_tree(str(target), source_root=source, policy=policy)
+
+        (target / ".aw" / "config" / "local.json").parent.mkdir(
+            parents=True, exist_ok=True
+        )
+        (target / ".aw" / "config" / "local.json").write_text(
+            '{"user": true}\n', encoding="utf-8"
+        )
+        (target / "human_notes.txt").write_text(
+            "important user note\n", encoding="utf-8"
+        )
+
+        res = uninstall_system_tree(str(target), source_root=source)
+        self.assertEqual(res["status"], "uninstalled")
+
+        self.assertTrue(
+            (target / "human_notes.txt").is_file(), "Human file was deleted!"
+        )
+        self.assertTrue(
+            (target / ".aw" / "config" / "local.json").is_file(),
+            "Config local was deleted!",
+        )
+
+    def test_e07(self):
+        """E-07: Mode matrix (fresh-tracked, update, corrupt-candidate, source-positive, etc.)."""
+        from agent_workflows.install_wizard import ProjectPolicy
+        from agent_workflows.project_layout import (
+            install_system_tree,
+            uninstall_system_tree,
+        )
+
+        fx = (
+            REPO_ROOT
+            / "tests"
+            / "fixtures"
+            / "awphysical"
+            / "order04"
+            / "e07-modes.json"
+        )
+        self.assertTrue(fx.is_file(), f"Fixture missing: {fx}")
+
+        source = REPO_ROOT / ".agents" / "workflows"
+
+        target1 = self.tmp_dir / "fresh_tracked"
+        target1.mkdir()
+        res1 = install_system_tree(
+            str(target1),
+            source_root=source,
+            policy=ProjectPolicy(preset="private-target"),
+        )
+        self.assertEqual(res1["status"], "installed")
+
+        res2 = install_system_tree(
+            str(target1),
+            source_root=source,
+            policy=ProjectPolicy(preset="private-target"),
+        )
+        self.assertEqual(res2["status"], "installed")
+
+        target3 = self.tmp_dir / "win_fallback"
+        target3.mkdir()
+        res3 = install_system_tree(
+            str(target3),
+            source_root=source,
+            policy=ProjectPolicy(preset="private-target"),
+            windows_fallback=True,
+        )
+        self.assertEqual(res3["status"], "installed")
+
+        res4 = uninstall_system_tree(str(target3), source_root=source)
+        self.assertEqual(res4["status"], "uninstalled")
+
+
 if __name__ == "__main__":
     unittest.main()

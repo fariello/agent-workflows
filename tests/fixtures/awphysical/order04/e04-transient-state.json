@@ -1,0 +1,7 @@
+{
+  "runtime_dir": ".aw/state/runtime",
+  "transient_subdirs": ["backups", "staging", "locks", "transactions"],
+  "durable_dir": ".aw/state/durable",
+  "durable_install_file": ".aw/state/durable/install.json",
+  "durable_history_file": ".aw/state/durable/history/installs.jsonl"
+}

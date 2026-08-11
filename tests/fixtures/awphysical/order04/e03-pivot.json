@@ -1,0 +1,7 @@
+{
+  "staging_dir": ".aw/state/runtime/staging",
+  "candidate_name": "candidate_system",
+  "target_dir": ".aw/system",
+  "atomic_pivot": "os.replace",
+  "rollback_on_validation_failure": true
+}
