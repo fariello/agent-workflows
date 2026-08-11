@@ -598,7 +598,7 @@ def resolve_project_context(
     if resolved_records_backend == RecordsBackend.REPOSITORY.value:
         records_root = _canonical_path(os.path.join(repo_abs, ".aw", "records"))
     elif resolved_records_backend == RecordsBackend.COMPANION.value:
-        companion_dir = merged_local_binding.get("companion_dir", f"{repo_abs}.aw")
+        companion_dir = merged_local_binding.get("companion_dir") or f"{repo_abs}.aw"
         records_root = _canonical_path(os.path.join(companion_dir, "records"))
     else:  # HOME
         records_root = _canonical_path(os.path.join(project_aw_dir, "records"))
