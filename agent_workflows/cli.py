@@ -1056,6 +1056,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--repo", default=None, help="Target repository path (default: current dir)."
     )
     p_storage_attach.add_argument(
+        "--companion-dir", default=None, help="Companion directory path to attach."
+    )
+    p_storage_attach.add_argument(
+        "--classes",
+        default=None,
+        help="Comma-separated root classes (config,durable_state,records).",
+    )
+    p_storage_attach.add_argument(
         "--acknowledge-remote",
         action="store_true",
         help="Record explicit user acknowledgement of remote durability policy.",
@@ -1067,6 +1075,65 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="Show what would change without modifying filesystem.",
+    )
+
+    p_storage_detach = storage_sub.add_parser(
+        "detach",
+        parents=[common],
+        help="Detach companion storage binding from target repo.",
+    )
+    p_storage_detach.add_argument(
+        "--repo", default=None, help="Target repository path (default: current dir)."
+    )
+    p_storage_detach.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would change without modifying filesystem.",
+    )
+
+    p_storage_move = storage_sub.add_parser(
+        "move",
+        parents=[common],
+        help="Move companion storage binding to new directory path.",
+    )
+    p_storage_move.add_argument(
+        "--repo", default=None, help="Target repository path (default: current dir)."
+    )
+    p_storage_move.add_argument(
+        "--new-dir", required=True, help="New companion directory path."
+    )
+    p_storage_move.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would change without modifying filesystem.",
+    )
+
+    p_storage_reattach = storage_sub.add_parser(
+        "reattach", parents=[common], help="Reattach existing companion repository."
+    )
+    p_storage_reattach.add_argument(
+        "--repo", default=None, help="Target repository path (default: current dir)."
+    )
+    p_storage_reattach.add_argument(
+        "--companion-dir", default=None, help="Companion directory path to reattach."
+    )
+    p_storage_reattach.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would change without modifying filesystem.",
+    )
+
+    p_storage_preflight = storage_sub.add_parser(
+        "preflight", parents=[common], help="Run companion storage preflight checks."
+    )
+    p_storage_preflight.add_argument(
+        "--repo", default=None, help="Target repository path (default: current dir)."
+    )
+    p_storage_preflight.add_argument(
+        "--companion-dir", required=True, help="Companion directory path."
+    )
+    p_storage_preflight.add_argument(
+        "--json", action="store_true", help="Output preflight report as JSON."
     )
 
     p_config = sub.add_parser(
@@ -2888,11 +2955,52 @@ def _run_storage_init(args: argparse.Namespace, term: Term) -> int:
 
 def _run_storage_attach(args: argparse.Namespace, term: Term) -> int:
     import os
-    from agent_workflows.storage import acknowledge_remote_durability, StorageError
+    from agent_workflows.storage import (
+        attach_companion,
+        acknowledge_remote_durability,
+        StorageError,
+    )
 
     repo_path = getattr(args, "repo", None) or os.getcwd()
+    companion_dir = getattr(args, "companion_dir", None)
+    dry_run = getattr(args, "dry_run", False)
+    classes_arg = getattr(args, "classes", None)
+    selected_classes = (
+        [c.strip() for c in classes_arg.split(",")] if classes_arg else None
+    )
 
-    if getattr(args, "dry_run", False):
+    if companion_dir:
+        if dry_run:
+            term.status(
+                "info",
+                f"[DRY RUN] Would attach companion at {companion_dir} to target repo {repo_path}",
+            )
+            return 0
+        if not _confirm(
+            term,
+            f"Attach companion repository at {companion_dir} to target repo {repo_path}?",
+            getattr(args, "yes", False),
+        ):
+            term.status("skip", "Attach operation cancelled; nothing changed.")
+            return 0
+        try:
+            res = attach_companion(
+                target_repo=repo_path,
+                companion_dir=companion_dir,
+                selected_root_classes=selected_classes,
+                dry_run=False,
+                acknowledge_remote=getattr(args, "acknowledge_remote", False),
+            )
+            term.status(
+                "ok",
+                f"Successfully attached companion at {res['companion_dir']} (project ID: {res['project_id']}).",
+            )
+            return 0
+        except StorageError as exc:
+            term.status("fail", str(exc))
+            return 1
+
+    if dry_run:
         term.status("info", f"[DRY RUN] Would update durability policy for {repo_path}")
         return 0
 
@@ -2913,8 +3021,129 @@ def _run_storage_attach(args: argparse.Namespace, term: Term) -> int:
         term.status("fail", str(exc))
         return 1
 
-    term.status("ok", f"Updated durability policy status: {st.durability_state}.")
+    term.status(
+        "ok",
+        f"Updated durability policy for {repo_path} (new state: {st.durability_state}).",
+    )
     return 0
+
+
+def _run_storage_detach(args: argparse.Namespace, term: Term) -> int:
+    import os
+    from agent_workflows.storage import detach_companion, StorageError
+
+    repo_path = getattr(args, "repo", None) or os.getcwd()
+    dry_run = getattr(args, "dry_run", False)
+
+    if dry_run:
+        term.status(
+            "info",
+            f"[DRY RUN] Would detach companion binding from target repo {repo_path}",
+        )
+        return 0
+
+    try:
+        res = detach_companion(target_repo=repo_path, dry_run=False)
+        term.status(
+            "ok",
+            f"Detached companion binding for target repo {res['target_repo']} (durable data preserved).",
+        )
+        return 0
+    except StorageError as exc:
+        term.status("fail", str(exc))
+        return 1
+
+
+def _run_storage_move(args: argparse.Namespace, term: Term) -> int:
+    import os
+    from agent_workflows.storage import move_companion, StorageError
+
+    repo_path = getattr(args, "repo", None) or os.getcwd()
+    new_dir = getattr(args, "new_dir", None)
+    dry_run = getattr(args, "dry_run", False)
+
+    if dry_run:
+        term.status(
+            "info",
+            f"[DRY RUN] Would move companion binding to {new_dir} for target repo {repo_path}",
+        )
+        return 0
+
+    try:
+        res = move_companion(
+            target_repo=repo_path, new_companion_dir=new_dir, dry_run=False
+        )
+        term.status(
+            "ok",
+            f"Moved companion binding for {res['target_repo']} to {res['new_companion_dir']}.",
+        )
+        return 0
+    except StorageError as exc:
+        term.status("fail", str(exc))
+        return 1
+
+
+def _run_storage_reattach(args: argparse.Namespace, term: Term) -> int:
+    import os
+    from agent_workflows.storage import reattach_companion, StorageError
+
+    repo_path = getattr(args, "repo", None) or os.getcwd()
+    companion_dir = getattr(args, "companion_dir", None)
+    dry_run = getattr(args, "dry_run", False)
+
+    if not companion_dir:
+        term.status("fail", "--companion-dir is required for reattach.")
+        return 1
+
+    if dry_run:
+        term.status(
+            "info",
+            f"[DRY RUN] Would reattach companion at {companion_dir} to target repo {repo_path}",
+        )
+        return 0
+
+    try:
+        res = reattach_companion(
+            target_repo=repo_path, companion_dir=companion_dir, dry_run=False
+        )
+        term.status(
+            "ok",
+            f"Reattached companion at {res['companion_dir']} to target repo {res['target_repo']}.",
+        )
+        return 0
+    except StorageError as exc:
+        term.status("fail", str(exc))
+        return 1
+
+
+def _run_storage_preflight(args: argparse.Namespace, term: Term) -> int:
+    import json
+    import os
+    from agent_workflows.storage import validate_companion_preflight, StorageError
+
+    repo_path = getattr(args, "repo", None) or os.getcwd()
+    companion_dir = getattr(args, "companion_dir", None)
+
+    try:
+        report = validate_companion_preflight(
+            target_repo=repo_path, companion_dir=companion_dir
+        )
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2))
+            return 0
+        term.status(
+            "ok", f"Companion preflight passed for {companion_dir} -> {repo_path}."
+        )
+        if report.get("warnings"):
+            for w in report["warnings"]:
+                term.status("warn", f"Warning: {w}")
+        return 0
+    except StorageError as exc:
+        if getattr(args, "json", False):
+            print(json.dumps({"error": str(exc), "valid": False}, indent=2))
+            return 1
+        term.status("fail", f"Preflight failed: {exc}")
+        return 1
 
 
 def _run_todo(args: argparse.Namespace, term: Term) -> int:
@@ -3114,6 +3343,14 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             return _run_storage_init(args, term)
         if storage_cmd == "attach":
             return _run_storage_attach(args, term)
+        if storage_cmd == "detach":
+            return _run_storage_detach(args, term)
+        if storage_cmd == "move":
+            return _run_storage_move(args, term)
+        if storage_cmd == "reattach":
+            return _run_storage_reattach(args, term)
+        if storage_cmd == "preflight":
+            return _run_storage_preflight(args, term)
         parser.print_help()
         return 2
     if args.command == "config":

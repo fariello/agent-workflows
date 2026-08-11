@@ -1,0 +1,6 @@
+{
+  "test": "e01-identity",
+  "project_id": "proj-order05-test",
+  "selected_root_classes": ["config", "durable_state", "records"],
+  "valid_reattach": true
+}

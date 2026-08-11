@@ -1,0 +1,4 @@
+{
+  "test": "e05-lifecycle",
+  "operations": ["attach", "detach", "move", "reattach", "status"]
+}

@@ -1,0 +1,12 @@
+{
+  "test": "e04-durability",
+  "expected_states": [
+    "unversioned",
+    "local-git",
+    "unacknowledged-remote",
+    "acknowledged-durable",
+    "repository-managed",
+    "unreachable",
+    "unknown"
+  ]
+}

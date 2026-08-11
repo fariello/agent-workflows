@@ -1,0 +1,4 @@
+{
+  "test": "e02-preflight",
+  "expected_refusals": ["path_traversal", "repo_nesting", "identity_conflict", "public_leak"]
+}

@@ -1,0 +1,4 @@
+{
+  "test": "e07-matrix",
+  "transitions": ["unversioned->local-git", "local-git->unacknowledged-remote", "unacknowledged-remote->acknowledged-durable", "acknowledged-durable->unacknowledged-remote"]
+}

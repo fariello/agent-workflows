@@ -1,0 +1,5 @@
+{
+  "test": "e03-bundle",
+  "durable_classes": ["config", "durable_state", "records"],
+  "canary_marker": "candid_private_canary_value_12345"
+}

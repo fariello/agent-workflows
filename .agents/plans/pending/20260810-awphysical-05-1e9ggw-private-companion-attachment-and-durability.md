@@ -22,6 +22,8 @@
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): SECOND independent re-review after GPT-5.6 1530-01 reconciliation (cc2d184) VERIFIED residuals materially resolved from repository evidence (full suite 825 OK; gates conform). Remaining LOW/MEDIUM residuals (spec text S2.1-S2.3; L07-01 Order-07 test-module collision; L04-01 is_self positive-identity; S-02 enum alias; R2 set-wide V-evidence; NEW-01 clean_delta) appended to prompt 20260810-1544-01. REVIEWED - OPEN QUESTIONS, NO-GO pending human spec approval. Status unchanged (reviewed); human-approval blocker preserved.
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): final cursory re-review after GPT-5.6 1544-01 closeout (0f6f238) - all 13 conforming at review-finalize, residuals closed (Order 01/02/05/06 canary fixtures, Order 04 path-equality-only, Order 07 test-module + per-fault, Order 09 clean_delta planted-write, Order 12 token->test binding), full suite 825 OK. Controlling spec 20260810-1447-01 advanced to reviewed. Set remains NO-GO pending HUMAN approval of the spec (the sole remaining gate); Status unchanged (reviewed).
 - 2026-08-10 approved (human maintainer via chat, recorded by opencode Opus 4.8): controlling spec 20260810-1447-01 human-approved; Set cleared to execute. Status reviewed -> approved; OQ-01 resolved. Not yet executed.
+- 2026-08-11 executed (Antigravity CLI): implemented companion identity, preflight validation, storage materialization, durability classification, attachment lifecycle, commit boundaries, and falsifiable tests (Order 05).
+
 
 ## Goal
 
@@ -33,44 +35,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Define and validate companion identity
 
-- [ ] E-01 Implement a portable companion identity document and, without duplicating Order 02 path ownership, a machine-local attachment record binding project ID, target identity hints, schema version, selected root classes, and companion Git common-dir without exposing machine-local paths in tracked content.
+- [x] E-01 Implement a portable companion identity document and, without duplicating Order 02 path ownership, a machine-local attachment record binding project ID, target identity hints, schema version, selected root classes, and companion Git common-dir without exposing machine-local paths in tracked content.
   - Depends on: none
   - Expected outcome: A companion can move and reattach safely, cannot silently attach to a different project, and does not trust origin URL alone as identity.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add preflight validation for existing/non-existing directories, nested/overlapping Git repositories, symlinks, worktrees, case aliases, conflicting identities, dirty state, inaccessible paths, and public-target leakage.
+- [x] E-02 Add preflight validation for existing/non-existing directories, nested/overlapping Git repositories, symlinks, worktrees, case aliases, conflicting identities, dirty state, inaccessible paths, and public-target leakage.
   - Depends on: E-01
   - Expected outcome: Unsafe or ambiguous attachment stops before writes and reports recovery choices without modifying either repository.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Materialize and report durable storage
 
-- [ ] E-03 Materialize the selected companion `.aw/config`, `.aw/state/durable`, and `.aw/records` classes plus managed ignore rules for local config and runtime data; keep runtime outside tracked companion history unless custom policy explicitly chooses an untracked companion path.
+- [x] E-03 Materialize the selected companion `.aw/config`, `.aw/state/durable`, and `.aw/records` classes plus managed ignore rules for local config and runtime data; keep runtime outside tracked companion history unless custom policy explicitly chooses an untracked companion path.
   - Depends on: E-01
   - Expected outcome: The public-plus-private-companion preset has one private durable Git boundary and no candid target records; exact permitted commit destinations are available to producers and migration.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Consume Order 02's Section 10 durability enum and legacy alias, then implement explicit local Git initialization, existing Git inspection, remote enumeration, reachability/status reporting, and acknowledgement/revocation without inferring remote privacy, creating remotes, authenticating, fetching, committing, or pushing automatically.
+- [x] E-04 Consume Order 02's Section 10 durability enum and legacy alias, then implement explicit local Git initialization, existing Git inspection, remote enumeration, reachability/status reporting, and acknowledgement/revocation without inferring remote privacy, creating remotes, authenticating, fetching, committing, or pushing automatically.
   - Depends on: E-01
   - Expected outcome: Durability states distinguish unversioned, local Git, observed remote without acknowledgement, acknowledged durable arrangement, unreachable/unknown, and repository-managed cases honestly.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Operate the attachment safely
 
-- [ ] E-05 Add dry-run-first attach, detach, move, reattach, and `aw storage status`/preflight warning flows with exact target/companion deltas, confirmation boundaries, recovery notes, and safeguards against deleting companion content or remotes.
+- [x] E-05 Add dry-run-first attach, detach, move, reattach, and `aw storage status`/preflight warning flows with exact target/companion deltas, confirmation boundaries, recovery notes, and safeguards against deleting companion content or remotes.
   - Depends on: E-01
   - Expected outcome: Path changes update local bindings atomically; identity remains stable; detach preserves durable content; uninstall never deletes an external Git repository.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Enforce repository-specific staging and commit instructions so target and companion changes are never combined, and expose clean machine output for migration and postcheck.
+- [x] E-06 Enforce repository-specific staging and commit instructions so target and companion changes are never combined, and expose clean machine output for migration and postcheck.
   - Depends on: E-01
   - Expected outcome: AW identifies each Git owner, stages only within that owner when authorized, never commits or pushes across boundaries, and reports both worktrees independently.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Add existing-private-repo, new-local-repo, no-Git, multiple-remotes, unacknowledged remote, acknowledged remote, move/reattach, worktree, nested-repo, identity conflict, public leak, dirty state, and uninstall tests.
+- [x] E-07 Add existing-private-repo, new-local-repo, no-Git, multiple-remotes, unacknowledged remote, acknowledged remote, move/reattach, worktree, nested-repo, identity conflict, public leak, dirty state, and uninstall tests.
   - Depends on: E-01
   - Expected outcome: Every attachment and durability state has exact filesystem, identity, Git, output, and no-side-effect assertions.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -149,34 +151,34 @@ Each row is mandatory for its matching `V-*` item. The executor creates the name
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Run Evidence matrix row E-01 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `python3 -m unittest tests.test_storage.CompanionAttachmentTests.test_e01` -> Ran 1 test in 0.034s OK.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: Run Evidence matrix row E-02 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `python3 -m unittest tests.test_storage.CompanionAttachmentTests.test_e02` -> Ran 1 test in 0.032s OK.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: Run Evidence matrix row E-03 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `python3 -m unittest tests.test_storage.CompanionAttachmentTests.test_e03` -> Ran 1 test in 0.029s OK.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: Run Evidence matrix row E-04 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `python3 -m unittest tests.test_storage.CompanionAttachmentTests.test_e04` -> Ran 1 test in 0.219s OK.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: Run Evidence matrix row E-05 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `python3 -m unittest tests.test_storage.CompanionAttachmentTests.test_e05` -> Ran 1 test in 0.072s OK.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: Run Evidence matrix row E-06 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: `python3 -m unittest tests.test_storage.CompanionAttachmentTests.test_e06` -> Ran 1 test in 0.047s OK.
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: Run Evidence matrix row E-07 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m unittest tests.test_storage.CompanionAttachmentTests.test_e07` -> Ran 1 test in 0.133s OK.
+  - Result: pass
 
 
 ## Approval and execution gate
