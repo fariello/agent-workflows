@@ -1,0 +1,12 @@
+{
+  "visibility_subflow": {
+    "target_visibility": "public",
+    "preset": "public-private-companion"
+  },
+  "companion_subflow": {
+    "companion_dir": "/tmp/custom-companion.aw"
+  },
+  "source_checkout_subflow": {
+    "role": "source-checkout"
+  }
+}

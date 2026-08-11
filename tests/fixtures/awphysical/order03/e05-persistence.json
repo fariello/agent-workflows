@@ -1,0 +1,7 @@
+{
+  "saved_policy": {
+    "preset": "private-target",
+    "delivery_mode": "tracked",
+    "records_backend": "repository"
+  }
+}

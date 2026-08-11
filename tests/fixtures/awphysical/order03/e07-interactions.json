@@ -1,0 +1,8 @@
+{
+  "interaction_modes": [
+    "tty",
+    "noninteractive",
+    "dry_run",
+    "cancellation"
+  ]
+}

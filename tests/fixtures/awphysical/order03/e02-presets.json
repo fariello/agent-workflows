@@ -1,0 +1,22 @@
+{
+  "private_target": {
+    "preset": "private-target",
+    "delivery_mode": "tracked",
+    "records_backend": "repository"
+  },
+  "public_companion": {
+    "preset": "public-private-companion",
+    "delivery_mode": "tracked",
+    "records_backend": "companion"
+  },
+  "clean_target": {
+    "preset": "clean-target",
+    "delivery_mode": "clean-delta",
+    "records_backend": "home"
+  },
+  "local_only": {
+    "preset": "local-only",
+    "delivery_mode": "clean-delta",
+    "records_backend": "home"
+  }
+}

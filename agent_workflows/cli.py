@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import List, Optional, Sequence
 
 from . import __version__, config, discovery, engine, versioning
+from .project_schema import Preset
 from .term import Term
 
 
@@ -380,6 +381,32 @@ def _build_parser() -> argparse.ArgumentParser:
     p_install.add_argument(
         "-y", "--yes", action="store_true", help="Skip preflight confirmations."
     )
+    p_install.add_argument(
+        "--preset",
+        choices=[
+            "private-target",
+            "public-private-companion",
+            "public-companion",
+            "clean-target",
+            "local-only",
+            "custom",
+        ],
+        help="Select a physical placement preset.",
+    )
+    p_install.add_argument(
+        "--delivery-mode",
+        choices=["tracked", "clean-delta"],
+        help="Select framework delivery mode.",
+    )
+    p_install.add_argument(
+        "--records-backend",
+        choices=["home", "companion", "repository"],
+        help="Select records storage location.",
+    )
+    p_install.add_argument(
+        "--companion-dir",
+        help="Path to companion repository if companion records backend or preset is selected.",
+    )
 
     p_setup = sub.add_parser(
         "setup", parents=[common], help="Guided first-run setup wizard."
@@ -400,6 +427,32 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_setup.add_argument(
         "--source", dest="source_root", default=None, help=argparse.SUPPRESS
+    )
+    p_setup.add_argument(
+        "--preset",
+        choices=[
+            "private-target",
+            "public-private-companion",
+            "public-companion",
+            "clean-target",
+            "local-only",
+            "custom",
+        ],
+        help="Select a physical placement preset.",
+    )
+    p_setup.add_argument(
+        "--delivery-mode",
+        choices=["tracked", "clean-delta"],
+        help="Select framework delivery mode.",
+    )
+    p_setup.add_argument(
+        "--records-backend",
+        choices=["home", "companion", "repository"],
+        help="Select records storage location.",
+    )
+    p_setup.add_argument(
+        "--companion-dir",
+        help="Path to companion repository if companion records backend or preset is selected.",
     )
 
     p_uninstall = sub.add_parser(
@@ -1754,30 +1807,52 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
         if _exclude_guard(term, repo_root, args) == "skip":
             continue
 
-        # Resolve policy via install_wizard (E-01..E-04)
+        # Resolve policy via install_wizard (E-01..E-05)
         from agent_workflows.install_wizard import (
             collect_policy_interactive,
-            format_policy_summary,
+            render_pre_write_plan,
+            persist_project_policy,
             PolicyError,
         )
+
+        explicit_preset = getattr(args, "preset", None)
+        if (
+            getattr(args, "yes", False)
+            and not explicit_preset
+            and not getattr(args, "delivery_mode", None)
+        ):
+            explicit_preset = Preset.PRIVATE_TARGET.value
 
         try:
             policy = collect_policy_interactive(
                 term=term,
                 repo_path=str(repo_root),
                 assume_yes=getattr(args, "yes", False),
+                explicit_preset=explicit_preset,
+                explicit_delivery=getattr(args, "delivery_mode", None),
+                explicit_backend=getattr(args, "records_backend", None),
+                explicit_companion=getattr(args, "companion_dir", None),
             )
         except PolicyError as exc:
             term.status("fail", str(exc))
             return 1
 
         if getattr(args, "dry_run", False):
-            term.status("ok", f"[DRY RUN] Install policy for {repo_root}:")
-            term.line(format_policy_summary(policy))
+            term.status(
+                "ok", f"[DRY RUN] Install policy pre-write plan for {repo_root}:"
+            )
+            term.line(render_pre_write_plan(policy, str(repo_root), term=term))
             term.status(
                 "ok", "[DRY RUN] No changes written to filesystem or Git state."
             )
             continue
+
+        # Persist confirmed policy to .aw/config/project.json and local.json
+        persist_project_policy(
+            repo_path=str(repo_root),
+            policy=policy,
+            dry_run=False,
+        )
 
         for w in _preflight_warnings(repo_root, packaged):
             term.status("warn", w)
