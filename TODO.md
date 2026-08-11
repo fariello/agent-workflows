@@ -141,6 +141,24 @@ these without an approved IPD.
   one-time approval file the human drops, or a signed marker), rather than only a live TTY prompt. This resolves
   attention-registry spec OQ10 (still an open Phase-0 candidate). Keep the floor's INTENT intact; only improve HOW
   the human's real approval is captured. Do NOT weaken it into something an agent harness can satisfy.
+  - RECURRED 2026-08-10 (awphysical physical-layout spec approval). The maintainer hit the friction again and
+    considers the current gate DISPROPORTIONATELY strict for the risk class ("we're not asking an agent to drop
+    bombs on a building"). Two concrete rough edges observed: (1) the command surface is clunky - a mandatory
+    `--message`, a long `--yes-i-am-human` flag that is redundant on a TTY (the code already prompts interactively
+    when stdin is a TTY, so the flag only skips the typed `approve` confirmation), plus a type-the-word-`approve`
+    prompt; the maintainer noted "that will dissuade people from using this." (2) The deeper mismatch: the
+    maintainer's real workflow is "human decides in chat, agent operates the terminal," and there is NO honest path
+    for the agent to record that delegated approval for SPECS (unlike PLANS, which accept an attributed `Approval:`
+    metadata line). When asked "how would you approve for me - lie?", the honest answer was no: the tool refuses
+    non-TTY approval outright (`_human_confirmed`, agent_workflows/specs.py:538-553) and `--yes-i-am-human` is
+    TTY-gated, so an agent genuinely cannot approve; the honest options are to hand the human the one-liner or to
+    record "the human approved via chat" as attributed provenance (a claim, not an impersonated TTY confirmation).
+    DECISION DEFERRED to a future IPD: reconsider the strictness for this risk class and add an honest delegated-
+    approval path for specs (candidate: an attributed `Approval:` line like plans, or a human-issued out-of-band
+    token/one-time approval file), plus fix the CLI ergonomics (make the interactive prompt the whole story / drop
+    the redundant flag / default or relax `--message` for approvals). Preserve the "an agent harness alone cannot
+    self-approve" guarantee; the goal is proportionality + honest delegation, not removing the human from the loop.
+    Source: awphysical spec approval session 2026-08-10.
 
 - **Re-evaluate the bounded-iteration + agent-agnostic skill-modifiers roadmap
   (`.agents/docs/roadmaps/20260712-1426-agent-workflows-bounded-iteration-skills-roadmap-for-consideration.md`).**
