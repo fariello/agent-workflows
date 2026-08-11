@@ -3,7 +3,8 @@
 
 Run this script from anywhere inside the target repository. The IPD argument
 may be a repository-relative path, a filename, or the plan's six-character
-stable ID. The script runs two blocking, headless ``agy`` turns:
+stable ID. The script runs two headless ``agy`` turns and writes their streaming event
+logs under the repository's ignored ``tmp/antigravity/`` directory:
 
 1. execute the pending IPD; and
 2. resume that exact conversation and perform a skeptical self-audit.
@@ -11,6 +12,23 @@ stable ID. The script runs two blocking, headless ``agy`` turns:
 By default, the first turn continues the most recent Antigravity conversation
 for the current repository. If no conversation exists, Antigravity creates a
 new one. Pass ``--session-id`` to select a particular conversation instead.
+
+Agent/operator contract
+-----------------------
+
+This wrapper is intentionally synchronous: it does not exit until both the
+execution turn and the self-audit turn finish. An AI coding agent should launch
+it with the client's background-task facility instead of waiting on a
+foreground tool call. If the client has no background-task facility, launch it
+as a background shell process and retain its PID and redirected output path.
+
+Each turn prints its event-log path to stderr and flushes every Antigravity
+``stream-json`` event to that ignored file under ``tmp/antigravity/``.
+Monitor the printed JSONL path with ``tail -f``; do not open the same
+conversation in another ``agy`` process. Wait for this wrapper's background
+job to exit, then read its final execution and audit reports. Exit 0 means both
+turns returned ``SUCCESS``; any other exit status means the workflow is
+incomplete and its error and JSONL logs must be inspected.
 """
 
 from __future__ import annotations
@@ -22,6 +40,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -66,7 +85,30 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
         description=(
             "Execute a pending AW IPD in Antigravity, wait for completion, "
             "then run a skeptical self-audit in the same session."
-        )
+        ),
+        epilog="""AGENT AND OPERATOR USAGE
+
+This command is intentionally long-running and synchronous. When an AI coding
+agent invokes it, use the client's background-task facility and retain the job
+handle. Do not wait on a foreground tool call.
+
+If no background-task facility exists, a POSIX-shell fallback is:
+
+  mkdir -p tmp/antigravity
+  nohup python3 tools/antigravity_execute_ipd.py <IPD> [OPTIONS] >tmp/antigravity/runner.log 2>&1 &
+  echo $!
+
+The runner prints a unique JSONL path for each Antigravity turn. Follow the
+current turn without disrupting it:
+
+  tail -f <printed-jsonl-path>
+
+Do not run another 'agy --continue' against the same conversation. Wait for the
+background job to exit, then inspect runner.log or the captured job output.
+Exit 0 means both execution and audit succeeded. Any nonzero status means the
+workflow is incomplete.
+""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "ipd",
@@ -200,28 +242,129 @@ def resolve_agy(explicit_path: str | None) -> str:
     )
 
 
+def _compact(value: object, limit: int = 180) -> str:
+    """Render a bounded, single-line progress detail without raw event JSON."""
+    text = " ".join(str(value).split())
+    if len(text) <= limit:
+        return text
+    return f"{text[: limit - 3]}..."
+
+
+def _is_test_command(command: str) -> bool:
+    """Return whether a shell command appears to invoke a test runner."""
+    return (
+        re.search(
+            r"(?:^|\s)(?:pytest|py\.test|unittest|tox|nox|cargo\s+test|"
+            r"go\s+test|npm\s+(?:run\s+)?test|pnpm\s+(?:run\s+)?test|"
+            r"yarn\s+(?:run\s+)?test)(?:\s|$)",
+            command,
+            flags=re.I,
+        )
+        is not None
+    )
+
+
+def _progress_messages(event: dict[str, object], phase: str) -> list[tuple[str, str]]:
+    """Translate one stream event into deduplicatable progress messages.
+
+    The first tuple element is an internal deduplication key. The second is the
+    short message written to stderr. Tool output and model text never appear in
+    these messages; the complete event remains available in the JSONL log.
+    """
+    event_type = str(event.get("event", ""))
+    if event_type == "init":
+        return [("init", f"[{phase}] Antigravity initialized")]
+
+    if event_type == "result":
+        result = event.get("result")
+        status = (
+            str(result.get("status", "UNKNOWN"))
+            if isinstance(result, dict)
+            else "UNKNOWN"
+        )
+        return [(f"result:{status}", f"[{phase}] completed: {status}")]
+
+    if event_type != "step_update":
+        return []
+    step = event.get("step_update")
+    if not isinstance(step, dict):
+        return []
+
+    step_index = str(step.get("step_index", "?"))
+    state = str(step.get("state", "")).upper()
+    state_word = {
+        "ACTIVE": "started",
+        "DONE": "finished",
+        "ERROR": "failed",
+        "CANCELED": "canceled",
+    }.get(state, state.lower() or "updated")
+    messages: list[tuple[str, str]] = []
+
+    tool = step.get("tool_info")
+    if isinstance(tool, dict):
+        name = _compact(tool.get("name", "tool"), 60)
+        parameters = tool.get("parameters")
+        command = ""
+        if isinstance(parameters, dict):
+            candidate = parameters.get("command", parameters.get("cmd", ""))
+            if isinstance(candidate, list):
+                command = " ".join(str(part) for part in candidate)
+            else:
+                command = str(candidate)
+        if command:
+            kind = "tests" if _is_test_command(command) else "command"
+            message = f"[{phase}] {kind} {state_word}: {_compact(command)}"
+        else:
+            message = f"[{phase}] tool {state_word}: {name}"
+        messages.append((f"step:{step_index}:{state}:tool:{name}", message))
+
+    subagent = step.get("subagent_info")
+    if isinstance(subagent, dict):
+        subagents = subagent.get("subagents")
+        count = len(subagents) if isinstance(subagents, list) else 1
+        noun = "subagent" if count == 1 else "subagents"
+        messages.append(
+            (
+                f"step:{step_index}:{state}:subagents:{count}",
+                f"[{phase}] {count} {noun} {state_word}",
+            )
+        )
+
+    step_type = str(step.get("step_type", ""))
+    if not messages and step_type == "agent_response" and state == "DONE":
+        messages.append(
+            (
+                f"step:{step_index}:agent-response",
+                f"[{phase}] agent response finished",
+            )
+        )
+    return messages
+
+
 def run_agy(
     *,
     executable: str,
     root: Path,
     prompt: str,
+    phase: str,
     session_id: str | None,
     timeout: str,
     skip_permissions: bool,
 ) -> AgyResult:
-    """Run one blocking headless Antigravity turn and validate its JSON result.
+    """Run one headless Antigravity turn, persist its stream, and validate it.
 
-    ``agy --output-format json`` does not return until the turn reaches a
-    terminal state, so completion requires neither polling nor an SDK-specific
-    job handle. The repository root is the subprocess working directory because
-    Antigravity scopes ``--continue`` to the active project.
+    Antigravity emits newline-delimited events with ``stream-json``. Every
+    event is flushed to an ignored log below ``tmp/antigravity/``, allowing
+    another terminal to follow a long-running turn without attaching to or
+    disrupting the conversation. The terminal ``result`` event supplies the
+    same fields previously read from the single JSON response.
     """
     command = [
         executable,
         "-p",
         prompt,
         "--output-format",
-        "json",
+        "stream-json",
         "--print-timeout",
         timeout,
     ]
@@ -232,29 +375,61 @@ def run_agy(
     if skip_permissions:
         command.append("--dangerously-skip-permissions")
 
-    completed = subprocess.run(
+    log_directory = root / "tmp" / "antigravity"
+    log_directory.mkdir(parents=True, exist_ok=True)
+    log_path = log_directory / f"agy-{os.getpid()}-{time.time_ns()}.jsonl"
+    print(
+        "Antigravity turn started. This wrapper waits for the turn to finish; "
+        "monitor without attaching to the conversation:",
+        file=sys.stderr,
+        flush=True,
+    )
+    print(f"  tail -f {log_path}", file=sys.stderr, flush=True)
+
+    process = subprocess.Popen(
         command,
         cwd=root,
-        check=False,
-        capture_output=True,
+        stdout=subprocess.PIPE,
         text=True,
+        bufsize=1,
     )
-    stdout = completed.stdout.strip()
-    try:
-        payload = json.loads(stdout)
-    except json.JSONDecodeError as exc:
-        detail = completed.stderr.strip() or stdout or "no output"
+    if process.stdout is None:
+        process.kill()
+        raise ScriptError("Antigravity stdout stream was not available.")
+
+    payload: dict[str, object] | None = None
+    reported: set[str] = set()
+    with log_path.open("w", encoding="utf-8") as stream:
+        for line in process.stdout:
+            stream.write(line)
+            stream.flush()
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(event, dict):
+                continue
+            for key, message in _progress_messages(event, phase):
+                if key not in reported:
+                    print(message, file=sys.stderr, flush=True)
+                    reported.add(key)
+            if event.get("event") == "result" and isinstance(event.get("result"), dict):
+                payload = event["result"]
+
+    returncode = process.wait()
+    if payload is None:
         raise ScriptError(
-            f"Antigravity returned invalid JSON (exit {completed.returncode}): {detail}"
-        ) from exc
+            f"Antigravity emitted no terminal result event (exit {returncode}); "
+            f"inspect {log_path}."
+        )
 
     status = str(payload.get("status", ""))
     error = str(payload.get("error", "")).strip()
-    if completed.returncode != 0 or status != "SUCCESS":
-        detail = error or completed.stderr.strip() or "no error detail"
+    if returncode != 0 or status != "SUCCESS":
+        detail = error or f"inspect {log_path}"
         raise ScriptError(
             f"Antigravity ended with status {status or 'UNKNOWN'} "
-            f"(exit {completed.returncode}): {detail}"
+            f"(exit {returncode}): {detail}"
         )
 
     conversation_id = str(payload.get("conversation_id", "")).strip()
@@ -342,6 +517,7 @@ def run(argv: Iterable[str] | None = None) -> int:
         executable=executable,
         root=root,
         prompt=execute_prompt,
+        phase="execution",
         session_id=initial_session,
         timeout=args.timeout,
         skip_permissions=args.dangerously_skip_permissions,
@@ -364,6 +540,7 @@ def run(argv: Iterable[str] | None = None) -> int:
         executable=executable,
         root=root,
         prompt=audit_prompt(audited_rel),
+        phase="audit",
         # Always pin the second turn to the ID returned by the first. This avoids
         # a race with any other process that changes the project's latest session.
         session_id=execution.conversation_id,
