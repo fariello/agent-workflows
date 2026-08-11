@@ -4,18 +4,18 @@
 - Kind: child
 - Concern: physical-layout
 - Scope: agent_workflows/install_wizard.py, agent_workflows/project_layout.py, agent_workflows/cli.py, tests/test_install_wizard.py, tests/fixtures/awphysical/order03/
-- Status: approved
+- Status: executed
 - Set: awphysical (physical .aw hierarchy, storage policy, and migration)
 - Order: 3
 - Highest E allocated: 07
 - Author: agent
 - Id: x2dfen
-- Approval: 2026-08-10 human maintainer (chat, after approving the controlling spec 20260810-1447-01) - approved to execute the awphysical Set; recorded by opencode Opus 4.8.
 
 ## Workflow history
 
 - 2026-08-10: Created by aw layout orchestrator plan.
-- 2026-08-10: Executed task groups 1-3, implemented wizard state machine, 4 presets, custom placement validation, pre-write plan preview, accessibility matrix, and atomic policy persistence; validated all V-01..V-07 items with red-then-green proof.
+- 2026-08-10: Executed task groups 1-3, implemented wizard state machine, 4 presets, custom placement validation, pre-write plan preview, accessibility matrix, and atomic policy persistence; validated all V-01..V-07 items with red-then-green proof (Antigravity executor; execute commits 8b00280, ae482e3, 7c2bbd9). The wrapper reported ERROR: timeout waiting for response because the executor's turns exceeded the print-timeout, but the work and plan bookkeeping were completed; resumed once with agy --continue.
+- 2026-08-11 orchestrator verification + terminal transition (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): Independent verification with NO fix required (clean first execution under the hardened prompts). Full suite `python3 -m unittest discover -s tests -t .` = Ran 843 OK (skipped=1) exit 0 (baseline 837 + 7 Order-03 E-tests). Read all Order-03 test bodies: they assert real fail-closed/rejection behavior (IncompletePolicyError before any write, InvalidPolicyError on forbidden clean-delta+repository and on tracked config_local/state_runtime, PolicyCancelledError on decline, no ANSI leak under color=False, home path rendered portably as ~), not existence checks. Mutation-probe confirmed the clean-delta/repository invariant test fails RED when the check is neutralized and GREEN when restored. Pre-transition ipd lint conforming. Status approved -> executed; Approval line removed; moved pending/ -> executed/.
 
 ## Goal
 
