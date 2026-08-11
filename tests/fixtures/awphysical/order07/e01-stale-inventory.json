@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "description": "Fixture for Order 07 E-01: stale inventory inputs",
+  "stale_input": true
+}

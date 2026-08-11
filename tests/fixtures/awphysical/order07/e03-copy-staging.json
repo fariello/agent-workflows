@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "description": "Fixture for Order 07 E-03: copy staging & verification",
+  "copy_staging": true
+}

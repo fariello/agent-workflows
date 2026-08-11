@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "description": "Fixture for Order 07 E-06: cross-repository git boundary plans",
+  "git_boundaries": true
+}

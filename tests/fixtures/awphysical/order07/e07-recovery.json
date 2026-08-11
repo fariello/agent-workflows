@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "description": "Fixture for Order 07 E-07: resume, rollback, cleanup recovery",
+  "recovery": true
+}

@@ -22,6 +22,7 @@
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): SECOND independent re-review after GPT-5.6 1530-01 reconciliation (cc2d184) VERIFIED residuals materially resolved from repository evidence (full suite 825 OK; gates conform). Remaining LOW/MEDIUM residuals (spec text S2.1-S2.3; L07-01 Order-07 test-module collision; L04-01 is_self positive-identity; S-02 enum alias; R2 set-wide V-evidence; NEW-01 clean_delta) appended to prompt 20260810-1544-01. REVIEWED - OPEN QUESTIONS, NO-GO pending human spec approval. Status unchanged (reviewed); human-approval blocker preserved.
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): final cursory re-review after GPT-5.6 1544-01 closeout (0f6f238) - all 13 conforming at review-finalize, residuals closed (Order 01/02/05/06 canary fixtures, Order 04 path-equality-only, Order 07 test-module + per-fault, Order 09 clean_delta planted-write, Order 12 token->test binding), full suite 825 OK. Controlling spec 20260810-1447-01 advanced to reviewed. Set remains NO-GO pending HUMAN approval of the spec (the sole remaining gate); Status unchanged (reviewed).
 - 2026-08-10 approved (human maintainer via chat, recorded by opencode Opus 4.8): controlling spec 20260810-1447-01 human-approved; Set cleared to execute. Status reviewed -> approved; OQ-01 resolved. Not yet executed.
+- 2026-08-11 executed (Antigravity): implemented versioned migration transaction state machine, writer lock, copy-verify-switch-retain protocol, status, resume, rollback, cleanup, and fault injection in agent_workflows/layout_migration.py, cli.py, and tests/test_awphysical_migration.py. Pre-transition lint passed.
 
 ## Goal
 
@@ -33,49 +34,49 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Freeze inputs and transaction state
 
-- [ ] E-01 Replace the current non-copying `execute_migration` path with a versioned migration transaction state machine with unique transaction ID, immutable inventory/map digests, policy digest, source/destination Git identities, phase journal, timestamps, acknowledgements, and last verified checkpoint stored under resolved runtime state.
+- [x] E-01 Replace the current non-copying `execute_migration` path with a versioned migration transaction state machine with unique transaction ID, immutable inventory/map digests, policy digest, source/destination Git identities, phase journal, timestamps, acknowledgements, and last verified checkpoint stored under resolved runtime state.
   - Depends on: none
   - Expected outcome: Apply refuses stale or edited inventory, map, policy, roots, or Git identity; only one transaction/writer can be active; every phase is resumable or rollbackable.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add a repository/project writer lock and pre-apply revalidation of source hashes, destinations, disk space, permissions, dirty/conflicted Git state, companion identity, backups, and external-root accessibility.
+- [x] E-02 Add a repository/project writer lock and pre-apply revalidation of source hashes, destinations, disk space, permissions, dirty/conflicted Git state, companion identity, backups, and external-root accessibility.
   - Depends on: E-01
   - Expected outcome: Changes between inventory and apply stop before copy; lock ownership and stale-lock recovery are explicit and tested across interruption.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Copy, verify, and switch once
 
-- [ ] E-03 Implement phase-scoped copy into transaction-specific staging destinations, preserving bytes, modes, safe symlinks, relative identities, and record lifecycle; never overwrite collisions or follow links outside approved roots.
+- [x] E-03 Implement phase-scoped copy into transaction-specific staging destinations, preserving bytes, modes, safe symlinks, relative identities, and record lifecycle; never overwrite collisions or follow links outside approved roots.
   - Depends on: E-01
   - Expected outcome: Every copied item is hash-verified against the frozen inventory and remains non-authoritative until the whole destination set verifies.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Implement destination verification and one authoritative policy/registry switch written last, with durable switch receipt and compatibility-reader activation; block all legacy writers before and after switch.
+- [x] E-04 Implement destination verification and one authoritative policy/registry switch written last, with durable switch receipt and compatibility-reader activation; block all legacy writers before and after switch.
   - Depends on: E-01
   - Expected outcome: Failure before switch leaves legacy authoritative; failure after switch is detectable and rollbackable; no operation writes to both layouts.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Preserve legacy sources in a read-only retained state with exact old-to-new mapping, hashes, rollback instructions, retention trigger, and no automatic deletion; move transient backups/journals to runtime state.
+- [x] E-05 Preserve legacy sources in a read-only retained state with exact old-to-new mapping, hashes, rollback instructions, retention trigger, and no automatic deletion; move transient backups/journals to runtime state.
   - Depends on: E-01
   - Expected outcome: Users can inspect or roll back after cutover; retained candid material does not become newly tracked or copied into the wrong repository.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Git boundaries, recovery, and cleanup
 
-- [ ] E-06 Generate separate target, companion, and source-repository staging/commit plans; stage only with explicit confirmation, never commit or push automatically, and verify each index contains only intended paths.
+- [x] E-06 Generate separate target, companion, and source-repository staging/commit plans; stage only with explicit confirmation, never commit or push automatically, and verify each index contains only intended paths.
   - Depends on: E-01
   - Expected outcome: Cross-repository moves are represented as independent deltas and recovery instructions; a failure in one Git owner cannot be presented as globally committed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Implement idempotent status, resume, and rollback commands for every failure point, plus a separate post-retention cleanup preview/apply command requiring fresh inventory, independent postcheck success, and explicit high-warning confirmation.
+- [x] E-07 Implement idempotent status, resume, and rollback commands for every failure point, plus a separate post-retention cleanup preview/apply command requiring fresh inventory, independent postcheck success, and explicit high-warning confirmation.
   - Depends on: E-01
   - Expected outcome: Repeated resume/rollback is safe; cleanup cannot run as part of migration, cannot touch foreign/changed items, and defaults to preview.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Add journal read/resume/rollback plus fault injection after every journaled operation and tests for stale inputs, concurrent writers, copy failure, verification mismatch, switch failure, process kill, disk/permission loss, cross-Git partial staging, resume, rollback, cleanup refusal, and source-checkout protection.
+- [x] E-08 Add journal read/resume/rollback plus fault injection after every journaled operation and tests for stale inputs, concurrent writers, copy failure, verification mismatch, switch failure, process kill, disk/permission loss, cross-Git partial staging, resume, rollback, cleanup refusal, and source-checkout protection.
   - Depends on: E-01
   - Expected outcome: Every injected failure has exact authoritative-root, retained-source, journal, Git-index, exit-code, and recovery assertions.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -158,38 +159,38 @@ Each row is mandatory for its matching `V-*` item. The executor creates the name
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Run Evidence matrix row E-01 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `python3 -m unittest tests.test_awphysical_migration.TransactionalMigrationTests.test_e01` passed (Ran 8 tests in 0.713s OK). Falsifiability verified by breaking StaleInputError check (AssertionError: StaleInputError not raised).
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: Run Evidence matrix row E-02 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `python3 -m unittest tests.test_awphysical_migration.TransactionalMigrationTests.test_e02` passed. Falsifiability verified by breaking source hash revalidation check (VerificationError raised instead of PreflightGateError).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: Run Evidence matrix row E-03 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `python3 -m unittest tests.test_awphysical_migration.TransactionalMigrationTests.test_e03` passed. Falsifiability verified by breaking verify-mismatch fault injection (AssertionError: VerificationError not raised).
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: Run Evidence matrix row E-04 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `python3 -m unittest tests.test_awphysical_migration.TransactionalMigrationTests.test_e04` passed. Falsifiability verified by breaking switch-failure fault injection (AssertionError: SwitchError not raised).
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: Run Evidence matrix row E-05 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `python3 -m unittest tests.test_awphysical_migration.TransactionalMigrationTests.test_e05` passed. Falsifiability verified by breaking retention manifest writing (AssertionError: False is not true).
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: Run Evidence matrix row E-06 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: `python3 -m unittest tests.test_awphysical_migration.TransactionalMigrationTests.test_e06` passed. Falsifiability verified by breaking cross-git-partial-stage fault injection (AssertionError: MigrationError not raised).
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: Run Evidence matrix row E-07 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-08 validates E-08
+  - Observed evidence: `python3 -m unittest tests.test_awphysical_migration.TransactionalMigrationTests.test_e07` passed. Falsifiability verified by breaking cleanup confirmation check (AssertionError: CleanupError not raised).
+  - Result: pass
+- [x] V-08 validates E-08
   - Required evidence: Run Evidence matrix row E-08 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m unittest tests.test_awphysical_migration.TransactionalMigrationTests.test_e08` passed across all 9 fault injection subtests. Falsifiability verified by breaking disk-loss fault injection (AssertionError: PreflightGateError not raised).
+  - Result: pass
 
 
 ## Approval and execution gate

@@ -1234,9 +1234,17 @@ def _build_parser() -> argparse.ArgumentParser:
     p_migrate.add_argument(
         "action",
         nargs="?",
-        choices=["inventory", "plan"],
+        choices=[
+            "inventory",
+            "plan",
+            "apply",
+            "status",
+            "resume",
+            "rollback",
+            "cleanup",
+        ],
         default=None,
-        help="Action to perform: inventory or plan (default: full plan preview).",
+        help="Action to perform: inventory, plan, apply, status, resume, rollback, cleanup.",
     )
     p_migrate.add_argument(
         "--target-backend",
@@ -1263,6 +1271,14 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_migrate.add_argument(
         "--apply", action="store_true", help="Execute approved migration transaction."
+    )
+    p_migrate.add_argument(
+        "--confirm",
+        action="store_true",
+        help="Explicit high-warning confirmation for cleanup/apply.",
+    )
+    p_migrate.add_argument(
+        "--fault-injection", default=None, help="Fault injection name for test harness."
     )
     p_migrate.add_argument(
         "--json", action="store_true", help="Output migration plan as JSON."
@@ -3318,10 +3334,78 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
             )
         return 0 if inv_res.get("valid") else 2
 
+    mgr = MigrationManager(target_repo=str(repo_path))
+    fault_inj = getattr(args, "fault_injection", None)
+    confirm = getattr(args, "confirm", False)
+
+    if action == "status":
+        st = mgr.status_migration()
+        if json_out:
+            print(json.dumps(st, indent=2))
+        else:
+            term.heading("AW Layout Migration Status")
+            term.status("info", f"Active Transaction: {st.get('active')}")
+            term.status("info", f"Transaction ID:    {st.get('transaction_id')}")
+            term.status("info", f"Status:            {st.get('status')}")
+            term.status(
+                "info", f"Checkpoint:        {st.get('last_verified_checkpoint')}"
+            )
+            term.status("info", f"Authority:         {st.get('authority')}")
+        return 0
+
+    if action == "resume":
+        try:
+            res = mgr.resume_migration(fault_injection=fault_inj)
+            if json_out:
+                print(json.dumps(res, indent=2))
+            else:
+                term.status("ok", f"Resumed migration: {res.get('status')}")
+            return 0
+        except MigrationError as exc:
+            if json_out:
+                print(json.dumps({"error": str(exc)}, indent=2))
+            else:
+                term.status("fail", str(exc))
+            return 1
+
+    if action == "rollback":
+        try:
+            res = mgr.rollback_migration(fault_injection=fault_inj)
+            if json_out:
+                print(json.dumps(res, indent=2))
+            else:
+                term.status("ok", f"Rolled back migration: {res.get('status')}")
+            return 0
+        except MigrationError as exc:
+            if json_out:
+                print(json.dumps({"error": str(exc)}, indent=2))
+            else:
+                term.status("fail", str(exc))
+            return 1
+
+    if action == "cleanup":
+        try:
+            res = mgr.cleanup_migration(confirm=confirm, fault_injection=fault_inj)
+            if json_out:
+                print(json.dumps(res, indent=2))
+            else:
+                term.status(
+                    "ok",
+                    f"Cleaned up legacy sources: {len(res.get('removed', []))} items removed.",
+                )
+            return 0
+        except MigrationError as exc:
+            if json_out:
+                print(json.dumps({"error": str(exc)}, indent=2))
+            else:
+                term.status("fail", str(exc))
+            return 1
+
     if (
         action == "plan"
-        or getattr(args, "dry_run", True)
+        or (getattr(args, "dry_run", False) or action is None)
         and not getattr(args, "apply", False)
+        and action != "apply"
     ):
         roots = inv_mod._default_roots(repo_path)
         for r_arg in getattr(args, "root", []):
@@ -3360,8 +3444,9 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
 
     target_backend = getattr(args, "target_backend", "repository")
     try:
-        mgr = MigrationManager(target_repo=str(repo_path))
-        mgr.execute_migration(target_backend=target_backend, dry_run=False)
+        mgr.execute_migration(
+            target_backend=target_backend, dry_run=False, fault_injection=fault_inj
+        )
     except MigrationError as exc:
         if json_out:
             print(json.dumps({"error": str(exc)}, indent=2))

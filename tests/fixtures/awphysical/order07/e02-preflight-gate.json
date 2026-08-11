@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "description": "Fixture for Order 07 E-02: preflight changes and lock tests",
+  "preflight_gate": true
+}
