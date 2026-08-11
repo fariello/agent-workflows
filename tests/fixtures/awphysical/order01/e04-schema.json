@@ -1,0 +1,19 @@
+{
+  "test_id": "e04-schema",
+  "valid_config": {
+    "preset": "private-target",
+    "role": "target",
+    "placements": {
+      "system": "target-tracked",
+      "config_project": "target-tracked"
+    }
+  },
+  "invalid_role_config": {
+    "role": "invalid_role_name_999"
+  },
+  "invalid_placement_config": {
+    "placements": {
+      "system": "invalid_placement_name_999"
+    }
+  }
+}

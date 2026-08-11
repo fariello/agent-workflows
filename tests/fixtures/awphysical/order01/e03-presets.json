@@ -1,0 +1,10 @@
+{
+  "test_id": "e03-presets",
+  "presets": [
+    "private-target",
+    "public-target-private-companion",
+    "completely-clean-target",
+    "local-only"
+  ],
+  "invalid_preset": "invalid-preset-name-123"
+}

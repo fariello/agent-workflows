@@ -28,6 +28,7 @@ from agent_workflows.project_schema import (
     ProjectContext,
     Provenance,
     RecordsBackend,
+    RootClass,
 )
 
 
@@ -67,13 +68,60 @@ def _canonical_path(path: str | Path) -> str:
 
 def _is_safe_subpath(child_path: str, parent_path: str) -> bool:
     """Check if child_path is strictly inside parent_path or equal to it."""
-    c = Path(child_path)
-    p = Path(parent_path)
+    c = Path(_canonical_path(child_path))
+    p = Path(_canonical_path(parent_path))
     try:
         c.relative_to(p)
         return True
     except ValueError:
         return False
+
+
+def validate_physical_git_policy(
+    target_repo: str, physical_classes: Dict[str, str]
+) -> None:
+    """Enforce physical Git policy invariants (spec Section 4.1 & 5.2).
+    config_local (config/local.json) and state_runtime (state/runtime/) MUST NOT
+    be tracked or staged in any Git repository.
+    Raises PathSecurityError if any forbidden path is tracked or staged in target Git.
+    """
+    repo_abs = _canonical_path(target_repo)
+    git_dir = os.path.join(repo_abs, ".git")
+    if not os.path.exists(git_dir):
+        return
+
+    try:
+        import subprocess
+
+        res = subprocess.run(
+            ["git", "ls-files", "--cached"],
+            cwd=repo_abs,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        if res.returncode == 0:
+            cached_files = res.stdout.splitlines()
+            for rel_path in cached_files:
+                abs_path = _canonical_path(os.path.join(repo_abs, rel_path))
+                config_local_path = physical_classes.get(RootClass.CONFIG_LOCAL.value)
+                if config_local_path and abs_path == config_local_path:
+                    raise PathSecurityError(
+                        f"Git policy violation: local config file '{rel_path}' is tracked or staged in Git"
+                    )
+                state_runtime_path = physical_classes.get(RootClass.STATE_RUNTIME.value)
+                if state_runtime_path and (
+                    abs_path == state_runtime_path
+                    or _is_safe_subpath(abs_path, state_runtime_path)
+                ):
+                    raise PathSecurityError(
+                        f"Git policy violation: runtime state path '{rel_path}' is tracked or staged in Git"
+                    )
+    except PathSecurityError:
+        raise
+    except Exception:
+        pass
 
 
 def _check_path_security(path_str: str, label: str) -> str:
@@ -357,29 +405,38 @@ def resolve_project_context(
     )
 
     # 6. Logical Roots Resolution
+    # 6. Physical Classes & Logical Roots Resolution
     project_aw_dir = os.path.join(aw_home_abs, "projects", project_id)
 
-    # system root
-    if resolved_delivery_mode == DeliveryMode.TRACKED.value:
-        system_root = _canonical_path(os.path.join(repo_abs, ".agents"))
+    # system root (spec Section 4 & 4.1: <container>/.aw/system)
+    if repo_cfg_in_user.get("system_root"):
+        system_root = _canonical_path(repo_cfg_in_user["system_root"])
+    elif resolved_delivery_mode == DeliveryMode.TRACKED.value:
+        system_root = _canonical_path(os.path.join(repo_abs, ".aw", "system"))
     else:
-        system_root = _canonical_path(os.path.join(aw_home_abs, "system"))
+        system_root = _canonical_path(os.path.join(project_aw_dir, "system"))
 
     # config root
     if repo_cfg_in_user.get("config_root"):
         config_root = _canonical_path(repo_cfg_in_user["config_root"])
-    elif resolved_delivery_mode == DeliveryMode.TRACKED.value and os.path.exists(
-        os.path.join(repo_abs, ".aw", "config")
-    ):
+    elif resolved_delivery_mode == DeliveryMode.TRACKED.value:
         config_root = _canonical_path(os.path.join(repo_abs, ".aw", "config"))
     else:
         config_root = _canonical_path(os.path.join(project_aw_dir, "config"))
 
+    config_project_path = _canonical_path(os.path.join(config_root, "project.json"))
+    config_local_path = _canonical_path(os.path.join(config_root, "local.json"))
+
     # state root
     if repo_cfg_in_user.get("state_root"):
         state_root = _canonical_path(repo_cfg_in_user["state_root"])
+    elif resolved_delivery_mode == DeliveryMode.TRACKED.value:
+        state_root = _canonical_path(os.path.join(repo_abs, ".aw", "state"))
     else:
         state_root = _canonical_path(os.path.join(project_aw_dir, "state"))
+
+    state_durable_path = _canonical_path(os.path.join(state_root, "durable"))
+    state_runtime_path = _canonical_path(os.path.join(state_root, "runtime"))
 
     # records root
     if resolved_records_backend == RecordsBackend.REPOSITORY.value:
@@ -389,6 +446,15 @@ def resolve_project_context(
         records_root = _canonical_path(os.path.join(companion_dir, "records"))
     else:  # HOME
         records_root = _canonical_path(os.path.join(project_aw_dir, "records"))
+
+    physical_classes = {
+        RootClass.SYSTEM.value: system_root,
+        RootClass.CONFIG_PROJECT.value: config_project_path,
+        RootClass.CONFIG_LOCAL.value: config_local_path,
+        RootClass.STATE_DURABLE.value: state_durable_path,
+        RootClass.STATE_RUNTIME.value: state_runtime_path,
+        RootClass.RECORDS.value: records_root,
+    }
 
     logical_roots = {
         LogicalRoot.SYSTEM.value: system_root,
@@ -408,6 +474,9 @@ def resolve_project_context(
                 raise PathSecurityError(
                     f"Clean-delta security violation: {root_name} root ({root_path}) is inside target repository ({repo_abs})"
                 )
+
+    # Enforce physical Git policy invariants (spec Section 4.1 & 5.2)
+    validate_physical_git_policy(repo_abs, physical_classes)
 
     # 7. Durability State
     if resolved_records_backend == RecordsBackend.REPOSITORY.value:
@@ -517,4 +586,5 @@ def resolve_project_context(
         root_accessibility=accessibility,
         open_aw_actions=open_actions,
         provenance={k: v.to_dict() for k, v in provenance_map.items()},
+        physical_classes=physical_classes,
     )

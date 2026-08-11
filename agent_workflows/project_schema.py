@@ -1,7 +1,7 @@
-"""Canonical schema and vocabulary for AW project layout, roots, and context (IPD 20260809-awlayout-01).
+"""Canonical schema and vocabulary for AW project layout, roots, and context (IPD 20260810-awphysical-01).
 
 This module OWNS the machine-checkable schema and vocabulary defined by the specification
-``.agents/docs/specs/20260809-2211-01-aw-project-layout-storage-wizard-and-state.spec.md``.
+``.agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md``.
 All storage, resolver, CLI, and test modules import canonical types and constants from THIS module.
 
 Stdlib-only (Python 3.9+).
@@ -49,6 +49,281 @@ class LogicalRoot(str, Enum):
     CONFIG = "config"
     STATE = "state"
     RECORDS = "records"
+
+
+class RootClass(str, Enum):
+    """The six physical classes of an AW-enabled project (spec Section 4.1)."""
+
+    SYSTEM = "system"
+    CONFIG_PROJECT = "config_project"
+    CONFIG_LOCAL = "config_local"
+    STATE_DURABLE = "state_durable"
+    STATE_RUNTIME = "state_runtime"
+    RECORDS = "records"
+
+
+class Placement(str, Enum):
+    """The closed initial placement vocabulary (spec Section 5.1)."""
+
+    TARGET_TRACKED = "target-tracked"
+    TARGET_IGNORED = "target-ignored"
+    HOME_UNTRACKED = "home-untracked"
+    COMPANION_TRACKED = "companion-tracked"
+    COMPANION_UNTRACKED = "companion-untracked"
+    SOURCE_CHECKOUT = "source-checkout"
+    CUSTOM = "custom"
+
+
+class GitPolicy(str, Enum):
+    """Git policy for physical classes (spec Section 5.2)."""
+
+    TARGET_GIT = "target-git"
+    COMPANION_GIT = "companion-git"
+    IGNORED = "ignored"
+    UNTRACKED = "untracked"
+
+
+class ProjectRole(str, Enum):
+    """Project role classification (spec Section 5.3 & Section 9)."""
+
+    TARGET = "target"
+    SOURCE_CHECKOUT = "source-checkout"
+
+
+class Preset(str, Enum):
+    """The four preset contracts (spec Section 6.1)."""
+
+    PRIVATE_TARGET = "private-target"
+    PUBLIC_TARGET_PRIVATE_COMPANION = "public-target-private-companion"
+    COMPLETELY_CLEAN_TARGET = "completely-clean-target"
+    LOCAL_ONLY = "local-only"
+
+
+ROOT_CLASSES: Tuple[str, ...] = tuple(c.value for c in RootClass)
+PLACEMENTS: Tuple[str, ...] = tuple(p.value for p in Placement)
+GIT_POLICIES: Tuple[str, ...] = tuple(g.value for g in GitPolicy)
+PROJECT_ROLES: Tuple[str, ...] = tuple(r.value for r in ProjectRole)
+PRESETS: Tuple[str, ...] = tuple(p.value for p in Preset)
+
+
+@dataclass(frozen=True)
+class PlacementInfo:
+    """Detailed attributes for a given Placement (spec Section 5.1)."""
+
+    placement: str
+    containment: str
+    git_policy: str
+    portability: str
+    durability: str
+    privacy: str
+    clean_target: bool
+
+
+PLACEMENT_DETAILS: Dict[str, PlacementInfo] = {
+    Placement.TARGET_TRACKED.value: PlacementInfo(
+        placement=Placement.TARGET_TRACKED.value,
+        containment="target",
+        git_policy=GitPolicy.TARGET_GIT.value,
+        portability="portable",
+        durability="durable",
+        privacy="target-governed",
+        clean_target=False,
+    ),
+    Placement.TARGET_IGNORED.value: PlacementInfo(
+        placement=Placement.TARGET_IGNORED.value,
+        containment="target",
+        git_policy=GitPolicy.IGNORED.value,
+        portability="local",
+        durability="transient",
+        privacy="target-local",
+        clean_target=False,
+    ),
+    Placement.HOME_UNTRACKED.value: PlacementInfo(
+        placement=Placement.HOME_UNTRACKED.value,
+        containment="aw_home",
+        git_policy=GitPolicy.UNTRACKED.value,
+        portability="local",
+        durability="transient",
+        privacy="private",
+        clean_target=True,
+    ),
+    Placement.COMPANION_TRACKED.value: PlacementInfo(
+        placement=Placement.COMPANION_TRACKED.value,
+        containment="companion",
+        git_policy=GitPolicy.COMPANION_GIT.value,
+        portability="portable",
+        durability="durable",
+        privacy="companion-governed",
+        clean_target=True,
+    ),
+    Placement.COMPANION_UNTRACKED.value: PlacementInfo(
+        placement=Placement.COMPANION_UNTRACKED.value,
+        containment="companion",
+        git_policy=GitPolicy.UNTRACKED.value,
+        portability="local",
+        durability="transient",
+        privacy="companion-local",
+        clean_target=True,
+    ),
+    Placement.SOURCE_CHECKOUT.value: PlacementInfo(
+        placement=Placement.SOURCE_CHECKOUT.value,
+        containment="source_repo",
+        git_policy=GitPolicy.TARGET_GIT.value,
+        portability="portable",
+        durability="durable",
+        privacy="source-governed",
+        clean_target=False,
+    ),
+    Placement.CUSTOM.value: PlacementInfo(
+        placement=Placement.CUSTOM.value,
+        containment="custom",
+        git_policy=GitPolicy.UNTRACKED.value,
+        portability="custom",
+        durability="custom",
+        privacy="custom",
+        clean_target=False,
+    ),
+}
+
+
+PRESET_PLACEMENTS: Dict[str, Dict[str, str]] = {
+    Preset.PRIVATE_TARGET.value: {
+        RootClass.SYSTEM.value: Placement.TARGET_TRACKED.value,
+        RootClass.CONFIG_PROJECT.value: Placement.TARGET_TRACKED.value,
+        RootClass.CONFIG_LOCAL.value: Placement.TARGET_IGNORED.value,
+        RootClass.STATE_DURABLE.value: Placement.TARGET_TRACKED.value,
+        RootClass.STATE_RUNTIME.value: Placement.TARGET_IGNORED.value,
+        RootClass.RECORDS.value: Placement.TARGET_TRACKED.value,
+    },
+    Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value: {
+        RootClass.SYSTEM.value: Placement.TARGET_TRACKED.value,
+        RootClass.CONFIG_PROJECT.value: Placement.COMPANION_TRACKED.value,
+        RootClass.CONFIG_LOCAL.value: Placement.HOME_UNTRACKED.value,
+        RootClass.STATE_DURABLE.value: Placement.COMPANION_TRACKED.value,
+        RootClass.STATE_RUNTIME.value: Placement.HOME_UNTRACKED.value,
+        RootClass.RECORDS.value: Placement.COMPANION_TRACKED.value,
+    },
+    Preset.COMPLETELY_CLEAN_TARGET.value: {
+        RootClass.SYSTEM.value: Placement.HOME_UNTRACKED.value,
+        RootClass.CONFIG_PROJECT.value: Placement.HOME_UNTRACKED.value,
+        RootClass.CONFIG_LOCAL.value: Placement.HOME_UNTRACKED.value,
+        RootClass.STATE_DURABLE.value: Placement.HOME_UNTRACKED.value,
+        RootClass.STATE_RUNTIME.value: Placement.HOME_UNTRACKED.value,
+        RootClass.RECORDS.value: Placement.HOME_UNTRACKED.value,
+    },
+    Preset.LOCAL_ONLY.value: {
+        RootClass.SYSTEM.value: Placement.HOME_UNTRACKED.value,
+        RootClass.CONFIG_PROJECT.value: Placement.HOME_UNTRACKED.value,
+        RootClass.CONFIG_LOCAL.value: Placement.HOME_UNTRACKED.value,
+        RootClass.STATE_DURABLE.value: Placement.HOME_UNTRACKED.value,
+        RootClass.STATE_RUNTIME.value: Placement.HOME_UNTRACKED.value,
+        RootClass.RECORDS.value: Placement.HOME_UNTRACKED.value,
+    },
+}
+
+
+def get_placement_info(placement_name: str) -> PlacementInfo:
+    """Retrieve PlacementInfo for a given placement string (spec Section 5.1)."""
+    if placement_name not in PLACEMENT_DETAILS:
+        raise ValueError(f"Unknown placement: {placement_name!r}")
+    return PLACEMENT_DETAILS[placement_name]
+
+
+def get_preset_placements(preset_name: str) -> Dict[str, str]:
+    """Retrieve the physical root placement mapping for a preset (spec Section 6.1)."""
+    if preset_name not in PRESET_PLACEMENTS:
+        raise ValueError(f"Unknown preset: {preset_name!r}")
+    return dict(PRESET_PLACEMENTS[preset_name])
+
+
+def validate_placement_combination(root_class: str, placement: str) -> bool:
+    """Validate physical placement rules (spec Section 5.1).
+    Rule: config_local and state_runtime MUST NOT be tracked in any Git repository.
+    Rule: root_class and placement must be known schema values.
+    """
+    if root_class not in ROOT_CLASSES:
+        return False
+    if placement not in PLACEMENTS:
+        return False
+
+    if root_class in (RootClass.CONFIG_LOCAL.value, RootClass.STATE_RUNTIME.value):
+        if placement in (
+            Placement.TARGET_TRACKED.value,
+            Placement.COMPANION_TRACKED.value,
+            Placement.SOURCE_CHECKOUT.value,
+        ):
+            return False
+    return True
+
+
+def parse_physical_config(config_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """Parse and validate raw physical layout configuration dictionary.
+    Fails closed on unknown future or invalid values.
+    """
+    if not isinstance(config_dict, dict):
+        raise ValueError("Configuration must be a dictionary")
+
+    parsed: Dict[str, Any] = {}
+
+    if "preset" in config_dict:
+        preset_val = config_dict["preset"]
+        if preset_val not in PRESETS:
+            raise ValueError(f"Unknown preset: {preset_val!r}")
+        parsed["preset"] = preset_val
+
+    if "role" in config_dict:
+        role_val = config_dict["role"]
+        if role_val not in PROJECT_ROLES:
+            raise ValueError(f"Unknown project role: {role_val!r}")
+        parsed["role"] = role_val
+
+    if "placements" in config_dict:
+        placements_dict = config_dict["placements"]
+        if not isinstance(placements_dict, dict):
+            raise ValueError("Placements must be a dictionary")
+        parsed_placements: Dict[str, str] = {}
+        for r_cls, plc in placements_dict.items():
+            if r_cls not in ROOT_CLASSES:
+                raise ValueError(f"Unknown physical root class: {r_cls!r}")
+            if plc not in PLACEMENTS:
+                raise ValueError(f"Unknown placement: {plc!r}")
+            if not validate_placement_combination(r_cls, plc):
+                raise ValueError(
+                    f"Invalid placement combination: root class {r_cls!r} cannot use placement {plc!r}"
+                )
+            parsed_placements[r_cls] = plc
+        parsed["placements"] = parsed_placements
+
+    return parsed
+
+
+def validate_physical_matrix(
+    target_repo: str,
+    physical_classes: Dict[str, str],
+    placements: Dict[str, str],
+) -> None:
+    """Validate physical policy matrix invariants (spec Section 5.1 & Section 7).
+    Refuses symlinks escaping target boundaries for target-contained classes.
+    """
+    from pathlib import Path
+
+    repo_p = Path(target_repo).resolve()
+    for r_cls, path_str in physical_classes.items():
+        plc = placements.get(r_cls)
+        if not plc:
+            continue
+        p = Path(path_str)
+        if plc in (Placement.TARGET_TRACKED.value, Placement.TARGET_IGNORED.value):
+            if p.is_symlink():
+                target_dest = p.resolve()
+                try:
+                    target_dest.relative_to(repo_p)
+                except ValueError:
+                    from agent_workflows.project_context import PathSecurityError
+
+                    raise PathSecurityError(
+                        f"Symlink escape violation: physical class {r_cls!r} at {p} points outside target repository to {target_dest}"
+                    )
 
 
 DELIVERY_MODES: Tuple[str, ...] = tuple(m.value for m in DeliveryMode)
@@ -160,9 +435,10 @@ class ProjectContext:
     root_accessibility: Dict[str, bool]
     open_aw_actions: List[Dict[str, Any]]
     provenance: Dict[str, Dict[str, str]]
+    physical_classes: Optional[Dict[str, str]] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        d = {
             "target_repo": self.target_repo,
             "project_id": self.project_id,
             "delivery_mode": self.delivery_mode,
@@ -177,6 +453,9 @@ class ProjectContext:
             "open_aw_actions": [dict(a) for a in self.open_aw_actions],
             "provenance": {k: dict(v) for k, v in self.provenance.items()},
         }
+        if self.physical_classes:
+            d["physical_classes"] = dict(self.physical_classes)
+        return d
 
     def to_json(self, indent: Optional[int] = 2) -> str:
         return json.dumps(self.to_dict(), indent=indent)

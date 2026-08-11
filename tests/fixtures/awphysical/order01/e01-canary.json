@@ -1,0 +1,7 @@
+{
+  "test_id": "e01-canary",
+  "local_config": ".aw/config/local.json",
+  "runtime_state": ".aw/state/runtime/canary.log",
+  "expected_system": ".aw/system",
+  "prohibited_system": ".agents"
+}

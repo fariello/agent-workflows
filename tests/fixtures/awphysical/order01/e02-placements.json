@@ -1,0 +1,30 @@
+{
+  "test_id": "e02-placements",
+  "placements": [
+    "target-tracked",
+    "target-ignored",
+    "home-untracked",
+    "companion-tracked",
+    "companion-untracked",
+    "source-checkout",
+    "custom"
+  ],
+  "prohibited_combinations": [
+    {
+      "root_class": "config_local",
+      "placement": "target-tracked"
+    },
+    {
+      "root_class": "config_local",
+      "placement": "companion-tracked"
+    },
+    {
+      "root_class": "state_runtime",
+      "placement": "target-tracked"
+    },
+    {
+      "root_class": "state_runtime",
+      "placement": "companion-tracked"
+    }
+  ]
+}

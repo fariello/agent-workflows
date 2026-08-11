@@ -1,0 +1,11 @@
+{
+  "test_id": "e06-decisions",
+  "decision_number": "D130",
+  "required_topics": [
+    "physical `.aw/`",
+    "durable",
+    "runtime",
+    "project.json",
+    "local.json"
+  ]
+}
