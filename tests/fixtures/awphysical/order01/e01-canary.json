@@ -1,5 +1,0 @@
-{
-  "test_id": "e01-canary",
-  "local_config_canary": ".aw/config/local.json",
-  "runtime_state_canary": ".aw/state/runtime/canary.log"
-}

@@ -1,4 +1,0 @@
-{
-  "test_id": "e04-schema",
-  "enums": ["RootClass", "Placement", "GitPolicy", "ProjectRole", "Preset"]
-}

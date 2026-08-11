@@ -51,61 +51,6 @@ class LogicalRoot(str, Enum):
     RECORDS = "records"
 
 
-class RootClass(str, Enum):
-    """The six physical classes of an AW-enabled project (spec Section 4.1)."""
-
-    SYSTEM = "system"
-    CONFIG_PROJECT = "config_project"
-    CONFIG_LOCAL = "config_local"
-    STATE_DURABLE = "state_durable"
-    STATE_RUNTIME = "state_runtime"
-    RECORDS = "records"
-
-
-class Placement(str, Enum):
-    """The closed placement vocabulary (spec Section 5.1)."""
-
-    TARGET_TRACKED = "target-tracked"
-    TARGET_IGNORED = "target-ignored"
-    HOME_UNTRACKED = "home-untracked"
-    COMPANION_TRACKED = "companion-tracked"
-    COMPANION_UNTRACKED = "companion-untracked"
-    SOURCE_CHECKOUT = "source-checkout"
-    CUSTOM = "custom"
-
-
-class GitPolicy(str, Enum):
-    """Git policy for physical classes (spec Section 5.2)."""
-
-    TARGET_GIT = "target-git"
-    COMPANION_GIT = "companion-git"
-    IGNORED = "ignored"
-    UNTRACKED = "untracked"
-
-
-class ProjectRole(str, Enum):
-    """Project role classification (spec Section 5.3 & Section 9)."""
-
-    TARGET = "target"
-    SOURCE_CHECKOUT = "source-checkout"
-
-
-class Preset(str, Enum):
-    """The four preset contracts (spec Section 6.1)."""
-
-    PRIVATE_TARGET = "private-target"
-    PUBLIC_TARGET_PRIVATE_COMPANION = "public-target-private-companion"
-    COMPLETELY_CLEAN_TARGET = "completely-clean-target"
-    LOCAL_ONLY = "local-only"
-
-
-ROOT_CLASSES: Tuple[str, ...] = tuple(c.value for c in RootClass)
-PLACEMENTS: Tuple[str, ...] = tuple(p.value for p in Placement)
-GIT_POLICIES: Tuple[str, ...] = tuple(g.value for g in GitPolicy)
-PROJECT_ROLES: Tuple[str, ...] = tuple(r.value for r in ProjectRole)
-PRESETS: Tuple[str, ...] = tuple(p.value for p in Preset)
-
-
 DELIVERY_MODES: Tuple[str, ...] = tuple(m.value for m in DeliveryMode)
 RECORDS_BACKENDS: Tuple[str, ...] = tuple(b.value for b in RecordsBackend)
 DURABILITY_STATES: Tuple[str, ...] = tuple(d.value for d in DurabilityState)
