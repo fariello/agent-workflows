@@ -1,0 +1,5 @@
+{
+  "name": "clean-independent",
+  "rule": "clean",
+  "expected_exit": 0
+}

@@ -1,0 +1,5 @@
+{
+  "name": "stale-hash",
+  "rule": "stale-hash",
+  "expected_exit": 2
+}

@@ -1,0 +1,5 @@
+{
+  "name": "copied-adapter-logic",
+  "rule": "adapter-copied-logic",
+  "expected_exit": 2
+}

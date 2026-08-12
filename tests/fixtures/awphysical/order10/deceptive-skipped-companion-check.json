@@ -1,0 +1,5 @@
+{
+  "name": "skipped-companion-check",
+  "rule": "skipped-companion-check",
+  "expected_exit": 2
+}

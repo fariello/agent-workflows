@@ -1,0 +1,5 @@
+{
+  "name": "wrong-git-index",
+  "rule": "wrong-git-index",
+  "expected_exit": 2
+}

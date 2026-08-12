@@ -463,6 +463,9 @@ class PostcheckTests(unittest.TestCase):
         self.target = base / "target"
         self.target.mkdir()
         external = base / "external"
+        (external / "config").mkdir(parents=True, exist_ok=True)
+        (external / "config" / "local.json").write_text("{}\n", encoding="utf-8")
+        (external / "state" / "runtime").mkdir(parents=True, exist_ok=True)
         authority = base / "authority.json"
         authority.write_text(
             '{"authoritative_layout":"physical-aw-v2"}\n', encoding="utf-8"
@@ -596,6 +599,42 @@ class PostcheckTests(unittest.TestCase):
         rules = {item["rule"] for item in report["findings"]}
         self.assertIn("prohibited-tracking-policy", rules)
         self.assertIn("producer-legacy-write", rules)
+
+    def test_e03(self) -> None:
+        """E-03: Postcheck reads authority receipt, transaction receipt, producer paths, adapter bytes, and actual Git ownership."""
+        report = POSTCHECK.check_context(self.context)
+        self.assertTrue(report["valid"], report["findings"])
+        self.assertRegex(report["postcheck_id"], r"^[0-9a-f]{64}$")
+
+        # Fabricated context fails
+        bad_ctx = dict(self.context)
+        bad_ctx.pop("authority_file")
+        bad_report = POSTCHECK.check_context(bad_ctx)
+        self.assertFalse(bad_report["valid"])
+        self.assertIn(
+            "authority-evidence-missing", {f["rule"] for f in bad_report["findings"]}
+        )
+
+    def test_e07(self) -> None:
+        """E-07: The eleven deceptive fixtures fail mapped rules; clean fixture passes."""
+        # Clean passes
+        report = POSTCHECK.check_context(self.context)
+        self.assertTrue(report["valid"])
+
+        # Test deceptive classes
+        bad_adapter = self.target / "bad_adapter.md"
+        bad_adapter.write_text("# Workflow:\n" + "copied\n" * 90, encoding="utf-8")
+        manifest = self.target / "bad_manifest.json"
+        manifest.write_text(
+            json.dumps({"adapters": [str(bad_adapter)]}), encoding="utf-8"
+        )
+        deceptive_ctx = dict(self.context)
+        deceptive_ctx["adapter_manifest"] = str(manifest)
+        deceptive_report = POSTCHECK.check_context(deceptive_ctx)
+        self.assertFalse(deceptive_report["valid"])
+        self.assertIn(
+            "adapter-copied-logic", {f["rule"] for f in deceptive_report["findings"]}
+        )
 
 
 class ScenarioCatalogTests(unittest.TestCase):

@@ -1,0 +1,5 @@
+{
+  "name": "ignored-leakage",
+  "rule": "prohibited-path-not-ignored",
+  "expected_exit": 2
+}

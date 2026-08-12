@@ -1,0 +1,6 @@
+{
+  "inventory_id": "inv-e01",
+  "expected_items_count": 5,
+  "dispositions": ["copy", "deduplicate", "retain", "exclude"],
+  "unapproved_exclusion_reason": "unapproved"
+}

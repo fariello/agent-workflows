@@ -1,0 +1,5 @@
+{
+  "instruction_path": "tools/awphysical/migration-followup-review.md",
+  "verdicts": ["GO", "NO-GO", "REVIEW REQUIRED"],
+  "evidence_table_required": true
+}

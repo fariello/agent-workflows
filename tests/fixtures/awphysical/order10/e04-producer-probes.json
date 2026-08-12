@@ -1,0 +1,5 @@
+{
+  "producer_classes": ["plans", "prompts", "specs", "research", "comms", "actions"],
+  "sandbox_destination": ".aw/records/plans/probe.md",
+  "forbidden_legacy_destinations": [".agents/plans", ".agents/prompts", "workflow-artifacts"]
+}

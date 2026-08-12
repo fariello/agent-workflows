@@ -1,0 +1,5 @@
+{
+  "name": "broken-rollback",
+  "rule": "rollback-not-ready",
+  "expected_exit": 2
+}

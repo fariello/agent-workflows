@@ -1,0 +1,4 @@
+{
+  "expected_phases": ["copied", "switched", "verified", "independently-reviewed", "cleanup-eligible"],
+  "cleanup_eligible_requires_independent_review": true
+}

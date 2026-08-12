@@ -1,0 +1,5 @@
+{
+  "name": "inaccessible-external-root",
+  "rule": "inaccessible-external-root",
+  "expected_exit": 2
+}

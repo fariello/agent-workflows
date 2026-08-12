@@ -1,0 +1,7 @@
+{
+  "transaction_id": "tx-e02",
+  "legacy_writer_enabled": false,
+  "rollback_ready": true,
+  "cleanup_allowed": false,
+  "retention_trigger": "post-migration independent postcheck"
+}

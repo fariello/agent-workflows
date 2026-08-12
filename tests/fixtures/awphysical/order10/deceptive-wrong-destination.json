@@ -1,0 +1,5 @@
+{
+  "name": "wrong-destination",
+  "rule": "producer-output-wrong-root",
+  "expected_exit": 2
+}

@@ -1,0 +1,5 @@
+{
+  "name": "missing-file",
+  "rule": "producer-output-missing",
+  "expected_exit": 2
+}

@@ -1,0 +1,5 @@
+{
+  "name": "fabricated-clean-context",
+  "rule": "authority-evidence-missing",
+  "expected_exit": 2
+}

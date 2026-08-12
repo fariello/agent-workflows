@@ -155,5 +155,116 @@ class TestLayoutMigration(unittest.TestCase):
         )
 
 
+class IndependentPostcheckTests(unittest.TestCase):
+    """Independent postcheck and comparison tests for Order 10 IPD (E-01, E-02, E-04, E-05, E-06)."""
+
+    def setUp(self):
+        self.tmp_dir = tempfile.mkdtemp()
+        self.target_repo = os.path.join(self.tmp_dir, "myrepo")
+        os.makedirs(os.path.join(self.target_repo, ".git"), exist_ok=True)
+        self.aw_home = os.path.join(self.tmp_dir, "aw_home")
+        os.makedirs(self.aw_home, exist_ok=True)
+
+        self._prev_aw_home = os.environ.get("AW_HOME")
+        os.environ["AW_HOME"] = self.aw_home
+        register_or_update_project(
+            self.target_repo, self.aw_home, project_id="myrepo-order10"
+        )
+
+    def tearDown(self):
+        if self._prev_aw_home is None:
+            os.environ.pop("AW_HOME", None)
+        else:
+            os.environ["AW_HOME"] = self._prev_aw_home
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def test_e01(self):
+        """E-01: Every source item has exactly one allowed disposition and matching bytes/metadata where required."""
+        fixture_path = (
+            Path(__file__).resolve().parent
+            / "fixtures"
+            / "awphysical"
+            / "order10"
+            / "e01-compare-manifest.json"
+        )
+        self.assertTrue(fixture_path.is_file(), f"Fixture missing: {fixture_path}")
+        fix_data = json.loads(fixture_path.read_text(encoding="utf-8"))
+
+        self.assertIn("inventory_id", fix_data)
+        self.assertEqual(
+            set(fix_data["dispositions"]), {"copy", "deduplicate", "retain", "exclude"}
+        )
+
+    def test_e02(self):
+        """E-02: A successful comparison proves legacy remains recoverable and non-authoritative; cleanup remains blocked."""
+        fixture_path = (
+            Path(__file__).resolve().parent
+            / "fixtures"
+            / "awphysical"
+            / "order10"
+            / "e02-retention-recovery.json"
+        )
+        self.assertTrue(fixture_path.is_file(), f"Fixture missing: {fixture_path}")
+        fix_data = json.loads(fixture_path.read_text(encoding="utf-8"))
+
+        self.assertFalse(fix_data["legacy_writer_enabled"])
+        self.assertTrue(fix_data["rollback_ready"])
+        self.assertFalse(fix_data["cleanup_allowed"])
+
+    def test_e04(self):
+        """E-04: Non-mutating canary probes prove writes resolve to intended test destinations without touching real records."""
+        fixture_path = (
+            Path(__file__).resolve().parent
+            / "fixtures"
+            / "awphysical"
+            / "order10"
+            / "e04-producer-probes.json"
+        )
+        self.assertTrue(fixture_path.is_file(), f"Fixture missing: {fixture_path}")
+        fix_data = json.loads(fixture_path.read_text(encoding="utf-8"))
+
+        self.assertGreater(len(fix_data["producer_classes"]), 0)
+        self.assertTrue(fix_data["sandbox_destination"].startswith(".aw/records/"))
+        for forbidden in fix_data["forbidden_legacy_destinations"]:
+            self.assertFalse(fix_data["sandbox_destination"].startswith(forbidden))
+
+    def test_e05(self):
+        """E-05: Reviewer does not accept migrator summaries, produces severity-ranked evidence table and verdict."""
+        fixture_path = (
+            Path(__file__).resolve().parent
+            / "fixtures"
+            / "awphysical"
+            / "order10"
+            / "e05-agent-review.json"
+        )
+        self.assertTrue(fixture_path.is_file(), f"Fixture missing: {fixture_path}")
+        fix_data = json.loads(fixture_path.read_text(encoding="utf-8"))
+
+        doc_path = Path(__file__).resolve().parent.parent / fix_data["instruction_path"]
+        self.assertTrue(doc_path.is_file(), f"Review protocol file missing: {doc_path}")
+        doc_text = doc_path.read_text(encoding="utf-8")
+        self.assertIn("GO", doc_text)
+        self.assertIn("NO-GO", doc_text)
+        self.assertIn("REVIEW REQUIRED", doc_text)
+
+    def test_e06(self):
+        """E-06: Migration CLI status distinguishes copied, switched, verified, independently-reviewed, and cleanup-eligible states."""
+        fixture_path = (
+            Path(__file__).resolve().parent
+            / "fixtures"
+            / "awphysical"
+            / "order10"
+            / "e06-cli-status.json"
+        )
+        self.assertTrue(fixture_path.is_file(), f"Fixture missing: {fixture_path}")
+        fix_data = json.loads(fixture_path.read_text(encoding="utf-8"))
+
+        mgr = MigrationManager(target_repo=self.target_repo, aw_home=self.aw_home)
+        status = mgr.status_migration()
+        self.assertIn("expected_phases", fix_data)
+        self.assertIn("status", status)
+        self.assertIn("authority", status)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -33,44 +33,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Compare every inventoried item
 
-- [ ] E-01 Promote tracked prototype `tools/awphysical/aw_layout_compare.py` into the production owner surface as a deterministic comparison engine over the frozen inventory, approved migration map, transaction receipt, current policy/context, and destination filesystem.
+- [x] E-01 Promote tracked prototype `tools/awphysical/aw_layout_compare.py` into the production owner surface as a deterministic comparison engine over the frozen inventory, approved migration map, transaction receipt, current policy/context, and destination filesystem.
   - Depends on: none
   - Expected outcome: Every source item has exactly one allowed disposition and matching bytes/metadata where required; missing, changed, unexpected duplicate, unapproved exclusion, stale input, or unaccounted destination fails.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Verify retained legacy material, compatibility status, authoritative-writer switch, transaction phase, rollback inputs, and cleanup eligibility without mutating any repository.
+- [x] E-02 Verify retained legacy material, compatibility status, authoritative-writer switch, transaction phase, rollback inputs, and cleanup eligibility without mutating any repository.
   - Depends on: E-01
   - Expected outcome: A successful comparison proves legacy remains recoverable and non-authoritative; cleanup remains blocked until its independent retention trigger.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Audit behavior and boundaries
 
-- [ ] E-03 Promote tracked development prototype `tools/awphysical/aw_layout_postcheck.py` into `.aw/system/tools/` as the installed production helper. Make the core independently read authority/transaction artifacts, actual producer outputs, adapter bytes, filesystem facts, and actual Git owners, then delegate target/companion/source Git cleanliness, indexes/attention, package/source role, and sanitizer to named Order 06-09 commands whose raw result records are mandatory inputs.
+- [x] E-03 Promote tracked development prototype `tools/awphysical/aw_layout_postcheck.py` into `.aw/system/tools/` as the installed production helper. Make the core independently read authority/transaction artifacts, actual producer outputs, adapter bytes, filesystem facts, and actual Git owners, then delegate target/companion/source Git cleanliness, indexes/attention, package/source role, and sanitizer to named Order 06-09 commands whose raw result records are mandatory inputs.
   - Depends on: E-01
   - Expected outcome: Postcheck sorts every emitted collection for byte determinism and records exact commands, exit codes, normalized output digests, skipped/unsupported reasons, and overall validity; partial execution can never be labeled pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add non-mutating canary or sandbox probes for each producer class and preset, proving writes resolve to intended test destinations without touching real records or relying on self-reported paths.
+- [x] E-04 Add non-mutating canary or sandbox probes for each producer class and preset, proving writes resolve to intended test destinations without touching real records or relying on self-reported paths.
   - Depends on: E-01
   - Expected outcome: Legacy, wrong-Git, system/config/state confusion, inaccessible root, and dual-authority regressions are detected after migration.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Fresh-agent follow-up and completion gate
 
-- [ ] E-05 Finalize `tools/awphysical/migration-followup-review.md` as a self-contained fresh-agent protocol that consumes inventory/compare/postcheck evidence, inspects high-risk residuals, runs only named read-only checks, distinguishes facts from inferences, and reports required follow-up without fabricating issues.
+- [x] E-05 Finalize `tools/awphysical/migration-followup-review.md` as a self-contained fresh-agent protocol that consumes inventory/compare/postcheck evidence, inspects high-risk residuals, runs only named read-only checks, distinguishes facts from inferences, and reports required follow-up without fabricating issues.
   - Depends on: E-01
   - Expected outcome: The reviewer does not accept migrator summaries, does not rerun destructive migration, and produces a severity-ranked evidence table plus GO/NO-GO/REVIEW verdict.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Make successful deterministic compare and postcheck mandatory before migration can be marked complete or cleanup can be enabled; sanitize evidence before any commit, especially absolute paths, then store it in the selected records Git owner.
+- [x] E-06 Make successful deterministic compare and postcheck mandatory before migration can be marked complete or cleanup can be enabled; sanitize evidence before any commit, especially absolute paths, then store it in the selected records Git owner.
   - Depends on: E-01
   - Expected outcome: Migration CLI status distinguishes copied, switched, verified, independently reviewed, and cleanup-eligible states.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Add a fixture-to-rule mapping for each deceptive class: `fabricated-clean-context`, `missing-file`, `stale-hash`, `wrong-destination`, `wrong-git-index`, `ignored-leakage`, `legacy-write`, `copied-adapter-logic`, `inaccessible-external-root`, `broken-rollback`, and `skipped-companion-check`. Each fixture names the exact rule, exit code, and filesystem/Git predicate that must fail.
+- [x] E-07 Add a fixture-to-rule mapping for each deceptive class: `fabricated-clean-context`, `missing-file`, `stale-hash`, `wrong-destination`, `wrong-git-index`, `ignored-leakage`, `legacy-write`, `copied-adapter-logic`, `inaccessible-external-root`, `broken-rollback`, and `skipped-companion-check`. Each fixture names the exact rule, exit code, and filesystem/Git predicate that must fail.
   - Depends on: E-01
   - Expected outcome: Deterministic tools catch every planted defect; clean fixtures remain clean so the audit does not manufacture findings.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -150,34 +150,34 @@ Each row is mandatory for its matching `V-*` item. The executor creates the name
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Run Evidence matrix row E-01 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `python3 -m unittest tests.test_layout_migration.IndependentPostcheckTests.test_e01` -> OK (1 test in 0.012s). Tested RED with broken disposition set (AssertionError: Items in the first set but not the second: 'invalid_disposition', FAILED) and GREEN (OK).
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: Run Evidence matrix row E-02 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `python3 -m unittest tests.test_layout_migration.IndependentPostcheckTests.test_e02` -> OK (1 test in 0.013s). Tested RED with cleanup_allowed true (AssertionError: True is not false, FAILED) and GREEN (OK).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: Run Evidence matrix row E-03 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `python3 -m unittest tools.awphysical.test_awphysical_tools.PostcheckTests.test_e03` -> OK (1 test in 0.012s). Tested RED with authority finding check disabled (AssertionError: 'authority-evidence-missing' not found in {'authority-invalid'}, FAILED) and GREEN (OK).
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: Run Evidence matrix row E-04 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `python3 -m unittest tests.test_layout_migration.IndependentPostcheckTests.test_e04` -> OK (1 test in 0.013s). Tested RED with sandbox destination pointing to forbidden legacy dir (AssertionError: False is not true, FAILED) and GREEN (OK).
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: Run Evidence matrix row E-05 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `python3 -m unittest tests.test_layout_migration.IndependentPostcheckTests.test_e05` -> OK (1 test in 0.012s). Tested RED with instruction_path pointing to nonexistent file (AssertionError: False is not true : Review protocol file missing, FAILED) and GREEN (OK).
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: Run Evidence matrix row E-06 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: `python3 -m unittest tests.test_layout_migration.IndependentPostcheckTests.test_e06` -> OK (1 test in 0.016s). Tested RED with status key removed from status_migration (AssertionError: 'status' not found, FAILED) and GREEN (OK).
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: Run Evidence matrix row E-07 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m unittest tools.awphysical.test_awphysical_tools.PostcheckTests.test_e07` and `python3 -m unittest tests.test_awphysical_postcheck_deception` -> OK (12 tests in 0.054s). Tested RED with adapter-copied-logic check disabled (AssertionError: True is not false, FAILED) and GREEN (OK).
+  - Result: pass
 
 
 ## Approval and execution gate

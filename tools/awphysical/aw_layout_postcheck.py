@@ -383,6 +383,57 @@ def check_context(context: Mapping[str, Any]) -> Dict[str, Any]:
         except (OSError, UnicodeError, PostcheckError) as exc:
             findings.append(_finding("adapter-evidence-invalid", str(exc)))
 
+    # Check for inaccessible external roots
+    for name, p in paths.items():
+        if not _is_within(p, target) and not p.exists() and not p.parent.exists():
+            findings.append(
+                _finding(
+                    "inaccessible-external-root",
+                    f"external root path is inaccessible: {p}",
+                    name,
+                )
+            )
+
+    # Check for stale hash evidence if present
+    for item in context.get("hash_evidence", []):
+        if (
+            isinstance(item, dict)
+            and item.get("expected_hash")
+            and item.get("actual_hash")
+        ):
+            if item["expected_hash"] != item["actual_hash"]:
+                findings.append(
+                    _finding(
+                        "stale-hash",
+                        f"hash mismatch for {item.get('path', 'item')}: expected {item['expected_hash']}, got {item['actual_hash']}",
+                    )
+                )
+
+    # Check for skipped companion checks
+    if (
+        context.get("has_companion") is True
+        and context.get("companion_checked") is False
+    ):
+        findings.append(
+            _finding(
+                "skipped-companion-check",
+                "companion repository check was skipped or incomplete",
+            )
+        )
+
+    # Check delegated command records
+    delegated = context.get("delegated_checks")
+    if isinstance(delegated, list):
+        for del_item in delegated:
+            if isinstance(del_item, dict):
+                if del_item.get("exit_code", 0) != 0:
+                    findings.append(
+                        _finding(
+                            del_item.get("rule", "delegated-check-failed"),
+                            f"delegated command {del_item.get('command')} failed with exit code {del_item.get('exit_code')}",
+                        )
+                    )
+
     findings.sort(key=lambda item: (item["rule"], item.get("root", ""), item["detail"]))
     checked_roots = sorted(paths)
     digest_material = json.dumps(
