@@ -1,0 +1,5 @@
+{
+  "clean_target_expected_delta": 0,
+  "planted_write_path": ".aw/planted_canary.txt",
+  "expected_detected_delta": 1
+}

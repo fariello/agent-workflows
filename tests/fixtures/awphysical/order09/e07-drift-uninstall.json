@@ -1,0 +1,6 @@
+{
+  "owned_shim": ".opencode/commands/scaffold.md",
+  "foreign_file": ".opencode/commands/user_custom.md",
+  "expected_uninstalled_owned_removed": true,
+  "expected_foreign_file_preserved": true
+}

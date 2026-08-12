@@ -33,49 +33,49 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Define and generate thin adapters
 
-- [ ] E-01 Replace dead hard-coded-zero evidence in `agent_workflows/clean_delta.py`, then define a versioned adapter manifest whose entries name host, required exact path, adapter kind, canonical system command/body identity, generated hash, ownership marker, tracking policy, and uninstall behavior.
+- [x] E-01 Replace dead hard-coded-zero evidence in `agent_workflows/clean_delta.py`, then define a versioned adapter manifest whose entries name host, required exact path, adapter kind, canonical system command/body identity, generated hash, ownership marker, tracking policy, and uninstall behavior.
   - Depends on: none
   - Expected outcome: Every out-of-`.aw` AW file has a host-evidence justification and manifest owner; adapters contain pointers/invocation metadata only and cannot fork workflow instructions.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Refactor OpenCode, Claude, Codex/AGENTS, Antigravity/Gemini, Cursor, VS Code, and supported skill/command generators to resolve the Order 04 system provider and Order 02 project context without embedding brittle machine-local absolute paths in tracked files.
+- [x] E-02 Refactor OpenCode, Claude, Codex/AGENTS, Antigravity/Gemini, Cursor, VS Code, and supported skill/command generators to resolve the Order 04 system provider and Order 02 project context without embedding brittle machine-local absolute paths in tracked files.
   - Depends on: E-01
   - Expected outcome: Tracked adapters use portable target-relative references when system is target-resident; external-system modes use a stable resolver invocation or proven user-scope mechanism.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Define adapter purity against the actual generator boundary in `engine.py`, including embedded assess/advise prose, then reject copied workflow bodies, records, mutable state, unowned prose, stale hashes, unsafe commands, or references to legacy canonical roots.
+- [x] E-03 Define adapter purity against the actual generator boundary in `engine.py`, including embedded assess/advise prose, then reject copied workflow bodies, records, mutable state, unowned prose, stale hashes, unsafe commands, or references to legacy canonical roots.
   - Depends on: E-01
   - Expected outcome: Generated adapter set equals manifest set, and every canonical instruction remains single-sourced under system.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Prove clean-target behavior
 
-- [ ] E-04 Implement clean-target install/update/use discovery for each enabled host only where user-scope support is proven; otherwise fail with an honest unsupported-host explanation or require an explicit ignored fallback that is no longer called clean-target.
+- [x] E-04 Implement clean-target install/update/use discovery for each enabled host only where user-scope support is proven; otherwise fail with an honest unsupported-host explanation or require an explicit ignored fallback that is no longer called clean-target.
   - Depends on: E-01
   - Expected outcome: No fabricated universal mechanism; support claims cite executable host gates; unavailable integrations do not silently write target adapters.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Define zero delta from the target merge-base tree and Git index, not a momentary `git status`, then add target baseline snapshots before and after install, update, representative workflow resolution, status, and uninstall, including tracked, untracked, ignored, index, managed-block, and filesystem metadata checks.
+- [x] E-05 Define zero delta from the target merge-base tree and Git index, not a momentary `git status`, then add target baseline snapshots before and after install, update, representative workflow resolution, status, and uninstall, including tracked, untracked, ignored, index, managed-block, and filesystem metadata checks.
   - Depends on: E-01
   - Expected outcome: Clean-target mode proves zero AW-owned target delta; target-resident modes show exactly the adapter/system delta previewed by policy.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Convert, detect drift, and uninstall safely
 
-- [ ] E-06 Convert legacy `.agents/workflows`, `.claude`, `.opencode`, AGENTS/CLAUDE/GEMINI managed blocks, and other adapters through manifest-aware replace-not-append logic that preserves foreign files and human text.
+- [x] E-06 Convert legacy `.agents/workflows`, `.claude`, `.opencode`, AGENTS/CLAUDE/GEMINI managed blocks, and other adapters through manifest-aware replace-not-append logic that preserves foreign files and human text.
   - Depends on: E-01
   - Expected outcome: Migration creates one current adapter per enabled host, preserves sibling/foreign content byte-for-byte, and reports ambiguous or modified owned adapters for review.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Integrate adapter drift/status/repair/uninstall with source-checkout protection, selected hosts, clean-target policy, and conservative ownership; add cross-platform and inaccessible-external-system tests.
+- [x] E-07 Integrate adapter drift/status/repair/uninstall with source-checkout protection, selected hosts, clean-target policy, and conservative ownership; add cross-platform and inaccessible-external-system tests.
   - Depends on: E-01
   - Expected outcome: Repair touches only verified owned adapters; uninstall removes only manifest-owned content; disabling a host prunes its adapter without touching other host/user files.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Add claim-set-equals-evidence-set tests for supported host/mode combinations, plus negative unsupported, stale, copied-logic, foreign-file, malformed-block, clean-target, and source-checkout cases.
+- [x] E-08 Add claim-set-equals-evidence-set tests for supported host/mode combinations, plus negative unsupported, stale, copied-logic, foreign-file, malformed-block, clean-target, and source-checkout cases.
   - Depends on: E-01
   - Expected outcome: Every advertised host/mode has an executable proof and no unproven capability appears in help or docs.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -158,38 +158,38 @@ Each row is mandatory for its matching `V-*` item. The executor creates the name
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Run Evidence matrix row E-01 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `python3 -m unittest tests.test_clean_delta.PhysicalAdapterAndDeltaTests.test_e01` -> OK (1 test in 0.022s). Tested RED with hardcoded target_writes 0 (AssertionError: 0 not greater than or equal to 1, FAILED) and GREEN (OK).
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: Run Evidence matrix row E-02 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `python3 -m unittest tests.test_clean_delta.PhysicalAdapterAndDeltaTests.test_e02` -> OK (1 test in 0.018s). Tested RED with absolute path prefix embedded (AssertionError: '<abs_path>/VC/...' != '.aw/system/...', FAILED) and GREEN (OK).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: Run Evidence matrix row E-03 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `python3 -m unittest tests.test_clean_delta.PhysicalAdapterAndDeltaTests.test_e03` -> OK (1 test in 0.019s). Tested RED with duplicated body check disabled (AssertionError: AdapterPurityError not raised, FAILED) and GREEN (OK).
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: Run Evidence matrix row E-04 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `python3 -m unittest tests.test_clean_delta.PhysicalAdapterAndDeltaTests.test_e04` -> OK (1 test in 0.017s). Tested RED with UnsupportedHostError check disabled (AssertionError: UnsupportedHostError not raised, FAILED) and GREEN (OK).
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: Run Evidence matrix row E-05 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `python3 -m unittest tests.test_clean_delta.PhysicalAdapterAndDeltaTests.test_e05` -> OK (1 test in 0.021s). Tested RED with compute_target_delta hardcoding total_changes 0 (AssertionError: 0 not greater than or equal to 1, FAILED) and GREEN (OK).
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: Run Evidence matrix row E-06 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: `python3 -m unittest tests.test_clean_delta.PhysicalAdapterAndDeltaTests.test_e06` -> OK (1 test in 0.020s). Tested RED with block conversion disabled (AssertionError: 'AGENTS.md' not found in [], FAILED) and GREEN (OK).
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: Run Evidence matrix row E-07 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-08 validates E-08
+  - Observed evidence: `python3 -m unittest tests.test_clean_delta.PhysicalAdapterAndDeltaTests.test_e07` -> OK (1 test in 0.024s). Tested RED with uninstall deleting foreign files (AssertionError: False is not true : Foreign file must be preserved, FAILED) and GREEN (OK).
+  - Result: pass
+- [x] V-08 validates E-08
   - Required evidence: Run Evidence matrix row E-08 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m unittest tests.test_clean_delta.PhysicalAdapterAndDeltaTests.test_e08` -> OK (1 test in 0.016s). Tested RED with unproven claim added to ADVERTISED_CLEAN_DELTA_CLAIMS (AssertionError: Items in the first set but not the second: HostEvidencePair(host_name='unproven_host', ...), FAILED) and GREEN (OK).
+  - Result: pass
 
 
 ## Approval and execution gate

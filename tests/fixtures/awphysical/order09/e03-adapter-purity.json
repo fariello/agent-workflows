@@ -1,0 +1,5 @@
+{
+  "valid_shim_pointer": "<!-- aw:pointer -->\nRun canonical workflow via system provider.\n",
+  "impure_duplicated_body": "<!-- aw:pointer -->\n## Detailed Step-by-Step Instructions\n1. Do step 1\n2. Do step 2\n3. Do step 3",
+  "impure_legacy_path": "<!-- aw:pointer -->\n.agents/workflows/scaffold/scaffold.md"
+}

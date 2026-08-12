@@ -1,0 +1,5 @@
+{
+  "legacy_agents_block": "<!-- BEGIN AGENT-WORKFLOWS -->\nold block\n<!-- END AGENT-WORKFLOWS -->\n",
+  "foreign_sibling_content": "# User AGENTS file\nUser custom prompt here.\n",
+  "expected_converted_marker": "<!-- aw:block -->"
+}

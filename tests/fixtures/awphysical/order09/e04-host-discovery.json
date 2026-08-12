@@ -1,0 +1,5 @@
+{
+  "supported_hosts": ["opencode", "antigravity", "claude", "codex", "cursor", "vscode"],
+  "unsupported_host": "unsupported_host_xyz",
+  "untested_version": "99.0.0"
+}

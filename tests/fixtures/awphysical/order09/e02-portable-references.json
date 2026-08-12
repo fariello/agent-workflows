@@ -1,0 +1,5 @@
+{
+  "target_resident_reference": ".aw/system/workflows/scaffold/scaffold.md",
+  "external_system_invocation": "python3 -m agent_workflows execute --system",
+  "forbidden_absolute_path_prefix": "/home/"
+}

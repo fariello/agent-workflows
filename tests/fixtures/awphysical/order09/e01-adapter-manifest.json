@@ -1,0 +1,6 @@
+{
+  "manifest_version": "1.0.0",
+  "planted_target_write": ".aw/planted_target_file.txt",
+  "expected_adapter_count": 8,
+  "expected_target_writes_on_planted": 1
+}
