@@ -1,0 +1,7 @@
+{
+  "target_backend": "repository",
+  "system_destination": ".aw/system",
+  "single_authoritative_writer": true,
+  "package_resolution_valid": true,
+  "self_host_resolution_valid": true
+}

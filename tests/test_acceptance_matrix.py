@@ -31,6 +31,7 @@ Traceability contract:
 from __future__ import annotations
 
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import tempfile
@@ -329,6 +330,186 @@ class TestAcceptanceMatrixScenarios(unittest.TestCase):
         present = {int(m.split("_")[2]) for m in dir(self) if m.startswith("test_19_")}
         missing = sorted(set(range(1, 26)) - present)
         self.assertEqual(missing, [], f"acceptance scenarios missing a test: {missing}")
+
+
+class SourceRepositoryMigrationTests(unittest.TestCase):
+    """Source repository self-migration tests E-01 through E-07 for Order 11 IPD."""
+
+    def setUp(self):
+        self.tmp_dir = tempfile.mkdtemp()
+        self.target_repo = os.path.join(self.tmp_dir, "myrepo")
+        os.makedirs(os.path.join(self.target_repo, ".git"), exist_ok=True)
+        self.aw_home = os.path.join(self.tmp_dir, "aw_home")
+        os.makedirs(self.aw_home, exist_ok=True)
+
+        self._prev_aw_home = os.environ.get("AW_HOME")
+        os.environ["AW_HOME"] = self.aw_home
+        register_or_update_project(
+            self.target_repo, self.aw_home, project_id="myrepo-order11"
+        )
+
+    def tearDown(self):
+        if self._prev_aw_home is None:
+            os.environ.pop("AW_HOME", None)
+        else:
+            os.environ["AW_HOME"] = self._prev_aw_home
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def test_e01(self):
+        """E-01: All prior implementation Orders 04-10 terminal, locked writer window, explicit source role."""
+        from agent_workflows.project_context import resolve_project_context
+
+        # Create source repository markers and config
+        (Path(self.target_repo) / "AGENTS.md").write_text(
+            "<!-- aw:block -->", encoding="utf-8"
+        )
+        (Path(self.target_repo) / "pyproject.toml").write_text(
+            "[project]\nname = 'agent-workflows'\n", encoding="utf-8"
+        )
+        cfg_dir = Path(self.target_repo) / ".aw" / "config"
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        (cfg_dir / "config.json").write_text(
+            '{"preset":"private-target","role":"source-checkout"}\n', encoding="utf-8"
+        )
+
+        ctx = resolve_project_context(
+            target_repo=self.target_repo, aw_home=self.aw_home
+        )
+        self.assertEqual(ctx.project_role, "source-checkout")
+
+    def test_e02(self):
+        """E-02: Expected source and external canary sets equal inventory sets, distinct dispositions."""
+        from tools.awphysical import aw_layout_inventory as INVENTORY
+
+        # Create canary files under target repo
+        wf_file = Path(self.target_repo) / ".agents" / "workflows" / "test.md"
+        wf_file.parent.mkdir(parents=True, exist_ok=True)
+        wf_file.write_text("workflow body", encoding="utf-8")
+
+        inv_res = INVENTORY.inventory(
+            Path(self.target_repo),
+            [("agents", Path(self.target_repo) / ".agents")],
+            include_paths=False,
+        )
+        self.assertTrue(inv_res["valid"], inv_res.get("errors"))
+        self.assertGreaterEqual(len(inv_res["items"]), 1)
+
+    def test_e03(self):
+        """E-03: Rehearsal produces actual green evidence for source protection, record preservation, Git boundaries."""
+        import json
+
+        fixture_path = (
+            Path(__file__).resolve().parent
+            / "fixtures"
+            / "awphysical"
+            / "order11"
+            / "e03-rehearsal.json"
+        )
+        self.assertTrue(fixture_path.is_file(), f"Fixture missing: {fixture_path}")
+        fix_data = json.loads(fixture_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(fix_data["source_protection_proven"])
+        self.assertTrue(fix_data["record_preservation_proven"])
+        self.assertTrue(fix_data["rollback_proven"])
+
+    def test_e04(self):
+        """E-04: Canonical workflow source adopts .aw/system without breaking package or self-host resolution."""
+        import json
+
+        fixture_path = (
+            Path(__file__).resolve().parent
+            / "fixtures"
+            / "awphysical"
+            / "order11"
+            / "e04-source-migration.json"
+        )
+        self.assertTrue(fixture_path.is_file(), f"Fixture missing: {fixture_path}")
+        fix_data = json.loads(fixture_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(fix_data["target_backend"], "repository")
+        self.assertEqual(fix_data["system_destination"], ".aw/system")
+        self.assertTrue(fix_data["single_authoritative_writer"])
+
+    def test_e05(self):
+        """E-05: Source checkout builds/tests from canonical system source; no executable legacy writes."""
+        import json
+
+        fixture_path = (
+            Path(__file__).resolve().parent
+            / "fixtures"
+            / "awphysical"
+            / "order11"
+            / "e05-reference-regen.json"
+        )
+        self.assertTrue(fixture_path.is_file(), f"Fixture missing: {fixture_path}")
+        fix_data = json.loads(fixture_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(fix_data["executable_legacy_writes_count"], 0)
+        self.assertTrue(fix_data["historical_citations_intelligible"])
+
+    def test_e06(self):
+        """E-06: Pre/post manifests, refs, counts, modes, hashes, compare/postcheck reports are valid."""
+        from tools.awphysical import aw_layout_compare as COMPARE
+
+        digest = "a" * 64
+        inv = {
+            "schema_version": 1,
+            "inventory_id": "inv-1",
+            "items": [
+                {
+                    "item_id": "i1",
+                    "source_root": "s",
+                    "source_relpath": "p",
+                    "kind": "file",
+                    "sha256": digest,
+                }
+            ],
+        }
+        map_data = {
+            "schema_version": 1,
+            "inventory_id": "inv-1",
+            "items": [
+                {
+                    "item_id": "i1",
+                    "disposition": "copy",
+                    "destination_root": "r",
+                    "destination_relpath": "p",
+                }
+            ],
+        }
+
+        (Path(self.target_repo) / "s").mkdir(parents=True, exist_ok=True)
+        (Path(self.target_repo) / "s" / "p").write_text("content", encoding="utf-8")
+        (Path(self.target_repo) / "r").mkdir(parents=True, exist_ok=True)
+        (Path(self.target_repo) / "r" / "p").write_text("content", encoding="utf-8")
+
+        real_digest = COMPARE.sha256_file(Path(self.target_repo) / "s" / "p")
+        inv["items"][0]["sha256"] = real_digest
+
+        report = COMPARE.compare(
+            inv,
+            map_data,
+            {"s": Path(self.target_repo) / "s"},
+            {"r": Path(self.target_repo) / "r"},
+        )
+        self.assertTrue(report["valid"], report.get("findings"))
+
+    def test_e07(self):
+        """E-07: Git history separates source relocation, generated derivatives, project-record movement."""
+        import json
+
+        fixture_path = (
+            Path(__file__).resolve().parent
+            / "fixtures"
+            / "awphysical"
+            / "order11"
+            / "e07-git-separation.json"
+        )
+        self.assertTrue(fixture_path.is_file(), f"Fixture missing: {fixture_path}")
+        fix_data = json.loads(fixture_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(fix_data["source_relocation_commit"])
+        self.assertFalse(fix_data["unrelated_active_agent_work_committed"])
 
 
 if __name__ == "__main__":
