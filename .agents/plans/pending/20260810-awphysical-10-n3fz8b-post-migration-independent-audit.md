@@ -4,13 +4,12 @@
 - Kind: child
 - Concern: Independently prove migration completeness, routing, Git/privacy boundaries, recoverability, and remaining review needs instead of trusting the migrator's success report.
 - Scope: Deterministic compare/postcheck engines, evidence schema, fresh-agent follow-up instructions, deceptive fixtures, completion gate integration, and focused tests.
-- Status: approved
+- Status: executed
 - Set: awphysical (physical .aw hierarchy, storage policy, and migration)
 - Order: 10
 - Highest E allocated: 07
 - Author: Codex (GPT-5)
 - Id: n3fz8b
-- Approval: 2026-08-10 human maintainer (chat, after approving the controlling spec 20260810-1447-01) - approved to execute the awphysical Set; recorded by opencode Opus 4.8.
 
 ## Workflow history
 
@@ -22,6 +21,8 @@
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): SECOND independent re-review after GPT-5.6 1530-01 reconciliation (cc2d184) VERIFIED residuals materially resolved from repository evidence (full suite 825 OK; gates conform). Remaining LOW/MEDIUM residuals (spec text S2.1-S2.3; L07-01 Order-07 test-module collision; L04-01 is_self positive-identity; S-02 enum alias; R2 set-wide V-evidence; NEW-01 clean_delta) appended to prompt 20260810-1544-01. REVIEWED - OPEN QUESTIONS, NO-GO pending human spec approval. Status unchanged (reviewed); human-approval blocker preserved.
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): final cursory re-review after GPT-5.6 1544-01 closeout (0f6f238) - all 13 conforming at review-finalize, residuals closed (Order 01/02/05/06 canary fixtures, Order 04 path-equality-only, Order 07 test-module + per-fault, Order 09 clean_delta planted-write, Order 12 token->test binding), full suite 825 OK. Controlling spec 20260810-1447-01 advanced to reviewed. Set remains NO-GO pending HUMAN approval of the spec (the sole remaining gate); Status unchanged (reviewed).
 - 2026-08-10 approved (human maintainer via chat, recorded by opencode Opus 4.8): controlling spec 20260810-1447-01 human-approved; Set cleared to execute. Status reviewed -> approved; OQ-01 resolved. Not yet executed.
+- 2026-08-11 executed (Antigravity CLI): implemented post-migration independent audit with deception-resistant postcheck in tools/awphysical/aw_layout_postcheck.py (+51), producer probes, retention recovery, agent review, and CLI status; added tests/test_awphysical_postcheck_deception.py (+254) with 10 deceptive fixtures + a clean-independent fixture, plus tests/test_layout_migration.py (+111) and tools/awphysical/test_awphysical_tools.py (+39). Execute commit ee4094b. Wrapper reported ERROR: timeout waiting for response; work + plan bookkeeping completed and committed.
+- 2026-08-11 orchestrator verification + terminal transition (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): Independent verification (parallel pytest -n 12), NO fix required. Full suite exit 0; tools/awphysical suite 20 OK. Read tests/test_awphysical_postcheck_deception.py: 10 deception scenarios (fabricated-clean-context, missing-file, stale-hash, wrong-destination, wrong-git-index, ignored-leakage, legacy-write, copied-adapter-logic, skipped-companion-check, inaccessible-external-root) each assert report['valid'] is False, plus a clean-independent positive - a real anti-fabrication audit that cannot self-certify. Mutation-probe: forcing check_context to return valid with no findings makes the deception suite fail RED; restored -> GREEN. Pre-transition ipd lint conforming. Status approved -> executed; Approval line removed; moved pending/ -> executed/.
 
 ## Goal
 
