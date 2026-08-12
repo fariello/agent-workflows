@@ -71,12 +71,18 @@ def _spec_files(repo_root: Path) -> List[Path]:
     from agent_workflows.record_producers import resolve_record_read_paths
 
     try:
-        roots = resolve_record_read_paths("specs", target_repo=str(repo_root))
+        roots = list(resolve_record_read_paths("specs", target_repo=str(repo_root)))
     except Exception:
-        roots = [
-            repo_root / ".aw" / "records" / "docs" / "specs",
-            repo_root / ".agents" / "docs" / "specs",
-        ]
+        roots = [repo_root / ".aw" / "records" / "docs" / "specs"]
+    # Always include the legacy `.agents/docs/specs` read path for bounded compatibility.
+    # resolve_record_read_paths only appends the legacy dir once a migration retention
+    # manifest exists; but an UN-migrated repo (the common case until the Order 11
+    # self-migration runs) still keeps its specs under `.agents/docs/specs`, and
+    # `aw specs check` must continue to see them. Adding it unconditionally is safe: the
+    # loop below skips non-existent dirs and dedups.
+    legacy = repo_root / ".agents" / "docs" / "specs"
+    if legacy not in roots:
+        roots.append(legacy)
     files: List[Path] = []
     for r in roots:
         if r.is_dir():
@@ -285,13 +291,6 @@ def _add_gate_fields(
 # --------------------------------------------------------------------------------------
 # CLI entrypoints
 # --------------------------------------------------------------------------------------
-
-
-def _spec_files(repo_root: Path) -> List[Path]:
-    root = repo_root / SPECS_ROOT
-    if not root.is_dir():
-        return []
-    return sorted(p for p in root.glob("*.md") if p.name != "README.md")
 
 
 def run_check(args) -> int:
