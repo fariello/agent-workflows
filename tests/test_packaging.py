@@ -63,10 +63,23 @@ class PackagingTests(unittest.TestCase):
         cls._tmp = tempfile.TemporaryDirectory()
         try:
             cls.wheel = _build_wheel(Path(cls._tmp.name))
-        except (subprocess.CalledProcessError, RuntimeError, OSError) as exc:
+        except (OSError,) as exc:
+            # Environment cannot even spawn the build (no interpreter/tooling): a genuine
+            # skip, not a package defect.
             cls._tmp.cleanup()
             raise unittest.SkipTest(
                 f"wheel build unavailable in this environment: {exc}"
+            )
+        except (subprocess.CalledProcessError, RuntimeError) as exc:
+            # The `build` backend IS installed (import succeeded above) but the build
+            # FAILED. That is a real packaging defect (e.g. a force-include pointing at a
+            # missing path), NOT an environment issue - fail loudly instead of hiding it
+            # behind a skip.
+            cls._tmp.cleanup()
+            detail = getattr(exc, "stderr", "") or getattr(exc, "stdout", "") or ""
+            raise AssertionError(
+                "wheel build FAILED though the 'build' backend is installed; this is a "
+                f"packaging defect, not an environment skip:\n{detail}\n{exc}"
             )
         cls.names = zipfile.ZipFile(cls.wheel).namelist()
 
@@ -119,12 +132,20 @@ class PackagingTests(unittest.TestCase):
         )
 
     def test_wheel_declares_no_runtime_dependencies(self):
-        # AC-12: zero runtime deps (no Requires-Dist lines in METADATA).
+        # AC-12: zero UNCONDITIONAL runtime deps (D44/D46). Optional-dependency extras
+        # (declared with `; extra == '<name>'`, e.g. the test-only pytest/pytest-xdist
+        # runner) are allowed: they are never installed unless a user asks for the extra
+        # and are not imported at runtime. Only unconditional Requires-Dist lines count.
         meta = [n for n in self.names if n.endswith("METADATA")]
         self.assertTrue(meta, "no METADATA in wheel")
         text = zipfile.ZipFile(self.wheel).read(meta[0]).decode("utf-8")
         requires = [ln for ln in text.splitlines() if ln.startswith("Requires-Dist")]
-        self.assertEqual(requires, [], f"unexpected runtime dependencies: {requires}")
+        unconditional = [ln for ln in requires if "extra ==" not in ln]
+        self.assertEqual(
+            unconditional,
+            [],
+            f"unexpected unconditional runtime dependencies: {unconditional}",
+        )
 
     def test_wheel_registers_three_console_scripts(self):
         ep = [n for n in self.names if n.endswith("entry_points.txt")]

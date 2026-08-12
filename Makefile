@@ -3,9 +3,25 @@
 # Makefile), so `/verify` can find and run the self-tests here - the framework dogfooding
 # its own evidence layer.
 
-.PHONY: test version version-file
+.PHONY: test test-serial version version-file
 
+# Parallel by default: pytest-xdist spreads the suite across all CPUs (the install/
+# uninstall tests are subprocess/IO bound and independent), cutting wall time ~5-8x.
+# Falls back to serial stdlib unittest when pytest/xdist are not installed, so a
+# minimal env (and the runtime zero-dep contract) still works. pytest and pytest-xdist
+# are TEST-ONLY dependencies (see the `test` extra in pyproject.toml); they are not
+# imported at runtime and do not affect the shipped package.
 test:
+	@if python3 -c "import xdist" >/dev/null 2>&1; then \
+		echo "running: pytest -n auto"; \
+		python3 -m pytest tests/ -n auto -q; \
+	else \
+		echo "pytest-xdist not found; running serial unittest (pip install '.[test]' for parallel)"; \
+		python3 -m unittest discover -s tests -t .; \
+	fi
+
+# Always-serial stdlib runner (no third-party deps). Kept as the guaranteed fallback.
+test-serial:
 	python3 -m unittest discover -s tests -t .
 
 # Print the RESOLVED version (git-tag-driven; dirty/distance-aware).

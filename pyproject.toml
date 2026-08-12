@@ -27,6 +27,14 @@ classifiers = [
 # stdlib-only). Do not add runtime deps without an explicit decision.
 dependencies = []
 
+# TEST-ONLY dependencies. These are NOT runtime deps (the shipped package remains
+# stdlib-only, D46) and are never imported by agent_workflows/*. Install with
+# `pip install '.[test]'` to run the suite in parallel via `make test` / `pytest -n auto`.
+# The tests themselves are plain stdlib `unittest.TestCase`; pytest is only the runner,
+# and `make test-serial` (python -m unittest) always works without these.
+[project.optional-dependencies]
+test = ["pytest>=8", "pytest-xdist>=3"]
+
 [project.urls]
 Homepage = "https://github.com/fariello/agent-workflows"
 Repository = "https://github.com/fariello/agent-workflows"
@@ -63,7 +71,12 @@ packages = ["agent_workflows"]
 # 3.8-safe __file__/_data lookup in _compat.packaged_source_root() finds it (OQ5, R-1).
 [tool.hatch.build.targets.wheel.force-include]
 ".agents/workflows" = "agent_workflows/_data/.agents/workflows"
-".aw/system" = "agent_workflows/_data/.aw/system"
+# NOTE: the `.aw/system` force-include is intentionally NOT declared yet. Order 04 wired
+# the resolver/build to ACCEPT `.aw/system`, but the physical source relocation
+# (`.agents/workflows` -> `.aw/system`) is deferred to Order 11. Declaring a force-include
+# for a path that does not exist makes hatchling fail the wheel build. Order 11 re-adds
+# this line when it creates `.aw/system/` in the source tree. The `_compat` resolver
+# already prefers `.aw/system` when present and falls back to `.agents/workflows`.
 
 [tool.hatch.build.targets.sdist]
 # The sdist carries what a build needs: the package, the data tree, the version hook, and
@@ -71,10 +84,17 @@ packages = ["agent_workflows"]
 include = [
     "/agent_workflows",
     "/.agents/workflows",
-    "/.aw/system",
+    # "/.aw/system" is added by Order 11 when the directory exists (see the wheel
+    # force-include note above); listing a missing path here breaks the sdist build.
     "/hatch_build.py",
     "/pyproject.toml",
     "/README.md",
     "/LICENSE",
     "/NOTICE",
 ]
+
+# Pytest is used ONLY as a parallel test runner (see the `test` extra). The tests are
+# stdlib unittest.TestCase and also run under `python -m unittest discover -s tests -t .`.
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

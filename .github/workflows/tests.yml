@@ -49,13 +49,19 @@ jobs:
           git config --global user.name "CI"
           git config --global init.defaultBranch main
 
-      - name: Install build backend (so the packaging ship-vs-dev gate runs, not skips)
+      - name: Install build backend + parallel test runner
         shell: bash
-        run: python -m pip install --upgrade pip build
+        # `build` keeps the packaging ship-vs-dev gate running (not skipped). pytest +
+        # pytest-xdist are TEST-ONLY (the shipped package stays stdlib-only, D46); they
+        # run the stdlib unittest suite in parallel across CI runner CPUs.
+        run: python -m pip install --upgrade pip build pytest pytest-xdist
 
-      - name: Run self-tests
+      - name: Run self-tests (parallel)
         shell: bash
-        run: python -m unittest discover -s tests -t .
+        # Process-based parallelism; the suite is xdist-safe (per-process AW_HOME sandbox,
+        # per-test tempdirs). `python -m unittest discover -s tests -t .` remains an
+        # equivalent serial fallback (see `make test-serial`).
+        run: python -m pytest tests/ -n auto -q
 
   wheel:
     name: build + import wheel (${{ matrix.os }})
