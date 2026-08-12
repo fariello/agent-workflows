@@ -4,13 +4,12 @@
 - Kind: child
 - Concern: Route every AW record/state producer and consumer through resolved physical roots so no workflow recreates or trusts the legacy hierarchy after migration.
 - Scope: Record-class router, producer and reader integrations, plans/specs/research/prompts/comms/runs/actions/history/index/attention surfaces, compatibility readers, forbidden-write guard, generated workflow text, and focused tests.
-- Status: approved
+- Status: executed
 - Set: awphysical (physical .aw hierarchy, storage policy, and migration)
 - Order: 8
 - Highest E allocated: 08
 - Author: Codex (GPT-5)
 - Id: mb9xn2
-- Approval: 2026-08-10 human maintainer (chat, after approving the controlling spec 20260810-1447-01) - approved to execute the awphysical Set; recorded by opencode Opus 4.8.
 
 ## Workflow history
 
@@ -22,6 +21,8 @@
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): SECOND independent re-review after GPT-5.6 1530-01 reconciliation (cc2d184) VERIFIED residuals materially resolved from repository evidence (full suite 825 OK; gates conform). Remaining LOW/MEDIUM residuals (spec text S2.1-S2.3; L07-01 Order-07 test-module collision; L04-01 is_self positive-identity; S-02 enum alias; R2 set-wide V-evidence; NEW-01 clean_delta) appended to prompt 20260810-1544-01. REVIEWED - OPEN QUESTIONS, NO-GO pending human spec approval. Status unchanged (reviewed); human-approval blocker preserved.
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): final cursory re-review after GPT-5.6 1544-01 closeout (0f6f238) - all 13 conforming at review-finalize, residuals closed (Order 01/02/05/06 canary fixtures, Order 04 path-equality-only, Order 07 test-module + per-fault, Order 09 clean_delta planted-write, Order 12 token->test binding), full suite 825 OK. Controlling spec 20260810-1447-01 advanced to reviewed. Set remains NO-GO pending HUMAN approval of the spec (the sole remaining gate); Status unchanged (reviewed).
 - 2026-08-10 approved (human maintainer via chat, recorded by opencode Opus 4.8): controlling spec 20260810-1447-01 human-approved; Set cleared to execute. Status reviewed -> approved; OQ-01 resolved. Not yet executed.
+- 2026-08-11 executed (Antigravity CLI): implemented physical record producer routing (record_producers.py +528), legacy-reference cutover with LegacyWriteError/MigrationInFlightError/ForbiddenWriteError/DuplicateAuthorityError/InvalidRecordClassError/UnsafeSymlinkError guards, retention-manifest-gated legacy reads, and updated ipd_authoring/plans_index/research_index/specs producers to route through resolve_record_path. Execute commit d9e1492 (+ benign tooling commit 0f39b5d antigravity JSONL viewer). Wrapper reported ERROR: timeout waiting for response; work + plan bookkeeping completed and committed.
+- 2026-08-11 orchestrator verification + fix + terminal transition (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): Independent full-suite verification (parallel pytest -n 12) was RED on tests/test_specs_verbs.py CheckTests::test_check_exit_codes (0 != 1). Root cause: Order 08 changed specs.SPECS_ROOT to .aw/records/docs/specs and added a new record-producer-aware _spec_files, but LEFT a duplicate older _spec_files reading only the new root; and resolve_record_read_paths only appends the legacy .agents path once a migration retention manifest exists. So in any UN-migrated repo (this repo, and every target until Order 11 self-migration) aw specs check silently found ZERO specs and returned exit 0 - a fail-OPEN regression hiding invalid spec statuses. Orchestrator fix (commit d0ff9de, specs.py only): removed the duplicate _spec_files and made it always include the legacy .agents/docs/specs read path. Re-verification: test_specs_verbs green; this repo's `aw specs check` now sees 12 specs; full parallel suite exit 0. Read the Order-08 tests: they assert real rejections (InvalidRecordClassError, UnsafeSymlinkError, LegacyWriteError, MigrationInFlightError, ForbiddenWriteError, DuplicateAuthorityError). Mutation-probe: disabling the legacy-write guard makes test_e02 + test_e07 fail RED (LegacyWriteError not raised); restored -> GREEN. Pre-transition ipd lint conforming. Status approved -> executed; Approval line removed; moved pending/ -> executed/.
 
 ## Goal
 
