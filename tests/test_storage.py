@@ -95,7 +95,11 @@ class TestStorageBackendsAndDurability(unittest.TestCase):
         )
 
         # A configured remote is observable but not acknowledged durable.
-        st3 = get_storage_status(repo_path=self.target_repo)
+        # Patch reachability: an unacknowledged remote is unacknowledged regardless
+        # of reachability, and the real probe would run `git ls-remote` against the
+        # fake origin, hitting the network (github.com HTTPS credential prompt / ~20s hang).
+        with patch("agent_workflows.storage._remote_reachable", return_value=False):
+            st3 = get_storage_status(repo_path=self.target_repo)
         self.assertEqual(
             st3.durability_state, DurabilityState.UNACKNOWLEDGED_REMOTE.value
         )
@@ -122,10 +126,13 @@ class TestStorageBackendsAndDurability(unittest.TestCase):
             unknown = get_storage_status(repo_path=self.target_repo)
         self.assertEqual(unknown.durability_state, DurabilityState.UNKNOWN.value)
 
-        # Revoking acknowledgement -> downgrades back to local-git
-        st5 = acknowledge_remote_durability(
-            repo_path=self.target_repo, acknowledge=False
-        )
+        # Revoking acknowledgement -> downgrades back to unacknowledged-remote.
+        # Patch reachability (the resulting state is reachability-independent) so the
+        # status recompute does not probe the fake origin over the network.
+        with patch("agent_workflows.storage._remote_reachable", return_value=False):
+            st5 = acknowledge_remote_durability(
+                repo_path=self.target_repo, acknowledge=False
+            )
         self.assertEqual(
             st5.durability_state, DurabilityState.UNACKNOWLEDGED_REMOTE.value
         )
