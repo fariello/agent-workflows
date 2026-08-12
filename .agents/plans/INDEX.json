@@ -1503,6 +1503,16 @@
     "date": "2026-08-10",
     "disposition": "executed",
     "kind": "child",
+    "order": 9,
+    "path": "executed/20260810-awphysical-09-2e2jrw-host-adapters-and-clean-delta-integration.md",
+    "plan_id": "2e2jrw",
+    "set_id": "awphysical",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "executed",
+    "kind": "child",
     "order": 1,
     "path": "executed/20260810-clianx-01-3e70cv-cli-ux-exclude-alpha-help.md",
     "plan_id": "3e70cv",
@@ -1546,16 +1556,6 @@
     "order": 0,
     "path": "pending/20260810-awphysical-00-rma3j4-physical-aw-hierarchy-and-migration-orchestrator.md",
     "plan_id": "rma3j4",
-    "set_id": "awphysical",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-10",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 9,
-    "path": "pending/20260810-awphysical-09-2e2jrw-host-adapters-and-clean-delta-integration.md",
-    "plan_id": "2e2jrw",
     "set_id": "awphysical",
     "status": "approved"
   },

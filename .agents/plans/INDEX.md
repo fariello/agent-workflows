@@ -15,7 +15,7 @@ Showing the 40 most-recent of 77 Sets; the full manifest is INDEX.json.
 - `fcgala` [executed] 06 executed/20260810-awphysical-06-fcgala-migration-inventory-and-mapping-tools.md
 - `nhv0qm` [executed] 07 executed/20260810-awphysical-07-nhv0qm-transactional-migration-rollback-and-resume.md
 - `mb9xn2` [executed] 08 executed/20260810-awphysical-08-mb9xn2-record-producers-and-legacy-reference-cutover.md
-- `2e2jrw` [pending] 09 pending/20260810-awphysical-09-2e2jrw-host-adapters-and-clean-delta-integration.md
+- `2e2jrw` [executed] 09 executed/20260810-awphysical-09-2e2jrw-host-adapters-and-clean-delta-integration.md
 - `n3fz8b` [pending] 10 pending/20260810-awphysical-10-n3fz8b-post-migration-independent-audit.md
 - `g5zl1u` [pending] 11 pending/20260810-awphysical-11-g5zl1u-agent-workflows-source-repository-self-migration.md
 - `pszk6x` [pending] 12 pending/20260810-awphysical-12-pszk6x-documentation-release-and-end-to-end-acceptance.md
