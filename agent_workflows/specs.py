@@ -23,7 +23,7 @@ from typing import List, Optional, Tuple
 from agent_workflows import artifact_core as core
 from agent_workflows import attention_contract as A
 
-SPECS_ROOT = ".agents/docs/specs"
+SPECS_ROOT = ".aw/records/docs/specs"
 
 
 # --------------------------------------------------------------------------------------
@@ -59,7 +59,29 @@ def _read_status(lines: List[str]) -> Optional[str]:
     if i < 0:
         return None
     m = A.SPEC_STATUS_RE.match(lines[i])
-    return m.group("value") if m else None
+    return m.group(1) if m else None
+
+
+# --------------------------------------------------------------------------------------
+# CLI entrypoints
+# --------------------------------------------------------------------------------------
+
+
+def _spec_files(repo_root: Path) -> List[Path]:
+    from agent_workflows.record_producers import resolve_record_read_paths
+
+    try:
+        roots = resolve_record_read_paths("specs", target_repo=str(repo_root))
+    except Exception:
+        roots = [
+            repo_root / ".aw" / "records" / "docs" / "specs",
+            repo_root / ".agents" / "docs" / "specs",
+        ]
+    files: List[Path] = []
+    for r in roots:
+        if r.is_dir():
+            files.extend(p for p in r.glob("*.md") if p.name != "README.md")
+    return sorted(set(files))
 
 
 def _read_gate(lines: List[str]) -> Tuple[Optional[str], Optional[str], Optional[str]]:

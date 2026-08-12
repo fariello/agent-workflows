@@ -1,0 +1,4 @@
+{
+  "legacy_target": ".agents/plans/pending/fake-plan.md",
+  "expected_error": "LegacyWriteError"
+}

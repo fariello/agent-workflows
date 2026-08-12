@@ -1,0 +1,5 @@
+{
+  "primary_content": "Primary new content",
+  "retained_content": "Legacy conflicting content",
+  "expected_error": "DuplicateAuthorityError"
+}

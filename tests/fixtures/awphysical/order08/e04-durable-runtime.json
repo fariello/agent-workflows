@@ -1,0 +1,6 @@
+{
+  "durable_class": "actions",
+  "runtime_class": "transactions",
+  "expected_durable_dir": "state/durable/actions",
+  "expected_runtime_dir": "state/runtime/transactions"
+}

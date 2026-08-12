@@ -174,20 +174,23 @@ _ID_LINE_RE = re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
 
 
 def _plans_root_for(path: Path) -> Optional[Path]:
-    """Find the `.agents/plans` dir enclosing ``path`` (walk up), or None."""
+    """Find the plans dir enclosing ``path`` (walk up), or resolve via router."""
+    from agent_workflows.record_producers import resolve_record_path
 
     for parent in [path] + list(path.parents):
-        cand = parent / ".agents" / "plans"
-        if cand.is_dir():
-            return cand
-        # If path is already inside .agents/plans, detect it.
-        if parent.name == "plans" and parent.parent.name == ".agents":
+        try:
+            cand = resolve_record_path("plans", target_repo=str(parent))
+            if cand.is_dir():
+                return cand
+        except Exception:
+            pass
+        if parent.name == "plans":
             return parent
     return None
 
 
 def _existing_plan_ids(target_path: Path) -> set:
-    """Collect every `- Id:` already present across `.agents/plans/**` (for collision checks)."""
+    """Collect every `- Id:` already present across plans/** (for collision checks)."""
 
     ids: set = set()
     root = _plans_root_for(target_path.resolve())

@@ -1,0 +1,5 @@
+{
+  "invalid_class": "nonexistent_class",
+  "traversal_subpath": "../../../etc/passwd",
+  "expected_error": "InvalidRecordClassError"
+}

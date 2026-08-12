@@ -161,6 +161,8 @@ SCAN_ROOTS = (
     "ARCHITECTURE.md",
     ".agents/plans",
     ".agents/docs",
+    ".aw/records/plans",
+    ".aw/records/docs",
 )
 
 _TEXT_SUFFIXES = (".md", ".txt")

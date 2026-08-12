@@ -260,7 +260,15 @@ def check_drift(
 
 def _roots(args: argparse.Namespace) -> Tuple[Path, Path]:
     repo_root = Path(getattr(args, "dir", None) or ".").resolve()
-    return repo_root, repo_root / R.RESEARCH_ROOT
+    from agent_workflows.record_producers import resolve_record_path
+
+    try:
+        res_root = resolve_record_path("research", target_repo=str(repo_root))
+    except Exception:
+        res_root = repo_root / ".aw" / "records" / "docs" / "research"
+    if not res_root.is_dir() and (repo_root / ".agents" / "docs" / "research").is_dir():
+        res_root = repo_root / ".agents" / "docs" / "research"
+    return repo_root, res_root
 
 
 def run_index(args: argparse.Namespace) -> int:

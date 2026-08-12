@@ -47,10 +47,14 @@ def _rel_posix(repo_root: Path, p: Path) -> str:
 def _classify_tree(rel_posix: str) -> Optional[A.TreePolicy]:
     """Return the TreePolicy whose root is a path-prefix of the file, or None (unclassified)."""
 
+    norm_rel = rel_posix
+    if norm_rel.startswith(".aw/records/"):
+        norm_rel = ".agents/" + norm_rel[len(".aw/records/") :]
+
     best: Optional[A.TreePolicy] = None
     for pol in A.TREE_POLICY:
         root = pol.root.replace("\\", "/")
-        if rel_posix == root or rel_posix.startswith(root + "/"):
+        if norm_rel == root or norm_rel.startswith(root + "/"):
             # choose the longest matching root (specs under docs, etc.)
             if best is None or len(pol.root) > len(best.root):
                 best = pol
