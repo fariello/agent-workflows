@@ -198,19 +198,44 @@ def classify_item(
                 "expected_destination_class": "system",
                 "disposition": "migrate",
             }
-        if first in {"plans", "prompts", "docs", "comms"}:
+        if first in {"plans", "prompts", "docs", "comms", "research"}:
             return {
                 "ownership": "records",
                 "lifecycle_class": "records",
                 "expected_destination_class": "records",
                 "disposition": "migrate",
             }
+        # Infrastructure files every standard install carries (E-03). Without these the
+        # inventory fails closed with unknown-owner on real repos. Dispositions match the
+        # awphysical Order 11 decision record.
+        # 1) The per-repo self-install manifest + its explanatory README -> .aw/system
+        #    (the new-layout code already reads the manifest at <system_root>/managed-sections.json).
         if first == "agent-workflows":
             return {
-                "ownership": "unknown",
-                "lifecycle_class": "review-required",
-                "expected_destination_class": "unknown",
-                "disposition": "block-unknown",
+                "ownership": "system",
+                "lifecycle_class": "system",
+                "expected_destination_class": "system",
+                "disposition": "migrate",
+                # Drop the legacy "agent-workflows/" wrapper so it lands directly under system/.
+                "destination_relpath_override": "system/"
+                + (posix.split("/", 1)[1] if "/" in posix else ""),
+            }
+        # 2) The tracked leak-sanitizer allowlist + its example -> .aw/config (project config).
+        if posix in {"local-leaks-allowlist.toml", "local-leaks-hints.json.example"}:
+            return {
+                "ownership": "config",
+                "lifecycle_class": "config",
+                "expected_destination_class": "config",
+                "disposition": "migrate",
+            }
+        # 3) The human-facing layout README -> regenerated as .aw/README.md (doc; not a record).
+        if posix == "README.md":
+            return {
+                "ownership": "doc",
+                "lifecycle_class": "doc",
+                "expected_destination_class": "doc",
+                "disposition": "regenerate",
+                "destination_relpath_override": "README.md",
             }
         return {
             "ownership": "unknown",
@@ -367,15 +392,57 @@ def _git_state(
     return "not-listed"
 
 
-def _walk(root: Path) -> Iterable[Path]:
-    """Yield root and descendants deterministically without following symlinks."""
+def _ignored_dirs(repo: Path) -> Set[str]:
+    """Return repo-relative POSIX paths of gitignored DIRECTORIES.
 
+    ``git ls-files --others --ignored --exclude-standard`` enumerates ignored FILES only,
+    so a large ignored subtree (e.g. ``node_modules``) is thousands of file entries with no
+    directory to prune on. Asking Git for the ignored directories (``--directory``) lets the
+    walk prune the whole subtree WITHOUT descending into or hashing its files. Trailing
+    slashes are stripped so the values compare cleanly against ``os.walk`` dir paths.
+    """
+
+    raw = _nul_paths(
+        repo,
+        [
+            "ls-files",
+            "--others",
+            "--ignored",
+            "--exclude-standard",
+            "--directory",
+            "-z",
+        ],
+    )
+    return {p.rstrip("/") for p in raw}
+
+
+def _walk(
+    root: Path, ignored_dirs: Optional[Set[str]] = None, repo: Optional[Path] = None
+) -> Iterable[Path]:
+    """Yield root and descendants deterministically without following symlinks.
+
+    Prunes ``.git`` and any gitignored DIRECTORY subtree (via ``ignored_dirs``, repo-relative
+    POSIX paths) so dependency/runtime noise such as ``node_modules`` is never descended into
+    or hashed. Individual gitignored files are filtered by the caller (item loop) using the
+    ignored file set; this pruning is the coarse, cheap cut for whole ignored subtrees.
+    """
+
+    ignored_dirs = ignored_dirs or set()
     yield root
     if not root.is_dir() or root.is_symlink():
         return
     for current, dirnames, filenames in os.walk(root, followlinks=False):
-        dirnames[:] = sorted(d for d in dirnames if d != ".git")
         current_path = Path(current)
+
+        def _is_ignored_dir(name: str) -> bool:
+            if repo is None:
+                return False
+            rel = _repo_relative(current_path / name, repo)
+            return rel is not None and rel in ignored_dirs
+
+        dirnames[:] = sorted(
+            d for d in dirnames if d != ".git" and not _is_ignored_dir(d)
+        )
         for name in dirnames:
             yield current_path / name
         for name in sorted(filenames):
@@ -388,6 +455,7 @@ def inventory(
     """Build a complete JSON-serializable inventory for declared roots."""
 
     tracked, untracked, ignored, unmerged, common_dir = git_sets(repo)
+    ignored_dirs = _ignored_dirs(repo)
     items: List[Dict[str, Any]] = []
     root_docs: List[Dict[str, Any]] = []
     errors: List[Dict[str, str]] = []
@@ -415,7 +483,7 @@ def inventory(
         if not root_doc["exists"]:
             continue
         try:
-            for path in _walk(root):
+            for path in _walk(root, ignored_dirs=ignored_dirs, repo=repo):
                 rel = "." if path == root else path.relative_to(root).as_posix()
                 repo_rel = _repo_relative(path, repo)
                 st = path.lstat()
@@ -463,6 +531,10 @@ def inventory(
                     "git_state": git_st,
                     "repo_relpath": repo_rel,
                 }
+                if cls_info.get("destination_relpath_override") is not None:
+                    item["destination_relpath_override"] = cls_info[
+                        "destination_relpath_override"
+                    ]
                 items.append(item)
 
                 if kind == "unsupported":
@@ -548,7 +620,10 @@ def build_migration_map(
         source_relpath = item["source_relpath"]
         dest_class = item.get("expected_destination_class", "unknown")
 
-        if dest_class == "system":
+        override = item.get("destination_relpath_override")
+        if override is not None:
+            dest_relpath = override
+        elif dest_class == "system":
             dest_relpath = f"system/{source_relpath}"
         elif dest_class == "records":
             dest_relpath = f"records/{source_relpath}"
@@ -558,6 +633,9 @@ def build_migration_map(
             dest_relpath = f"config/{source_relpath}"
         elif dest_class == "host_adapters":
             dest_relpath = f"adapters/{source_relpath}"
+        elif dest_class == "doc":
+            # Layout README regenerated at the .aw root (not under a subclass).
+            dest_relpath = source_relpath
         else:
             dest_relpath = f"unknown/{source_relpath}"
 

@@ -104,6 +104,93 @@ class InventoryTests(unittest.TestCase):
             by_path[("agents", "plans/pending/plan.md")]["legacy_class"], "records"
         )
 
+    def test_e02_inventory_prunes_gitignored_dependency_subtree(self) -> None:
+        """E-02/V-02: an ignored dependency subtree (node_modules) is pruned, not enumerated.
+
+        A non-ignored sibling under the same root is still inventoried. RED case: without the
+        gitignored-dir pruning the thousands of node_modules files would appear.
+        """
+        # A host-adapter root with a gitignored node_modules subtree and a real shim.
+        opencode = self.repo / ".opencode"
+        (opencode / "commands").mkdir(parents=True)
+        (opencode / "commands" / "assess.md").write_text("shim\n", encoding="utf-8")
+        nm = opencode / "node_modules" / "somepkg"
+        nm.mkdir(parents=True)
+        for i in range(5):
+            (nm / f"file{i}.js").write_text("dep\n", encoding="utf-8")
+        (self.repo / ".gitignore").write_text(
+            ".opencode/node_modules/\n", encoding="utf-8"
+        )
+        git(self.repo, "add", ".opencode/commands/assess.md", ".gitignore")
+
+        result = INVENTORY.inventory(
+            self.repo,
+            [("opencode-adapters", self.repo / ".opencode")],
+            include_paths=False,
+        )
+        rels = {item["source_relpath"] for item in result["items"]}
+        # The gitignored dependency subtree is entirely absent (pruned, not hashed).
+        self.assertFalse(
+            any("node_modules" in r for r in rels),
+            f"gitignored node_modules leaked into inventory: {sorted(r for r in rels if 'node_modules' in r)}",
+        )
+        # The real, non-ignored shim under the same root is still inventoried.
+        self.assertIn("commands/assess.md", rels)
+
+    def test_e03_infrastructure_files_get_explicit_dispositions(self) -> None:
+        """E-03/V-03: README/leak-allowlist/self-install-manifest resolve to decided classes.
+
+        Inventory is valid (no unknown-owner) and each infra file maps to its Order-11
+        destination; a genuinely stray .agents file still fails closed as unknown-owner.
+        """
+        agents = self.repo / ".agents"
+        (agents / "workflows").mkdir(parents=True)
+        (agents / "workflows" / "index.md").write_text("wf\n", encoding="utf-8")
+        (agents / "README.md").write_text("# .agents\n", encoding="utf-8")
+        (agents / "local-leaks-allowlist.toml").write_text(
+            "# allow\n", encoding="utf-8"
+        )
+        (agents / "local-leaks-hints.json.example").write_text("{}\n", encoding="utf-8")
+        (agents / "agent-workflows").mkdir()
+        (agents / "agent-workflows" / "managed-sections.json").write_text(
+            "{}\n", encoding="utf-8"
+        )
+        (agents / "agent-workflows" / "README.md").write_text(
+            "# manifest\n", encoding="utf-8"
+        )
+        git(self.repo, "add", "-A")
+
+        result = INVENTORY.inventory(
+            self.repo, [("agents", agents)], include_paths=False
+        )
+        self.assertTrue(result["valid"], result["errors"])
+        mp = INVENTORY.build_migration_map(
+            self.repo, result, target_backend="repository"
+        )
+        dest = {
+            it["source_relpath"]: (
+                it["destination_root_class"],
+                it["destination_relpath"],
+            )
+            for it in mp["items"]
+            if it["source_root"] == "agents"
+        }
+        self.assertEqual(dest["README.md"], ("doc", "README.md"))
+        self.assertEqual(
+            dest["local-leaks-allowlist.toml"],
+            ("config", "config/local-leaks-allowlist.toml"),
+        )
+        self.assertEqual(
+            dest["agent-workflows/managed-sections.json"],
+            ("system", "system/managed-sections.json"),
+        )
+
+        # Falsifiable negative: a genuinely stray .agents file still fails closed.
+        stray = INVENTORY.classify_item(
+            "agents", "stray-thing.xyz", ".agents/stray-thing.xyz"
+        )
+        self.assertEqual(stray["disposition"], "block-unknown")
+
     def test_inventory_does_not_follow_symlink(self) -> None:
         """An escaping symlink is recorded as a link without hashing its target."""
 
