@@ -2,7 +2,7 @@
 
 # Research index
 
-Showing the most-recent 40 of 68 hot docs (archive excluded).
+Showing the most-recent 40 of 73 hot docs (archive excluded).
 
 ## Needs addressing (intake)
 
@@ -10,6 +10,11 @@ Showing the most-recent 40 of 68 hot docs (archive excluded).
 
 ## Most recent
 
+- `032jgo` [active] 20260813-awnamespace-00-032jgo-aw-slash-command-namespace.research-prompt.md - Originating prompt for the comparison set.
+- `2bodwq` [active] 20260813-awnamespace-04-2bodwq-aw-slash-command-namespace.reconciliation.reconciliation-report.md - Deciding doc. Adopt a single /aw dispatcher fed by one host-neutral verb registry (public syntax /aw <verb> [args...]); do not install /aw-<verb> flat commands by default, offer them only per selected compatibility-risk host.
+- `jc105r` [active] 20260813-awnamespace-03-jc105r-aw-slash-command-namespace.gemini31pro.research-report.md - gemini31pro report.
+- `obveju` [active] 20260813-awnamespace-01-obveju-aw-slash-command-namespace.gpt56medium.research-report.md - gpt56medium report.
+- `og3el1` [active] 20260813-awnamespace-02-og3el1-aw-slash-command-namespace.sonnet5.research-report.md - sonnet5 report.
 - `6zf5av` [intake] 20260810-gemini-actually-validate-playbook-00-6zf5av-gemini-actually-validate-playbook.gpt56medium.research-report.md - Gemini/agy-specific controls to make headless Gemini actually run validation and stop green-washing
 - `bv6n38` [active] 20260808-attention-registry-cross-tree-status-and-whatnext-00-bv6n38-attention-registry-cross-tree-status-and-whatnext.survey.md - Design survey for a cross-tree attention registry: standardized status vocabulary, deterministic aw attention scanner+writer, and whatnext-as-reader
 - `b1msgn` [active] 20260808-attention-registry-spec-review-03-b1msgn-attention-registry-spec-review.reconciliation.reconciliation-report.md - Consolidated reconciliation of the gpt-5.6/Gemini/Sonnet-5 reviews of the attention-registry spec
@@ -45,8 +50,3 @@ Showing the most-recent 40 of 68 hot docs (archive excluded).
 - `xawbsa` [reference] 20260716-broker-feasibility-confirmation-00-xawbsa-broker-feasibility-confirmation.research-report.md - Migrated from 20260716-broker-feasibility-confirmation-00-xawbsa-broker-feasibility-confirmation.research-report.md.
 - `98m3pw` [reference] 20260716-ocsec-00-98m3pw-executive-summary-and-report.executive-summary.md - Migrated from 20260716-ocsec-00-98m3pw-executive-summary-and-report.executive-summary.md.
 - `ac1bqv` [reference] 20260716-ocsec-07-ac1bqv-prod-host-mitigation-verified.research-report.md - Migrated from 20260716-ocsec-07-ac1bqv-prod-host-mitigation-verified.research-report.md.
-- `e4ule1` [reference] 20260716-ocsec-02-e4ule1-source-validation.research-report.md - Migrated from 20260716-ocsec-02-e4ule1-source-validation.research-report.md.
-- `gwx5k4` [reference] 20260716-ocsec-05-gwx5k4-opencode-process-listener-session-vulnerability-detection.research-report.md - Migrated from 20260716-ocsec-05-gwx5k4-opencode-process-listener-session-vulnerability-detection.research-report.md.
-- `jfoccf` [reference] 20260716-ocsec-03-jfoccf-patch-proposal.patch-proposal.md - Migrated from 20260716-ocsec-03-jfoccf-patch-proposal.patch-proposal.md.
-- `nbbl7d` [reference] 20260716-ocsec-06-nbbl7d-opencode-db-incident-inspection-checklist.reference-research.md - Migrated from 20260716-ocsec-06-nbbl7d-opencode-db-incident-inspection-checklist.reference-research.md.
-- `vcnu3f` [reference] 20260716-ocsec-01-vcnu3f-test-evidence.test-evidence.md - Migrated from 20260716-ocsec-01-vcnu3f-test-evidence.test-evidence.md.

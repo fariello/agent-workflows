@@ -1,5 +1,24 @@
 [
   {
+    "created": "20260813",
+    "date": "20260813",
+    "id6": "032jgo",
+    "kind": "research-prompt",
+    "model": "",
+    "order": "00",
+    "outcome": "none-yet",
+    "path": "20260813-awnamespace-00-032jgo-aw-slash-command-namespace.research-prompt.md",
+    "set_id": "awnamespace",
+    "status": "active",
+    "summary": "Originating prompt for the comparison set.",
+    "topic": [
+      "slash-commands",
+      "namespace",
+      "installer",
+      "host-adapters"
+    ]
+  },
+  {
     "created": "20260712",
     "date": "20260712",
     "id6": "047vzk",
@@ -54,6 +73,25 @@
     "status": "reference",
     "summary": "Migrated from 20260706-cli-name-collision-research-prompt-00-2838rp-cli-name-collision-research-prompt.research-prompt.md.",
     "topic": []
+  },
+  {
+    "created": "20260813",
+    "date": "20260813",
+    "id6": "2bodwq",
+    "kind": "reconciliation-report",
+    "model": "reconciliation",
+    "order": "04",
+    "outcome": "adopted",
+    "path": "20260813-awnamespace-04-2bodwq-aw-slash-command-namespace.reconciliation.reconciliation-report.md",
+    "set_id": "awnamespace",
+    "status": "active",
+    "summary": "Deciding doc. Adopt a single /aw dispatcher fed by one host-neutral verb registry (public syntax /aw <verb> [args...]); do not install /aw-<verb> flat commands by default, offer them only per selected compatibility-risk host.",
+    "topic": [
+      "slash-commands",
+      "namespace",
+      "installer",
+      "host-adapters"
+    ]
   },
   {
     "created": "20260726",
@@ -579,6 +617,25 @@
     "topic": []
   },
   {
+    "created": "20260813",
+    "date": "20260813",
+    "id6": "jc105r",
+    "kind": "research-report",
+    "model": "gemini31pro",
+    "order": "03",
+    "outcome": "none-yet",
+    "path": "20260813-awnamespace-03-jc105r-aw-slash-command-namespace.gemini31pro.research-report.md",
+    "set_id": "awnamespace",
+    "status": "active",
+    "summary": "gemini31pro report.",
+    "topic": [
+      "slash-commands",
+      "namespace",
+      "installer",
+      "host-adapters"
+    ]
+  },
+  {
     "created": "20260712",
     "date": "20260712",
     "id6": "jd8qhs",
@@ -693,6 +750,44 @@
     "status": "reference",
     "summary": "Migrated from 20260716-ocsec-06-nbbl7d-opencode-db-incident-inspection-checklist.reference-research.md.",
     "topic": []
+  },
+  {
+    "created": "20260813",
+    "date": "20260813",
+    "id6": "obveju",
+    "kind": "research-report",
+    "model": "gpt56medium",
+    "order": "01",
+    "outcome": "none-yet",
+    "path": "20260813-awnamespace-01-obveju-aw-slash-command-namespace.gpt56medium.research-report.md",
+    "set_id": "awnamespace",
+    "status": "active",
+    "summary": "gpt56medium report.",
+    "topic": [
+      "slash-commands",
+      "namespace",
+      "installer",
+      "host-adapters"
+    ]
+  },
+  {
+    "created": "20260813",
+    "date": "20260813",
+    "id6": "og3el1",
+    "kind": "research-report",
+    "model": "sonnet5",
+    "order": "02",
+    "outcome": "none-yet",
+    "path": "20260813-awnamespace-02-og3el1-aw-slash-command-namespace.sonnet5.research-report.md",
+    "set_id": "awnamespace",
+    "status": "active",
+    "summary": "sonnet5 report.",
+    "topic": [
+      "slash-commands",
+      "namespace",
+      "installer",
+      "host-adapters"
+    ]
   },
   {
     "created": "20260713",
