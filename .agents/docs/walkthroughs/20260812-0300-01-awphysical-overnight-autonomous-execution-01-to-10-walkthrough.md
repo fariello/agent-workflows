@@ -167,10 +167,17 @@ Workflow history entries in each executed plan for the authoritative per-order r
   It remains in pending/ at Status: approved. The acceptance-test commit (364d843) is kept
   (useful, harmless), pushed with the rest.
 - QUALITY NOTE on 364d843 tests: test_e06 genuinely exercises the compare machinery, but
-  test_e04/test_e05 are WEAK (they assert values in a fixture JSON the test itself loads -
-  tautological fixture-echo, the green-wash pattern). Since the REAL Order 11 deliverable is the
-  human-gated live migration (not these tests), this is moot for now, but if Order 11 is later
-  completed properly these acceptance tests should be strengthened to exercise real behavior.
+  test_e03/e04/e05 were WEAK (they asserted values in a fixture JSON the test itself loads -
+  tautological fixture-echo, the green-wash pattern). RESOLVED 2026-08-12 (commit c722f12):
+  rewrote e03/e04/e05 to exercise real machinery on throwaway repos, each with a falsifiable
+  negative and mutation-probed RED-then-GREEN: e03 drives the real Order-07 MigrationManager
+  (execute + retention manifest cleanup_allowed=False + rollback authority reverts to legacy);
+  e04 uses engine.is_source_checkout against an adopted .aw/system tree (recognized, then not,
+  once removed); e05 uses discover_legacy_write_sinks (no executable legacy writes) + guard_write
+  (rejects a legacy .agents/ destination). Removed the now-unused canned fixtures. Order 11
+  stays in pending/ - only its tests were strengthened; the live migration remains human-gated.
+- STILL WEAK: test_e07 (git-separation) remains fixture-echo; strengthen it when Order 11 is
+  executed for real (it needs a real multi-commit git-separation scenario).
 - WHEN YOU RUN ORDER 11 (with a human in the loop): it MUST (a) git clone --mirror baseline +
   rehearsal on a disposable clone first, (b) relocate .agents/workflows -> .aw/system, (c)
   RE-ADD the two pyproject lines I commented out (wheel force-include + sdist include for
