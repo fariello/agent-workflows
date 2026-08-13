@@ -8,6 +8,8 @@
 - Highest E allocated: 05
 - Author: opencode Opus 4.8
 - Id: bsxowq
+- Set: migdispo (generalize layout-migration dispositions + reusable entrypoint)
+- Order: 1
 
 ## Workflow history
 

@@ -22,7 +22,7 @@
   manifest, gitignored adapter dependency trees). Rather than rediscover these dispositions per
   repo, they are being generalized into the migration tooling + a reusable user entrypoint under a
   NEW follow-up IPD:
-  `.agents/plans/pending/20260812-2216-01-generalize-layout-migration-dispositions-and-entrypoint.md`
+  `.agents/plans/pending/20260812-migdispo-01-bsxowq-generalize-layout-migration-dispositions-and-entrypoint.md`
   (id bsxowq, Status: to-review). Order 11 stays scoped to migrating THIS repo using the
   dispositions decided here; bsxowq makes them automatic for all repos and adds the
   post-install/update entrypoint over `aw migrate-layout`.

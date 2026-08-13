@@ -1588,5 +1588,15 @@
     "plan_id": "pszk6x",
     "set_id": "awphysical",
     "status": "approved"
+  },
+  {
+    "date": "2026-08-12",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260812-migdispo-01-bsxowq-generalize-layout-migration-dispositions-and-entrypoint.md",
+    "plan_id": "bsxowq",
+    "set_id": "migdispo",
+    "status": "to-review"
   }
 ]

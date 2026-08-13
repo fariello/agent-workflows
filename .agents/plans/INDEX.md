@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 77 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 78 Sets; the full manifest is INDEX.json.
+
+## migdispo
+
+- `bsxowq` [pending] 01 pending/20260812-migdispo-01-bsxowq-generalize-layout-migration-dispositions-and-entrypoint.md
 
 ## awphysical
 
@@ -231,10 +235,6 @@ Showing the 40 most-recent of 77 Sets; the full manifest is INDEX.json.
 ## plan-set
 
 - `nedvj7` [executed] 00 executed/20260715-plan-set-00-nedvj7-plan-set-order-frontmatter.md
-
-## unify-readiness
-
-- `c59ziz` [executed] 00 executed/20260715-unify-readiness-00-c59ziz-unify-readiness-verdict-vocabulary.md
 
 ## (singletons: no Set)
 
