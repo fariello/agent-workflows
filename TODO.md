@@ -34,6 +34,19 @@ Not framework bugs; external-tool finding with coordinated-disclosure obligation
 
 ## Planned next (designed, deferred; not yet drafted as IPDs)
 
+**Records backend variant: repo-local-but-untracked `.aw/records/` (deferred; own IPD).** Today
+`RecordsBackend` has exactly three values: `home`, `companion`, `repository` (the last =
+`<repo>/.aw/records` TRACKED in the repo's git). There is a genuine fourth option we never modeled:
+records living at `<repo>/.aw/records` (repo-local, so tooling/locality is trivial) but NOT committed
+(git-ignored). It is NOT a one-line `.gitignore` change: it needs a new enum member (or a
+`records_git: tracked|ignored` sub-flag), the resolver git-policy mapping (`project_context.py`
+~L599/691/733), the durability classifier (`storage.py`, would report local-only/unversioned), the
+wizard presets, the postcheck records-git-ownership assertion, an emitted `.gitignore` entry (and an
+optional `git rm --cached` for an existing tracked tree), and tests. Useful for private/local repos
+that want records in-tree without committing them. Deliberately NOT added during the awphysical Set
+(scope creep onto just-executed orders); do it as a clean follow-up IPD if wanted. Source: maintainer
+question during Order 11 (self-migration) execution, 2026-08-12.
+
 **Cross-tree attention view + owner-written spec status shipped (`attnview` Set, D125).** `aw attention`
 (read-only, on-demand, fail-closed) maps every tracked `.agents/` artifact onto a `ready`/`active`/
 `blocked`/`done`/`parked` class; `aw specs set`/`note`/`check`/`migrate` own spec status+history with an
