@@ -150,8 +150,30 @@ class Ruleset:
 # both are additive. The tracked file's schema is extended (this IPD) to also carry
 # [rules] enabled = [...] / [ip] enabled = true / blacklist entries, read by the same minimal
 # TOML reader below.
-REPO_ALLOWLIST_REL = ".agents/local-leaks-allowlist.toml"
+REPO_ALLOWLIST_REL = ".aw/config/local-leaks-allowlist.toml"
+# Pre-.aw location, retained ONLY as a read/rewrite fallback so an un-migrated repo (whose
+# allowlist still sits at .agents/local-leaks-allowlist.toml) keeps working until the layout
+# migration relocates it to .aw/config/. Never the create-default.
+LEGACY_REPO_ALLOWLIST_REL = ".agents/local-leaks-allowlist.toml"
 USER_HINTS_FILENAME = "local-leaks-hints.json"
+
+
+def resolve_allowlist_path(repo_root: Path) -> Path:
+    """Return the repo allowlist path for ``repo_root`` with bounded legacy compatibility.
+
+    Resolution order: the new ``.aw/config/local-leaks-allowlist.toml`` if it exists, else the
+    legacy ``.agents/local-leaks-allowlist.toml`` if it exists, else the new location as the
+    CREATE default. A fresh repo and a migrated repo use ``.aw/config``; an un-migrated repo
+    whose allowlist is still under ``.agents/`` is read and rewritten in place until the layout
+    migration moves it. One resolver so every read/write site agrees on one location.
+    """
+    new_path = repo_root / REPO_ALLOWLIST_REL
+    if new_path.exists():
+        return new_path
+    legacy_path = repo_root / LEGACY_REPO_ALLOWLIST_REL
+    if legacy_path.exists():
+        return legacy_path
+    return new_path
 
 
 def _parse_simple_toml_lists(text: str) -> dict[str, list[str]]:
@@ -207,7 +229,7 @@ def _parse_simple_toml_bools(text: str) -> dict[str, bool]:
 
 def load_repo_allowlist(repo_root: Path) -> dict[str, list[str]]:
     """Read the repo-committed allowlist TOML; return {} if absent/unreadable."""
-    p = repo_root / REPO_ALLOWLIST_REL
+    p = resolve_allowlist_path(repo_root)
     try:
         return _parse_simple_toml_lists(p.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError):
@@ -216,7 +238,7 @@ def load_repo_allowlist(repo_root: Path) -> dict[str, list[str]]:
 
 def load_repo_config_bools(repo_root: Path) -> dict[str, bool]:
     """Read boolean toggles ([ip] enabled, [rules] hostname=fail-ish) from the allowlist file."""
-    p = repo_root / REPO_ALLOWLIST_REL
+    p = resolve_allowlist_path(repo_root)
     try:
         return _parse_simple_toml_bools(p.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError):
@@ -317,7 +339,8 @@ def write_repo_allowlist(
     ip_enabled: bool,
     hostname_fail: bool,
 ) -> Path:
-    """Write the tracked ``.agents/local-leaks-allowlist.toml`` atomically.
+    """Write the tracked repo allowlist atomically (``.aw/config/local-leaks-allowlist.toml``,
+    or the legacy ``.agents/local-leaks-allowlist.toml`` if that is where it already lives).
 
     Emits only shapes the minimal reader round-trips (flat string arrays + flat booleans).
     Raises ``ConfigValueError`` (before writing anything) if any list value cannot be stored.
@@ -337,7 +360,7 @@ def write_repo_allowlist(
         + f"ip_enabled = {'true' if ip_enabled else 'false'}\n"
         + f"hostname_fail = {'true' if hostname_fail else 'false'}\n"
     )
-    return _atomic_write(repo_root / REPO_ALLOWLIST_REL, header + body)
+    return _atomic_write(resolve_allowlist_path(repo_root), header + body)
 
 
 def write_user_hints(tokens: list[str], patterns: list[str]) -> Path:
@@ -865,7 +888,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {f.location}: {f.rule}: {f.snippet}", file=sys.stderr)
         print(
             "\nRemove or abstract these (portable placeholder / repo-relative path), "
-            "or add a justified entry to .agents/local-leaks-allowlist.toml if genuinely public. "
+            "or add a justified entry to .aw/config/local-leaks-allowlist.toml (legacy "
+            ".agents/local-leaks-allowlist.toml is still honored) if genuinely public. "
             "'--fix' can rewrite home-style paths.",
             file=sys.stderr,
         )

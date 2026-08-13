@@ -1122,9 +1122,7 @@ class UntrackedGitignoreInstallTests(unittest.TestCase):
         repo = init_repo(self.base / "man")
         INS.install_into_repo(repo, self.source, yes=True, no_color=True)
         raw = json.loads(
-            (repo / ".agents/agent-workflows/managed-sections.json").read_text(
-                encoding="utf-8"
-            )
+            (repo / ".aw/system/managed-sections.json").read_text(encoding="utf-8")
         )
         self.assertIn(".gitignore#aw:untracked", raw["files"])
 
@@ -1367,7 +1365,7 @@ class UninstallApplyTests(unittest.TestCase):
         changed: list[str] = []
         INS.uninstall_repo(repo, use_git=True, changed_out=changed)
         # Manifest + AGENTS pointer + .gitignore are among the changed paths.
-        self.assertIn(".agents/agent-workflows/managed-sections.json", changed)
+        self.assertIn(".aw/system/managed-sections.json", changed)
         self.assertIn("AGENTS.md", changed)
         # AGENTS.md still exists (only its managed block was stripped, U8).
         self.assertTrue((repo / "AGENTS.md").is_file())
@@ -1377,7 +1375,7 @@ class UninstallApplyTests(unittest.TestCase):
         repo = init_repo(self.base / "pre")
         INS.install_into_repo(repo, self.source, yes=True, no_color=True)
         # Delete the manifest to simulate a pre-manifest repo, then uninstall.
-        (repo / ".agents/agent-workflows/managed-sections.json").unlink()
+        (repo / ".aw/system/managed-sections.json").unlink()
         INS.uninstall_repo(repo, use_git=True)
         self.assertFalse((repo / ".agents/workflows").is_dir())
 
@@ -1461,7 +1459,7 @@ class UninstallCharacterizationTests(unittest.TestCase):
         # a user-edited (drifted) shim is PRESERVED by default (removed only on --force/choice).
         repo = init_repo(self.base / "m")
         INS.install_into_repo(repo, self.source, yes=True, no_color=True)
-        manifest = repo / ".agents/agent-workflows/managed-sections.json"
+        manifest = repo / ".aw/system/managed-sections.json"
         self.assertTrue(manifest.is_file())
         shim = repo / ".opencode/commands/advise.md"
         shim.write_text("MY EDIT\n", encoding="utf-8")
@@ -1602,7 +1600,7 @@ class AwBlockMigrationTests(unittest.TestCase):
 
         repo = init_repo(self.base / "declined")
         INS.install_into_repo(repo, self.source, yes=True, no_color=True)
-        mpath = repo / ".agents" / "agent-workflows" / "managed-sections.json"
+        mpath = repo / ".aw" / "system" / "managed-sections.json"
         man = M.load(mpath)
         man.mark_declined("AGENTS.md#aw:pointer", kind="section")
         M.save(man, mpath)
@@ -1685,7 +1683,7 @@ class ManifestInstallFlowTests(unittest.TestCase):
         self._tmp.cleanup()
 
     def _manifest_path(self, repo):
-        return repo / ".agents" / "agent-workflows" / "managed-sections.json"
+        return repo / ".aw" / "system" / "managed-sections.json"
 
     def test_second_install_rederives_identical_hashes(self):
         # M12 idempotence: a second same-version install must record the SAME hashes (we
@@ -1888,7 +1886,7 @@ class PreManifestCharacterizationTests(unittest.TestCase):
         INS.install_into_repo(
             repo, REPO_ROOT / ".agents" / "workflows", yes=True, no_color=True
         )
-        manifest = repo / ".agents" / "agent-workflows" / "managed-sections.json"
+        manifest = repo / ".aw" / "system" / "managed-sections.json"
         self.assertTrue(manifest.exists(), "install must now write the manifest (CP3)")
         raw = json.loads(manifest.read_text(encoding="utf-8"))
         self.assertIn("files", raw)

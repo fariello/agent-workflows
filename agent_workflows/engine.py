@@ -3311,7 +3311,7 @@ def plan_uninstall(repo_root: Path) -> UninstallPlan:
     block-strip path. Pure: reads the manifest + file contents, mutates nothing.
     """
 
-    manifest_path = repo_root / manifest_mod.DEFAULT_MANIFEST_RELPATH
+    manifest_path = manifest_mod.resolve_manifest_path(repo_root)
     plan = UninstallPlan()
     if not manifest_path.is_file():
         return plan  # has_manifest stays False -> caller uses the namespace fallback
@@ -3429,9 +3429,9 @@ def uninstall_repo(
 
     # 4. Finally, remove the manifest itself (its job is done once its files are gone). LAST,
     #    so a mid-uninstall failure still leaves the ownership record intact for a retry (U3).
-    manifest_rel = manifest_mod.DEFAULT_MANIFEST_RELPATH
-    manifest_path = repo_root / manifest_rel
+    manifest_path = manifest_mod.resolve_manifest_path(repo_root)
     if manifest_path.is_file():
+        manifest_rel = manifest_path.relative_to(repo_root).as_posix()
         _uninstall_remove(repo_root, manifest_rel, use_git)
         _record_changed(manifest_rel)
         actions.append(f"removed {manifest_rel}")
@@ -4097,7 +4097,7 @@ def install_into_repo(
     # write/prune paths make the drift decision against OUR last-installed hash. A missing
     # manifest is treated as a fresh install. Location is path-parameterized (default
     # .agents/agent-workflows/managed-sections.json); the module itself is git-independent.
-    manifest_path = plan.repo_root / manifest_mod.DEFAULT_MANIFEST_RELPATH
+    manifest_path = manifest_mod.resolve_manifest_path(plan.repo_root)
     manifest = manifest_mod.load(manifest_path)
     object.__setattr__(plan, "manifest", manifest)
 

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 # Re-export the unified engine's public surface so this module's historical API is preserved.
 from .leak_sanitizer import (  # noqa: F401
+    LEGACY_REPO_ALLOWLIST_REL,
     REPO_ALLOWLIST_REL,
     USER_HINTS_FILENAME,
     Finding,
@@ -35,6 +36,7 @@ from .leak_sanitizer import (  # noqa: F401
     load_repo_allowlist,
     load_user_hints,
     main,
+    resolve_allowlist_path,
     run,
     scan_history,
     scan_text,
@@ -43,7 +45,9 @@ from .leak_sanitizer import (  # noqa: F401
 )
 
 __all__ = [
+    "LEGACY_REPO_ALLOWLIST_REL",
     "REPO_ALLOWLIST_REL",
+    "resolve_allowlist_path",
     "USER_HINTS_FILENAME",
     "Finding",
     "Ruleset",

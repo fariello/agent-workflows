@@ -450,10 +450,44 @@ class WizardCoreTests(unittest.TestCase):
 
 
 class ConfigReconciliationTests(unittest.TestCase):
+    def test_e04_allowlist_resolver_prefers_aw_config_falls_back_to_legacy(self):
+        # E-04 / V-04 (allowlist side): resolve_allowlist_path prefers .aw/config, else legacy.
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+            # create-default when neither exists
+            self.assertEqual(
+                ls.resolve_allowlist_path(repo),
+                repo / ".aw" / "config" / "local-leaks-allowlist.toml",
+            )
+            # un-migrated: only legacy exists -> resolver returns legacy (falsifiable)
+            legacy = repo / ".agents" / "local-leaks-allowlist.toml"
+            legacy.parent.mkdir(parents=True)
+            legacy.write_text("allow_line_substrings = []\n", encoding="utf-8")
+            self.assertEqual(ls.resolve_allowlist_path(repo), legacy)
+            # load routes through the resolver, so the legacy file is actually read
+            self.assertIn("allow_line_substrings", ls.load_repo_allowlist(repo))
+            # migrated: .aw/config wins over legacy when both present
+            new = repo / ".aw" / "config" / "local-leaks-allowlist.toml"
+            new.parent.mkdir(parents=True)
+            new.write_text("allow_line_substrings = []\n", encoding="utf-8")
+            self.assertEqual(ls.resolve_allowlist_path(repo), new)
+
+    def test_e04_local_leaks_reexports_resolver(self):
+        # E-04 / V-04: the local_leaks public surface re-exports the resolver + both constants.
+        from agent_workflows import local_leaks as legacy_mod
+
+        self.assertEqual(legacy_mod.REPO_ALLOWLIST_REL, ls.REPO_ALLOWLIST_REL)
+        self.assertEqual(
+            legacy_mod.LEGACY_REPO_ALLOWLIST_REL, ls.LEGACY_REPO_ALLOWLIST_REL
+        )
+        self.assertIs(legacy_mod.resolve_allowlist_path, ls.resolve_allowlist_path)
+
     def test_one_canonical_tracked_config_no_competing_file(self):
-        # PR-003: the tracked config is .agents/local-leaks-allowlist.toml and there is NO
-        # second competing leak-sanitizer allow file in the repo.
-        self.assertTrue((REPO_ROOT / ls.REPO_ALLOWLIST_REL).exists())
+        # PR-003: there is ONE canonical tracked allowlist and NO competing allow file.
+        # The canonical location is now .aw/config/local-leaks-allowlist.toml with a bounded
+        # legacy fallback to .agents/local-leaks-allowlist.toml (until this repo is migrated),
+        # so resolve via the resolver rather than the raw new-location constant.
+        self.assertTrue(ls.resolve_allowlist_path(REPO_ROOT).is_file())
         stray = list(REPO_ROOT.glob(".agents/leak-sanitizer-allow*"))
         self.assertEqual(stray, [], f"competing config file present: {stray}")
 

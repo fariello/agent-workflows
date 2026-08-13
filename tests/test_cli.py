@@ -317,9 +317,7 @@ class UninstallTests(CliTestBase):
         self.assertIn("dry-run", out.lower())
         # Nothing removed.
         self.assertTrue((repo / ".agents/workflows").is_dir())
-        self.assertTrue(
-            (repo / ".agents/agent-workflows/managed-sections.json").is_file()
-        )
+        self.assertTrue((repo / ".aw/system/managed-sections.json").is_file())
 
     def test_uninstall_yes_removes_manifest_and_leaves_scaffolding(self):
         # --yes (no --deep) removes owned files + manifest but PRESERVES the .agents/ scaffolding.
@@ -328,9 +326,7 @@ class UninstallTests(CliTestBase):
         code, out = _run(["uninstall", str(repo), "--yes"])
         self.assertEqual(code, 0, out)
         self.assertFalse((repo / ".agents/workflows").exists())
-        self.assertFalse(
-            (repo / ".agents/agent-workflows/managed-sections.json").exists()
-        )
+        self.assertFalse((repo / ".aw/system/managed-sections.json").exists())
         # Scaffolding preserved (holds user content); --yes without --deep does not delete it.
         self.assertTrue((repo / ".agents/plans").exists())
 

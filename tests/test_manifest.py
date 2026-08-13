@@ -155,5 +155,44 @@ class DeclineTombstoneTests(unittest.TestCase):
         self.assertTrue(man.is_declined("advise.md"))
 
 
+class ManifestPathResolverTests(unittest.TestCase):
+    """E-04 / V-04 (manifest side): resolve_manifest_path prefers .aw/system, falls back to legacy."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_create_default_is_aw_system(self):
+        # Neither location exists -> create-default is the .aw/system location.
+        p = M.resolve_manifest_path(self.repo)
+        self.assertEqual(p, self.repo / ".aw" / "system" / "managed-sections.json")
+
+    def test_migrated_repo_resolves_aw_system(self):
+        new = self.repo / ".aw" / "system" / "managed-sections.json"
+        new.parent.mkdir(parents=True)
+        new.write_text("{}", encoding="utf-8")
+        self.assertEqual(M.resolve_manifest_path(self.repo), new)
+
+    def test_unmigrated_repo_falls_back_to_legacy(self):
+        legacy = self.repo / ".agents" / "agent-workflows" / "managed-sections.json"
+        legacy.parent.mkdir(parents=True)
+        legacy.write_text("{}", encoding="utf-8")
+        # Falsifiable: with only the legacy file present, the resolver MUST return it
+        # (not the new create-default), else an un-migrated repo's manifest is invisible.
+        self.assertEqual(M.resolve_manifest_path(self.repo), legacy)
+
+    def test_new_wins_over_legacy_when_both_present(self):
+        new = self.repo / ".aw" / "system" / "managed-sections.json"
+        new.parent.mkdir(parents=True)
+        new.write_text("{}", encoding="utf-8")
+        legacy = self.repo / ".agents" / "agent-workflows" / "managed-sections.json"
+        legacy.parent.mkdir(parents=True)
+        legacy.write_text("{}", encoding="utf-8")
+        self.assertEqual(M.resolve_manifest_path(self.repo), new)
+
+
 if __name__ == "__main__":
     unittest.main()

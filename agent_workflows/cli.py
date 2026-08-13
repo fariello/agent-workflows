@@ -2695,7 +2695,8 @@ def _run_leaks_configure(args: argparse.Namespace, term: Term) -> int:
         term.status(
             "warn",
             "sanitize --configure needs an interactive terminal. To configure "
-            "non-interactively, edit .agents/local-leaks-allowlist.toml directly. Nothing changed.",
+            "non-interactively, edit .aw/config/local-leaks-allowlist.toml directly "
+            "(legacy .agents/local-leaks-allowlist.toml is still honored). Nothing changed.",
         )
         return 2
 

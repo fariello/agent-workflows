@@ -36,11 +36,40 @@ from typing import Any, Dict, Optional
 # unknown keys and an older one by supplying defaults.
 SCHEMA_VERSION = 2
 
-# Default, relative to a target repo root. The location is POLICY, not mechanism: callers
-# pass an absolute path; this constant only documents the default the engine uses.
-DEFAULT_MANIFEST_RELPATH = ".agents/agent-workflows/managed-sections.json"
+# Default (create) location, relative to a target repo root, in the physical .aw layout:
+# the install manifest is `system` content and lives at the system root. The location is
+# POLICY, not mechanism: callers pass an absolute path; this constant documents the default
+# the engine uses when CREATING a manifest. Reads tolerate the legacy location via
+# resolve_manifest_path() below (bounded compatibility for un-migrated repos).
+DEFAULT_MANIFEST_RELPATH = ".aw/system/managed-sections.json"
+
+# The pre-.aw location. Retained ONLY as a read fallback so an un-migrated repo (whose
+# manifest still sits under .agents/agent-workflows/) keeps working until the layout
+# migration relocates it. Never the create-default.
+LEGACY_MANIFEST_RELPATH = ".agents/agent-workflows/managed-sections.json"
 
 INSTALLER_NAME = "agent-workflows"
+
+
+def resolve_manifest_path(repo_root: "os.PathLike[str] | str") -> Path:
+    """Return the manifest path for ``repo_root`` with bounded legacy compatibility.
+
+    Resolution order: the new ``.aw/system/managed-sections.json`` if it already exists,
+    else the legacy ``.agents/agent-workflows/managed-sections.json`` if it exists, else the
+    new location as the CREATE default. This lets a fresh install and a migrated repo use the
+    ``.aw/`` location while an un-migrated repo (manifest still under ``.agents/``) is still
+    read in place until the layout migration moves it. A single resolver so every read/write
+    site agrees on one location.
+    """
+
+    root = Path(repo_root)
+    new_path = root / DEFAULT_MANIFEST_RELPATH
+    if new_path.exists():
+        return new_path
+    legacy_path = root / LEGACY_MANIFEST_RELPATH
+    if legacy_path.exists():
+        return legacy_path
+    return new_path
 
 
 def normalize_for_hash(text: str) -> str:
