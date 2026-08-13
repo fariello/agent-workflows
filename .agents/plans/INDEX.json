@@ -1593,6 +1593,16 @@
     "date": "2026-08-13",
     "disposition": "pending",
     "kind": "child",
+    "order": 0,
+    "path": "pending/20260813-backlogtier-01-crv40v-attention-visible-backlog-tier.md",
+    "plan_id": "crv40v",
+    "set_id": "backlogtier",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-13",
+    "disposition": "pending",
+    "kind": "child",
     "order": 1,
     "path": "pending/20260813-ipdexechist-01-69xrut-executed-history-lint-guard.md",
     "plan_id": "69xrut",

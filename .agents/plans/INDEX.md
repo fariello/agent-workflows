@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 79 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 80 Sets; the full manifest is INDEX.json.
+
+## backlogtier
+
+- `crv40v` [pending] 00 pending/20260813-backlogtier-01-crv40v-attention-visible-backlog-tier.md
 
 ## ipdexechist
 
@@ -231,10 +235,6 @@ Showing the 40 most-recent of 79 Sets; the full manifest is INDEX.json.
 ## docs-consistency
 
 - `49lbcl` [executed] 00 executed/20260715-docs-consistency-00-49lbcl-docs-consistency-audit-corrections.md
-
-## install-entry
-
-- `1k3iq5` [executed] 00 executed/20260715-install-entry-00-1k3iq5-install-entry-point-parity-commit-and-isolation.md
 
 ## (singletons: no Set)
 
