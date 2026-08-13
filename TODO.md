@@ -7,6 +7,21 @@ triages this file against each release.
 
 ## Known bugs to fix
 
+- **`aw install` from a mid-awphysical build produces a SPLIT-BRAIN install (`.aw/` bookkeeping +
+  `.agents/workflows/` content).** With the awphysical migration partially in `main` (Orders 01-10 +
+  bsxowq E-02/E-03/E-04), the installer writes its manifest to `.aw/system/managed-sections.json`
+  (D-E-04 change: `DEFAULT_MANIFEST_RELPATH`) and config/state to `.aw/config`+`.aw/state`, but STILL
+  materializes the workflow content at the legacy `.agents/workflows/` (the content relocation is
+  Order 11, not shipped).   Result on a real target (observed 2026-08-13 in a separate target repo via
+  the editable dev install `1.3.0rc2.dev360`): committed `.agents/` tree at old paths + uncommitted
+  `.aw/config`/`.aw/state`, manifest at `.aw/system` recording `.agents/` paths, and a version skew
+  (`.agents/workflows/VERSION` 1.2.1 vs install.json 2026.8.10). GUARD NEEDED: `aw install`/`update`
+  should detect the mid-migration inconsistency (manifest default = `.aw/system` while content ships
+  to `.agents/workflows`) and refuse or loudly warn rather than emit an inconsistent layout; at
+  minimum, do not split bookkeeping and content across layouts. Interim mitigation: pin the PATH `aw`
+  to a released version for real installs (keep the editable dev checkout out of install use) until
+  the physical cutover (Order 11/awphysical) ships and installs are consistent. Discovered 2026-08-13.
+
 - **Test-isolation flake: `tests/test_setup_artifacts.py::PromptsScaffoldTests::test_undo_removes_prompts_scaffold`.**
   Observed once failing in a full-suite run (pytest-randomly seed 995070605, 2026-07-26) but passes
   standalone and on full-suite re-runs INCLUDING the same seed, so it is a non-deterministic
