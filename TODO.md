@@ -34,6 +34,18 @@ Not framework bugs; external-tool finding with coordinated-disclosure obligation
 
 ## Planned next (designed, deferred; not yet drafted as IPDs)
 
+**`/aw <verb>` command-family redesign (own Set/IPD; cross-cutting).** Introduce a single `/aw`
+slash-command namespace and move the framework's own workflow commands under it (e.g. `/setup-repo`
+-> `/aw setup`, `/assess` -> `/aw assess`, a future `/aw migrate` / `/aw migrate-layout`), mirroring
+the `aw <verb>` CLI. `/aw` is very unlikely to collide in agent coding environments. NOT trivial:
+(1) per-host slash-command grammar must be verified first - some hosts may not support a real
+`/aw <space> subcommand` and would need `/aw-<verb>` or `/aw:<verb>`; (2) it touches every workflow's
+shim/installer naming + docs; (3) needs back-compat aliases for the existing top-level command names
+and a deprecation path so user muscle-memory and existing shims keep working. Own review. Discovered
+2026-08-12 during /plan-review of IPD bsxowq (migdispo); that plan only NAMES its new `migrate-layout`
+workflow to fit this future scheme and explicitly does NOT build the namespace or rename existing
+workflows.
+
 **`aw ipd scaffold` should enforce the clustering filename grammar + Set metadata (authoring gap).**
 Today `ipd scaffold` takes `--path` verbatim and treats `--set` as OPTIONAL: if `--set` is omitted it
 writes NO `- Set:` line and does not derive/validate the clustering-grammar filename
