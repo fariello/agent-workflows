@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 78 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 79 Sets; the full manifest is INDEX.json.
+
+## ipdexechist
+
+- `69xrut` [pending] 01 pending/20260813-ipdexechist-01-69xrut-executed-history-lint-guard.md
 
 ## migdispo
 
@@ -68,7 +72,7 @@ Showing the 40 most-recent of 78 Sets; the full manifest is INDEX.json.
 
 ## ipd-history
 
-- `wrt0wq` [pending] 01 pending/20260807-ipd-history-01-wrt0wq-ipd-lifecycle-history-tracking.md
+- `wrt0wq` [superseded] 01 superseded/20260807-ipd-history-01-wrt0wq-ipd-lifecycle-history-tracking.md
 
 ## verify-execution
 
@@ -231,10 +235,6 @@ Showing the 40 most-recent of 78 Sets; the full manifest is INDEX.json.
 ## install-entry
 
 - `1k3iq5` [executed] 00 executed/20260715-install-entry-00-1k3iq5-install-entry-point-parity-commit-and-isolation.md
-
-## plan-set
-
-- `nedvj7` [executed] 00 executed/20260715-plan-set-00-nedvj7-plan-set-order-frontmatter.md
 
 ## (singletons: no Set)
 

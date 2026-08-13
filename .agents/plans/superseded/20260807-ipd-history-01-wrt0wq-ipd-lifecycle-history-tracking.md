@@ -1,10 +1,12 @@
+<!-- RETIRED 2026-08-13: superseded. E-03 (plan-review appends a `reviewed` history line) and E-04 (approved/executed history entries required before `git mv`) ALREADY SHIPPED (plan-review.md; AGENTS.md + ipd-lifecycle; D52). E-01/E-02 (machine-readable history grammar + `aw ipd log-event`) DECLINED per D131 (keep free-form prose history; not obviously needed and not backward compatible; revisit if a real consumer emerges). E-05 (lint that an executed plan carries an `executed` history line) SALVAGED as .agents/plans/pending/20260813-ipdexechist-01-69xrut-executed-history-lint-guard.md (id 69xrut). See D131. -->
+
 # IPD: IPD Lifecycle History Tracking and Workflow Integration
 
 - Date: 2026-08-07
 - Kind: child
 - Concern: ipd-lifecycle-history
 - Scope: `agent_workflows/ipd_authoring.py`, `agent_workflows/ipd_schema.py`, `agent_workflows/ipd_lint.py`, `.agents/workflows/plan-review/`, `.agents/workflows/assess/templates/`
-- Status: to-review
+- Status: superseded
 - Highest E allocated: 04
 - Author: Antigravity Agent
 - Id: wrt0wq
@@ -15,6 +17,7 @@
 
 - 2026-08-07 draft (Antigravity Agent): created initial IPD structure.
 - 2026-08-07 to-review (Antigravity Agent): populated implementation checklist, schema specification, and validation items for automated IPD history tracking across creation, update, review, approval, and execution.
+- 2026-08-13 superseded (opencode Opus 4.8, human maintainer): retired. E-03/E-04 already shipped; E-01/E-02 (machine-readable history) declined per D131; E-05 salvaged as IPD 69xrut (executed-history-lint-guard). Moved pending/ -> superseded/.
 
 ## Goal
 

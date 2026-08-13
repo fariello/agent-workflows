@@ -1560,16 +1560,6 @@
     "status": "not-executed"
   },
   {
-    "date": "2026-08-07",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260807-ipd-history-01-wrt0wq-ipd-lifecycle-history-tracking.md",
-    "plan_id": "wrt0wq",
-    "set_id": "ipd-history",
-    "status": "to-review"
-  },
-  {
     "date": "2026-08-10",
     "disposition": "pending",
     "kind": "orchestrator",
@@ -1598,5 +1588,25 @@
     "plan_id": "pszk6x",
     "set_id": "awphysical",
     "status": "approved"
+  },
+  {
+    "date": "2026-08-13",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260813-ipdexechist-01-69xrut-executed-history-lint-guard.md",
+    "plan_id": "69xrut",
+    "set_id": "ipdexechist",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-07",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 1,
+    "path": "superseded/20260807-ipd-history-01-wrt0wq-ipd-lifecycle-history-tracking.md",
+    "plan_id": "wrt0wq",
+    "set_id": "ipd-history",
+    "status": "superseded"
   }
 ]
