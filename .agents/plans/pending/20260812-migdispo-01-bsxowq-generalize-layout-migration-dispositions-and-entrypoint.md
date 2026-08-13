@@ -4,17 +4,19 @@
 - Kind: child
 - Concern: The awphysical layout-migration tooling resolves the clean record/system/state classes, but its disposition rules do NOT cover the infrastructure files that EVERY installed agent-workflows repo carries (the `.agents/README.md` layout doc, the tracked leak-sanitizer allowlist config, the per-repo self-install manifest, and gitignored adapter dependency trees like `.opencode/node_modules`). As a result the migration inventory fails closed with `unknown-owner` on real installs, and each repo would have to rediscover the same dispositions by hand. There is also no simple, documented one-off entrypoint an end user runs after install/update to migrate their own repo.
 - Scope: Disposition rules in `tools/awphysical/aw_layout_inventory.py` (`_legacy_class`, `classify_item`, `build_migration_map`, and gitignore-aware item enumeration); canonical reader-path resolution for the manifest and the leak-allowlist, which spans MORE than the two constants: `agent_workflows/manifest.py` (`DEFAULT_MANIFEST_RELPATH` + every consumer) and its consumers in `agent_workflows/engine.py` (the three `manifest_mod.DEFAULT_MANIFEST_RELPATH` read sites at ~3314/3432/4100); `agent_workflows/leak_sanitizer.py` (`REPO_ALLOWLIST_REL` used at ~210/219/340 + message strings) and its re-export in `agent_workflows/local_leaks.py`; the message string in `agent_workflows/cli.py` (~2698). A reusable user-facing post-install/update migration entrypoint (a short workflow/prompt over the existing `aw migrate-layout` CLI); and focused tests. NOT the live migration of any specific repo (that is Order 11 for this repo, and the user-run entrypoint for others).
-- Status: reviewed
+- Status: approved
 - Highest E allocated: 05
 - Author: opencode Opus 4.8
 - Id: bsxowq
 - Set: migdispo (generalize layout-migration dispositions + reusable entrypoint)
 - Order: 1
+- Approval: 2026-08-12 human maintainer (chat) - approved to execute after /plan-review (APPROVE WITH REVISIONS APPLIED); recorded by opencode Opus 4.8.
 
 ## Workflow history
 
 - 2026-08-12 draft (opencode Opus 4.8): created as a follow-up to awphysical Order 11 (self-migration). Order 11 Stage 1 surfaced that the migration disposition rules are incomplete for infrastructure files every install carries; this plan generalizes the rules + reader-path canonicalization + a reusable entrypoint so other repos do not rediscover the same dispositions. See the decision record `.agents/docs/walkthroughs/20260812-1200-01-order11-self-migration-decision-record-walkthrough.md`.
 - 2026-08-12 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005. Verified every material claim from repository evidence. Widened Scope + E-04 to include the three `engine.py` manifest consumers (~3314/3432/4100) and the `local_leaks.py` re-export the original omitted (PR-001), and required a resolver rather than a bare `repo_root / CONST` string since a plain constant cannot express legacy fallback (PR-002). Sharpened E-02 to reuse the existing `git_sets` `ignored` set and prune ignored dirs (no gitignore reimplementation in `_walk`; avoid hashing node_modules) (PR-003). Made E-05 explicitly a distinctly-named `migrate-layout` workflow that must not shadow the existing `migrate` planning workflow, named to fit the future `/aw` command family (PR-004); OQ-01 resolved with the human maintainer (workflow, no standalone prompt; the `/aw` command-family redesign backlogged in TODO.md as a separate follow-up). Extended V-04/V-05 + Required tests to cover the added call sites and the workflow's non-collision. Structural lint conforming (author + review-finalize). Status to-review -> reviewed. Readiness: GO - PENDING HUMAN APPROVAL.
+- 2026-08-12 approved (human maintainer via chat, recorded by opencode Opus 4.8): cleared to execute. Status reviewed -> approved.
 
 ## Goal
 
