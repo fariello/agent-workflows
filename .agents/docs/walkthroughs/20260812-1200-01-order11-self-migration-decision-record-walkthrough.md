@@ -16,6 +16,17 @@
 - External roots: NONE (all framework material is inside the repo; ~/.aw holds only registration/state, not migrated).
 - Execution style: STAGED WITH CHECKPOINTS (map approval, rehearsal report, real cutover, commit confirmation).
 
+## Reusable follow-up (the general problem)
+- The Stage-1 findings below are GENERAL: every installed agent-workflows repo carries the same
+  infrastructure files (layout README, tracked leak-allowlist config, per-repo self-install
+  manifest, gitignored adapter dependency trees). Rather than rediscover these dispositions per
+  repo, they are being generalized into the migration tooling + a reusable user entrypoint under a
+  NEW follow-up IPD:
+  `.agents/plans/pending/20260812-2216-01-generalize-layout-migration-dispositions-and-entrypoint.md`
+  (id bsxowq, Status: to-review). Order 11 stays scoped to migrating THIS repo using the
+  dispositions decided here; bsxowq makes them automatic for all repos and adds the
+  post-install/update entrypoint over `aw migrate-layout`.
+
 ## Stage 1 findings (read-only; production `aw migrate-layout inventory --target-backend repository`)
 - Baseline frozen at /tmp/opencode/order11-baseline: git clone --mirror repo.git, 762 commits,
   HEAD 3e07137, tracked-tree digest d91e0630..., 789 tracked files.
