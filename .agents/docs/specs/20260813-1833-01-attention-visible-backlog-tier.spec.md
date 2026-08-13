@@ -64,6 +64,7 @@ Status is encoded BOTH by directory (disposition, like `plans/`) and by a bare-e
 id: <id6>                 # stable base36 handle, never changes (artifact_core)
 created: <YYYYMMDD>
 status: open              # open | blocked | parked | done  (bare enum; owned by `aw backlog set`)
+set: <terse-id>           # grouping key from v1 (a singleton is a set of one); clustering filename
 priority: high            # high | medium | low     (sort hint within a class; not a class)
 kind: bug                 # bug | feature | chore | security | followup
 summary: <one line>       # the glanceable line aw attention/whatnext show
@@ -76,7 +77,7 @@ Free-form prose body: description, links to DECISIONS/commits/specs, acceptance 
 
 Status enum (resolved OQ3): `open | blocked | parked | done`. `blocked` = a Tier-1 COMMITTED item waiting on a NAMED gate; it REQUIRES a typed `gate-kind`/`gate-ref` pair (mirroring the specs `Gate-Kind`/`Gate-Ref` contract) and maps to the attention `blocked` class, so a committed-but-gated item is neither mislabeled `open` (falsely actionable-now) nor hidden in `parked` (falsely uncommitted).
 
-Filename grammar (clustering, consistent with plans/research): `YYYYMMDD-<id6>-<slug>.md` (singletons; a `- Set:` grouping MAY be added later if cohorts emerge, OQ6). `aw backlog new` owns the name + frontmatter (no hand-naming, per the plans/research rule).
+Filename grammar (clustering, consistent with plans/research; resolved OQ6): `YYYYMMDD-<set-id>-<NN>-<id6>-<slug>.md`, and the item carries a `set:` frontmatter field FROM v1 (a singleton is a set of one, never special-cased). `aw backlog new` owns the name + frontmatter (no hand-naming, per the plans/research rule).
 
 ### 6.2 Attention integration (the D125 extension) - FOUR touch-points, not one
 
@@ -116,7 +117,9 @@ scan path in `attention.py`; backlog should instead go through the standard `ite
 
 ### 6.3 CLI
 
-`aw backlog new|set|check` (+ optional `index`/`find`), wired at the two `cli.py` edit points, mirroring `aw research`/`aw specs`. `set` moves the file between `open/parked/done`, updates the frontmatter `status`, and appends a `## Workflow history` line (append-only provenance, D52 style). `check` validates: frontmatter present + valid enums, status-mirrors-directory, id6 present/unique, `summary` nonempty; fail closed with the `Drift`/`--agent`/exit convention.
+`aw backlog new|set|check`, wired at the two `cli.py` edit points, mirroring `aw research`/`aw specs`. `new` creates a conformant item (dry-run by default), owning the clustering name + frontmatter (id6, set, status, priority, kind, summary). `set` moves the file between `open/blocked/parked/done`, updates the frontmatter `status` (and requires `gate-kind`/`gate-ref` when moving to `blocked`), and appends a `## Workflow history` line (append-only provenance, D52 style). `check` validates: frontmatter present + valid enums, status-mirrors-directory, `gate-kind`/`gate-ref` present iff `blocked`, id6 present/unique, `summary` nonempty; fail closed with the `Drift`/`--agent`/exit convention. (No `index`/`find` in v1 per OQ5.)
+
+Additionally on the attention surface (resolved OQ2): add `aw attention all` (reveals `parked`/archived-tier items that the default board hides) and an `aw att` alias for `aw attention`. Both are small `cli.py` edits bundled with this work.
 
 ## 7. Convention / docs change
 
@@ -129,7 +132,7 @@ scan path in `attention.py`; backlog should instead go through the standard `ite
 
 - F1 The `records`-class `backlog/{open,blocked,parked,done}/` tree (dual path `.agents/backlog/` pre-migration, `.aw/records/backlog/` post-migration) with the item format of Section 6.1; `blocked` items carry a typed `gate-kind`/`gate-ref`.
 - F2 The FOUR attention touch-points of Section 6.2 are all implemented (mapping + `TreePolicy` in `attention_contract.py`; `SCAN_ROOTS` in `artifact_core.py`; `_backlog_record` + `scan` routing in `attention.py`; docs/tests), so `aw attention` classifies and includes backlog items; `ready` (open) items appear in the hot glance and `/whatnext`, `parked` only in JSON. A `CLASS_MAPS` edit ALONE is insufficient and MUST NOT be treated as the whole change.
-- F3 `aw backlog new|set|check` implementing capture, status transitions + history, and fail-closed validation, stdlib-only, `--agent` + exit convention on `check`.
+- F3 `aw backlog new|set|check` implementing capture (owning the clustering name + `set`/`priority`/`kind` frontmatter), status transitions + history (incl. the `blocked` typed-gate rule), and fail-closed validation, stdlib-only, `--agent` + exit convention on `check`. PLUS `aw attention all` (reveal parked) and the `aw att` alias (OQ2).
 - F4 `TODO.md` migration per G5; `TODO.md` retired or reduced to a pointer + Notes.
 - F5 status-mirrors-directory + pure/total mapping enforced (a `check` rule + a contract test).
 - N1 stdlib only, zero deps, Python 3.9. N2 ships as `aw backlog`. N3 reuses `artifact_core` + the attention contract; no fork. N4 no em/en dashes in authored user-facing output.
@@ -161,11 +164,11 @@ migration (D130) that RETIRES `.agents/`; corrected to the `records`-class `back
 resolved with the maintainer during review (below).
 
 - OQ1 RESOLVED (2026-08-13 /plan-review, human maintainer): "Known bugs" + "Security follow-ups" + "Planned next (designed, deferred)" are ALL Tier-1 `open` (the committed-next queue); "Consider / may be declined" is Tier-2 `parked`; "Notes" is Tier-3 prose. (An `open` item that names a gate goes to `blocked` instead.)
-- OQ2 Should `parked` items be TOTALLY excluded from the human `aw attention` board, or shown in a collapsed/secondary "backlog (parked)" section? (Leaning: excluded from the hot glance, in JSON, matching `archive` research; a `--all`/`--include-parked` flag could reveal them.)
+- OQ2 RESOLVED (2026-08-13 /plan-review, human maintainer): `parked` items are EXCLUDED from the human `aw attention` hot glance, PRESENT in `aw attention --format json`, and revealed on demand by a new `aw attention all` sub-invocation (reveals parked/archived-tier items). Matches the `archive` research precedent. ALSO (maintainer add): alias `aw att` -> `aw attention` (the tool is invoked constantly; a short alias reduces friction). Both the `all` reveal and the `att` alias are in scope for the implementing IPD.
 - OQ3 RESOLVED (2026-08-13 /plan-review, human maintainer): ADD `blocked` in v1. A committed-but-gated item uses `status: blocked` with a REQUIRED typed `gate-kind`/`gate-ref` pair (mirroring the specs gate contract), mapping to the attention `blocked` class. Statuses are `open | blocked | parked | done`.
-- OQ4 Promotion path: when a backlog item becomes a plan, does it move to `done` with a cite to the plan, or gain a `promoted`/`superseded` status? (Leaning: `done` + a history line citing the plan id6; avoid a new status.)
-- OQ5 Does backlog need its own manifest (`INDEX.json` + `--check`) like plans/research, or is directory + `aw attention` enough at this scale (~dozens of items)? (Leaning: start without a manifest; add `index`/`find` only if the corpus grows.)
-- OQ6 `priority` enum: high/medium/low, or must/should/meh, or a small integer? And is a `- Set:` grouping worth carrying from day one for cohorts? (Leaning: high/medium/low; no Set until cohorts appear.)
+- OQ4 RESOLVED (2026-08-13 /plan-review, human maintainer): when a backlog item becomes a plan, `aw backlog set --status done` and append a workflow-history line citing the plan's id6 (e.g. "promoted to plan <id6>"). No new status; the backlog captured the intent, the plan now owns execution.
+- OQ5 RESOLVED (2026-08-13 /plan-review, human maintainer): NO manifest in v1. Ship the directory tree + frontmatter + `aw attention` integration + `aw backlog new/set/check` only. Add `aw backlog index/find` + an `INDEX.json`/`--check` in a later phase ONLY if backlog items start being cited by id6 or the corpus grows large.
+- OQ6 RESOLVED (2026-08-13 /plan-review, human maintainer): `priority` = `high|medium|low`. AND carry a `- Set:` grouping FROM v1 (maintainer chose to include Set from the start, over the leaning to defer it): a backlog item has a `set` field + the clustering filename grammar `YYYYMMDD-<set-id>-<NN>-<id6>-<slug>.md` (a singleton is a set of one, never special-cased), mirroring plans/research so related backlog items cluster in a name-sorted tree and can be regrouped citation-safely. `aw backlog new` owns the name/frontmatter (no hand-naming), and (if/when a manifest lands, OQ5) `set-assign`/`mv` regroup.
 - OQ7 RESOLVED (2026-08-13 /plan-review, human maintainer flagged that `.agents/` is being retired by the awphysical migration - review PR-004): the backlog is a `records`-class sub-tree `backlog/`, NOT `.agents/backlog/` (retired by D130) and NOT `state/` (AW-operational only, D126). The physical spec 20260810-1447-01 (line 71) places plans/specs/research/prompts/comms/runs under `records/`; a backlog is the same kind of human/workflow-produced project artifact, so it belongs in `records/`. It materializes at `.agents/backlog/` pre-migration and `.aw/records/backlog/` post-migration (dual path like plans), and `attention._classify_tree`'s `.aw/records/` -> `.agents/` normalization means one TreePolicy root covers both.
 
 ## 12. Out-of-scope / future
@@ -181,3 +184,4 @@ Drafted to `Status: to-review` and paused. Next: review (internal `/plan-review`
 ## Workflow history
 - 2026-08-13 /spec (opencode its_direct/pt3-claude-opus-4.8-1m-us): drafted the attention-visible-backlog-tier spec to Status: to-review, prompted by the maintainer's finding that aw attention (which feeds /whatnext) silently omits committed work living in TODO.md. Proposes a lightweight tracked .agents/backlog/{open,parked,done}/ type mapped into aw attention (open->ready, parked->parked, done->done), mirroring the actions tree, with a three-tier commitment model so committed work surfaces while uncommitted maybes stay quiet. Extends D125.
 - 2026-08-13 note (aw specs): /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS (non-blocking). PR-001 HIGH (attention integration is 4 touch-points not 1) + PR-004 HIGH (draft rooted the tree at .agents/, contradicting the D130 awphysical migration; corrected to the records-class backlog/ sub-tree, dual-path like plans) FIXED in place; PR-002/PR-003 LOW folded in. Resolved OQ1 (Bugs+Security+Planned-next=open; Consider=parked; Notes=prose), OQ3 (add blocked + typed gate; statuses open|blocked|parked|done), OQ7 (records/backlog, not .agents or state). OQ2/OQ4/OQ5/OQ6 left as non-blocking implementation leanings for the IPD. Status stays to-review; human approval + OQ2/4/5/6 remain before an IPD.
+- 2026-08-13 note (aw specs): /plan-review question loop completed (opencode Opus 4.8): resolved the remaining OQs interactively with the human maintainer. OQ2: parked excluded from the aw attention hot glance, in JSON, revealed by 'aw attention all'; + add 'aw att' alias. OQ4: promotion = set done + history line citing the plan id6 (no new status). OQ5: no manifest in v1. OQ6: priority high|medium|low AND carry a Set grouping + clustering filename FROM v1. All four folded into the spec. Status stays to-review; human approval remains the gate before an IPD.
