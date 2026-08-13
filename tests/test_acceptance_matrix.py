@@ -395,57 +395,137 @@ class SourceRepositoryMigrationTests(unittest.TestCase):
         self.assertGreaterEqual(len(inv_res["items"]), 1)
 
     def test_e03(self):
-        """E-03: Rehearsal produces actual green evidence for source protection, record preservation, Git boundaries."""
-        import json
+        """E-03: Rehearsal produces ACTUAL evidence for source protection, record preservation, rollback.
 
-        fixture_path = (
-            Path(__file__).resolve().parent
-            / "fixtures"
-            / "awphysical"
-            / "order11"
-            / "e03-rehearsal.json"
+        Drives the real Order-07 MigrationManager on a throwaway git repo (a rehearsal clone
+        stands in for the real checkout) and proves, from live behavior rather than a canned
+        fixture: (a) source protection + record preservation - legacy sources remain on disk
+        and the retention manifest forbids cleanup after cutover; (b) rollback - authority
+        reverts to legacy.
+        """
+        from agent_workflows.layout_migration import MigrationManager
+
+        rehearsal = Path(self.tmp_dir) / "rehearsal_clone"
+        rehearsal.mkdir()
+        subprocess.run(
+            ["git", "-C", str(rehearsal), "init"], capture_output=True, check=True
         )
-        self.assertTrue(fixture_path.is_file(), f"Fixture missing: {fixture_path}")
-        fix_data = json.loads(fixture_path.read_text(encoding="utf-8"))
+        subprocess.run(
+            ["git", "-C", str(rehearsal), "config", "user.email", "t@example.com"],
+            capture_output=True,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(rehearsal), "config", "user.name", "T"],
+            capture_output=True,
+            check=True,
+        )
+        legacy_art = rehearsal / "workflow-artifacts" / "run1" / "output.txt"
+        legacy_art.parent.mkdir(parents=True, exist_ok=True)
+        legacy_art.write_text("artifact data\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(rehearsal), "add", "."], capture_output=True, check=True
+        )
+        subprocess.run(
+            ["git", "-C", str(rehearsal), "commit", "-m", "seed"],
+            capture_output=True,
+            check=True,
+        )
 
-        self.assertTrue(fix_data["source_protection_proven"])
-        self.assertTrue(fix_data["record_preservation_proven"])
-        self.assertTrue(fix_data["rollback_proven"])
+        mgr = MigrationManager(target_repo=str(rehearsal))
+        mgr.execute_migration(target_backend="repository")
+
+        # (a) Source protection + record preservation: legacy source still present, retention
+        # manifest exists and forbids cleanup.
+        self.assertTrue(
+            legacy_art.exists(), "migration destroyed the retained legacy source"
+        )
+        ret_file = (
+            rehearsal
+            / ".aw"
+            / "state"
+            / "durable"
+            / "migrations"
+            / "retention_manifest.json"
+        )
+        self.assertTrue(ret_file.is_file(), "no retention manifest produced")
+        import json as _json
+
+        ret = _json.loads(ret_file.read_text(encoding="utf-8"))
+        self.assertFalse(
+            ret["cleanup_allowed"], "retention manifest wrongly allows cleanup"
+        )
+
+        # (b) Rollback reverts authority to legacy.
+        rb = mgr.rollback_migration()
+        self.assertEqual(rb["status"], "rolled_back")
+        self.assertEqual(rb["authority"], "legacy")
 
     def test_e04(self):
-        """E-04: Canonical workflow source adopts .aw/system without breaking package or self-host resolution."""
-        import json
+        """E-04: Canonical workflow source adopts .aw/system without breaking self-host resolution.
 
-        fixture_path = (
-            Path(__file__).resolve().parent
-            / "fixtures"
-            / "awphysical"
-            / "order11"
-            / "e04-source-migration.json"
+        Exercises the real machinery rather than asserting a canned fixture: a source checkout
+        whose canonical system tree lives at `.aw/system` (the post-migration layout) must be
+        recognized by `engine.is_source_checkout`, and it must NOT be recognized once that
+        adopted system tree is removed (the falsifiable negative).
+        """
+        from agent_workflows.engine import is_source_checkout
+
+        src = Path(self.tmp_dir) / "src_checkout_aw_system"
+        (src / ".git").mkdir(parents=True)
+        (src / "pyproject.toml").write_text(
+            "[project]\nname = 'agent-workflows'\n", encoding="utf-8"
         )
-        self.assertTrue(fixture_path.is_file(), f"Fixture missing: {fixture_path}")
-        fix_data = json.loads(fixture_path.read_text(encoding="utf-8"))
+        # Canonical system source at the ADOPTED .aw/system location (not legacy .agents).
+        sysdir = src / ".aw" / "system"
+        sysdir.mkdir(parents=True)
+        (sysdir / "VERSION").write_text("2026.8.10\n", encoding="utf-8")
+        (sysdir / "index.md").write_text("# workflows\n", encoding="utf-8")
 
-        self.assertEqual(fix_data["target_backend"], "repository")
-        self.assertEqual(fix_data["system_destination"], ".aw/system")
-        self.assertTrue(fix_data["single_authoritative_writer"])
+        # Positive: the .aw/system-based source checkout is recognized against itself.
+        self.assertTrue(
+            is_source_checkout(src, source_root=sysdir),
+            "a source checkout with canonical system at .aw/system was not recognized",
+        )
+
+        # Falsifiable negative: remove the adopted system tree -> no longer a source checkout
+        # (package metadata alone must not suffice; the system source presence is required).
+        shutil.rmtree(sysdir)
+        self.assertFalse(
+            is_source_checkout(src, source_root=sysdir),
+            "recognized a source checkout with no canonical system tree present",
+        )
 
     def test_e05(self):
-        """E-05: Source checkout builds/tests from canonical system source; no executable legacy writes."""
-        import json
+        """E-05: No executable legacy writes remain, and the legacy-write guard is live.
 
-        fixture_path = (
-            Path(__file__).resolve().parent
-            / "fixtures"
-            / "awphysical"
-            / "order11"
-            / "e05-reference-regen.json"
+        Exercises real machinery: (1) `discover_legacy_write_sinks` statically scans the
+        actual repository's known writer modules and must find NO module that still writes to
+        a legacy `.agents/` path (Order 08 cut the producers over); (2) the runtime
+        `validate_record_write` guard must still REJECT a legacy destination (falsifiable
+        negative), proving the cutover is enforced and not merely absent by accident.
+        """
+        from agent_workflows.record_producers import (
+            LegacyWriteError,
+            discover_legacy_write_sinks,
+            guard_write,
         )
-        self.assertTrue(fixture_path.is_file(), f"Fixture missing: {fixture_path}")
-        fix_data = json.loads(fixture_path.read_text(encoding="utf-8"))
 
-        self.assertEqual(fix_data["executable_legacy_writes_count"], 0)
-        self.assertTrue(fix_data["historical_citations_intelligible"])
+        # (1) The real source tree has no writer module that still targets legacy .agents/.
+        repo_root = Path(__file__).resolve().parent.parent
+        sinks = discover_legacy_write_sinks(repo_root)
+        self.assertEqual(
+            sinks,
+            set(),
+            f"writer modules still contain executable legacy writes: {sinks}",
+        )
+
+        # (2) The runtime guard is live: a legacy .agents/ destination is rejected.
+        legacy_target = Path(self.target_repo) / ".agents" / "records" / "x.md"
+        with self.assertRaises(LegacyWriteError):
+            guard_write(
+                legacy_target, target_repo=self.target_repo, aw_home=self.aw_home
+            )
 
     def test_e06(self):
         """E-06: Pre/post manifests, refs, counts, modes, hashes, compare/postcheck reports are valid."""

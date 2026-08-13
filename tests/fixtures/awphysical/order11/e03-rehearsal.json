@@ -1,9 +1,0 @@
-{
-  "rehearsal_id": "rehearsal-order11",
-  "source_protection_proven": true,
-  "record_preservation_proven": true,
-  "git_boundaries_proven": true,
-  "package_build_proven": true,
-  "rollback_proven": true,
-  "resumed_completion_proven": true
-}
