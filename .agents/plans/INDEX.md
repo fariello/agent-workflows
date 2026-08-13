@@ -6,7 +6,7 @@ Showing the 40 most-recent of 78 Sets; the full manifest is INDEX.json.
 
 ## migdispo
 
-- `bsxowq` [pending] 01 pending/20260812-migdispo-01-bsxowq-generalize-layout-migration-dispositions-and-entrypoint.md
+- `bsxowq` [executed] 01 executed/20260812-migdispo-01-bsxowq-generalize-layout-migration-dispositions-and-entrypoint.md
 
 ## awphysical
 
