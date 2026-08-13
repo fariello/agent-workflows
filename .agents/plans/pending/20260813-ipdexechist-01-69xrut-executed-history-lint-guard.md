@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Nothing programmatically enforces that a plan filed as `Status: executed` (in a terminal directory) actually recorded an `executed` line in its `## Workflow history`. The ipd-lifecycle + `/plan-review` runbooks REQUIRE it (D52; the ipd-structure spec), and it is followed by hand today, but a missing executed-history line would pass every current lint check - a silent provenance gap.
 - Scope: `agent_workflows/ipd_lint.py` (add one post-transition presence check + error id `IPD-S405`) and `tests/test_ipd_lint.py` (or the existing ipd-lint test module). Salvaged from the retired `20260807-ipd-history-01-wrt0wq` (which is otherwise superseded: E-03/E-04 already shipped; E-01/E-02 structured-history grammar declined per the free-form prose-provenance convention, D52).
-- Status: to-review
+- Status: reviewed
 - Highest E allocated: 02
 - Author: opencode Opus 4.8
 - Id: 69xrut
@@ -12,7 +12,8 @@
 - Order: 1
 ## Workflow history
 
-- 2026-08-13 draft (opencode Opus 4.8): created to salvage the one still-useful, convention-compatible item (former E-05) from the retired ipd-history plan wrt0wq. This is a PRESENCE check that fits the shipped free-form workflow-history convention (D52); it does NOT impose a machine-readable history grammar (that structured-history idea, former E-01/E-02, was considered and declined 2026-08-13).
+- 2026-08-13 draft (opencode Opus 4.8): created to salvage the one still-useful, convention-compatible item (former E-05) from the retired ipd-history plan wrt0wq. This is a PRESENCE check that fits the shipped free-form workflow-history convention (D52); it does NOT impose a machine-readable history grammar (that structured-history idea, former E-01/E-02, was considered and declined 2026-08-13, D131).
+- 2026-08-13 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003. Verified from evidence that `lint_text` (ipd_lint.py:672) short-circuits terminal-dir plans to `legacy/not evaluated` before checks run, so the original E-02 ("check at post-transition, preserve the grandfather") was internally contradictory (PR-001, HIGH); rewrote E-02 to reconcile it and confirmed the spec (20260802-1904-01 S9.2 item 16) already REQUIRES the post-transition history-agreement this implements (PR-002); tightened V-02 to pin the exact post-PR-001 behavior + a mutation probe (PR-003). Scope decision (S405 going-forward only, legacy corpus stays grandfathered) resolved with the human maintainer and recorded in E-02. Structural lint conforming (author + review-finalize). Status to-review -> reviewed. Readiness: GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -24,9 +25,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: The lint guard
 
-- [ ] E-02 Add error id `IPD-S405` to `agent_workflows/ipd_lint.py`: at the `post-transition` checkpoint (and for a terminal-dir plan whose `Status:` is `executed`), verify the `## Workflow history` section contains at least one entry whose event token is `executed` (the token immediately after the leading `YYYY-MM-DD`, matching how existing lines read, e.g. `- 2026-08-13 executed (actor): ...`). Emit `IPD-S405` as a conformance error when absent. Do NOT require any transition/outcome grammar (free-form prose after the token is fine, per D52). Preserve the existing `legacy/not evaluated` disposition for un-migrated terminal-dir plans (the check applies when the plan is evaluated, e.g. `--phase post-transition`, not to a grandfathered legacy pass).
+- [ ] E-02 Add error id `IPD-S405` to `agent_workflows/ipd_lint.py` enforcing that a `Status: executed` plan carries an `executed` `## Workflow history` line (the token immediately after the leading `YYYY-MM-DD`, e.g. `- 2026-08-13 executed (actor): ...`; free-form prose after the token is fine per D52, no transition/outcome grammar). MUST RESOLVE the gate conflict (see Findings PR-001): `lint_text` (ipd_lint.py:~672) currently short-circuits EVERY terminal-dir plan to `legacy/not evaluated` BEFORE `check_checkpoint` runs, so `--phase post-transition` on a moved executed plan evaluates nothing today. The executor MUST make the S405 history check run at `post-transition` on the just-transitioned plan (the ipd-lifecycle step-5 invocation, ipd-lifecycle.md:71) WITHOUT re-imposing the full structural linter on the historical `executed/` corpus - i.e. the legacy grandfather stays for the other structural checks, but a `post-transition` evaluation performs the S405 history-presence check. This implements spec `20260802-1904-01` Section 9.2 item 16 (post-transition MUST verify the workflow-history entry agrees), which is specified but currently unimplemented. SCOPE DECISION (resolved 2026-08-13, human maintainer): GOING-FORWARD ONLY. S405 fires ONLY when a plan is evaluated at `--phase post-transition` (the ipd-lifecycle step-5 invocation on the just-transitioned plan). The historical `executed/` corpus MUST keep returning `legacy/not evaluated` under default evaluation and MUST NOT be newly failed; do NOT audit or migrate old plans, and do NOT make S405 fire under `--legacy` or default terminal-dir evaluation. Minimal mechanism: run the S405 history-presence check inside the `post-transition` path only (e.g. before/around the terminal-dir grandfather return, guarded on `checkpoint == "post-transition"`), leaving every other structural check grandfathered for terminal-dir plans. STOP-and-report if it cannot be done without broadening legacy-corpus linting.
   - Depends on: none
-  - Expected outcome: a terminal `executed` plan missing an `executed` history line fails lint with `IPD-S405`; a plan that has one passes; legacy grandfathered terminal plans are unaffected.
+  - Expected outcome: `aw ipd lint --phase post-transition` on a just-transitioned executed plan MISSING an `executed` history line fails with `IPD-S405`; the same plan WITH the line passes; the historical `executed/` corpus under DEFAULT evaluation still returns `legacy/not evaluated` and is NOT newly failed.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -38,7 +39,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Findings
 
-- Salvaged from `20260807-ipd-history-01-wrt0wq` E-05. That plan's E-03 (plan-review appends a reviewed history entry) and E-04 (approved/executed entries required before `git mv`) already SHIPPED (plan-review.md; AGENTS.md + ipd-lifecycle). Its E-01/E-02 (structured `[Status: x -> y]` grammar + `aw ipd log-event`) were DECLINED 2026-08-13 (they would reverse the deliberate free-form prose-provenance convention, D52, and are a spec-level decision if ever revisited). Only E-05 remained useful and convention-compatible; this plan is that item, right-sized.
+- Salvaged from `20260807-ipd-history-01-wrt0wq` E-05. That plan's E-03 (plan-review appends a reviewed history entry) and E-04 (approved/executed entries required before `git mv`) already SHIPPED (plan-review.md; AGENTS.md + ipd-lifecycle). Its E-01/E-02 (structured `[Status: x -> y]` grammar + `aw ipd log-event`) were DECLINED 2026-08-13 (D131). Only E-05 remained useful and convention-compatible; this plan is that item, right-sized.
+- PR-001 (review 2026-08-13, HIGH, verified): `lint_text` (ipd_lint.py:672-673) returns `LintResult(DISPOSITION_LEGACY, [])` for ANY terminal-dir plan (`executed`/`superseded`/`not-executed`) unless `legacy=True`, BEFORE `check_checkpoint` runs. So `aw ipd lint --phase post-transition` on a moved executed plan currently evaluates NOTHING (returns `legacy/not evaluated`, exit 0) - observed on every awphysical transition. The original E-02 framing ("preserve the legacy grandfather; check at post-transition") was internally contradictory: the grandfather is exactly what blocks the check. E-02 rewritten to require reconciling this: run S405 at post-transition on the just-transitioned plan without broadening legacy-corpus linting.
+- PR-002 (review, MEDIUM, verified): the spec `20260802-1904-01-ipd-structure-and-linting.spec.md` ALREADY requires this. Section 9.2 item 16 (spec:444): "terminal status, history, directory, and lifecycle-commit metadata agree at `post-transition`"; Section 10 table (spec:419): post-transition verifies "workflow-history entry ... agree". And `checkpoint_allows_status` (ipd_schema.py:517) says post-transition is "only meaningful once terminal". So S405 IMPLEMENTS a specified-but-unimplemented requirement; it is not a new convention. Spec-sync updated accordingly.
+- PR-003 (review, MEDIUM, verified): V-02's "over a real executed/ plan showing it is satisfied/grandfathered" was ambiguous given PR-001. V-02 rewritten to pin exact behavior: S405 fires at post-transition on a missing-line fixture (RED), passes with the line, and the historical `executed/` corpus is not newly failed.
 
 ## Proposed changes (ordered, validatable)
 
@@ -64,7 +68,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Spec / documentation sync
 
-- Optionally note the new `IPD-S405` guard in the ipd-structure spec's lint-rule list, if the reviewer finds a gap. No convention change (it enforces the existing D52 requirement).
+- `IPD-S405` IMPLEMENTS spec `20260802-1904-01-ipd-structure-and-linting.spec.md` Section 9.2 item 16 / Section 10 post-transition row (workflow-history entry agreement), which is specified but currently unimplemented (verified PR-002). Update that spec's lint-rule list / error-code table to name `IPD-S405` as the concrete check for the post-transition history-agreement requirement. This is NOT a convention change (it enforces the existing D52 + spec requirement).
 
 ## Open questions
 
@@ -80,7 +84,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-02 validates E-02
-  - Required evidence: run the new ipd-lint tests and paste output - (a) a terminal `executed` fixture WITH an `executed` history line passes; (b) the same fixture WITHOUT that line fails with `IPD-S405` (falsifiable RED); (c) a legacy grandfathered terminal plan is unaffected. Also paste `aw ipd lint --phase post-transition` over a real `executed/` plan showing it is satisfied/grandfathered.
+  - Required evidence: run the new ipd-lint tests and paste output pinning the exact post-PR-001 behavior: (a) `lint_text`/`lint_file` at `--phase post-transition` on a terminal `executed` fixture WITH an `executed` history line -> conforming (no IPD-S405); (b) the same fixture WITHOUT that line at `--phase post-transition` -> error including `IPD-S405` (falsifiable RED); (c) the historical `executed/` corpus is NOT newly failed - e.g. a real executed plan lacking the line under the DEFAULT (non-post-transition) evaluation still returns `legacy/not evaluated` (grandfather preserved for structural checks), demonstrating S405 does not blanket-fail the corpus. Additionally mutation-probe: with the S405 check disabled, (b) goes GREEN (proving the test gates real behavior). Paste actual `aw ipd lint --phase post-transition` output for a real transitioned plan.
   - Observed evidence:
   - Result: pending
 
