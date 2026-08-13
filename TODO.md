@@ -34,6 +34,14 @@ Not framework bugs; external-tool finding with coordinated-disclosure obligation
 
 ## Planned next (designed, deferred; not yet drafted as IPDs)
 
+**Inventory tool must honor .gitignore (bug; own follow-up).** `tools/awphysical/aw_layout_inventory.py`
+`_walk()` only skips `.git`; it descends into gitignored subtrees, so running the migration inventory
+over the source repo enumerated `.opencode/node_modules/` (3926 gitignored dependency files) and
+`_legacy_class` blanket-classified them as `host-adapter-candidate`. The inventory should skip
+gitignored subtrees (at least `node_modules`) so it does not sweep dependency/runtime noise into the
+migration map. Discovered during Order 11 self-migration Stage 1, 2026-08-12 (worked around there by
+scoping the roots; the tool fix is the durable answer).
+
 **Records backend variant: repo-local-but-untracked `.aw/records/` (deferred; own IPD).** Today
 `RecordsBackend` has exactly three values: `home`, `companion`, `repository` (the last =
 `<repo>/.aw/records` TRACKED in the repo's git). There is a genuine fourth option we never modeled:
