@@ -34,6 +34,18 @@ Not framework bugs; external-tool finding with coordinated-disclosure obligation
 
 ## Planned next (designed, deferred; not yet drafted as IPDs)
 
+**`aw ipd scaffold` should enforce the clustering filename grammar + Set metadata (authoring gap).**
+Today `ipd scaffold` takes `--path` verbatim and treats `--set` as OPTIONAL: if `--set` is omitted it
+writes NO `- Set:` line and does not derive/validate the clustering-grammar filename
+(`YYYYMMDD-<set-id>-<NN>-<id6>-<slug>.md`), so a hand-supplied `--path` can land in the older
+`YYYYMMDD-HHMM-NN-<slug>.md` form with a missing set-id/id6 and no Set metadata. Nothing catches this
+until someone runs `aw plans set-assign`. Harden the scaffolder to require a Set (or default a
+singleton), emit the clustering-grammar filename itself (or refuse a non-conforming `--path`), and
+always write a `- Set:` line. NOTE: this is NOT addressed by the layout-migration script (a
+byte-preserving relocation that intentionally never renames plans - naming is the separate `aw plans`
+concern) nor by IPD bsxowq (migration dispositions, not filename hygiene). Discovered 2026-08-12 when
+plan bsxowq was created with the wrong name and had to be fixed via `aw plans set-assign --rename`.
+
 **Inventory tool must honor .gitignore (bug; own follow-up).** `tools/awphysical/aw_layout_inventory.py`
 `_walk()` only skips `.git`; it descends into gitignored subtrees, so running the migration inventory
 over the source repo enumerated `.opencode/node_modules/` (3926 gitignored dependency files) and
