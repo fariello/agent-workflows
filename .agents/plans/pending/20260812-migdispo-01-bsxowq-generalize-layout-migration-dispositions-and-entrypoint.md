@@ -4,13 +4,13 @@
 - Kind: child
 - Concern: The awphysical layout-migration tooling resolves the clean record/system/state classes, but its disposition rules do NOT cover the infrastructure files that EVERY installed agent-workflows repo carries (the `.agents/README.md` layout doc, the tracked leak-sanitizer allowlist config, the per-repo self-install manifest, and gitignored adapter dependency trees like `.opencode/node_modules`). As a result the migration inventory fails closed with `unknown-owner` on real installs, and each repo would have to rediscover the same dispositions by hand. (The user-facing "migrate my repo" ENTRYPOINT originally in scope here is now delivered elsewhere; see the rescope note below.)
 - Scope: Disposition rules in `tools/awphysical/aw_layout_inventory.py` (`_legacy_class`, `classify_item`, `build_migration_map`, and gitignore-aware item enumeration); canonical reader-path resolution for the manifest and the leak-allowlist, which spans MORE than the two constants: `agent_workflows/manifest.py` (`DEFAULT_MANIFEST_RELPATH` + every consumer) and its consumers in `agent_workflows/engine.py` (the three `manifest_mod.DEFAULT_MANIFEST_RELPATH` read sites at ~3314/3432/4100); `agent_workflows/leak_sanitizer.py` (`REPO_ALLOWLIST_REL` used at ~210/219/340 + message strings) and its re-export in `agent_workflows/local_leaks.py`; the message string in `agent_workflows/cli.py` (~2698). and focused tests. NOT the live migration of any specific repo (that is Order 11 for this repo), and NOT the user-facing migration entrypoint (rescoped out; see below).
-- Status: approved
+- Status: executed
 - Highest E allocated: 04
 - Author: opencode Opus 4.8
 - Id: bsxowq
 - Set: migdispo (generalize layout-migration dispositions + reusable entrypoint)
 - Order: 1
-- Approval: 2026-08-12 human maintainer (chat) - approved to execute after /plan-review (APPROVE WITH REVISIONS APPLIED); recorded by opencode Opus 4.8.
+
 
 ## Workflow history
 
@@ -18,6 +18,7 @@
 - 2026-08-12 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005. Verified every material claim from repository evidence. Widened Scope + E-04 to include the three `engine.py` manifest consumers (~3314/3432/4100) and the `local_leaks.py` re-export the original omitted (PR-001), and required a resolver rather than a bare `repo_root / CONST` string since a plain constant cannot express legacy fallback (PR-002). Sharpened E-02 to reuse the existing `git_sets` `ignored` set and prune ignored dirs (no gitignore reimplementation in `_walk`; avoid hashing node_modules) (PR-003). Made E-05 explicitly a distinctly-named `migrate-layout` workflow that must not shadow the existing `migrate` planning workflow, named to fit the future `/aw` command family (PR-004); OQ-01 resolved with the human maintainer (workflow, no standalone prompt; the `/aw` command-family redesign backlogged in TODO.md as a separate follow-up). Extended V-04/V-05 + Required tests to cover the added call sites and the workflow's non-collision. Structural lint conforming (author + review-finalize). Status to-review -> reviewed. Readiness: GO - PENDING HUMAN APPROVAL.
 - 2026-08-12 approved (human maintainer via chat, recorded by opencode Opus 4.8): cleared to execute. Status reviewed -> approved.
 - 2026-08-13 rescope during execution (opencode Opus 4.8, human maintainer): E-02 and E-03 executed and committed (f00e7eb: gitignore-aware inventory + infra-file dispositions, with tests). Then the `/aw` namespace research was adopted (research set `awnamespace`, deciding doc id 2bodwq): the future user-facing migration entrypoint is a single `/aw` dispatcher fed by one host-neutral verb registry, NOT a standalone `migrate-layout` workflow. Former E-05 (+ V-05) REMOVED as the wrong shape; the entrypoint is delivered as the `migrate` verb of the `/aw` dispatcher in the separate `/aw` work (TODO.md). Highest E allocated 05 -> 04. OQ-01 marked moot. Plan rescoped to the host-neutral migration TOOLING (E-02/E-03/E-04). E-04 remains to execute.
+- 2026-08-13 executed (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): E-04 executed and committed (962f9d1: manifest + leak-allowlist path resolvers with legacy fallback, routed through manifest.py + engine.py's 3 consumers + leak_sanitizer.py's 2 loaders/1 write + local_leaks re-export; message strings updated; installer/cli tests updated for the new `.aw/system` manifest create-default). All V-02/V-03/V-04 verified with concrete output + a mutation-probe of the legacy fallback (RED->GREEN). Full parallel suite `pytest -n 12` exit 0; pre-transition ipd lint conforming. Status approved -> executed; Approval line removed; moved pending/ -> executed/.
 
 ## Goal
 
@@ -41,10 +42,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: Canonicalize the reader paths once for all repos
 
-- [ ] E-04 Canonicalize manifest + leak-allowlist reader paths to the `.aw/` locations with bounded legacy fallback. IMPORTANT (verified): the current values are PLAIN relative-path strings joined at each call site as `repo_root / CONST`, which CANNOT express "prefer .aw, else legacy" on their own. So introduce a resolver (a function that returns the existing `.aw/` path if present, else the legacy path, else the `.aw/` path as the create-default) and route ALL read sites through it: for the manifest, `manifest.py` (define the resolver + keep `DEFAULT_MANIFEST_RELPATH` as the create-default) AND its three consumers in `engine.py` (~3314/3432/4100 currently do `repo_root / DEFAULT_MANIFEST_RELPATH`); for the allowlist, `leak_sanitizer.py` (`REPO_ALLOWLIST_REL` sites ~210/219/340) AND the `local_leaks.py` re-export. Writes/creates target the `.aw/` location; reads fall back to legacy so un-migrated repos keep working. Update the user-facing message strings (`leak_sanitizer.py` ~148/320/868, `cli.py` ~2698) to the new path.
+- [x] E-04 Canonicalize manifest + leak-allowlist reader paths to the `.aw/` locations with bounded legacy fallback. IMPORTANT (verified): the current values are PLAIN relative-path strings joined at each call site as `repo_root / CONST`, which CANNOT express "prefer .aw, else legacy" on their own. So introduce a resolver (a function that returns the existing `.aw/` path if present, else the legacy path, else the `.aw/` path as the create-default) and route ALL read sites through it: for the manifest, `manifest.py` (define the resolver + keep `DEFAULT_MANIFEST_RELPATH` as the create-default) AND its three consumers in `engine.py` (~3314/3432/4100 currently do `repo_root / DEFAULT_MANIFEST_RELPATH`); for the allowlist, `leak_sanitizer.py` (`REPO_ALLOWLIST_REL` sites ~210/219/340) AND the `local_leaks.py` re-export. Writes/creates target the `.aw/` location; reads fall back to legacy so un-migrated repos keep working. Update the user-facing message strings (`leak_sanitizer.py` ~148/320/868, `cli.py` ~2698) to the new path.
   - Depends on: none
   - Expected outcome: on a migrated repo the manifest/allowlist resolve at the `.aw/` locations; on an un-migrated repo they still resolve at the legacy paths; the sanitizer, the installer, and every `engine.py` manifest consumer behave identically before and after migration; the `local_leaks.py` public re-export still resolves.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: (superseded) user-facing migration entrypoint
 
@@ -118,18 +119,18 @@ the 2026-08-13 workflow-history entry.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: run the new inventory test over a fixture containing a gitignored `node_modules` subtree; show it is excluded and a non-ignored sibling is included; show RED when the gitignore skip is disabled (mutation probe).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `python3 -m unittest tools.awphysical.test_awphysical_tools.InventoryTests.test_e02_inventory_prunes_gitignored_dependency_subtree` -> `Ran 1 test ... OK`. The test builds a fixture with a gitignored `.opencode/node_modules/somepkg/*.js` subtree plus a non-ignored `.opencode/commands/assess.md`, asserts NO `node_modules` item appears and `commands/assess.md` IS inventoried. Real-repo cross-check: `aw migrate-layout inventory --target-backend repository` went from 4784 items (3926 node_modules) to node_modules=0, `valid: True`. Implementation adds `_ignored_dirs()` (git ls-files --ignored --directory) and prunes those dirs in `_walk` (commit f00e7eb).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: run the classifier/map test over a synthetic standard-install fixture; show README/allowlist/manifest each resolve to the decided class+destination and inventory is `valid: True`; show a stray file still yields `unknown-owner` (RED-then-GREEN).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `python3 -m unittest tools.awphysical.test_awphysical_tools.InventoryTests.test_e03_infrastructure_files_get_explicit_dispositions` -> `Ran 1 test ... OK`. Asserts (via build_migration_map): `README.md -> (doc, README.md)`, `local-leaks-allowlist.toml -> (config, config/local-leaks-allowlist.toml)`, `agent-workflows/managed-sections.json -> (system, system/managed-sections.json)` and inventory `valid: True`; and the falsifiable negative `classify_item("agents","stray-thing.xyz",...)["disposition"] == "block-unknown"` (a genuinely stray file still fails closed). Real-repo cross-check: the Order-11 inventory of this repo went `valid: False` (6 unknown-owner) -> `valid: True` (commit f00e7eb).
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: resolve manifest + allowlist on a migrated fixture (`.aw/` locations) and on an un-migrated fixture (legacy paths) THROUGH the same resolver the code uses; paste both. Exercise at least one `engine.py` manifest consumer (e.g. the read at ~3314) and the `local_leaks.py` `REPO_ALLOWLIST_REL` re-export against both fixtures to prove all call sites route through the resolver. Show a mutation that breaks the legacy fallback fails RED.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_manifest.py::ManifestPathResolverTests tests/test_leak_sanitizer.py::ConfigReconciliationTests::test_e04_allowlist_resolver_prefers_aw_config_falls_back_to_legacy tests/test_leak_sanitizer.py::ConfigReconciliationTests::test_e04_local_leaks_reexports_resolver` -> `6 passed`. Manifest resolver: create-default `.aw/system/managed-sections.json`; migrated-fixture resolves `.aw/system`; un-migrated-fixture resolves the legacy `.agents/agent-workflows/...`; new wins when both present. Allowlist resolver: same three cases, and `load_repo_allowlist(repo)` actually reads the legacy file via the resolver; `local_leaks` re-exports `REPO_ALLOWLIST_REL`, `LEGACY_REPO_ALLOWLIST_REL`, and `resolve_allowlist_path` (identity-checked). Engine consumers routed through `resolve_manifest_path` (uninstall inspect/remove + install load/save), validated by the full installer suite passing after the manifest create-default moved to `.aw/system` (installer/cli tests updated to the new location). Mutation probe: disabling the legacy branch in `resolve_manifest_path` makes `test_unmigrated_repo_falls_back_to_legacy` fail RED; restored -> GREEN. Real-repo cross-check: `resolve_allowlist_path(.)` returns this repo's legacy `.agents/local-leaks-allowlist.toml` and `check-local-leaks .` exits 0 (commit 962f9d1).
+  - Result: pass
 
 
 ## Approval and execution gate
