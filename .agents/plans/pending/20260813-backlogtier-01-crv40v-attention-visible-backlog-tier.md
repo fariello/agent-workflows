@@ -8,8 +8,8 @@
 - Highest E allocated: 08
 - Author: opencode Opus 4.8
 - Id: crv40v
-- Set: backlogtier
-- Order: 0
+- Set: backlogtier (attention-visible backlog tier)
+- Order: 1
 ## Workflow history
 
 - 2026-08-13 draft (opencode Opus 4.8): authored from the approved spec 20260813-1833-01 (attention-visible backlog tier). Implements the records-class backlog/ sub-tree, the four attention touch-points, the aw backlog verbs, aw attention all + aw att alias, and the TODO.md migration, per the spec's resolved OQ1-OQ7.
