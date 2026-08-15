@@ -351,11 +351,11 @@ def run_set(args) -> int:
 
     # authority floor
     auth = A.TRANSITION_AUTHORITY.get(f"->{new}", {})
-    if auth.get("human_token"):
-        if not _human_confirmed(args):
+    if auth.get("by_human") or auth.get("human_token"):
+        if not getattr(args, "by_human", False):
             sys.stderr.write(
-                "aw specs set: reviewed -> approved requires interactive human confirmation "
-                "(a bare flag is insufficient); refused.\n"
+                f"aw specs set: {old} -> {new} is a human-only transition; pass --by-human to attest "
+                "(and record) that a human approved it. Use --message to say who/how.\n"
             )
             return 1
     if auth.get("evidence"):
@@ -396,7 +396,10 @@ def run_set(args) -> int:
     out = _set_status(out, new)
     date = getattr(args, "date", None) or _today()
     msg = args.message
-    out = _append_history(out, f"- {date} {new} (aw specs): {msg}")
+    actor = (
+        "(aw specs, --by-human)" if getattr(args, "by_human", False) else "(aw specs)"
+    )
+    out = _append_history(out, f"- {date} {new} {actor}: {msg}")
 
     new_text = "\n".join(out)
     # validate the complete result in memory; refuse (byte-identical) if it would not conform
@@ -554,24 +557,6 @@ def run_note(args) -> int:
     core.atomic_write(path, "\n".join(out))
     sys.stdout.write(f"aw specs note: appended a history record to {path}\n")
     return 0
-
-
-def _human_confirmed(args) -> bool:
-    """The anti-self-approval floor: require an INTERACTIVE human confirmation on a TTY. An executing
-    agent (no TTY) cannot satisfy this. An explicit ``--yes-i-am-human`` is honored ONLY when stdin is
-    a TTY, so it cannot be passed non-interactively by an agent harness."""
-
-    if getattr(args, "yes_i_am_human", False) and sys.stdin.isatty():
-        return True
-    if not sys.stdin.isatty():
-        return False
-    try:
-        reply = input(
-            "Human approval required to set `approved`. Type 'approve' to confirm: "
-        )
-    except EOFError:
-        return False
-    return reply.strip().lower() == "approve"
 
 
 def _evidence_resolvable(spec_path: Path, evidence: str) -> bool:

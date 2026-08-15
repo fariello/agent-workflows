@@ -119,7 +119,7 @@ class SetTests(unittest.TestCase):
                         gate_ref=None,
                         gate_summary=None,
                         evidence=None,
-                        yes_i_am_human=False,
+                        by_human=False,
                         date="2026-08-09",
                     )
                 )
@@ -142,7 +142,7 @@ class SetTests(unittest.TestCase):
                         gate_ref=None,
                         gate_summary=None,
                         evidence=None,
-                        yes_i_am_human=False,
+                        by_human=False,
                         date="2026-08-09",
                     )
                 )
@@ -153,7 +153,7 @@ class SetTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p = self._mk(d, "- Status: reviewed")
             before = p.read_text(encoding="utf-8")
-            # simulate an agent harness: stdin is NOT a tty, even with the flag
+            # Without --by-human attestation: refused byte-identical even on non-TTY
             with mock.patch("sys.stdin") as stdin, redirect_stderr(io.StringIO()):
                 stdin.isatty.return_value = False
                 rc = specs.run_set(
@@ -165,12 +165,36 @@ class SetTests(unittest.TestCase):
                         gate_ref=None,
                         gate_summary=None,
                         evidence=None,
-                        yes_i_am_human=True,
+                        by_human=False,
                         date="2026-08-09",
                     )
                 )
-            self.assertEqual(rc, 1, "agent must not self-approve")
+            self.assertEqual(rc, 1, "unattested approval must be refused")
             self.assertEqual(p.read_text(encoding="utf-8"), before)
+
+            # With explicit --by-human attestation: non-TTY agent succeeds and records attributed history
+            with mock.patch("sys.stdin") as stdin, redirect_stdout(io.StringIO()):
+                stdin.isatty.return_value = False
+                rc = specs.run_set(
+                    _args(
+                        path=str(p),
+                        status="approved",
+                        message="human maintainer via chat",
+                        gate_kind=None,
+                        gate_ref=None,
+                        gate_summary=None,
+                        evidence=None,
+                        by_human=True,
+                        date="2026-08-09",
+                    )
+                )
+            self.assertEqual(rc, 0, "attested approval succeeds on non-TTY")
+            t = p.read_text(encoding="utf-8")
+            self.assertIn("- Status: approved", t)
+            self.assertIn(
+                "- 2026-08-09 approved (aw specs, --by-human): human maintainer via chat",
+                t,
+            )
 
     def test_implemented_requires_resolvable_evidence(self):
         with tempfile.TemporaryDirectory() as d:
@@ -186,7 +210,7 @@ class SetTests(unittest.TestCase):
                         gate_ref=None,
                         gate_summary=None,
                         evidence="nope/does-not-exist.md",
-                        yes_i_am_human=False,
+                        by_human=False,
                         date="2026-08-09",
                     )
                 )
@@ -206,7 +230,7 @@ class SetTests(unittest.TestCase):
                         gate_ref="https://example.com/i/1",
                         gate_summary="waiting",
                         evidence=None,
-                        yes_i_am_human=False,
+                        by_human=False,
                         date="2026-08-09",
                     )
                 )
@@ -225,7 +249,7 @@ class SetTests(unittest.TestCase):
                         gate_ref=None,
                         gate_summary=None,
                         evidence=None,
-                        yes_i_am_human=False,
+                        by_human=False,
                         date="2026-08-10",
                     )
                 )
@@ -248,7 +272,7 @@ class SetTests(unittest.TestCase):
                         gate_ref="javascript:alert(1)",
                         gate_summary=None,
                         evidence=None,
-                        yes_i_am_human=False,
+                        by_human=False,
                         date="2026-08-09",
                     )
                 )

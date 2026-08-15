@@ -285,8 +285,8 @@ _DESCRIPTIONS = {
     "specs set": (
         "Transition a spec's status (enforcing the legal transition table, the "
         "anti-self-approval floor, and typed deferral gates) and append a workflow-history "
-        "record. An agent cannot drive a spec to 'approved' (human-only, TTY-confirmed) or "
-        "'implemented' (needs cited evidence)."
+        "record. Setting 'approved' requires an explicit --by-human attestation; "
+        "'implemented' requires cited evidence."
     ),
     "specs note": (
         "Append a workflow-history record to a spec WITHOUT changing its status. Use to log "
@@ -1477,10 +1477,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Resolvable implementation-evidence citation (for implemented).",
     )
     p_specs_set.add_argument(
-        "--yes-i-am-human",
-        dest="yes_i_am_human",
+        "--by-human",
+        dest="by_human",
         action="store_true",
-        help="Confirm human approval for reviewed -> approved (honored only on an interactive TTY).",
+        help="Attest that a HUMAN approved this transition (records attributed approval; no TTY). For human-only transitions like reviewed -> approved.",
     )
     p_specs_set.add_argument(
         "--date", default=None, help="Override the history date (YYYY-MM-DD)."

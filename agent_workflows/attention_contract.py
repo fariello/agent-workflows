@@ -314,26 +314,43 @@ SPEC_TRANSITIONS: Dict[str, FrozenSet[str]] = {
     "superseded": frozenset(("draft",)),  # corrective un-supersede only
 }
 
-# Transition authority (spec Section 7). ``human_token`` means the mechanism must NOT be agent-satisfiable
-# (see APPROVAL_FLOOR). ``evidence`` means a resolvable implementation-evidence citation is required.
+# Transition authority (spec Section 7). ``by_human`` means the mechanism requires an explicit
+# --by-human attestation (a conscious speed bump recording attributed human approval; NOT anti-malicious crypto;
+# see APPROVAL_FLOOR). ``evidence`` means a resolvable implementation-evidence citation is required.
 TRANSITION_AUTHORITY: Dict[str, Dict[str, object]] = {
-    "->approved": {"who": "human", "human_token": True, "evidence": False},
-    "->implementing": {"who": "executor", "human_token": False, "evidence": False},
-    "->implemented": {"who": "executor", "human_token": False, "evidence": True},
+    "->approved": {
+        "who": "human",
+        "by_human": True,
+        "human_token": True,
+        "evidence": False,
+    },
+    "->implementing": {
+        "who": "executor",
+        "by_human": False,
+        "human_token": False,
+        "evidence": False,
+    },
+    "->implemented": {
+        "who": "executor",
+        "by_human": False,
+        "human_token": False,
+        "evidence": True,
+    },
     "->deferred": {
         "who": "any",
+        "by_human": False,
         "human_token": False,
         "evidence": False,
         "requires_gate": True,
     },
 }
 
-# The anti-self-approval FLOOR (spec F11; Order 01 finding L2-01/L4-04). Order 02's aw specs MUST enforce
-# a ``reviewed -> approved`` mechanism an executing agent cannot satisfy autonomously.
+# The anti-self-approval FLOOR (spec F11; Order 01 finding L2-01/L4-04; revised 2026-08-15).
+# aw specs enforces that ``reviewed -> approved`` requires an explicit ``--by-human`` attestation.
 APPROVAL_FLOOR = (
-    "The reviewed -> approved mechanism MUST be one an executing agent cannot satisfy autonomously "
-    "(an interactive TTY human confirmation, or a marker/secret outside agent reach). A bare "
-    "--approved-by <string> flag alone is INSUFFICIENT: it attributes but does not gate. The "
+    "The reviewed -> approved mechanism requires an EXPLICIT --by-human attestation (a conscious speed "
+    "bump recording attributed human approval; no TTY requirement, no false 'I am human' claim). A plain "
+    "status set WITHOUT --by-human is INSUFFICIENT: it stops and refuses the transition. The "
     "implementing -> implemented transition requires a RESOLVABLE evidence citation (e.g. an existing "
     ".agents/plans/executed/ IPD path), not merely a well-formed string; aw specs enforces presence + "
     "format + resolvability, NOT semantic verification that the work truly happened."

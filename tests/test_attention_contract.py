@@ -98,10 +98,13 @@ class TransitionAuthorityTests(unittest.TestCase):
 
     def test_authority_and_floor(self):
         self.assertEqual(A.TRANSITION_AUTHORITY["->approved"]["who"], "human")
-        self.assertTrue(A.TRANSITION_AUTHORITY["->approved"]["human_token"])
+        self.assertTrue(
+            A.TRANSITION_AUTHORITY["->approved"].get("by_human")
+            or A.TRANSITION_AUTHORITY["->approved"].get("human_token")
+        )
         self.assertTrue(A.TRANSITION_AUTHORITY["->implemented"]["evidence"])
-        # The anti-self-approval floor is stated (Order 01 finding L2-01/L4-04).
-        self.assertIn("cannot satisfy autonomously", A.APPROVAL_FLOOR)
+        # The anti-self-approval floor requires an explicit --by-human attestation speed bump (revised 2026-08-15).
+        self.assertIn("--by-human", A.APPROVAL_FLOOR)
         self.assertIn("INSUFFICIENT", A.APPROVAL_FLOOR)
 
 
