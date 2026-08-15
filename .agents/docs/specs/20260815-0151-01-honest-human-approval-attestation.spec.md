@@ -63,19 +63,27 @@ Reframe the human-only approval gate from a TTY-enforced "prove you are human" c
 - A2 The same command WITHOUT `--by-human` refuses (nonzero) with the speed-bump message and leaves the file byte-identical.
 - A3 `aw specs set --help` shows `--by-human` and NOT `--yes-i-am-human`; grep of the codebase shows no remaining `yes-i-am-human`/`yes_i_am_human`/`_human_confirmed`.
 - A4 `implementing -> implemented` still requires a resolvable `--evidence`; `-> deferred` still requires a valid gate (unchanged).
-- A5 Full unittest suite green; `test_specs_verbs.py` updated: the old "no-TTY approved is refused even with --yes-i-am-human" test becomes "no-TTY approved SUCCEEDS with --by-human, and is refused WITHOUT it."
+- A5 Full unittest suite green; `test_specs_verbs.py::test_approved_requires_human_and_is_refused_non_tty` REWRITTEN in intent (see Section 9a): under a mocked non-TTY stdin, `--by-human` SUCCEEDS (records the attested approval + history line) and its ABSENCE is refused byte-identical; the stale "agent must not self-approve even with the flag" assertion is replaced by "an agent must explicitly attest via --by-human." Any other test passing `yes_i_am_human=...` is migrated to `by_human=...`.
 - A6 `aw specs check` and `aw attention --check` remain clean.
 
 ## 9. Constraints and dependencies
 
 - Revises D125 (record the reframed floor + the flag change in a new DECISIONS entry on implementation). Depends on `attention_contract.TRANSITION_AUTHORITY` + `specs.py`. The AGENTS.md pointer regeneration follows the D104 empty-diff-invariant convention. This unblocks recording approvals for the two currently-stuck specs (this one + `20260813-1833-01` backlog tier) and `ipdexechist-01` without a TTY.
 
+## 9a. Anti-regression note (review 2026-08-15, verified)
+
+This change DELIBERATELY relaxes a behavior currently guarded by a test, so it must be handled as an intended narrowing, not silently:
+
+- `tests/test_specs_verbs.py::test_approved_requires_human_and_is_refused_non_tty` (line ~152) today asserts, with a mocked non-TTY stdin and `yes_i_am_human=True`, that the transition is REFUSED with the comment "agent must not self-approve". Under this spec that exact scenario CHANGES: with `--by-human` a non-TTY agent SUCCEEDS (records the attested approval); without `--by-human` it is refused. The IPD MUST rewrite this test's INTENT (not just its args): the guarantee becomes "an agent must pass the explicit `--by-human` attestation to record approval; a bare `set --status approved` with no attestation is refused (the speed bump)." (Rubric D: this is replacing a behavior policy now says to replace, not freezing it.)
+- Corroboration for the reframing (review, grepped): NO CI job or workflow relies on the TTY floor as a barrier (`.github/`, `.agents/workflows/` have no dependency on "agent cannot set approved"); the only enforcement site is `specs.py`/`cli.py`. This supports Section 2/3's thesis that the TTY control was a speed bump, not a load-bearing security barrier - removing the TTY requirement regresses no other consumer.
+- The implementing IPD's DECISIONS entry MUST record this as a DELIBERATE narrowing of D125's floor (from "TTY-enforced, agent-unsatisfiable" to "explicit `--by-human` attestation, agent-recordable") so a future reader does not mistake it for a security regression.
+
 ## 10. Risks and open questions
 
-- OQ1 Authority-key naming: keep `TRANSITION_AUTHORITY['->approved']['human_token']` (re-interpreted) or rename to `by_human`? (Leaning: rename to `by_human` for honesty; minor, internal.)
-- OQ2 Should PLANS' approval also route through a `--by-human`-style verb for consistency, or stay the current attributed `- Approval:` metadata convention until the unified `aw set` verb? (Leaning: leave plans as-is now; unify later under nm69aj.)
-- OQ3 Should `--message` stay mandatory for approvals (provenance) or be optional with a default? (Leaning: mandatory - the provenance IS the point.)
-- OQ4 Exact migration shape of the future unified verb (`aw set human approved <id>` vs `aw set approved --by-human <id>`)? Deferred to the nm69aj backlog item; this spec only requires forward-compatibility.
+- OQ1 Authority-key naming: keep `TRANSITION_AUTHORITY['->approved']['human_token']` (re-interpreted) or rename to `by_human`? Non-blocking implementation detail (internal). Leaning: rename to `by_human` for honesty; the IPD decides.
+- OQ2 RESOLVED (2026-08-15 /plan-review, human maintainer): leave PLANS on their existing attributed `- Approval:` metadata convention (already honest + non-TTY); do NOT route plans through `--by-human` in this work. Specs + plans unify later under the `aw set` verb (backlog nm69aj).
+- OQ3 RESOLVED (2026-08-15 /plan-review, human maintainer): `--message` stays MANDATORY on approvals; the attributed who/how provenance is the point of an honest attestation.
+- OQ4 Exact migration shape of the future unified verb (`aw set human approved <id>` vs `aw set approved --by-human <id>`)? Deferred to the nm69aj backlog item; this spec only requires forward-compatibility. Non-blocking.
 
 ## 11. Next step
 
@@ -83,3 +91,4 @@ Drafted to `Status: to-review`. Next: `/plan-review`, then HUMAN APPROVAL, then 
 
 ## Workflow history
 - 2026-08-15 /spec (opencode its_direct/pt3-claude-opus-4.8-1m-us): drafted to Status: to-review. Reframes D125's approval floor from a TTY/anti-malicious control (rejected as theater) to an honest conscious speed bump, and replaces the dishonest `--yes-i-am-human` with a non-TTY `--by-human` attestation recording attributed human approval. Executes backlog item 0zb1cd; names the unified `aw set` verb (nm69aj) as the migration target. Maintainer-directed 2026-08-15 ("we just want a mechanism that makes an agent stop and think 'did the human approve this'... a simple approved-by-human is all that's needed... it does not force you to lie").
+- 2026-08-15 note (aw specs): /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - clean. Verified all path:line claims (TRANSITION_AUTHORITY ->approved human_token; _human_confirmed/isatty/--yes-i-am-human sites; AGENTS pointer prose; plans attributed-Approval asymmetry). One anti-regression finding FIXED in place (Section 9a): test_approved_requires_human intent flips to 'agent must pass --by-human'; corroborated NO CI/workflow depends on the TTY floor as a barrier (supports the speed-bump reframing). Resolved OQ2 (leave plans as-is) + OQ3 (--message mandatory); OQ1/OQ4 non-blocking impl leanings. Status stays to-review; human approval remains the gate before the IPD.
