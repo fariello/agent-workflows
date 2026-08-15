@@ -6,7 +6,7 @@ Showing the 40 most-recent of 80 Sets; the full manifest is INDEX.json.
 
 ## backlogtier
 
-- `crv40v` [pending] 01 pending/20260813-backlogtier-01-crv40v-attention-visible-backlog-tier.md
+- `crv40v` [executed] 01 executed/20260813-backlogtier-01-crv40v-attention-visible-backlog-tier.md
 
 ## ipdexechist
 

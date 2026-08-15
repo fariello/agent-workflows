@@ -1540,6 +1540,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-13",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260813-backlogtier-01-crv40v-attention-visible-backlog-tier.md",
+    "plan_id": "crv40v",
+    "set_id": "backlogtier",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -1588,16 +1598,6 @@
     "plan_id": "pszk6x",
     "set_id": "awphysical",
     "status": "approved"
-  },
-  {
-    "date": "2026-08-13",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260813-backlogtier-01-crv40v-attention-visible-backlog-tier.md",
-    "plan_id": "crv40v",
-    "set_id": "backlogtier",
-    "status": "reviewed"
   },
   {
     "date": "2026-08-13",
