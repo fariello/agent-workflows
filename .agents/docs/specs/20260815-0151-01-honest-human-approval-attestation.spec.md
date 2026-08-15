@@ -1,7 +1,7 @@
 # Spec: honest human-approval attestation (replace `--yes-i-am-human` with `--by-human`)
 
 - Date: 2026-08-15
-- Status: approved
+- Status: implemented
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Motivation: the `aw specs set` human-only transition gate (D125's "anti-self-approval floor") forces a dishonest, high-friction ritual: to record a human's approval an agent must pass `--yes-i-am-human` (asserting it IS human, a falsehood) AND satisfy a TTY check its non-interactive shell cannot meet, so the human is repeatedly forced into their own terminal to run the command. The maintainer flagged both problems: it forces an agent to lie, and it is disproportionately strict for what the control actually is.
 - Relation to prior work: REVISES D125's approval floor. Executes the `open` backlog item `honest-human-approval-attestation` (id 0zb1cd). Related backlog: `unified-status-transition-verb` (nm69aj, the future `aw set` migration target) and the parked `specs-approval-ergonomics` (zpez3o, OQ10). Touches `agent_workflows/attention_contract.py` (`TRANSITION_AUTHORITY`), `agent_workflows/specs.py` (`run_set`, `_human_confirmed`), `agent_workflows/cli.py`, `tests/test_specs_verbs.py`, `.agents/docs/specs/README.md`, and the AGENTS.md pointer.
@@ -94,3 +94,5 @@ Drafted to `Status: to-review`. Next: `/plan-review`, then HUMAN APPROVAL, then 
 - 2026-08-15 note (aw specs): /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - clean. Verified all path:line claims (TRANSITION_AUTHORITY ->approved human_token; _human_confirmed/isatty/--yes-i-am-human sites; AGENTS pointer prose; plans attributed-Approval asymmetry). One anti-regression finding FIXED in place (Section 9a): test_approved_requires_human intent flips to 'agent must pass --by-human'; corroborated NO CI/workflow depends on the TTY floor as a barrier (supports the speed-bump reframing). Resolved OQ2 (leave plans as-is) + OQ3 (--message mandatory); OQ1/OQ4 non-blocking impl leanings. Status stays to-review; human approval remains the gate before the IPD.
 - 2026-08-15 reviewed (aw specs): /plan-review complete (opencode Opus 4.8): REVIEWED - clean, revisions applied, anti-regression note added, OQ2/OQ3 resolved. to-review -> reviewed.
 - 2026-08-15 approved (aw specs): Approved.
+- 2026-08-15 implementing (aw specs): IPD 0g0rid executed by Gemini 3.7 Flash High, orchestrator-verified + transitioned to executed/.
+- 2026-08-15 implemented (aw specs): Implemented via IPD 0g0rid (executed/): --by-human replaces --yes-i-am-human; D132. Full suite 923/1/0; mutation-probed.
