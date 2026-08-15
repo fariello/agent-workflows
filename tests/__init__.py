@@ -17,6 +17,7 @@ only backstops the ones that would otherwise escape to the real home.
 import atexit
 import os
 import shutil
+import sys
 import tempfile
 
 if not os.environ.get("AW_HOME"):
@@ -39,3 +40,23 @@ os.environ.setdefault("GIT_ASKPASS", "/bin/echo")
 os.environ.setdefault("SSH_ASKPASS", "/bin/echo")
 os.environ.setdefault("GIT_SSH_COMMAND", "ssh -o BatchMode=yes -o ConnectTimeout=5")
 os.environ.setdefault("GIT_CONFIG_NOSYSTEM", "1")
+
+# Interactive-prompt guard: many CLI paths (install wizard, `sanitize --configure`, the
+# `config`/`setup` roots interview, exclude guard) call `input()` behind a `sys.stdin.isatty()`
+# gate. Under CI or a piped runner `isatty()` is False, so those paths take their non-interactive
+# branch and the suite is fast. But when a developer runs `python3 -m unittest discover` (or pytest)
+# directly IN A REAL TERMINAL, `sys.stdin.isatty()` is True: any test that exercises such a path
+# without itself forcing/mocking stdin then reaches a bare `input()` and BLOCKS FOREVER waiting for
+# keystrokes (observed: `test_configure_non_interactive_without_yes_refuses` hung a real-terminal run
+# for 40+ minutes). Reopen this process's stdin on /dev/null so `isatty()` is False and any unguarded
+# `input()` raises EOFError instead of hanging, regardless of how the suite was launched. Tests that
+# need a TTY still force it explicitly (e.g. monkeypatching `sys.stdin`/`builtins.input`), so they win.
+try:
+    _devnull = os.open(os.devnull, os.O_RDONLY)
+    os.dup2(_devnull, 0)
+    os.close(_devnull)
+    sys.stdin = open(os.devnull, "r")
+except OSError:
+    # If stdin cannot be redirected (unusual sandbox), leave it as-is; the git guards above
+    # and per-test mocks still apply.
+    pass

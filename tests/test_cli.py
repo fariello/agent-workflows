@@ -495,9 +495,31 @@ class LeaksConfigTests(CliTestBase):
         )
 
     def test_configure_non_interactive_without_yes_refuses(self):
-        # stdin is not a TTY under the test harness; without --yes it must refuse (exit 2).
+        # `sanitize --configure` requires an interactive TTY; without one it must refuse (exit 2)
+        # WITHOUT ever reaching a blocking input() prompt. Force a non-TTY stdin explicitly so the
+        # assertion holds regardless of how the suite is launched (the tests/__init__.py backstop
+        # also redirects stdin to /dev/null, but a test must not depend on the ambient terminal:
+        # under a real TTY the wizard would otherwise fall through to input() and hang forever).
+        import builtins
+
+        class _FakeNonTTY:
+            def isatty(self):
+                return False
+
+        def _no_input(prompt=""):
+            raise AssertionError(
+                "input() must not be called on the non-interactive refusal path"
+            )
+
         repo = self._repo("cfg-root2")
-        code, out = _run(["sanitize", str(repo), "--configure", "--no-color"])
+        real_input, real_stdin = builtins.input, __import__("sys").stdin
+        builtins.input = _no_input
+        __import__("sys").stdin = _FakeNonTTY()
+        try:
+            code, out = _run(["sanitize", str(repo), "--configure", "--no-color"])
+        finally:
+            builtins.input = real_input
+            __import__("sys").stdin = real_stdin
         self.assertEqual(code, 2)
         self.assertFalse((Path(repo) / ".agents/local-leaks-allowlist.toml").exists())
 
