@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: The `aw specs set` human-only transition gate forces an agent to assert a falsehood (`--yes-i-am-human`) AND satisfy a TTY check its non-interactive shell cannot meet, so a human is repeatedly forced into their terminal to record an approval they already gave. Replace it with an honest, non-TTY `--by-human` attestation (a conscious speed bump, not anti-malicious-agent crypto), per the approved spec.
 - Scope: `agent_workflows/specs.py` (`run_set` human-only path; remove `_human_confirmed`), `agent_workflows/cli.py` (replace the `--yes-i-am-human` arg with `--by-human` on `specs set`), `agent_workflows/attention_contract.py` (the `TRANSITION_AUTHORITY` docstring/reframing AND the `APPROVAL_FLOOR` constant string), `agent_workflows/engine.py` (`agents_pointer_prose` "What needs attention" line + regenerate this repo's AGENTS.md managed block), `.agents/docs/specs/README.md`, `tests/test_specs_verbs.py`, `tests/test_attention_contract.py` (the `APPROVAL_FLOOR` assertions), and a new DECISIONS entry. Implements the approved spec `.agents/docs/specs/20260815-0151-01-honest-human-approval-attestation.spec.md`.
-- Status: reviewed
+- Status: approved
+- Approval: the human maintainer, 2026-08-15 (via chat) - approved for execution by Gemini 3.7 Flash High.
 - Highest E allocated: 06
 - Author: opencode Opus 4.8
 - Id: 0g0rid
@@ -15,6 +16,7 @@
 
 - 2026-08-15 draft (opencode Opus 4.8): authored from the approved spec 20260815-0151-01. Replaces the dishonest TTY-gated --yes-i-am-human with a non-TTY --by-human attestation; reframes D125's floor as a conscious speed bump; rewrites the anti-regression test intent per spec Section 9a; --message already required on specs set (OQ3 satisfied); plans left as-is (OQ2).
 - 2026-08-15 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002. Author-phase + review-finalize lint conforming. Verified every path:line claim against code (specs.py:354 human-only branch, specs.py:559 _human_confirmed, cli.py:1480 --yes-i-am-human, cli.py:1455 --message already required, attention_contract.py:320 human_token, engine.py:758 pointer, README:25). PR-001 (UNDER-SCOPE, would break the build): APPROVAL_FLOOR (attention_contract.py:333) hard-asserts "cannot satisfy autonomously"/"INSUFFICIENT bare flag", contradicting the new --by-human design; added to E-04/scope. PR-002 (UNDER-SCOPE): test_attention_contract.py:104-105 asserts those exact phrases and would FAIL; added to E-06/scope. Both FIXED in place. Status draft -> reviewed. GO - PENDING HUMAN APPROVAL.
+- 2026-08-15 approved (the human maintainer, via chat; recorded by opencode Opus 4.8): approved for execution by Gemini 3.7 Flash High. Plans carry no TTY floor; this is attributed human approval, not agent self-approval. Status reviewed -> approved.
 
 ## Goal
 
