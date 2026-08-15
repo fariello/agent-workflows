@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 80 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 81 Sets; the full manifest is INDEX.json.
+
+## humanapproval
+
+- `0g0rid` [pending] 01 pending/20260815-humanapproval-01-0g0rid-by-human-attestation.md
 
 ## backlogtier
 
@@ -231,10 +235,6 @@ Showing the 40 most-recent of 80 Sets; the full manifest is INDEX.json.
 
 - `hq4p3a` [executed] 00 executed/20260712-assess-bugs-00-hq4p3a-assess-bugs-in-scripts.md
 - `9gfezi` [executed] 00 executed/20260715-assess-bugs-00-9gfezi-assess-bugs.md
-
-## docs-consistency
-
-- `49lbcl` [executed] 00 executed/20260715-docs-consistency-00-49lbcl-docs-consistency-audit-corrections.md
 
 ## (singletons: no Set)
 

@@ -1610,6 +1610,16 @@
     "status": "reviewed"
   },
   {
+    "date": "2026-08-15",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260815-humanapproval-01-0g0rid-by-human-attestation.md",
+    "plan_id": "0g0rid",
+    "set_id": "humanapproval",
+    "status": "draft"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",
