@@ -3,7 +3,7 @@
 - Date: 2026-08-13
 - Kind: child
 - Concern: `aw attention` (which feeds `/whatnext`) scans only plans/specs/research/actions, so committed work captured in the free-prose `TODO.md` is silently omitted - a false-comprehensiveness risk. Implement a lightweight, tracked, attention-visible backlog tier so committed work surfaces while uncommitted maybes stay quiet.
-- Scope: `agent_workflows/attention_contract.py` (`TREE_POLICY` + `CLASS_MAPS`/`_BACKLOG_MAP`), `agent_workflows/artifact_core.py` (`SCAN_ROOTS`), `agent_workflows/attention.py` (scan/`_classify_tree`/`_record_for` + a `_backlog_record` builder + the `all` reveal), a new `agent_workflows/backlog.py` (the `aw backlog new|set|check` verbs), `agent_workflows/cli.py` (wire `aw backlog`, `aw attention all`, and the `aw att` alias), the new `records/backlog/` tree scaffold + `README.md`, the `TODO.md` migration, docs (AGENTS.md pointer), and tests. Implements the approved spec `.agents/docs/specs/20260813-1833-01-attention-visible-backlog-tier.spec.md`.
+- Scope: `agent_workflows/attention_contract.py` (`TREE_POLICY` + `CLASS_MAPS`/`_BACKLOG_MAP`), `agent_workflows/artifact_core.py` (`SCAN_ROOTS`), `agent_workflows/attention.py` (scan/`_classify_tree`/`_record_for` + a `_backlog_record` builder), a new `agent_workflows/backlog.py` (the `aw backlog new|set|check` verbs), `agent_workflows/cli.py` (wire `aw backlog` and the `aw att` alias; the parked reveal already exists as `aw attention --all`), the new `records/backlog/` tree scaffold + `README.md`, the `TODO.md` migration, docs (AGENTS.md pointer), and tests. Implements the approved spec `.agents/docs/specs/20260813-1833-01-attention-visible-backlog-tier.spec.md`.
 - Status: draft
 - Highest E allocated: 08
 - Author: opencode Opus 4.8
@@ -12,11 +12,11 @@
 - Order: 1
 ## Workflow history
 
-- 2026-08-13 draft (opencode Opus 4.8): authored from the approved spec 20260813-1833-01 (attention-visible backlog tier). Implements the records-class backlog/ sub-tree, the four attention touch-points, the aw backlog verbs, aw attention all + aw att alias, and the TODO.md migration, per the spec's resolved OQ1-OQ7.
+- 2026-08-13 draft (opencode Opus 4.8): authored from the approved spec 20260813-1833-01 (attention-visible backlog tier). Implements the records-class backlog/ sub-tree, the four attention touch-points, the aw backlog verbs, the aw att alias (parked reveal uses the existing aw attention --all), and the TODO.md migration, per the spec's resolved OQ1-OQ7.
 
 ## Goal
 
-Add a `records`-class `backlog/{open,blocked,parked,done}/` tree of lightweight frontmatter+prose items, an `aw backlog new|set|check` verb family to manage them, and the four `aw attention` integration touch-points so committed (`open`) items surface as `ready` and gated (`blocked`) items as `blocked` in `aw attention` + `/whatnext`, while uncommitted `parked` maybes are tracked-but-quiet (JSON-only, revealed by `aw attention all`). Migrate the existing `TODO.md` committed sections into the tree so nothing committed is invisible.
+Add a `records`-class `backlog/{open,blocked,parked,done}/` tree of lightweight frontmatter+prose items, an `aw backlog new|set|check` verb family to manage them, and the four `aw attention` integration touch-points so committed (`open`) items surface as `ready` and gated (`blocked`) items as `blocked` in `aw attention` + `/whatnext`, while uncommitted `parked` maybes are tracked-but-quiet (auto-hidden from the default board, in `--format json`, revealed by the existing `aw attention --all`). Migrate the existing `TODO.md` committed sections into the tree so nothing committed is invisible.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -43,26 +43,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `class_of("backlog", s)` is defined for every backlog status and raises on unknown; `_classify_tree` maps a backlog file (either layout) to the backlog policy.
   - Execution state: pending
 
-- [ ] E-05 Make `aw attention` discover + record backlog items: add the backlog root(s) (`.agents/backlog` and `.aw/records/backlog`) to `SCAN_ROOTS` in `artifact_core.py`, and add a `backlog` branch in `attention.py` `_record_for` + a `_backlog_record` builder (reading frontmatter `status`/`priority`/`summary`/`id`, mirroring `_plans_record`/`_research_record`) with `scan()` routing backlog files to it. `open`/`blocked` items appear in the human hot glance (as `ready`/`blocked`) and in `--format json`; `parked` items are in JSON but EXCLUDED from the hot glance (like `archive` research); `priority` orders the `ready` list (high first).
+- [ ] E-05 Make `aw attention` discover + record backlog items: add the backlog root(s) (`.agents/backlog` and `.aw/records/backlog`) to `SCAN_ROOTS` in `artifact_core.py`, and add a `backlog` branch in `attention.py` `_record_for` + a `_backlog_record` builder (reading frontmatter `status`/`priority`/`summary`/`id`, mirroring `_plans_record`/`_research_record`) with `scan()` routing backlog files to it. NOTE (verified during authoring): the hot-glance vs JSON split needs NO new code - `attention.render_board` (attention.py:354) ALREADY hides `DONE`/`PARKED` class groups unless `show_all`, and `render_json` always includes them. So once a backlog item maps to its class (E-04), `open`->`ready` and `blocked`->`blocked` show in the default board while `parked`->`parked` is auto-hidden (shown under `--all`, always in `--format json`). Do NOT build a separate exclusion filter. `priority` is carried into the record and used to order the `ready` group (high first) - confirm whether `render_board` currently sorts within a class; if not, add priority ordering for backlog `ready` items only, minimally.
   - Depends on: E-02
-  - Expected outcome: `aw attention` includes backlog items with correct classes; `open` shows in the board + `/whatnext`; `parked` is JSON-only, out of the default board; `aw attention --check` stays clean with backlog items present.
+  - Expected outcome: `aw attention` includes backlog items with correct classes; `open`/`blocked` show in the default board + `/whatnext`; `parked` is auto-hidden from the default board (visible under `--all`) and always in `--format json`; `aw attention --check` stays clean with backlog items present.
   - Execution state: pending
 
-- [ ] E-06 Add the attention CLI conveniences (spec OQ2): `aw attention all` (reveals `parked`/archived-tier items the default board hides) and an `aw att` alias for `aw attention`, both small `cli.py` edits.
+- [ ] E-06 Add the `aw att` alias for `aw attention` (a small `cli.py` edit). NOTE (verified during authoring): the "reveal parked" capability the spec's OQ2 asked for ALREADY EXISTS as `aw attention --all` (cli.py `--all` "Show done/parked groups in the board"; `attention.render_board` hides DONE/PARKED groups unless `show_all`, printing `## parked (N) [hidden; use --all]`). So do NOT add a new `aw attention all` subcommand (it would be redundant); the only new surface here is the `aw att` alias. The spec's `aw attention all` phrasing is superseded by the existing `--all` flag.
   - Depends on: E-02
-  - Expected outcome: `aw attention all` lists parked backlog items that `aw attention` hides; `aw att` behaves identically to `aw attention`.
+  - Expected outcome: `aw att` behaves identically to `aw attention` (incl. `--all`, `--format json`, `--check`); `aw attention --all` reveals `parked` backlog items that the default board hides (existing behavior, confirmed post-implementation).
   - Execution state: pending
 
 ### Task group 4: Migrate TODO.md + docs
 
-- [ ] E-07 Migrate `TODO.md` into the backlog tree per spec OQ1: "Known bugs to fix" + "Security follow-ups" + "Planned next (designed, deferred)" -> `open/` (or `blocked/` for an item that names a gate); "Consider and possibly implement (may be declined)" -> `parked/`; "Notes" stays prose. Reduce `TODO.md` to a pointer at the backlog tree + the retained Notes section (do not silently drop any committed item). Add the AGENTS.md pointer that committed backlog lives in the records backlog tree (surfaced by `aw attention`) and `TODO.md` holds only uncommitted notes; add the `records/backlog/README.md`.
+- [ ] E-07 Migrate `TODO.md` into the backlog tree per spec OQ1, following an EXPLICIT procedure (the migration is human-in-the-loop for judgment calls, NOT a mechanical sweep - the current TODO.md is NOT flat; see the per-item rules). Procedure:
+  1. INVENTORY first: enumerate every committed-tier item (each `- **...**` lead bullet under "Known bugs to fix", "Security follow-ups", "Planned next (designed, deferred)") and every "Consider and possibly implement (may be declined)" item; record the count. This count is the reconciliation baseline (step 6).
+  2. ONE lead bullet -> ONE backlog item (via `aw backlog new`), body = that bullet's full prose (sub-bullets included). Preserve any embedded Set grouping: items already clustered in TODO.md (e.g. the "IPD 2/3/4" broker group, and the two distinct "Order 1/2/3/4" pipeline Sets) become backlog items sharing a `set` id; unrelated singletons get their own set.
+  3. STATUS derivation: default committed items -> `open`; an item whose prose is explicitly marked DONE (e.g. "Order 1 - DONE (D88)", "Order 2 - DONE (D91)") -> `done/` with a history line citing the referenced decision/commit (do NOT create an `open` item for already-done work); an item that names a concrete GATE it waits on (e.g. the split-brain-install bug is gated on the awphysical migration; a "Consider" item explicitly deferred pending another decision) -> `blocked/` with `gate-kind`/`gate-ref` (e.g. `plan`/the awphysical order, or `spec`/id); "Consider and possibly implement (may be declined)" items -> `parked/`. Ambiguous status/gate assignments are surfaced to the maintainer, not guessed.
+  4. FIELD derivation per item: `kind` from content (`bug`/`security`/`feature`/`chore`/`followup`); `priority` high/medium/low (bugs+security default high, planned-next medium, unless the prose implies otherwise - confirm with the maintainer where unclear); `summary` = a one-line distillation of the bullet's lead sentence.
+  5. "Notes" section stays PROSE in `TODO.md` (Tier-3). Reduce `TODO.md` to a short pointer at the backlog tree + the retained Notes.
+  6. RECONCILE: assert the number of migrated backlog items (open+blocked+parked+done) EQUALS the step-1 inventory count (minus any the maintainer explicitly drops); list the before -> after mapping so no committed item is silently lost. Add the AGENTS.md pointer (committed backlog lives in the records backlog tree, surfaced by `aw attention`; `TODO.md` holds only uncommitted notes) and the `records/backlog/README.md`.
   - Depends on: E-03, E-04, E-05
-  - Expected outcome: every previously-committed TODO item is a backlog file at the right status; `aw attention` shows the committed ones; `TODO.md` no longer holds committed work; docs point at the tree.
+  - Expected outcome: every committed TODO item maps to exactly one backlog file at the correct status (open/blocked/parked/done, DONE-marked items NOT resurrected as open), embedded Sets preserved, the before->after reconciliation shows zero loss, `aw attention` shows the open/blocked ones, `TODO.md` retains only Notes + a pointer, docs updated.
   - Execution state: pending
 
 ### Task group 5: Tests
 
-- [ ] E-08 Add tests: (a) `_BACKLOG_MAP` purity/totality + `class_of("backlog", ...)` incl. unknown-status raising; (b) attention inclusion - `open`/`blocked` in the board, `parked` JSON-only/out-of-glance, `aw attention all` reveals parked, `aw att` alias; (c) `aw backlog new/set/check` incl. blocked-requires-gate, status-mirrors-directory, and fail-closed `check` cases; (d) a post-migration assertion that a representative migrated item surfaces in `aw attention`. Full suite green (`pytest -n auto` / `unittest discover`).
+- [ ] E-08 Add tests: (a) `_BACKLOG_MAP` purity/totality + `class_of("backlog", ...)` incl. unknown-status raising; (b) attention inclusion - `open`/`blocked` in the board, `parked` auto-hidden from the default board but present in `--format json` and revealed by the existing `aw attention --all`, plus the `aw att` alias equivalence; (c) `aw backlog new/set/check` incl. blocked-requires-gate, status-mirrors-directory, and fail-closed `check` cases; (d) a post-migration assertion that a representative migrated item surfaces in `aw attention`. Full suite green (`pytest -n auto` / `unittest discover`).
   - Depends on: E-02, E-03, E-04, E-05, E-07
   - Expected outcome: new tests pass; full suite green; `aw attention --check` + `aw backlog check` clean on the repo after migration.
   - Execution state: pending
@@ -76,7 +82,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Findings
 
-- The gap and design are fully specified and reviewed in `20260813-1833-01-attention-visible-backlog-tier.spec.md` (approved). This IPD implements it; OQ1-OQ7 are all resolved there (records location; open|blocked|parked|done + typed gate; priority high|medium|low + Set from v1; no v1 manifest; promotion = done+plan-cite; parked JSON-only + `aw attention all` + `aw att`).
+- The gap and design are fully specified and reviewed in `20260813-1833-01-attention-visible-backlog-tier.spec.md` (approved). This IPD implements it; OQ1-OQ7 are all resolved there (records location; open|blocked|parked|done + typed gate; priority high|medium|low + Set from v1; no v1 manifest; promotion = done+plan-cite; parked JSON-only, revealed by the existing `aw attention --all`; add `aw att` alias).
 
 ## Proposed changes (ordered, validatable)
 
@@ -84,7 +90,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 2. `agent_workflows/backlog.py` + `aw backlog new|set|check` CLI.
 3. Attention contract: `_BACKLOG_MAP` + `TreePolicy`.
 4. Attention discovery/record: `SCAN_ROOTS` + `_backlog_record` + `scan` routing; parked hot-glance exclusion.
-5. `aw attention all` + `aw att` alias.
+5. `aw att` alias (parked reveal already provided by the existing `aw attention --all`).
 6. `TODO.md` migration + AGENTS.md/README docs.
 7. Tests + full-suite green.
 
@@ -142,7 +148,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06
-  - Required evidence: `aw attention all` lists a parked item that `aw attention` hides; `aw att` output equals `aw attention` output.
+  - Required evidence: `aw att` (the new alias) produces byte-identical output to `aw attention` for the same args (incl. `--all`, `--format json`, `--check`); and confirm the EXISTING `aw attention --all` reveals a `parked` backlog item that the default `aw attention` board hides (no new `aw attention all` subcommand was added, since `--all` already exists). Paste both invocations.
   - Observed evidence:
   - Result: pending
 - [ ] V-07 validates E-07
@@ -160,4 +166,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: one coherent deliverable - a new records-class tree + its verbs + its attention integration + the migration that makes it useful - all implementing a single approved spec.
 
-Execution requires the controlling spec `20260813-1833-01` at `Status: approved` (human), a GO `/plan-review` on this IPD, and human approval of this IPD. Scope fence: the files in Scope only - the backlog tree/contract, `backlog.py` + `aw backlog`, the attention contract/discovery touch-points, `aw attention all` + `aw att`, the TODO.md migration + docs, and tests. Do not add a manifest, do not build the `/aw` redesign, do not change the physical model or other attention trees. Paste actual outputs, commit only path-scoped files, never broad-stage, never push. Complete E/V evidence and pre-transition lint before moving this plan to `executed/`.
+Execution requires the controlling spec `20260813-1833-01` at `Status: approved` (human), a GO `/plan-review` on this IPD, and human approval of this IPD. Scope fence: the files in Scope only - the backlog tree/contract, `backlog.py` + `aw backlog`, the attention contract/discovery touch-points, the `aw att` alias, the TODO.md migration + docs, and tests. Do not add a manifest, do not build the `/aw` redesign, do not change the physical model or other attention trees. Paste actual outputs, commit only path-scoped files, never broad-stage, never push. Complete E/V evidence and pre-transition lint before moving this plan to `executed/`.
