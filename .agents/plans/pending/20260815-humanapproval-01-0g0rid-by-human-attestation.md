@@ -3,8 +3,8 @@
 - Date: 2026-08-15
 - Kind: child
 - Concern: The `aw specs set` human-only transition gate forces an agent to assert a falsehood (`--yes-i-am-human`) AND satisfy a TTY check its non-interactive shell cannot meet, so a human is repeatedly forced into their terminal to record an approval they already gave. Replace it with an honest, non-TTY `--by-human` attestation (a conscious speed bump, not anti-malicious-agent crypto), per the approved spec.
-- Scope: `agent_workflows/specs.py` (`run_set` human-only path; remove `_human_confirmed`), `agent_workflows/cli.py` (replace the `--yes-i-am-human` arg with `--by-human` on `specs set`), `agent_workflows/attention_contract.py` (the `TRANSITION_AUTHORITY` docstring/reframing), `agent_workflows/engine.py` (`agents_pointer_prose` "What needs attention" line + regenerate this repo's AGENTS.md managed block), `.agents/docs/specs/README.md`, `tests/test_specs_verbs.py`, and a new DECISIONS entry. Implements the approved spec `.agents/docs/specs/20260815-0151-01-honest-human-approval-attestation.spec.md`.
-- Status: draft
+- Scope: `agent_workflows/specs.py` (`run_set` human-only path; remove `_human_confirmed`), `agent_workflows/cli.py` (replace the `--yes-i-am-human` arg with `--by-human` on `specs set`), `agent_workflows/attention_contract.py` (the `TRANSITION_AUTHORITY` docstring/reframing AND the `APPROVAL_FLOOR` constant string), `agent_workflows/engine.py` (`agents_pointer_prose` "What needs attention" line + regenerate this repo's AGENTS.md managed block), `.agents/docs/specs/README.md`, `tests/test_specs_verbs.py`, `tests/test_attention_contract.py` (the `APPROVAL_FLOOR` assertions), and a new DECISIONS entry. Implements the approved spec `.agents/docs/specs/20260815-0151-01-honest-human-approval-attestation.spec.md`.
+- Status: reviewed
 - Highest E allocated: 06
 - Author: opencode Opus 4.8
 - Id: 0g0rid
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-15 draft (opencode Opus 4.8): authored from the approved spec 20260815-0151-01. Replaces the dishonest TTY-gated --yes-i-am-human with a non-TTY --by-human attestation; reframes D125's floor as a conscious speed bump; rewrites the anti-regression test intent per spec Section 9a; --message already required on specs set (OQ3 satisfied); plans left as-is (OQ2).
+- 2026-08-15 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002. Author-phase + review-finalize lint conforming. Verified every path:line claim against code (specs.py:354 human-only branch, specs.py:559 _human_confirmed, cli.py:1480 --yes-i-am-human, cli.py:1455 --message already required, attention_contract.py:320 human_token, engine.py:758 pointer, README:25). PR-001 (UNDER-SCOPE, would break the build): APPROVAL_FLOOR (attention_contract.py:333) hard-asserts "cannot satisfy autonomously"/"INSUFFICIENT bare flag", contradicting the new --by-human design; added to E-04/scope. PR-002 (UNDER-SCOPE): test_attention_contract.py:104-105 asserts those exact phrases and would FAIL; added to E-06/scope. Both FIXED in place. Status draft -> reviewed. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -37,9 +38,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: Contract + docs
 
-- [ ] E-04 Reframe the floor in docs to match the mechanism (no behavior beyond wording + the AGENTS regen). Update: `attention_contract.py` `TRANSITION_AUTHORITY` docstring/comments describing the floor (from "interactive human confirmation an agent cannot satisfy" to "an explicit --by-human attestation: a conscious speed bump recording that a human approved; NOT anti-malicious crypto"); optionally rename the authority key `human_token` -> `by_human` (OQ1, internal - if renamed, update the `specs.py` reader in lockstep); `engine.py` `agents_pointer_prose` "What needs attention" line (from "an agent may NOT set `approved` (human-only)" to "an agent records human approval with `aw specs set --status approved --by-human --message ...`, an explicit attested speed bump; no TTY, no 'I am human' claim") and REGENERATE this repo's AGENTS.md managed block (D104 empty-diff invariant); `.agents/docs/specs/README.md` approval sentence.
+- [ ] E-04 Reframe the floor in docs/contract to match the mechanism (no behavior beyond wording + the AGENTS regen). Update: (a) `attention_contract.py` `TRANSITION_AUTHORITY` docstring/comments describing the floor (from "interactive human confirmation an agent cannot satisfy" to "an explicit --by-human attestation: a conscious speed bump recording that a human approved; NOT anti-malicious crypto"); optionally rename the authority key `human_token` -> `by_human` (OQ1, internal - if renamed, update the `specs.py` reader in lockstep). (b) CRITICAL - rewrite the `APPROVAL_FLOOR` constant string (attention_contract.py:333): it currently HARD-ASSERTS the floor "MUST be one an executing agent cannot satisfy autonomously ... A bare --approved-by <string> flag alone is INSUFFICIENT", which directly CONTRADICTS the new `--by-human` design (an intentionally agent-recordable attestation). Rewrite it to state the new intent (the reviewed -> approved mechanism requires an EXPLICIT `--by-human` attestation - a conscious speed bump recording attributed human approval, NOT an unsatisfiable barrier; a plain status set WITHOUT `--by-human` is INSUFFICIENT), preserving the `implementing -> implemented` resolvable-evidence sentence unchanged. The `test_attention_contract.py:104-105` assertions on this string are migrated in E-06. (c) `engine.py` `agents_pointer_prose` "What needs attention" line (engine.py:758, from "an agent may NOT set `approved` (human-only)" to "an agent records human approval with `aw specs set --status approved --by-human --message ...`, an explicit attested speed bump; no TTY, no 'I am human' claim") and REGENERATE this repo's AGENTS.md managed block (D104 empty-diff invariant). (d) `.agents/docs/specs/README.md` approval sentence (README:25 "an agent may not set `approved` without an interactive human confirmation" -> the `--by-human` attestation phrasing).
   - Depends on: E-02
-  - Expected outcome: the contract docstring, the AGENTS.md pointer block, and the specs README describe the `--by-human` attestation (no stale "interactive/TTY human confirmation" wording); AGENTS.md regenerated cleanly.
+  - Expected outcome: the contract docstring, the `APPROVAL_FLOOR` string, the AGENTS.md pointer block, and the specs README all describe the `--by-human` attestation (no stale "interactive/TTY human confirmation" or "agent cannot satisfy autonomously" wording); AGENTS.md regenerated cleanly.
   - Execution state: pending
 
 - [ ] E-05 Add a DECISIONS entry recording the DELIBERATE narrowing of D125's approval floor (from "TTY-enforced, agent-unsatisfiable" to "explicit --by-human attestation, agent-recordable"), with the honest rationale (the floor is a conscious speed bump; a local gate cannot stop a malicious agent that can rewrite anything; --by-human removes the dishonest 'I am human' claim and the TTY friction while keeping the explicit-attestation speed bump), so a future reader does not read it as a security regression. Cite the spec 20260815-0151-01 + this IPD.
@@ -49,9 +50,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: Tests
 
-- [ ] E-06 Rewrite `tests/test_specs_verbs.py` per spec Section 9a: `test_approved_requires_human_and_is_refused_non_tty` (the stale "agent must not self-approve even with the flag" test) becomes a `--by-human` test - under a mocked non-TTY stdin, `set --status approved --by-human --message ...` SUCCEEDS (status approved + attributed history line) and WITHOUT `--by-human` is refused byte-identical. Migrate every `yes_i_am_human=...` in the test file to `by_human=...`. Keep the `implemented`-evidence and `deferred`-gate tests unchanged (they still enforce). Full suite green.
-  - Depends on: E-02, E-03
-  - Expected outcome: the rewritten tests pass; no `yes_i_am_human` remains in tests; the `implemented`/`deferred` gates still assert; full suite green.
+- [ ] E-06 Rewrite the tests per spec Section 9a. (a) `tests/test_specs_verbs.py`: `test_approved_requires_human_and_is_refused_non_tty` (the stale "agent must not self-approve even with the flag" test) becomes a `--by-human` test - under a mocked non-TTY stdin, `set --status approved --by-human --message ...` SUCCEEDS (status approved + attributed history line) and WITHOUT `--by-human` is refused byte-identical. Migrate every `yes_i_am_human=...` in the file to `by_human=...`. (b) `tests/test_attention_contract.py:104-105`: those two assertions currently require `"cannot satisfy autonomously"` and `"INSUFFICIENT"` to be IN `APPROVAL_FLOOR`; after E-04 rewrites that string they will FAIL - update them to assert the NEW `APPROVAL_FLOOR` intent (that `--by-human` attestation is required / a bare status set without it is insufficient), matching the rewritten constant. Keep the `implemented`-evidence and `deferred`-gate tests unchanged (they still enforce). Full suite green.
+  - Depends on: E-02, E-03, E-04
+  - Expected outcome: the rewritten `test_specs_verbs.py` + updated `test_attention_contract.py` pass; no `yes_i_am_human` remains in tests; the `implemented`/`deferred` gates still assert; full suite green.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -118,8 +119,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: `aw specs set --help` output contains `--by-human` and NOT `--yes-i-am-human`; `grep -rn "yes-i-am-human\|yes_i_am_human\|_human_confirmed" agent_workflows/` returns nothing (outside historical spec/plan prose). `--message` still required (a `set` without it errors).
   - Observed evidence:
   - Result: pending
-- [ ] V-04 validates E-04 (docs/contract reframing: attention_contract, engine, README)
-  - Required evidence: the `TRANSITION_AUTHORITY` docstring + `agents_pointer_prose` + specs README no longer say "interactive/TTY human confirmation" and describe `--by-human`; this repo's AGENTS.md managed block regenerated (contains the new pointer text); `aw attention --check` clean.
+- [ ] V-04 validates E-04 (docs/contract reframing: attention_contract incl. APPROVAL_FLOOR, engine, README)
+  - Required evidence: the `TRANSITION_AUTHORITY` docstring, the `APPROVAL_FLOOR` string, `agents_pointer_prose`, and the specs README no longer say "interactive/TTY human confirmation", "cannot satisfy autonomously", or "a bare ... flag ... is INSUFFICIENT" (in the old anti-agent sense) and instead describe the `--by-human` attestation; this repo's AGENTS.md managed block regenerated (contains the new pointer text, empty-diff invariant holds on a second regen); `aw attention --check` clean. Falsifiable: grep the old phrases -> absent; grep `--by-human` -> present in each of the four sites.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05 (the DECISIONS entry)
@@ -127,7 +128,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06 (the tests + full suite, Section 9a anti-regression)
-  - Required evidence: the rewritten `test_specs_verbs.py` passes (non-TTY --by-human succeeds; absence refused; implemented/deferred gates still enforced); no `yes_i_am_human` remains in tests; `pytest -n auto` (or unittest discover) full suite green; `aw specs check` + `aw backlog check` clean.
+  - Required evidence: the rewritten `test_specs_verbs.py` passes (non-TTY --by-human succeeds; absence refused; implemented/deferred gates still enforced); the updated `test_attention_contract.py` APPROVAL_FLOOR assertions pass against the rewritten string; no `yes_i_am_human` remains anywhere in `tests/`; `pytest -n auto` (or `python3 -m unittest discover -s tests -t .`) full suite green (paste the actual runner tail); `aw specs check` + `aw backlog check` clean.
   - Observed evidence:
   - Result: pending
 
@@ -137,4 +138,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: one coherent change - swap the dishonest TTY approval gate for an honest --by-human attestation, with the matching contract/docs/DECISIONS reframing and the anti-regression test rewrite - implementing a single approved spec.
 
-Execution requires the controlling spec `20260815-0151-01` at `Status: approved` (DONE - human, TTY, 2026-08-15), a GO `/plan-review` on this IPD, and human approval of this IPD. Scope fence: the files in Scope only - `specs.py`/`cli.py` approval path, the contract/docs reframing + AGENTS regen, the DECISIONS entry, and `test_specs_verbs.py`. Do not build the unified `aw set` verb, do not change plan approval, do not add any token/crypto mechanism, do not touch the implemented/deferred gates. Paste actual outputs, commit only path-scoped files, never broad-stage, never push. Complete E/V evidence and pre-transition lint before moving this plan to `executed/`.
+Execution requires the controlling spec `20260815-0151-01` at `Status: approved` (DONE - human, TTY, 2026-08-15), a GO `/plan-review` on this IPD, and human approval of this IPD. Scope fence: the files in Scope only - `specs.py`/`cli.py` approval path, the `attention_contract.py` reframing (incl. `APPROVAL_FLOOR`) + `engine.py`/README docs + AGENTS regen, the DECISIONS entry, and `tests/test_specs_verbs.py` + `tests/test_attention_contract.py`. Do not build the unified `aw set` verb, do not change plan approval, do not add any token/crypto mechanism, do not touch the implemented/deferred gates. Paste actual outputs, commit only path-scoped files, never broad-stage, never push. Complete E/V evidence and pre-transition lint before moving this plan to `executed/`.
