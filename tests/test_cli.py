@@ -574,31 +574,43 @@ class SubcommandDescriptionTests(unittest.TestCase):
 class AlphabeticalHelpTests(unittest.TestCase):
     """clianx-01 E-05: subcommands are listed alphabetically in every --help (display-only)."""
 
-    @staticmethod
-    def _listed_commands(help_text):
+    # Strip ANSI SGR escapes. Python 3.14's argparse colorizes --help by default when the
+    # output stream is a TTY, so `format_help()` embeds `\x1b[...m` codes when the suite is
+    # run in a real terminal (but not when piped/CI). Parsing must be color-independent.
+    _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+    @classmethod
+    def _listed_commands(cls, help_text):
         # Sub-actions are indented four spaces under the choices line; the first token is
         # the command name. Stop at a blank line / a new section.
         cmds = []
         for line in help_text.splitlines():
+            line = cls._ANSI_RE.sub("", line)
             m = re.match(r"^ {4}([A-Za-z][\w-]*)\b", line)
             if m:
                 cmds.append(m.group(1))
         return cmds
 
     def _help_of(self, *argv):
-        parser = cli._build_parser()
-        if not argv:
-            return parser.format_help()
-        # Descend to the named subparser and format ITS help.
-        node = parser
-        for name in argv:
-            sub_action = next(
-                a
-                for a in node._actions
-                if isinstance(a, __import__("argparse")._SubParsersAction)
-            )
-            node = sub_action.choices[name]
-        return node.format_help()
+        # Force color OFF so the formatted help is deterministic regardless of whether the
+        # test process's stdout is a TTY (Python 3.14 argparse auto-colors on a TTY, honoring
+        # NO_COLOR). Belt-and-suspenders: _listed_commands also strips any residual ANSI.
+        from unittest import mock
+
+        with mock.patch.dict(os.environ, {"NO_COLOR": "1"}):
+            parser = cli._build_parser()
+            if not argv:
+                return parser.format_help()
+            # Descend to the named subparser and format ITS help.
+            node = parser
+            for name in argv:
+                sub_action = next(
+                    a
+                    for a in node._actions
+                    if isinstance(a, __import__("argparse")._SubParsersAction)
+                )
+                node = sub_action.choices[name]
+            return node.format_help()
 
     def test_top_level_commands_sorted(self):
         cmds = self._listed_commands(self._help_of())
