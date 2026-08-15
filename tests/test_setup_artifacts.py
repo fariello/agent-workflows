@@ -228,6 +228,32 @@ class PromptsScaffoldTests(unittest.TestCase):
         self.assertFalse(readme.exists(), "rollback left the prompts README behind")
         self.assertFalse(keep.exists(), "rollback left a prompts bucket gitkeep behind")
 
+    def test_rollback_picks_backup_with_created_record_not_lexical_last(self):
+        # Regression for the intermittent test_undo flake (backlog z1zo8r): a single install
+        # issues several independent datetime.now() timestamps, so if the run crosses a
+        # 1-second boundary the .created-files.json can land in an EARLIER-named backup dir
+        # while a later, record-less dir sorts last by name. run_rollback must select the
+        # latest dir that actually HAS the record, not blindly dirs[-1]; otherwise it rolls
+        # back against an empty record and leaves the newly created scaffold behind.
+        engine.install_into_repo(
+            self.repo, REPO_ROOT / ".agents" / "workflows", yes=True, no_color=True
+        )
+        backups = self.repo / engine.BACKUPS_DIR
+        real = [d for d in backups.iterdir() if (d / ".created-files.json").is_file()]
+        self.assertTrue(
+            real, "install produced no created-files record to test against"
+        )
+        # Simulate the boundary-crossing artifact: a later-sorting, record-LESS backup dir.
+        later = backups / "99999999-999999"
+        later.mkdir()
+        readme = self.repo / ".agents/prompts/README.md"
+        self.assertTrue(readme.is_file())
+        engine.run_rollback(self.repo, no_color=True)
+        self.assertFalse(
+            readme.exists(),
+            "rollback picked the record-less latest dir and left the scaffold behind",
+        )
+
     def test_local_quarantine_lane(self):
         # D94: the nested .gitignore ignores local/, the local/ dir is materialized (installer
         # creates all expected dirs) but not tracked, and rollback removes the .gitignore.

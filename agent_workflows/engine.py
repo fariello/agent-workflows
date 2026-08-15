@@ -2726,7 +2726,17 @@ def run_rollback(repo_root: Path, no_color: bool) -> int:
         )
         return 1
 
-    latest_backup = dirs[-1]
+    # Prefer the latest backup dir that actually carries a `.created-files.json` install
+    # record. A single install issues several independent `datetime.now()` timestamps
+    # (install_all, prune_stale, and the top-level record write); if the run crosses a
+    # 1-second boundary, the created-files record lands in one timestamped dir while a
+    # later, record-less backup dir sorts last by name. Blindly taking `dirs[-1]` would
+    # then roll back against a dir with no created-files list and silently leave newly
+    # created files behind (the intermittent test_undo_removes_prompts_scaffold flake, and
+    # a real rollback-fidelity bug). Fall back to the lexically-latest dir only when NO dir
+    # has a record (backups-only restore, as before).
+    with_record = [d for d in dirs if (d / ".created-files.json").is_file()]
+    latest_backup = with_record[-1] if with_record else dirs[-1]
     print(f"Rolling back using backup from {latest_backup.name}...")
 
     use_git = git_available(repo_root)
