@@ -253,7 +253,29 @@ _DESCRIPTIONS = {
     "attention": (
         "Read-only cross-tree attention view mapping every tracked .agents artifact's native "
         "status onto a ready/active/blocked/done/parked class. Prints a board (or --format "
-        "json). --check fails closed on an invalid view (CI gate); --agent for machine output."
+        "json). --check fails closed on an invalid view (CI gate); --agent for machine output. "
+        "Alias: 'aw att'. --all reveals the hidden done/parked groups."
+    ),
+    "backlog": (
+        "Owner verbs for the attention-visible backlog tier (records/backlog): 'new' creates a "
+        "committed/uncommitted backlog item, 'set' transitions its status (open/blocked/parked/done) "
+        "and appends history, 'check' validates the tree fail-closed. Committed items surface in "
+        "'aw attention'; parked 'maybes' stay hidden until --all."
+    ),
+    "backlog new": (
+        "Create a conformant backlog item (dry-run by default; --apply to write). Owns the "
+        "clustering filename + bullet metadata (Id/Status/Set/Priority/Kind/Summary, plus a typed "
+        "Gate-Kind/Gate-Ref when --status blocked)."
+    ),
+    "backlog set": (
+        "Transition a backlog item's status, moving the file between the open/blocked/parked/done "
+        "directories, appending a workflow-history record. Moving to 'blocked' requires a typed "
+        "--gate-kind/--gate-ref pair."
+    ),
+    "backlog check": (
+        "Validate the backlog tree against the contract and fail closed: valid enums, "
+        "status-mirrors-directory, gate present-and-valid iff blocked, unique id6, nonempty summary. "
+        "--agent emits tab-separated drift records."
     ),
     "specs": (
         "Owner verbs for the specs tree: 'set' (transition status + typed gates, append "
@@ -1286,8 +1308,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_attention = sub.add_parser(
         "attention",
+        aliases=["att"],
         parents=[common],
-        help="Read-only cross-tree attention view (board or JSON to stdout); --check fails closed.",
+        help="Read-only cross-tree attention view (board or JSON to stdout); --check fails closed. Alias: 'aw att'.",
     )
     p_attention.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
@@ -1310,6 +1333,108 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_attention.add_argument(
         "--all", action="store_true", help="Show done/parked groups in the board."
+    )
+
+    p_backlog = sub.add_parser(
+        "backlog",
+        parents=[common],
+        help="Owner verbs for the attention-visible backlog tier. 'backlog new' creates an item; 'set' transitions status; 'check' validates.",
+        formatter_class=_AlphaHelpFormatter,
+    )
+    backlog_sub = p_backlog.add_subparsers(dest="backlog_command")
+    p_backlog_new = backlog_sub.add_parser(
+        "new",
+        parents=[common],
+        description="Create a conformant backlog item (dry-run by default; --apply to write).",
+        help="Create a backlog item (dry-run by default; --apply to write).",
+    )
+    p_backlog_new.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_backlog_new.add_argument(
+        "--summary", default=None, help="One-line summary (required)."
+    )
+    p_backlog_new.add_argument(
+        "--set",
+        dest="set",
+        default=None,
+        help="Set id (default: a singleton from the item id).",
+    )
+    p_backlog_new.add_argument(
+        "--status",
+        default="open",
+        help="open | blocked | parked | done (default: open).",
+    )
+    p_backlog_new.add_argument(
+        "--priority", default="medium", help="high | medium | low (default: medium)."
+    )
+    p_backlog_new.add_argument(
+        "--kind",
+        default="chore",
+        help="bug | feature | chore | security | followup (default: chore).",
+    )
+    p_backlog_new.add_argument(
+        "--slug",
+        default=None,
+        help="Short descriptive kebab slug (default: derived from summary).",
+    )
+    p_backlog_new.add_argument(
+        "--gate-kind",
+        dest="gate_kind",
+        default=None,
+        help="Gate-Kind (required iff --status blocked).",
+    )
+    p_backlog_new.add_argument(
+        "--gate-ref",
+        dest="gate_ref",
+        default=None,
+        help="Gate-Ref (required iff --status blocked).",
+    )
+    p_backlog_new.add_argument("--body", default=None, help="Optional prose body.")
+    p_backlog_new.add_argument(
+        "--apply", action="store_true", help="Write the file (default is preview only)."
+    )
+
+    p_backlog_set = backlog_sub.add_parser(
+        "set",
+        parents=[common],
+        description="Transition a backlog item's status (moving it between open/blocked/parked/done) and append history.",
+        help="Transition a backlog item's status + append history.",
+    )
+    p_backlog_set.add_argument("path", help="Backlog item file to transition.")
+    p_backlog_set.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_backlog_set.add_argument(
+        "--status", required=True, help="Target status: open | blocked | parked | done."
+    )
+    p_backlog_set.add_argument("--message", default="", help="History record message.")
+    p_backlog_set.add_argument(
+        "--gate-kind",
+        dest="gate_kind",
+        default=None,
+        help="Gate-Kind (required when moving to blocked).",
+    )
+    p_backlog_set.add_argument(
+        "--gate-ref",
+        dest="gate_ref",
+        default=None,
+        help="Gate-Ref (required when moving to blocked).",
+    )
+
+    p_backlog_check = backlog_sub.add_parser(
+        "check",
+        parents=[common],
+        description="Validate the backlog tree against the contract; fail closed.",
+        help="Validate the backlog tree; fail closed.",
+    )
+    p_backlog_check.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_backlog_check.add_argument(
+        "--agent",
+        action="store_true",
+        help="Machine-readable tab-separated drift output.",
     )
 
     p_specs = sub.add_parser(
@@ -3646,10 +3771,23 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return _run_context(args, term)
     if args.command == "path":
         return _run_path(args, term)
-    if args.command == "attention":
+    if args.command in ("attention", "att"):
         from agent_workflows import attention as att
 
         return att.run(args)
+
+    if args.command == "backlog":
+        from agent_workflows import backlog as backlog_mod
+
+        backlog_cmd = getattr(args, "backlog_command", None)
+        if backlog_cmd == "new":
+            return backlog_mod.run_new(args)
+        if backlog_cmd == "set":
+            return backlog_mod.run_set(args)
+        if backlog_cmd == "check":
+            return backlog_mod.run_check(args)
+        print("usage: aw backlog {new|set|check}", file=sys.stderr)
+        return 2
     if args.command == "specs":
         specs_cmd = getattr(args, "specs_command", None)
         if specs_cmd == "set":
