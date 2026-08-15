@@ -211,6 +211,8 @@ def _record_for(
         return _plans_record(rel, path, text)
     if tree == "research":
         return _research_record(rel, path, text)
+    if tree == "backlog":
+        return _backlog_record(rel, path, text)
     return None, []
 
 
@@ -300,6 +302,38 @@ def _research_record(
     lha = A.last_history_at(_history_section_lines(text))
     return Item(
         rid, rel, "research", status, A.class_of("research", status), None, lha
+    ), drift
+
+
+def _backlog_record(
+    rel: str, path: Path, text: str
+) -> Tuple[Optional[Item], List[core.Drift]]:
+    """Attention record for a backlog item. A `blocked` item carries its typed gate so the board
+    renders `[gate kind: ref]` and the JSON includes it (IPD crv40v PR-002)."""
+
+    from agent_workflows import backlog as backlog_mod
+
+    drift: List[core.Drift] = []
+    item = backlog_mod.parse_item(text)
+    status = item.status
+    if status is None:
+        drift.append(core.Drift(rel, "attention.missing-status", "no backlog Status"))
+        return None, drift
+    if status not in backlog_mod.STATUSES:
+        drift.append(
+            core.Drift(
+                rel,
+                "attention.unknown-status",
+                A.escape_detail(f"backlog status {status!r}"),
+            )
+        )
+        return None, drift
+    gate = None
+    if status == "blocked" and item.gate_kind and item.gate_ref:
+        gate = {"kind": item.gate_kind, "ref": item.gate_ref}
+    lha = A.last_history_at(_history_section_lines(text))
+    return Item(
+        item.id or "", rel, "backlog", status, A.class_of("backlog", status), gate, lha
     ), drift
 
 

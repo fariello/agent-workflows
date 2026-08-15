@@ -33,7 +33,7 @@ class EnumAndPolicyTests(unittest.TestCase):
 
     def test_tree_policy_tracked_and_excluded(self):
         tracked = {p.name for p in A.TREE_POLICY if p.tracked}
-        self.assertEqual(tracked, {"specs", "plans", "research"})
+        self.assertEqual(tracked, {"specs", "plans", "research", "backlog"})
         for p in A.TREE_POLICY:
             if p.tracked:
                 self.assertTrue(p.owner, f"tracked tree {p.name} needs an owner")

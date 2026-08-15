@@ -103,6 +103,13 @@ TREE_POLICY: Tuple[TreePolicy, ...] = (
         "research corpus; owner writes via aw research",
     ),
     TreePolicy(
+        "backlog",
+        ".agents/backlog",
+        True,
+        "aw backlog",
+        "attention-visible backlog tier; owner writes via aw backlog (records-class, dual-path with .aw/records/backlog)",
+    ),
+    TreePolicy(
         "walkthroughs",
         ".agents/docs/walkthroughs",
         False,
@@ -228,12 +235,23 @@ _ACTIONS_MAP: Dict[str, str] = {
     "superseded": PARKED,
 }
 
+# Backlog (attention-visible backlog tier; spec 20260813-1833-01). open -> ready (committed,
+# actionable), blocked -> blocked (committed but gated; carries a typed Gate-Kind/Gate-Ref),
+# parked -> parked (uncommitted "maybe"; auto-hidden from the default board), done -> done.
+_BACKLOG_MAP: Dict[str, str] = {
+    "open": READY,
+    "blocked": BLOCKED,
+    "parked": PARKED,
+    "done": DONE,
+}
+
 # The registry of mapping fragments, one per tracked tree.
 CLASS_MAPS: Dict[str, Dict[str, str]] = {
     "specs": _SPEC_MAP,
     "plans": _PLANS_MAP,
     "research": _RESEARCH_MAP,
     "actions": _ACTIONS_MAP,
+    "backlog": _BACKLOG_MAP,
 }
 
 
