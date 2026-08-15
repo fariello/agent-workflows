@@ -135,6 +135,15 @@ workflow is incomplete.
         help="Maximum time for each Antigravity turn (default: 240m)",
     )
     parser.add_argument(
+        "--model",
+        dest="model",
+        default=None,
+        help=(
+            "agy model id for both turns (e.g. gemini-3.7-flash-high). "
+            "See 'agy models'. If omitted, agy uses its session default."
+        ),
+    )
+    parser.add_argument(
         "--dangerously-skip-permissions",
         action="store_true",
         help=(
@@ -350,6 +359,7 @@ def run_agy(
     session_id: str | None,
     timeout: str,
     skip_permissions: bool,
+    model: str | None = None,
 ) -> AgyResult:
     """Run one headless Antigravity turn, persist its stream, and validate it.
 
@@ -368,6 +378,8 @@ def run_agy(
         "--print-timeout",
         timeout,
     ]
+    if model:
+        command.extend(("--model", model))
     if session_id:
         command.extend(("--conversation", session_id))
     else:
@@ -521,6 +533,7 @@ def run(argv: Iterable[str] | None = None) -> int:
         session_id=initial_session,
         timeout=args.timeout,
         skip_permissions=args.dangerously_skip_permissions,
+        model=args.model,
     )
     print("\n=== Antigravity execution report ===\n")
     print(execution.response.rstrip())
@@ -546,6 +559,7 @@ def run(argv: Iterable[str] | None = None) -> int:
         session_id=execution.conversation_id,
         timeout=args.timeout,
         skip_permissions=args.dangerously_skip_permissions,
+        model=args.model,
     )
     print("\n=== Antigravity self-audit report ===\n")
     print(audit.response.rstrip())
