@@ -6,7 +6,7 @@ Showing the 40 most-recent of 81 Sets; the full manifest is INDEX.json.
 
 ## humanapproval
 
-- `0g0rid` [pending] 01 pending/20260815-humanapproval-01-0g0rid-by-human-attestation.md
+- `0g0rid` [executed] 01 executed/20260815-humanapproval-01-0g0rid-by-human-attestation.md
 
 ## backlogtier
 

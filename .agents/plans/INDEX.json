@@ -1550,6 +1550,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-15",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260815-humanapproval-01-0g0rid-by-human-attestation.md",
+    "plan_id": "0g0rid",
+    "set_id": "humanapproval",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -1608,16 +1618,6 @@
     "plan_id": "69xrut",
     "set_id": "ipdexechist",
     "status": "reviewed"
-  },
-  {
-    "date": "2026-08-15",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260815-humanapproval-01-0g0rid-by-human-attestation.md",
-    "plan_id": "0g0rid",
-    "set_id": "humanapproval",
-    "status": "approved"
   },
   {
     "date": "2026-08-07",
