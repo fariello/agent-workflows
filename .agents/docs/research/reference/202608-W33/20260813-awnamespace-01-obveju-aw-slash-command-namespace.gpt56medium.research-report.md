@@ -6,7 +6,7 @@ order: 01
 topic: [slash-commands, namespace, installer, host-adapters]
 model: gpt56medium
 kind: research-report
-status: active
+status: reference
 outcome: none-yet
 summary: gpt56medium report.
 consumed-by: []

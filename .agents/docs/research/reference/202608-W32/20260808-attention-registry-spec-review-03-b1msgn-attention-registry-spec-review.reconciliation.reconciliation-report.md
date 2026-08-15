@@ -6,7 +6,7 @@ order: 03
 topic: [attention-registry, spec-review, external-review]
 model: reconciliation
 kind: reconciliation-report
-status: active
+status: reference
 outcome: none-yet
 summary: Consolidated reconciliation of the gpt-5.6/Gemini/Sonnet-5 reviews of the attention-registry spec
 consumed-by: []

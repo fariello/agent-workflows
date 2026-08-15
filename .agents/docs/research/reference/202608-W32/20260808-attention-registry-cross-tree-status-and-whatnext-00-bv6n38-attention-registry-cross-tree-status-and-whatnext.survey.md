@@ -6,7 +6,7 @@ order: 00
 topic: [attention-registry, status-model, whatnext, tooling]
 model: 
 kind: survey
-status: active
+status: reference
 outcome: none-yet
 summary: Design survey for a cross-tree attention registry: standardized status vocabulary, deterministic aw attention scanner+writer, and whatnext-as-reader
 consumed-by: []

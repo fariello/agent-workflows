@@ -6,7 +6,7 @@ order: 00
 topic: [slash-commands, namespace, installer, host-adapters]
 model: 
 kind: research-prompt
-status: active
+status: reference
 outcome: none-yet
 summary: Originating prompt for the comparison set.
 consumed-by: []

@@ -6,7 +6,7 @@ order: 02
 topic: [attention-registry, spec-review, external-review]
 model: sonnet5
 kind: assessment
-status: active
+status: reference
 outcome: none-yet
 summary: Sonnet-5 review of the attention-registry spec
 consumed-by: []

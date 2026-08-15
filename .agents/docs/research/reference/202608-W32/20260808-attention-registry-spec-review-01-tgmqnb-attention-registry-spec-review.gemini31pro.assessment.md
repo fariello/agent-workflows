@@ -6,7 +6,7 @@ order: 01
 topic: [attention-registry, spec-review, external-review]
 model: gemini31pro
 kind: assessment
-status: active
+status: reference
 outcome: none-yet
 summary: Gemini 3.1 Pro review of the attention-registry spec
 consumed-by: []

@@ -6,7 +6,7 @@ order: 03
 topic: [slash-commands, namespace, installer, host-adapters]
 model: gemini31pro
 kind: research-report
-status: active
+status: reference
 outcome: none-yet
 summary: gemini31pro report.
 consumed-by: []

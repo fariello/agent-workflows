@@ -10,18 +10,18 @@ Showing the most-recent 40 of 73 hot docs (archive excluded).
 
 ## Most recent
 
-- `032jgo` [active] 20260813-awnamespace-00-032jgo-aw-slash-command-namespace.research-prompt.md - Originating prompt for the comparison set.
+- `032jgo` [reference] reference/202608-W33/20260813-awnamespace-00-032jgo-aw-slash-command-namespace.research-prompt.md - Originating prompt for the comparison set.
 - `2bodwq` [active] 20260813-awnamespace-04-2bodwq-aw-slash-command-namespace.reconciliation.reconciliation-report.md - Deciding doc. Adopt a single /aw dispatcher fed by one host-neutral verb registry (public syntax /aw <verb> [args...]); do not install /aw-<verb> flat commands by default, offer them only per selected compatibility-risk host.
-- `jc105r` [active] 20260813-awnamespace-03-jc105r-aw-slash-command-namespace.gemini31pro.research-report.md - gemini31pro report.
-- `obveju` [active] 20260813-awnamespace-01-obveju-aw-slash-command-namespace.gpt56medium.research-report.md - gpt56medium report.
-- `og3el1` [active] 20260813-awnamespace-02-og3el1-aw-slash-command-namespace.sonnet5.research-report.md - sonnet5 report.
+- `jc105r` [reference] reference/202608-W33/20260813-awnamespace-03-jc105r-aw-slash-command-namespace.gemini31pro.research-report.md - gemini31pro report.
+- `obveju` [reference] reference/202608-W33/20260813-awnamespace-01-obveju-aw-slash-command-namespace.gpt56medium.research-report.md - gpt56medium report.
+- `og3el1` [reference] reference/202608-W33/20260813-awnamespace-02-og3el1-aw-slash-command-namespace.sonnet5.research-report.md - sonnet5 report.
 - `6zf5av` [intake] 20260810-gemini-actually-validate-playbook-00-6zf5av-gemini-actually-validate-playbook.gpt56medium.research-report.md - Gemini/agy-specific controls to make headless Gemini actually run validation and stop green-washing
-- `bv6n38` [active] 20260808-attention-registry-cross-tree-status-and-whatnext-00-bv6n38-attention-registry-cross-tree-status-and-whatnext.survey.md - Design survey for a cross-tree attention registry: standardized status vocabulary, deterministic aw attention scanner+writer, and whatnext-as-reader
-- `b1msgn` [active] 20260808-attention-registry-spec-review-03-b1msgn-attention-registry-spec-review.reconciliation.reconciliation-report.md - Consolidated reconciliation of the gpt-5.6/Gemini/Sonnet-5 reviews of the attention-registry spec
-- `fc2n5j` [active] 20260808-attention-registry-spec-review-02-fc2n5j-attention-registry-spec-review.sonnet5.assessment.md - Sonnet-5 review of the attention-registry spec
-- `krgxp6` [active] 20260808-attention-registry-spec-review-00-krgxp6-attention-registry-spec-review.gpt56.assessment.md - gpt-5.6 (Codex) review of the attention-registry spec
-- `tgmqnb` [active] 20260808-attention-registry-spec-review-01-tgmqnb-attention-registry-spec-review.gemini31pro.assessment.md - Gemini 3.1 Pro review of the attention-registry spec
-- `w0ilhj` [active] 20260808-attention-registry-spec-review-04-w0ilhj-attention-view-spec-plan-review.gpt56high.assessment.md - gpt-5.6-high plan-review of the revised attention-view spec (REVIEWED - OPEN QUESTIONS; PR-001..PR-005)
+- `bv6n38` [reference] reference/202608-W32/20260808-attention-registry-cross-tree-status-and-whatnext-00-bv6n38-attention-registry-cross-tree-status-and-whatnext.survey.md - Design survey for a cross-tree attention registry: standardized status vocabulary, deterministic aw attention scanner+writer, and whatnext-as-reader
+- `b1msgn` [reference] reference/202608-W32/20260808-attention-registry-spec-review-03-b1msgn-attention-registry-spec-review.reconciliation.reconciliation-report.md - Consolidated reconciliation of the gpt-5.6/Gemini/Sonnet-5 reviews of the attention-registry spec
+- `fc2n5j` [reference] reference/202608-W32/20260808-attention-registry-spec-review-02-fc2n5j-attention-registry-spec-review.sonnet5.assessment.md - Sonnet-5 review of the attention-registry spec
+- `krgxp6` [reference] reference/202608-W32/20260808-attention-registry-spec-review-00-krgxp6-attention-registry-spec-review.gpt56.assessment.md - gpt-5.6 (Codex) review of the attention-registry spec
+- `tgmqnb` [reference] reference/202608-W32/20260808-attention-registry-spec-review-01-tgmqnb-attention-registry-spec-review.gemini31pro.assessment.md - Gemini 3.1 Pro review of the attention-registry spec
+- `w0ilhj` [reference] reference/202608-W32/20260808-attention-registry-spec-review-04-w0ilhj-attention-view-spec-plan-review.gpt56high.assessment.md - gpt-5.6-high plan-review of the revised attention-view spec (REVIEWED - OPEN QUESTIONS; PR-001..PR-005)
 - `5zczmo` [reference] 20260731-chkplace-04-5zczmo-checklist-placement-and-instruction-audit.findings.md - Migrated from 20260731-chkplace-04-5zczmo-checklist-placement-and-instruction-audit.findings.md.
 - `72n26s` [reference] 20260731-chkplace-02-72n26s-checklist-placement-and-instruction-audit-report.gpt56medium.research-report.md - Migrated from 20260731-chkplace-02-72n26s-checklist-placement-and-instruction-audit-report.gpt56medium.research-report.md.
 - `80eqy0` [reference] 20260731-chkplace-03-80eqy0-checklist-placement-and-instruction-audit-report.sonnet5.research-report.md - Migrated from 20260731-chkplace-03-80eqy0-checklist-placement-and-instruction-audit-report.sonnet5.research-report.md.

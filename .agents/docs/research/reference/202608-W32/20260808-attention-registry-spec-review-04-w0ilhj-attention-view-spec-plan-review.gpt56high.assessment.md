@@ -6,7 +6,7 @@ order: 04
 topic: [attention-registry, spec-review, plan-review, external-review]
 model: gpt56high
 kind: assessment
-status: active
+status: reference
 outcome: none-yet
 summary: gpt-5.6-high plan-review of the revised attention-view spec (REVIEWED - OPEN QUESTIONS; PR-001..PR-005)
 consumed-by: []

@@ -6,7 +6,7 @@ order: 02
 topic: [slash-commands, namespace, installer, host-adapters]
 model: sonnet5
 kind: research-report
-status: active
+status: reference
 outcome: none-yet
 summary: sonnet5 report.
 consumed-by: []

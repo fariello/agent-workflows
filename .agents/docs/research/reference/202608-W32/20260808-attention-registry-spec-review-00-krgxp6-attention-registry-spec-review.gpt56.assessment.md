@@ -6,7 +6,7 @@ order: 00
 topic: [attention-registry, spec-review, external-review]
 model: gpt56
 kind: assessment
-status: active
+status: reference
 outcome: none-yet
 summary: gpt-5.6 (Codex) review of the attention-registry spec
 consumed-by: []
