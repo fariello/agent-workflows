@@ -24,7 +24,9 @@ class _FakePipe(io.StringIO):
 
 class ShouldColorTests(unittest.TestCase):
     def setUp(self):
-        self._saved = {k: os.environ.get(k) for k in ("NO_COLOR", "FORCE_COLOR", "TERM")}
+        self._saved = {
+            k: os.environ.get(k) for k in ("NO_COLOR", "FORCE_COLOR", "TERM")
+        }
 
     def tearDown(self):
         for k, v in self._saved.items():
@@ -89,6 +91,28 @@ class StylingTests(unittest.TestCase):
         t.status("ok", "done")
         # The WORD is still there alongside color (never color-only).
         self.assertIn("OK", _ANSI.sub("", s.getvalue()))
+
+    def test_color256_plain_when_off(self):
+        t = T.Term(stream=io.StringIO(), color=False)
+        self.assertEqual(t.color256("hi", 39, bold=True), "hi")
+
+    def test_color256_emits_256_code_when_on(self):
+        t = T.Term(stream=io.StringIO(), color=True)
+        out = t.color256("hi", 39)
+        self.assertIn("\033[38;5;39m", out)
+        self.assertIn("hi", out)
+        self.assertTrue(out.endswith("\033[0m"))
+        # text survives once escapes are stripped
+        self.assertEqual(_ANSI.sub("", out), "hi")
+
+    def test_color256_bold_prefix(self):
+        t = T.Term(stream=io.StringIO(), color=True)
+        self.assertIn("\033[1;38;5;203m", t.color256("x", 203, bold=True))
+
+    def test_color256_clamps_out_of_range(self):
+        t = T.Term(stream=io.StringIO(), color=True)
+        self.assertIn("38;5;255m", t.color256("x", 999))
+        self.assertIn("38;5;0m", t.color256("x", -5))
 
 
 if __name__ == "__main__":

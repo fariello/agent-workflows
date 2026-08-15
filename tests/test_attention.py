@@ -10,12 +10,14 @@ from __future__ import annotations
 import argparse
 import io
 import os
+import re
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
 from agent_workflows import attention as att
+from agent_workflows import attention_contract as A
 
 
 def _mk_repo(tmp: Path):
@@ -168,6 +170,75 @@ class ScanTests(unittest.TestCase):
             self.assertIn("hidden; use --all", board)
             board_all = att.render_board(items, drift, show_all=True)
             self.assertNotIn("hidden; use --all", board_all)
+
+    def test_plain_render_keeps_machine_readable_tree_bracket(self):
+        # Non-TTY / no-color view: the stable "- [tree] path (status){gate}" form agents parse.
+        from agent_workflows import term as T
+
+        items = [
+            att.Item(
+                "i1",
+                ".agents/docs/research/r.md",
+                "research",
+                "active",
+                A.ACTIVE,
+                None,
+                None,
+            ),
+            att.Item(
+                "i2",
+                ".agents/docs/specs/s.md",
+                "specs",
+                "deferred",
+                A.BLOCKED,
+                {"kind": "artifact", "ref": "TODO.md"},
+                None,
+            ),
+        ]
+        board = att.render_board(items, [], term=T.Term(color=False))
+        self.assertIn("- [research] .agents/docs/research/r.md (active)", board)
+        self.assertIn(
+            "- [specs] .agents/docs/specs/s.md (deferred)  [gate artifact: TODO.md]",
+            board,
+        )
+        self.assertNotIn("\033[", board)  # no ANSI when color off
+
+    def test_colored_render_drops_bracket_colors_and_folds_gate(self):
+        from agent_workflows import term as T
+
+        items = [
+            att.Item(
+                "i1",
+                ".agents/docs/research/r.md",
+                "research",
+                "active",
+                A.ACTIVE,
+                None,
+                None,
+            ),
+            att.Item(
+                "i2",
+                ".agents/docs/specs/s.md",
+                "specs",
+                "deferred",
+                A.BLOCKED,
+                {"kind": "artifact", "ref": "TODO.md"},
+                None,
+            ),
+        ]
+        board = att.render_board(items, [], term=T.Term(color=True))
+        # No machine bracket in the human view.
+        self.assertNotIn("[research]", board)
+        # Status is 256-colored + bold; tree name is 256-colored + bold (blue 33).
+        self.assertIn("\033[1;38;5;39mactive\033[0m", board)  # active azure
+        self.assertIn("\033[1;38;5;33mresearch\033[0m", board)
+        # Blocked gate folds into the section header, not each line.
+        self.assertIn("## blocked (1) in TODO.md", board)
+        self.assertNotIn("[gate artifact: TODO.md]", board)
+        # Meaning survives once escapes are stripped (status word + path present).
+        stripped = re.sub(r"\033\[[0-9;]*m", "", board)
+        self.assertIn("(active) research", stripped)
+        self.assertIn(".agents/docs/research/r.md", stripped)
 
     def test_writes_nothing(self):
         import tempfile

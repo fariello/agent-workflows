@@ -25,6 +25,7 @@ from agent_workflows import attention_contract as A
 from agent_workflows import plans as plans_mod
 from agent_workflows import research_contract
 from agent_workflows import specs as specs_mod
+from agent_workflows import term as T
 
 SCHEMA_VERSION = 1
 MAPPING_VERSION = 1
@@ -367,9 +368,56 @@ def render_json(items: List[Item], drift: List[core.Drift]) -> str:
     return json.dumps(obj, indent=2, ensure_ascii=True) + "\n"
 
 
+# xterm-256 palette indices for native statuses. Chosen for legibility on both light and
+# dark backgrounds; a status not listed falls back to the class color. Color is decorative
+# only: the status WORD is always printed, so meaning survives NO_COLOR / piping / a screen
+# reader (the readiness class name in the section header carries the same meaning too).
+_CLASS_COLOR_256 = {
+    A.ACTIVE: 39,  # bright azure
+    A.READY: 40,  # green
+    A.BLOCKED: 203,  # salmon/red
+    A.DONE: 244,  # gray
+    A.PARKED: 244,  # gray
+}
+_STATUS_COLOR_256 = {
+    "active": 39,
+    "intake": 44,  # teal (research not-yet-active)
+    "open": 40,
+    "ready": 40,
+    "approved": 46,  # bright green (cleared to go)
+    "reviewed": 226,  # yellow (progressed, awaiting approval)
+    "to-review": 214,  # orange (needs a review pass)
+    "draft": 245,  # gray (not ready)
+    "implementing": 51,  # cyan
+    "implemented": 46,
+    "blocked": 203,
+    "deferred": 208,  # orange-red (gated)
+    "done": 244,
+    "parked": 244,
+    "superseded": 240,
+    "not-executed": 240,
+}
+_TREE_COLOR_256 = 33  # bold blue for every tree name
+
+
 def render_board(
-    items: List[Item], drift: List[core.Drift], show_all: bool = False
+    items: List[Item],
+    drift: List[core.Drift],
+    show_all: bool = False,
+    term: "T.Term | None" = None,
 ) -> str:
+    """Render the attention board.
+
+    When ``term`` is colored (a real TTY / FORCE_COLOR), the human view drops the ``[tree]``
+    bracket, colors the tree name (bold blue) and the native status (bold, status-specific
+    256-color), and folds a blocked item's gate artifact into its section header. When color
+    is OFF (piped / agent / NO_COLOR / no ``term``), it emits the stable machine-readable
+    ``- [tree] path (status){gate}`` form so agents and grep keep a fixed, parseable shape.
+    """
+    if term is None:
+        term = T.Term(color=False)
+    colored = bool(getattr(term, "color", False))
+
     lines: List[str] = []
     if drift:
         lines.append(
@@ -385,18 +433,51 @@ def render_board(
         group = by_class.get(cls, [])
         if not group:
             continue
+
+        # Section header. In the colored human view, fold a shared gate artifact into the
+        # header (e.g. "## blocked (2) in TODO.md") instead of repeating it on every line.
+        header_extra = ""
+        if colored and cls == A.BLOCKED:
+            artifacts = {
+                A.escape_detail((it.gate or {}).get("ref", ""))
+                for it in group
+                if it.gate
+            }
+            artifacts.discard("")
+            if len(artifacts) == 1:
+                header_extra = f" in {next(iter(artifacts))}"
+
         if cls in (A.DONE, A.PARKED) and not show_all:
             lines.append(f"## {cls} ({len(group)}) [hidden; use --all]")
             continue
-        lines.append(f"## {cls} ({len(group)})")
+        lines.append(f"## {cls} ({len(group)}){header_extra}")
+
         for it in group:
-            suffix = ""
-            if it.gate:
-                g = it.gate
-                suffix = (
-                    f"  [gate {g.get('kind')}: {A.escape_detail(g.get('ref', ''))}]"
+            status_word = it.native_status
+            if colored:
+                code = _STATUS_COLOR_256.get(
+                    it.native_status, _CLASS_COLOR_256.get(cls, 244)
                 )
-            lines.append(f"- [{it.tree}] {it.path} ({it.native_status}){suffix}")
+                status_txt = term.color256(status_word, code, bold=True)
+                tree_txt = term.color256(it.tree, _TREE_COLOR_256, bold=True)
+                # Human view: no [tree] bracket; tree color rides on the trailing tag so the
+                # path stays left-aligned and clean. Gate is folded into the header above; if
+                # an item's gate artifact differs from the folded one, still show it inline.
+                inline_gate = ""
+                if it.gate and cls != A.BLOCKED:
+                    g = it.gate
+                    inline_gate = (
+                        f"  [gate {g.get('kind')}: {A.escape_detail(g.get('ref', ''))}]"
+                    )
+                lines.append(f"- {it.path} ({status_txt}) {tree_txt}{inline_gate}")
+            else:
+                suffix = ""
+                if it.gate:
+                    g = it.gate
+                    suffix = (
+                        f"  [gate {g.get('kind')}: {A.escape_detail(g.get('ref', ''))}]"
+                    )
+                lines.append(f"- [{it.tree}] {it.path} ({status_word}){suffix}")
         lines.append("")
     return "\n".join(lines).rstrip("\n") + "\n"
 
@@ -434,8 +515,12 @@ def run(args) -> int:
     if fmt == "json":
         sys.stdout.write(render_json(items, drift))
     else:
+        # Color only for a real TTY (should_color honors NO_COLOR/FORCE_COLOR/TERM/isatty);
+        # --no-color forces plain, which also yields the machine-readable [tree] form.
+        color = False if getattr(args, "no_color", False) else None
+        term = T.Term(stream=sys.stdout, color=color)
         sys.stdout.write(
-            render_board(items, drift, show_all=getattr(args, "all", False))
+            render_board(items, drift, show_all=getattr(args, "all", False), term=term)
         )
     # a plain view still fails closed if invalid, so consumers cannot treat an invalid view as authoritative
     return core.drift_exit_code(drift)

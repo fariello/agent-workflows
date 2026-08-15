@@ -55,8 +55,12 @@ styling must survive.
   `TERM=dumb` / unset `TERM`. Support an explicit `FORCE_COLOR` override. Do not assume
   256-color or truecolor; fall back through 16-color and then no-color. Never hardcode a
   foreground color that assumes a specific background (light-on-light / dark-on-dark
-  vanishes); prefer the terminal's default fg/bg and the 16 named colors, which users
-  theme for their own contrast.
+   vanishes); prefer the terminal's default fg/bg and the 16 named colors, which users
+   theme for their own contrast. (Exception, maintainer-directed per DECISIONS D133: the
+   `aw attention` human/TTY view uses xterm-256 colors. The invariant that matters is kept:
+   color is never the sole carrier of meaning there either - the status WORD and the
+   readiness-class section name are always printed, and `NO_COLOR`/non-TTY/`TERM=dumb`
+   still degrade to a plain, machine-readable line.)
 - **Motion, flashing, and redraw (Operable).** Spinners, rapid progress redraws, and
   `SGR 5` (blink) are hostile to some users (photosensitivity, vestibular, cognitive) and
   spam screen readers and log files. Keep animation to a TTY only, offer a quiet/plain

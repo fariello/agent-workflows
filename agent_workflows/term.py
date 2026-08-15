@@ -97,6 +97,21 @@ class Term:
             return text
         return f"\033[{codes}m{text}{_RESET}"
 
+    def color256(self, text: str, code: int, *, bold: bool = False) -> str:
+        """Wrap ``text`` in an xterm-256 foreground color (SGR 38;5;N) when color is on.
+
+        ``code`` is a 0-255 xterm-256 palette index. Returns plain text when color is
+        disabled (NO_COLOR / non-TTY / TERM=dumb), so meaning must never depend on it.
+        Every 256-color virtually all terminals of the last two decades support; the
+        NO_COLOR/isatty/TERM gating in ``should_color`` still fully applies.
+        """
+
+        if not self.color:
+            return text
+        n = max(0, min(255, int(code)))
+        prefix = "1;" if bold else ""
+        return f"\033[{prefix}38;5;{n}m{text}{_RESET}"
+
     def status_label(self, status: str) -> str:
         """Return the styled status LABEL (a word, optionally colored) for a status key.
 
