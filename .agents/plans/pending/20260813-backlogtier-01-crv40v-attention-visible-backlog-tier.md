@@ -4,17 +4,19 @@
 - Kind: child
 - Concern: `aw attention` (which feeds `/whatnext`) scans only plans/specs/research/actions, so committed work captured in the free-prose `TODO.md` is silently omitted - a false-comprehensiveness risk. Implement a lightweight, tracked, attention-visible backlog tier so committed work surfaces while uncommitted maybes stay quiet.
 - Scope: `agent_workflows/attention_contract.py` (`TREE_POLICY` + `CLASS_MAPS`/`_BACKLOG_MAP`), `agent_workflows/artifact_core.py` (`SCAN_ROOTS`), `agent_workflows/attention.py` (scan/`_classify_tree`/`_record_for` + a `_backlog_record` builder), a new `agent_workflows/backlog.py` (the `aw backlog new|set|check` verbs), `agent_workflows/cli.py` (wire `aw backlog` and the `aw att` alias; the parked reveal already exists as `aw attention --all`), the new `records/backlog/` tree scaffold + `README.md`, the `TODO.md` migration, docs (AGENTS.md pointer), and tests. Implements the approved spec `.agents/docs/specs/20260813-1833-01-attention-visible-backlog-tier.spec.md`.
-- Status: reviewed
+- Status: approved
 - Highest E allocated: 08
 - Author: opencode Opus 4.8
 - Id: crv40v
 - Set: backlogtier (attention-visible backlog tier)
 - Order: 1
+- Approval: 2026-08-13 human maintainer (chat: 'Approved. Go.') - approved to execute; recorded by opencode Opus 4.8. NOTE: execution is still gated on the controlling spec 20260813-1833-01 reaching Status: approved (human TTY).
 ## Workflow history
 
 - 2026-08-13 draft (opencode Opus 4.8): authored from the approved spec 20260813-1833-01 (attention-visible backlog tier). Implements the records-class backlog/ sub-tree, the four attention touch-points, the aw backlog verbs, the aw att alias (parked reveal uses the existing aw attention --all), and the TODO.md migration, per the spec's resolved OQ1-OQ7.
 - 2026-08-13 pre-review hardening (opencode Opus 4.8): tightened E-05/E-06/E-07 - dropped the redundant `aw attention all` subcommand (the existing `--all` already reveals parked; render_board:354), replaced the hand-wavy TODO migration with an explicit 6-step procedure (inventory baseline, DONE-not-resurrected, gated->blocked, before->after reconciliation), fixed stale references.
 - 2026-08-13 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004. Verified every material `path:line` claim against code (CLASS_MAPS/TREE_POLICY/class_of; render_board:354 hides DONE/PARKED; _record_for:214 fall-through; SCAN_ROOTS dual plans layout; Item.gate render at 323/360). PR-001 (MED): made the `_record_for` backlog branch MANDATORY (fall-through silently drops the Item with no drift) + a mutation-probe in V-05. PR-002 (MED): `_backlog_record` MUST populate `Item.gate` for a `blocked` item (else the board/JSON lose the gate reason) + V-05 gate-render evidence. PR-003 (LOW): reconciled the backlog gate fields to the EXISTING `- Gate-Kind:`/`- Gate-Ref:` bullet grammar (GATE_KIND_RE/GATE_REF_RE), not a divergent lowercase frontmatter - fixed E-02/E-03/E-04/E-07. PR-004 (LOW): named the required TreePolicy fields (tracked=True, owner="aw backlog"). No open questions. Structural lint conforming (author + review-finalize). Status draft -> reviewed. Readiness: GO - PENDING HUMAN APPROVAL (also gated on the controlling spec 20260813-1833-01 reaching Status: approved).
+- 2026-08-13 approved (human maintainer via chat 'Approved. Go.', recorded by opencode Opus 4.8): cleared to execute. Status reviewed -> approved. Execution remains gated on the controlling spec 20260813-1833-01 reaching Status: approved.
 
 ## Goal
 
