@@ -49,6 +49,22 @@ Not framework bugs; external-tool finding with coordinated-disclosure obligation
 
 ## Planned next (designed, deferred; not yet drafted as IPDs)
 
+**Human-approval attestation: stop forcing the "I am human" lie + design an on-behalf-of path
+(own spec; touches D125).** Two separable parts. (a) RENAME `aw specs set --yes-i-am-human` to a
+truthful ATTESTATION flag (e.g. `--human-approved` / `--i-have-human-approval`): today an agent (or
+person) must assert "yes, I am human" to record a human's approval, which is a falsehood for an
+agent - the honest claim is "a human approved this." The actual security control is the TTY check in
+`specs.py:_human_confirmed` (refuses unless `sys.stdin.isatty()`), NOT the flag name, so the rename
+is a pure honesty fix with NO security change (keep TTY-gated). (b) DESIGN whether a NON-TTY agent may
+satisfy the approval floor by attesting human approval (which would let an agent record a chat/verbal
+approval without the human re-running a TTY command) WITHOUT hollowing the anti-self-approval floor
+(D125): an agent can assert a flag falsely just as easily, so trusted attestation alone is a hollow
+gate - options include a verifiable human token/signature, a resolvable human-approval reference, or
+accepting trusted attestation with the risk explicitly recorded. Part (a) is safe to do immediately;
+part (b) is the real design decision and must be reconciled with the D125 anti-self-approval floor in
+a small spec before implementation. Source: maintainer, 2026-08-13 ("we should not require an agent to
+lie; it should allow 'on behalf of a human' / 'I have human approval'").
+
 **`/aw <verb>` command-family redesign (own Set/IPD; cross-cutting).** Introduce a single `/aw`
 slash-command namespace and move the framework's own workflow commands under it (e.g. `/setup-repo`
 -> `/aw setup`, `/assess` -> `/aw assess`, a future `/aw migrate` / `/aw migrate-layout`), mirroring
