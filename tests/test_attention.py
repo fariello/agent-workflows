@@ -227,18 +227,22 @@ class ScanTests(unittest.TestCase):
             ),
         ]
         board = att.render_board(items, [], term=T.Term(color=True))
-        # No machine bracket in the human view.
+        # No machine bracket and no trailing tree tag in the human view.
         self.assertNotIn("[research]", board)
-        # Status is 256-colored + bold; tree name is 256-colored + bold (blue 33).
+        # Status is 256-colored + bold.
         self.assertIn("\033[1;38;5;39mactive\033[0m", board)  # active azure
-        self.assertIn("\033[1;38;5;33mresearch\033[0m", board)
+        # Tree identity is the tree-name path SEGMENT colored in place (blue 33), NOT a
+        # trailing tag: `.agents/docs/research/r.md` -> the `research` segment is wrapped,
+        # with its surrounding slashes left uncolored.
+        self.assertIn(".agents/docs/\033[1;38;5;33mresearch\033[0m/r.md", board)
         # Blocked gate folds into the section header, not each line.
         self.assertIn("## blocked (1) in TODO.md", board)
         self.assertNotIn("[gate artifact: TODO.md]", board)
-        # Meaning survives once escapes are stripped (status word + path present).
+        # No trailing " tree" tag after the status.
+        self.assertNotIn("(active) research", re.sub(r"\033\[[0-9;]*m", "", board))
+        # Meaning survives once escapes are stripped (status word + full path present).
         stripped = re.sub(r"\033\[[0-9;]*m", "", board)
-        self.assertIn("(active) research", stripped)
-        self.assertIn(".agents/docs/research/r.md", stripped)
+        self.assertIn(".agents/docs/research/r.md (active)", stripped)
 
     def test_writes_nothing(self):
         import tempfile

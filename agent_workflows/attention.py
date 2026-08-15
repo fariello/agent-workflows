@@ -397,7 +397,24 @@ _STATUS_COLOR_256 = {
     "superseded": 240,
     "not-executed": 240,
 }
-_TREE_COLOR_256 = 33  # bold blue for every tree name
+_TREE_COLOR_256 = 33  # bold blue for the tree-name path segment
+
+
+def _colorize_tree_segment(term: "T.Term", path: str, tree: str) -> str:
+    """Color the tree-name directory segment WITHIN ``path`` bold blue, in place.
+
+    e.g. ``.agents/backlog/open/x.md`` with tree ``backlog`` colors just the ``backlog``
+    segment (slashes stay uncolored), adding no width. If the tree name is not a distinct
+    ``/tree/`` path segment (some logical trees live under a differently-named directory),
+    the path is returned uncolored rather than mis-coloring a partial match.
+    """
+    seg = f"/{tree}/"
+    idx = path.find(seg)
+    if idx == -1:
+        return path
+    start = idx + 1  # first char of the tree name (after the leading slash)
+    end = start + len(tree)
+    return path[:start] + term.color256(tree, _TREE_COLOR_256, bold=True) + path[end:]
 
 
 def render_board(
@@ -459,17 +476,19 @@ def render_board(
                     it.native_status, _CLASS_COLOR_256.get(cls, 244)
                 )
                 status_txt = term.color256(status_word, code, bold=True)
-                tree_txt = term.color256(it.tree, _TREE_COLOR_256, bold=True)
-                # Human view: no [tree] bracket; tree color rides on the trailing tag so the
-                # path stays left-aligned and clean. Gate is folded into the header above; if
-                # an item's gate artifact differs from the folded one, still show it inline.
+                # Human view: no [tree] bracket and no trailing tag (keeps the line narrow).
+                # The tree identity is signaled IN PLACE by coloring the tree-name path
+                # segment (e.g. the `backlog` in `.agents/backlog/open/...`) bold blue, so no
+                # width is added. Gate is folded into the header above; if an item's gate
+                # artifact differs from the folded one, still show it inline.
+                path_txt = _colorize_tree_segment(term, it.path, it.tree)
                 inline_gate = ""
                 if it.gate and cls != A.BLOCKED:
                     g = it.gate
                     inline_gate = (
                         f"  [gate {g.get('kind')}: {A.escape_detail(g.get('ref', ''))}]"
                     )
-                lines.append(f"- {it.path} ({status_txt}) {tree_txt}{inline_gate}")
+                lines.append(f"- {path_txt} ({status_txt}){inline_gate}")
             else:
                 suffix = ""
                 if it.gate:
