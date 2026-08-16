@@ -1563,6 +1563,16 @@
     "date": "2026-08-15",
     "disposition": "executed",
     "kind": "child",
+    "order": null,
+    "path": "executed/20260815-2156-01-installer-rollback-same-second-backup-collision.md",
+    "plan_id": "4o5lt9",
+    "set_id": null,
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-15",
+    "disposition": "executed",
+    "kind": "child",
     "order": 1,
     "path": "executed/20260815-humanapproval-01-0g0rid-by-human-attestation.md",
     "plan_id": "0g0rid",

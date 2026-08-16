@@ -248,3 +248,4 @@ Showing the 40 most-recent of 81 Sets; the full manifest is INDEX.json.
 - `vfa1tl` [executed] executed/20260709-interactive-git-00-vfa1tl-interactive-git-workflow.md
 - `vw1ich` [executed] executed/20260709-target-directory-00-vw1ich-target-directory-readmes.md
 - `4025ak` [executed] executed/20260710-plan-lifecycle-00-4025ak-plan-lifecycle-superseded-notexecuted-dirs.md
+- `4o5lt9` [executed] executed/20260815-2156-01-installer-rollback-same-second-backup-collision.md
