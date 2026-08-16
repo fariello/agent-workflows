@@ -64,6 +64,7 @@ C_EXEC_STATE = "IPD-S401"
 C_VALID_STATE = "IPD-S402"
 C_CROSS_STATE = "IPD-S403"
 C_CHECKPOINT = "IPD-S404"
+C_EXEC_HISTORY = "IPD-S405"
 C_OQ = "IPD-Q501"
 C_SIZE = "IPD-Z601"
 # IPD-D701 (em/en dash in authored prose) was RETIRED: the no-dash convention is a
@@ -102,6 +103,7 @@ class ParsedDoc(NamedTuple):
     exec_task_groups: int
     open_questions: List[Dict[str, str]]
     size_assessment: Optional[str]
+    history_lines: List[Tuple[int, str]]
 
 
 _FENCE_RE = re.compile(r"^(\s*)(```|~~~)")
@@ -110,6 +112,7 @@ _H2_RE = re.compile(r"^## (.+?)\s*$")
 _H3_RE = re.compile(r"^### (.+?)\s*$")
 _LEAF_RE = re.compile(r"^- \[([ x])\]\s+(.*)$")
 _SUBFIELD_RE = re.compile(r"^\s+- ([A-Za-z][A-Za-z /-]*?):\s?(.*)$")
+_HISTORY_LINE_RE = re.compile(r"^-\s+(?:\d{4}-\d{2}-\d{2})\s+(\S+)")
 
 
 def _structural_lines(text: str) -> List[Tuple[int, str]]:
@@ -188,6 +191,7 @@ def parse(text: str) -> ParsedDoc:
     exec_task_groups = 0
     open_questions: List[Dict[str, str]] = []
     size_assessment: Optional[str] = None
+    history_lines: List[Tuple[int, str]] = []
 
     current_h2 = ""
     current_leaf: Optional[Leaf] = None
@@ -219,6 +223,11 @@ def parse(text: str) -> ParsedDoc:
             _flush_leaf()
             _flush_oq()
             current_h2 = mh.group(1).strip()
+            continue
+        # Workflow history line
+        if current_h2 == S.H_WORKFLOW_HISTORY:
+            if raw.lstrip().startswith("- "):
+                history_lines.append((lineno, raw))
             continue
         # Task-group H3 inside the execution section.
         mh3 = _H3_RE.match(raw)
@@ -299,6 +308,7 @@ def parse(text: str) -> ParsedDoc:
         exec_task_groups=exec_task_groups,
         open_questions=open_questions,
         size_assessment=size_assessment,
+        history_lines=history_lines,
     )
 
 
@@ -639,6 +649,23 @@ def check_checkpoint(
                             ),
                         )
                     )
+    if checkpoint == "post-transition":
+        if status == "executed":
+            has_executed = False
+            for lineno, line_text in doc.history_lines:
+                m = _HISTORY_LINE_RE.match(line_text.strip())
+                if m and m.group(1).rstrip(":").lower() == "executed":
+                    has_executed = True
+                    break
+            if not has_executed:
+                diags.append(
+                    Diagnostic(
+                        0,
+                        0,
+                        C_EXEC_HISTORY,
+                        "plan with 'Status: executed' must carry an 'executed' ## Workflow history entry at post-transition",
+                    )
+                )
     return diags
 
 
@@ -670,7 +697,8 @@ def lint_text(
     """Lint IPD source text. Pure: no I/O. Returns a LintResult (disposition + diagnostics)."""
     doc = parse(text)
     # Legacy/grandfathered: a terminal-dir file evaluated without migration.
-    if _is_terminal_dir(directory) and not legacy:
+    # At post-transition, the just-transitioned plan is evaluated for S405 history agreement.
+    if _is_terminal_dir(directory) and not legacy and checkpoint != "post-transition":
         return LintResult(S.DISPOSITION_LEGACY, [])
     # Quarantined: metadata declares quarantine (nonterminal only; the trio is validated in metadata).
     if S.is_quarantined(doc.meta_fields) and not _is_terminal_dir(directory):

@@ -118,6 +118,28 @@ Gate prose.
 """
 
 
+def _executed_child(include_executed_history: bool = True) -> str:
+    history = "- 2026-08-03 to-review (tester): created.\n"
+    if include_executed_history:
+        history += "- 2026-08-04 executed (tester): executed.\n"
+    return (
+        _conforming_child()
+        .replace("- Status: to-review", "- Status: executed")
+        .replace(
+            "## Workflow history\n\n- 2026-08-03 to-review (tester): created.",
+            f"## Workflow history\n\n{history.rstrip()}",
+        )
+        .replace(
+            "- [ ] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: pending",
+            "- [x] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: performed",
+        )
+        .replace(
+            "- [ ] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence:\n  - Result: pending",
+            "- [x] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence: verified at path X.\n  - Result: pass",
+        )
+    )
+
+
 class ParserExclusionTests(unittest.TestCase):
     def test_fenced_example_not_parsed_as_structure(self):
         # The spec file contains fenced ## Goal / ## Detailed... examples; they must NOT be counted.
@@ -305,6 +327,48 @@ class CheckpointTests(unittest.TestCase):
             _conforming_child(), checkpoint="pre-execution", directory="pending"
         )
         self.assertTrue(any(d.code == L.C_CHECKPOINT for d in res.diagnostics))
+
+
+class PostTransitionExecutedHistoryTests(unittest.TestCase):
+    def test_post_transition_executed_with_history_passes(self):
+        text = _executed_child(include_executed_history=True)
+        res = L.lint_text(text, checkpoint="post-transition", directory="executed")
+        self.assertEqual(res.disposition, S.DISPOSITION_CONFORMING)
+        self.assertEqual(res.diagnostics, [])
+        self.assertTrue(res.passing)
+
+    def test_post_transition_executed_without_history_fails_s405(self):
+        text = _executed_child(include_executed_history=False)
+        res = L.lint_text(text, checkpoint="post-transition", directory="executed")
+        self.assertEqual(res.disposition, S.DISPOSITION_ERROR)
+        self.assertFalse(res.passing)
+        codes = [d.code for d in res.diagnostics]
+        self.assertIn(L.C_EXEC_HISTORY, codes)
+        s405_diags = [d for d in res.diagnostics if d.code == L.C_EXEC_HISTORY]
+        self.assertEqual(len(s405_diags), 1)
+        self.assertIn(
+            "must carry an 'executed' ## Workflow history entry", s405_diags[0].message
+        )
+
+    def test_legacy_grandfathered_terminal_plan_unaffected_under_default_evaluation(
+        self,
+    ):
+        # Even without executed history, default evaluation on terminal dir returns legacy, not error
+        text = _executed_child(include_executed_history=False)
+        res = L.lint_text(text, checkpoint="author", directory="executed")
+        self.assertEqual(res.disposition, S.DISPOSITION_LEGACY)
+        self.assertEqual(res.diagnostics, [])
+
+    def test_real_executed_plan_at_post_transition(self):
+        # Verify against real executed plans in repo
+        real_executed = sorted(
+            (REPO_ROOT / ".agents" / "plans" / "executed").glob("*.md")
+        )
+        self.assertTrue(len(real_executed) > 0)
+        # Select the latest conforming executed plan
+        sample_plan = real_executed[-1]
+        res = L.lint_file(sample_plan, checkpoint="post-transition")
+        self.assertNotIn(L.C_EXEC_HISTORY, [d.code for d in res.diagnostics])
 
 
 class OpenQuestionAndSizeTests(unittest.TestCase):
