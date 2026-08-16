@@ -4,16 +4,20 @@
 - Kind: child
 - Concern: Nothing programmatically enforces that a plan filed as `Status: executed` (in a terminal directory) actually recorded an `executed` line in its `## Workflow history`. The ipd-lifecycle + `/plan-review` runbooks REQUIRE it (D52; the ipd-structure spec), and it is followed by hand today, but a missing executed-history line would pass every current lint check - a silent provenance gap.
 - Scope: `agent_workflows/ipd_lint.py` (add one post-transition presence check + error id `IPD-S405`) and `tests/test_ipd_lint.py` (or the existing ipd-lint test module). Salvaged from the retired `20260807-ipd-history-01-wrt0wq` (which is otherwise superseded: E-03/E-04 already shipped; E-01/E-02 structured-history grammar declined per the free-form prose-provenance convention, D52).
-- Status: reviewed
+- Status: approved
+- Approval: the human maintainer, 2026-08-15 (via chat) - approved for execution by Gemini 3.7 Flash High (second executor benchmark).
 - Highest E allocated: 02
 - Author: opencode Opus 4.8
 - Id: 69xrut
 - Set: ipdexechist
 - Order: 1
+
 ## Workflow history
 
 - 2026-08-13 draft (opencode Opus 4.8): created to salvage the one still-useful, convention-compatible item (former E-05) from the retired ipd-history plan wrt0wq. This is a PRESENCE check that fits the shipped free-form workflow-history convention (D52); it does NOT impose a machine-readable history grammar (that structured-history idea, former E-01/E-02, was considered and declined 2026-08-13, D131).
 - 2026-08-13 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003. Verified from evidence that `lint_text` (ipd_lint.py:672) short-circuits terminal-dir plans to `legacy/not evaluated` before checks run, so the original E-02 ("check at post-transition, preserve the grandfather") was internally contradictory (PR-001, HIGH); rewrote E-02 to reconcile it and confirmed the spec (20260802-1904-01 S9.2 item 16) already REQUIRES the post-transition history-agreement this implements (PR-002); tightened V-02 to pin the exact post-PR-001 behavior + a mutation probe (PR-003). Scope decision (S405 going-forward only, legacy corpus stays grandfathered) resolved with the human maintainer and recorded in E-02. Structural lint conforming (author + review-finalize). Status to-review -> reviewed. Readiness: GO - PENDING HUMAN APPROVAL.
+- 2026-08-15 re-validated (opencode Opus 4.8, orchestrator): confirmed still non-stale before approval - `ipd_lint.py` exists, `lint_text` terminal-dir short-circuit is at :672-674 (PR-001 claim still accurate), and IPD-S405 is not yet present (real unshipped work). Structural lint conforming.
+- 2026-08-15 approved (the human maintainer, via chat; recorded by opencode Opus 4.8): approved for execution as the second Gemini 3.7 Flash High executor benchmark (a less pre-chewed plan than 0g0rid). Plans carry no TTY floor; attributed human approval, not agent self-approval. Status reviewed -> approved.
 
 ## Goal
 
