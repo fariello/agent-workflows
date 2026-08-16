@@ -246,6 +246,97 @@ class InventoryTests(unittest.TestCase):
             ("records", "records/backlog/open/20260815-x-01-x-thing.md"),
         )
 
+    def test_host_adapters_preserved_in_place_not_relocated(self) -> None:
+        """Host-required discovery files (.claude/, .opencode/, AGENTS.md/CLAUDE.md/GEMINI.md)
+        are PRESERVED IN PLACE, not relocated under .aw/adapters/ (spec 20260810-1447-01
+        S3.1/S9). Two hosts carrying identically-named command shims must NOT collide, and each
+        adapter's destination equals its source path. (Order 11 rehearsal finding.)
+        """
+        # Direct classification: adapters/pointers are preserve, not migrate.
+        for label in ("claude-adapters", "opencode-adapters", "agents-pointer"):
+            c = INVENTORY.classify_item(label, "commands/assess.md", None)
+            self.assertEqual(c["disposition"], "preserve", f"{label} not preserve: {c}")
+            self.assertEqual(
+                c["expected_destination_class"], "host-adapter-in-place", label
+            )
+            # root-of-root case too
+            c0 = INVENTORY.classify_item(label, ".", None)
+            self.assertEqual(
+                c0["disposition"], "preserve", f"{label} root not preserve"
+            )
+
+        # End-to-end: two hosts with the SAME command shim path must not collide, and each is
+        # preserved at its source path (no adapters/ relocation).
+        (self.repo / ".agents" / "workflows").mkdir(parents=True)
+        (self.repo / ".agents" / "workflows" / "index.md").write_text(
+            "wf\n", encoding="utf-8"
+        )
+        for host in (".claude", ".opencode"):
+            d = self.repo / host / "commands"
+            d.mkdir(parents=True)
+            # Deliberately DIFFERENT bytes per host so a naive shared-destination map would
+            # report a real (non-dedup) destination-collision.
+            (d / "assess.md").write_text(f"shim for {host}\n", encoding="utf-8")
+        git(self.repo, "add", "-A")
+
+        roots = INVENTORY._default_roots(self.repo)
+        result = INVENTORY.inventory(self.repo, roots, include_paths=False)
+        self.assertTrue(result["valid"], result["errors"])
+        mp = INVENTORY.build_migration_map(
+            self.repo, result, target_backend="repository"
+        )
+        self.assertTrue(mp["valid"], mp["errors"])
+        self.assertEqual(
+            [e for e in mp["errors"] if e.get("rule") == "destination-collision"],
+            [],
+            "host adapters collided despite preserve-in-place",
+        )
+        # Each adapter shim's destination is its own source path (preserved), not adapters/.
+        for it in mp["items"]:
+            if it["source_root"].endswith("adapters") or it["source_root"].endswith(
+                "pointer"
+            ):
+                self.assertEqual(
+                    it["destination_relpath"],
+                    it["source_relpath"],
+                    f"{it['source_root']}:{it['source_relpath']} was relocated",
+                )
+                self.assertEqual(it["copy_method"], "preserve")
+
+        # Falsifiable guard: a genuine records destination-collision (two different-byte files
+        # mapping to one records path) still fails closed (the fix did not disable collision
+        # detection for relocated classes).
+        inv2 = {
+            "items": [
+                {
+                    "item_id": "a",
+                    "source_root": "agents",
+                    "source_relpath": "plans/x.md",
+                    "expected_destination_class": "records",
+                    "disposition": "migrate",
+                    "sha256": "a" * 64,
+                    "git_state": "tracked",
+                },
+                {
+                    "item_id": "b",
+                    "source_root": "ext-old",
+                    "source_relpath": "plans/x.md",
+                    "expected_destination_class": "records",
+                    "disposition": "migrate",
+                    "sha256": "b" * 64,
+                    "git_state": "tracked",
+                },
+            ],
+            "errors": [],
+        }
+        mp2 = INVENTORY.build_migration_map(
+            self.repo, inv2, target_backend="repository"
+        )
+        self.assertFalse(mp2["valid"])
+        self.assertTrue(
+            any(e.get("rule") == "destination-collision" for e in mp2["errors"])
+        )
+
     def test_inventory_does_not_follow_symlink(self) -> None:
         """An escaping symlink is recorded as a link without hashing its target."""
 

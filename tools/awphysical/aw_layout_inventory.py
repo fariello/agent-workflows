@@ -185,8 +185,14 @@ def classify_item(
             return {
                 "ownership": "host-adapter-candidate",
                 "lifecycle_class": "host-adapter-candidate",
-                "expected_destination_class": "host_adapters",
-                "disposition": "migrate",
+                # Host-required discovery files (.claude/, .opencode/, AGENTS.md, ...) stay at
+                # their exact repo-root paths per spec 20260810-1447-01 S3.1/S9 ("not forced
+                # beneath .aw/; thin generated adapters only"). They are regenerable shims, not
+                # records, so they are PRESERVED IN PLACE, not relocated (Order 11 rehearsal
+                # finding: relocating them to a shared adapters/ dir collided across hosts and
+                # would have broken host discovery).
+                "expected_destination_class": "host-adapter-in-place",
+                "disposition": "preserve",
             }
 
     if label == "agents":
@@ -290,8 +296,10 @@ def classify_item(
         return {
             "ownership": "host-adapter-candidate",
             "lifecycle_class": "host-adapter-candidate",
-            "expected_destination_class": "host_adapters",
-            "disposition": "migrate",
+            # Preserve host-required discovery files in place per spec S3.1/S9 (see the
+            # root-level branch above); do not relocate under .aw/adapters/.
+            "expected_destination_class": "host-adapter-in-place",
+            "disposition": "preserve",
         }
     if (
         label.startswith("ext-")
@@ -621,7 +629,17 @@ def build_migration_map(
         dest_class = item.get("expected_destination_class", "unknown")
 
         override = item.get("destination_relpath_override")
-        if override is not None:
+        preserve_in_place = (
+            dest_class == "host-adapter-in-place"
+            or item.get("disposition") == "preserve"
+        )
+        if preserve_in_place:
+            # Host-required discovery files and other preserved items stay at their exact
+            # source path (spec S3.1/S9). The "destination" is the source itself; they are not
+            # relocated under .aw/, so they never enter cross-root collision detection (each
+            # source path is already unique to its own root).
+            dest_relpath = source_relpath
+        elif override is not None:
             dest_relpath = override
         elif dest_class == "system":
             dest_relpath = f"system/{source_relpath}"
@@ -639,22 +657,22 @@ def build_migration_map(
         else:
             dest_relpath = f"unknown/{source_relpath}"
 
-        dest_key = (dest_class, dest_relpath)
         collision_policy = "fail_on_collision"
-        if dest_key in dest_seen:
-            prev = dest_seen[dest_key]
-            if prev["sha256"] == item["sha256"] and item["sha256"] is not None:
-                collision_policy = "deduplicate_identical"
-            else:
-                errors.append(
-                    {
-                        "rule": "destination-collision",
-                        "detail": f"Destination collision at {dest_class}:{dest_relpath} between {prev['source_root']}:{prev['source_relpath']} and {source_root}:{source_relpath}",
-                        "item_id": source_id,
-                    }
-                )
-
-        dest_seen[dest_key] = item
+        if not preserve_in_place:
+            dest_key = (dest_class, dest_relpath)
+            if dest_key in dest_seen:
+                prev = dest_seen[dest_key]
+                if prev["sha256"] == item["sha256"] and item["sha256"] is not None:
+                    collision_policy = "deduplicate_identical"
+                else:
+                    errors.append(
+                        {
+                            "rule": "destination-collision",
+                            "detail": f"Destination collision at {dest_class}:{dest_relpath} between {prev['source_root']}:{prev['source_relpath']} and {source_root}:{source_relpath}",
+                            "item_id": source_id,
+                        }
+                    )
+            dest_seen[dest_key] = item
 
         map_item: Dict[str, Any] = {
             "item_id": source_id,
