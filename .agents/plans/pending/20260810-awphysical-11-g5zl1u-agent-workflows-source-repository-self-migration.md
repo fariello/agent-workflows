@@ -89,6 +89,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - It contains many tracked historical artifacts plus ignored/local material and generated adapters.
 - Generic implementation tests are insufficient to prove the source repository's real corpus and packaging survive.
 - Active concurrent work makes in-place migration without a freeze/rebase check unsafe.
+- 2026-08-15 rehearsal finding (staleness since 2026-08-10): the migration inventory classifier did not know about the `.agents/backlog/` attention-visible backlog tier (added after this plan was authored), so the production inventory failed closed with 33 `unknown-owner` errors on the real corpus. Fixed in commit 975bddf (`.agents/backlog` + missing `research` -> records in `tools/awphysical/aw_layout_inventory.py`, matching `artifact_core`'s `.agents/backlog` -> `.aw/records/backlog`), with a mutation-probed regression test. After the fix the inventory is valid (0 errors, all items classified; backlog -> `records/backlog/`).
+- 2026-08-15 rehearsal finding: `.aw`-preferred resolvers already shipped via migdispo (`bsxowq`, executed); physical files remain at legacy `.agents/` paths, so this migration is the physical relocation that lets those resolvers pick the preferred location.
 
 ## Proposed changes (ordered, validatable)
 
