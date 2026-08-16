@@ -198,6 +198,21 @@ def classify_item(
     if label == "agents":
         first = posix.split("/", 1)[0] if posix else ""
         if first == "workflows":
+            # Canonical .aw/system/ layout is NESTED (spec S4.1, IPD 20260816 xzuxet): the
+            # invokable workflow bundle (index.md + bodies) nests under system/workflows/, while
+            # VERSION and the manifest are system-root SIBLINGS (OQ-02 = SIBLING). So:
+            #   .agents/workflows/VERSION       -> .aw/system/VERSION        (sibling)
+            #   .agents/workflows/<everything>  -> .aw/system/workflows/<..> (bundle)
+            # This matches _compat/engine (VERSION at system root), Order 09 clean_delta
+            # (bundle pointers at system/workflows/<cmd>), and the resolver descent (E-01).
+            if posix == "workflows/VERSION":
+                return {
+                    "ownership": "system",
+                    "lifecycle_class": "system",
+                    "expected_destination_class": "system",
+                    "disposition": "migrate",
+                    "destination_relpath_override": "system/VERSION",
+                }
             return {
                 "ownership": "system",
                 "lifecycle_class": "system",

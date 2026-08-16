@@ -461,6 +461,16 @@ def resolve_source_root(provided: Path | None) -> Path:
             f"Source does not look like an agent-workflows system directory: {source_root}\n"
             "Provide it with --source /path/to/agent-workflows (or system directory).",
         )
+    # Canonical .aw/system/ is NESTED (spec S4.1): the workflow bundle (index.md + bodies)
+    # lives under `<system>/workflows/`, with VERSION/manifest/templates as system-root
+    # siblings. Descend into workflows/ so the returned root DIRECTLY contains index.md, which
+    # is what parse_manifest and the member/prefix logic expect. Legacy `.agents/workflows`
+    # is already the bundle dir (index.md at its root), so this is a no-op there.
+    if (
+        not (source_root / "index.md").is_file()
+        and (source_root / "workflows" / "index.md").is_file()
+    ):
+        source_root = source_root / "workflows"
     return source_root
 
 

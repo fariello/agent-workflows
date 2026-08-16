@@ -337,6 +337,47 @@ class InventoryTests(unittest.TestCase):
             any(e.get("rule") == "destination-collision" for e in mp2["errors"])
         )
 
+    def test_workflows_migrate_under_system_workflows(self) -> None:
+        """.agents/workflows/X migrates to .aw/system/workflows/X (the workflows/ level is
+        PRESERVED). The canonical .aw/system/ layout is NESTED (spec S4.1): system/ groups the
+        invokable workflows/ bundle separately from system metadata (VERSION, manifest,
+        templates, skills). Matches Order 09 clean_delta pointers; Order 04 resolver/packaging
+        is aligned to nested by corrective IPD 20260816.
+        """
+        c = INVENTORY.classify_item(
+            "agents", "workflows/index.md", ".agents/workflows/index.md"
+        )
+        self.assertEqual(c["expected_destination_class"], "system")
+        # No wrapper-stripping override: the workflows/ level is preserved.
+        self.assertIsNone(c.get("destination_relpath_override"))
+
+        wf = self.repo / ".agents" / "workflows"
+        (wf / "advise").mkdir(parents=True)
+        (wf / "index.md").write_text("# workflows\n", encoding="utf-8")
+        (wf / "VERSION").write_text("1.0.0\n", encoding="utf-8")
+        (wf / "advise" / "advise.md").write_text("advise\n", encoding="utf-8")
+        git(self.repo, "add", "-A")
+
+        result = INVENTORY.inventory(
+            self.repo, [("agents", wf.parent)], include_paths=False
+        )
+        self.assertTrue(result["valid"], result["errors"])
+        mp = INVENTORY.build_migration_map(
+            self.repo, result, target_backend="repository"
+        )
+        dest = {
+            it["source_relpath"]: it["destination_relpath"]
+            for it in mp["items"]
+            if it["source_root"] == "agents"
+        }
+        # The invokable bundle nests under system/workflows/; VERSION is a system-root SIBLING
+        # (OQ-02 = SIBLING).
+        self.assertEqual(dest["workflows/index.md"], "system/workflows/index.md")
+        self.assertEqual(dest["workflows/VERSION"], "system/VERSION")
+        self.assertEqual(
+            dest["workflows/advise/advise.md"], "system/workflows/advise/advise.md"
+        )
+
     def test_partial_aw_system_classifies_as_system(self) -> None:
         """A partial .aw/system/ tree left by an interrupted or rolled-back migration must be
         re-classifiable as system so resume/re-apply can proceed, not fall to unknown-owner
@@ -546,6 +587,7 @@ class InventoryTests(unittest.TestCase):
         self.assertTrue(map_res["valid"])
         item_map = next(i for i in map_res["items"] if "body.md" in i["source_relpath"])
         self.assertEqual(item_map["destination_root_class"], "system")
+        # Nested canonical layout: .agents/workflows/e04/body.md -> system/workflows/e04/body.md.
         self.assertEqual(
             item_map["destination_relpath"], "system/workflows/e04/body.md"
         )

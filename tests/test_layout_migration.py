@@ -98,6 +98,61 @@ class TestLayoutMigration(unittest.TestCase):
         journal_data = json.loads(journal_p.read_text(encoding="utf-8"))
         self.assertEqual(journal_data["status"], "completed")
 
+    def test_migrated_system_is_loadable_by_source_resolver(self):
+        """After migration, the canonical NESTED system at .aw/system/workflows/ MUST be loadable
+        by the source resolver: the workflow bundle (index.md + bodies) lives under
+        .aw/system/workflows/, and parse_manifest reads .aw/system/workflows/index.md. This
+        closes the E-05 gap that let a system-layout mismatch ship (the resolver must agree with
+        the migration on where the workflow bundle lands). Canonical layout is nested (spec S4.1).
+        """
+        from agent_workflows import engine as ENG
+
+        repo = Path(self.target_repo)
+        wf = repo / ".agents" / "workflows"
+        wf.mkdir(parents=True, exist_ok=True)
+        # A minimal but resolver-valid workflow tree (index.md + VERSION at the workflows root).
+        (wf / "index.md").write_text(
+            "# Workflows\n\n"
+            "<!-- WORKFLOWS-MANIFEST:BEGIN -->\n"
+            "| Command | Body | Aliases | Description |\n"
+            "|---|---|---|---|\n"
+            "| demo | .agents/workflows/demo/demo.md | - | demo workflow |\n"
+            "<!-- WORKFLOWS-MANIFEST:END -->\n",
+            encoding="utf-8",
+        )
+        (wf / "VERSION").write_text("1.0.0\n", encoding="utf-8")
+        (repo / "pyproject.toml").write_text(
+            "[project]\nname = 'agent-workflows'\n", encoding="utf-8"
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "add", "-A"], check=True, capture_output=True
+        )
+
+        mgr = MigrationManager(target_repo=self.target_repo, aw_home=self.aw_home)
+        mgr.execute_migration(
+            target_backend=RecordsBackend.REPOSITORY.value, dry_run=False
+        )
+
+        # The workflow bundle landed under .aw/system/workflows/ (nested); VERSION is a
+        # system-root SIBLING at .aw/system/VERSION (OQ-02 = SIBLING).
+        system_root = repo / ".aw" / "system"
+        workflows_root = system_root / "workflows"
+        self.assertTrue(
+            (workflows_root / "index.md").is_file(),
+            f".aw/system/workflows/index.md missing; system/ contents: "
+            f"{sorted(p.name for p in system_root.iterdir())}",
+        )
+        self.assertTrue(
+            (system_root / "VERSION").is_file(),
+            "VERSION should be a system-root sibling (.aw/system/VERSION), not in the bundle",
+        )
+        self.assertFalse(
+            (workflows_root / "VERSION").is_file(),
+            "VERSION should NOT be inside the workflows/ bundle under SIBLING placement",
+        )
+        # The source resolver loads it: parse_manifest reads <workflows_root>/index.md.
+        ENG.parse_manifest(workflows_root)  # raises if index.md is not present/valid
+
     def test_rollback_preserves_in_place_host_adapters_and_legacy(self):
         """DATA SAFETY: rollback must NOT delete host-adapter-in-place items (whose destination
         IS the live repo-root path, e.g. AGENTS.md/.claude/.opencode) nor the retained legacy

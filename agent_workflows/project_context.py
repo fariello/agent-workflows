@@ -700,8 +700,14 @@ def resolve_project_context(
     )
 
     # 9. Framework Version
+    # Canonical placement is the system-root SIBLING `.aw/system/VERSION` (OQ-02/IPD 20260816
+    # xzuxet: VERSION is a system-root sibling, not inside the workflows/ bundle). Fall back to
+    # the legacy in-bundle `.aw/system/workflows/VERSION` only if the sibling is absent, so a
+    # partially-migrated or older tree still resolves.
     framework_version = DEFAULT_FRAMEWORK_VERSION
-    version_file = os.path.join(system_root, "workflows", "VERSION")
+    version_file = os.path.join(system_root, "VERSION")
+    if not os.path.isfile(version_file):
+        version_file = os.path.join(system_root, "workflows", "VERSION")
     if os.path.isfile(version_file):
         try:
             with open(version_file, "r", encoding="utf-8") as vf:
