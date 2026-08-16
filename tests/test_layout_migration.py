@@ -98,6 +98,68 @@ class TestLayoutMigration(unittest.TestCase):
         journal_data = json.loads(journal_p.read_text(encoding="utf-8"))
         self.assertEqual(journal_data["status"], "completed")
 
+    def test_rollback_preserves_in_place_host_adapters_and_legacy(self):
+        """DATA SAFETY: rollback must NOT delete host-adapter-in-place items (whose destination
+        IS the live repo-root path, e.g. AGENTS.md/.claude/.opencode) nor the retained legacy
+        sources; it removes only the staged copies UNDER .aw/ (Order 11 rehearsal finding).
+        """
+        repo = Path(self.target_repo)
+        # Legacy system + records + a host adapter + a root pointer.
+        (repo / ".agents" / "workflows").mkdir(parents=True, exist_ok=True)
+        (repo / ".agents" / "workflows" / "index.md").write_text(
+            "wf\n", encoding="utf-8"
+        )
+        (repo / ".agents" / "plans").mkdir(parents=True, exist_ok=True)
+        (repo / ".agents" / "plans" / "p.md").write_text("plan\n", encoding="utf-8")
+        (repo / ".claude" / "commands").mkdir(parents=True, exist_ok=True)
+        claude_shim = repo / ".claude" / "commands" / "assess.md"
+        claude_shim.write_text("claude shim\n", encoding="utf-8")
+        agents_md = repo / "AGENTS.md"
+        agents_md.write_text("<!-- aw:block -->\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(repo), "add", "-A"], check=True, capture_output=True
+        )
+
+        mgr = MigrationManager(target_repo=self.target_repo, aw_home=self.aw_home)
+        mgr.execute_migration(
+            target_backend=RecordsBackend.REPOSITORY.value, dry_run=False
+        )
+
+        # Apply left the in-place adapters untouched (not copied under .aw/adapters/).
+        self.assertTrue(
+            claude_shim.is_file(), "apply disturbed the in-place host adapter"
+        )
+        self.assertFalse(
+            (repo / ".aw" / "adapters").exists(),
+            "apply relocated a host adapter under .aw/ (should be preserved in place)",
+        )
+        # A relocated class WAS staged under .aw/.
+        self.assertTrue((repo / ".aw" / "records" / "plans" / "p.md").is_file())
+
+        mgr.rollback_migration()
+
+        # The live host adapter + root pointer + legacy sources MUST survive rollback.
+        self.assertTrue(
+            claude_shim.is_file(),
+            "rollback DELETED the live host adapter .claude/commands/assess.md!",
+        )
+        self.assertEqual(claude_shim.read_text(encoding="utf-8"), "claude shim\n")
+        self.assertTrue(agents_md.is_file(), "rollback DELETED the live AGENTS.md!")
+        self.assertTrue(
+            (repo / ".agents" / "workflows" / "index.md").is_file(),
+            "rollback removed retained legacy source",
+        )
+        # Staged .aw/ copies of relocated classes ARE removed on rollback (staged copies live
+        # under .aw/, matching execute_migration's self.aw_dir base; the prior repo_path base
+        # both missed the staged copies and, for in-place items, pointed at the LIVE repo-root
+        # file - the data-loss this fix closes).
+        self.assertFalse(
+            (repo / ".aw" / "records" / "plans" / "p.md").exists(),
+            "rollback left a staged .aw/ copy behind (wrong base dir)",
+        )
+        # The .aw/ tree itself is not destroyed by rollback.
+        self.assertTrue((repo / ".aw").is_dir(), "rollback removed the .aw/ tree")
+
     def test_conservative_uninstall_preserves_config_state_records(self):
         """Uninstall MUST remove system files but PRESERVE config, state, and records by default (E-04 & L9-02)."""
         target_aw = Path(self.target_repo) / ".aw"

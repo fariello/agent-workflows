@@ -721,7 +721,6 @@ class MigrationManager:
     ) -> Dict[str, Any]:
         """Roll back migration transaction cleanly (E-07)."""
         tx = self._load_transaction()
-        repo_path = Path(self.target_repo)
 
         # If policy switch occurred, revert policy back to legacy
         config_file = self.config_dir / "config.json"
@@ -737,10 +736,19 @@ class MigrationManager:
         if self.retention_manifest_file.exists():
             self.retention_manifest_file.unlink()
 
-        # Remove staged items if present
+        # Remove staged items if present. NEVER touch host-adapter-in-place items: their
+        # "destination" IS the live host-required source path (e.g. AGENTS.md, .claude,
+        # .opencode), which the apply left untouched (see execute_migration); deleting dst_p
+        # for those would destroy real repo content instead of a staged .aw/ copy. Only staged
+        # copies under .aw/ (relocated classes) are removed on rollback.
         if tx and "items" in tx:
             for mapping in tx["items"]:
-                dst_p = repo_path / mapping["destination_relpath"]
+                if mapping.get("destination_root_class") == "host-adapter-in-place":
+                    continue
+                # Staged copies live UNDER .aw/ (self.aw_dir), matching execute_migration's
+                # dst_p = self.aw_dir / destination_relpath. Rolling back removes those staged
+                # .aw/ copies; the retained legacy sources at the repo root are left intact.
+                dst_p = self.aw_dir / mapping["destination_relpath"]
                 if dst_p.exists() or dst_p.is_symlink():
                     if dst_p.is_file() or dst_p.is_symlink():
                         dst_p.unlink()
