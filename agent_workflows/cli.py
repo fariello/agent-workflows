@@ -3536,11 +3536,18 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
                 term.status("fail", str(exc))
             return 1
 
+    # Preview (non-mutating) path selection. `--dry-run` ALWAYS forces preview, even when the
+    # positional action is `apply` (`apply --dry-run` must never mutate); `plan` is always
+    # preview; and a bare invocation (no action, no `--apply`) previews. Only an explicit
+    # `apply`/`--apply` WITHOUT `--dry-run` reaches execute_migration below. The previous
+    # condition ANDed `action != "apply"` into the dry-run branch, so `apply --dry-run` fell
+    # through and mutated for real (regression: dry-run performed the migration).
+    dry_run_requested = getattr(args, "dry_run", False)
+    apply_requested = getattr(args, "apply", False) or action == "apply"
     if (
         action == "plan"
-        or (getattr(args, "dry_run", False) or action is None)
-        and not getattr(args, "apply", False)
-        and action != "apply"
+        or dry_run_requested
+        or (action is None and not apply_requested)
     ):
         roots = inv_mod._default_roots(repo_path)
         for r_arg in getattr(args, "root", []):

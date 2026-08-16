@@ -298,11 +298,19 @@ def classify_item(
                 "disposition": "migrate",
             }
         if first in {"state", "durable", "runtime"}:
+            # An EXISTING `.aw/state/` (runtime scratch + the migration's OWN transaction
+            # journal, receipts, and relocated installer-backup snapshots) must never be part
+            # of the migration transaction: it is live, self-referential input. Migrating
+            # `.aw/state/X` onto `.aw/state/durable/X` is a no-op relocation whose only effect
+            # is to record a source digest and then mutate that very file mid-run, tripping the
+            # "Source file changed since inventory" preflight gate on any second/resumed apply
+            # (backlog j6llj1). It is PRESERVED IN PLACE and excluded from the map (disposition
+            # `skip`), so a re-apply after a dry-run or rollback proceeds cleanly.
             return {
                 "ownership": "state-runtime",
                 "lifecycle_class": "state-runtime",
                 "expected_destination_class": "durable_state",
-                "disposition": "migrate",
+                "disposition": "skip",
             }
         if first == "records":
             return {
@@ -652,6 +660,13 @@ def build_migration_map(
         source_root = item["source_root"]
         source_relpath = item["source_relpath"]
         dest_class = item.get("expected_destination_class", "unknown")
+
+        # `skip` items (e.g. an existing `.aw/state/` tree: live runtime scratch + the
+        # migration's own journal/receipts) are self-referential input that must never enter
+        # the transaction. Excluding them here keeps them out of the copy + preflight-hash set,
+        # so a re-apply after a dry-run or rollback does not trip the stale-input gate (j6llj1).
+        if item.get("disposition") == "skip":
+            continue
 
         override = item.get("destination_relpath_override")
         # Host-required discovery files (host-adapter-in-place) stay at their exact source path

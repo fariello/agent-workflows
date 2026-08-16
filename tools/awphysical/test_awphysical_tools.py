@@ -408,6 +408,58 @@ class InventoryTests(unittest.TestCase):
             "block-unknown",
         )
 
+    def test_existing_aw_state_is_skipped_not_migrated(self) -> None:
+        """An existing .aw/state/ tree (runtime scratch + the migration's own transaction
+        journal/receipts) must be classified `skip` and EXCLUDED from the migration map, so a
+        re-apply after a dry-run or rollback does not trip the "Source file changed since
+        inventory" preflight gate on the migration's own live journal (backlog j6llj1).
+        """
+        # Direct classification: every .aw/state/ path is state-runtime + skip.
+        for rel in (
+            "state",
+            "state/runtime/transactions/migration_transaction.json",
+            "state/durable/migrations/switch_receipt.json",
+            "durable/install.json",
+        ):
+            c = INVENTORY.classify_item("partial-aw", rel, ".aw/" + rel)
+            self.assertEqual(c["ownership"], "state-runtime", rel)
+            self.assertEqual(c["disposition"], "skip", rel)
+
+        # The migration map EXCLUDES skip items: a synthetic inventory carrying a live
+        # .aw/state/ journal file produces a map with no entry for it (it never enters the
+        # copy/preflight-hash set), while a sibling records item is still mapped.
+        inv_doc = {
+            "items": [
+                {
+                    "item_id": "state-journal",
+                    "source_root": "partial-aw",
+                    "source_relpath": "state/runtime/transactions/migration_transaction.json",
+                    "expected_destination_class": "durable_state",
+                    "disposition": "skip",
+                    "sha256": "a" * 64,
+                    "git_state": "untracked",
+                },
+                {
+                    "item_id": "a-record",
+                    "source_root": "agents",
+                    "source_relpath": "plans/pending/p.md",
+                    "expected_destination_class": "records",
+                    "disposition": "migrate",
+                    "sha256": "b" * 64,
+                    "git_state": "tracked",
+                },
+            ],
+            "errors": [],
+        }
+        mp = INVENTORY.build_migration_map(self.repo, inv_doc, "repository")
+        mapped_ids = {m["item_id"] for m in mp["items"]}
+        self.assertNotIn(
+            "state-journal",
+            mapped_ids,
+            "an existing .aw/state/ journal entered the migration map (j6llj1 trap)",
+        )
+        self.assertIn("a-record", mapped_ids, "a real record was wrongly excluded")
+
     def test_inventory_does_not_follow_symlink(self) -> None:
         """An escaping symlink is recorded as a link without hashing its target."""
 
