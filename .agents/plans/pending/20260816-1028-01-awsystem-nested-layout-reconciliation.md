@@ -4,16 +4,17 @@
 - Kind: child
 - Concern: Two executed awphysical Orders shipped contradictory assumptions about the physical shape of `.aw/system/`: Order 04 (resolver + packaging + installer tests) assumed FLAT (workflow bundle directly at `.aw/system/`), while Order 09 (`clean_delta` pointers) and the controlling spec S4.1 assume NESTED (`.aw/system/workflows/`). Order 11's self-migration is the first consumer forced to pick, and the mismatch broke source resolution (E-05: `FileNotFoundError .aw/system/index.md`). Settle the canonical layout as NESTED and reconcile the Order-04 side.
 - Scope: `engine.resolve_source_root` source descent, the classifier's `agents:workflows` disposition, packaging force-include for `.aw/system`, and the focused resolver/classifier/migration tests. Does NOT change workflow bodies, records, or the migration transaction engine.
-- Status: draft
+- Status: to-review
 - Set: awphysical (physical .aw hierarchy, storage policy, and migration)
 - Order: 13
-- Highest E allocated: 03
+- Highest E allocated: 04
 - Author: opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: xzuxet
 
 ## Workflow history
 
 - 2026-08-16 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created as a corrective IPD after the Order 11 (g5zl1u) Stage 3 E-05 verification exposed a cross-Order contradiction in the canonical `.aw/system/` shape. Maintainer ruled NESTED (spec-aligned, marginally better for agents: agents reach workflows by explicit path from shims + index.md, so depth is discovery-neutral and token-neutral; nested gives a clean invokable namespace separated from system metadata).
+- 2026-08-16 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS. A full flat/nested census (PR-002) found the contradiction is broader than the initial Order-04 scope: `agent_workflows/__init__.py` self-version, `project_context.py:704`, `project_layout.install_system_tree` (FLAT candidate build vs NESTED read), and `is_source_checkout` VERSION level are all involved, on both sides. Added E-04 + V-04 to cover the full surface (UNDER-SCOPE fix). Surfaced a BLOCKING underspecified sub-question OQ-02 (do VERSION + manifest live at `.aw/system/` root [spec S4.1 sibling] or inside `.aw/system/workflows/` [legacy co-location]?), which must be decided before the reconciliation can be internally consistent. E-01 (resolver descent + classifier) already implemented and full suite green; E-02/E-03/E-04 pending. NO-GO pending OQ-02 + human approval. Status draft -> to-review.
 
 ## Goal
 
@@ -28,6 +29,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - [ ] E-01 In `agent_workflows/engine.py resolve_source_root`, after resolving the system root, descend into `workflows/` when the bundle is nested (i.e. `<system>/index.md` is absent but `<system>/workflows/index.md` exists), so the returned root DIRECTLY contains `index.md`. Legacy `.agents/workflows` (already the bundle dir) is a no-op. Keep the Order-11 migration classifier mapping `.agents/workflows/X -> .aw/system/workflows/X` (NO wrapper strip), matching spec S4.1 and Order 09.
   - Depends on: none
   - Expected outcome: `resolve_source_root` returns the directory that directly holds `index.md` for both legacy and nested `.aw/system` layouts; the classifier preserves the `workflows/` level.
+  - Execution state: pending
+
+- [ ] E-04 Reconcile ALL remaining flat/nested VERSION+manifest decision points found by the /plan-review census to the OQ-02 resolution, so no module contradicts another: `agent_workflows/__init__.py` self-version (`resolve_version(bundled, ...)`), `agent_workflows/project_context.py:704` (`system_root/workflows/VERSION`), `agent_workflows/project_layout.py` (candidate build + install-snapshot version at :320-325/:381), and `engine.is_source_checkout` VERSION level. Add a single shared helper (or documented convention) for "the VERSION/manifest/bundle paths under a system root" so future code cannot re-diverge.
+  - Depends on: E-01
+  - Expected outcome: Every production reader/writer of VERSION, manifest, and the workflow bundle under a `.aw/system` root agrees on the same physical placement per the OQ-02 resolution; a grep census shows no contradictory level assumption. (Gated by OQ-02, which is a blocking open question.)
   - Execution state: pending
 
 ### Task group 2: Packaging carries the nested system tree
@@ -57,6 +63,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - NESTED camp: `clean_delta.py` + its tests + fixture, spec S4.1.
 - The engine's dual validity check made the contradiction latent until Order 11 produced a real `.aw/system/`.
 - Agent-consumption analysis: workflows are reached by explicit path (host shims `Read and execute @.../<cmd>/<cmd>.md`, `index.md` manifest), never by scanning `system/`; so nesting depth is discovery- and token-neutral. Nested wins only on reasoning clarity (clean invokable namespace).
+
+### /plan-review census (2026-08-16): the contradiction is broader than first scoped
+
+A full flat/nested census of production code (not just Order 04) found the assumption scattered across MANY modules, on BOTH sides, and revealed an underspecified sub-question about VERSION/manifest placement:
+
+| Location | Concern | Current assumption |
+|---|---|---|
+| `engine.py:454-471` `resolve_source_root` | source-root descent | NESTED-aware (descends into `workflows/`) - fixed under E-01 |
+| `engine.py:510` `parse_manifest` | reads `<root>/index.md` | level-agnostic (OK once resolve descends) |
+| `engine.py:377` `is_source_checkout` | `sys_dir/VERSION` | FLAT VERSION check (works nested only via the `managed-sections.json` fallback) |
+| `agent_workflows/__init__.py:34` | package self-version | FLAT: `resolve_version(bundled, bundled/VERSION)` reads `<system>/VERSION` |
+| `project_context.py:704` | resolved version file | NESTED: `system_root/workflows/VERSION` |
+| `project_layout.py:320-325` | install candidate build | FLAT: `candidate/VERSION` from `source_root/VERSION` |
+| `project_layout.py:381` | install snapshot version | FLAT: `system_root/VERSION` |
+| `project_layout.py:420-422` | uninstall manifest probe | root-level `managed-sections.json`/`manifest.json` (consistent in BOTH layouts) |
+| `clean_delta.py` | host-pointer target | NESTED: `.aw/system/workflows/<cmd>/<cmd>.md` |
+
+Consequences:
+1. The corrective surface is LARGER than the initial E-01/E-02 scope: it must also reconcile `agent_workflows/__init__.py` self-version, `is_source_checkout`'s VERSION level, and `project_layout.install_system_tree` (the installer materialize path builds a FLAT candidate `.aw/system` today, contradicting `project_context.py`'s NESTED read).
+2. There is a genuine underspecified sub-question (OQ-02): the spec S4.1 lists `VERSION` and `manifest.json` as siblings of `workflows/` under `system/`, but the legacy `.agents/workflows/` co-locates VERSION + index.md inside the bundle. So under NESTED, does `VERSION` live at `.aw/system/VERSION` (spec sibling) or `.aw/system/workflows/VERSION` (preserve legacy co-location)? `project_context.py:704` assumes the latter; `__init__.py`/`project_layout` assume the former. This must be settled before the reconciliation can be internally consistent.
 
 ## Proposed changes (ordered, validatable)
 
@@ -97,12 +123,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Open questions
 
-### OQ-01: none
+### OQ-01: canonical layout FLAT vs NESTED
 
 - Blocking: no
 - Status: resolved
-- Owner: none
-- Resolution or deferral rationale: Maintainer ruled NESTED with full analysis; the resolver already half-supported it, so the corrective surface is small and unambiguous.
+- Owner: human maintainer
+- Resolution or deferral rationale: Maintainer ruled NESTED (`.aw/system/workflows/`) with full agent-consumption analysis (workflows reached by explicit path, so depth is discovery/token-neutral; nested gives a clean invokable namespace and matches spec S4.1).
+
+### OQ-02: where do VERSION and the manifest live under NESTED? (BLOCKS a consistent reconciliation)
+
+- Blocking: yes
+- Status: open
+- Owner: human maintainer
+- Resolution or deferral rationale: The /plan-review census found production code split on this. Spec S4.1 lists `VERSION` and `manifest.json` as SIBLINGS of `workflows/` under `system/` (i.e. `.aw/system/VERSION`, `.aw/system/managed-sections.json`, `.aw/system/workflows/index.md`). But the legacy `.agents/workflows/` bundle co-locates `VERSION` + `index.md` together, and `project_context.py:704` reads `system_root/workflows/VERSION` (co-located), while `agent_workflows/__init__.py:34` and `project_layout.py:381` read `system_root/VERSION` (sibling). Until this is settled, the modules cannot all agree. Options: (A) SIBLING - VERSION+manifest at `.aw/system/` root, only the workflow bundle nests under `workflows/` (matches spec S4.1 + __init__/project_layout; requires the Order-11 migration to place VERSION/managed-sections at system root and fix project_context.py:704); (B) CO-LOCATED - keep VERSION inside the bundle at `.aw/system/workflows/VERSION` (matches project_context.py + the migration's verbatim relpath; requires fixing __init__.py + project_layout + is_source_checkout to read the nested VERSION and reconciling spec S4.1's prose).
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -118,6 +151,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 - [ ] V-03 validates E-03
   - Required evidence: Paste the full serial suite + tools result (all green) and the resolver-descent mutation probe (RED then GREEN).
+  - Observed evidence:
+  - Result: pending
+- [ ] V-04 validates E-04
+  - Required evidence: Paste a grep census over production code showing every VERSION/manifest/bundle reader-writer under a `.aw/system` root uses the OQ-02-decided placement (no contradictory level), plus a test/probe that a migrated `.aw/system` reports the correct package self-version (`agent_workflows.__version__`) and resolves the version via `project_context` consistently. Failure condition: any module still reads/writes VERSION or the bundle at a level inconsistent with the OQ-02 decision.
   - Observed evidence:
   - Result: pending
 
