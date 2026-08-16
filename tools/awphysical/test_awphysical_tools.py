@@ -191,6 +191,61 @@ class InventoryTests(unittest.TestCase):
         )
         self.assertEqual(stray["disposition"], "block-unknown")
 
+    def test_backlog_tree_classifies_as_records(self) -> None:
+        """The attention-visible backlog tier (.agents/backlog/, added after the awphysical
+        tooling was authored) must classify as records and migrate to records/backlog/, not
+        fall through to unknown-owner (Order 11 rehearsal finding; matches artifact_core's
+        .agents/backlog -> .aw/records/backlog mapping). A stray .agents subtree still blocks.
+        """
+        # Direct classification: every backlog path is a records-class migrate.
+        for rel in (
+            "backlog",
+            "backlog/README.md",
+            "backlog/open/20260815-x-01-x-thing.md",
+            "backlog/done/20260815-y-01-y-thing.md",
+            "backlog/parked/20260815-z-01-z-thing.md",
+        ):
+            c = INVENTORY.classify_item("agents", rel, ".agents/" + rel)
+            self.assertEqual(
+                c["expected_destination_class"],
+                "records",
+                f"{rel} did not classify as records: {c}",
+            )
+            self.assertEqual(c["disposition"], "migrate", rel)
+        # _legacy_class agrees (used for conservative human-review classification).
+        self.assertEqual(
+            INVENTORY._legacy_class("agents", "backlog/open/x.md"), "records"
+        )
+
+        # End-to-end: a repo with a backlog tree inventories valid and maps under records/backlog/.
+        agents = self.repo / ".agents"
+        (agents / "workflows").mkdir(parents=True)
+        (agents / "workflows" / "index.md").write_text("wf\n", encoding="utf-8")
+        (agents / "backlog" / "open").mkdir(parents=True)
+        item = agents / "backlog" / "open" / "20260815-x-01-x-thing.md"
+        item.write_text("- Id: x\n- Status: open\n", encoding="utf-8")
+        git(self.repo, "add", "-A")
+
+        result = INVENTORY.inventory(
+            self.repo, [("agents", agents)], include_paths=False
+        )
+        self.assertTrue(result["valid"], result["errors"])
+        mp = INVENTORY.build_migration_map(
+            self.repo, result, target_backend="repository"
+        )
+        dest = {
+            it["source_relpath"]: (
+                it["destination_root_class"],
+                it["destination_relpath"],
+            )
+            for it in mp["items"]
+            if it["source_root"] == "agents"
+        }
+        self.assertEqual(
+            dest["backlog/open/20260815-x-01-x-thing.md"],
+            ("records", "records/backlog/open/20260815-x-01-x-thing.md"),
+        )
+
     def test_inventory_does_not_follow_symlink(self) -> None:
         """An escaping symlink is recorded as a link without hashing its target."""
 

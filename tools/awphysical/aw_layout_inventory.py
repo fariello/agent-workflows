@@ -198,7 +198,7 @@ def classify_item(
                 "expected_destination_class": "system",
                 "disposition": "migrate",
             }
-        if first in {"plans", "prompts", "docs", "comms", "research"}:
+        if first in {"plans", "prompts", "docs", "comms", "research", "backlog"}:
             return {
                 "ownership": "records",
                 "lifecycle_class": "records",
@@ -335,7 +335,7 @@ def _legacy_class(label: str, relpath: str) -> str:
         first = posix.split("/", 1)[0] if posix else ""
         if first == "workflows":
             return "system"
-        if first in {"plans", "prompts", "docs", "comms"}:
+        if first in {"plans", "prompts", "docs", "comms", "research", "backlog"}:
             return "records"
         if first == "agent-workflows":
             return "mixed-system-state-review-required"
