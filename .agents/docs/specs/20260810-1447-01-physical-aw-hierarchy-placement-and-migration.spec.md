@@ -21,7 +21,7 @@ AW needs one physical shape that remains recognizable wherever it is placed, inc
 3. Separate durable operational facts in `state/durable/` from disposable and secret-prone runtime material in `state/runtime/`.
 4. Let the wizard place each class in the target, AW home, or a private companion, with an explicit Git policy and exact preview.
 5. Protect the agent-workflows source checkout while making it dogfood the same physical namespace.
-6. Migrate all legacy material with a frozen inventory, copy-verify-switch-retain transaction, independent postcheck, resume, and rollback.
+6. Migrate all legacy material with a frozen inventory, move-verify-switch transaction (each relocated item is MOVED, not copied, so no legacy twin remains), a post-move interactive leftover disposition, independent postcheck, resume, and rollback.
 7. Preserve the operational-action and attention contracts from the superseded specification.
 
 ## 3. Non-goals
@@ -29,7 +29,7 @@ AW needs one physical shape that remains recognizable wherever it is placed, inc
 - AW does not create, select, authenticate to, push to, or delete a Git remote without a separate explicit user action.
 - AW does not promise that a repository or remote is private. It reports observable facts and user acknowledgements.
 - AW does not store credentials or secrets in portable policy, durable state, records metadata, or migration evidence.
-- Migration cutover never deletes legacy material. Cleanup is a later, separately confirmed operation.
+- Migration MOVES each classified item into `.aw/` (it does not copy-and-retain a legacy twin). Reversibility comes from a per-item move journal (rollback un-moves), not from a permanently retained legacy copy. Migration never deletes UNCLASSIFIED legacy material silently: anything not moved is surfaced to the operator through an interactive leftover disposition (keep, remove, or defer), with a non-interactive default of `defer` that never deletes without an explicit choice.
 - Host-required discovery files are not forced beneath `.aw/`; they remain thin generated adapters only.
 - This specification does not authorize implementation, migration, push, tag, release, or cleanup.
 
@@ -142,26 +142,27 @@ Attachment rejects nested or overlapping Git repositories, unsafe symlinks, case
 
 Before any mutation, AW freezes a versioned inventory of all declared legacy and partial-layout roots, including `.agents/`, `workflow-artifacts/`, existing `.aw/`, installer backups, host adapters, external configured roots, tracked, untracked, ignored, empty, symlinked, modified-managed, and unknown entries. Each item has a stable ID, type, size, mode, hash where applicable, Git classification, and source owner. External roots require explicit operator `--root` declarations. Unknown, ambiguous, conflicting, inaccessible, or unaccounted items block apply.
 
-The approved migration map assigns every inventory item exactly one disposition: copy, explicit identical-content deduplication, retain, or approved exclusion with reason. It records the destination class, relative path, Git owner, and policy digest. A missing or duplicate disposition is an error.
+The approved migration map assigns every inventory item exactly one disposition: move, explicit identical-content deduplication (the first identical source moves; each further identical twin is removed, recorded for reversal), preserve-in-place (host-required adapters), or approved exclusion with reason. It records the destination class, relative path, Git owner, and policy digest. A missing or duplicate disposition is an error.
 
-### 11.2 Copy-verify-switch-retain transaction
+### 11.2 Move-verify-switch transaction
 
 Migration MUST:
 
 1. acquire one project writer lock and reject unmerged/conflicted Git state;
 2. revalidate inventory, map, policy, identities, permissions, and space;
-3. copy into transaction-specific staging without following unsafe links or overwriting collisions;
-4. verify every destination byte, mode, and safe-link disposition;
+3. MOVE each classified item to its destination without following unsafe links or overwriting collisions: a git-tracked item via `git mv` (preserving history and staging the rename); an untracked item via a filesystem move. The move is journaled per item BEFORE the next item, so a crash leaves a precise record of what has moved;
+4. verify every DESTINATION byte, mode, and safe-link disposition equals the frozen inventory (the source is gone after the move);
 5. switch policy and registry authority once, last, with a durable receipt;
 6. disable every legacy writer before and after the switch;
-7. retain all legacy sources and the old-to-new map during cutover;
-8. expose idempotent status, resume, and rollback for every journaled phase;
-9. generate separate target, companion, and source Git plans without committing or pushing;
-10. require the independent deterministic compare and postcheck before success.
+7. record the per-item move journal (old-to-new, with the tracked/untracked flag) as the authoritative rollback source; no permanent legacy twin is retained;
+8. expose idempotent status, resume, and rollback for every journaled phase - resume continues the remaining moves from the transaction's own item list (never a fresh inventory, which would miss already-moved sources); rollback un-moves every journaled relocation; a crash at any point resolves to fully-migrated (resume) or fully-legacy (rollback), never a torn state;
+9. after all classified items are moved, run an interactive leftover disposition over anything remaining under the legacy roots (keep, remove, or defer; non-interactive default `defer`, which never deletes without an explicit choice), recording the decision;
+10. generate separate target, companion, and source Git plans without committing or pushing;
+11. require the independent deterministic compare and postcheck before success.
 
 An independent postcheck MUST re-derive expected content from the frozen inventory and the destination filesystem and Git evidence, not from the migration transaction's in-memory map or success state. Its rule results, paths, and content digests MUST be emitted in deterministic sorted order.
 
-Failure before switch leaves legacy authoritative. Failure after switch has an explicit new authority and rollback path. Migration MUST NOT dual-write. Cleanup is a separate preview-first command after the retention gate; it re-inventories and refuses foreign or changed content. No migration or uninstall deletes an external repository or remote.
+Failure before switch leaves legacy authoritative (rollback un-moves any items already moved). Failure after switch has an explicit new authority and rollback path. Migration MUST NOT dual-write. The interactive leftover disposition is the operator's confirmed decision about unmoved material; any `remove` it authorizes acts only on the operator-chosen leftovers and refuses foreign or changed content. No migration or uninstall deletes an external repository or remote.
 
 ### 11.3 Compatibility and release boundary
 
@@ -238,3 +239,4 @@ The top-level `legacy_crosswalk` in the catalog is controlling. Every old ID 1 t
 - 2026-08-10 note (aw specs): residual reconciliation: added 44-scenario behavior-level legacy crosswalk, seven-state durability ownership and legacy alias, independent postcheck evidence requirements, safety-critical negative fixtures, source self-migration integrity gates, and LOW traceability/tooling corrections; status remains to-review and human approval remains blocking
 - 2026-08-10 reviewed (aw specs): 2026-08-10 reviewed (opencode Opus 4.8 /plan-review-long): final targeted verify of GPT-5.6's 1544-01 closeout confirms all spec-gating findings closed at path:line - S2.1 durability-enum redefinition note (durable-private normalizes via the legacy table, not a current enum member; unreachable added; Order 02/05 ownership + Section 14 gate), S2.2 postcheck-independence definition (re-derive from frozen inventory + destination filesystem/Git, deterministic sorted output), S2.3 all-preset scenario counting (44 scenarios; each all-preset scenario must pass per applicable preset), and the Section 12 crosswalk now binds every expected token to a loadable test method. aw specs check conforms; full suite Ran 825 tests OK (skipped=1); all 13 Set plans lint conforming at review-finalize. No open findings block review. to-review -> reviewed. Human approval remains the sole design gate (agent cannot approve).
 - 2026-08-10 approved (aw specs): approved to execute the awphysical Set
+- 2026-08-16 note (aw specs): Migration contract revised from copy-verify-switch-retain to MOVE-verify-switch (Sections 3, 11.1, 11.2): each classified item is MOVED not copied (git mv tracked / mv untracked); reversibility comes from a per-item move journal (rollback un-moves) rather than a permanently retained legacy twin; the move phase is journaled per item for crash-safe resume/rollback (resume continues from the transaction item list, never a fresh inventory); identical-content twins collapse to one destination with the twin recorded for reversal; and a post-move INTERACTIVE leftover disposition (keep/remove/defer; non-interactive default defer, never deletes without an explicit choice) replaces the deferred blanket-retain-then-cleanup. Reconciles the spec to the maintainer ruling recorded in IPD hnzr8v (awphysical Order 14, reviewed). Spec kept approved (approved->to-review is not a legal transition); this substantive migration-contract change AWAITS maintainer re-confirmation during the paused review before IPD hnzr8v executes. The prior copy-based retain language is superseded by this note + the revised Sections.

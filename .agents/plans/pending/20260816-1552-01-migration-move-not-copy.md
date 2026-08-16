@@ -105,9 +105,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ### OQ-01: Does the controlling spec need a formal revision, or does this IPD reconcile the code to a maintainer ruling recorded here?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: human maintainer
-- Resolution or deferral rationale: The maintainer ruled the move-not-copy + interactive-leftover contract in chat. This IPD implements it and updates the spec text + DECISIONS to match. If the maintainer wants a separate spec-editing pass (aw specs) before implementation, that gate is honored; otherwise the spec sync in this IPD is the record.
+- Resolution or deferral rationale: RESOLVED 2026-08-16 (human maintainer via chat): FORMAL SPEC PASS FIRST, then pause. Spec 20260810-1447-01 is revised through its own owner workflow (aw specs) to replace the "copy-verify-switch-retain" / "cutover never deletes legacy" language with the MOVE-based contract (Sections 3, 11.1, 11.2: move-verify-switch transaction; relocation is a MOVE - git mv tracked / mv untracked; retention/rollback provided by the reversible per-item move journal, not a permanent legacy twin; a post-move interactive leftover disposition replaces the deferred blanket-retain-then-cleanup). This IPD's E-05 then reconciles the CODE + tests + DECISIONS to the revised spec. Implementation of this IPD is PAUSED until the maintainer reviews the revised spec and approves this IPD to execute.
 
 ## Validation and cross-check (verify before reporting done)
 
