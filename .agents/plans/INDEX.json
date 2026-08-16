@@ -1550,6 +1550,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-13",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260813-ipdexechist-01-69xrut-executed-history-lint-guard.md",
+    "plan_id": "69xrut",
+    "set_id": "ipdexechist",
+    "status": "executed"
+  },
+  {
     "date": "2026-08-15",
     "disposition": "executed",
     "kind": "child",
@@ -1607,16 +1617,6 @@
     "path": "pending/20260810-awphysical-12-pszk6x-documentation-release-and-end-to-end-acceptance.md",
     "plan_id": "pszk6x",
     "set_id": "awphysical",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-13",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260813-ipdexechist-01-69xrut-executed-history-lint-guard.md",
-    "plan_id": "69xrut",
-    "set_id": "ipdexechist",
     "status": "approved"
   },
   {

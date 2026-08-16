@@ -14,7 +14,7 @@ Showing the 40 most-recent of 81 Sets; the full manifest is INDEX.json.
 
 ## ipdexechist
 
-- `69xrut` [pending] 01 pending/20260813-ipdexechist-01-69xrut-executed-history-lint-guard.md
+- `69xrut` [executed] 01 executed/20260813-ipdexechist-01-69xrut-executed-history-lint-guard.md
 
 ## migdispo
 
