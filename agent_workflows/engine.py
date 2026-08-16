@@ -154,6 +154,44 @@ MANIFEST_END = "<!-- WORKFLOWS-MANIFEST:END -->"
 VERSION_FILE = "VERSION"  # under the source .agents/workflows/; stamped into targets
 
 
+def _nested_bundle_version_path(source_root: Path) -> Path:
+    """Return the on-disk VERSION path for a resolved (descended) source root.
+
+    Under the canonical nested `.aw/system/` layout (spec S4.1, IPD xzuxet OQ-02 = SIBLING),
+    `resolve_source_root` descends into `.aw/system/workflows/` (the invokable bundle root),
+    but VERSION is a system-root SIBLING at `.aw/system/VERSION` - one level UP, outside the
+    bundle. The legacy `.agents/workflows/` layout co-locates VERSION inside the bundle.
+
+    Resolution: prefer the in-bundle `<source_root>/VERSION` (legacy, and the packaged/copied
+    cases); when it is absent but the sibling `<source_root>/../VERSION` exists (the nested
+    checkout after self-migration), return that sibling. Falls back to the in-bundle path so
+    callers that read/stat it get a consistent (possibly non-existent) location.
+    """
+
+    in_bundle = source_root / VERSION_FILE
+    if in_bundle.is_file():
+        return in_bundle
+    sibling = source_root.parent / VERSION_FILE
+    if sibling.is_file():
+        return sibling
+    return in_bundle
+
+
+def _member_source_path(source_root: Path, source_relative: str) -> Path:
+    """Map a WORKFLOWS_DIR-relative member back to its on-disk source path.
+
+    Normally the member is a path under the resolved bundle root, so this is just
+    `source_root / source_relative`. The one exception is VERSION under the nested
+    `.aw/system/` layout, where VERSION is a system-root SIBLING outside the bundle:
+    `collect_source_members` still emits it as `.agents/workflows/VERSION` (the legacy
+    target path), so its bytes must be read from the sibling, not from `<bundle>/VERSION`.
+    """
+
+    if source_relative == VERSION_FILE:
+        return _nested_bundle_version_path(source_root)
+    return source_root / source_relative
+
+
 def read_version(source_root: Path) -> str:
     """Return the framework version for the source at ``source_root``.
 
@@ -171,15 +209,15 @@ def read_version(source_root: Path) -> str:
         The resolved/trimmed version string, or "unknown" if unresolvable.
     """
 
+    version_file = _nested_bundle_version_path(source_root)
     if _VERSIONING is not None:
         # The resolver runs `git describe` in source_root (git works from any subdir of
         # the work tree) and falls back to the VERSION file itself when there is no git.
-        return _VERSIONING.resolve_version(
-            source_root, version_file=source_root / VERSION_FILE
-        )
+        # Under nested `.aw/system/workflows/`, VERSION is the system-root sibling.
+        return _VERSIONING.resolve_version(source_root, version_file=version_file)
 
     # Degraded path (versioning.py unavailable): read the file directly.
-    path = source_root / VERSION_FILE
+    path = version_file
     try:
         value = path.read_text(encoding="utf-8").strip()
     except OSError:
@@ -573,6 +611,16 @@ def collect_source_members(source_root: Path) -> list[str]:
             continue
         rel = path.relative_to(source_root).as_posix()
         members.append(f"{WORKFLOWS_DIR}/{rel}")
+
+    # Under the nested `.aw/system/` layout, VERSION is a system-root SIBLING outside the
+    # descended bundle root, so the rglob above misses it. The installer intentionally writes
+    # the LEGACY target layout (`.agents/workflows/VERSION`) during the compat window, so we
+    # must still ship it. Add the sibling VERSION as a member mapped to the target's legacy
+    # path; install_all resolves its bytes back from the sibling (see _nested_bundle_version_path).
+    version_path = _nested_bundle_version_path(source_root)
+    version_member = f"{WORKFLOWS_DIR}/{VERSION_FILE}"
+    if version_path.is_file() and version_member not in members:
+        members.append(version_member)
 
     if not members:
         raise SystemExit(f"No installable files found under {source_root}.")
@@ -1673,7 +1721,7 @@ def install_all(
     for member in body_members:
         # member is e.g. ".agents/workflows/release-review/README.md"; map to source.
         source_relative = member[len(prefix) :] if member.startswith(prefix) else member
-        source_path = plan.source_root / source_relative
+        source_path = _member_source_path(plan.source_root, source_relative)
         data = source_path.read_bytes()
         # Sync the source's executable bit (tool scripts stay executable); write_file
         # applies it and re-stages even on a mode-only change.
@@ -2699,7 +2747,7 @@ def show_install_diffs(
 
     for member in body_members:
         source_relative = member[len(prefix) :] if member.startswith(prefix) else member
-        source_path = plan.source_root / source_relative
+        source_path = _member_source_path(plan.source_root, source_relative)
         try:
             proposed[member] = source_path.read_bytes()
         except OSError:

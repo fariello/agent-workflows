@@ -2262,5 +2262,116 @@ class SameSecondBackupCollisionTests(unittest.TestCase):
         self.assertTrue(t3.startswith(t1))
 
 
+class NestedSourceSiblingVersionTests(unittest.TestCase):
+    """Regression (xzuxet E-04): under the canonical nested `.aw/system/` layout, VERSION is
+    a system-root SIBLING at `.aw/system/VERSION`, one level ABOVE the descended bundle root
+    `.aw/system/workflows/`. The installer must still ship it to the target's LEGACY path
+    `.agents/workflows/VERSION` (the compat-window target layout). Before the fix, the source
+    resolved to the bundle root, the rglob member sweep never saw the sibling VERSION, and
+    installed targets lost `.agents/workflows/VERSION` (the E-05 re-cutover discovery: 10
+    installer/CLI tests went red only when `.aw/` was present).
+
+    These tests build a synthetic nested source in a temp dir (independent of whether the real
+    repo has `.aw/` on disk) so the behavior is exercised deterministically, and include a
+    mutation probe: with the sibling VERSION removed, the member and the installed file both
+    vanish (RED), proving the assertion is falsifiable.
+    """
+
+    MANIFEST_ROW = "| plan-review | .agents/workflows/plan-review/plan-review.md | - | Test workflow. |"
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        # Synthetic nested source: <root>/.aw/system/workflows/ is the bundle (index.md +
+        # bodies + templates), and <root>/.aw/system/VERSION is the system-root SIBLING.
+        self.system = self.root / ".aw" / "system"
+        self.bundle = self.system / "workflows"
+        (self.bundle / "plan-review").mkdir(parents=True)
+        (self.bundle / "templates").mkdir(parents=True)
+        index = (
+            "# Workflows\n\n"
+            f"{INS.MANIFEST_BEGIN}\n"
+            "| command | body | lens | description |\n"
+            "|---|---|---|---|\n"
+            f"{self.MANIFEST_ROW}\n"
+            f"{INS.MANIFEST_END}\n"
+        )
+        (self.bundle / "index.md").write_text(index, encoding="utf-8")
+        (self.bundle / "plan-review" / "plan-review.md").write_text(
+            "# plan-review body\n", encoding="utf-8"
+        )
+        (self.bundle / "templates" / "shim-README.md").write_text(
+            "# shims\n", encoding="utf-8"
+        )
+        # The SIBLING VERSION (outside the bundle), one level up at the system root.
+        self.version_text = "9.9.9-nested\n"
+        (self.system / "VERSION").write_text(self.version_text, encoding="utf-8")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _resolve(self) -> Path:
+        # Point the resolver at the repo root that contains .aw/system; it must descend into
+        # workflows/ (E-01) so the returned root DIRECTLY holds index.md.
+        resolved = INS.resolve_source_root(self.root)
+        self.assertEqual(
+            resolved,
+            self.bundle,
+            "resolve_source_root did not descend into the nested workflows/ bundle",
+        )
+        return resolved
+
+    def test_collect_source_members_includes_sibling_version(self):
+        resolved = self._resolve()
+        members = INS.collect_source_members(resolved)
+        self.assertIn(
+            f"{INS.WORKFLOWS_DIR}/VERSION",
+            members,
+            "sibling VERSION was not collected as an install member under nested layout",
+        )
+
+    def test_read_version_reads_sibling(self):
+        resolved = self._resolve()
+        # Non-git temp tree -> versioning resolver falls back to the VERSION file, which under
+        # nested is the sibling. The resolved value must reflect the sibling's content.
+        self.assertIn("9.9.9-nested", INS.read_version(resolved))
+
+    def test_install_ships_sibling_version_to_legacy_target_path(self):
+        resolved = self._resolve()
+        target = init_repo(self.root / "target")
+        INS.install_into_repo(target, resolved, yes=True, no_color=True)
+        installed_version = target / ".agents" / "workflows" / "VERSION"
+        self.assertTrue(
+            installed_version.is_file(),
+            "installer did not ship the sibling VERSION to .agents/workflows/VERSION",
+        )
+        self.assertEqual(
+            installed_version.read_text(encoding="utf-8"),
+            self.version_text,
+            "installed VERSION content does not match the source sibling",
+        )
+        # Bundle content also landed (sanity: the descent + normal member sweep still works).
+        self.assertTrue((target / ".agents" / "workflows" / "index.md").is_file())
+
+    def test_mutation_removing_sibling_version_makes_it_disappear(self):
+        # RED half of the mutation probe: with NO sibling VERSION present, neither the member
+        # nor the installed file exists. This proves the positive assertions above are
+        # falsifiable (they fail exactly when the sibling is absent).
+        (self.system / "VERSION").unlink()
+        resolved = self._resolve()
+        members = INS.collect_source_members(resolved)
+        self.assertNotIn(
+            f"{INS.WORKFLOWS_DIR}/VERSION",
+            members,
+            "VERSION member present despite no sibling VERSION on disk",
+        )
+        target = init_repo(self.root / "target_novers")
+        INS.install_into_repo(target, resolved, yes=True, no_color=True)
+        self.assertFalse(
+            (target / ".agents" / "workflows" / "VERSION").is_file(),
+            "installer materialized a VERSION with no source sibling to ship",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
