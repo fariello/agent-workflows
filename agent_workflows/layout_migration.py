@@ -460,6 +460,13 @@ class MigrationManager:
             dst_p = self.aw_dir / mapping["destination_relpath"]
             disposition = mapping.get("disposition", "migrate")
 
+            # Host-required discovery files (host-adapter-in-place) are preserved at their exact
+            # repo-root path per spec S3.1/S9; they are NOT copied under .aw/ (doing so would
+            # both defeat host discovery and, for a root item with destination ".", try to
+            # sha256 the .aw directory). Leave them untouched.
+            if mapping.get("destination_root_class") == "host-adapter-in-place":
+                continue
+
             if disposition in ("migrate", "preserve") and src_p.exists():
                 dst_p.parent.mkdir(parents=True, exist_ok=True)
                 if src_p.is_symlink():

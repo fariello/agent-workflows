@@ -629,15 +629,15 @@ def build_migration_map(
         dest_class = item.get("expected_destination_class", "unknown")
 
         override = item.get("destination_relpath_override")
-        preserve_in_place = (
-            dest_class == "host-adapter-in-place"
-            or item.get("disposition") == "preserve"
-        )
+        # Host-required discovery files (host-adapter-in-place) stay at their exact source path
+        # (spec S3.1/S9); they are NOT relocated under .aw/. This is distinct from other
+        # preserve dispositions (e.g. installer-backups preserved AS durable_state) which are
+        # still relocated to their .aw/ class destination.
+        preserve_in_place = dest_class == "host-adapter-in-place"
         if preserve_in_place:
-            # Host-required discovery files and other preserved items stay at their exact
-            # source path (spec S3.1/S9). The "destination" is the source itself; they are not
-            # relocated under .aw/, so they never enter cross-root collision detection (each
-            # source path is already unique to its own root).
+            # The "destination" is the source itself; preserved-in-place items are not relocated
+            # under .aw/, so they never enter cross-root collision detection (each source path
+            # is already unique to its own root).
             dest_relpath = source_relpath
         elif override is not None:
             dest_relpath = override
