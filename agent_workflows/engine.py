@@ -220,6 +220,46 @@ class InstallPlan:
     # structural is_shim_customized_* checks). Excluded from equality/hash (frozen dataclass
     # stays hashable); set via object.__setattr__ after construction.
     manifest: Optional[manifest_mod.Manifest] = field(default=None, compare=False)
+    # The single per-run backup-directory token (BACKUPS_DIR/<token>/...). Allocated ONCE at
+    # the start of an install run (install_into_repo) via allocate_backup_timestamp so every
+    # backup site in the run shares one directory AND two runs within the same wall-clock
+    # second never collide into one directory (which corrupted --undo rollback fidelity;
+    # IPD 20260815-2156-01 / backlog qver7w). None means "not run-scoped" (a standalone caller
+    # of a backup site); such sites fall back to a fresh allocation. Excluded from equality.
+    backup_timestamp: Optional[str] = field(default=None, compare=False)
+
+
+def allocate_backup_timestamp(repo_root: Path) -> str:
+    """Return a backup-directory token unique against existing backup directories.
+
+    The base token is the seconds-granularity install time. If a directory with that name
+    already exists under BACKUPS_DIR (a prior install run in the same wall-clock second), the
+    smallest 2-digit ``-NN`` suffix that is not yet taken is appended, so each install run
+    owns a distinct backup directory. This closes the same-second cross-run collision that let
+    two runs merge into one directory and made ``--undo`` restore the wrong content
+    (IPD 20260815-2156-01 / backlog qver7w).
+    """
+
+    base = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backups_path = repo_root / BACKUPS_DIR
+    if not (backups_path / base).exists():
+        return base
+    for n in range(1, 100):
+        candidate = f"{base}-{n:02d}"
+        if not (backups_path / candidate).exists():
+            return candidate
+    # Extreme fallback (>=100 runs in one second): microsecond suffix guarantees uniqueness.
+    return datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+
+
+def _plan_backup_timestamp(plan: "InstallPlan") -> str:
+    """The run-scoped backup token if set, else a freshly allocated unique token.
+
+    A standalone caller of an individual backup site (not going through install_into_repo)
+    still gets a unique directory.
+    """
+
+    return plan.backup_timestamp or allocate_backup_timestamp(plan.repo_root)
 
 
 def parse_args(argv=None) -> argparse.Namespace:
@@ -1617,7 +1657,7 @@ def install_all(
     installed: list[str] = []
     skipped: list[str] = []
     conflicted: list[str] = []
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    timestamp = _plan_backup_timestamp(plan)
 
     prefix = WORKFLOWS_DIR + "/"
     for member in body_members:
@@ -1709,7 +1749,7 @@ def prune_stale(
     orphans = sorted(present - desired)
 
     pruned: list[str] = []
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    timestamp = _plan_backup_timestamp(plan)
 
     for rel in orphans:
         if not in_framework_namespace(rel):  # defense in depth
@@ -1994,7 +2034,7 @@ def migrate_legacy_layout(plan: InstallPlan, use_git: bool) -> list[str]:
 
     actions: list[str] = []
     repo = plan.repo_root
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    timestamp = _plan_backup_timestamp(plan)
     backup_root = (
         None
         if (plan.dry_run or not plan.backup)
@@ -2224,7 +2264,7 @@ def ensure_untracked_gitignore(plan: InstallPlan, use_git: bool) -> str:
         return "would add untracked-safety block to .gitignore [dry-run]"
 
     if existing and plan.backup:
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        timestamp = _plan_backup_timestamp(plan)
         backup = create_backup_path(plan.repo_root, Path(".gitignore"), timestamp)
         backup.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(gitignore_path, backup)
@@ -2585,10 +2625,23 @@ def print_shim_diff(rel: str, current: str, expected: str, no_color: bool) -> No
 def save_created_files_record(
     repo_root: Path, timestamp: str, newly_created: list[str]
 ) -> None:
-    """Save the list of newly created files in the backup directory."""
-    if not newly_created:
-        return
+    """Save the list of newly created files in this run's backup directory.
+
+    The record is written when the run created new files OR when the run's backup directory
+    already exists (i.e. the run made at least one backup, e.g. an overwrite-only run that
+    created nothing). In the latter case an empty record is still written so THIS run's
+    directory is the authoritative latest run for ``run_rollback``'s "latest directory carrying
+    a record" selection; skipping it let an older run's directory win and made ``--undo`` remove
+    files the older run had recorded as created but the current run's backups had superseded
+    (IPD 20260815-2156-01 / backlog qver7w).
+
+    A pure no-op run (created nothing and backed up nothing, so the directory does not exist)
+    writes NOTHING, preserving install idempotency (a repeated identical install must not
+    accrue empty backup directories).
+    """
     backup_dir = repo_root / BACKUPS_DIR / timestamp
+    if not newly_created and not backup_dir.is_dir():
+        return
     if not backup_dir.is_dir():
         backup_dir.mkdir(parents=True, exist_ok=True)
 
@@ -4118,6 +4171,13 @@ def install_into_repo(
     manifest = manifest_mod.load(manifest_path)
     object.__setattr__(plan, "manifest", manifest)
 
+    # Allocate ONE backup-directory token for this whole run, unique against existing backup
+    # directories, so every backup site shares one directory and two runs in the same second
+    # do not collide (IPD 20260815-2156-01 / backlog qver7w).
+    object.__setattr__(
+        plan, "backup_timestamp", allocate_backup_timestamp(plan.repo_root)
+    )
+
     use_git = git_available(plan.repo_root)
     workflows = parse_manifest(plan.source_root)
     body_members = collect_source_members(plan.source_root)
@@ -4126,7 +4186,7 @@ def install_into_repo(
     migrated = migrate_legacy_layout(plan, use_git)
     installed, skipped, _ = install_all(plan, body_members, shim_members, use_git)
     pruned = prune_stale(plan, body_members, shim_members, use_git)
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    timestamp = plan.backup_timestamp or allocate_backup_timestamp(plan.repo_root)
     agents_status = update_agents_pointer(plan, use_git, timestamp)
     gitignore_status = check_gitignore(plan)
     backups_ignore_status = ensure_backups_gitignored(plan, use_git)

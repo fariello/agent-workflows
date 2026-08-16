@@ -2174,5 +2174,93 @@ class PhysicalSystemInstallTests(unittest.TestCase):
         self.assertEqual(res4["status"], "uninstalled")
 
 
+class SameSecondBackupCollisionTests(unittest.TestCase):
+    """Regression: two install runs in the same wall-clock second must not collide into one
+    backup directory, and --undo must restore the state before the MOST RECENT run
+    (IPD 20260815-2156-01 / backlog qver7w).
+
+    The prior seconds-granularity backup token merged same-second runs into one directory, so
+    --undo restored the wrong content. These tests freeze the engine clock to a single second
+    (forcing the collision) and drive the real install/rollback engine.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.repo = init_repo(Path(self._tmp.name) / "repo")
+        self.source = REPO_ROOT / ".agents" / "workflows"
+        self.index = self.repo / ".agents" / "workflows" / "index.md"
+        self.backups = self.repo / INS.BACKUPS_DIR
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    class _FrozenClock:
+        """A datetime replacement whose now() is pinned to a fixed second."""
+
+        _real = INS.datetime
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls._real(2026, 8, 15, 12, 0, 0, 0)
+
+        def __getattr__(self, name):  # pragma: no cover - delegate everything else
+            return getattr(self._real, name)
+
+    def _install(self):
+        INS.install_into_repo(self.repo, self.source, yes=True)
+
+    def test_same_second_runs_use_distinct_backup_dirs_and_undo_restores_latest(self):
+        with mock.patch.object(INS, "datetime", self._FrozenClock):
+            # Run 1: fresh install (same frozen second).
+            self._install()
+            self.assertTrue(
+                self.index.is_file(), "fresh install did not write index.md"
+            )
+
+            # User modifies a framework file, then Run 2 overwrites it (same frozen second).
+            self.index.write_text("MODIFIED CONTENT", encoding="utf-8")
+            self._install()
+            self.assertNotEqual(
+                self.index.read_text(encoding="utf-8"),
+                "MODIFIED CONTENT",
+                "run 2 did not overwrite the modified file",
+            )
+
+            # Both same-second runs must own DISTINCT backup directories (the collision fix).
+            backup_dirs = sorted(d.name for d in self.backups.iterdir() if d.is_dir())
+            self.assertGreaterEqual(
+                len(backup_dirs),
+                2,
+                f"two same-second runs collided into one backup dir: {backup_dirs}",
+            )
+
+            # Modify again, then --undo must roll back to the state before the MOST RECENT run,
+            # i.e. restore the pre-run-2 "MODIFIED CONTENT" (not run 1's fresh content, and not
+            # remove index.md entirely).
+            self.index.write_text("MODIFIED CONTENT SECOND TIME", encoding="utf-8")
+            rc = INS.run_rollback(self.repo, no_color=True)
+            self.assertEqual(rc, 0, "rollback returned nonzero")
+            self.assertTrue(
+                self.index.is_file(),
+                "rollback removed index.md (older run's created-list won over newer backups)",
+            )
+            self.assertEqual(
+                self.index.read_text(encoding="utf-8"),
+                "MODIFIED CONTENT",
+                "rollback restored the wrong run's content",
+            )
+
+    def test_allocate_backup_timestamp_is_unique_against_existing_dirs(self):
+        with mock.patch.object(INS, "datetime", self._FrozenClock):
+            t1 = INS.allocate_backup_timestamp(self.repo)
+            (self.backups / t1).mkdir(parents=True)
+            t2 = INS.allocate_backup_timestamp(self.repo)
+            (self.backups / t2).mkdir(parents=True)
+            t3 = INS.allocate_backup_timestamp(self.repo)
+        self.assertEqual(len({t1, t2, t3}), 3, f"tokens collided: {t1} {t2} {t3}")
+        self.assertTrue(t2.startswith(t1))
+        self.assertTrue(t3.startswith(t1))
+
+
 if __name__ == "__main__":
     unittest.main()
