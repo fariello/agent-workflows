@@ -265,6 +265,16 @@ def classify_item(
         }
     if label == "partial-aw":
         first = posix.split("/", 1)[0] if posix else ""
+        if first == "system":
+            # A partial .aw/system/ from an interrupted or rolled-back migration must be
+            # re-classifiable so resume/re-apply can proceed (Order 11 rehearsal finding:
+            # partial-aw:system previously fell to unknown-owner and blocked resume).
+            return {
+                "ownership": "system",
+                "lifecycle_class": "system",
+                "expected_destination_class": "system",
+                "disposition": "migrate",
+            }
         if first in {"config", "policy"}:
             return {
                 "ownership": "config",

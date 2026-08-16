@@ -337,6 +337,36 @@ class InventoryTests(unittest.TestCase):
             any(e.get("rule") == "destination-collision" for e in mp2["errors"])
         )
 
+    def test_partial_aw_system_classifies_as_system(self) -> None:
+        """A partial .aw/system/ tree left by an interrupted or rolled-back migration must be
+        re-classifiable as system so resume/re-apply can proceed, not fall to unknown-owner
+        (Order 11 rehearsal finding: partial-aw:system blocked resume).
+        """
+        for rel in (
+            "system",
+            "system/workflows/index.md",
+            "system/managed-sections.json",
+        ):
+            c = INVENTORY.classify_item("partial-aw", rel, ".aw/" + rel)
+            self.assertEqual(
+                c["expected_destination_class"], "system", f"{rel} not system: {c}"
+            )
+            self.assertNotEqual(c["disposition"], "block-unknown", rel)
+        # The other partial-aw classes still resolve (regression guard), and a genuinely
+        # unknown partial-aw subpath still fails closed.
+        self.assertEqual(
+            INVENTORY.classify_item("partial-aw", "records/x.md", ".aw/records/x.md")[
+                "expected_destination_class"
+            ],
+            "records",
+        )
+        self.assertEqual(
+            INVENTORY.classify_item("partial-aw", "mystery/x", ".aw/mystery/x")[
+                "disposition"
+            ],
+            "block-unknown",
+        )
+
     def test_inventory_does_not_follow_symlink(self) -> None:
         """An escaping symlink is recorded as a link without hashing its target."""
 
