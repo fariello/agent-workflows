@@ -4,22 +4,6 @@
 
 Showing the 40 most-recent of 81 Sets; the full manifest is INDEX.json.
 
-## humanapproval
-
-- `0g0rid` [executed] 01 executed/20260815-humanapproval-01-0g0rid-by-human-attestation.md
-
-## backlogtier
-
-- `crv40v` [executed] 01 executed/20260813-backlogtier-01-crv40v-attention-visible-backlog-tier.md
-
-## ipdexechist
-
-- `69xrut` [executed] 01 executed/20260813-ipdexechist-01-69xrut-executed-history-lint-guard.md
-
-## migdispo
-
-- `bsxowq` [executed] 01 executed/20260812-migdispo-01-bsxowq-generalize-layout-migration-dispositions-and-entrypoint.md
-
 ## awphysical
 
 - `rma3j4` [pending] 00 pending/20260810-awphysical-00-rma3j4-physical-aw-hierarchy-and-migration-orchestrator.md
@@ -35,6 +19,26 @@ Showing the 40 most-recent of 81 Sets; the full manifest is INDEX.json.
 - `n3fz8b` [executed] 10 executed/20260810-awphysical-10-n3fz8b-post-migration-independent-audit.md
 - `g5zl1u` [pending] 11 pending/20260810-awphysical-11-g5zl1u-agent-workflows-source-repository-self-migration.md
 - `pszk6x` [pending] 12 pending/20260810-awphysical-12-pszk6x-documentation-release-and-end-to-end-acceptance.md
+- `xzuxet` [pending] 13 pending/20260816-awphysical-13-xzuxet-awsystem-nested-layout-reconciliation.md
+- `hnzr8v` [pending] 14 pending/20260816-awphysical-14-hnzr8v-migration-move-not-copy.md
+- `7cvh9t` [pending] 15 pending/20260816-awphysical-15-7cvh9t-fresh-install-aw-target.md
+- `88bnw0` [pending] 16 pending/20260816-awphysical-16-88bnw0-migrate-layout-wizard.md
+
+## humanapproval
+
+- `0g0rid` [executed] 01 executed/20260815-humanapproval-01-0g0rid-by-human-attestation.md
+
+## backlogtier
+
+- `crv40v` [executed] 01 executed/20260813-backlogtier-01-crv40v-attention-visible-backlog-tier.md
+
+## ipdexechist
+
+- `69xrut` [executed] 01 executed/20260813-ipdexechist-01-69xrut-executed-history-lint-guard.md
+
+## migdispo
+
+- `bsxowq` [executed] 01 executed/20260812-migdispo-01-bsxowq-generalize-layout-migration-dispositions-and-entrypoint.md
 
 ## clianx
 

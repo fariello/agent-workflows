@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: `aw migrate-layout` is flag-driven, not guided. Reaching the physical-.aw layout requires the operator to know `apply --apply --confirm`, `--target-backend`, `--root`, and (after Order 14) `--leftovers`. The end-state contract (spec 20260810-1447-01 S13; point #4) requires the migration to run as a WIZARD by default that asks the typical questions (records destination/backend, retained-material choice, leftover disposition, confirmation with a preview), while accepting a config file and/or command-line flags to answer those questions non-interactively for scripted/CI use, with no prompt that blocks a non-interactive run and no deletion without an explicit choice.
 - Scope: the `migrate-layout` CLI surface in `agent_workflows/cli.py` (`_run_migrate_layout`), a guided front-end that composes the existing inventory/plan/apply/leftover steps and the install-wizard preset/backend selection (`agent_workflows/install_wizard.py`), a `--config` reader, and the migrate-layout/CLI tests. Does NOT change the migration transaction engine (Order 14 hnzr8v owns move + leftovers) or the fresh-install path (Order 15 7cvh9t).
-- Status: draft
+- Status: reviewed
 - Set: awphysical
 - Order: 16
 - Highest E allocated: 04
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-16 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created after verifying migrate-layout is flag-driven (no guided wizard) and that hnzr8v only adds the leftover prompt + --leftovers flag. Maintainer ruled the migration should be wizard-by-default with config/CLI overrides (end-state #4). Traces to spec S13 acceptance criteria.
+- 2026-08-16 /plan-review (Gemini, via maintainer relay; findings accepted on the merits by opencode Opus 4.8): APPROVE - GO PENDING HUMAN APPROVAL. 4 LOW findings, all applied: PR-001 resolved OQ-01 to JSON-ONLY `--config` (TOML is not viable at requires-python >=3.9 since tomllib is 3.11+ and D46 forbids third-party deps) - VERIFIED against pyproject.toml:12; PR-003 formalized precedence (CLI flags override --config keys override defaults) in E-03; PR-004 named the stdin-injection test pattern (unittest.mock.patch sys.stdin / StringIO, no PTY) in E-04; PR-002 (Set-clustering filename) applied via `aw plans mv` to this plan AND the sibling awphysical Orders 13/14/15 (all four were on the non-clustered timestamp form). Status draft -> reviewed. NO-GO pending human approval + Order 14 (hnzr8v) terminal.
 
 ## Goal
 
@@ -32,14 +33,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: Non-interactive config + flags
 
-- [ ] E-03 Make every wizard question answerable non-interactively: add `--config <file>` (JSON/TOML answering target-backend, roots, leftovers, confirm) and honor the existing/added flags (`--target-backend`, `--leftovers`, `--root`, `--yes`). When the answers are fully supplied (or `--yes` with defaults) the run proceeds WITHOUT prompting; when a genuinely non-interactive environment lacks an answer, the run fails closed with a clear message naming the missing flag rather than blocking on a prompt or guessing. `--yes` never authorizes a destructive leftover `remove` without an explicit `--leftovers remove`; the non-interactive leftover default stays `defer`.
+- [ ] E-03 Make every wizard question answerable non-interactively: add `--config <file>` (JSON ONLY - TOML is not viable at `requires-python = ">=3.9"` since `tomllib` is 3.11+ and D46 forbids third-party deps; parse with stdlib `json`) answering target-backend, roots, leftovers, confirm, and honor the existing/added flags (`--target-backend`, `--leftovers`, `--root`, `--yes`). Precedence is formal: explicit CLI flags OVERRIDE the `--config` keys, which override built-in defaults. When the answers are fully supplied (or `--yes` with defaults) the run proceeds WITHOUT prompting; when a genuinely non-interactive environment lacks an answer, the run fails closed with a clear message naming the missing flag rather than blocking on a prompt or guessing. `--yes` never authorizes a destructive leftover `remove` without an explicit `--leftovers remove`; the non-interactive leftover default stays `defer`.
   - Depends on: E-02
   - Expected outcome: a fully-specified `aw migrate-layout --config ...` / flag invocation runs end-to-end with no prompt; an under-specified non-interactive run fails closed naming the missing answer; no destructive default.
   - Execution state: pending
 
 ### Task group 3: Lock it with tests
 
-- [ ] E-04 Add falsifiable tests: an interactive wizard run (scripted answers) reaches a move-apply only after confirm and never mutates before it (mutation: removing the confirm gate makes a "no mutation before confirm" assertion RED); a `--config`/flags run is fully non-interactive and deterministic; an under-specified non-interactive run exits nonzero naming the missing answer; `--yes` without `--leftovers remove` never deletes leftovers. Update the migrate-layout/CLI tests. Full suite green.
+- [ ] E-04 Add falsifiable tests: an interactive wizard run (scripted answers via `unittest.mock.patch("sys.stdin", io.StringIO(...))` or the install_wizard helpers' stream injection, so CI needs no real PTY) reaches a move-apply only after confirm and never mutates before it (mutation: removing the confirm gate makes a "no mutation before confirm" assertion RED); a `--config`/flags run is fully non-interactive and deterministic and honors flags-over-config precedence; an under-specified non-interactive run exits nonzero naming the missing answer; `--yes` without `--leftovers remove` never deletes leftovers. Update the migrate-layout/CLI tests. Full suite green.
   - Depends on: E-02, E-03
   - Expected outcome: the wizard's interactive + non-interactive behavior is pinned, including the no-mutation-before-confirm and no-destructive-default invariants.
   - Execution state: pending
@@ -90,9 +91,9 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ### OQ-01: Config file format (JSON vs TOML) and precedence vs flags
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: human maintainer
-- Resolution or deferral rationale: Proposed: accept JSON (consistent with `.aw/config/*.json`); command-line flags OVERRIDE the config file; the config answers the same questions the wizard asks. Confirm the format + precedence, or specify TOML to match the leak-allowlist.
+- Resolution or deferral rationale: RESOLVED 2026-08-16 (independent /plan-review by Gemini, PR-001/PR-003; accepted by opencode Opus 4.8 on the merits): `--config` is JSON ONLY. TOML is not viable at the project's `requires-python = ">=3.9"` floor - `tomllib` is stdlib only from 3.11, and D46 mandates zero third-party runtime dependencies, so a TOML parser would violate the stdlib-only rule. JSON is also consistent with `.aw/config/*.json`. Precedence is formal: explicit command-line flags (`--target-backend`, `--leftovers`, `--root`, `--yes`) OVERRIDE the corresponding keys in the `--config` file, which in turn override built-in defaults.
 
 ## Validation and cross-check (verify before reporting done)
 

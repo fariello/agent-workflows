@@ -5,7 +5,7 @@
 - Concern: Two executed awphysical Orders shipped contradictory assumptions about the physical shape of `.aw/system/`: Order 04 (resolver + packaging + installer tests) assumed FLAT (workflow bundle directly at `.aw/system/`), while Order 09 (`clean_delta` pointers) and the controlling spec S4.1 assume NESTED (`.aw/system/workflows/`). Order 11's self-migration is the first consumer forced to pick, and the mismatch broke source resolution (E-05: `FileNotFoundError .aw/system/index.md`). Settle the canonical layout as NESTED and reconcile the Order-04 side.
 - Scope: `engine.resolve_source_root` source descent, the classifier's `agents:workflows` disposition, packaging force-include for `.aw/system`, and the focused resolver/classifier/migration tests. Does NOT change workflow bodies, records, or the migration transaction engine.
 - Status: approved
-- Set: awphysical (physical .aw hierarchy, storage policy, and migration)
+- Set: awphysical
 - Order: 13
 - Highest E allocated: 04
 - Author: opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)

@@ -1630,6 +1630,46 @@
     "status": "approved"
   },
   {
+    "date": "2026-08-16",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 13,
+    "path": "pending/20260816-awphysical-13-xzuxet-awsystem-nested-layout-reconciliation.md",
+    "plan_id": "xzuxet",
+    "set_id": "awphysical",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-16",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 14,
+    "path": "pending/20260816-awphysical-14-hnzr8v-migration-move-not-copy.md",
+    "plan_id": "hnzr8v",
+    "set_id": "awphysical",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-16",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 15,
+    "path": "pending/20260816-awphysical-15-7cvh9t-fresh-install-aw-target.md",
+    "plan_id": "7cvh9t",
+    "set_id": "awphysical",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-16",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 16,
+    "path": "pending/20260816-awphysical-16-88bnw0-migrate-layout-wizard.md",
+    "plan_id": "88bnw0",
+    "set_id": "awphysical",
+    "status": "reviewed"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",
