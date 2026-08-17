@@ -1603,6 +1603,16 @@
     "date": "2026-08-16",
     "disposition": "executed",
     "kind": "child",
+    "order": 13,
+    "path": "executed/20260816-awphysical-13-xzuxet-awsystem-nested-layout-reconciliation.md",
+    "plan_id": "xzuxet",
+    "set_id": "awphysical",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-16",
+    "disposition": "executed",
+    "kind": "child",
     "order": 14,
     "path": "executed/20260816-awphysical-14-hnzr8v-migration-move-not-copy.md",
     "plan_id": "hnzr8v",
@@ -1666,16 +1676,6 @@
     "order": 12,
     "path": "pending/20260810-awphysical-12-pszk6x-documentation-release-and-end-to-end-acceptance.md",
     "plan_id": "pszk6x",
-    "set_id": "awphysical",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-16",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 13,
-    "path": "pending/20260816-awphysical-13-xzuxet-awsystem-nested-layout-reconciliation.md",
-    "plan_id": "xzuxet",
     "set_id": "awphysical",
     "status": "approved"
   },

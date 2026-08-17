@@ -4,13 +4,12 @@
 - Kind: child
 - Concern: Two executed awphysical Orders shipped contradictory assumptions about the physical shape of `.aw/system/`: Order 04 (resolver + packaging + installer tests) assumed FLAT (workflow bundle directly at `.aw/system/`), while Order 09 (`clean_delta` pointers) and the controlling spec S4.1 assume NESTED (`.aw/system/workflows/`). Order 11's self-migration is the first consumer forced to pick, and the mismatch broke source resolution (E-05: `FileNotFoundError .aw/system/index.md`). Settle the canonical layout as NESTED and reconcile the Order-04 side.
 - Scope: `engine.resolve_source_root` source descent, the classifier's `agents:workflows` disposition, packaging force-include for `.aw/system`, and the focused resolver/classifier/migration tests. Does NOT change workflow bodies, records, or the migration transaction engine.
-- Status: approved
+- Status: executed
 - Set: awphysical
 - Order: 13
 - Highest E allocated: 04
 - Author: opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: xzuxet
-- Approval: 2026-08-16 human maintainer (chat) - resolved OQ-02 (SIBLING placement) and approved this corrective layout-reconciliation IPD to execute; recorded by opencode Opus 4.8.
 
 ## Workflow history
 
@@ -18,6 +17,8 @@
 - 2026-08-16 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS. A full flat/nested census (PR-002) found the contradiction is broader than the initial Order-04 scope: `agent_workflows/__init__.py` self-version, `project_context.py:704`, `project_layout.install_system_tree` (FLAT candidate build vs NESTED read), and `is_source_checkout` VERSION level are all involved, on both sides. Added E-04 + V-04 to cover the full surface (UNDER-SCOPE fix). Surfaced a BLOCKING underspecified sub-question OQ-02 (do VERSION + manifest live at `.aw/system/` root [spec S4.1 sibling] or inside `.aw/system/workflows/` [legacy co-location]?), which must be decided before the reconciliation can be internally consistent. E-01 (resolver descent + classifier) already implemented and full suite green; E-02/E-03/E-04 pending. NO-GO pending OQ-02 + human approval. Status draft -> to-review.
 - 2026-08-16 reviewed + approved (human maintainer via chat, recorded by opencode Opus 4.8): OQ-02 resolved as SIBLING (VERSION + manifest at `.aw/system/` root; only the workflow bundle nests under `.aw/system/workflows/`). All review findings resolved; no open questions remain. Status to-review -> reviewed -> approved; cleared to execute.
 - 2026-08-16 E-04 executed + V-04 validated (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): implemented the Finding-1b installer VERSION-shipping reconciliation in `engine.py` (helpers `_nested_bundle_version_path`/`_member_source_path`; applied in `read_version`/`collect_source_members`/`install_all`/`show_install_diffs`) + a mutation-probed `NestedSourceSiblingVersionTests`. Verified RED-then-GREEN both synthetically and on a real `aw migrate-layout apply` re-cutover of a disposable clone (full serial suite 943 green with `.aw/` present; sanitizer clean). E-04/V-04 marked done. E-02 (packaging force-include) + E-03 (already-green resolver/classifier tests, now joined by the full-suite-with-`.aw/` evidence) proceed with the Order-11 cutover. Not yet committed at time of this note.
+- 2026-08-17 E-01/E-02/E-03 executed + validated + terminal transition (opencode Opus 4.8 orchestrator): E-01 resolver descent + classifier (565a46e) proven by the real cutover; E-02 pyproject `.aw/system` force-include + sdist (be25c66) verified by a wheel build shipping the nested bundle + sibling VERSION once (no double-ship/leak); E-03 tests updated + full suite 969 green with `.aw/` present + resolver-descent mutation probe. All E-01..E-04 performed, V-01..V-04 pass.
+- 2026-08-17 executed (opencode Opus 4.8 orchestrator, ipd-lifecycle terminal transition): Status approved -> executed; git mv pending/ -> executed/ after `aw ipd lint --phase pre-transition` conformed and all V verified. Committed path-scoped; not pushed.
 
 ## Goal
 
@@ -29,10 +30,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Reconcile the resolver and classifier to nested
 
-- [ ] E-01 In `agent_workflows/engine.py resolve_source_root`, after resolving the system root, descend into `workflows/` when the bundle is nested (i.e. `<system>/index.md` is absent but `<system>/workflows/index.md` exists), so the returned root DIRECTLY contains `index.md`. Legacy `.agents/workflows` (already the bundle dir) is a no-op. In the Order-11 migration classifier, map `.agents/workflows/X -> .aw/system/workflows/X` for the bundle, EXCEPT `.agents/workflows/VERSION -> .aw/system/VERSION` (per OQ-02 SIBLING: VERSION is a system-root sibling, not part of the bundle). The self-install manifest already maps to `.aw/system/managed-sections.json` (sibling). Matches spec S4.1 and Order 09.
+- [x] E-01 In `agent_workflows/engine.py resolve_source_root`, after resolving the system root, descend into `workflows/` when the bundle is nested (i.e. `<system>/index.md` is absent but `<system>/workflows/index.md` exists), so the returned root DIRECTLY contains `index.md`. Legacy `.agents/workflows` (already the bundle dir) is a no-op. In the Order-11 migration classifier, map `.agents/workflows/X -> .aw/system/workflows/X` for the bundle, EXCEPT `.agents/workflows/VERSION -> .aw/system/VERSION` (per OQ-02 SIBLING: VERSION is a system-root sibling, not part of the bundle). The self-install manifest already maps to `.aw/system/managed-sections.json` (sibling). Matches spec S4.1 and Order 09.
   - Depends on: none
   - Expected outcome: `resolve_source_root` returns the directory that directly holds `index.md` (`.aw/system/workflows/`); the migration places the bundle under `workflows/` and VERSION/manifest at the system root.
-  - Execution state: pending
+  - Execution state: performed
 
 - [x] E-04 Reconcile ALL remaining flat/nested VERSION+manifest decision points found by the /plan-review census to the OQ-02 resolution, so no module contradicts another: `agent_workflows/__init__.py` self-version (`resolve_version(bundled, ...)`), `agent_workflows/project_context.py:704` (`system_root/workflows/VERSION`), `agent_workflows/project_layout.py` (candidate build + install-snapshot version at :320-325/:381), and `engine.is_source_checkout` VERSION level. Add a single shared helper (or documented convention) for "the VERSION/manifest/bundle paths under a system root" so future code cannot re-diverge. INCLUDES the installer-shipping reconciliation from Finding 1b: the installer must still ship the sibling VERSION to the target's legacy `.agents/workflows/VERSION` during the compat window.
   - Depends on: E-01
@@ -42,16 +43,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: Packaging carries the nested system tree
 
-- [ ] E-02 Add the deferred `.aw/system` force-include (wheel) and sdist include so a built package ships the nested `.aw/system/workflows/` tree, and confirm `_compat.packaged_source_root()` + `resolve_source_root` resolve the packaged bundle to `<pkg>/_data/.aw/system/workflows`. Only declare the include once `.aw/system/` exists in the source tree (created by the Order 11 cutover), so hatchling does not fail on a missing path.
+- [x] E-02 Add the deferred `.aw/system` force-include (wheel) and sdist include so a built package ships the nested `.aw/system/workflows/` tree, and confirm `_compat.packaged_source_root()` + `resolve_source_root` resolve the packaged bundle to `<pkg>/_data/.aw/system/workflows`. Only declare the include once `.aw/system/` exists in the source tree (created by the Order 11 cutover), so hatchling does not fail on a missing path.
   - Depends on: E-01
   - Expected outcome: `python -m build` produces a wheel/sdist whose bundled system loads via the resolver; package inspection shows the nested workflow bundle present once.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Lock it with tests
 
-- [ ] E-03 Add/adjust falsifiable tests: the classifier maps `.agents/workflows/X -> system/workflows/X` (no strip); a migrated `.aw/system/workflows/` is loadable by `resolve_source_root` + `parse_manifest`; and the full suite + `tools.awphysical` tests pass. Mutation-probe the resolver descent (removing it must reproduce the E-05 `index.md`-not-found failure).
+- [x] E-03 Add/adjust falsifiable tests: the classifier maps `.agents/workflows/X -> system/workflows/X` (no strip); a migrated `.aw/system/workflows/` is loadable by `resolve_source_root` + `parse_manifest`; and the full suite + `tools.awphysical` tests pass. Mutation-probe the resolver descent (removing it must reproduce the E-05 `index.md`-not-found failure).
   - Depends on: E-01, E-02
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -146,18 +147,18 @@ Consequences:
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Run the E-01 command; paste output showing the classifier maps to `system/workflows/...` and the migrated `.aw/system/workflows/` loads via `resolve_source_root`+`parse_manifest`. Failure condition observed by mutation (remove the descent -> `index.md` not found).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: Implemented in `565a46e` (resolver descent in `engine.resolve_source_root`; classifier `.agents/workflows/X -> .aw/system/workflows/X` except VERSION -> `.aw/system/VERSION` sibling). Proven by the REAL cutover: the migrated repo's `.aw/system/workflows/index.md` loads via the resolver (the wheel build + `parse_manifest` succeed, 59 workflows), and `aw attention valid:True`. `tests.test_layout_migration.test_migrated_system_is_loadable_by_source_resolver` + `tools.awphysical.test_awphysical_tools` (workflows-migrate-under-system-workflows) green. The descent mutation-probe (removing it -> `index.md` not found) was validated during the xzuxet E-01 implementation.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: Build the package; paste inspection proving `_data/.aw/system/workflows/index.md` is present and the resolver loads the packaged bundle.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: pyproject wheel force-include + sdist ship `.aw/system` (commit be25c66). `python -m build` on the migrated repo produced a wheel whose namelist contains `agent_workflows/_data/.aw/system/workflows/index.md` + sibling `agent_workflows/_data/.aw/system/VERSION`, with NO legacy `_data/.agents/workflows/` double-ship and NO records/state leak (verified programmatically). `_compat.packaged_source_root()` returns `_data/.aw/system` and `resolve_source_root` descends to `_data/.aw/system/workflows` (59 workflows parsed). `tests.test_packaging` 6/6 green.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: Paste the full serial suite + tools result (all green) and the resolver-descent mutation probe (RED then GREEN).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Full serial suite `Ran 969 tests ... OK (skipped=1)` WITH `.aw/` present; `tools.awphysical.test_awphysical_tools` 27 green. `test_packaging` asserts the nested wheel shape + no legacy double-ship. The resolver-descent mutation probe was RED-then-GREEN during E-01 (removing the descent reproduces the E-05 `index.md`-not-found); the installer sibling-VERSION mutation probe (`NestedSourceSiblingVersionTests`) is RED-then-GREEN per the E-04 evidence.
+  - Result: pass
 - [x] V-04 validates E-04
   - Required evidence: Paste a grep census over production code showing every VERSION/manifest/bundle reader-writer under a `.aw/system` root uses the OQ-02-decided placement (no contradictory level), plus a test/probe that a migrated `.aw/system` reports the correct package self-version (`agent_workflows.__version__`) and resolves the version via `project_context` consistently. Failure condition: any module still reads/writes VERSION or the bundle at a level inconsistent with the OQ-02 decision.
   - Observed evidence: VERSION-placement census (all readers agree on SIBLING at the `.aw/system` ROOT, no contradictory level): `_compat.py:22` `SYSTEM_DATA_RELATIVE=("_data",".aw","system")` so `packaged_source_root()` returns the un-descended SYSTEM ROOT (descent into `workflows/` happens only in `resolve_source_root`); `__init__.py:34` reads `bundled/"VERSION"` = the sibling `_data/.aw/system/VERSION`; `project_context.py:708` reads `system_root/VERSION` (sibling, legacy `workflows/VERSION` fallback only); `project_layout.py:310-325` copies all children of the system root (sibling VERSION included) and `:381` reads `system_root/VERSION`; `engine.py:415` `is_source_checkout` checks `sys_dir/"VERSION"` (=`.aw/system/VERSION`); new `engine.py` helpers `_nested_bundle_version_path` (:157) + `_member_source_path` (:187) resolve VERSION to the sibling for the DESCENDED bundle root in `read_version`/`collect_source_members`/`install_all`/`show_install_diffs`. Mutation probe (synthetic `tests.test_installer.NestedSourceSiblingVersionTests`): WITH fix `Ran 4 tests ... OK`; sibling-resolution disabled -> 3/4 RED (`test_collect_source_members_includes_sibling_version`, `test_install_ships_sibling_version_to_legacy_target_path`, `test_read_version_reads_sibling`; VERSION resolves to `unknown`), the absence-asserting test stays green; restored -> GREEN. Real re-cutover probe (disposable clone of HEAD `153cb7d` + this patch, `aw migrate-layout apply` produced `.aw/system/workflows/` bundle + sibling `.aw/system/VERSION`, legacy retained): WITHOUT the fix `InstallerEndToEndTests.test_fresh_install` FAILS (`AssertionError: False is not true` on `.agents/workflows/VERSION`), reproducing Finding-1b; WITH the fix `test_fresh_install` + `NestedSourceSiblingVersionTests` GREEN, targeted installer/CLI/packaging/migration suite `Ran 173 tests ... OK`, FULL serial suite `Ran 943 tests in 176.479s ... OK (skipped=1)`, `check-local-leaks . --agent` exit 0 (clean).

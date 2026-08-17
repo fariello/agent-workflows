@@ -23,7 +23,7 @@ Showing the 40 most-recent of 82 Sets; the full manifest is INDEX.json.
 - `n3fz8b` [executed] 10 executed/20260810-awphysical-10-n3fz8b-post-migration-independent-audit.md
 - `g5zl1u` [executed] 11 executed/20260810-awphysical-11-g5zl1u-agent-workflows-source-repository-self-migration.md
 - `pszk6x` [pending] 12 pending/20260810-awphysical-12-pszk6x-documentation-release-and-end-to-end-acceptance.md
-- `xzuxet` [pending] 13 pending/20260816-awphysical-13-xzuxet-awsystem-nested-layout-reconciliation.md
+- `xzuxet` [executed] 13 executed/20260816-awphysical-13-xzuxet-awsystem-nested-layout-reconciliation.md
 - `hnzr8v` [executed] 14 executed/20260816-awphysical-14-hnzr8v-migration-move-not-copy.md
 - `7cvh9t` [executed] 15 executed/20260816-awphysical-15-7cvh9t-fresh-install-aw-target.md
 - `88bnw0` [executed] 16 executed/20260816-awphysical-16-88bnw0-migrate-layout-wizard.md
