@@ -102,7 +102,7 @@ class Category2AuthoredReadmes(unittest.TestCase):
             "release-review",
         ):
             self.assertTrue(
-                (self.repo / ".agents/workflows" / cap / "README.md").is_file(),
+                (self.repo / ".aw/system/workflows" / cap / "README.md").is_file(),
                 f"missing capability README for {cap}",
             )
 

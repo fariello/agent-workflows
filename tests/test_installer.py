@@ -222,17 +222,25 @@ class InstallerEndToEndTests(unittest.TestCase):
     def test_fresh_install(self):
         proc = run_installer(self.repo)
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        # Framework files landed.
-        self.assertTrue((self.repo / ".agents/workflows/index.md").is_file())
-        self.assertTrue((self.repo / ".agents/workflows/VERSION").is_file())
+        # Framework files landed in canonical .aw/ layout.
+        self.assertTrue((self.repo / ".aw/system/workflows/index.md").is_file())
+        self.assertTrue((self.repo / ".aw/system/VERSION").is_file())
+        self.assertFalse((self.repo / ".agents/workflows").exists())
         # A single parameterized assess shim, and no per-concern shims.
         oc = self._shims(".opencode/commands")
         self.assertIn("assess.md", oc)
         self.assertIn("advise.md", oc)
         self.assertNotIn("assess-security.md", oc)
         self.assertNotIn("advise-skeptic.md", oc)
-        # AGENTS pointer written.
+        # Verify generated shim references .aw/system/workflows/
+        assess_content = (self.repo / ".opencode/commands/assess.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("@.aw/system/workflows/assess/assess.md", assess_content)
+        # AGENTS pointer written with .aw/system/workflows/ references.
         self.assertTrue((self.repo / "AGENTS.md").is_file())
+        agents_content = (self.repo / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn(".aw/system/workflows/", agents_content)
         # The installer itself is NOT copied into the target.
         self.assertFalse((self.repo / "install-workflows.py").exists())
 
@@ -256,7 +264,12 @@ class InstallerEndToEndTests(unittest.TestCase):
         proc = run_installer(self.repo, "--dry-run")
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertFalse(
-            (self.repo / ".agents/workflows/index.md").exists(), "dry-run wrote files"
+            (self.repo / ".aw/system/workflows/index.md").exists(),
+            "dry-run wrote files",
+        )
+        self.assertFalse(
+            (self.repo / ".agents/workflows/index.md").exists(),
+            "dry-run wrote files",
         )
         self.assertFalse((self.repo / ".opencode/commands/assess.md").exists())
 
@@ -297,7 +310,7 @@ class InstallerEndToEndTests(unittest.TestCase):
         proc = run_installer(self.repo)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         # New canonical layout exists after migration/install.
-        self.assertTrue((self.repo / ".agents/workflows/index.md").is_file())
+        self.assertTrue((self.repo / ".aw/system/workflows/index.md").is_file())
 
     def test_version_flag(self):
         # --version is git-aware (resolver). In this project's git tree it reports the
@@ -313,7 +326,7 @@ class InstallerEndToEndTests(unittest.TestCase):
         from tests.support import git
 
         run_installer(self.repo)
-        tool = self.repo / ".agents/workflows/assess/tools/scan_secrets.py"
+        tool = self.repo / ".aw/system/workflows/assess/tools/scan_secrets.py"
         # The re-run-leaves-nothing-unstaged idempotency guarantee holds on every OS.
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", "init")
@@ -332,7 +345,7 @@ class InstallerEndToEndTests(unittest.TestCase):
                 self.repo,
                 "ls-files",
                 "-s",
-                ".agents/workflows/assess/tools/scan_secrets.py",
+                ".aw/system/workflows/assess/tools/scan_secrets.py",
             ).stdout
             self.assertTrue(
                 indexed.startswith("100755"), f"exec bit not in index: {indexed!r}"
@@ -350,11 +363,11 @@ class InstallerEndToEndTests(unittest.TestCase):
         self.assertIn("ignored by .gitignore", proc.stderr)
         # Shims are still written to disk (they work locally).
         self.assertTrue((self.repo / ".opencode/commands/assess.md").is_file())
-        # But .opencode is not staged; .claude and .agents are.
+        # But .opencode is not staged; .claude and .aw are.
         staged = git(self.repo, "diff", "--cached", "--name-only").stdout
         self.assertNotIn(".opencode/", staged)
         self.assertIn(".claude/commands/assess.md", staged)
-        self.assertIn(".agents/workflows/index.md", staged)
+        self.assertIn(".aw/system/workflows/index.md", staged)
 
     def test_readme_creation_and_preservation(self):
         # 1) Fresh install creates all README files
@@ -362,7 +375,7 @@ class InstallerEndToEndTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
 
         readmes = [
-            self.repo / ".agents/workflows/README.md",
+            self.repo / ".aw/system/workflows/README.md",
             self.repo / ".opencode/commands/README.md",
             self.repo / ".claude/commands/README.md",
             self.repo / "workflow-artifacts/README.md",
@@ -410,7 +423,7 @@ class InstallerEndToEndTests(unittest.TestCase):
         proc = run_installer(self.repo)
         self.assertEqual(proc.returncode, 0, proc.stderr)
 
-        target_file = self.repo / ".agents/workflows/index.md"
+        target_file = self.repo / ".aw/system/workflows/index.md"
         original_text = target_file.read_text(encoding="utf-8")
 
         # Modify the target file
@@ -489,7 +502,7 @@ class InstallerEndToEndTests(unittest.TestCase):
         # Diff output should show additions (+) since it's a fresh repo
         self.assertIn("+", proc.stdout)
         # Confirm no files were written to disk
-        workflows_dir = self.repo / ".agents/workflows"
+        workflows_dir = self.repo / ".aw/system/workflows"
         self.assertFalse(workflows_dir.exists())
 
     def test_shim_expected_does_not_warn(self):
@@ -831,7 +844,7 @@ class InstallCorrectnessTests(unittest.TestCase):
             sorted(seen), ["good", "other"], "batch did not continue past SystemExit"
         )
         self.assertEqual(rc, 1, "a repo failing must make run() return non-zero")
-        self.assertTrue((other / ".agents/workflows/VERSION").is_file())
+        self.assertTrue((other / ".aw/system/VERSION").is_file())
 
     def test_rollback_survives_corrupt_created_files_record(self):
         # D85 P-3 (REL-003): a corrupt .created-files.json must not crash run_rollback.
@@ -1377,7 +1390,7 @@ class UninstallApplyTests(unittest.TestCase):
         # Delete the manifest to simulate a pre-manifest repo, then uninstall.
         (repo / ".aw/system/managed-sections.json").unlink()
         INS.uninstall_repo(repo, use_git=True)
-        self.assertFalse((repo / ".agents/workflows").is_dir())
+        self.assertFalse((repo / ".aw/system/workflows").is_dir())
 
 
 class PlanUninstallTests(unittest.TestCase):
@@ -1449,9 +1462,9 @@ class UninstallCharacterizationTests(unittest.TestCase):
         repo = init_repo(self.base / "u")
         (repo / "my_code.py").write_text("print('hi')\n", encoding="utf-8")
         INS.install_into_repo(repo, self.source, yes=True, no_color=True)
-        self.assertTrue((repo / ".agents/workflows").is_dir())
+        self.assertTrue((repo / ".aw/system/workflows").is_dir())
         INS.uninstall_repo(repo, use_git=True)
-        self.assertFalse((repo / ".agents/workflows").is_dir())
+        self.assertFalse((repo / ".aw/system/workflows").is_dir())
         self.assertTrue((repo / "my_code.py").is_file())
 
     def test_uninstall_removes_manifest_last_and_preserves_edited_shim(self):
@@ -2188,7 +2201,7 @@ class SameSecondBackupCollisionTests(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.repo = init_repo(Path(self._tmp.name) / "repo")
         self.source = REPO_ROOT / ".agents" / "workflows"
-        self.index = self.repo / ".agents" / "workflows" / "index.md"
+        self.index = self.repo / ".aw" / "system" / "workflows" / "index.md"
         self.backups = self.repo / INS.BACKUPS_DIR
 
     def tearDown(self):
@@ -2323,11 +2336,17 @@ class NestedSourceSiblingVersionTests(unittest.TestCase):
 
     def test_collect_source_members_includes_sibling_version(self):
         resolved = self._resolve()
-        members = INS.collect_source_members(resolved)
+        members_aw = INS.collect_source_members(resolved, target_layout="aw")
         self.assertIn(
-            f"{INS.WORKFLOWS_DIR}/VERSION",
-            members,
-            "sibling VERSION was not collected as an install member under nested layout",
+            f"{INS.AW_SYSTEM_DIR}/{INS.VERSION_FILE}",
+            members_aw,
+            "sibling VERSION was not collected as an install member under aw layout",
+        )
+        members_legacy = INS.collect_source_members(resolved, target_layout="legacy")
+        self.assertIn(
+            f"{INS.WORKFLOWS_DIR}/{INS.VERSION_FILE}",
+            members_legacy,
+            "sibling VERSION was not collected as an install member under legacy layout",
         )
 
     def test_read_version_reads_sibling(self):
@@ -2336,9 +2355,30 @@ class NestedSourceSiblingVersionTests(unittest.TestCase):
         # nested is the sibling. The resolved value must reflect the sibling's content.
         self.assertIn("9.9.9-nested", INS.read_version(resolved))
 
+    def test_install_ships_sibling_version_to_aw_target_path(self):
+        resolved = self._resolve()
+        target = init_repo(self.root / "target_aw")
+        INS.install_into_repo(target, resolved, yes=True, no_color=True)
+        installed_version = target / ".aw" / "system" / "VERSION"
+        self.assertTrue(
+            installed_version.is_file(),
+            "installer did not ship the sibling VERSION to .aw/system/VERSION",
+        )
+        self.assertEqual(
+            installed_version.read_text(encoding="utf-8"),
+            self.version_text,
+            "installed VERSION content does not match the source sibling",
+        )
+        # Bundle content also landed.
+        self.assertTrue(
+            (target / ".aw" / "system" / "workflows" / "index.md").is_file()
+        )
+        self.assertFalse((target / ".agents" / "workflows").exists())
+
     def test_install_ships_sibling_version_to_legacy_target_path(self):
         resolved = self._resolve()
-        target = init_repo(self.root / "target")
+        target = init_repo(self.root / "target_legacy")
+        (target / ".agents" / "workflows").mkdir(parents=True)
         INS.install_into_repo(target, resolved, yes=True, no_color=True)
         installed_version = target / ".agents" / "workflows" / "VERSION"
         self.assertTrue(
@@ -2350,7 +2390,6 @@ class NestedSourceSiblingVersionTests(unittest.TestCase):
             self.version_text,
             "installed VERSION content does not match the source sibling",
         )
-        # Bundle content also landed (sanity: the descent + normal member sweep still works).
         self.assertTrue((target / ".agents" / "workflows" / "index.md").is_file())
 
     def test_mutation_removing_sibling_version_makes_it_disappear(self):
@@ -2359,18 +2398,86 @@ class NestedSourceSiblingVersionTests(unittest.TestCase):
         # falsifiable (they fail exactly when the sibling is absent).
         (self.system / "VERSION").unlink()
         resolved = self._resolve()
-        members = INS.collect_source_members(resolved)
+        members = INS.collect_source_members(resolved, target_layout="aw")
         self.assertNotIn(
-            f"{INS.WORKFLOWS_DIR}/VERSION",
+            f"{INS.AW_SYSTEM_DIR}/{INS.VERSION_FILE}",
             members,
             "VERSION member present despite no sibling VERSION on disk",
         )
         target = init_repo(self.root / "target_novers")
         INS.install_into_repo(target, resolved, yes=True, no_color=True)
         self.assertFalse(
-            (target / ".agents" / "workflows" / "VERSION").is_file(),
+            (target / ".aw" / "system" / "VERSION").is_file(),
             "installer materialized a VERSION with no source sibling to ship",
         )
+
+
+class Order15TargetLayoutTests(unittest.TestCase):
+    """Order 15 (awphysical-15-7cvh9t): Target layout selection and fresh-install contract."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+        self.source = REPO_ROOT / ".agents" / "workflows"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_resolve_target_layout_deterministic_rules(self):
+        # 1. Fresh repo -> aw
+        fresh = init_repo(self.base / "fresh")
+        self.assertEqual(INS.resolve_target_layout(fresh), "aw")
+
+        # 2. .aw/system exists -> aw
+        aw_repo = init_repo(self.base / "aw_repo")
+        (aw_repo / ".aw" / "system").mkdir(parents=True)
+        self.assertEqual(INS.resolve_target_layout(aw_repo), "aw")
+
+        # 3. .agents/workflows exists and NO .aw/system -> legacy
+        legacy_repo = init_repo(self.base / "legacy_repo")
+        (legacy_repo / ".agents" / "workflows").mkdir(parents=True)
+        self.assertEqual(INS.resolve_target_layout(legacy_repo), "legacy")
+
+        # 4. Dual existence (.aw/system AND .agents/workflows) -> aw (authoritative)
+        dual_repo = init_repo(self.base / "dual_repo")
+        (dual_repo / ".aw" / "system").mkdir(parents=True)
+        (dual_repo / ".agents" / "workflows").mkdir(parents=True)
+        self.assertEqual(INS.resolve_target_layout(dual_repo), "aw")
+
+    def test_fresh_install_no_dual_write(self):
+        repo = init_repo(self.base / "fresh_install")
+        res = INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        self.assertEqual(res["target_layout"], "aw")
+        self.assertTrue((repo / ".aw" / "system" / "workflows" / "index.md").is_file())
+        self.assertTrue((repo / ".aw" / "system" / "VERSION").is_file())
+        self.assertFalse((repo / ".agents" / "workflows").exists())
+
+    def test_legacy_repo_preserved_on_update(self):
+        repo = init_repo(self.base / "legacy_target")
+        (repo / ".agents" / "workflows").mkdir(parents=True)
+        (repo / ".agents" / "workflows" / "VERSION").write_text(
+            "0.0.1\n", encoding="utf-8"
+        )
+        res = INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        self.assertEqual(res["target_layout"], "legacy")
+        self.assertTrue((repo / ".agents" / "workflows" / "index.md").is_file())
+        self.assertTrue((repo / ".agents" / "workflows" / "VERSION").is_file())
+        self.assertFalse((repo / ".aw" / "system").exists())
+
+    def test_read_installed_version_checks_all_locations(self):
+        # 1. .aw/system/VERSION
+        r1 = init_repo(self.base / "r1")
+        (r1 / ".aw" / "system").mkdir(parents=True)
+        (r1 / ".aw" / "system" / "VERSION").write_text("1.2.3\n", encoding="utf-8")
+        self.assertEqual(INS.read_installed_version(r1), "1.2.3")
+
+        # 2. .agents/workflows/VERSION
+        r2 = init_repo(self.base / "r2")
+        (r2 / ".agents" / "workflows").mkdir(parents=True)
+        (r2 / ".agents" / "workflows" / "VERSION").write_text(
+            "4.5.6\n", encoding="utf-8"
+        )
+        self.assertEqual(INS.read_installed_version(r2), "4.5.6")
 
 
 if __name__ == "__main__":

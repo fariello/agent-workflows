@@ -61,7 +61,8 @@ class InstallVerbTests(CliTestBase):
         repo = self._repo("solo")
         code, out = _run(["install", str(repo), "--yes"])
         self.assertEqual(code, 0, out)
-        self.assertTrue((repo / ".agents/workflows/VERSION").is_file())
+        self.assertTrue((repo / ".aw/system/VERSION").is_file())
+        self.assertFalse((repo / ".agents/workflows").exists())
         self.assertIn("OK", out)
 
     def test_install_all_reports_and_isolates(self):
@@ -74,8 +75,8 @@ class InstallVerbTests(CliTestBase):
         code, out = _run(["install", "all", "--yes"])
         # a and b install; ghost is skipped (not a directory) -> nothing silent.
         self.assertIn("Summary", out)
-        self.assertTrue((a / ".agents/workflows/VERSION").is_file())
-        self.assertTrue((b / ".agents/workflows/VERSION").is_file())
+        self.assertTrue((a / ".aw/system/VERSION").is_file())
+        self.assertTrue((b / ".aw/system/VERSION").is_file())
         self.assertIn("SKIP", out)  # ghost reported
 
     def test_install_all_empty_config_warns(self):
@@ -141,7 +142,7 @@ class InstallVerbTests(CliTestBase):
         code, out = _run(["install", "all", "--yes"])
         self.assertEqual(code, 0, out)
         for repo in (a, b):
-            self.assertTrue((repo / ".agents/workflows/VERSION").is_file(), out)
+            self.assertTrue((repo / ".aw/system/VERSION").is_file(), out)
             staged = git(repo, "diff", "--cached", "--name-only").stdout.strip()
             self.assertEqual(
                 staged,
@@ -192,7 +193,7 @@ class InstallDiagnosticsTests(CliTestBase):
         repo = self._repo("clean")
         code, out = _run(["install", str(repo), "--yes"])
         self.assertEqual(code, 0, out)
-        self.assertTrue((repo / ".agents/workflows/VERSION").is_file())
+        self.assertTrue((repo / ".aw/system/VERSION").is_file())
 
     def test_no_change_reinstall_says_already_current(self):
         repo = self._repo("solo")
@@ -215,8 +216,8 @@ class InstallDiagnosticsTests(CliTestBase):
         repo2 = self._repo("multi2")
         code, out = _run(["install", str(repo1), str(repo2), "--yes"])
         self.assertEqual(code, 0, out)
-        self.assertTrue((repo1 / ".agents/workflows/VERSION").is_file())
-        self.assertTrue((repo2 / ".agents/workflows/VERSION").is_file())
+        self.assertTrue((repo1 / ".aw/system/VERSION").is_file())
+        self.assertTrue((repo2 / ".aw/system/VERSION").is_file())
         self.assertIn("Target Repo:", out)
 
 
@@ -261,8 +262,8 @@ class SetupTests(CliTestBase):
         code, out = _run(["setup", "--root", str(self.base), "--yes"])
         self.assertEqual(code, 0, out)
         self.assertTrue(CFG.config_path().is_file())
-        self.assertTrue((a / ".agents/workflows/VERSION").is_file())
-        self.assertTrue((b / ".agents/workflows/VERSION").is_file())
+        self.assertTrue((a / ".aw/system/VERSION").is_file())
+        self.assertTrue((b / ".aw/system/VERSION").is_file())
         cfg = CFG.load()
         # Config stores paths with forward slashes for portability; compare by expanding
         # each stored root back to a Path (separator-independent) rather than string-eq.
@@ -280,7 +281,7 @@ class SetupTests(CliTestBase):
         # Note: base itself is not a repo; discovery scans its children.
         code, out = _run(["setup", "--root", str(self.base), "--yes"])
         self.assertIn("submodule", out)
-        self.assertFalse((lib / ".agents/workflows/VERSION").is_file())
+        self.assertFalse((lib / ".aw/system/VERSION").is_file())
 
 
 class UninstallTests(CliTestBase):
@@ -290,7 +291,7 @@ class UninstallTests(CliTestBase):
         (repo / "my_code.py").write_text("print('mine')\n", encoding="utf-8")
         code, out = _run(["uninstall", str(repo), "--yes"])
         self.assertEqual(code, 0, out)
-        self.assertFalse((repo / ".agents/workflows").exists())
+        self.assertFalse((repo / ".aw/system/workflows").exists())
         self.assertFalse((repo / ".opencode/commands").exists())
         self.assertTrue((repo / "my_code.py").is_file())  # user content untouched
 
@@ -316,16 +317,16 @@ class UninstallTests(CliTestBase):
         self.assertEqual(code, 0, out)
         self.assertIn("dry-run", out.lower())
         # Nothing removed.
-        self.assertTrue((repo / ".agents/workflows").is_dir())
+        self.assertTrue((repo / ".aw/system/workflows").is_dir())
         self.assertTrue((repo / ".aw/system/managed-sections.json").is_file())
 
     def test_uninstall_yes_removes_manifest_and_leaves_scaffolding(self):
-        # --yes (no --deep) removes owned files + manifest but PRESERVES the .agents/ scaffolding.
+        # --yes (no --deep) removes owned files + manifest but PRESERVES the scaffolding.
         repo = self._repo("y")
         _run(["install", str(repo), "--yes"])
         code, out = _run(["uninstall", str(repo), "--yes"])
         self.assertEqual(code, 0, out)
-        self.assertFalse((repo / ".agents/workflows").exists())
+        self.assertFalse((repo / ".aw/system/workflows").exists())
         self.assertFalse((repo / ".aw/system/managed-sections.json").exists())
         # Scaffolding preserved (holds user content); --yes without --deep does not delete it.
         self.assertTrue((repo / ".agents/plans").exists())
@@ -639,6 +640,74 @@ class AlphabeticalHelpTests(unittest.TestCase):
         with redirect_stdout(buf2):
             code2 = cli.main(["storage"])
         self.assertEqual(code2, 2)  # no subcommand -> prints help, returns 2
+
+
+class Order15CliTests(CliTestBase):
+    """Order 15 (awphysical-15-7cvh9t): CLI --to-aw, --keep-legacy, and legacy layout detection."""
+
+    def test_install_legacy_repo_keep_legacy_flag(self):
+        repo = self._repo("legacy_repo")
+        (repo / ".agents" / "workflows").mkdir(parents=True)
+        (repo / ".agents" / "workflows" / "VERSION").write_text(
+            "0.1.0\n", encoding="utf-8"
+        )
+        code, out = _run(["install", str(repo), "--keep-legacy", "--yes"])
+        self.assertEqual(code, 0, out)
+        self.assertIn("legacy .agents/ layout is deprecated", out)
+        self.assertTrue((repo / ".agents" / "workflows" / "index.md").is_file())
+        self.assertFalse((repo / ".aw" / "system").exists())
+
+    def test_install_legacy_repo_to_aw_flag(self):
+        repo = self._repo("legacy_repo")
+        (repo / ".agents" / "workflows").mkdir(parents=True)
+        (repo / ".agents" / "workflows" / "VERSION").write_text(
+            "0.1.0\n", encoding="utf-8"
+        )
+        code, out = _run(["install", str(repo), "--to-aw", "--yes"])
+        self.assertEqual(code, 0, out)
+        self.assertTrue((repo / ".aw" / "system" / "workflows" / "index.md").is_file())
+        self.assertTrue((repo / ".aw" / "system" / "VERSION").is_file())
+        self.assertFalse((repo / ".agents" / "workflows").exists())
+
+    def test_install_legacy_repo_unattended_defaults_to_keep_legacy(self):
+        repo = self._repo("legacy_repo")
+        (repo / ".agents" / "workflows").mkdir(parents=True)
+        (repo / ".agents" / "workflows" / "VERSION").write_text(
+            "0.1.0\n", encoding="utf-8"
+        )
+        code, out = _run(["install", str(repo), "--yes"])
+        self.assertEqual(code, 0, out)
+        self.assertIn("legacy .agents/ layout is deprecated", out)
+        self.assertTrue((repo / ".agents" / "workflows" / "index.md").is_file())
+        self.assertFalse((repo / ".aw" / "system").exists())
+
+    def test_install_legacy_repo_interactive_decline_keeps_legacy(self):
+        from unittest import mock
+
+        repo = self._repo("legacy_repo")
+        (repo / ".agents" / "workflows").mkdir(parents=True)
+        (repo / ".agents" / "workflows" / "VERSION").write_text(
+            "0.1.0\n", encoding="utf-8"
+        )
+        with mock.patch("sys.stdin.isatty", return_value=True):
+            with mock.patch("agent_workflows.cli._confirm", return_value=False):
+                code, out = _run(["install", str(repo)])
+        self.assertIn("legacy .agents/ layout is deprecated", out)
+        self.assertTrue((repo / ".agents" / "workflows" / "VERSION").is_file())
+
+    def test_install_legacy_repo_interactive_accept_migrates_to_aw(self):
+        from unittest import mock
+
+        repo = self._repo("legacy_repo")
+        (repo / ".agents" / "workflows").mkdir(parents=True)
+        (repo / ".agents" / "workflows" / "VERSION").write_text(
+            "0.1.0\n", encoding="utf-8"
+        )
+        with mock.patch("sys.stdin.isatty", return_value=True):
+            with mock.patch("agent_workflows.cli._confirm", side_effect=[True, True]):
+                code, out = _run(["install", str(repo)])
+        self.assertTrue((repo / ".aw" / "system" / "workflows" / "index.md").is_file())
+        self.assertTrue((repo / ".aw" / "system" / "VERSION").is_file())
 
 
 if __name__ == "__main__":

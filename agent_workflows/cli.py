@@ -440,6 +440,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "--companion-dir",
         help="Path to companion repository if companion records backend or preset is selected.",
     )
+    p_install.add_argument(
+        "--to-aw",
+        action="store_true",
+        help="Migrate a detected legacy .agents/ layout to .aw/ during install/update.",
+    )
+    p_install.add_argument(
+        "--keep-legacy",
+        action="store_true",
+        help="Keep updating a detected legacy .agents/ layout in place without migrating.",
+    )
 
     p_setup = sub.add_parser(
         "setup", parents=[common], help="Guided first-run setup wizard."
@@ -479,6 +489,16 @@ def _build_parser() -> argparse.ArgumentParser:
     p_setup.add_argument(
         "--companion-dir",
         help="Path to companion repository if companion records backend or preset is selected.",
+    )
+    p_setup.add_argument(
+        "--to-aw",
+        action="store_true",
+        help="Migrate a detected legacy .agents/ layout to .aw/ during setup.",
+    )
+    p_setup.add_argument(
+        "--keep-legacy",
+        action="store_true",
+        help="Keep updating a detected legacy .agents/ layout in place without migrating.",
     )
 
     p_uninstall = sub.add_parser(
@@ -2008,6 +2028,73 @@ def _install_one(
     return outcome
 
 
+def _handle_legacy_migration(
+    repo_root: Path, args: argparse.Namespace, term: Term
+) -> bool:
+    """Detect and handle legacy .agents/-only layout before install/update.
+
+    Returns True if legacy layout is kept (compatibility mode),
+    or False if migrated to .aw/ or already .aw/ / fresh.
+    """
+    is_legacy_only = (repo_root / engine.WORKFLOWS_DIR).exists() and not (
+        repo_root / engine.AW_SYSTEM_DIR
+    ).exists()
+    if not is_legacy_only:
+        return False
+
+    to_aw = getattr(args, "to_aw", False)
+    keep_legacy = getattr(args, "keep_legacy", False)
+
+    if to_aw:
+        from agent_workflows.layout_migration import MigrationManager
+
+        mgr = MigrationManager(target_repo=str(repo_root))
+        mgr.execute_migration(target_backend="repository", leftover_disposition="defer")
+        term.status("ok", f"{repo_root}: migrated legacy layout to .aw/")
+        return False
+
+    if keep_legacy:
+        term.status(
+            "warn",
+            f"{repo_root}: legacy .agents/ layout is deprecated and will be removed in a future release; "
+            "continuing in compatibility mode. Run 'aw migrate-layout' to upgrade to .aw/.",
+        )
+        return True
+
+    # Interactive check
+    is_interactive = sys.stdin.isatty() and not getattr(args, "yes", False)
+    if is_interactive:
+        term.heading("Legacy .agents/ layout detected")
+        if _confirm(
+            term,
+            f"Migrate {repo_root} from legacy .agents/ to canonical .aw/ now?",
+            default_yes=False,
+        ):
+            from agent_workflows.layout_migration import MigrationManager
+
+            mgr = MigrationManager(target_repo=str(repo_root))
+            mgr.execute_migration(
+                target_backend="repository", leftover_disposition="defer"
+            )
+            term.status("ok", f"{repo_root}: migrated legacy layout to .aw/")
+            return False
+        else:
+            term.status(
+                "warn",
+                f"{repo_root}: legacy .agents/ layout is deprecated and will be removed in a future release; "
+                "continuing in compatibility mode. Run 'aw migrate-layout' to upgrade to .aw/.",
+            )
+            return True
+
+    # Unattended / non-interactive default (OQ-01 resolution)
+    term.status(
+        "warn",
+        f"{repo_root}: legacy .agents/ layout is deprecated and will be removed in a future release; "
+        "continuing in compatibility mode. Run 'aw migrate-layout' to upgrade to .aw/.",
+    )
+    return True
+
+
 def _run_install(args: argparse.Namespace, term: Term) -> int:
     targets = args.targets if getattr(args, "targets", None) else []
     if "all" in targets:
@@ -2046,52 +2133,55 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
         if _exclude_guard(term, repo_root, args) == "skip":
             continue
 
-        # Resolve policy via install_wizard (E-01..E-05)
-        from agent_workflows.install_wizard import (
-            collect_policy_interactive,
-            render_pre_write_plan,
-            persist_project_policy,
-            PolicyError,
-        )
+        kept_legacy = _handle_legacy_migration(repo_root, args, term)
 
-        explicit_preset = getattr(args, "preset", None)
-        if (
-            getattr(args, "yes", False)
-            and not explicit_preset
-            and not getattr(args, "delivery_mode", None)
-        ):
-            explicit_preset = Preset.PRIVATE_TARGET.value
+        if not kept_legacy:
+            # Resolve policy via install_wizard (E-01..E-05) for .aw/ layout
+            from agent_workflows.install_wizard import (
+                collect_policy_interactive,
+                render_pre_write_plan,
+                persist_project_policy,
+                PolicyError,
+            )
 
-        try:
-            policy = collect_policy_interactive(
-                term=term,
+            explicit_preset = getattr(args, "preset", None)
+            if (
+                getattr(args, "yes", False)
+                and not explicit_preset
+                and not getattr(args, "delivery_mode", None)
+            ):
+                explicit_preset = Preset.PRIVATE_TARGET.value
+
+            try:
+                policy = collect_policy_interactive(
+                    term=term,
+                    repo_path=str(repo_root),
+                    assume_yes=getattr(args, "yes", False),
+                    explicit_preset=explicit_preset,
+                    explicit_delivery=getattr(args, "delivery_mode", None),
+                    explicit_backend=getattr(args, "records_backend", None),
+                    explicit_companion=getattr(args, "companion_dir", None),
+                )
+            except PolicyError as exc:
+                term.status("fail", str(exc))
+                return 1
+
+            if getattr(args, "dry_run", False):
+                term.status(
+                    "ok", f"[DRY RUN] Install policy pre-write plan for {repo_root}:"
+                )
+                term.line(render_pre_write_plan(policy, str(repo_root), term=term))
+                term.status(
+                    "ok", "[DRY RUN] No changes written to filesystem or Git state."
+                )
+                continue
+
+            # Persist confirmed policy to .aw/config/project.json and local.json
+            persist_project_policy(
                 repo_path=str(repo_root),
-                assume_yes=getattr(args, "yes", False),
-                explicit_preset=explicit_preset,
-                explicit_delivery=getattr(args, "delivery_mode", None),
-                explicit_backend=getattr(args, "records_backend", None),
-                explicit_companion=getattr(args, "companion_dir", None),
+                policy=policy,
+                dry_run=False,
             )
-        except PolicyError as exc:
-            term.status("fail", str(exc))
-            return 1
-
-        if getattr(args, "dry_run", False):
-            term.status(
-                "ok", f"[DRY RUN] Install policy pre-write plan for {repo_root}:"
-            )
-            term.line(render_pre_write_plan(policy, str(repo_root), term=term))
-            term.status(
-                "ok", "[DRY RUN] No changes written to filesystem or Git state."
-            )
-            continue
-
-        # Persist confirmed policy to .aw/config/project.json and local.json
-        persist_project_policy(
-            repo_path=str(repo_root),
-            policy=policy,
-            dry_run=False,
-        )
 
         for w in _preflight_warnings(repo_root, packaged):
             term.status("warn", w)
@@ -2159,6 +2249,7 @@ def _install_all(args: argparse.Namespace, term: Term) -> int:
             continue
         # Shared per-repo shell: installs AND offers to commit (auto under --yes), SystemExit-isolated.
         # Before D85 this batch path staged files and never committed -> a fleet left silently dirty.
+        _handle_legacy_migration(repo, args, term)
         outcome = _install_one(repo, source_root, args, term)
         if outcome == "failed":
             failed += 1
@@ -2294,7 +2385,10 @@ def _offer_deep_cleanup(
 
 def _run_uninstall(args: argparse.Namespace, term: Term) -> int:
     repo_root = Path(args.target).expanduser().resolve()
-    if not (repo_root / engine.WORKFLOWS_DIR).is_dir():
+    if (
+        not (repo_root / engine.AW_SYSTEM_WORKFLOWS_DIR).is_dir()
+        and not (repo_root / engine.WORKFLOWS_DIR).is_dir()
+    ):
         term.status(
             "warn", f"{repo_root}: framework not installed (nothing to remove)."
         )
@@ -2615,6 +2709,7 @@ def _run_setup(args: argparse.Namespace, term: Term) -> int:
                 continue
             # Shared per-repo shell: installs AND offers to commit (auto under --yes),
             # SystemExit-isolated. Before D85 setup staged files and never committed.
+            _handle_legacy_migration(Path(repo), args, term)
             _install_one(repo, source_root, args, term)
 
     _orient(term)
