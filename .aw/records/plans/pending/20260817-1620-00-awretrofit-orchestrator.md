@@ -4,7 +4,7 @@
 - Kind: orchestrator
 - Concern: The awphysical `.aw/` migration shipped INCOMPLETE. Release-review run 20260817-153418 found (and reproduced) that the reader/index verbs were retrofitted but the writer/board/lint verbs, the shipped/executed workflow bodies, the always-loaded AGENTS.md block, the release mechanics (RELEASING.md + Makefile), and several docstrings/manifests still target the vanished legacy `.agents/` tree. This is a NO-GO for release.
 - Scope: Complete the retrofit so a migrated (`.aw/`) repo works end-to-end. Five child Orders (01 record verbs + tests; 02 shipped docs + AGENTS.md generator; 03 release mechanics; 04 install/uninstall + migration-engine safety; 05 help/docstrings/READMEs/manifest/dead-code). OUT: the next version NUMBER (S6-V01) is a maintainer decision recorded here, not an Order action; no push/tag/publish (Section 9 human GO).
-- Status: to-review
+- Status: reviewed
 - Set: awretrofit
 - Order: 0
 - Highest E allocated: 01
@@ -15,6 +15,7 @@
 
 - 2026-08-17 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-17 authored (opencode Opus 4.8): built from release-review run 20260817-153418 (Set awretrofit).
+- 2026-08-17 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Structural preflight conforming. Child-Order table, dependencies (04->01, 05->01/02), and whole-Set completion criteria verified against the release-review findings; version-number decision correctly deferred to the maintainer (not an Order action). No findings requiring plan edits; OQ-01 resolved (blanket Set approval, per-Order lint gates retained). GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 

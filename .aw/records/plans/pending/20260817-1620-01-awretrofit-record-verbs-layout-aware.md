@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Post-migration record-verb regression cluster (release-review 20260817-153418 finding S2-B01 + S3-T01): the `.aw/` migration retrofit was applied to the reader/index verbs but not to the writer/board/lint verbs, which remain hardcoded to legacy `.agents/` and are blind/misleading on a migrated repo.
 - Scope: Make the legacy-hardcoded record verbs layout-aware using the existing `resolve_record_path(<area>)` + legacy-read-fallback idiom (as in `plans_index._dirs`), and add falsifiable dual-layout regression tests. Verbs: `aw plans` board + `--write-index`, `aw plans set-assign`/`mv`/`archive`, `aw research new`/`new-comparison`/`set-assign`/`mv`/`check-refs`/`archive`/`promote`/`check-miscategorized`, `aw ipd lint --all`. Then regenerate the stale `.aw/records/plans/STATUS.md`. OUT: shipped docs/AGENTS.md (Order 02), install/uninstall/migration-engine (Order 04).
-- Status: to-review
+- Status: reviewed
 - Set: awretrofit
 - Order: 1
 - Highest E allocated: 07
@@ -15,6 +15,7 @@
 
 - 2026-08-17 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-17 authored (opencode Opus 4.8): filled from release-review run 20260817-153418 findings S2-B01 + S3-T01 (Set awretrofit Order 01).
+- 2026-08-17 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Structural preflight conforming (author). Verified the finding citations against the real code (plans.py:155, cli.py:2824/2837, plans_refs.py:317, plans_archive.py:153, research_cmd.py:277, research_refs.py:124/260/285, research_archive.py:221, ipd_lint.py:745) and the fix idiom (plans_index._dirs:301-311, research_index._roots). PR-001 (LOW, IN-SCOPE, rubric C): the cluster's root cause is a second divergent resolver, so the plan now mandates ONE shared resolver per area (plans._resolve_area_dir, research_contract.resolve_research_root) reused by board+scan+write-index+refs. E/V bijection verified 1:1; E-06 covers every fixed verb with a fail-before/pass-after mutation probe. OQ-01 resolved (keep legacy read-fallback). No open questions; NO-GO only in the sense of pending human approval.
 
 ## Goal
 
@@ -34,6 +35,13 @@ Canonical fix idiom (already proven in `plans_index._dirs`, plans_index.py:301-3
 `resolve_record_path(<area>, target_repo=root)`; if that dir is absent AND the legacy
 `root/.agents/<legacy-subpath>` exists, use the legacy dir (read-fallback for the retention window).
 New content is created under the resolved `.aw/records/...` dir.
+
+To avoid re-introducing a SECOND divergent resolver (the root cause of this whole cluster - rubric C),
+each area gets ONE shared resolver that its board/scan/write-index/refs reuse: `plans._resolve_area_dir`
+for plans+prompts (consumed by both `plans.scan` and `_run_plans`), and `research_contract.resolve_research_root`
+for research (consumed by research new/refs/archive). `plans_refs`/`plans_archive`/`ipd_lint` inline the
+same idiom (they are separate entry modules); the intent is a single resolution behavior per area, not
+copy-pasted drift.
 
 ### Task group 1: plans board + write-index + refs/archive
 
@@ -101,6 +109,7 @@ From release-review run 20260817-153418 (all reproduced by the coordinator):
 | B01g | `aw research archive`/`check-miscategorized` | research_archive.py:221 | "none" (blind) |
 | B01h | `aw ipd lint --all` | ipd_lint.py:745 | conforming=0 (FALSE-PASSES the gate) |
 | T01 | tests | .agents/* fixtures only | CI green while product broken |
+| PR-001 | plan-review (arch, rubric C) | root cause = a second divergent resolver | LOW/IN-SCOPE: plan now mandates ONE shared resolver per area (plans._resolve_area_dir, research_contract.resolve_research_root) reused by board+scan+write-index+refs, not copy-pasted drift. FIXED in plan text. |
 
 ## Proposed changes (ordered, validatable)
 
