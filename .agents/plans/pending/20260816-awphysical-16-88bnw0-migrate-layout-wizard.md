@@ -4,17 +4,19 @@
 - Kind: child
 - Concern: `aw migrate-layout` is flag-driven, not guided. Reaching the physical-.aw layout requires the operator to know `apply --apply --confirm`, `--target-backend`, `--root`, and (after Order 14) `--leftovers`. The end-state contract (spec 20260810-1447-01 S13; point #4) requires the migration to run as a WIZARD by default that asks the typical questions (records destination/backend, retained-material choice, leftover disposition, confirmation with a preview), while accepting a config file and/or command-line flags to answer those questions non-interactively for scripted/CI use, with no prompt that blocks a non-interactive run and no deletion without an explicit choice.
 - Scope: the `migrate-layout` CLI surface in `agent_workflows/cli.py` (`_run_migrate_layout`), a guided front-end that composes the existing inventory/plan/apply/leftover steps and the install-wizard preset/backend selection (`agent_workflows/install_wizard.py`), a `--config` reader, and the migrate-layout/CLI tests. Does NOT change the migration transaction engine (Order 14 hnzr8v owns move + leftovers) or the fresh-install path (Order 15 7cvh9t).
-- Status: reviewed
+- Status: approved
 - Set: awphysical
 - Order: 16
 - Highest E allocated: 04
 - Author: opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: 88bnw0
+- Approval: 2026-08-16 human maintainer (chat) - approved IPD 88bnw0 to execute after the Gemini /plan-review landed with all findings applied and OQ-01 resolved (JSON-only config); recorded by opencode Opus 4.8. Execution still gated on Order 14 (hnzr8v) being terminal.
 
 ## Workflow history
 
 - 2026-08-16 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created after verifying migrate-layout is flag-driven (no guided wizard) and that hnzr8v only adds the leftover prompt + --leftovers flag. Maintainer ruled the migration should be wizard-by-default with config/CLI overrides (end-state #4). Traces to spec S13 acceptance criteria.
 - 2026-08-16 /plan-review (Gemini, via maintainer relay; findings accepted on the merits by opencode Opus 4.8): APPROVE - GO PENDING HUMAN APPROVAL. 4 LOW findings, all applied: PR-001 resolved OQ-01 to JSON-ONLY `--config` (TOML is not viable at requires-python >=3.9 since tomllib is 3.11+ and D46 forbids third-party deps) - VERIFIED against pyproject.toml:12; PR-003 formalized precedence (CLI flags override --config keys override defaults) in E-03; PR-004 named the stdin-injection test pattern (unittest.mock.patch sys.stdin / StringIO, no PTY) in E-04; PR-002 (Set-clustering filename) applied via `aw plans mv` to this plan AND the sibling awphysical Orders 13/14/15 (all four were on the non-clustered timestamp form). Status draft -> reviewed. NO-GO pending human approval + Order 14 (hnzr8v) terminal.
+- 2026-08-16 approved (human maintainer via chat, recorded by opencode Opus 4.8): Status reviewed -> approved. Cleared to execute once its dependency Order 14 (hnzr8v) is terminal. Not yet executed.
 
 ## Goal
 
