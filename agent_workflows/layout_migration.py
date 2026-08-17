@@ -344,6 +344,33 @@ class MigrationManager:
     # (.claude/.opencode/AGENTS.md/...) are preserved in place and are NOT leftovers.
     _LEGACY_LEFTOVER_ROOTS = (".agents", "workflow-artifacts")
 
+    def _is_removable_leftover(self, rel: str) -> bool:
+        """True only for a leftover that is SAFE to delete under `remove` (IPD wvlk84).
+
+        Git TRACKING STATE is the primary safety signal: `remove` deletes ONLY a path that git
+        TRACKS in the target repo (a genuine orphaned tracked leftover). Anything UNTRACKED or
+        IGNORED is preserved - critically the untracked-but-not-gitignored local lanes
+        (`.agents/prompts/local/`, `.agents/comms/local/`, the `*untracked*` convention), which a
+        `git check-ignore`-only guard would MISS (they are untracked, not matched by .gitignore).
+        """
+
+        repo_path = Path(self.target_repo)
+        norm = rel.replace("\\", "/")
+        # Never remove the deliberately-local lanes or the untracked-safety convention, even if
+        # some future .gitignore change made git's own state ambiguous.
+        if "/local/" in f"/{norm}" or norm.endswith("/local") or "untracked" in norm:
+            return False
+        # IGNORED -> preserve (belt): check-ignore returns 0 when the path is ignored.
+        if _run_git(repo_path, ["check-ignore", "-q", "--", rel]).returncode == 0:
+            return False
+        # PRIMARY signal: only a TRACKED path is removable. `ls-files --error-unmatch` exits 0
+        # iff the path is tracked in the index; nonzero (untracked) -> preserve.
+        tracked = (
+            _run_git(repo_path, ["ls-files", "--error-unmatch", "--", rel]).returncode
+            == 0
+        )
+        return tracked
+
     def _handle_leftovers(
         self, tx_data: Dict[str, Any], leftover_disposition: str = "defer"
     ) -> Dict[str, Any]:
@@ -351,10 +378,11 @@ class MigrationManager:
 
         `leftover_disposition` is one of keep | remove | defer (default defer). This is the
         non-interactive contract used by the engine + CLI flag; an interactive front-end
-        (Order 16 wizard) supplies the operator's per-group choice here. `remove` deletes only
-        the listed leftover files; `defer` records them for a later cleanup; `keep` leaves them.
+        (Order 16 wizard) supplies the operator's per-group choice here. `remove` deletes ONLY
+        tracked, genuinely-orphaned leftovers and PRESERVES all untracked/ignored/local content
+        (IPD wvlk84); `defer` records leftovers for a later cleanup; `keep` leaves them.
         Directory pruning removes ONLY now-empty legacy directories - a directory still holding
-        any content is never removed (never `rmtree` a root wholesale).
+        any content (including preserved content) is never removed (never `rmtree` a root wholesale).
         """
 
         repo_path = Path(self.target_repo)
@@ -371,20 +399,30 @@ class MigrationManager:
             "disposition": leftover_disposition,
             "leftovers": leftovers,
             "removed": [],
+            "preserved": [],
         }
 
         if leftover_disposition == "remove":
             for rel in leftovers:
                 p = repo_path / rel
+                # Only tracked orphans are removable; untracked/ignored/local lanes are PRESERVED
+                # (the data-loss guard - a bare unlink here would destroy local-only content).
+                if not self._is_removable_leftover(rel):
+                    result["preserved"].append(rel)
+                    continue
                 try:
                     proc = _run_git(repo_path, ["rm", "-f", "--", rel])
                     if proc.returncode != 0 and (p.exists() or p.is_symlink()):
                         p.unlink()
                     result["removed"].append(rel)
                 except OSError:
-                    pass
+                    result["preserved"].append(rel)
+        else:
+            # keep/defer: nothing is deleted; every leftover is preserved.
+            result["preserved"] = list(leftovers)
 
-        # Prune now-empty legacy directories (never a directory that still holds content).
+        # Prune now-empty legacy directories (never a directory that still holds content -
+        # a directory retaining preserved files is not empty, so it is left intact).
         for root_name in self._LEGACY_LEFTOVER_ROOTS:
             root = repo_path / root_name
             if not root.is_dir():

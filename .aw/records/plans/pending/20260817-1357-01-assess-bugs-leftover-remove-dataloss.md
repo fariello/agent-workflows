@@ -4,12 +4,13 @@
 - Kind: child
 - Concern: bugs/correctness (assess-bugs). The move-migration's post-move leftover-disposition step (`MigrationManager._handle_leftovers`, agent_workflows/layout_migration.py) treats EVERY remaining file under the legacy roots (`.agents/`, `workflow-artifacts/`) as a removable "leftover" when the operator selects `--leftovers remove` (or the wizard's "remove" option). It does not exclude gitignored, local-only lanes (`.agents/prompts/local/`, `.agents/comms/local/`) or host-adapter/other untracked user content. Because `git rm -f` fails on an untracked path and the code then FALLS BACK to `Path.unlink()`, choosing `remove` PERMANENTLY DELETES local-only content (session handoffs, inter-agent comms, drafts) that the migration is designed to leave in place. This is a reachable data-loss defect via a documented user choice.
 - Scope: `agent_workflows/layout_migration.py` `_handle_leftovers` (the leftover scan + the `remove` branch + empty-dir pruning); the `--leftovers` CLI surface in `agent_workflows/cli.py` (`_run_migrate_layout` + the wizard "remove" path) only insofar as it documents/guards the choice; and migration tests in `tests/test_layout_migration.py`. Does NOT change the move/rollback/resume engine, the classifier, or the packaging.
-- Status: reviewed
+- Status: approved
 - Set: awphysical
 - Order: 17
 - Highest E allocated: 02
 - Author: opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: wvlk84
+- Approval: 2026-08-17 human maintainer (chat) - approved IPD wvlk84 to execute after /plan-review (opencode Opus 4.8) landed APPROVE WITH REVISIONS APPLIED with the PR-001 tracking-state hardening; recorded by opencode Opus 4.8. This is a data-loss bug fix; high priority.
 
 ## Workflow history
 
@@ -26,18 +27,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Fix the data-loss path
 
-- [ ] E-01 In `MigrationManager._handle_leftovers` (agent_workflows/layout_migration.py:347-408), make `remove` conservative so it NEVER deletes precious content. The `remove` branch does `git rm -f -- <rel>` and, on the (expected) failure for a non-tracked path, FALLS BACK to `Path(rel).unlink()` (layout_migration.py:380-383) - that fallback is the data-loss path. Gate the removal so a path is deleted ONLY when it is a genuine, safe-to-remove leftover, and PRESERVED otherwise, recording preserved paths in the returned result (a `preserved` list alongside `removed`). Directory pruning (layout_migration.py:387-406) must likewise never rmdir a directory that still holds (or holds only) preserved content. `keep`/`defer` behavior is unchanged.
+- [x] E-01 In `MigrationManager._handle_leftovers` (agent_workflows/layout_migration.py:347-408), make `remove` conservative so it NEVER deletes precious content. The `remove` branch does `git rm -f -- <rel>` and, on the (expected) failure for a non-tracked path, FALLS BACK to `Path(rel).unlink()` (layout_migration.py:380-383) - that fallback is the data-loss path. Gate the removal so a path is deleted ONLY when it is a genuine, safe-to-remove leftover, and PRESERVED otherwise, recording preserved paths in the returned result (a `preserved` list alongside `removed`). Directory pruning (layout_migration.py:387-406) must likewise never rmdir a directory that still holds (or holds only) preserved content. `keep`/`defer` behavior is unchanged.
     - CRITICAL correctness point (PR-001, verified): the real hazard is UNTRACKED-BUT-NOT-GITIGNORED local content. In this repo `git check-ignore .agents/prompts/local/<file>` returns NONZERO (the lanes are untracked, not matched by `.gitignore`), so a guard that relies on `git check-ignore` ALONE would still delete them. The guard MUST therefore treat GIT-TRACKING STATE as the primary signal: only a path that is TRACKED in the target index (and is a genuine orphan under the legacy roots) is eligible for `remove`; anything git reports as UNTRACKED or IGNORED is PRESERVED by default. In practice, check via `git -C <repo> ls-files --error-unmatch -- <rel>` (tracked?) plus `git check-ignore` (ignored?), and always preserve the local/untracked lanes (`/local/` under `.agents/`, the `*untracked*` convention, `.agents/comms/local/`, `.agents/prompts/local/`). This makes `git check-ignore` a secondary belt, not the load-bearing check.
   - Depends on: none
   - Expected outcome: `aw migrate-layout apply --leftovers remove` (and the wizard's "remove" choice) deletes only tracked, genuinely-orphaned leftover files; every UNTRACKED or IGNORED path - including the untracked-not-ignored local lanes `.agents/prompts/local/`, `.agents/comms/local/`, and any `*untracked*` path - is PRESERVED; empty-dir pruning never removes a preserved lane's directory; the result records both `removed` and `preserved`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Lock it with a regression test
 
-- [ ] E-02 Add a falsifiable regression test to `tests/test_layout_migration.py` (e.g. a new `LeftoverDispositionTests`): construct a repo with a classified-and-moved corpus PLUS TWO precious files that MUST survive `remove` - (a) an UNTRACKED-BUT-NOT-GITIGNORED local file `.agents/prompts/local/notes.md` (the real-repo hazard: created, never `git add`ed, and NOT matched by `.gitignore`), and (b) a gitignored local file (covered by a `.gitignore` entry) - run `execute_migration(..., leftover_disposition="remove")`, and assert BOTH still exist afterward and appear in the result's `preserved` list (not `removed`). Case (a) is the load-bearing one: a `git check-ignore`-only guard would NOT catch it. Mutation probe: reverting E-01 (removing the tracking-state guard) makes the "untracked local file survives" assertion go RED, GREEN when restored. Also assert a genuine TRACKED, orphaned stray leftover IS removed under `remove` (so the guard is not over-broad), and that `defer` (default) deletes nothing.
+- [x] E-02 Add a falsifiable regression test to `tests/test_layout_migration.py` (e.g. a new `LeftoverDispositionTests`): construct a repo with a classified-and-moved corpus PLUS TWO precious files that MUST survive `remove` - (a) an UNTRACKED-BUT-NOT-GITIGNORED local file `.agents/prompts/local/notes.md` (the real-repo hazard: created, never `git add`ed, and NOT matched by `.gitignore`), and (b) a gitignored local file (covered by a `.gitignore` entry) - run `execute_migration(..., leftover_disposition="remove")`, and assert BOTH still exist afterward and appear in the result's `preserved` list (not `removed`). Case (a) is the load-bearing one: a `git check-ignore`-only guard would NOT catch it. Mutation probe: reverting E-01 (removing the tracking-state guard) makes the "untracked local file survives" assertion go RED, GREEN when restored. Also assert a genuine TRACKED, orphaned stray leftover IS removed under `remove` (so the guard is not over-broad), and that `defer` (default) deletes nothing.
   - Depends on: E-01
   - Expected outcome: the regression test fails without the E-01 guard (RED, specifically on the untracked-not-ignored case) and passes with it (GREEN); it proves the preserve direction for BOTH untracked-not-ignored and gitignored content, and the still-works direction (a tracked orphan is removed).
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -102,15 +103,15 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Run the E-01 command; paste output showing a gitignored `.agents/prompts/local/*` file survives `leftover_disposition="remove"` and is listed under `preserved`, while a genuine non-ignored stray leftover is `removed` and `defer` deletes nothing. Failure condition observed by mutation (revert the guard -> the local file is deleted).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Implemented `MigrationManager._is_removable_leftover` (layout_migration.py:347-372) as the guard; `_handle_leftovers` `remove` branch now skips non-removable leftovers into a `preserved` list (layout_migration.py:400-424). Realistic-scenario repro (gitignored `.agents/prompts/local/`): `local notes.md SURVIVES (fix works): True`, `preserved has the local file: True`, `removed: []`. Unit assertions in `test_remove_does_delete_a_tracked_orphan` confirm `_is_removable_leftover(".agents/stray-tracked.md") is True` (tracked orphan removable) and `_is_removable_leftover(".agents/prompts/local/notes.md") is False` (local lane preserved). `test_defer_default_deletes_nothing`: `disposition == "defer"`, `removed == []`, local file present. All 4 `LeftoverDispositionTests` pass.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Paste the regression test result (GREEN with the guard) and the mutation probe (RED when the ignored/local guard is reverted, GREEN when restored), plus the full serial suite result.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: GREEN with guard: `python3 -m pytest tests/test_layout_migration.py::LeftoverDispositionTests -q` -> `....` (4 passed). Mutation probe: inserted `return True` as the first statement of `_is_removable_leftover` (pre-fix "everything removable" behavior) and re-ran `test_remove_preserves_untracked_ignored_local_lanes` -> RED with the exact data-loss assertion: `AssertionError: False is not true : remove deleted a gitignored local-lane file (data loss)` (tests/test_layout_migration.py:819); restored the guard -> GREEN again (`grep -c MUTATION` -> 0, import OK, 4 passed). Whole file: `python3 -m pytest tests/test_layout_migration.py -q` -> 29 passed. Full serial suite: `python3 -m pytest -p no:xdist` -> `973 passed, 1 skipped in 172.52s` (was 970 passed pre-fix; +3 from the new leftover tests).
+  - Result: pass
 
 
 ## Approval and execution gate
