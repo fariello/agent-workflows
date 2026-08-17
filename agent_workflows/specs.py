@@ -560,17 +560,31 @@ def run_note(args) -> int:
 
 
 def _evidence_resolvable(spec_path: Path, evidence: str) -> bool:
-    """`implemented` evidence must be a resolvable citation: an existing executed-IPD path."""
+    """`implemented` evidence must be a resolvable citation: an existing executed-IPD path.
+
+    Layout-aware: the executed-IPD tree is `.agents/plans/executed/` (legacy) or
+    `.aw/records/plans/executed/` (after the physical-layout migration). The repo root is
+    found by walking up from the spec file until a `.git` (or the `.aw`/`.agents` root) is
+    seen, so this works whether the spec lives under `.agents/docs/specs/` (3 deep) or
+    `.aw/records/docs/specs/` (4 deep).
+    """
 
     if not A.is_safe_descriptive(evidence):
         return False
-    # resolve relative to the repo root (two levels up from .agents/docs/specs/<file>)
-    repo_root = (
-        spec_path.resolve().parents[3]
-        if len(spec_path.resolve().parents) >= 4
-        else Path(".")
-    )
+    resolved = spec_path.resolve()
+    repo_root = None
+    for parent in resolved.parents:
+        if (
+            (parent / ".git").exists()
+            or (parent / ".aw").is_dir()
+            or (parent / ".agents").is_dir()
+        ):
+            repo_root = parent
+            break
+    if repo_root is None:
+        repo_root = Path(".")
     candidate = (repo_root / evidence).resolve()
-    return candidate.exists() and ".agents/plans/executed" in str(candidate).replace(
-        "\\", "/"
+    norm = str(candidate).replace("\\", "/")
+    return candidate.exists() and (
+        ".agents/plans/executed" in norm or ".aw/records/plans/executed" in norm
     )
