@@ -610,5 +610,67 @@ class SourceRepositoryMigrationTests(unittest.TestCase):
         self.assertFalse(fix_data["unrelated_active_agent_work_committed"])
 
 
+class PhysicalLayoutAcceptanceTests(unittest.TestCase):
+    """Order 12 acceptance: the 44-scenario manifest is closed, the legacy crosswalk is exactly
+    1..25, and every `expected`/crosswalk assertion token binds to a loadable test method with a
+    named assertion condition (E-06). This is the plan's named E-06 evidence entry point; the
+    deep per-token checks live in tools.awphysical.test_awphysical_tools.ScenarioBindingTests,
+    which this test also drives so a single command validates the whole binding contract.
+    """
+
+    _TOOLS = Path(__file__).resolve().parent.parent / "tools" / "awphysical"
+
+    def _manifest(self):
+        import json
+
+        return json.loads(
+            (self._TOOLS / "migration-scenarios.json").read_text(encoding="utf-8")
+        )
+
+    def _bindings(self):
+        import json
+
+        return json.loads(
+            (self._TOOLS / "scenario-token-bindings.json").read_text(encoding="utf-8")
+        )["bindings"]
+
+    def test_e06(self):
+        """E-06: scenario set == binding set; crosswalk is 1..25; every token binds to a
+        loadable test + named assertion; no unbound/stale binding."""
+        import importlib
+
+        payload = self._manifest()
+        scenarios = payload["scenarios"]
+        self.assertEqual(len({s["id"] for s in scenarios}), 44)
+        self.assertEqual(
+            [row["legacy_id"] for row in payload["legacy_crosswalk"]],
+            list(range(1, 26)),
+        )
+        tokens = {t for s in scenarios for t in s["expected"]}
+        bindings = self._bindings()
+        # Bijection: no unbound token, no stale binding.
+        self.assertEqual(sorted(tokens - set(bindings)), [], "unbound tokens")
+        self.assertEqual(sorted(set(bindings) - tokens), [], "stale bindings")
+
+        # Every binding names a loadable test method + a non-empty assertion condition.
+        def resolve(fqn):
+            try:
+                mod_path, cls_name, meth_name = fqn.rsplit(".", 2)
+                cls = getattr(importlib.import_module(mod_path), cls_name, None)
+                meth = getattr(cls, meth_name, None) if cls else None
+                return meth if callable(meth) else None
+            except (ImportError, ValueError, AttributeError):
+                return None
+
+        for token, b in sorted(bindings.items()):
+            self.assertIsNotNone(
+                resolve(b["test"]), f"{token}: unloadable test {b['test']}"
+            )
+            self.assertTrue(b.get("assertion", "").strip(), f"{token}: no assertion")
+
+        # Falsifiable negative: a fabricated non-loadable binding is rejected.
+        self.assertIsNone(resolve("tests.test_acceptance_matrix.NoSuchClass.test_x"))
+
+
 if __name__ == "__main__":
     unittest.main()

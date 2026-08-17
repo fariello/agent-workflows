@@ -1,0 +1,562 @@
+{
+  "bindings": {
+    "acknowledged-remote": {
+      "assertion": "the private remote is acknowledged, not inferred",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_4_companion_confirmed_private_remote"
+    },
+    "action-generations-supersede": {
+      "assertion": "a new action generation supersedes the old",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_16_new_generation_supersedes_old"
+    },
+    "actionable-incomplete-policy-diagnostic": {
+      "assertion": "incomplete policy yields an actionable diagnostic",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_6_first_noninteractive_missing_policy_fails_before_write"
+    },
+    "all-inventoried": {
+      "assertion": "inventory records every tracked/untracked/ignored item",
+      "test": "tools.awphysical.test_awphysical_tools.InventoryTests.test_e01"
+    },
+    "all-paths-previewed": {
+      "assertion": "dry-run plan previews all paths without mutation",
+      "test": "tests.test_layout_migration.TestLayoutMigration.test_migration_planning_dry_run"
+    },
+    "all-records-preserved": {
+      "assertion": "records preserved before any cleanup",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_18_migration_preserves_records_before_cleanup"
+    },
+    "applicable-actions-only": {
+      "assertion": "only applicable actions are surfaced",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_13_setup_action_all_attention_surfaces"
+    },
+    "attachment-rejected": {
+      "assertion": "ambiguous attachment is rejected",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_12_ambiguous_resolution_not_auto_attached"
+    },
+    "authority-invalid": {
+      "assertion": "an invalid authority is rejected",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_12_ambiguous_resolution_not_auto_attached"
+    },
+    "blocking-collision": {
+      "assertion": "destination collision fails the map",
+      "test": "tools.awphysical.test_awphysical_tools.CompareTests.test_missing_and_unapproved_items_fail"
+    },
+    "blocking-symlink-rule": {
+      "assertion": "escaping symlink is recorded, never followed",
+      "test": "tools.awphysical.test_awphysical_tools.InventoryTests.test_inventory_does_not_follow_symlink"
+    },
+    "byte-identical-rollback": {
+      "assertion": "rollback restores byte-identical legacy sources",
+      "test": "tests.test_layout_migration.MoveNotCopyTests.test_rollback_reverses_the_move"
+    },
+    "bytes-preserved": {
+      "assertion": "moved file bytes are preserved (destination hash equals inventory)",
+      "test": "tests.test_layout_migration.MoveNotCopyTests.test_apply_moves_not_copies"
+    },
+    "case-collision-check": {
+      "assertion": "case-only collision is detected",
+      "test": "tools.awphysical.test_awphysical_tools.CompareTests.test_missing_and_unapproved_items_fail"
+    },
+    "changed-content-not-deleted": {
+      "assertion": "cleanup refuses to delete changed content",
+      "test": "tests.test_awphysical_migration.TransactionalMigrationTests.test_e07"
+    },
+    "cleanup-blocked": {
+      "assertion": "cleanup is blocked/refused on changed content",
+      "test": "tests.test_awphysical_migration.TransactionalMigrationTests.test_e07"
+    },
+    "cleanup-refused": {
+      "assertion": "cleanup refused with a modified retained item",
+      "test": "tests.test_awphysical_migration.TransactionalMigrationTests.test_e07"
+    },
+    "color-auto-always-never": {
+      "assertion": "color auto/always/never honored",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_22_color_env_matrix"
+    },
+    "companion-durable": {
+      "assertion": "companion records are durable",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_4_companion_confirmed_private_remote"
+    },
+    "complete-inventory": {
+      "assertion": "inventory is complete over all roots",
+      "test": "tools.awphysical.test_awphysical_tools.InventoryTests.test_e01"
+    },
+    "complete-packaged-system": {
+      "assertion": "migrated .aw/system loads fully via the resolver",
+      "test": "tests.test_layout_migration.TestLayoutMigration.test_migrated_system_is_loadable_by_source_resolver"
+    },
+    "config-state-records-preserved": {
+      "assertion": "uninstall preserves config/state/records",
+      "test": "tests.test_layout_migration.TestLayoutMigration.test_conservative_uninstall_preserves_config_state_records"
+    },
+    "content-not-lost": {
+      "assertion": "no content lost in the move",
+      "test": "tests.test_layout_migration.MoveNotCopyTests.test_apply_moves_not_copies"
+    },
+    "copy-verify-switch-retain": {
+      "assertion": "move-verify-switch transaction (supersedes copy-retain)",
+      "test": "tests.test_layout_migration.MoveNotCopyTests.test_apply_moves_not_copies"
+    },
+    "correct-git-owner": {
+      "assertion": "the correct git owner is verified",
+      "test": "tools.awphysical.test_awphysical_tools.PostcheckTests.test_copied_adapter_logic_and_wrong_git_owner_fail"
+    },
+    "correct-version-manifest": {
+      "assertion": "VERSION + manifest resolve at the system root",
+      "test": "tests.test_layout_migration.TestLayoutMigration.test_migrated_system_is_loadable_by_source_resolver"
+    },
+    "correct-worktree-path": {
+      "assertion": "worktree path resolves correctly",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_11_move_and_reattach"
+    },
+    "dismissal-history-no-resurrection": {
+      "assertion": "a dismissed action is not resurrected",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_15_dismissal_history_no_resurrection"
+    },
+    "do-not-follow": {
+      "assertion": "symlinks are not dereferenced",
+      "test": "tools.awphysical.test_awphysical_tools.InventoryTests.test_inventory_does_not_follow_symlink"
+    },
+    "durability-action-open": {
+      "assertion": "an open durability action is created",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_3_companion_local_git_no_remote_durability"
+    },
+    "durability-action-or-acknowledgement": {
+      "assertion": "durability action or explicit acknowledgement",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_3_companion_local_git_no_remote_durability"
+    },
+    "durable-material-target-tracked": {
+      "assertion": "durable material tracked in the target under private-target",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_2_fresh_interactive_repository_risk_acknowledged"
+    },
+    "explicit-deduplication": {
+      "assertion": "identical-content dedupe is explicit in the map",
+      "test": "tools.awphysical.test_awphysical_tools.InventoryTests.test_e03"
+    },
+    "explicit-disposition": {
+      "assertion": "every item has an explicit disposition",
+      "test": "tools.awphysical.test_awphysical_tools.InventoryTests.test_e03_infrastructure_files_get_explicit_dispositions"
+    },
+    "explicit-durability-choice": {
+      "assertion": "durability is an explicit choice",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_2_fresh_interactive_repository_risk_acknowledged"
+    },
+    "explicit-fallback-not-called-clean": {
+      "assertion": "the legacy fallback reader is not invoked when .aw/ is present",
+      "test": "tests.test_awphysical_routing.PhysicalProducerRoutingTests.test_e03"
+    },
+    "explicit-git-init": {
+      "assertion": "companion git init is explicit",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_3_companion_local_git_no_remote_durability"
+    },
+    "explicit-reinventory": {
+      "assertion": "cleanup re-inventories explicitly",
+      "test": "tools.awphysical.test_awphysical_tools.InventoryTests.test_e01"
+    },
+    "explicit-untrack-plan": {
+      "assertion": "tracked move produces an explicit git rename (untrack+add)",
+      "test": "tests.test_layout_migration.MoveNotCopyTests.test_apply_moves_not_copies"
+    },
+    "external-bytes-untouched": {
+      "assertion": "external root bytes untouched",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_19_uninstall_preserves_external_state_records"
+    },
+    "external-config-state-records": {
+      "assertion": "external config/state/records preserved",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_19_uninstall_preserves_external_state_records"
+    },
+    "external-local-roots": {
+      "assertion": "external local roots handled explicitly",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_21_unavailable_external_root_stops_writes"
+    },
+    "external-repo-never-deleted": {
+      "assertion": "an external repo is never deleted",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_19_uninstall_preserves_external_state_records"
+    },
+    "external-runtime": {
+      "assertion": "external runtime preserved",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_19_uninstall_preserves_external_state_records"
+    },
+    "external-system": {
+      "assertion": "external system preserved",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_19_uninstall_preserves_external_state_records"
+    },
+    "fail-before-switch": {
+      "assertion": "failure before the switch leaves legacy authoritative",
+      "test": "tests.test_awphysical_migration.TransactionalMigrationTests.test_e04"
+    },
+    "fail-before-write": {
+      "assertion": "incomplete policy fails before any write",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_6_first_noninteractive_missing_policy_fails_before_write"
+    },
+    "fail-closed": {
+      "assertion": "an underspecified non-interactive run fails closed",
+      "test": "tests.test_layout_migration.MigrateLayoutWizardTests.test_underspecified_noninteractive_fails_closed"
+    },
+    "fail-closed-context": {
+      "assertion": "a fabricated context fails closed",
+      "test": "tools.awphysical.test_awphysical_tools.PostcheckTests.test_fabricated_clean_context_fails_without_external_evidence"
+    },
+    "filesystem-aware-preflight": {
+      "assertion": "preflight checks writability + capacity",
+      "test": "tests.test_layout_migration.TestLayoutMigration.test_migration_planning_dry_run"
+    },
+    "first-install-eof-fails-closed": {
+      "assertion": "first-install EOF fails closed",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_6_first_noninteractive_missing_policy_fails_before_write"
+    },
+    "fresh-inventory-required": {
+      "assertion": "apply requires a fresh frozen inventory",
+      "test": "tools.awphysical.test_awphysical_tools.InventoryTests.test_e01"
+    },
+    "git-index-restored": {
+      "assertion": "rollback leaves the git index rename-clean",
+      "test": "tests.test_layout_migration.MoveNotCopyTests.test_rollback_reverses_the_move"
+    },
+    "history-preserved": {
+      "assertion": "git history preserved via renames",
+      "test": "tests.test_layout_migration.MoveNotCopyTests.test_apply_moves_not_copies"
+    },
+    "honest-unsupported-result": {
+      "assertion": "an unsupported case yields an honest result",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_25_broken_nav_link_resolver_still_works"
+    },
+    "honest-unversioned-status": {
+      "assertion": "local-only reports honest unversioned status",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_3_companion_local_git_no_remote_durability"
+    },
+    "host-support-evidence": {
+      "assertion": "host support evidence gates clean-delta writes",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_20_clean_delta_merge_base_zero_write"
+    },
+    "human-disposition-required": {
+      "assertion": "a human disposition is required (fails closed otherwise)",
+      "test": "tests.test_layout_migration.MigrateLayoutWizardTests.test_underspecified_noninteractive_fails_closed"
+    },
+    "human-owned-review": {
+      "assertion": "human-owned confirmation gate",
+      "test": "tests.test_layout_migration.MigrateLayoutWizardTests.test_underspecified_noninteractive_fails_closed"
+    },
+    "idempotent-resume": {
+      "assertion": "resume is idempotent (already-moved items skipped)",
+      "test": "tests.test_layout_migration.MoveNotCopyTests.test_crash_mid_move_is_resumable_and_rollbackable"
+    },
+    "identity-conflict": {
+      "assertion": "an identity conflict is not auto-attached",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_12_ambiguous_resolution_not_auto_attached"
+    },
+    "inventory-blocking-unknown": {
+      "assertion": "unknown-owner item blocks apply",
+      "test": "tools.awphysical.test_awphysical_tools.InventoryTests.test_e03"
+    },
+    "journal-retained": {
+      "assertion": "the per-item move journal is retained for rollback",
+      "test": "tests.test_layout_migration.MoveNotCopyTests.test_rollback_reverses_the_move"
+    },
+    "legacy-authoritative": {
+      "assertion": "failure before switch leaves legacy authoritative",
+      "test": "tests.test_awphysical_migration.TransactionalMigrationTests.test_e04"
+    },
+    "legacy-preserved": {
+      "assertion": "rollback restores the legacy sources",
+      "test": "tests.test_layout_migration.MoveNotCopyTests.test_rollback_reverses_the_move"
+    },
+    "legacy-writer-disabled": {
+      "assertion": "the legacy-write guard rejects .agents/ writes",
+      "test": "tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e05"
+    },
+    "local-binding-updated": {
+      "assertion": "local binding updated on move/reattach",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_11_move_and_reattach"
+    },
+    "local-config-ignored": {
+      "assertion": "local config (config/local.json) is never tracked",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_2_fresh_interactive_repository_risk_acknowledged"
+    },
+    "local-git-not-durable-private": {
+      "assertion": "a local git without remote is not claimed durable-private",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_3_companion_local_git_no_remote_durability"
+    },
+    "meaning-never-color-only": {
+      "assertion": "meaning is never conveyed by color alone",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_23_screen_reader_linear_text"
+    },
+    "never-push": {
+      "assertion": "no push is performed by the transaction",
+      "test": "tests.test_awphysical_migration.TransactionalMigrationTests.test_e06"
+    },
+    "new-authority-explicit": {
+      "assertion": "the new authority is switched explicitly and last",
+      "test": "tests.test_awphysical_migration.TransactionalMigrationTests.test_e05"
+    },
+    "no-candid-public-delta": {
+      "assertion": "no candid content enters the public target",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_17_record_commit_routed_to_other_repo"
+    },
+    "no-color-and-term-dumb": {
+      "assertion": "NO_COLOR and TERM=dumb degrade to plain",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_22_color_env_matrix"
+    },
+    "no-development-records": {
+      "assertion": "no development records leak into the shipped system",
+      "test": "tests.test_awphysical_routing.PhysicalProducerRoutingTests.test_e03"
+    },
+    "no-duplicate-copy": {
+      "assertion": "move leaves no duplicate/twin copy",
+      "test": "tests.test_layout_migration.MoveNotCopyTests.test_apply_moves_not_copies"
+    },
+    "no-legacy-fallback-write": {
+      "assertion": "no writer falls back to a legacy .agents/ path",
+      "test": "tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e05"
+    },
+    "no-migration-required": {
+      "assertion": "no migration required when already current",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_7_same_version_reinstall_is_noop"
+    },
+    "no-overwrite": {
+      "assertion": "destinations are not overwritten silently",
+      "test": "tests.test_layout_migration.MoveNotCopyTests.test_apply_moves_not_copies"
+    },
+    "no-policy-overwrite": {
+      "assertion": "update does not overwrite existing policy",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_8_version_update_keeps_policy"
+    },
+    "no-policy-switch": {
+      "assertion": "a no-op reinstall performs no policy switch",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_7_same_version_reinstall_is_noop"
+    },
+    "no-reattach-without-explicit-recovery": {
+      "assertion": "no reattach without explicit recovery",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_11_move_and_reattach"
+    },
+    "no-repository-records": {
+      "assertion": "clean-target keeps no records in the repository",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_1_fresh_interactive_home_recommended"
+    },
+    "no-silent-drop": {
+      "assertion": "no inventoried item is silently dropped",
+      "test": "tools.awphysical.test_awphysical_tools.InventoryTests.test_e01"
+    },
+    "no-source-trust": {
+      "assertion": "source-checkout role is verified, not trusted by path",
+      "test": "tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e04"
+    },
+    "no-stage-attempt": {
+      "assertion": "no cross-boundary stage attempt",
+      "test": "tests.test_awphysical_routing.PhysicalProducerRoutingTests.test_e03"
+    },
+    "no-success-claim": {
+      "assertion": "no success claim without independent evidence",
+      "test": "tools.awphysical.test_awphysical_tools.PostcheckTests.test_fabricated_clean_context_fails_without_external_evidence"
+    },
+    "no-switch": {
+      "assertion": "a failed transaction performs no policy switch",
+      "test": "tests.test_awphysical_migration.TransactionalMigrationTests.test_e04"
+    },
+    "no-target-write": {
+      "assertion": "no target write in clean-delta mode",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_20_clean_delta_merge_base_zero_write"
+    },
+    "no-write-before-complete-choice": {
+      "assertion": "no write before a complete policy choice",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_6_first_noninteractive_missing_policy_fails_before_write"
+    },
+    "no-writes": {
+      "assertion": "no writes on a no-op checkpoint",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_7_same_version_reinstall_is_noop"
+    },
+    "one-authority": {
+      "assertion": "exactly one authoritative writer after the switch",
+      "test": "tests.test_awphysical_migration.TransactionalMigrationTests.test_e04"
+    },
+    "one-canonical-system-source": {
+      "assertion": "exactly one canonical .aw/system source",
+      "test": "tests.test_layout_migration.TestLayoutMigration.test_migrated_system_is_loadable_by_source_resolver"
+    },
+    "optional-link-absent-or-broken-safe": {
+      "assertion": "a broken optional nav link is safe",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_25_broken_nav_link_resolver_still_works"
+    },
+    "ordinary-target-role": {
+      "assertion": "ordinary target role behavior",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_2_fresh_interactive_repository_risk_acknowledged"
+    },
+    "origin-not-identity": {
+      "assertion": "origin URL alone is not identity",
+      "test": "tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e04"
+    },
+    "owned-system-adapters-only": {
+      "assertion": "only owned thin system adapters, no records",
+      "test": "tests.test_awphysical_routing.PhysicalProducerRoutingTests.test_e03"
+    },
+    "package-green": {
+      "assertion": "the packaged system builds and loads green",
+      "test": "tests.test_layout_migration.TestLayoutMigration.test_migrated_system_is_loadable_by_source_resolver"
+    },
+    "partial-layout-classified": {
+      "assertion": "a partial .aw/system is classified for resume",
+      "test": "tools.awphysical.test_awphysical_tools.InventoryTests.test_partial_aw_system_classifies_as_system"
+    },
+    "policy-restored": {
+      "assertion": "policy is restored to legacy on rollback",
+      "test": "tests.test_layout_migration.MoveNotCopyTests.test_rollback_reverses_the_move"
+    },
+    "portable-local-separation": {
+      "assertion": "portable config separated from local binding",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_1_fresh_interactive_home_recommended"
+    },
+    "postcheck-failure": {
+      "assertion": "a fabricated-clean context fails postcheck",
+      "test": "tools.awphysical.test_awphysical_tools.PostcheckTests.test_fabricated_clean_context_fails_without_external_evidence"
+    },
+    "postcheck-required": {
+      "assertion": "an independent postcheck is required",
+      "test": "tools.awphysical.test_awphysical_tools.PostcheckTests.test_clean_context_passes"
+    },
+    "preview-only-default": {
+      "assertion": "the wizard previews and does not mutate before confirm",
+      "test": "tests.test_layout_migration.MigrateLayoutWizardTests.test_interactive_wizard_decline_makes_no_mutations"
+    },
+    "privacy-boundary-failure": {
+      "assertion": "a privacy-boundary violation fails postcheck",
+      "test": "tools.awphysical.test_awphysical_tools.PostcheckTests.test_tracked_runtime_and_legacy_route_fail"
+    },
+    "privacy-status-observable-only": {
+      "assertion": "privacy status reports observable facts only",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_24_privacy_doctor_refuses_unverified_privacy"
+    },
+    "private-destination": {
+      "assertion": "records routed to a private destination",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_4_companion_confirmed_private_remote"
+    },
+    "private-durable-bundle": {
+      "assertion": "candid material in a private durable bundle",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_4_companion_confirmed_private_remote"
+    },
+    "public-system-only": {
+      "assertion": "public target carries only system, not candid records",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_17_record_commit_routed_to_other_repo"
+    },
+    "recoverable-staging": {
+      "assertion": "a mid-move crash is recoverable",
+      "test": "tests.test_layout_migration.MoveNotCopyTests.test_crash_mid_move_is_resumable_and_rollbackable"
+    },
+    "recovery-guidance": {
+      "assertion": "recovery guidance for an interrupted run",
+      "test": "tests.test_layout_migration.MoveNotCopyTests.test_crash_mid_move_is_resumable_and_rollbackable"
+    },
+    "release-blocked": {
+      "assertion": "a failing postcheck blocks release",
+      "test": "tools.awphysical.test_awphysical_tools.PostcheckTests.test_fabricated_clean_context_fails_without_external_evidence"
+    },
+    "resume-safe": {
+      "assertion": "resume completes a mid-move interruption",
+      "test": "tests.test_layout_migration.MoveNotCopyTests.test_crash_mid_move_is_resumable_and_rollbackable"
+    },
+    "rollback-ready": {
+      "assertion": "a journaled rollback is available",
+      "test": "tests.test_layout_migration.MoveNotCopyTests.test_rollback_reverses_the_move"
+    },
+    "rollback-safe": {
+      "assertion": "rollback restores the pre-apply state",
+      "test": "tests.test_layout_migration.MoveNotCopyTests.test_rollback_reverses_the_move"
+    },
+    "root-overlap-rule": {
+      "assertion": "overlapping roots are handled by the inventory rule",
+      "test": "tools.awphysical.test_awphysical_tools.InventoryTests.test_e01"
+    },
+    "runtime-ignored": {
+      "assertion": "runtime state (state/) is never tracked",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_2_fresh_interactive_repository_risk_acknowledged"
+    },
+    "safe-fallback-transaction": {
+      "assertion": "fault injection keeps the transaction safe",
+      "test": "tests.test_awphysical_migration.TransactionalMigrationTests.test_e08"
+    },
+    "safe-install-or-refusal": {
+      "assertion": "install proceeds safely or refuses",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_6_first_noninteractive_missing_policy_fails_before_write"
+    },
+    "same-version-noop-checkpoint": {
+      "assertion": "same-version reinstall is a no-op checkpoint",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_7_same_version_reinstall_is_noop"
+    },
+    "sanitizer-failure": {
+      "assertion": "a leak/route violation fails the gate",
+      "test": "tools.awphysical.test_awphysical_tools.PostcheckTests.test_tracked_runtime_and_legacy_route_fail"
+    },
+    "screen-reader-text-without-color": {
+      "assertion": "screen-reader linear text without color",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_23_screen_reader_linear_text"
+    },
+    "separate-git-evidence": {
+      "assertion": "target/companion/source git plans are separate",
+      "test": "tests.test_awphysical_migration.TransactionalMigrationTests.test_e06"
+    },
+    "setup-action-visible-on-status-surfaces": {
+      "assertion": "setup action visible on all status surfaces",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_13_setup_action_all_attention_surfaces"
+    },
+    "setup-completion-closes-action": {
+      "assertion": "completing setup closes the action",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_14_setup_completion_moves_completed"
+    },
+    "single-current-schema": {
+      "assertion": "a single current schema version is used",
+      "test": "tests.test_awphysical_migration.TransactionalMigrationTests.test_e01"
+    },
+    "source-not-overwritten": {
+      "assertion": "a source checkout is not overwritten by self-install",
+      "test": "tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e04"
+    },
+    "source-retained": {
+      "assertion": "rollback retains/restores the source",
+      "test": "tests.test_layout_migration.MoveNotCopyTests.test_rollback_reverses_the_move"
+    },
+    "source-specific-diagnostic": {
+      "assertion": "a source-specific diagnostic is emitted",
+      "test": "tests.test_acceptance_matrix.SourceRepositoryMigrationTests.test_e04"
+    },
+    "stable-identity": {
+      "assertion": "project identity is stable across a move",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_11_move_and_reattach"
+    },
+    "stable-project-identity": {
+      "assertion": "stable project identity in the registry",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_11_move_and_reattach"
+    },
+    "stable-transaction-id": {
+      "assertion": "the transaction id is stable across the run",
+      "test": "tests.test_awphysical_migration.TransactionalMigrationTests.test_e01"
+    },
+    "target-tracked-durable": {
+      "assertion": "target-tracked durable records",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_2_fresh_interactive_repository_risk_acknowledged"
+    },
+    "tracked-paths-portable": {
+      "assertion": "tracked paths are portable",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_2_fresh_interactive_repository_risk_acknowledged"
+    },
+    "unversioned-honest-status": {
+      "assertion": "unversioned status is reported honestly",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_3_companion_local_git_no_remote_durability"
+    },
+    "update-keeps-policy": {
+      "assertion": "update keeps the prior policy",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_8_version_update_keeps_policy"
+    },
+    "valid-git-destinations": {
+      "assertion": "git staging destinations are valid per boundary",
+      "test": "tests.test_awphysical_migration.TransactionalMigrationTests.test_e06"
+    },
+    "writer-lock-or-hash-drift-stop": {
+      "assertion": "a writer lock or hash drift stops the apply",
+      "test": "tests.test_awphysical_migration.TransactionalMigrationTests.test_e08"
+    },
+    "zero-target-delta": {
+      "assertion": "clean-target leaves zero AW-owned delta",
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_20_clean_delta_merge_base_zero_write"
+    }
+  },
+  "note": "Order 12 E-06: every scenario 'expected' token binds to a real, loadable acceptance test method + a named assertion condition. Validated by tools.awphysical.test_awphysical_tools.ScenarioBindingTests.",
+  "schema_version": 1
+}

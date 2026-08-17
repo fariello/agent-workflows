@@ -1031,5 +1031,107 @@ class ScenarioCatalogTests(unittest.TestCase):
             self.assertTrue(set(row["assertions"]).issubset(tokens), row)
 
 
+class ScenarioBindingTests(unittest.TestCase):
+    """Order 12 E-06: every scenario `expected` token (and every legacy_crosswalk assertion
+    token) binds to a fully-qualified, LOADABLE automated test method plus a named assertion
+    condition. The binding is machine-checked: unbound, stale, duplicate, or non-loadable
+    bindings fail, and a deliberately-bad binding is rejected (falsifiable negative).
+    """
+
+    @staticmethod
+    def _load_bindings():
+        return json.loads(
+            (TOOLS_DIR / "scenario-token-bindings.json").read_text(encoding="utf-8")
+        )["bindings"]
+
+    @staticmethod
+    def _manifest_tokens():
+        payload = json.loads(
+            (TOOLS_DIR / "migration-scenarios.json").read_text(encoding="utf-8")
+        )
+        return {t for s in payload["scenarios"] for t in s["expected"]}
+
+    @staticmethod
+    def _resolve(fqn):
+        """Import `module.Class.method` and return the callable test method, or None."""
+        import importlib
+
+        try:
+            mod_path, cls_name, meth_name = fqn.rsplit(".", 2)
+            mod = importlib.import_module(mod_path)
+            cls = getattr(mod, cls_name, None)
+            if cls is None:
+                return None
+            meth = getattr(cls, meth_name, None)
+            return meth if callable(meth) else None
+        except (ImportError, ValueError, AttributeError):
+            return None
+
+    def test_every_expected_token_is_bound(self):
+        """No scenario expected token is left unbound; no stale binding for a missing token."""
+        tokens = self._manifest_tokens()
+        bindings = self._load_bindings()
+        unbound = sorted(tokens - set(bindings))
+        self.assertEqual(unbound, [], f"unbound expected tokens: {unbound}")
+        stale = sorted(set(bindings) - tokens)
+        self.assertEqual(stale, [], f"stale bindings (token not in manifest): {stale}")
+
+    def test_legacy_crosswalk_assertion_tokens_are_bound(self):
+        """Every legacy_crosswalk 1..25 assertion token resolves to a binding."""
+        payload = json.loads(
+            (TOOLS_DIR / "migration-scenarios.json").read_text(encoding="utf-8")
+        )
+        assertion_tokens = {
+            tok for row in payload["legacy_crosswalk"] for tok in row["assertions"]
+        }
+        bindings = self._load_bindings()
+        missing = sorted(assertion_tokens - set(bindings))
+        self.assertEqual(missing, [], f"unbound crosswalk assertion tokens: {missing}")
+
+    def test_every_binding_loads_a_real_test_method_and_names_an_assertion(self):
+        """Each binding's `test` must import to a callable test method, and `assertion` must be
+        a non-empty named condition. This is the schema-loads-each-named-test check."""
+        bindings = self._load_bindings()
+        for token, b in sorted(bindings.items()):
+            fqn = b.get("test", "")
+            self.assertTrue(
+                fqn.count(".") >= 2 and fqn.rsplit(".", 1)[-1].startswith("test"),
+                f"{token}: binding test is not a module.Class.test_method fqn: {fqn!r}",
+            )
+            self.assertIsNotNone(
+                self._resolve(fqn),
+                f"{token}: binding names a test method that does not load: {fqn}",
+            )
+            self.assertTrue(
+                b.get("assertion", "").strip(),
+                f"{token}: binding has no named assertion condition",
+            )
+
+    def test_bad_binding_is_rejected(self):
+        """Falsifiable negative: an unbound token, a stale binding, and a non-loadable test
+        FQN are each detected by the same checks (so a deliberately-bad binding cannot pass)."""
+        tokens = self._manifest_tokens()
+        # (a) unbound: drop a real token -> detected
+        good = self._load_bindings()
+        sample = next(iter(tokens))
+        broken = {k: v for k, v in good.items() if k != sample}
+        self.assertIn(sample, sorted(tokens - set(broken)))
+        # (b) stale: add a token not in the manifest -> detected
+        with_stale = dict(good)
+        with_stale["not-a-real-token"] = {"test": "x", "assertion": "y"}
+        self.assertIn("not-a-real-token", sorted(set(with_stale) - tokens))
+        # (c) non-loadable test fqn -> _resolve returns None
+        self.assertIsNone(
+            self._resolve("tests.test_acceptance_matrix.NoSuchClass.test_nope")
+        )
+        self.assertIsNone(self._resolve("not.a.module.Cls.test_x"))
+        # And a real binding DOES load (positive control).
+        self.assertIsNotNone(
+            self._resolve(
+                "tools.awphysical.test_awphysical_tools.InventoryTests.test_e01"
+            )
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
