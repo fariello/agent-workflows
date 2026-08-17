@@ -4,10 +4,6 @@
 
 Showing the 40 most-recent of 82 Sets; the full manifest is INDEX.json.
 
-## agyrun
-
-- `71ibuy` [executed] 01 executed/20260816-agyrun-01-71ibuy-agy-run-executor-validator.md
-
 ## awphysical
 
 - `rma3j4` [executed] 00 executed/20260810-awphysical-00-rma3j4-physical-aw-hierarchy-and-migration-orchestrator.md
@@ -27,6 +23,11 @@ Showing the 40 most-recent of 82 Sets; the full manifest is INDEX.json.
 - `hnzr8v` [executed] 14 executed/20260816-awphysical-14-hnzr8v-migration-move-not-copy.md
 - `7cvh9t` [executed] 15 executed/20260816-awphysical-15-7cvh9t-fresh-install-aw-target.md
 - `88bnw0` [executed] 16 executed/20260816-awphysical-16-88bnw0-migrate-layout-wizard.md
+- `wvlk84` [pending] 17 pending/20260817-1357-01-assess-bugs-leftover-remove-dataloss.md
+
+## agyrun
+
+- `71ibuy` [executed] 01 executed/20260816-agyrun-01-71ibuy-agy-run-executor-validator.md
 
 ## humanapproval
 

@@ -1680,6 +1680,16 @@
     "status": "not-executed"
   },
   {
+    "date": "2026-08-17",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 17,
+    "path": "pending/20260817-1357-01-assess-bugs-leftover-remove-dataloss.md",
+    "plan_id": "wvlk84",
+    "set_id": "awphysical",
+    "status": "to-review"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",
