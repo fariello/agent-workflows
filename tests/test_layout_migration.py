@@ -546,5 +546,200 @@ class MoveNotCopyTests(unittest.TestCase):
             )
 
 
+class MigrateLayoutWizardTests(unittest.TestCase):
+    """Guided wizard front-end and config/flag overrides (IPD 88bnw0, awphysical Order 16)."""
+
+    def setUp(self):
+        self.tmp_dir = tempfile.mkdtemp()
+        self.repo = Path(self.tmp_dir) / "repo"
+        self.repo.mkdir()
+        for a in (
+            ["init", "-q"],
+            ["config", "user.email", "t@example.com"],
+            ["config", "user.name", "T"],
+            ["config", "commit.gpgsign", "false"],
+        ):
+            subprocess.run(
+                ["git", "-C", str(self.repo), *a], check=True, capture_output=True
+            )
+        self._prev_aw_home = os.environ.get("AW_HOME")
+        self.aw_home = os.path.join(self.tmp_dir, "aw_home")
+        os.makedirs(self.aw_home, exist_ok=True)
+        os.environ["AW_HOME"] = self.aw_home
+        self._orig_cwd = os.getcwd()
+        os.chdir(str(self.repo))
+
+        # A minimal classified corpus: one system-bundle file, one records file.
+        (self.repo / ".agents" / "workflows").mkdir(parents=True)
+        (self.repo / ".agents" / "workflows" / "index.md").write_text(
+            "# w\n", encoding="utf-8"
+        )
+        (self.repo / ".agents" / "plans" / "pending").mkdir(parents=True)
+        (self.repo / ".agents" / "plans" / "pending" / "p.md").write_text(
+            "# p\n", encoding="utf-8"
+        )
+        (self.repo / ".agents" / "README.md").write_text(
+            "# agents readme\n", encoding="utf-8"
+        )
+        subprocess.run(
+            ["git", "-C", str(self.repo), "add", "."], check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "-C", str(self.repo), "commit", "-q", "-m", "seed"],
+            check=True,
+            capture_output=True,
+        )
+
+    def tearDown(self):
+        os.chdir(self._orig_cwd)
+        if self._prev_aw_home is None:
+            os.environ.pop("AW_HOME", None)
+        else:
+            os.environ["AW_HOME"] = self._prev_aw_home
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def test_interactive_wizard_accept_runs_migration_after_confirm(self):
+        # Scripted answers: backend=1 (repository), leftovers=1 (defer), confirm=y
+        from unittest import mock
+        from agent_workflows import cli
+        import io
+
+        with mock.patch("sys.stdin", io.StringIO("1\n1\ny\n")):
+            code = cli.main(["migrate-layout"])
+        self.assertEqual(code, 0)
+        self.assertTrue((self.repo / ".aw/system/workflows/index.md").is_file())
+        self.assertTrue((self.repo / ".aw/records/plans/pending/p.md").is_file())
+        self.assertFalse((self.repo / ".agents/workflows/index.md").exists())
+
+    def test_interactive_wizard_decline_makes_no_mutations(self):
+        # Scripted answers: backend=1 (repository), leftovers=1 (defer), confirm=n
+        from unittest import mock
+        from agent_workflows import cli
+        import io
+
+        with mock.patch("sys.stdin", io.StringIO("1\n1\nn\n")):
+            code = cli.main(["migrate-layout"])
+        self.assertEqual(code, 1)
+        # Assert NO mutations took place: .aw/ must not exist, .agents files untouched
+        self.assertFalse((self.repo / ".aw").exists())
+        self.assertTrue((self.repo / ".agents/workflows/index.md").is_file())
+        self.assertTrue((self.repo / ".agents/plans/pending/p.md").is_file())
+
+    def test_wizard_action_explicit(self):
+        from unittest import mock
+        from agent_workflows import cli
+        import io
+
+        with mock.patch("sys.stdin", io.StringIO("1\n1\ny\n")):
+            code = cli.main(["migrate-layout", "wizard"])
+        self.assertEqual(code, 0)
+        self.assertTrue((self.repo / ".aw/system/workflows/index.md").is_file())
+
+    def test_config_file_noninteractive(self):
+        from agent_workflows import cli
+
+        cfg_file = self.repo / "mig_config.json"
+        cfg_file.write_text(
+            json.dumps(
+                {
+                    "target_backend": "companion",
+                    "leftovers": "keep",
+                    "confirm": True,
+                }
+            ),
+            encoding="utf-8",
+        )
+        code = cli.main(["migrate-layout", "--config", str(cfg_file)])
+        self.assertEqual(code, 0)
+        self.assertTrue((self.repo / ".aw/system/workflows/index.md").is_file())
+        # Verify companion backend chosen in policy
+        pol_file = self.repo / ".aw/config/config.json"
+        self.assertTrue(pol_file.is_file())
+        pol_data = json.loads(pol_file.read_text(encoding="utf-8"))
+        self.assertEqual(pol_data.get("records_backend"), "companion")
+
+    def test_cli_flags_override_config_file(self):
+        from agent_workflows import cli
+
+        cfg_file = self.repo / "mig_config.json"
+        cfg_file.write_text(
+            json.dumps(
+                {
+                    "target_backend": "companion",
+                    "leftovers": "keep",
+                    "confirm": True,
+                }
+            ),
+            encoding="utf-8",
+        )
+        # CLI explicitly requests repository backend + remove leftovers
+        code = cli.main(
+            [
+                "migrate-layout",
+                "--config",
+                str(cfg_file),
+                "--target-backend",
+                "repository",
+                "--leftovers",
+                "remove",
+            ]
+        )
+        self.assertEqual(code, 0)
+        pol_file = self.repo / ".aw/config/config.json"
+        pol_data = json.loads(pol_file.read_text(encoding="utf-8"))
+        self.assertEqual(pol_data.get("records_backend"), "repository")
+
+    def test_underspecified_noninteractive_fails_closed(self):
+        from unittest import mock
+        from agent_workflows import cli
+
+        # Non-interactive (isatty is False) and no --yes/--confirm
+        with mock.patch("sys.stdin.isatty", return_value=False):
+            code = cli.main(["migrate-layout"])
+        self.assertEqual(code, 1)
+        self.assertFalse((self.repo / ".aw").exists())
+
+    def test_yes_without_leftovers_remove_does_not_delete_leftovers(self):
+        from agent_workflows import cli
+
+        code = cli.main(["migrate-layout", "--yes"])
+        self.assertEqual(code, 0)
+        tx_path = (
+            self.repo / ".aw/state/runtime/transactions/migration_transaction.json"
+        )
+        self.assertTrue(tx_path.is_file())
+        tx_data = json.loads(tx_path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            tx_data.get("leftover_disposition", {}).get("disposition"), "defer"
+        )
+
+    def test_invalid_config_file_fails(self):
+        from agent_workflows import cli
+
+        code = cli.main(
+            ["migrate-layout", "--config", str(self.repo / "nonexistent.json")]
+        )
+        self.assertEqual(code, 1)
+
+        bad_cfg = self.repo / "bad.json"
+        bad_cfg.write_text("{not valid json", encoding="utf-8")
+        code2 = cli.main(["migrate-layout", "--config", str(bad_cfg)])
+        self.assertEqual(code2, 1)
+
+    def test_confirm_gate_mutation_probe(self):
+        """Mutation probe: removing the confirmation gate would execute migration when declined."""
+        from unittest import mock
+        from agent_workflows import cli
+        import io
+
+        # Declined run: must NOT create .aw/
+        with mock.patch("sys.stdin", io.StringIO("1\n1\nn\n")):
+            cli.main(["migrate-layout"])
+        self.assertFalse(
+            (self.repo / ".aw").exists(),
+            "probe: layout was mutated despite user answering 'n' at confirm step",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -710,5 +710,55 @@ class Order15CliTests(CliTestBase):
         self.assertTrue((repo / ".aw" / "system" / "VERSION").is_file())
 
 
+class Order16MigrateLayoutCliTests(CliTestBase):
+    """Order 16 (awphysical-16-88bnw0): CLI migrate-layout wizard and --config overrides."""
+
+    def test_migrate_layout_help_lists_config_and_wizard(self):
+        import argparse
+
+        parser = cli._build_parser()
+        sub_action = next(
+            a for a in parser._actions if isinstance(a, argparse._SubParsersAction)
+        )
+        text = sub_action.choices["migrate-layout"].format_help()
+        self.assertIn("--config", text)
+        self.assertIn("wizard", text)
+
+    def test_migrate_layout_noninteractive_requires_confirmation(self):
+        repo = self._repo("mig_target")
+        (repo / ".agents" / "workflows").mkdir(parents=True)
+        (repo / ".agents" / "workflows" / "index.md").write_text(
+            "# w\n", encoding="utf-8"
+        )
+        orig_cwd = os.getcwd()
+        os.chdir(str(repo))
+        try:
+            from unittest import mock
+
+            with mock.patch("sys.stdin.isatty", return_value=False):
+                code, out = _run(["migrate-layout"])
+            self.assertEqual(code, 1)
+            self.assertIn("Non-interactive", out)
+            self.assertFalse((repo / ".aw").exists())
+        finally:
+            os.chdir(orig_cwd)
+
+    def test_migrate_layout_noninteractive_yes(self):
+        repo = self._repo("mig_target_yes")
+        (repo / ".agents" / "workflows").mkdir(parents=True)
+        (repo / ".agents" / "workflows" / "index.md").write_text(
+            "# w\n", encoding="utf-8"
+        )
+        orig_cwd = os.getcwd()
+        os.chdir(str(repo))
+        try:
+            code, out = _run(["migrate-layout", "--yes"])
+            self.assertEqual(code, 0)
+            self.assertTrue((repo / ".aw/system/workflows/index.md").is_file())
+            self.assertFalse((repo / ".agents/workflows/index.md").exists())
+        finally:
+            os.chdir(orig_cwd)
+
+
 if __name__ == "__main__":
     unittest.main()

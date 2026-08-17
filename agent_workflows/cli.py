@@ -1284,15 +1284,21 @@ def _build_parser() -> argparse.ArgumentParser:
             "resume",
             "rollback",
             "cleanup",
+            "wizard",
         ],
         default=None,
-        help="Action to perform: inventory, plan, apply, status, resume, rollback, cleanup.",
+        help="Action to perform: inventory, plan, apply, status, resume, rollback, cleanup, wizard.",
+    )
+    p_migrate.add_argument(
+        "--config",
+        default=None,
+        help="Path to JSON configuration file providing answers for non-interactive migration.",
     )
     p_migrate.add_argument(
         "--target-backend",
         choices=["home", "companion", "repository"],
-        default="repository",
-        help="Target records storage backend.",
+        default=None,
+        help="Target records storage backend (default: repository).",
     )
     p_migrate.add_argument(
         "--root",
@@ -1325,13 +1331,19 @@ def _build_parser() -> argparse.ArgumentParser:
     p_migrate.add_argument(
         "--leftovers",
         choices=["keep", "remove", "defer"],
-        default="defer",
+        default=None,
         help="Disposition for legacy material NOT moved by the migration: keep (leave in "
         "place), remove (delete), or defer (record for a later cleanup; the default). Never "
         "deletes without an explicit 'remove'.",
     )
     p_migrate.add_argument(
         "--json", action="store_true", help="Output migration plan as JSON."
+    )
+    p_migrate.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Non-interactive; auto-confirm all prompts (leftovers defaults to defer).",
     )
 
     p_attention = sub.add_parser(
@@ -3534,6 +3546,8 @@ def _run_action_history(args: argparse.Namespace, term: Term) -> int:
 def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
     import json
     import os
+    import sys
+    import io
     from pathlib import Path
     from tools.awphysical import aw_layout_inventory as inv_mod
     from agent_workflows.layout_migration import MigrationManager, MigrationError
@@ -3543,9 +3557,96 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
     output = getattr(args, "output", None)
     json_out = getattr(args, "json", False)
 
+    # 1. Parse --config file if supplied (JSON only per OQ-01 / spec S13)
+    config_backend = None
+    config_leftovers = None
+    config_roots: list[str] = []
+    config_confirm = None
+
+    config_path = getattr(args, "config", None)
+    if config_path:
+        cp = Path(config_path).expanduser().resolve()
+        if not cp.is_file():
+            term.status("fail", f"Config file not found: {config_path}")
+            return 1
+        try:
+            config_data = json.loads(cp.read_text(encoding="utf-8"))
+        except Exception as exc:
+            term.status("fail", f"Invalid JSON in config file {config_path}: {exc}")
+            return 1
+        if not isinstance(config_data, dict):
+            term.status(
+                "fail", f"Config file must contain a JSON object: {config_path}"
+            )
+            return 1
+
+        raw_b = (
+            config_data.get("target_backend")
+            or config_data.get("target-backend")
+            or config_data.get("backend")
+        )
+        if raw_b:
+            raw_b_str = str(raw_b).strip().lower()
+            preset_backend_map = {
+                "private-target": "repository",
+                "public-private-companion": "companion",
+                "clean-target": "home",
+                "local-only": "home",
+                "repository": "repository",
+                "companion": "companion",
+                "home": "home",
+            }
+            if raw_b_str not in preset_backend_map:
+                term.status("fail", f"Invalid target_backend in config: {raw_b}")
+                return 1
+            config_backend = preset_backend_map[raw_b_str]
+
+        raw_l = (
+            config_data.get("leftovers")
+            or config_data.get("leftover_disposition")
+            or config_data.get("leftovers_disposition")
+        )
+        if raw_l:
+            raw_l_str = str(raw_l).strip().lower()
+            if raw_l_str not in ("keep", "remove", "defer"):
+                term.status("fail", f"Invalid leftovers in config: {raw_l}")
+                return 1
+            config_leftovers = raw_l_str
+
+        raw_r = config_data.get("roots") or config_data.get("root")
+        if raw_r:
+            if isinstance(raw_r, str):
+                config_roots = [raw_r]
+            elif isinstance(raw_r, list):
+                config_roots = [str(item) for item in raw_r]
+
+        raw_c = config_data.get("confirm")
+        if raw_c is None:
+            raw_c = config_data.get("yes")
+        if raw_c is not None:
+            config_confirm = bool(raw_c)
+
+    # 2. Formal precedence: explicit CLI flags OVERRIDE --config keys OVERRIDE defaults
+    cli_backend = getattr(args, "target_backend", None)
+    selected_backend = cli_backend or config_backend or "repository"
+
+    cli_leftovers = getattr(args, "leftovers", None)
+    selected_leftovers = cli_leftovers or config_leftovers or "defer"
+
+    cli_roots = list(getattr(args, "root", []) or [])
+    all_roots = cli_roots + config_roots
+
+    cli_confirm = (
+        getattr(args, "confirm", False)
+        or getattr(args, "yes", False)
+        or getattr(args, "apply", False)
+    )
+    resolved_confirm = bool(cli_confirm or (config_confirm is True))
+
+    # 3. Explicit sub-actions (inventory, status, resume, rollback, cleanup)
     if action == "inventory":
         roots = inv_mod._default_roots(repo_path)
-        for r_arg in getattr(args, "root", []):
+        for r_arg in all_roots:
             roots.append(inv_mod.parse_root(r_arg, repo_path))
         inv_res = inv_mod.inventory(
             repo_path, roots, include_paths=getattr(args, "include_root_paths", False)
@@ -3565,7 +3666,6 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
 
     mgr = MigrationManager(target_repo=str(repo_path))
     fault_inj = getattr(args, "fault_injection", None)
-    confirm = getattr(args, "confirm", False)
 
     if action == "status":
         st = mgr.status_migration()
@@ -3614,7 +3714,9 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
 
     if action == "cleanup":
         try:
-            res = mgr.cleanup_migration(confirm=confirm, fault_injection=fault_inj)
+            res = mgr.cleanup_migration(
+                confirm=resolved_confirm, fault_injection=fault_inj
+            )
             if json_out:
                 print(json.dumps(res, indent=2))
             elif res.get("status") == "preview":
@@ -3639,28 +3741,17 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
                 term.status("fail", str(exc))
             return 1
 
-    # Preview (non-mutating) path selection. `--dry-run` ALWAYS forces preview, even when the
-    # positional action is `apply` (`apply --dry-run` must never mutate); `plan` is always
-    # preview; and a bare invocation (no action, no `--apply`) previews. Only an explicit
-    # `apply`/`--apply` WITHOUT `--dry-run` reaches execute_migration below. The previous
-    # condition ANDed `action != "apply"` into the dry-run branch, so `apply --dry-run` fell
-    # through and mutated for real (regression: dry-run performed the migration).
+    # 4. Preview / dry-run path selection: plan action or explicit --dry-run
     dry_run_requested = getattr(args, "dry_run", False)
-    apply_requested = getattr(args, "apply", False) or action == "apply"
-    if (
-        action == "plan"
-        or dry_run_requested
-        or (action is None and not apply_requested)
-    ):
+    if action == "plan" or dry_run_requested:
         roots = inv_mod._default_roots(repo_path)
-        for r_arg in getattr(args, "root", []):
+        for r_arg in all_roots:
             roots.append(inv_mod.parse_root(r_arg, repo_path))
         inv_res = inv_mod.inventory(
             repo_path, roots, include_paths=getattr(args, "include_root_paths", False)
         )
-        target_backend = getattr(args, "target_backend", "repository")
         map_res = inv_mod.build_migration_map(
-            repo_path, inv_res, target_backend=target_backend
+            repo_path, inv_res, target_backend=selected_backend
         )
         risk_res = inv_mod.analyze_migration_risks(repo_path, inv_res, map_res)
         plan_doc = {
@@ -3678,7 +3769,7 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
             print(json.dumps(plan_doc, indent=2, sort_keys=True))
         else:
             term.heading("AW Layout Migration Plan")
-            term.status("info", f"Target Backend: {target_backend}")
+            term.status("info", f"Target Backend: {selected_backend}")
             term.status("info", f"Total Items:    {risk_res['item_counts']['total']}")
             term.status("info", f"Total Bytes:    {risk_res['total_bytes']}")
             term.status(
@@ -3687,13 +3778,168 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
             )
         return 0 if plan_doc["valid"] else 2
 
-    target_backend = getattr(args, "target_backend", "repository")
+    # 5. Direct apply sub-action (action == "apply")
+    if action == "apply":
+        try:
+            mgr.execute_migration(
+                target_backend=selected_backend,
+                dry_run=False,
+                fault_injection=fault_inj,
+                leftover_disposition=selected_leftovers,
+            )
+        except MigrationError as exc:
+            if json_out:
+                print(json.dumps({"error": str(exc)}, indent=2))
+            else:
+                term.status("fail", str(exc))
+            return 1
+        term.status("ok", "Successfully executed layout migration.")
+        return 0
+
+    # 6. Default Wizard flow (action is None or action == "wizard")
+    is_interactive = not resolved_confirm and (
+        (hasattr(sys.stdin, "isatty") and sys.stdin.isatty())
+        or isinstance(sys.stdin, io.StringIO)
+    )
+
+    if is_interactive:
+        # Step 1: Read-only inventory and plan preview
+        roots = inv_mod._default_roots(repo_path)
+        for r_arg in all_roots:
+            roots.append(inv_mod.parse_root(r_arg, repo_path))
+        inv_res = inv_mod.inventory(
+            repo_path, roots, include_paths=getattr(args, "include_root_paths", False)
+        )
+        map_res = inv_mod.build_migration_map(
+            repo_path, inv_res, target_backend=selected_backend
+        )
+        risk_res = inv_mod.analyze_migration_risks(repo_path, inv_res, map_res)
+        total_items = risk_res["item_counts"]["total"]
+        total_bytes = risk_res["total_bytes"]
+
+        term.heading("AW Layout Migration Wizard")
+        term.status(
+            "info",
+            f"Found {total_items} legacy item(s) to migrate ({total_bytes} bytes).",
+        )
+
+        # Step 2: Destination / backend choice (reuse install_wizard backend choices)
+        term.line()
+        term.line("Select records destination/backend:")
+        term.line(
+            "  [1] repository (RECOMMENDED): Target repository carries records (.aw/records). Best for private repos."
+        )
+        term.line("  [2] companion: Store records in a private companion repository.")
+        term.line(
+            "  [3] home: Store records in AW home directory (~/.aw/records). Zero records in target repo."
+        )
+        default_b_choice = (
+            "1"
+            if selected_backend == "repository"
+            else ("2" if selected_backend == "companion" else "3")
+        )
+        try:
+            b_choice = input(f"Select backend [{default_b_choice}]: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            b_choice = default_b_choice
+        if not b_choice:
+            b_choice = default_b_choice
+        backend_map = {
+            "1": "repository",
+            "2": "companion",
+            "3": "home",
+            "repository": "repository",
+            "companion": "companion",
+            "home": "home",
+            "private-target": "repository",
+            "public-private-companion": "companion",
+            "clean-target": "home",
+            "local-only": "home",
+        }
+        selected_backend = backend_map.get(b_choice.lower(), selected_backend)
+
+        # Step 3: Leftover disposition
+        term.line()
+        term.line(
+            "Post-move leftover disposition (legacy material not moved by migration):"
+        )
+        term.line(
+            "  [1] defer (RECOMMENDED): Record leftover files for later cleanup without deleting now"
+        )
+        term.line("  [2] keep: Keep leftover legacy files in place without recording")
+        term.line("  [3] remove: Permanently delete leftover legacy files after move")
+        default_l_choice = (
+            "1"
+            if selected_leftovers == "defer"
+            else ("2" if selected_leftovers == "keep" else "3")
+        )
+        try:
+            l_choice = input(f"Select disposition [{default_l_choice}]: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            l_choice = default_l_choice
+        if not l_choice:
+            l_choice = default_l_choice
+        leftovers_map = {
+            "1": "defer",
+            "2": "keep",
+            "3": "remove",
+            "defer": "defer",
+            "keep": "keep",
+            "remove": "remove",
+        }
+        selected_leftovers = leftovers_map.get(l_choice.lower(), selected_leftovers)
+
+        # Step 4: Final Pre-write Preview & Confirmation
+        term.line()
+        term.heading("Migration Plan Preview")
+        term.status("info", f"Target Backend:        {selected_backend}")
+        term.status("info", f"Leftover Disposition:  {selected_leftovers}")
+        term.status("info", f"Total Items to Move:   {total_items}")
+        term.status("info", f"Total Bytes:           {total_bytes}")
+        term.line()
+
+        try:
+            conf = (
+                input("Confirm and execute layout migration? [y/N]: ").strip().lower()
+            )
+        except (EOFError, KeyboardInterrupt):
+            conf = "n"
+
+        if conf not in ("y", "yes"):
+            term.status("skip", "Migration cancelled; nothing changed.")
+            return 1
+
+        # Step 5: Execute Migration (move-based apply)
+        try:
+            mgr.execute_migration(
+                target_backend=selected_backend,
+                dry_run=False,
+                fault_injection=fault_inj,
+                leftover_disposition=selected_leftovers,
+            )
+        except MigrationError as exc:
+            if json_out:
+                print(json.dumps({"error": str(exc)}, indent=2))
+            else:
+                term.status("fail", str(exc))
+            return 1
+        term.status("ok", "Successfully executed layout migration.")
+        return 0
+
+    # Non-interactive execution: Fail-closed if confirmation is missing
+    if not resolved_confirm:
+        term.status(
+            "fail",
+            "Non-interactive migration requires explicit confirmation (--yes or --confirm).",
+        )
+        return 1
+
     try:
         mgr.execute_migration(
-            target_backend=target_backend,
+            target_backend=selected_backend,
             dry_run=False,
             fault_injection=fault_inj,
-            leftover_disposition=getattr(args, "leftovers", "defer"),
+            leftover_disposition=selected_leftovers,
         )
     except MigrationError as exc:
         if json_out:
@@ -3701,7 +3947,6 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
         else:
             term.status("fail", str(exc))
         return 1
-
     term.status("ok", "Successfully executed layout migration.")
     return 0
 
