@@ -26,7 +26,7 @@ Showing the 40 most-recent of 82 Sets; the full manifest is INDEX.json.
 - `xzuxet` [pending] 13 pending/20260816-awphysical-13-xzuxet-awsystem-nested-layout-reconciliation.md
 - `hnzr8v` [executed] 14 executed/20260816-awphysical-14-hnzr8v-migration-move-not-copy.md
 - `7cvh9t` [executed] 15 executed/20260816-awphysical-15-7cvh9t-fresh-install-aw-target.md
-- `88bnw0` [pending] 16 pending/20260816-awphysical-16-88bnw0-migrate-layout-wizard.md
+- `88bnw0` [executed] 16 executed/20260816-awphysical-16-88bnw0-migrate-layout-wizard.md
 
 ## humanapproval
 
