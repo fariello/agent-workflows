@@ -1710,6 +1710,46 @@
     "status": "approved"
   },
   {
+    "date": "2026-08-17",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260817-1620-02-awretrofit-shipped-docs-and-agents-md.md",
+    "plan_id": "ckvg3n",
+    "set_id": "awretrofit",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-17",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260817-1620-03-awretrofit-release-mechanics.md",
+    "plan_id": "giiowo",
+    "set_id": "awretrofit",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-17",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 4,
+    "path": "pending/20260817-1620-04-awretrofit-install-uninstall-migration-safety.md",
+    "plan_id": "y5zxql",
+    "set_id": "awretrofit",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-17",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 5,
+    "path": "pending/20260817-1620-05-awretrofit-help-docstrings-manifest-deadcode.md",
+    "plan_id": "euqxi3",
+    "set_id": "awretrofit",
+    "status": "to-review"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",

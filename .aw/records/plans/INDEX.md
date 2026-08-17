@@ -29,6 +29,10 @@ Showing the 40 most-recent of 83 Sets; the full manifest is INDEX.json.
 
 - `pp6y76` [pending] 00 pending/20260817-1620-00-awretrofit-orchestrator.md
 - `i7um6r` [executed] 01 executed/20260817-1620-01-awretrofit-record-verbs-layout-aware.md
+- `ckvg3n` [pending] 02 pending/20260817-1620-02-awretrofit-shipped-docs-and-agents-md.md
+- `giiowo` [pending] 03 pending/20260817-1620-03-awretrofit-release-mechanics.md
+- `y5zxql` [pending] 04 pending/20260817-1620-04-awretrofit-install-uninstall-migration-safety.md
+- `euqxi3` [pending] 05 pending/20260817-1620-05-awretrofit-help-docstrings-manifest-deadcode.md
 
 ## agyrun
 
