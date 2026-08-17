@@ -1660,6 +1660,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-17",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 17,
+    "path": "executed/20260817-1357-01-assess-bugs-leftover-remove-dataloss.md",
+    "plan_id": "wvlk84",
+    "set_id": "awphysical",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -1678,16 +1688,6 @@
     "plan_id": "lud5t5",
     "set_id": "assess-documentation",
     "status": "not-executed"
-  },
-  {
-    "date": "2026-08-17",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 17,
-    "path": "pending/20260817-1357-01-assess-bugs-leftover-remove-dataloss.md",
-    "plan_id": "wvlk84",
-    "set_id": "awphysical",
-    "status": "reviewed"
   },
   {
     "date": "2026-08-07",

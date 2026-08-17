@@ -23,7 +23,7 @@ Showing the 40 most-recent of 82 Sets; the full manifest is INDEX.json.
 - `hnzr8v` [executed] 14 executed/20260816-awphysical-14-hnzr8v-migration-move-not-copy.md
 - `7cvh9t` [executed] 15 executed/20260816-awphysical-15-7cvh9t-fresh-install-aw-target.md
 - `88bnw0` [executed] 16 executed/20260816-awphysical-16-88bnw0-migrate-layout-wizard.md
-- `wvlk84` [pending] 17 pending/20260817-1357-01-assess-bugs-leftover-remove-dataloss.md
+- `wvlk84` [executed] 17 executed/20260817-1357-01-assess-bugs-leftover-remove-dataloss.md
 
 ## agyrun
 
