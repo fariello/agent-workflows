@@ -33,6 +33,7 @@ Showing the 40 most-recent of 83 Sets; the full manifest is INDEX.json.
 - `giiowo` [pending] 03 pending/20260817-1620-03-awretrofit-release-mechanics.md
 - `y5zxql` [pending] 04 pending/20260817-1620-04-awretrofit-install-uninstall-migration-safety.md
 - `euqxi3` [pending] 05 pending/20260817-1620-05-awretrofit-help-docstrings-manifest-deadcode.md
+- `uh295u` [pending] 06 pending/20260817-1620-06-awretrofit-cwd-climb-project-root.md
 
 ## agyrun
 

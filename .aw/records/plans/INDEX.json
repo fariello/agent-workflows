@@ -1750,6 +1750,16 @@
     "status": "to-review"
   },
   {
+    "date": "2026-08-17",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 6,
+    "path": "pending/20260817-1620-06-awretrofit-cwd-climb-project-root.md",
+    "plan_id": "uh295u",
+    "set_id": "awretrofit",
+    "status": "to-review"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",
