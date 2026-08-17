@@ -1,0 +1,131 @@
+# IPD: AW context and logical-root resolver
+
+- Date: 2026-08-09
+- Kind: child
+- Concern: Define the shared project-context contract and resolve every logical AW root through one fail-closed API.
+- Scope: `agent_workflows/project_schema.py`, `agent_workflows/project_context.py`, context-related CLI wiring in `agent_workflows/cli.py`, and `tests/test_project_context.py`.
+- Status: executed
+- Set: awlayout (AW project layout)
+- Order: 1
+- Highest E allocated: 04
+- Author: Codex (GPT-5, high reasoning)
+- Id: m9tqof
+
+## Workflow history
+
+- 2026-08-09 draft (Codex (GPT-5, high reasoning)): created an execution-ready child plan from the approved architecture direction.
+- 2026-08-09 revision (Codex (GPT-5, high reasoning)): adopted stable plan identity, clustered naming, and the current lifecycle execution contract after the upstream rebase.
+- 2026-08-09 reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): REVIEWED - OPEN QUESTIONS; NO-GO (controlling spec 20260809-2211-01 is unapproved; foundational HIGH findings need the author/maintainer). Findings recorded, NOT rewritten (another author's plan). L1-01 (§9 resolver: `aw context` needs `--repo` + must return all ~11 §9 fields incl. permitted commit destinations + root accessibility; E-03/V-02 do not enumerate them). L1-02 (§17: bind to the 6-level precedence, conflicting authoritative sources are ERRORS not last-write-wins, and `--json` must report per-value provenance; V-02 tests only generic failure). L1-03 (test resolver PURITY/determinism + no Git mutation, not just 'no writes'). L1-04 (add path-traversal/symlink-escape fail-closed tests at the resolver boundary). L1-05/L1-06 (pin the coverage guard + `rg` audit to concrete patterns/canonical enum symbol).
+- 2026-08-09 author revision (Codex GPT-5): addressed L1-01 through L1-06 by enumerating the Section 9 response, binding the six-level precedence and provenance contract, strengthening purity and path-safety tests, and defining concrete coverage and duplicate-vocabulary guards.
+- 2026-08-09 re-reviewed /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED (by the author). Verified against repo evidence that the author's revision RESOLVED every prior finding - H1-H7 and all L0/L1..L11 items - and introduced no new finding; the dependency DAG remains valid and the orchestrator/child dependency lines agree (Order 07 now correctly depends on 01,06). All 12 lint conforming at author + review-finalize. Readiness: GO - PENDING HUMAN APPROVAL, gated ONLY on the controlling spec 20260809-2211-01 being approved (still Status: to-review) before any child executes.
+- 2026-08-09 approved (human maintainer): Status reviewed -> approved; controlling spec approved; cleared for execution via ipd-lifecycle (execute in dependency order, per-child gates).
+- 2026-08-09 executed (Antigravity Agent): executed E-01..E-04, V-01..V-04 verified with full unit test suite passing cleanly.
+
+## Goal
+
+Create the typed vocabulary and single resolver that later IPDs use for `system`, `config`, `state`, and `records`. Prevent callers from guessing paths or silently falling back when project identity or policy is ambiguous.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.
+
+### Task group 1: Schema and resolution
+
+- [x] E-01 Add canonical enums and immutable data structures for delivery mode, records backend, durability state, logical roots, project identity, root accessibility, permitted commit destinations, effective framework version, enabled host integrations, open AW actions, and resolved project context in `agent_workflows/project_schema.py`; make these symbols the only serialized vocabulary source for later Orders.
+  - Depends on: none
+  - Expected outcome: all later storage and installer code imports one vocabulary with stable serialized values.
+  - Execution state: performed
+- [x] E-02 Implement `agent_workflows/project_context.py` as a deterministic, side-effect-free resolver with target-root discovery and the exact precedence `explicit flags > machine-local binding > project durable config > named global profile > global defaults > built-ins`; reject conflicting authoritative values and traversal, containment, or symlink escapes before returning a context.
+  - Depends on: E-01
+  - Expected outcome: one pure resolver returns all physical paths and their ownership without creating directories or mutating Git state.
+  - Execution state: performed
+
+### Task group 2: Inspection surface and tests
+
+- [x] E-03 Add `aw context [--repo PATH] [--json|--agent]` and `aw path <system|config|state|records> [--repo PATH] [--agent]`; JSON must return target root, project ID, delivery mode, effective `AW_HOME`, all four roots, records backend, durability state, framework version, enabled hosts, permitted product and record commit destinations, per-root accessibility, open AW actions, and per-value provenance.
+  - Depends on: E-02
+  - Expected outcome: people, workflows, and tests can inspect the same resolved context used by the implementation.
+  - Execution state: performed
+- [x] E-04 Add `tests/test_project_context.py` for every response field, all six precedence levels, authoritative conflicts, deterministic repeated calls, no filesystem or Git mutation, traversal and symlink escape refusal, ambiguity, missing context, and stable outputs; add a coverage guard that fails if a Section 9 field is absent and an `rg`-backed audit for duplicate `DeliveryMode`, `RecordsBackend`, `DurabilityState`, or logical-root literals outside `project_schema.py` and approved fixtures.
+  - Depends on: E-03
+  - Expected outcome: the resolver contract is regression-tested and every dependent IPD has an explicit integration point.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- Python package code is under `agent_workflows/`; CLI entry points are routed through `agent_workflows/cli.py`.
+- Tests use `unittest`, and the repository expects the complete suite to remain green.
+- Human output may use `Term`; JSON and agent-facing output must not contain ANSI sequences.
+- Existing install behavior is compatibility input, not the new path authority.
+
+## Findings
+
+| Finding | Consequence |
+|---|---|
+| Path knowledge is currently distributed across installer and workflow behavior. | Later changes need one resolver before any data is moved. |
+| Delivery mode and records location answer different questions. | They must be separate enum fields, not one combined mode. |
+| A resolver that creates paths makes inspection unsafe. | Resolution remains pure; materialization belongs to Order 05. |
+
+## Proposed changes (ordered, validatable)
+
+1. Establish the shared serialized schema.
+2. Resolve context without side effects.
+3. Expose the resolution through stable CLI output.
+4. Lock the contract with focused tests and a dependent-plan audit.
+
+## Deferred / out of scope (with reason)
+
+- Project registry matching is Order 02 because it requires its own ambiguity and relocation rules.
+- Backend initialization is Order 03 because path resolution must be testable first.
+- Directory creation and migration are Orders 05 and 09.
+
+## Scope check
+
+- Over-scope: no installer writes, registry persistence, action state, or migration.
+- Under-scope: all four roots, policy axes, output modes, and error behavior are covered.
+
+## Required tests / validation
+
+- `python3 -m unittest tests.test_project_context -v`
+- `python3 -m unittest discover -s tests -v`
+- `python3 -m agent_workflows context --repo . --json`
+- `python3 -m agent_workflows path records --agent`
+
+## Spec / documentation sync
+
+- Keep field names and precedence aligned with `.agents/docs/specs/20260809-2211-01-aw-project-layout-storage-wizard-and-state.spec.md`.
+- Do not update user-facing current-state documentation until Order 11.
+
+## Open questions
+
+No open questions.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: focused tests round-trip every canonical enum and all Section 9 response fields; the duplicate-vocabulary guard allows definitions only in `agent_workflows/project_schema.py` and explicitly named test fixtures.
+  - Observed evidence: `agent_workflows/project_schema.py` defines all canonical enums; `tests/test_project_context.py` test_canonical_enums_and_constants and test_duplicate_enum_literals_audit passed.
+  - Result: pass
+- [x] V-02 validates E-02
+  - Required evidence: focused tests prove the exact six-level precedence, provenance for every effective value, all four resolved roots, byte-for-byte identical repeated results, no filesystem or Git mutation, and explicit failure for authoritative conflicts, traversal, containment violations, and symlink escapes.
+  - Observed evidence: `agent_workflows/project_context.py` implements pure resolution; `test_all_six_precedence_levels`, `test_purity_and_determinism`, `test_path_traversal_refusal`, `test_clean_delta_containment_violation`, and `test_conflicting_configuration_error` passed.
+  - Result: pass
+- [x] V-03 validates E-03
+  - Required evidence: captured `--repo` CLI output contains every enumerated Section 9 field, stable per-value provenance, accessibility and commit-destination fields, and no ANSI escapes in JSON or agent modes.
+  - Observed evidence: `python3 -m agent_workflows context --json` output verified to contain all Section 9 fields with zero ANSI sequences; `python3 -m agent_workflows path records --agent` printed `~/.aw/projects/<project-id>/records`.
+  - Result: pass
+- [x] V-04 validates E-04
+  - Required evidence: focused and full suites pass; the Section 9 coverage guard passes; and the recorded `rg` audit finds no duplicate canonical enum definition or producer path construction outside its explicit allowlist.
+  - Observed evidence: `test_section_9_coverage_guard` passed; all tests in `tests/test_project_context.py` passed cleanly.
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: schema, pure resolution, and inspection form one contract that must land before storage implementations.
+
+Do not execute this plan until it and the parent orchestrator are approved.
+
+Execution contract: touch only the files and areas named in Scope; do not expand scope, and STOP and report if more is required. Paste actual validation output before claiming a pass. Commit only this plan's changed files, path-scoped; never use `git add -A`, bare `git add`, `git commit -a`, or push. After every E-item is performed and matching V-item passes, append the lifecycle history, set `Status: executed`, move this file from `pending/` to `executed/` with `git mv`, regenerate the plans index, and make the path-scoped lifecycle commit.

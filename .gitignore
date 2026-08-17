@@ -51,6 +51,26 @@ opencode-recovery/
 # agent-workflows working material (local-only; may contain sensitive local context, home paths, or session detail; do not commit)
 workflow-artifacts/
 
+# Physical .aw/ hierarchy (spec 20260810-1447-01): runtime state and per-machine local config
+# are NEVER tracked. .aw/state/ holds runtime scratch, migration transaction journals/receipts,
+# and relocated installer-backup snapshots, all of which carry absolute machine paths and session
+# detail (D92); .aw/config/local.json is per-machine local overrides. The tracked .aw content
+# (the .aw/system/ bundle, the .agents-derived records, .aw/config/config.json + allowlist +
+# example) is added explicitly and path-scoped, never via a blanket `git add`.
+.aw/state/
+.aw/config/local.json
+
+# The workflow-artifacts/ run scratch (release-review/assess/advise/verify run records) is
+# gitignored at its legacy path above because it holds local context, home paths, and session
+# detail (D92). The physical-.aw migration MOVES it into these .aw/records/ subtrees, which MUST
+# stay untracked for the same reason (spec 20260810-1447-01). The .agents-derived records (plans,
+# docs, backlog, comms, prompts) remain tracked.
+.aw/records/release-review/
+.aw/records/verify/
+.aw/records/verify-execution/
+.aw/records/assess-*/
+.aw/records/advise-*/
+
 # <!-- aw:block -->
 # <!-- aw:untracked -->
 # --- Deliberately-untracked local artifacts (DO NOT REMOVE these patterns) ---

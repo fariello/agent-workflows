@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/opencode-peer-message.schema.json",
+  "title": "OpenCode Peer Task Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "message_type",
+    "task_id",
+    "correlation_id",
+    "idempotency_key",
+    "sender",
+    "target",
+    "issued_at",
+    "expires_at",
+    "nonce",
+    "requested_action",
+    "scope",
+    "body",
+    "auth"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "message_type": {
+      "enum": [
+        "task.request",
+        "task.result",
+        "task.cancel",
+        "task.ack"
+      ]
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^tsk_[A-Za-z0-9_-]+$"
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 256
+    },
+    "sender": {
+      "$ref": "#/$defs/principal"
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "principal_id",
+        "project_id"
+      ],
+      "properties": {
+        "principal_id": {
+          "type": "string"
+        },
+        "instance_id": {
+          "type": "string"
+        },
+        "project_id": {
+          "type": "string"
+        },
+        "worktree": {
+          "type": "string"
+        }
+      }
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "nonce": {
+      "type": "string",
+      "minLength": 24,
+      "maxLength": 256
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "requested_action": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.-]{1,63}$"
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read_roots",
+        "write_roots",
+        "network",
+        "shell",
+        "delegate"
+      ],
+      "properties": {
+        "read_roots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64
+        },
+        "write_roots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64
+        },
+        "network": {
+          "type": "boolean"
+        },
+        "shell": {
+          "type": "boolean"
+        },
+        "delegate": {
+          "type": "boolean"
+        }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "risk": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        }
+      }
+    },
+    "body": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "content_type",
+        "text"
+      ],
+      "properties": {
+        "content_type": {
+          "const": "text/markdown"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 131072
+        }
+      }
+    },
+    "attachments": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object"
+      }
+    },
+    "reply_to": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "auth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "key_id",
+        "signature"
+      ],
+      "properties": {
+        "algorithm": {
+          "enum": [
+            "HMAC-SHA256",
+            "Ed25519"
+          ]
+        },
+        "key_id": {
+          "type": "string"
+        },
+        "signature": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "principal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "principal_id",
+        "instance_id"
+      ],
+      "properties": {
+        "principal_id": {
+          "type": "string"
+        },
+        "instance_id": {
+          "type": "string"
+        },
+        "user_id": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

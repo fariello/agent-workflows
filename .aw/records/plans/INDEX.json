@@ -1,0 +1,1692 @@
+[
+  {
+    "date": "2026-07-23 (fleshed 2026-07-26 from research)",
+    "disposition": "executed",
+    "kind": null,
+    "order": 7,
+    "path": "executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.md",
+    "plan_id": "qrokie",
+    "set_id": "instsafe",
+    "status": "executed"
+  },
+  {
+    "date": "2026-06-30",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260630-assess-documentation-00-7ibobm-assess-documentation.md",
+    "plan_id": "7ibobm",
+    "set_id": "assess-documentation",
+    "status": "EXECUTED (approved by maintainer 2026-06-30; all steps applied and validated)"
+  },
+  {
+    "date": "2026-07-01",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260701-add-generalization-00-rin79g-add-generalization-assess-lens.md",
+    "plan_id": "rin79g",
+    "set_id": "add-generalization",
+    "status": "EXECUTED (approved by maintainer 2026-07-01; slug \"generalization\" confirmed; all steps applied and validated)"
+  },
+  {
+    "date": "2026-07-01",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260701-installer-ignore-00-5c6bkj-installer-ignore-pyc-and-gitignore-backups.md",
+    "plan_id": "5c6bkj",
+    "set_id": "installer-ignore",
+    "status": "EXECUTED (approved 2026-07-01; all steps applied and validated on scratch repos + a consuming repo dry-run)"
+  },
+  {
+    "date": "2026-07-01",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260701-installer-update-00-509kn1-installer-update-framework-files-by-default.md",
+    "plan_id": "509kn1",
+    "set_id": "installer-update",
+    "status": "EXECUTED (approved 2026-07-01; --force removed per OQ1; all steps applied and validated)"
+  },
+  {
+    "date": "2026-07-03",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260703-assess-documentation-00-yye9f8-assess-documentation.md",
+    "plan_id": "yye9f8",
+    "set_id": "assess-documentation",
+    "status": "EXECUTED 2026-07-03 (approved by user; reviewed via plan-review). Steps 1-2 applied to release-review/MANIFEST.md and validated (every Files-table row exists; MANIFEST.md now listed; plan-review.md row removed; drift-prone assess enumeration replaced with a pointer to index.md). D3-D5 were already resolved by the README rewrite."
+  },
+  {
+    "date": "2026-07-03",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260703-assess-secrets-00-wxh9go-assess-secrets.md",
+    "plan_id": "wxh9go",
+    "set_id": "assess-secrets",
+    "status": "EXECUTED 2026-07-03 (approved by user; Steps 1-4 done, validated). Cross-checked with `gitleaks detect` over full history: no leaks found."
+  },
+  {
+    "date": "2026-07-04",
+    "disposition": "executed",
+    "kind": null,
+    "order": null,
+    "path": "executed/20260704-advise-workflow-00-d5tz36-advise-workflow-and-personas.md",
+    "plan_id": "d5tz36",
+    "set_id": null,
+    "status": "EXECUTED 2026-07-04. See DECISIONS.md D34."
+  },
+  {
+    "date": "2026-07-04",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260704-assess-documentation-00-g2payb-assess-documentation-2.md",
+    "plan_id": "g2payb",
+    "set_id": "assess-documentation",
+    "status": "EXECUTED 2026-07-04 (approved after plan-review). All 3 steps applied and validated."
+  },
+  {
+    "date": "2026-07-04",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260704-assess-documentation-00-ge2a5r-assess-documentation.md",
+    "plan_id": "ge2a5r",
+    "set_id": "assess-documentation",
+    "status": "EXECUTED 2026-07-04 (approved after plan-review). All 7 steps applied and validated."
+  },
+  {
+    "date": "2026-07-04",
+    "disposition": "executed",
+    "kind": null,
+    "order": null,
+    "path": "executed/20260704-command-surface-00-bl0nph-command-surface-redesign.md",
+    "plan_id": "bl0nph",
+    "set_id": null,
+    "status": "EXECUTED 2026-07-04 (the `/assess` half; `/advise` half deferred to the advise workflow). See DECISIONS.md D31."
+  },
+  {
+    "date": "2026-07-04",
+    "disposition": "executed",
+    "kind": null,
+    "order": null,
+    "path": "executed/20260704-guided-onboarding-00-ksvzgc-guided-onboarding-tour.md",
+    "plan_id": "ksvzgc",
+    "set_id": null,
+    "status": "EXECUTED 2026-07-04. See DECISIONS.md D37."
+  },
+  {
+    "date": "2026-07-04",
+    "disposition": "executed",
+    "kind": null,
+    "order": null,
+    "path": "executed/20260704-lifecycle-workflows-00-i9xi81-lifecycle-workflows.md",
+    "plan_id": "i9xi81",
+    "set_id": null,
+    "status": "EXECUTED 2026-07-04 (all four built). See DECISIONS.md D35."
+  },
+  {
+    "date": "2026-07-04",
+    "disposition": "executed",
+    "kind": null,
+    "order": null,
+    "path": "executed/20260704-self-tests-00-bqcbnk-self-tests-and-assess-all.md",
+    "plan_id": "bqcbnk",
+    "set_id": null,
+    "status": "EXECUTED 2026-07-04 (both parts A and B). See DECISIONS.md D36."
+  },
+  {
+    "date": "2026-07-04",
+    "disposition": "executed",
+    "kind": null,
+    "order": null,
+    "path": "executed/20260704-toolkit-discovery-00-or78s2-toolkit-discovery-and-version.md",
+    "plan_id": "or78s2",
+    "set_id": null,
+    "status": "EXECUTED 2026-07-04. See DECISIONS.md D32."
+  },
+  {
+    "date": "2026-07-04",
+    "disposition": "executed",
+    "kind": null,
+    "order": null,
+    "path": "executed/20260704-verification-evidence-00-4ys2p2-verification-evidence-layer.md",
+    "plan_id": "4ys2p2",
+    "set_id": null,
+    "status": "EXECUTED 2026-07-04. See DECISIONS.md D33."
+  },
+  {
+    "date": "2026-07-06",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260706-versioning-git-00-qhh6mb-versioning-git-tag-semver.md",
+    "plan_id": "qhh6mb",
+    "set_id": "versioning-git",
+    "status": "DONE (approved + plan-reviewed twice + executed 2026-07-06; see DECISIONS D44). Tag"
+  },
+  {
+    "date": "2026-07-07",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260707-pip-distribution-00-px86eh-pip-distribution-cli-config-wizard.md",
+    "plan_id": "px86eh",
+    "set_id": "pip-distribution",
+    "status": "DONE (plan-reviewed + all 6 OQs resolved; executed 2026-07-07 in batches A-F;"
+  },
+  {
+    "date": "2026-07-08",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260708-run-checks-00-3dfcdf-run-checks-windows-npm.md",
+    "plan_id": "3dfcdf",
+    "set_id": "run-checks",
+    "status": "EXECUTED 2026-07-09"
+  },
+  {
+    "date": "2026-07-09",
+    "disposition": "executed",
+    "kind": null,
+    "order": null,
+    "path": "executed/20260709-interactive-git-00-vfa1tl-interactive-git-workflow.md",
+    "plan_id": "vfa1tl",
+    "set_id": null,
+    "status": "EXECUTED"
+  },
+  {
+    "date": "2026-07-09",
+    "disposition": "executed",
+    "kind": null,
+    "order": null,
+    "path": "executed/20260709-target-directory-00-vw1ich-target-directory-readmes.md",
+    "plan_id": "vw1ich",
+    "set_id": null,
+    "status": "EXECUTED 2026-07-09"
+  },
+  {
+    "date": "2026-07-10",
+    "disposition": "executed",
+    "kind": null,
+    "order": null,
+    "path": "executed/20260710-plan-lifecycle-00-4025ak-plan-lifecycle-superseded-notexecuted-dirs.md",
+    "plan_id": "4025ak",
+    "set_id": null,
+    "status": "DONE (executed 2026-07-11; see DECISIONS D47). Five-state lifecycle live; suite 133 green."
+  },
+  {
+    "date": "2026-07-11",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260711-agents-tree-00-scowgo-agents-tree-directory-readmes.md",
+    "plan_id": "scowgo",
+    "set_id": "agents-tree",
+    "status": "DONE (executed 2026-07-11; see DECISIONS D49). Every `.agents/` top-level dir + the whole"
+  },
+  {
+    "date": "2026-07-11",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260711-assess-documentation-00-5by84z-assess-documentation.md",
+    "plan_id": "5by84z",
+    "set_id": "assess-documentation",
+    "status": "DONE (executed 2026-07-11; see DECISIONS D51). All 10 steps done; both open questions"
+  },
+  {
+    "date": "2026-07-11",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260711-aw-plans-00-gwu2pv-aw-plans-status-board.md",
+    "plan_id": "gwu2pv",
+    "set_id": "aw-plans",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-11",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260711-normalizer-fstime-00-g3wg0d-normalizer-fstime-fallback-and-broader-scope.md",
+    "plan_id": "g3wg0d",
+    "set_id": "normalizer-fstime",
+    "status": "DONE (executed 2026-07-11; see DECISIONS D50). Normalizer rewritten with earliest-evidence"
+  },
+  {
+    "date": "2026-07-11",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260711-plan-filename-00-o7ilfm-plan-filename-convention-hhmm-nn.md",
+    "plan_id": "o7ilfm",
+    "set_id": "plan-filename",
+    "status": "DONE (executed 2026-07-11; see DECISIONS D48). Convention live; this repo's 23 plan files"
+  },
+  {
+    "date": "2026-07-11",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260711-plan-status-00-t1nlqc-plan-status-vocabulary-and-workflow-provenance.md",
+    "plan_id": "t1nlqc",
+    "set_id": "plan-status",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-11",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260711-release-review-00-ez65jl-release-review-terminal-decision-and-ci-verify.md",
+    "plan_id": "ez65jl",
+    "set_id": "release-review",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-11",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260711-timestamp-convention-00-gv8nh8-timestamp-convention-utc-to-local.md",
+    "plan_id": "gv8nh8",
+    "set_id": "timestamp-convention",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-agent-brain-00-lhmlzo-agent-brain-dir-plan-and-walkthrough-mirroring.md",
+    "plan_id": "lhmlzo",
+    "set_id": "agent-brain",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-agent-execution-00-3obd0t-agent-execution-contract-in-pointer-block.md",
+    "plan_id": "3obd0t",
+    "set_id": "agent-execution",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-agents-docs-00-98dj6q-agents-docs-research-and-walkthroughs-convention.md",
+    "plan_id": "98dj6q",
+    "set_id": "agents-docs",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-assess-bugs-00-hq4p3a-assess-bugs-in-scripts.md",
+    "plan_id": "hq4p3a",
+    "set_id": "assess-bugs",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-assess-tests-00-lc5a3x-assess-tests.md",
+    "plan_id": "lc5a3x",
+    "set_id": "assess-tests",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-auto-approved-00-7w8b8u-auto-approved-status-for-mechanical-correctives.md",
+    "plan_id": "7w8b8u",
+    "set_id": "auto-approved",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-aw-cli-00-sru7zx-aw-cli-ux-ctrlc-setup-and-plan-names-verb.md",
+    "plan_id": "sru7zx",
+    "set_id": "aw-cli",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-aw-install-00-ysuonq-aw-install-missing-git-diagnostics-preflight.md",
+    "plan_id": "ysuonq",
+    "set_id": "aw-install",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-consolidate-reference-00-7waz4b-consolidate-reference-material-and-docs-bucket-standard.md",
+    "plan_id": "7waz4b",
+    "set_id": "consolidate-reference",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-falsely-marked-00-y6kuar-falsely-marked-executed-tests-still-red.md",
+    "plan_id": "y6kuar",
+    "set_id": "falsely-marked",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-fix-installer-00-odclzm-fix-installer-shim-tests-left-red.md",
+    "plan_id": "odclzm",
+    "set_id": "fix-installer",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-git-diagnostics-00-gs65w2-git-diagnostics-untracked-and-in-sync-false-alarm.md",
+    "plan_id": "gs65w2",
+    "set_id": "git-diagnostics",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-installer-shim-00-7y7pbh-installer-shim-detection-ctrlc-and-diff.md",
+    "plan_id": "7y7pbh",
+    "set_id": "installer-shim",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-mirror-workflow-00-ndxj3i-mirror-workflow-pointer-into-native-agent-files.md",
+    "plan_id": "ndxj3i",
+    "set_id": "mirror-workflow",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-preflight-gate-00-n267bi-preflight-gate-verdict-free-and-conditional.md",
+    "plan_id": "n267bi",
+    "set_id": "preflight-gate",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-pypi-publish-00-43zcc8-pypi-publish-doc-links-and-version-check.md",
+    "plan_id": "43zcc8",
+    "set_id": "pypi-publish",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-release-consent-00-l9q4gs-release-consent-decision-tree-and-candidate-tier.md",
+    "plan_id": "l9q4gs",
+    "set_id": "release-consent",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-release-review-00-6cdker-release-review-todo-and-pending-prompts.md",
+    "plan_id": "6cdker",
+    "set_id": "release-review",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-scan-secrets-00-buofph-scan-secrets-history-line-offsets-refactor.md",
+    "plan_id": "buofph",
+    "set_id": "scan-secrets",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-scope-review-00-ttyiqx-scope-review-gemini-bugs-tests-execution.md",
+    "plan_id": "ttyiqx",
+    "set_id": "scope-review",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-stale-baked-00-p2x0me-stale-baked-version-and-release-rebake-gap.md",
+    "plan_id": "p2x0me",
+    "set_id": "stale-baked",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-unify-install-00-wbr6u8-unify-install-orchestrator-single-source.md",
+    "plan_id": "wbr6u8",
+    "set_id": "unify-install",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-ux-and-00-ob9h6r-ux-and-data-modeling-principles-import.md",
+    "plan_id": "ob9h6r",
+    "set_id": "ux-and",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260712-verify-execution-00-c5685e-verify-execution-workflow.md",
+    "plan_id": "c5685e",
+    "set_id": "verify-execution",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-13",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260713-auto-parallel-00-t88woq-auto-parallel-audit-lanes-shared-convention.md",
+    "plan_id": "t88woq",
+    "set_id": "auto-parallel",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-13",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260713-normalize-plan-00-qv04dz-normalize-plan-names-test-date-flakiness.md",
+    "plan_id": "qv04dz",
+    "set_id": "normalize-plan",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-15",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260715-agent-comms-00-ssmov3-agent-comms-portable-convention.md",
+    "plan_id": "ssmov3",
+    "set_id": "agent-comms",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-15",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260715-assess-bugs-00-9gfezi-assess-bugs.md",
+    "plan_id": "9gfezi",
+    "set_id": "assess-bugs",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-15",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260715-assess-documentation-00-z0416p-assess-documentation.md",
+    "plan_id": "z0416p",
+    "set_id": "assess-documentation",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-15",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260715-docs-consistency-00-49lbcl-docs-consistency-audit-corrections.md",
+    "plan_id": "49lbcl",
+    "set_id": "docs-consistency",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-15",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260715-install-entry-00-1k3iq5-install-entry-point-parity-commit-and-isolation.md",
+    "plan_id": "1k3iq5",
+    "set_id": "install-entry",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-15",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260715-plan-set-00-nedvj7-plan-set-order-frontmatter.md",
+    "plan_id": "nedvj7",
+    "set_id": "plan-set",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-15",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260715-unify-readiness-00-c59ziz-unify-readiness-verdict-vocabulary.md",
+    "plan_id": "c59ziz",
+    "set_id": "unify-readiness",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-17",
+    "disposition": "executed",
+    "kind": null,
+    "order": 1,
+    "path": "executed/20260717-agentcont-01-6a3myl-whatnext-surveyor-workflow.md",
+    "plan_id": "6a3myl",
+    "set_id": "agentcont",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-17",
+    "disposition": "executed",
+    "kind": null,
+    "order": 3,
+    "path": "executed/20260717-agentcont-03-5twbwf-handoff-workflow-session-continuity.md",
+    "plan_id": "5twbwf",
+    "set_id": "agentcont",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-17",
+    "disposition": "executed",
+    "kind": null,
+    "order": 2,
+    "path": "executed/20260717-researchprompt-02-2txx9b-scaffold-agents-prompts-staging-convention.md",
+    "plan_id": "2txx9b",
+    "set_id": "researchprompt",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-18",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260718-purge-personal-00-3visab-purge-personal-path-and-identity-leaks.md",
+    "plan_id": "3visab",
+    "set_id": "purge-personal",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-19",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260719-local-leaks-00-8vc1r6-local-leaks-detection-capability.md",
+    "plan_id": "8vc1r6",
+    "set_id": "local-leaks",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-20",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260720-assess-self-00-55vpda-assess-self-documentation.md",
+    "plan_id": "55vpda",
+    "set_id": "assess-self",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-21",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260721-leak-sanitizer-00-kq6akq-leak-sanitizer-agent-rewire-and-optional-install.md",
+    "plan_id": "kq6akq",
+    "set_id": "leak-sanitizer",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-21",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260721-leak-sanitizer-00-l994g9-leak-sanitizer-config-wizard.md",
+    "plan_id": "l994g9",
+    "set_id": "leak-sanitizer",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-21",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260721-per-workflow-00-lwug80-per-workflow-argument-hint-in-command-shims.md",
+    "plan_id": "lwug80",
+    "set_id": "per-workflow",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-21",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260721-prompts-local-00-btn0my-prompts-local-quarantine-lane.md",
+    "plan_id": "btn0my",
+    "set_id": "prompts-local",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-21",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260721-release-review-00-s3axqd-release-review-full-release-publishes-gh-release.md",
+    "plan_id": "s3axqd",
+    "set_id": "release-review",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-21",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260721-sanitizer-engine-00-qjdklk-sanitizer-engine-and-local-leaks-migration.md",
+    "plan_id": "qjdklk",
+    "set_id": "sanitizer-engine",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-21",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260721-self-contained-00-vgxk6c-self-contained-interactive-questions-convention.md",
+    "plan_id": "vgxk6c",
+    "set_id": "self-contained",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-21",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260721-version-resolver-00-ey1dex-version-resolver-match-release-tags-only.md",
+    "plan_id": "ey1dex",
+    "set_id": "version-resolver",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-21",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260721-whatnext-chat-00-wa7uiw-whatnext-chat-history-todowrite-save-to-todo.md",
+    "plan_id": "wa7uiw",
+    "set_id": "whatnext-chat",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-22",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260722-assess-and-00-49eeuc-assess-and-producers-closing-artifacts-report.md",
+    "plan_id": "49eeuc",
+    "set_id": "assess-and",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-22",
+    "disposition": "executed",
+    "kind": null,
+    "order": 6,
+    "path": "executed/20260722-instsafe-06-mv7hw7-deepen-interactive-questions-convention.md",
+    "plan_id": "mv7hw7",
+    "set_id": "instsafe",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-22",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260722-overwrite-prompt-00-1wt4qz-overwrite-prompt-clarity-and-input-validation.md",
+    "plan_id": "1wt4qz",
+    "set_id": "overwrite-prompt",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-23",
+    "disposition": "executed",
+    "kind": null,
+    "order": 1,
+    "path": "executed/20260723-instsafe-01-920qnm-install-manifest-and-managed-sections-model.md",
+    "plan_id": "920qnm",
+    "set_id": "instsafe",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-23",
+    "disposition": "executed",
+    "kind": null,
+    "order": 2,
+    "path": "executed/20260723-instsafe-02-kcjgmy-sectioned-managed-block-for-shared-files.md",
+    "plan_id": "kcjgmy",
+    "set_id": "instsafe",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-23",
+    "disposition": "executed",
+    "kind": null,
+    "order": 3,
+    "path": "executed/20260723-instsafe-03-2jovaz-untracked-safety-convention-and-tracking-warning.md",
+    "plan_id": "2jovaz",
+    "set_id": "instsafe",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-23",
+    "disposition": "executed",
+    "kind": null,
+    "order": 4,
+    "path": "executed/20260723-instsafe-04-80128k-aw-uninstall-conservative.md",
+    "plan_id": "80128k",
+    "set_id": "instsafe",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-23",
+    "disposition": "executed",
+    "kind": null,
+    "order": 5,
+    "path": "executed/20260723-instsafe-05-kemhdg-external-install-and-skills-delivery-research-spec.md",
+    "plan_id": "kemhdg",
+    "set_id": "instsafe",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-26",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260726-conformance-harness-00-hypynh-conformance-harness-phase0.md",
+    "plan_id": "hypynh",
+    "set_id": "conformance-harness",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-26",
+    "disposition": "executed",
+    "kind": null,
+    "order": 1,
+    "path": "executed/20260726-ipdcomplete-01-yyxyt9-ipd-checklist-and-completion-clause.md",
+    "plan_id": "yyxyt9",
+    "set_id": "ipdcomplete",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-26",
+    "disposition": "executed",
+    "kind": null,
+    "order": 2,
+    "path": "executed/20260726-ipdcomplete-02-h409oe-ipd-spec-and-always-loaded-directive.md",
+    "plan_id": "h409oe",
+    "set_id": "ipdcomplete",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-26",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260726-plan-review-00-yxai1b-plan-review-scope-ledger-wording.md",
+    "plan_id": "yxai1b",
+    "set_id": "plan-review",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-27",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260727-dualchk-00-3a4wh8-dual-checklist-convention-orchestrator.md",
+    "plan_id": "3a4wh8",
+    "set_id": "dualchk",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-27",
+    "disposition": "executed",
+    "kind": null,
+    "order": 1,
+    "path": "executed/20260727-dualchk-01-r42p0d-ipd-template-dual-checklist.md",
+    "plan_id": "r42p0d",
+    "set_id": "dualchk",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-27",
+    "disposition": "executed",
+    "kind": null,
+    "order": 2,
+    "path": "executed/20260727-dualchk-02-v46x84-plan-review-dual-checklist-duties.md",
+    "plan_id": "v46x84",
+    "set_id": "dualchk",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-27",
+    "disposition": "executed",
+    "kind": null,
+    "order": 3,
+    "path": "executed/20260727-dualchk-03-oz1cj6-ipd-spec-and-orchestrator-template.md",
+    "plan_id": "oz1cj6",
+    "set_id": "dualchk",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-27",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260727-two-sets-00-ykdobx-two-sets-prose-quality-fixes.md",
+    "plan_id": "ykdobx",
+    "set_id": "two-sets",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-27",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260727-untrack-artifacts-00-r2lbj2-untrack-artifacts-prose-corrections.md",
+    "plan_id": "r2lbj2",
+    "set_id": "untrack-artifacts",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-27",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
+    "path": "executed/20260727-untrackwf-00-wn2jto-untrack-workflow-artifacts-orchestrator.md",
+    "plan_id": "wn2jto",
+    "set_id": "untrackwf",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-27",
+    "disposition": "executed",
+    "kind": null,
+    "order": 1,
+    "path": "executed/20260727-untrackwf-01-0pf3pn-untrack-policy-code-and-docs.md",
+    "plan_id": "0pf3pn",
+    "set_id": "untrackwf",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-27",
+    "disposition": "executed",
+    "kind": null,
+    "order": 2,
+    "path": "executed/20260727-untrackwf-02-1h8whs-untrack-policy-runbooks.md",
+    "plan_id": "1h8whs",
+    "set_id": "untrackwf",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-27",
+    "disposition": "executed",
+    "kind": null,
+    "order": 3,
+    "path": "executed/20260727-untrackwf-03-5zg7tu-migration-tool-and-remediation.md",
+    "plan_id": "5zg7tu",
+    "set_id": "untrackwf",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-30",
+    "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260730-researchorg-00-jwbo2u-research-org-orchestrator.md",
+    "plan_id": "jwbo2u",
+    "set_id": "researchorg",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-30",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260730-researchorg-01-3x7po2-research-naming-and-frontmatter-contract.md",
+    "plan_id": "3x7po2",
+    "set_id": "researchorg",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-30",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260730-researchorg-02-g7w8ul-aw-research-create-tool.md",
+    "plan_id": "g7w8ul",
+    "set_id": "researchorg",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-30",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 3,
+    "path": "executed/20260730-researchorg-03-7xzlug-research-index-generator.md",
+    "plan_id": "7xzlug",
+    "set_id": "researchorg",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-30",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 4,
+    "path": "executed/20260730-researchorg-04-evuvbe-research-rename-and-refs-tool.md",
+    "plan_id": "evuvbe",
+    "set_id": "researchorg",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-30",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 5,
+    "path": "executed/20260730-researchorg-05-9tdap2-research-archival-and-states.md",
+    "plan_id": "9tdap2",
+    "set_id": "researchorg",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-30",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 6,
+    "path": "executed/20260730-researchorg-06-w2u8ws-migrate-existing-research.md",
+    "plan_id": "w2u8ws",
+    "set_id": "researchorg",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-30",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 7,
+    "path": "executed/20260730-researchorg-07-bv7oat-scaffold-directives-and-decision-updates.md",
+    "plan_id": "bv7oat",
+    "set_id": "researchorg",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-02",
+    "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260802-ipdstruct-00-by245s-ipd-structure-orchestrator.md",
+    "plan_id": "by245s",
+    "set_id": "ipdstruct",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-02",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260802-ipdstruct-01-ktv5h3-canonical-ipd-schema.md",
+    "plan_id": "ktv5h3",
+    "set_id": "ipdstruct",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-02",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260802-ipdstruct-02-dkpqmy-ipd-lint-parser-and-state-machine.md",
+    "plan_id": "dkpqmy",
+    "set_id": "ipdstruct",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-02",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 3,
+    "path": "executed/20260802-ipdstruct-03-l060ep-ipd-scaffold-and-sync.md",
+    "plan_id": "l060ep",
+    "set_id": "ipdstruct",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-02",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 4,
+    "path": "executed/20260802-ipdstruct-04-x9engh-templates-and-spec-and-defect-fixes.md",
+    "plan_id": "x9engh",
+    "set_id": "ipdstruct",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-02",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 5,
+    "path": "executed/20260802-ipdstruct-05-nyfgsz-review-preflight-and-enforcement.md",
+    "plan_id": "nyfgsz",
+    "set_id": "ipdstruct",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-02",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 6,
+    "path": "executed/20260802-ipdstruct-06-5xwaxi-migrate-nonterminal-and-adopt.md",
+    "plan_id": "5xwaxi",
+    "set_id": "ipdstruct",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-07",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260807-verify-execution-01-2p9fd3-thorough-execution-verification-workflow.md",
+    "plan_id": "2p9fd3",
+    "set_id": "verify-execution",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-08",
+    "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260808-0004-00-plans-adopter-orchestrator.md",
+    "plan_id": "lus9ou",
+    "set_id": "plans-adopter",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-08",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 6,
+    "path": "executed/20260808-0004-06-migrate-existing-plans.md",
+    "plan_id": "7qx7ys",
+    "set_id": "plans-adopter",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-08",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 7,
+    "path": "executed/20260808-0004-07-plans-scaffold-directives-decisions.md",
+    "plan_id": "8q6yr9",
+    "set_id": "plans-adopter",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-08",
+    "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260808-attnview-00-94dhrt-attention-view-orchestrator.md",
+    "plan_id": "94dhrt",
+    "set_id": "attnview",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-08",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260808-attnview-01-0i8ass-phase0-contracts-and-fixtures.md",
+    "plan_id": "0i8ass",
+    "set_id": "attnview",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-08",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260808-attnview-02-u4q8ml-aw-specs-owner-verbs.md",
+    "plan_id": "u4q8ml",
+    "set_id": "attnview",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-08",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 3,
+    "path": "executed/20260808-attnview-03-h3dadd-aw-attention-scanner.md",
+    "plan_id": "h3dadd",
+    "set_id": "attnview",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-08",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 4,
+    "path": "executed/20260808-attnview-04-dxoxgi-specs-migration.md",
+    "plan_id": "dxoxgi",
+    "set_id": "attnview",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-08",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 5,
+    "path": "executed/20260808-attnview-05-9y2fz1-whatnext-and-ci.md",
+    "plan_id": "9y2fz1",
+    "set_id": "attnview",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-08",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260808-plansadopt-01-qkc93l-shared-artifact-core.md",
+    "plan_id": "qkc93l",
+    "set_id": "plansadopt",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-08",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260808-plansadopt-02-2bpoz6-plan-id-in-ipd-schema.md",
+    "plan_id": "2bpoz6",
+    "set_id": "plansadopt",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-08",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 3,
+    "path": "executed/20260808-plansadopt-03-xh08he-plans-manifest-and-check.md",
+    "plan_id": "xh08he",
+    "set_id": "plansadopt",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-08",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 4,
+    "path": "executed/20260808-plansadopt-04-qb3ubs-plans-regroup-and-refs.md",
+    "plan_id": "qb3ubs",
+    "set_id": "plansadopt",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-08",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 5,
+    "path": "executed/20260808-plansadopt-05-gxa8xb-plans-shards-and-archival.md",
+    "plan_id": "gxa8xb",
+    "set_id": "plansadopt",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-09",
+    "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260809-awlayout-00-az9912-aw-project-layout-orchestrator.md",
+    "plan_id": "az9912",
+    "set_id": "awlayout",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-09",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260809-awlayout-01-m9tqof-aw-context-and-logical-roots.md",
+    "plan_id": "m9tqof",
+    "set_id": "awlayout",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-09",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260809-awlayout-02-bgyymp-aw-home-project-identity-and-registry.md",
+    "plan_id": "bgyymp",
+    "set_id": "awlayout",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-09",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 3,
+    "path": "executed/20260809-awlayout-03-g4y28x-records-backends-and-durability.md",
+    "plan_id": "g4y28x",
+    "set_id": "awlayout",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-09",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 4,
+    "path": "executed/20260809-awlayout-04-q0wpk4-install-update-policy-wizard.md",
+    "plan_id": "q0wpk4",
+    "set_id": "awlayout",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-09",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 5,
+    "path": "executed/20260809-awlayout-05-tg60qo-system-config-state-layout-and-ownership.md",
+    "plan_id": "tg60qo",
+    "set_id": "awlayout",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-09",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 6,
+    "path": "executed/20260809-awlayout-06-anlovz-operational-actions-and-install-history.md",
+    "plan_id": "anlovz",
+    "set_id": "awlayout",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-09",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 7,
+    "path": "executed/20260809-awlayout-07-b31tuy-action-workflow-and-status-integration.md",
+    "plan_id": "b31tuy",
+    "set_id": "awlayout",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-09",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 8,
+    "path": "executed/20260809-awlayout-08-0me1hr-producing-workflow-record-routing.md",
+    "plan_id": "0me1hr",
+    "set_id": "awlayout",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-09",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 9,
+    "path": "executed/20260809-awlayout-09-es1phc-layout-migration-rollback-and-uninstall.md",
+    "plan_id": "es1phc",
+    "set_id": "awlayout",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-09",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 10,
+    "path": "executed/20260809-awlayout-10-jmjh97-clean-delta-skills-and-host-gates.md",
+    "plan_id": "jmjh97",
+    "set_id": "awlayout",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-09",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 11,
+    "path": "executed/20260809-awlayout-11-blw6qp-docs-release-and-end-to-end-cutover.md",
+    "plan_id": "blw6qp",
+    "set_id": "awlayout",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260810-awphysical-01-cwjnj0-physical-root-ownership-and-git-policy-contract.md",
+    "plan_id": "cwjnj0",
+    "set_id": "awphysical",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260810-awphysical-02-sywony-policy-schema-and-deterministic-context-resolution.md",
+    "plan_id": "sywony",
+    "set_id": "awphysical",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 3,
+    "path": "executed/20260810-awphysical-03-x2dfen-wizard-presets-custom-placement-and-persistence.md",
+    "plan_id": "x2dfen",
+    "set_id": "awphysical",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 4,
+    "path": "executed/20260810-awphysical-04-ru5pmd-canonical-system-installation-and-source-checkout-mode.md",
+    "plan_id": "ru5pmd",
+    "set_id": "awphysical",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 5,
+    "path": "executed/20260810-awphysical-05-1e9ggw-private-companion-attachment-and-durability.md",
+    "plan_id": "1e9ggw",
+    "set_id": "awphysical",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 6,
+    "path": "executed/20260810-awphysical-06-fcgala-migration-inventory-and-mapping-tools.md",
+    "plan_id": "fcgala",
+    "set_id": "awphysical",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 7,
+    "path": "executed/20260810-awphysical-07-nhv0qm-transactional-migration-rollback-and-resume.md",
+    "plan_id": "nhv0qm",
+    "set_id": "awphysical",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 8,
+    "path": "executed/20260810-awphysical-08-mb9xn2-record-producers-and-legacy-reference-cutover.md",
+    "plan_id": "mb9xn2",
+    "set_id": "awphysical",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 9,
+    "path": "executed/20260810-awphysical-09-2e2jrw-host-adapters-and-clean-delta-integration.md",
+    "plan_id": "2e2jrw",
+    "set_id": "awphysical",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 10,
+    "path": "executed/20260810-awphysical-10-n3fz8b-post-migration-independent-audit.md",
+    "plan_id": "n3fz8b",
+    "set_id": "awphysical",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260810-clianx-01-3e70cv-cli-ux-exclude-alpha-help.md",
+    "plan_id": "3e70cv",
+    "set_id": "clianx",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-12",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260812-migdispo-01-bsxowq-generalize-layout-migration-dispositions-and-entrypoint.md",
+    "plan_id": "bsxowq",
+    "set_id": "migdispo",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-13",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260813-backlogtier-01-crv40v-attention-visible-backlog-tier.md",
+    "plan_id": "crv40v",
+    "set_id": "backlogtier",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-13",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260813-ipdexechist-01-69xrut-executed-history-lint-guard.md",
+    "plan_id": "69xrut",
+    "set_id": "ipdexechist",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-15",
+    "disposition": "executed",
+    "kind": "child",
+    "order": null,
+    "path": "executed/20260815-2156-01-installer-rollback-same-second-backup-collision.md",
+    "plan_id": "4o5lt9",
+    "set_id": null,
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-15",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260815-humanapproval-01-0g0rid-by-human-attestation.md",
+    "plan_id": "0g0rid",
+    "set_id": "humanapproval",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-16",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260816-agyrun-01-71ibuy-agy-run-executor-validator.md",
+    "plan_id": "71ibuy",
+    "set_id": "agyrun",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-16",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 14,
+    "path": "executed/20260816-awphysical-14-hnzr8v-migration-move-not-copy.md",
+    "plan_id": "hnzr8v",
+    "set_id": "awphysical",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-16",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 15,
+    "path": "executed/20260816-awphysical-15-7cvh9t-fresh-install-aw-target.md",
+    "plan_id": "7cvh9t",
+    "set_id": "awphysical",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-16",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 16,
+    "path": "executed/20260816-awphysical-16-88bnw0-migrate-layout-wizard.md",
+    "plan_id": "88bnw0",
+    "set_id": "awphysical",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "not-executed",
+    "kind": null,
+    "order": 0,
+    "path": "not-executed/20260712-verify-1041-00-852jpc-verify-1041-split-ok-but-suite-error.md",
+    "plan_id": "852jpc",
+    "set_id": "verify-1041",
+    "status": "not-executed"
+  },
+  {
+    "date": "2026-07-19",
+    "disposition": "not-executed",
+    "kind": null,
+    "order": 0,
+    "path": "not-executed/20260719-assess-documentation-00-lud5t5-assess-documentation.md",
+    "plan_id": "lud5t5",
+    "set_id": "assess-documentation",
+    "status": "not-executed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260810-awphysical-00-rma3j4-physical-aw-hierarchy-and-migration-orchestrator.md",
+    "plan_id": "rma3j4",
+    "set_id": "awphysical",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 11,
+    "path": "pending/20260810-awphysical-11-g5zl1u-agent-workflows-source-repository-self-migration.md",
+    "plan_id": "g5zl1u",
+    "set_id": "awphysical",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 12,
+    "path": "pending/20260810-awphysical-12-pszk6x-documentation-release-and-end-to-end-acceptance.md",
+    "plan_id": "pszk6x",
+    "set_id": "awphysical",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-16",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 13,
+    "path": "pending/20260816-awphysical-13-xzuxet-awsystem-nested-layout-reconciliation.md",
+    "plan_id": "xzuxet",
+    "set_id": "awphysical",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-07",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 1,
+    "path": "superseded/20260807-ipd-history-01-wrt0wq-ipd-lifecycle-history-tracking.md",
+    "plan_id": "wrt0wq",
+    "set_id": "ipd-history",
+    "status": "superseded"
+  }
+]

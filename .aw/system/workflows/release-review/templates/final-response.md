@@ -1,0 +1,179 @@
+# Final Release Review Report
+
+## Completed actions
+
+| Unique ID | Description of what was done | Files changed | Commit | Validation |
+|---|---|---|---|---|
+|  |  |  |  |  |
+
+## Identified but not addressed
+
+Include audit findings identified but not implemented, not only actions left
+incomplete. Under the Fix Bar, anything not fixed was deferred because the
+Remediation Risk of the fix is Medium-High or higher; the Reason must name the axis
+(complexity / usability / security / functionality), not effort/time/cost. Any
+`LIVE`/High data-integrity finding that was not fixed MUST appear here, flagged
+`LIVE - needs user decision` (never silently moved to `TODO.md`).
+
+| Unique ID | Description of what was not done | Remediation Risk + axis | Reason | Recommended next step |
+|---|---|---|---|---|
+|  |  |  |  |  |
+
+## Fix Bar summary
+
+State that the Fix Bar was applied (fix by default; defer only at Medium-High+
+Remediation Risk). Give counts: findings fixed vs. deferred, and for deferrals, the
+breakdown by Remediation-Risk axis (complexity / usability / security /
+functionality). Confirm no finding was silently dropped and no fix was skipped
+merely for effort/time/cost.
+
+## Summary of changes
+
+Summarize the most important changes made.
+
+## Tests and validations run
+
+| Command/check | Result | Notes |
+|---|---|---|
+|  |  |  |
+
+## CI assessment summary
+
+Summarize CI findings, changes made, recommendations, or reasons no CI changes were made.
+If release execution proceeded (Section 9, post-approval), ALSO record the push+verify result
+here: what ref was pushed, the triggered `gh run` URL/ID, and the outcome (green; or red with the
+aggregate plus EVERY failing workflow/job/step); or the reason CI could not be auto-verified (e.g.
+`gh` unavailable/unauthenticated, non-GitHub remote) with the manual check command.
+
+## Schema validation summary
+
+Summarize discovered schemas, validation performed, unresolved schema/data-contract risks, and CI/test coverage for schema validation.
+
+## Deprecated-code assessment summary
+
+Summarize deprecated, obsolete, stale, unused, or superseded candidates and what was done with them.
+
+## Final bug/security/memory sanity audit summary
+
+Summarize the final post-implementation bug, correctness, security, privacy, memory/resource, and unsafe-change audit results.
+
+## TODO / backlog reconciliation summary
+
+Summarize the triage of every `TODO.md`/backlog/roadmap and in-code `TODO`/`FIXME`
+item: how many were must/should/out-of-scope/stale, which were fixed, which were
+reclassified, which were escalated, and what edits were made to keep `TODO.md`
+honest. Reference `todo-reconciliation.md`.
+
+## Pending plans / staged prompts
+
+State loudly whether any pending agent plans (IPDs) or staged prompt files were found
+(`.agents/plans/pending/`, IPDs marked pending/awaiting-approval, `prompts/` staging
+dirs, or status/location mismatches). If any in-scope pending item exists, lead with a
+bold warning line, for example:
+
+**WARNING: 2 pending plan(s)/prompt(s) NOT executed - review before release.**
+
+| Path | Kind (IPD / prompt) | Status | In scope for this release? | Recommended action |
+|---|---|---|---|---|
+|  |  |  |  |  |
+
+If none exist, state explicitly: "No pending plans or staged prompts." Any in-scope
+pending item is a prerequisite/decision that blocks a clean GO (see Final release
+recommendation).
+
+## Guiding-principles adherence summary
+
+Per-principle verdict against the repository's guiding-principles document (or the
+universal fallback principles), with unresolved `GP` findings. Reference
+`guiding-principles-assessment.md`.
+
+## Eight-persona sign-off
+
+One line per persona (QA/QC, testing/regression, UI/UX, architect, software
+engineer, power user, novice, stakeholder): acceptable / conditional / no, with
+blocking IDs.
+
+## Self-documenting / learn-as-you-go assessment
+
+State whether a novice could learn the project as they go without a manual or
+course, what was improved to make the product more self-explanatory, and any
+remaining `U` blockers.
+
+## Cold-start orientation verdict
+
+State whether a no-context engineer or LLM could orient from the project's own
+tracked docs. Score each knowledge area and list remaining `KD` gaps and any
+"inferred, needs confirmation" passages the user should verify.
+
+| Knowledge area | Adequate / thin / missing | Doc / location | Action this run | Remaining `KD` IDs |
+|---|---|---|---|---|
+| Intent, goals, audience, scope |  |  |  |  |
+| Philosophy / guiding principles |  |  |  |  |
+| Architecture and approach |  |  |  |  |
+| Design-decision rationale |  |  |  |  |
+
+## Documentation and artifact updates
+
+Summarize documentation, examples, specs, schemas, packaging, release notes, changelog, CI, or deployment artifacts updated or intentionally left unchanged.
+
+## Remaining risks
+
+List remaining material risks with unique IDs.
+
+## Push/no-push decision
+
+State whether pushing is recommended, whether permission exists, and what command should be used if permitted.
+
+## Final release recommendation
+
+GO, CONDITIONAL GO, or NO-GO.
+
+Include rationale and blocking IDs if applicable.
+
+If any in-scope pending plan / staged prompt was found (see Pending plans / staged
+prompts above) or any unaddressed `LIVE`/High data-integrity finding remains, repeat the
+loud warning here and state that the recommendation is at most CONDITIONAL GO with those
+items named as explicit prerequisites. Do not issue a clean GO over an un-actioned
+in-scope pending plan.
+
+## Restart recommendation
+
+State whether a new review run is recommended and why.
+
+## Section 9 readiness
+
+If GO or CONDITIONAL GO, state whether the project is ready to proceed to Section 9
+release execution and exactly what user approval/prerequisites are required first.
+If NO-GO, state that release execution must not proceed.
+
+## DECISION (must be the LITERAL LAST output)
+
+This block is APPENDED after the full report above (it does NOT replace or truncate any section).
+Nothing - no summary, findings, paths, or commentary - prints after it. It is the forcing function
+that makes the human's Go/No-Go call, and the fact that the workflow has STOPPED and is awaiting it,
+impossible to miss. Emit exactly this ruled banner, filled in:
+
+```
+========================================================================
+  RELEASE REVIEW DECISION: <GO | CONDITIONAL GO | NO-GO>
+------------------------------------------------------------------------
+  Blocking / pending items: <"none" | each named explicitly, with IDs>
+  Conditions (if CONDITIONAL GO): <each named; must be met + re-approved>
+------------------------------------------------------------------------
+  ON APPROVAL, choose one (default A; nothing is done without your pick):
+   A) Close out the review only. No tag, push, release, or publish. [DEFAULT]
+   B) Cut a release CANDIDATE: annotated vX.Y.Z-rc.N tag only (push is a
+      separate confirm). Not a GitHub Release; not published to a registry.
+   C) FULL RELEASE: Section 9, each action (tag/push/GitHub Release/publish)
+      named and separately confirmed. Bare vX.Y.Z (no -rc) only.
+------------------------------------------------------------------------
+  AWAITING YOUR GO/NO-GO. Reply with your rung (A/B/C) to approve; A is the
+  default. NOTHING IS PUSHED UNTIL YOU DO.
+========================================================================
+```
+
+- NO-GO: keep the banner but omit the rung menu and the AWAITING line; state that release execution must not proceed (no rungs are offered).
+- CONDITIONAL GO: list the named conditions; a conditional does NOT authorize a push - the human
+  meets the conditions, then replies GO, and only then does Section 9 run.
+- This block is mandated by `00-run-protocol.md` and `08-final-ship-review.md`; do not print anything
+  after it.
