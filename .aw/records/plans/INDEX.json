@@ -1674,7 +1674,7 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
-    "path": "executed/20260817-1620-01-awretrofit-record-verbs-layout-aware.md",
+    "path": "executed/20260817-awretrofit-01-i7um6r-record-verbs-layout-aware.md",
     "plan_id": "i7um6r",
     "set_id": "awretrofit",
     "status": "executed"
@@ -1704,7 +1704,7 @@
     "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
-    "path": "pending/20260817-1620-00-awretrofit-orchestrator.md",
+    "path": "pending/20260817-awretrofit-00-pp6y76-orchestrator.md",
     "plan_id": "pp6y76",
     "set_id": "awretrofit",
     "status": "approved"
@@ -1714,7 +1714,7 @@
     "disposition": "pending",
     "kind": "child",
     "order": 2,
-    "path": "pending/20260817-1620-02-awretrofit-shipped-docs-and-agents-md.md",
+    "path": "pending/20260817-awretrofit-02-ckvg3n-shipped-docs-and-agents-md.md",
     "plan_id": "ckvg3n",
     "set_id": "awretrofit",
     "status": "reviewed"
@@ -1724,7 +1724,7 @@
     "disposition": "pending",
     "kind": "child",
     "order": 3,
-    "path": "pending/20260817-1620-03-awretrofit-release-mechanics.md",
+    "path": "pending/20260817-awretrofit-03-giiowo-release-mechanics.md",
     "plan_id": "giiowo",
     "set_id": "awretrofit",
     "status": "to-review"
@@ -1734,7 +1734,7 @@
     "disposition": "pending",
     "kind": "child",
     "order": 4,
-    "path": "pending/20260817-1620-04-awretrofit-install-uninstall-migration-safety.md",
+    "path": "pending/20260817-awretrofit-04-y5zxql-install-uninstall-migration-safety.md",
     "plan_id": "y5zxql",
     "set_id": "awretrofit",
     "status": "to-review"
@@ -1744,7 +1744,7 @@
     "disposition": "pending",
     "kind": "child",
     "order": 5,
-    "path": "pending/20260817-1620-05-awretrofit-help-docstrings-manifest-deadcode.md",
+    "path": "pending/20260817-awretrofit-05-euqxi3-help-docstrings-manifest-deadcode.md",
     "plan_id": "euqxi3",
     "set_id": "awretrofit",
     "status": "to-review"
@@ -1754,7 +1754,7 @@
     "disposition": "pending",
     "kind": "child",
     "order": 6,
-    "path": "pending/20260817-1620-06-awretrofit-cwd-climb-project-root.md",
+    "path": "pending/20260817-awretrofit-06-uh295u-cwd-climb-project-root.md",
     "plan_id": "uh295u",
     "set_id": "awretrofit",
     "status": "to-review"

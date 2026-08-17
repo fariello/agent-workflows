@@ -42,12 +42,12 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 | Order | File | What it does | Depends on |
 |---|---|---|---|
-| 01 | 20260817-1620-01-awretrofit-record-verbs-layout-aware.md | plans/research/ipd-lint writer+board+lint verbs -> layout-aware + dual-layout regression tests (S2-B01, S3-T01) | none |
-| 02 | 20260817-1620-02-awretrofit-shipped-docs-and-agents-md.md | sweep shipped workflow bodies + index.md + templates + AGENTS.md generator .agents/->.aw/ (S4-D01, S4-D02) | none (parallelizable) |
-| 03 | 20260817-1620-03-awretrofit-release-mechanics.md | RELEASING.md + Makefile version-file -> .aw/system paths (S4-D03) | none |
-| 04 | 20260817-1620-04-awretrofit-install-uninstall-migration-safety.md | install scaffolder + uninstall --deep + migration-engine cleanup/move safety (S2-B02/B03/M01/L01) | 01 (shares resolver) |
-| 05 | 20260817-1620-05-awretrofit-help-docstrings-manifest-deadcode.md | CLI help + docstrings + records READMEs + managed-sections regen + dead-code + typing + sdist (S4-D04/D05, S5-K01, S6-V02, DC01, S2-Q01, S6-C01) | 01,02 (help mirrors behavior) |
-| 06 | 20260817-1620-06-awretrofit-cwd-climb-project-root.md | repo-scoped verbs climb to the project root (find .aw/.agents upward) + verbose no-project message (maintainer report during the run) | 01 (shares the resolved verbs) |
+| 01 | 20260817-awretrofit-01-i7um6r-record-verbs-layout-aware.md | plans/research/ipd-lint writer+board+lint verbs -> layout-aware + dual-layout regression tests (S2-B01, S3-T01) | none |
+| 02 | 20260817-awretrofit-02-ckvg3n-shipped-docs-and-agents-md.md | sweep shipped workflow bodies + index.md + templates + AGENTS.md generator .agents/->.aw/ (S4-D01, S4-D02) | none (parallelizable) |
+| 03 | 20260817-awretrofit-03-giiowo-release-mechanics.md | RELEASING.md + Makefile version-file -> .aw/system paths (S4-D03) | none |
+| 04 | 20260817-awretrofit-04-y5zxql-install-uninstall-migration-safety.md | install scaffolder + uninstall --deep + migration-engine cleanup/move safety (S2-B02/B03/M01/L01) | 01 (shares resolver) |
+| 05 | 20260817-awretrofit-05-euqxi3-help-docstrings-manifest-deadcode.md | CLI help + docstrings + records READMEs + managed-sections regen + dead-code + typing + sdist (S4-D04/D05, S5-K01, S6-V02, DC01, S2-Q01, S6-C01) | 01,02 (help mirrors behavior) |
+| 06 | 20260817-awretrofit-06-uh295u-cwd-climb-project-root.md | repo-scoped verbs climb to the project root (find .aw/.agents upward) + verbose no-project message (maintainer report during the run) | 01 (shares the resolved verbs) |
 
 ## Completion criteria (the whole Set is done only when)
 

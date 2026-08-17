@@ -7,8 +7,8 @@ Total: 188 plan/prompt file(s).
 ## pending/ (3)
 
 - **approved** (2)
-  - `.aw/records/plans/pending/20260817-1620-00-awretrofit-orchestrator.md`
-  - `.aw/records/plans/pending/20260817-1620-01-awretrofit-record-verbs-layout-aware.md`
+  - `.aw/records/plans/pending/20260817-awretrofit-00-pp6y76-orchestrator.md`
+  - `.aw/records/plans/pending/20260817-awretrofit-01-i7um6r-record-verbs-layout-aware.md`
 - **(no status)** (1)
   - `.aw/records/prompts/pending/20260810-1544-01-awphysical-spec-to-reviewed-focus.md`
 
@@ -308,8 +308,8 @@ Advisory ordered groupings (`Set:`/`Order:` front-matter). ADVISORY only: they d
   - -. `.aw/records/plans/executed/20260810-awphysical-00-rma3j4-physical-aw-hierarchy-and-migration-orchestrator.md` [executed]
   - WARNING: set `awphysical`: some members have Order and some do not (partial ordering)
 - **awretrofit** (2)
-  - 1. `.aw/records/plans/pending/20260817-1620-01-awretrofit-record-verbs-layout-aware.md` [pending]
-  - -. `.aw/records/plans/pending/20260817-1620-00-awretrofit-orchestrator.md` [pending]
+  - 1. `.aw/records/plans/pending/20260817-awretrofit-01-i7um6r-record-verbs-layout-aware.md` [pending]
+  - -. `.aw/records/plans/pending/20260817-awretrofit-00-pp6y76-orchestrator.md` [pending]
   - WARNING: set `awretrofit`: some members have Order and some do not (partial ordering)
 - **backlogtier** (1)
   - 1. `.aw/records/plans/executed/20260813-backlogtier-01-crv40v-attention-visible-backlog-tier.md` [executed]
