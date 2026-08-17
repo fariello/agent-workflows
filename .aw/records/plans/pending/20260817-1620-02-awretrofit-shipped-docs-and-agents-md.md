@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Release-review 20260817-153418 findings S4-D01 + S4-D02: the SHIPPED, agent-executed workflow bodies, the workflow `index.md`, the record-README templates, and the always-loaded AGENTS.md managed block still instruct agents to use legacy `.agents/` paths that do not exist in a fresh/migrated `.aw/` repo. Additionally one SHIPPED TOOL (`normalize_plan_names.py`) is behaviorally legacy-only (scans `.agents/` not `.aw/records/`), a Order-01-class bug hiding among the prose.
 - Scope: Correct every SHIPPED instruction/tool that misdirects an agent post-migration: (1) workflow bodies under `.aw/system/workflows/**` that give executable `.agents/` paths; (2) `index.md` invocation catalog + VERSION-source note; (3) `.aw/system/templates/**` record-README stubs; (4) the AGENTS.md managed-block GENERATOR (fix the template in engine.py, regenerate, do NOT hand-edit the artifact); (5) `normalize_plan_names.py` behavioral scan root (layout-aware + fallback, like Order 01). PRESERVE the deliberately layout-agnostic release-review runbook fallbacks (lead with `.aw/`, keep `.agents/` as named legacy). OUT: CLI help strings + module docstrings (Order 05), historical DECISIONS/CHANGELOG (acceptable history).
-- Status: to-review
+- Status: reviewed
 - Set: awretrofit
 - Order: 2
 - Highest E allocated: 06
@@ -15,6 +15,7 @@
 
 - 2026-08-17 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-17 authored (opencode Opus 4.8): filled from release-review run 20260817-153418 findings S4-D01 + S4-D02 (Set awretrofit Order 02).
+- 2026-08-17 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Structural preflight conforming. Verified citations against real code: E-01 tool-invocation lines (setup-repo.md:33/126 -> `.agents/workflows/...tools/...` while tools ship at `.aw/system/workflows/...tools/`) accurate; E-04 generator location confirmed (engine.py agents_managed_block). Findings: PR-001 (HIGH) E-04 was materially incomplete - the generator is ALREADY layout-parameterized (engine.py:867-884) but its `aw` branch emits `.aw/records/{research,walkthroughs,specs}` while the real layout is `.aw/records/docs/{...}` (verified via `aw path records`+`ls`), AND this repo's AGENTS.md is in legacy mode (24 `.agents/` refs), so E-04 rescoped to fix both the docs/ sub-paths and the legacy target_layout selection; PR-002 (LOW) E-05 miscited `plans.py:62` -> corrected to `normalize_plan_names.py:62`; PR-003 (MEDIUM) the tool is a SHIPPED standalone script and cannot import `resolve_record_path`, so E-05 must inline its resolution. All FIXED in place. OQ-01 already resolved. No open questions; GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -54,14 +55,16 @@ DECISIONS/CHANGELOG (leave). Only (a) is rewritten to `.aw/system/workflows/...`
 
 ### Task group 2: AGENTS.md managed-block generator
 
-- [ ] E-04 Fix the GENERATOR of the AGENTS.md managed block (the `aw:block` + `AGENT-PLANS` sections) in engine.py so it emits `.aw/records/...` / `.aw/system/workflows/...`, then REGENERATE this repo's AGENTS.md. Do NOT hand-edit only the artifact (it re-propagates on every install). Verify the managed-section round-trips (install/update rewrites it identically).
+- [ ] E-04 Fix the AGENTS.md managed-block generator AND the reason this repo's block is legacy. Two distinct defects (both verified in review, engine.py):
+  (a) The generator is ALREADY layout-parameterized (`agents_managed_block` prose builder, engine.py ~860-884: `if target_layout == "aw"` sets `.aw/...` vars, else `.agents/...`), but the `aw` branch itself is WRONG for three roots - it emits `.aw/records/research`, `.aw/records/walkthroughs`, `.aw/records/specs` (engine.py:870-873) whereas the real layout is `.aw/records/docs/{research,walkthroughs,specs}` (the `docs/` level; verified `aw path records` + `ls`). `plans_dir`/`comms_dir` in that branch are correct. FIX the three `docs/`-missing paths in the `aw` branch.
+  (b) This repo's tracked AGENTS.md is in LEGACY mode (all 24 refs are `.agents/...`, i.e. the `else` branch ran), so a MIGRATED repo still regenerates a legacy block. Find what determines the `target_layout` passed to the AGENTS.md writer on install/update and make a migrated (`.aw/`) repo select the `aw` branch (e.g. via `resolve_target_layout`), then REGENERATE this repo's AGENTS.md. Do NOT hand-edit only the artifact (it re-propagates on every install).
   - Depends on: none
-  - Expected outcome: the regenerated AGENTS.md block has 0 wrong `.agents/` paths and round-trips through the managed-section machinery.
+  - Expected outcome: on a migrated repo the writer selects the `aw` branch; the regenerated AGENTS.md block references `.aw/system/workflows/...` and `.aw/records/{plans,docs/research,docs/walkthroughs,docs/specs,comms}` (correct `docs/` sub-paths), has 0 wrong/legacy `.agents/` paths, and a second regenerate is a no-op (round-trip).
   - Execution state: pending
 
 ### Task group 3: behaviorally-broken shipped tool
 
-- [ ] E-05 Make `normalize_plan_names.py` (`.aw/system/workflows/setup-repo/tools/`) layout-aware: its `AGENTS_DIR = ".agents"` scan root (plans.py:62) must resolve `.aw/records/` with a legacy `.agents/` read-fallback (same idiom as Order 01), since it is a SHIPPED tool that otherwise scans the vanished tree. Update its docstring scope note.
+- [ ] E-05 Make `normalize_plan_names.py` (`.aw/system/workflows/setup-repo/tools/`) layout-aware: its `AGENTS_DIR = ".agents"` scan root (normalize_plan_names.py:62, consumed at :378 `agents = repo_root / AGENTS_DIR`) must resolve `.aw/records/` with a legacy `.agents/` read-fallback, since it is a SHIPPED tool that otherwise scans the vanished tree. NOTE: this tool is a SHIPPED, dependency-free standalone script (no `agent_workflows` import), so it cannot reuse `resolve_record_path`; implement a small self-contained climb/prefer-`.aw/records`-else-`.agents` resolution inline. Update its docstring scope note.
   - Depends on: none
   - Expected outcome: `normalize_plan_names.py --repo <migrated-repo> --all` scans `.aw/records/{plans,prompts,docs}`; a legacy repo still scans `.agents/`.
   - Execution state: pending
@@ -92,7 +95,10 @@ From release-review run 20260817-153418 (per-file counts re-measured post-Order-
 | D01c | templates/*-README | plans/prompts/agents-docs-* titled `# .agents/...` | (a) WRONG (point-of-contact) |
 | D01d | release-review/** | 00-run-protocol(7), MANIFEST(4), 01-current-state(3) | (b) LAYOUT-AGNOSTIC (reorder only) |
 | D02 | AGENTS.md managed block | 24 refs; generated by engine.py | (a) WRONG, fix GENERATOR |
-| D01e | normalize_plan_names.py | AGENTS_DIR=".agents" (line 62) scans legacy tree | (a) WRONG behavioral - shipped tool |
+| D01e | normalize_plan_names.py | AGENTS_DIR=".agents" (normalize_plan_names.py:62, used :378) scans legacy tree | (a) WRONG behavioral - shipped standalone tool |
+| PR-001 | AGENTS.md generator (review) | engine.py:867-884 already layout-parameterized; aw branch emits `.aw/records/{research,walkthroughs,specs}` but real is `.aw/records/docs/{...}`; this repo's block is legacy-mode | HIGH: E-04 rescoped to fix the aw-branch docs/ paths AND the legacy target_layout selection |
+| PR-002 | E-05 citation (review) | plan said "plans.py:62"; actual is normalize_plan_names.py:62 | LOW: corrected in E-05 |
+| PR-003 | tool cannot import package (review) | normalize_plan_names.py is a shipped standalone script (no agent_workflows import) | MEDIUM: E-05 must inline resolution, not reuse Order-01 helper |
 
 ## Proposed changes (ordered, validatable)
 
@@ -158,7 +164,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: regenerate AGENTS.md via the fixed generator; the managed block has 0 `.agents/` paths and a second regenerate is a no-op (round-trip). Paste `grep -c` + the no-op diff.
+  - Required evidence: (a) the aw-branch paths for research/walkthroughs/specs now include `docs/` (engine.py); (b) on this migrated repo the writer selects the `aw` branch and the regenerated AGENTS.md references `.aw/system/workflows/...` + `.aw/records/{plans,docs/research,docs/walkthroughs,docs/specs,comms}` with 0 legacy `.agents/` paths; (c) a second regenerate is a no-op (round-trip). Paste `grep -oE` of the AGENTS.md paths + the no-op diff.
   - Observed evidence:
   - Result: pending
 
