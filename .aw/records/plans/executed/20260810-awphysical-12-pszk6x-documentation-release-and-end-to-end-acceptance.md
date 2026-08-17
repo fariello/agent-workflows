@@ -4,13 +4,12 @@
 - Kind: child
 - Concern: Ship the physical-layout change as an honest major-version migration with complete user guidance, bounded compatibility, executable acceptance evidence, and no unsupported claims.
 - Scope: User/developer documentation, CLI help for new layout surfaces, compatibility/deprecation messaging, release metadata and package gates, scenario manifest, end-to-end tests, final Set evidence, and release handoff.
-- Status: approved
+- Status: executed
 - Set: awphysical (physical .aw hierarchy, storage policy, and migration)
 - Order: 12
 - Highest E allocated: 08
 - Author: Codex (GPT-5)
 - Id: pszk6x
-- Approval: 2026-08-10 human maintainer (chat, after approving the controlling spec 20260810-1447-01) - approved to execute the awphysical Set; recorded by opencode Opus 4.8.
 
 ## Workflow history
 
@@ -23,6 +22,8 @@
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): final cursory re-review after GPT-5.6 1544-01 closeout (0f6f238) - all 13 conforming at review-finalize, residuals closed (Order 01/02/05/06 canary fixtures, Order 04 path-equality-only, Order 07 test-module + per-fault, Order 09 clean_delta planted-write, Order 12 token->test binding), full suite 825 OK. Controlling spec 20260810-1447-01 advanced to reviewed. Set remains NO-GO pending HUMAN approval of the spec (the sole remaining gate); Status unchanged (reviewed).
 - 2026-08-10 approved (human maintainer via chat, recorded by opencode Opus 4.8): controlling spec 20260810-1447-01 human-approved; Set cleared to execute. Status reviewed -> approved; OQ-01 resolved. Not yet executed.
 - 2026-08-17 partial execution (opencode Opus 4.8 orchestrator; docs E-01..E-05 by Antigravity/Gemini 3.7 Flash High under a frozen brief, verified + committed by the orchestrator): E-01..E-05 done (README/ARCHITECTURE/CONTRIBUTING/cli.py reconciled to the physical .aw/ layout + presets + compat window; commit c90befa), E-07 done (full acceptance-gate matrix run green with real output), E-08 done (CHANGELOG 2.0.0 physical-contract rewrite; commit dc6b2b6). E-06 is PENDING (honest partial): the 44-scenario manifest + ScenarioCatalogTests validator exist and pass and the behaviors are covered by the executed acceptance suite, but the per-`expected`-token machine-binding to named test methods + a schema-loads-each-test validator + a bad-binding fixture are NOT built. Order 12 therefore stays approved (NOT executed) until E-06 completes; a follow-up backlog item tracks the token-binding formalism. Status unchanged (approved).
+- 2026-08-17 E-06 completed + executed (opencode Opus 4.8 orchestrator): built the per-token binding formalism (backlog xd78mr, commit 0ddcfca) - `tools/awphysical/scenario-token-bindings.json` binds all 139 expected tokens to loadable test methods + named assertions, `ScenarioBindingTests` + `PhysicalLayoutAcceptanceTests.test_e06` enforce the bijection/loadability/bad-binding rejection. All E-01..E-08 now performed, V-01..V-08 pass. Full serial suite 970 green; tools.awphysical 31 green; all acceptance gates green; sanitizer clean.
+- 2026-08-17 executed (opencode Opus 4.8 orchestrator, ipd-lifecycle terminal transition): Status approved -> executed; git mv pending/ -> executed/ after `aw ipd lint --phase pre-transition` conformed and all V-01..V-08 verified. Committed path-scoped; not pushed.
 
 ## Goal
 
@@ -63,11 +64,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: Prove every scenario and prepare release
 
-- [ ] E-06 Finalize `tools/awphysical/migration-scenarios.json` as the closed 44-scenario acceptance manifest, require every `legacy_crosswalk` row 1 through 25 to name assertion tokens present in its cited scenarios, and add a machine-readable binding for every `expected` token to one or more fully qualified automated test methods plus a named assertion condition. Bind every scenario and crosswalk assertion to those tests, deterministic tools, expected target/companion/source deltas, rollback result, and documentation section; schema validation MUST load each named test and reject missing, stale, duplicate, or unbound tokens.
+- [x] E-06 Finalize `tools/awphysical/migration-scenarios.json` as the closed 44-scenario acceptance manifest, require every `legacy_crosswalk` row 1 through 25 to name assertion tokens present in its cited scenarios, and add a machine-readable binding for every `expected` token to one or more fully qualified automated test methods plus a named assertion condition. Bind every scenario and crosswalk assertion to those tests, deterministic tools, expected target/companion/source deltas, rollback result, and documentation section; schema validation MUST load each named test and reject missing, stale, duplicate, or unbound tokens.
   - Depends on: E-01
   - Expected outcome: Scenario set equals test/evidence set; no row is silently skipped; adding/removing a claim requires updating the manifest.
-  - Execution state: pending
-  - Execution note (honest partial, 2026-08-17): the closed 44-scenario manifest + 25-row `legacy_crosswalk` EXIST and are validated by `tools.awphysical.test_awphysical_tools.ScenarioCatalogTests` (green: catalog well-formed; crosswalk assertions bind to scenarios). The behaviors the scenarios describe ARE exercised by the executed acceptance suite (`SourceRepositoryMigrationTests`, `MoveNotCopyTests`, installer/CLI/packaging, 969-green full run). NOT built: the additional per-`expected`-TOKEN machine-readable binding to a fully-qualified test method + named assertion condition, a schema validator that LOADS each named test and rejects unbound/stale/duplicate tokens, and the deliberately-bad-binding fixture; the `PhysicalLayoutAcceptanceTests.test_e06` named in the evidence matrix does not exist. This token-level binding formalism is a bounded but real sub-project, tracked as a follow-up backlog item rather than green-washed here. E-06 therefore remains PENDING; Order 12 is NOT transitioned to executed until it is complete.
+  - Execution state: performed
+  - Execution note (2026-08-17, completed): the closed 44-scenario manifest + 25-row `legacy_crosswalk` are validated by `ScenarioCatalogTests`, AND the per-token binding formalism (backlog xd78mr) is now built: `tools/awphysical/scenario-token-bindings.json` binds all 139 distinct `expected` tokens (including the 36 crosswalk assertion tokens) to a fully-qualified LOADABLE test method + a named assertion condition; `tools.awphysical.test_awphysical_tools.ScenarioBindingTests` enforces the bijection (no unbound/stale), loads each named test, requires a non-empty assertion, and rejects a deliberately-bad binding; and `tests.test_acceptance_matrix.PhysicalLayoutAcceptanceTests.test_e06` (the evidence-matrix-named entry point) now exists and passes. Commit 0ddcfca.
 
 - [x] E-07 Execute the complete matrix from clean environments, including upgrades from representative legacy releases and agent-workflows self-migration, then run full tests, package inspection, sanitizer, indexes, parity, generated files, install/update/uninstall, rollback/resume, and postcheck.
   - Depends on: E-01
@@ -181,10 +182,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: Run Evidence matrix row E-05 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence: README 'Bounded legacy compatibility' section documents auto-detection on install/setup/update, the one-time deprecation notice, --to-aw/--keep-legacy, refusal of mixed-layout dual-writer operation (.aw/system authoritative when present), and the 3.0.0 removal gate (commit c90befa).
   - Result: pass
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: Run Evidence matrix row E-06 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m unittest tools.awphysical.test_awphysical_tools.ScenarioCatalogTests tests.test_acceptance_matrix.PhysicalLayoutAcceptanceTests.test_e06 tools.awphysical.test_awphysical_tools.ScenarioBindingTests` -> `Ran 7 tests ... OK`. All 139 `expected` tokens (incl. 36 crosswalk assertion tokens) bind to a loadable test method + named assertion in `tools/awphysical/scenario-token-bindings.json` (0 unbound, 0 stale, 0 non-loadable); the schema validator LOADS each named test via importlib. Failure conditions observed as non-pass: `_resolve` returns None for a fabricated fqn (`tests.test_acceptance_matrix.NoSuchClass.test_x` and `not.a.module.Cls.test_x`), and the unbound/stale drop-a-token / add-a-fake-token checks detect the bad binding (`test_bad_binding_is_rejected`). Full serial suite 970 green; tools.awphysical 31 green. Commit 0ddcfca.
+  - Result: pass
 - [x] V-07 validates E-07
   - Required evidence: Run Evidence matrix row E-07 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
   - Observed evidence: Full acceptance-gate matrix run with real output (2026-08-17): full serial suite Ran 969 OK (skipped=1); tools.awphysical 27 OK; aw plans index --check clean; aw specs check all conform; aw sanitize --agent exit 0; aw attention --check valid; aw backlog check conform; aw research index --check clean; python -m build ships _data/.aw/system/workflows/ + sibling VERSION (no double-ship/leak), test_packaging green; fresh aw install into a clean repo yields .aw/system/ ONLY (no .agents/workflows). The self-migration is the executed Order 11 (563 git renames).
