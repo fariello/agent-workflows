@@ -28,7 +28,7 @@ Showing the 40 most-recent of 83 Sets; the full manifest is INDEX.json.
 ## awretrofit
 
 - `pp6y76` [pending] 00 pending/20260817-1620-00-awretrofit-orchestrator.md
-- `i7um6r` [pending] 01 pending/20260817-1620-01-awretrofit-record-verbs-layout-aware.md
+- `i7um6r` [executed] 01 executed/20260817-1620-01-awretrofit-record-verbs-layout-aware.md
 
 ## agyrun
 

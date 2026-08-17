@@ -4,7 +4,7 @@
 - Kind: orchestrator
 - Concern: The awphysical `.aw/` migration shipped INCOMPLETE. Release-review run 20260817-153418 found (and reproduced) that the reader/index verbs were retrofitted but the writer/board/lint verbs, the shipped/executed workflow bodies, the always-loaded AGENTS.md block, the release mechanics (RELEASING.md + Makefile), and several docstrings/manifests still target the vanished legacy `.agents/` tree. This is a NO-GO for release.
 - Scope: Complete the retrofit so a migrated (`.aw/`) repo works end-to-end. Five child Orders (01 record verbs + tests; 02 shipped docs + AGENTS.md generator; 03 release mechanics; 04 install/uninstall + migration-engine safety; 05 help/docstrings/READMEs/manifest/dead-code). OUT: the next version NUMBER (S6-V01) is a maintainer decision recorded here, not an Order action; no push/tag/publish (Section 9 human GO).
-- Status: reviewed
+- Status: approved
 - Set: awretrofit
 - Order: 0
 - Highest E allocated: 01

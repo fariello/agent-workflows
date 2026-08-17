@@ -1670,6 +1670,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-17",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260817-1620-01-awretrofit-record-verbs-layout-aware.md",
+    "plan_id": "i7um6r",
+    "set_id": "awretrofit",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -1697,17 +1707,7 @@
     "path": "pending/20260817-1620-00-awretrofit-orchestrator.md",
     "plan_id": "pp6y76",
     "set_id": "awretrofit",
-    "status": "to-review"
-  },
-  {
-    "date": "2026-08-17",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260817-1620-01-awretrofit-record-verbs-layout-aware.md",
-    "plan_id": "i7um6r",
-    "set_id": "awretrofit",
-    "status": "to-review"
+    "status": "approved"
   },
   {
     "date": "2026-08-07",
