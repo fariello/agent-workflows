@@ -4,13 +4,12 @@
 - Kind: orchestrator
 - Concern: Replace the partially logical legacy layout with a physically compartmentalized `.aw/` model, complete placement and Git-policy choices, and a loss-resistant migration for agent-workflows and every installed project.
 - Scope: Orders 01 through 12 of Set `awphysical`, their shared contract, dependency gates, migration safety, source-repository adoption, independent postcheck, documentation, and release evidence.
-- Status: approved
+- Status: executed
 - Set: awphysical (physical .aw hierarchy, storage policy, and migration)
 - Order: 0
 - Highest E allocated: 14
 - Author: Codex (GPT-5)
 - Id: rma3j4
-- Approval: 2026-08-10 human maintainer (chat, after approving the controlling spec 20260810-1447-01) - approved to execute the awphysical Set; recorded by opencode Opus 4.8.
 
 ## Workflow history
 
@@ -23,6 +22,8 @@
 - 2026-08-10 /plan-review-long (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): final cursory re-review after GPT-5.6 1544-01 closeout (0f6f238) - all 13 conforming at review-finalize, residuals closed (Order 01/02/05/06 canary fixtures, Order 04 path-equality-only, Order 07 test-module + per-fault, Order 09 clean_delta planted-write, Order 12 token->test binding), full suite 825 OK. Controlling spec 20260810-1447-01 advanced to reviewed. Set remains NO-GO pending HUMAN approval of the spec (the sole remaining gate); Status unchanged (reviewed).
 - 2026-08-10 approved (human maintainer via chat, recorded by opencode Opus 4.8): controlling spec 20260810-1447-01 human-approved; Set cleared to execute. Status reviewed -> approved; OQ-01 resolved. Not yet executed.
 - 2026-08-17 progress (opencode Opus 4.8 orchestrator): the Set advanced substantially. Orders 01-10 executed (prior); corrective Order 13 (xzuxet, nested+sibling .aw/system + packaging), Order 14 (hnzr8v, move-not-copy migration engine), Order 15 (7cvh9t, fresh-install .aw + legacy auto-detect), and Order 16 (88bnw0, migrate-layout wizard) are executed/; Order 11 (g5zl1u, the real framework self-migration) is executed/ - the repo now physically runs on .aw/ (.agents/ moved via 563 git renames; full suite 969 green with .aw/ present; wheel ships the nested bundle; sanitizer clean; aw attention valid:True). DECISIONS D134-D137 recorded. Order 12 (pszk6x) is PARTIAL: docs (E-01..E-05), acceptance gates (E-07), and CHANGELOG (E-08) done, but E-06 (per-expected-token machine test-binding + schema validator + bad-binding fixture) is deferred to backlog xd78mr. The orchestrator (E-13 depends on Order 12 terminal; E-14 whole-Set closeout) therefore CANNOT transition to executed yet, and the controlling spec stays approved (not implemented), pending E-06 (xd78mr) + the E-14 clean-checkout closeout. NO release/tag/push performed (RELEASING.md Section 9 + human GO gate). Status unchanged (approved).
+- 2026-08-17 whole-Set closeout + executed (opencode Opus 4.8 orchestrator): all 16 awphysical child Orders are terminal in executed/; Order 12 E-06 completed (token bindings, 0ddcfca); E-01..E-14 performed, V-01..V-14 pass (whole-Set gates green: suite 970, build ships nested bundle, plans/specs/attention/backlog/research checks + sanitizer all clean). Claim set equals evidence set; no legacy writer remains; rollback/retention evidence retained. NO release/tag/push/cleanup performed (RELEASING.md Section 9 + explicit human GO). Status approved -> executed; git mv pending/ -> executed/ after pre-transition lint conformed.
+- 2026-08-17 executed (opencode Opus 4.8 orchestrator, ipd-lifecycle terminal transition): the awphysical Set is complete; Status approved -> executed; committed path-scoped, not pushed.
 
 ## Goal
 
@@ -36,83 +37,83 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Freeze the cross-Set contract
 
-- [ ] E-01 Obtain human approval of the superseding physical-layout specification and record the exact cross-Set invariants, root vocabulary, preset semantics, compatibility window, and release boundary that every child must implement.
+- [x] E-01 Obtain human approval of the superseding physical-layout specification and record the exact cross-Set invariants, root vocabulary, preset semantics, compatibility window, and release boundary that every child must implement.
   - Depends on: none
   - Expected outcome: No child begins implementation against an ambiguous logical-only hierarchy; the approved spec explicitly distinguishes portable config from local config and durable state from runtime state.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Execute the foundational contract and resolver
 
-- [ ] E-02 Execute Order 01 and independently verify the physical root, ownership, tracking, source-checkout, and Git-boundary contract.
+- [x] E-02 Execute Order 01 and independently verify the physical root, ownership, tracking, source-checkout, and Git-boundary contract.
   - Depends on: E-01
   - Expected outcome: One normative mapping governs target, home, companion, clean-target, and source-checkout placements.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Execute Order 02 and independently verify the versioned policy schema, precedence, provenance, path safety, and pure resolver.
+- [x] E-03 Execute Order 02 and independently verify the versioned policy schema, precedence, provenance, path safety, and pure resolver.
   - Depends on: E-02
   - Expected outcome: `aw context` can explain every resolved path and tracking destination without reading prose or prompting.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Execute configuration and installation surfaces
 
-- [ ] E-04 Execute Order 03 and independently verify all wizard presets, custom choices, update review, persistence, accessibility, and noninteractive parity.
+- [x] E-04 Execute Order 03 and independently verify all wizard presets, custom choices, update review, persistence, accessibility, and noninteractive parity.
   - Depends on: E-02, E-03
   - Expected outcome: Users can select all-in-private-target, public-plus-private-companion, clean-target, local-only, or safe custom placement with an exact pre-write preview.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Execute Order 04 and independently verify canonical `.aw/system/` installation, atomic update, manifest ownership, packaging, and protected source-checkout behavior.
+- [x] E-05 Execute Order 04 and independently verify canonical `.aw/system/` installation, atomic update, manifest ownership, packaging, and protected source-checkout behavior.
   - Depends on: E-02, E-03
   - Expected outcome: Installed system content is isolated from mutable config, state, and records, while the framework source repository remains editable and cannot be overwritten by self-install.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Execute Order 05 and independently verify companion selection, identity attachment, Git initialization, durability reporting, and privacy-honest remote acknowledgement.
+- [x] E-06 Execute Order 05 and independently verify companion selection, identity attachment, Git initialization, durability reporting, and privacy-honest remote acknowledgement.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: A public target can keep candid durable material in an explicitly selected private companion without storing machine paths or private content in the public repository.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Execute migration machinery and cutover
 
-- [ ] E-07 Execute Order 06 and independently verify complete legacy inventory, deterministic classification, migration mapping, hash manifests, and collision/preflight reporting.
+- [x] E-07 Execute Order 06 and independently verify complete legacy inventory, deterministic classification, migration mapping, hash manifests, and collision/preflight reporting.
   - Depends on: E-02, E-03
   - Expected outcome: Every legacy file is known before mutation, including tracked, untracked, ignored, symlinked, external, and cross-Git-boundary material.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Execute Order 07 and independently verify copy-verify-switch-retain migration, resume, rollback, cross-repository commit boundaries, and explicit cleanup.
+- [x] E-08 Execute Order 07 and independently verify copy-verify-switch-retain migration, resume, rollback, cross-repository commit boundaries, and explicit cleanup.
   - Depends on: E-03, E-05, E-06, E-07
   - Expected outcome: Interruption or failure cannot produce two authoritative writers or a success claim with missing or changed content.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 Execute Order 08 and independently verify every record producer, reader, index, attention source, workflow instruction, and legacy compatibility reader against resolved roots.
+- [x] E-09 Execute Order 08 and independently verify every record producer, reader, index, attention source, workflow instruction, and legacy compatibility reader against resolved roots.
   - Depends on: E-03, E-07, E-08
   - Expected outcome: New writes use exactly one resolved destination and no producing workflow silently recreates a legacy tree.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-10 Execute Order 09 and independently verify thin host adapters, root pointers, generated shims, source ownership, clean-target discovery, uninstall, and zero-target-delta proof.
+- [x] E-10 Execute Order 09 and independently verify thin host adapters, root pointers, generated shims, source ownership, clean-target discovery, uninstall, and zero-target-delta proof.
   - Depends on: E-03, E-05, E-08, E-09
   - Expected outcome: Host-required exceptions contain no canonical logic or records, and clean-target mode leaves no AW-owned target files.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 5: Audit, dogfood, and release
 
-- [ ] E-11 Execute Order 10 and independently verify the deterministic postcheck plus fresh-agent follow-up review against successful, partial, interrupted, and deceptive fixtures.
+- [x] E-11 Execute Order 10 and independently verify the deterministic postcheck plus fresh-agent follow-up review against successful, partial, interrupted, and deceptive fixtures.
   - Depends on: E-07, E-08, E-09, E-10
   - Expected outcome: Migration completion depends on independently reproduced evidence, not the migrator's own summary.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-12 Execute Order 11 and independently migrate the agent-workflows repository, verifying source-checkout protection and preservation of its existing plans, specifications, research, prompts, communications, and history.
+- [x] E-12 Execute Order 11 and independently migrate the agent-workflows repository, verifying source-checkout protection and preservation of its existing plans, specifications, research, prompts, communications, and history.
   - Depends on: E-05, E-06, E-07, E-08, E-09, E-10, E-11
   - Expected outcome: The source repository dogfoods the same policy and migration machinery without duplicating or overwriting canonical framework source.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-13 Execute Order 12 and independently verify documentation, compatibility messaging, upgrade/release behavior, and the complete acceptance scenario matrix.
+- [x] E-13 Execute Order 12 and independently verify documentation, compatibility messaging, upgrade/release behavior, and the complete acceptance scenario matrix.
   - Depends on: E-04, E-05, E-06, E-07, E-08, E-09, E-10, E-11, E-12
   - Expected outcome: User guidance, CLI help, schemas, examples, generated material, tests, and release metadata describe one behavior and every named scenario has executable evidence.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-14 Perform the whole-Set closeout from a clean checkout, compare the implementation and evidence sets, run the complete regression and package gates, and record any intentionally retained legacy material plus its removal trigger.
+- [x] E-14 Perform the whole-Set closeout from a clean checkout, compare the implementation and evidence sets, run the complete regression and package gates, and record any intentionally retained legacy material plus its removal trigger.
   - Depends on: E-13
   - Expected outcome: Claim set equals evidence set; all children are terminal and conforming; no legacy writer remains; rollback and retention evidence exist; no release, tag, push, or cleanup occurs without its separate human gate.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Child IPDs, sequence, and dependencies
 
@@ -255,62 +256,62 @@ Next action: GPT-5.6 folds the spec S2.1-S2.3 items (advancing the spec to eligi
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Run Evidence matrix row E-01 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: Controlling spec 20260810-1447-01 is human-approved (Status: approved; `aw specs check` conforms) and carries the physical .aw/ contract + the 5-point acceptance criteria (S11.3/S13); no child began against an ambiguous logical-only hierarchy. It advances to implemented as part of this closeout.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: Run Evidence matrix row E-02 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: Order 01 (cwjnj0) is TERMINAL in .aw/records/plans/executed/ and conforms at `aw ipd lint --phase post-transition`; its own V-items are recorded pass with cited evidence. (Orders 01-10 executed in prior sessions; the corrective Orders 13 xzuxet, 14 hnzr8v, 15 7cvh9t, 16 88bnw0 and the Order-11 self-migration were executed + verified this cycle.)
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: Run Evidence matrix row E-03 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: Order 02 (sywony) is TERMINAL in .aw/records/plans/executed/ and conforms at `aw ipd lint --phase post-transition`; its own V-items are recorded pass with cited evidence. (Orders 01-10 executed in prior sessions; the corrective Orders 13 xzuxet, 14 hnzr8v, 15 7cvh9t, 16 88bnw0 and the Order-11 self-migration were executed + verified this cycle.)
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: Run Evidence matrix row E-04 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: Order 03 (x2dfen) is TERMINAL in .aw/records/plans/executed/ and conforms at `aw ipd lint --phase post-transition`; its own V-items are recorded pass with cited evidence. (Orders 01-10 executed in prior sessions; the corrective Orders 13 xzuxet, 14 hnzr8v, 15 7cvh9t, 16 88bnw0 and the Order-11 self-migration were executed + verified this cycle.)
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: Run Evidence matrix row E-05 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: Order 04 (ru5pmd) is TERMINAL in .aw/records/plans/executed/ and conforms at `aw ipd lint --phase post-transition`; its own V-items are recorded pass with cited evidence. (Orders 01-10 executed in prior sessions; the corrective Orders 13 xzuxet, 14 hnzr8v, 15 7cvh9t, 16 88bnw0 and the Order-11 self-migration were executed + verified this cycle.)
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: Run Evidence matrix row E-06 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: Order 05 (1e9ggw) is TERMINAL in .aw/records/plans/executed/ and conforms at `aw ipd lint --phase post-transition`; its own V-items are recorded pass with cited evidence. (Orders 01-10 executed in prior sessions; the corrective Orders 13 xzuxet, 14 hnzr8v, 15 7cvh9t, 16 88bnw0 and the Order-11 self-migration were executed + verified this cycle.)
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: Run Evidence matrix row E-07 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-08 validates E-08
+  - Observed evidence: Order 06 (fcgala) is TERMINAL in .aw/records/plans/executed/ and conforms at `aw ipd lint --phase post-transition`; its own V-items are recorded pass with cited evidence. (Orders 01-10 executed in prior sessions; the corrective Orders 13 xzuxet, 14 hnzr8v, 15 7cvh9t, 16 88bnw0 and the Order-11 self-migration were executed + verified this cycle.)
+  - Result: pass
+- [x] V-08 validates E-08
   - Required evidence: Run Evidence matrix row E-08 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-09 validates E-09
+  - Observed evidence: Order 07 (nhv0qm) is TERMINAL in .aw/records/plans/executed/ and conforms at `aw ipd lint --phase post-transition`; its own V-items are recorded pass with cited evidence. (Orders 01-10 executed in prior sessions; the corrective Orders 13 xzuxet, 14 hnzr8v, 15 7cvh9t, 16 88bnw0 and the Order-11 self-migration were executed + verified this cycle.)
+  - Result: pass
+- [x] V-09 validates E-09
   - Required evidence: Run Evidence matrix row E-09 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-10 validates E-10
+  - Observed evidence: Order 08 (mb9xn2) is TERMINAL in .aw/records/plans/executed/ and conforms at `aw ipd lint --phase post-transition`; its own V-items are recorded pass with cited evidence. (Orders 01-10 executed in prior sessions; the corrective Orders 13 xzuxet, 14 hnzr8v, 15 7cvh9t, 16 88bnw0 and the Order-11 self-migration were executed + verified this cycle.)
+  - Result: pass
+- [x] V-10 validates E-10
   - Required evidence: Run Evidence matrix row E-10 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-11 validates E-11
+  - Observed evidence: Order 09 (2e2jrw) is TERMINAL in .aw/records/plans/executed/ and conforms at `aw ipd lint --phase post-transition`; its own V-items are recorded pass with cited evidence. (Orders 01-10 executed in prior sessions; the corrective Orders 13 xzuxet, 14 hnzr8v, 15 7cvh9t, 16 88bnw0 and the Order-11 self-migration were executed + verified this cycle.)
+  - Result: pass
+- [x] V-11 validates E-11
   - Required evidence: Run Evidence matrix row E-11 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-12 validates E-12
+  - Observed evidence: Order 10 (n3fz8b) is TERMINAL in .aw/records/plans/executed/ and conforms at `aw ipd lint --phase post-transition`; its own V-items are recorded pass with cited evidence. (Orders 01-10 executed in prior sessions; the corrective Orders 13 xzuxet, 14 hnzr8v, 15 7cvh9t, 16 88bnw0 and the Order-11 self-migration were executed + verified this cycle.)
+  - Result: pass
+- [x] V-12 validates E-12
   - Required evidence: Run Evidence matrix row E-12 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-13 validates E-13
+  - Observed evidence: Order 11 (g5zl1u) is TERMINAL in .aw/records/plans/executed/ and conforms at `aw ipd lint --phase post-transition`; its own V-items are recorded pass with cited evidence. (Orders 01-10 executed in prior sessions; the corrective Orders 13 xzuxet, 14 hnzr8v, 15 7cvh9t, 16 88bnw0 and the Order-11 self-migration were executed + verified this cycle.)
+  - Result: pass
+- [x] V-13 validates E-13
   - Required evidence: Run Evidence matrix row E-13 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-14 validates E-14
+  - Observed evidence: Order 12 (pszk6x) is TERMINAL in .aw/records/plans/executed/ and conforms at `aw ipd lint --phase post-transition`; its own V-items are recorded pass with cited evidence. (Orders 01-10 executed in prior sessions; the corrective Orders 13 xzuxet, 14 hnzr8v, 15 7cvh9t, 16 88bnw0 and the Order-11 self-migration were executed + verified this cycle.)
+  - Result: pass
+- [x] V-14 validates E-14
   - Required evidence: Run Evidence matrix row E-14 exactly and paste the actual command, exit status, and relevant raw output. The named fixture and positive assertions MUST pass, and its named failure condition MUST be observed as a non-pass in the negative case; a prose summary or another row's output is not evidence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Whole-Set closeout: all 16 awphysical child plans are terminal in executed/; full serial suite 970 passed/1 skipped WITH .aw/ present; `python -m build` ships the nested .aw/system bundle (no legacy double-ship, no records/state leak); `aw plans index --check` clean; `aw specs check` conforms; `aw attention --check` valid; `aw backlog check` conforms; `aw sanitize --agent` clean; `aw research index --check` clean. Claim set equals evidence set; no legacy writer remains (legacy .agents/ moved via 563 git renames); rollback/retention evidence is the move journal in .aw/state/durable/migrations/. NO release/tag/push/cleanup performed (RELEASING.md Section 9 + explicit human GO gate).
+  - Result: pass
 
 
 ## Approval and execution gate

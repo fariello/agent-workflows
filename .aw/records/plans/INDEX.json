@@ -1422,6 +1422,16 @@
   {
     "date": "2026-08-10",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260810-awphysical-00-rma3j4-physical-aw-hierarchy-and-migration-orchestrator.md",
+    "plan_id": "rma3j4",
+    "set_id": "awphysical",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-10",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260810-awphysical-01-cwjnj0-physical-root-ownership-and-git-policy-contract.md",
@@ -1668,16 +1678,6 @@
     "plan_id": "lud5t5",
     "set_id": "assess-documentation",
     "status": "not-executed"
-  },
-  {
-    "date": "2026-08-10",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260810-awphysical-00-rma3j4-physical-aw-hierarchy-and-migration-orchestrator.md",
-    "plan_id": "rma3j4",
-    "set_id": "awphysical",
-    "status": "approved"
   },
   {
     "date": "2026-08-07",

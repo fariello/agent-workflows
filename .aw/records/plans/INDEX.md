@@ -10,7 +10,7 @@ Showing the 40 most-recent of 82 Sets; the full manifest is INDEX.json.
 
 ## awphysical
 
-- `rma3j4` [pending] 00 pending/20260810-awphysical-00-rma3j4-physical-aw-hierarchy-and-migration-orchestrator.md
+- `rma3j4` [executed] 00 executed/20260810-awphysical-00-rma3j4-physical-aw-hierarchy-and-migration-orchestrator.md
 - `cwjnj0` [executed] 01 executed/20260810-awphysical-01-cwjnj0-physical-root-ownership-and-git-policy-contract.md
 - `sywony` [executed] 02 executed/20260810-awphysical-02-sywony-policy-schema-and-deterministic-context-resolution.md
 - `x2dfen` [executed] 03 executed/20260810-awphysical-03-x2dfen-wizard-presets-custom-placement-and-persistence.md
