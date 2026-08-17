@@ -742,7 +742,17 @@ _NON_IPD_BASENAMES = frozenset(("README.md", "STATUS.md", "INDEX.md"))
 
 
 def _iter_plan_files(root: Path) -> List[Path]:
-    base = root / ".agents" / "plans"
+    # Layout-aware (IPD awretrofit Order 01): resolve .aw/records/plans with a legacy
+    # .agents/plans read-fallback, so `aw ipd lint --all` scans the migrated tree instead of
+    # false-passing with conforming=0.
+    from agent_workflows.record_producers import resolve_record_path
+
+    try:
+        base = resolve_record_path("plans", target_repo=str(root))
+    except Exception:
+        base = root / ".aw" / "records" / "plans"
+    if not base.is_dir() and (root / ".agents" / "plans").is_dir():
+        base = root / ".agents" / "plans"
     if not base.is_dir():
         return []
     return sorted(p for p in base.rglob("*.md") if p.name not in _NON_IPD_BASENAMES)

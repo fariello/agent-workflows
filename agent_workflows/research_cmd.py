@@ -274,7 +274,7 @@ def plan_new_comparison(
 
 def _research_root(args: argparse.Namespace) -> Path:
     root = Path(getattr(args, "dir", None) or ".").resolve()
-    return root / R.RESEARCH_ROOT
+    return R.resolve_research_root(root)
 
 
 def _emit_and_write(files: List[PlannedFile], apply: bool, overwrite: bool) -> int:

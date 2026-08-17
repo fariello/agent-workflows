@@ -23,6 +23,7 @@ It resolves the spec's open questions with the reviewed leans:
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Dict, FrozenSet, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
@@ -323,6 +324,27 @@ def parse_name(filename: str) -> Tuple[Optional[ResearchName], Optional[NameErro
 RESEARCH_ROOT = ".agents/docs/research"
 REFERENCE_DIR = "reference"
 ARCHIVE_DIR = "archive"
+
+
+def resolve_research_root(repo_root) -> Path:
+    """Resolve the physical research root, layout-aware (IPD awretrofit Order 01).
+
+    Prefers the migrated ``.aw/records/docs/research`` (via ``resolve_record_path``); falls back to
+    the legacy ``.agents/docs/research`` only when the resolved dir is absent AND the legacy dir
+    exists. Mirrors ``research_index._roots`` so every research verb (new/refs/archive) shares one
+    resolution and cannot drift.
+    """
+
+    repo_root = Path(repo_root)
+    from agent_workflows.record_producers import resolve_record_path
+
+    try:
+        res_root = resolve_record_path("research", target_repo=str(repo_root))
+    except Exception:
+        res_root = repo_root / ".aw" / "records" / "docs" / "research"
+    if not res_root.is_dir() and (repo_root / ".agents" / "docs" / "research").is_dir():
+        res_root = repo_root / ".agents" / "docs" / "research"
+    return res_root
 
 
 # Shard date math is defined once in the shared core; re-exported here for research's API.

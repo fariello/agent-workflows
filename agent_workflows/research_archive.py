@@ -218,7 +218,8 @@ def apply_moves(repo_root: Path, research_root: Path, moves: List[Move]) -> None
 
 def _roots(args: argparse.Namespace) -> Tuple[Path, Path]:
     repo_root = Path(getattr(args, "dir", None) or ".").resolve()
-    return repo_root, repo_root / R.RESEARCH_ROOT
+    # Layout-aware (IPD awretrofit Order 01): shared research-root resolution.
+    return repo_root, R.resolve_research_root(repo_root)
 
 
 def run_archive(args: argparse.Namespace) -> int:

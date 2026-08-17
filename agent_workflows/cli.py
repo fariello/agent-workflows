@@ -2821,8 +2821,11 @@ def _run_plans(args: argparse.Namespace, term: Term) -> int:
         )
         return 2
 
-    if not (root / ".agents" / "plans").is_dir():
-        term.status("skip", f"No plans found (no .agents/plans/ under {root}).")
+    # Layout-aware (IPD awretrofit Order 01): resolve the plans dir (.aw/records/plans with a
+    # legacy .agents/plans read-fallback) rather than gating on the vanished legacy path.
+    plans_dir = plans_mod._resolve_area_dir(root, "plans")
+    if not plans_dir.is_dir():
+        term.status("skip", f"No plans found (no {plans_dir} under {root}).")
         return 0
 
     records = plans_mod.scan(root)
@@ -2834,7 +2837,7 @@ def _run_plans(args: argparse.Namespace, term: Term) -> int:
         records = [r for r in records if r.status == want]
 
     if getattr(args, "write_index", False):
-        index_path = root / ".agents" / "plans" / "STATUS.md"
+        index_path = plans_dir / "STATUS.md"
         index_path.write_text(
             plans_mod.render_status_index(root, records), encoding="utf-8"
         )

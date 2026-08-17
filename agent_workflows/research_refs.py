@@ -121,7 +121,7 @@ def find_dangling_citations(
     the pre-refactor detector.
     """
 
-    rroot = research_root or (repo_root / R.RESEARCH_ROOT)
+    rroot = research_root or R.resolve_research_root(repo_root)
     return _core.find_dangling_citations(
         repo_root,
         current_ids=_current_id6s(rroot),
@@ -257,7 +257,7 @@ def _apply_renames(repo_root: Path, plans: List[RenamePlan], apply: bool) -> Non
 
 def run_set_assign(args: argparse.Namespace) -> int:
     repo_root = _repo_root(args)
-    research_root = repo_root / R.RESEARCH_ROOT
+    research_root = R.resolve_research_root(repo_root)
     from datetime import date
 
     ids = [i.strip() for i in (getattr(args, "ids", None) or []) if i.strip()]
@@ -282,7 +282,7 @@ def run_set_assign(args: argparse.Namespace) -> int:
 
 def run_mv(args: argparse.Namespace) -> int:
     repo_root = _repo_root(args)
-    research_root = repo_root / R.RESEARCH_ROOT
+    research_root = R.resolve_research_root(repo_root)
     plan, err = plan_mv(
         research_root,
         getattr(args, "id", "") or "",

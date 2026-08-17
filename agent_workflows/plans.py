@@ -144,18 +144,37 @@ def read_set(md: Path) -> "tuple[Optional[str], Optional[int]]":
     return (set_id, order)
 
 
-def scan(root: Path, include_prompts: bool = True) -> List[PlanRecord]:
-    """Scan ``<root>/.agents/plans`` (and ``.agents/prompts``) for plan/prompt records.
+def _resolve_area_dir(root: Path, area: str) -> Path:
+    """Resolve the physical dir for a records ``area`` (plans|prompts), layout-aware.
 
-    Reads front-matter only; renames/moves nothing. ``README.md`` files are skipped. Returns an
-    empty list when the areas do not exist.
+    Prefers the migrated ``.aw/records/<area>`` (via ``resolve_record_path``); falls back to the
+    legacy ``<root>/.agents/<area>`` only when the resolved dir is absent AND the legacy dir exists
+    (the retention-window read-fallback, mirroring ``plans_index._dirs``). IPD awretrofit Order 01.
+    """
+
+    from agent_workflows.record_producers import resolve_record_path
+
+    try:
+        base = resolve_record_path(area, target_repo=str(root))
+    except Exception:
+        base = root / ".aw" / "records" / area
+    if not base.is_dir() and (root / ".agents" / area).is_dir():
+        base = root / ".agents" / area
+    return base
+
+
+def scan(root: Path, include_prompts: bool = True) -> List[PlanRecord]:
+    """Scan the records ``plans`` (and ``prompts``) area for plan/prompt records.
+
+    Layout-aware (IPD awretrofit Order 01): resolves ``.aw/records/{plans,prompts}`` with a legacy
+    ``.agents/{plans,prompts}`` read-fallback. Reads front-matter only; renames/moves nothing.
+    ``README.md`` files are skipped. Returns an empty list when the areas do not exist.
     """
 
     records: List[PlanRecord] = []
-    agents = root / ".agents"
     areas = ["plans"] + (["prompts"] if include_prompts else [])
     for area in areas:
-        base = agents / area
+        base = _resolve_area_dir(root, area)
         if not base.is_dir():
             continue
         for disp in DISPOSITION_DIRS:
