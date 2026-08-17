@@ -14,12 +14,12 @@ from pathlib import Path
 from agent_workflows import ipd_authoring as A
 from agent_workflows import ipd_lint as L
 from agent_workflows import ipd_schema as S
-from tests.support import REPO_ROOT
+from tests.support import SOURCE_WORKFLOWS, SOURCE_DOCS
 
-TEMPLATES = REPO_ROOT / ".agents" / "workflows" / "assess" / "templates"
+TEMPLATES = SOURCE_WORKFLOWS / "assess" / "templates"
 CHILD = TEMPLATES / "ipd.md"
 ORCH = TEMPLATES / "orchestrator-ipd.md"
-IPD_SPEC = REPO_ROOT / ".agents" / "docs" / "specs" / "20260726-1340-01-ipd-spec.md"
+IPD_SPEC = SOURCE_DOCS / "specs" / "20260726-1340-01-ipd-spec.md"
 
 CHILD_TITLE = "<short title of the change>"
 ORCH_TITLE = "<short title of the coordinated change>"

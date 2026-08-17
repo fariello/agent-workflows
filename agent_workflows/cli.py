@@ -2080,7 +2080,7 @@ def _handle_legacy_migration(
         if _confirm(
             term,
             f"Migrate {repo_root} from legacy .agents/ to canonical .aw/ now?",
-            default_yes=False,
+            False,
         ):
             from agent_workflows.layout_migration import MigrationManager
 
@@ -2876,12 +2876,14 @@ def _load_normalizer():
 
     import importlib.util
 
-    from . import _compat
-
-    root = _compat.packaged_source_root()
-    if root is None:
-        # Source checkout: .agents/workflows lives at the repo root (two levels up from here).
-        root = Path(__file__).resolve().parent.parent / ".agents" / "workflows"
+    # Resolve the workflow bundle root layout-agnostically: engine.resolve_source_root prefers
+    # the packaged/nested .aw/system (descending into workflows/) and falls back to the legacy
+    # .agents/workflows source checkout. This works before AND after the physical-layout move,
+    # where the bundle relocated from .agents/workflows/ to .aw/system/workflows/.
+    try:
+        root = engine.resolve_source_root(None)
+    except SystemExit:
+        return None
     script = root / "setup-repo" / "tools" / "normalize_plan_names.py"
     if not script.is_file():
         return None

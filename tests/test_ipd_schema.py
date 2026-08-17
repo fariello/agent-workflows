@@ -14,7 +14,9 @@ from pathlib import Path
 from agent_workflows import ipd_schema as S
 from tests.support import CONFORMING_ORCHESTRATOR, REPO_ROOT
 
-CHILD_TEMPLATE = REPO_ROOT / ".agents" / "workflows" / "assess" / "templates" / "ipd.md"
+from tests.support import SOURCE_WORKFLOWS as _SWF
+
+CHILD_TEMPLATE = _SWF / "assess" / "templates" / "ipd.md"
 # A static, checked-in conforming orchestrator fixture (see tests/fixtures/). Decoupled from
 # the mutable live plans board so ordinary lifecycle moves (pending -> executed) never break
 # these structural tests. Regenerate with ipd_authoring.build_skeleton(kind="orchestrator", ...).

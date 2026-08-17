@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import unittest
 
-from tests.support import SETUP_TOOLS, REPO_ROOT, run_tool, load_module
+from tests.support import SETUP_TOOLS, run_tool, load_module, SOURCE_WORKFLOWS
 
 ST = load_module("setup_tools", SETUP_TOOLS)
 
@@ -14,7 +14,15 @@ class SetupToolsTests(unittest.TestCase):
     def test_version_flag(self):
         proc = run_tool(SETUP_TOOLS, "--version")
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        expected = (REPO_ROOT / ".agents/workflows/VERSION").read_text(encoding="utf-8").strip()
+        expected = (
+            (
+                SOURCE_WORKFLOWS / "VERSION"
+                if (SOURCE_WORKFLOWS / "VERSION").is_file()
+                else SOURCE_WORKFLOWS.parent / "VERSION"
+            )
+            .read_text(encoding="utf-8")
+            .strip()
+        )
         self.assertEqual(proc.stdout.strip(), expected)
 
     def test_tools_table_is_well_formed(self):

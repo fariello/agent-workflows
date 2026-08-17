@@ -23,7 +23,7 @@ from pathlib import Path
 from agent_workflows import plans as plans_mod
 from tests.support import REPO_ROOT
 
-PLANS = REPO_ROOT / ".agents" / "plans"
+from tests.support import SOURCE_PLANS as PLANS
 
 # Share the vocabulary + legacy map with the runtime helper so they can never diverge (D52).
 RECOGNIZED = plans_mod.RECOGNIZED

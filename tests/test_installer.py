@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from tests.support import REPO_ROOT, init_repo, run_installer
+from tests.support import REPO_ROOT, init_repo, run_installer, SOURCE_WORKFLOWS
 
 # The install engine now lives in the agent_workflows package (IPD-2). Import it directly
 # for the unit tests; the root install-workflows.py is a thin deprecated shim exercised by
@@ -24,7 +24,7 @@ class InstallerUnitTests(unittest.TestCase):
     """Pure-function tests (no filesystem side effects)."""
 
     def test_parse_manifest_has_core_and_catalog(self):
-        source = REPO_ROOT / ".agents" / "workflows"
+        source = SOURCE_WORKFLOWS
         workflows = INS.parse_manifest(source)
         commands = {w.command for w in workflows}
         # Core/standalone commands present.
@@ -137,13 +137,13 @@ class ArgHintShimTests(unittest.TestCase):
     def test_real_manifest_drops_no_workflow_after_arg_hints(self):
         # Guard against the silent-drop trap (PR-001): populating 5-column rows must not
         # make any workflow disappear from the real manifest.
-        source = REPO_ROOT / ".agents" / "workflows"
+        source = SOURCE_WORKFLOWS
         commands = {w.command for w in INS.parse_manifest(source)}
         for expected in ("whatnext", "list-workflows", "assess", "advise", "handoff"):
             self.assertIn(expected, commands)
 
     def test_shim_generation_collapses_catalog(self):
-        source = REPO_ROOT / ".agents" / "workflows"
+        source = SOURCE_WORKFLOWS
         workflows = INS.parse_manifest(source)
         shims = INS.generate_shim_members(workflows, source)
         # No per-concern / per-persona shims are generated.
@@ -158,7 +158,7 @@ class ArgHintShimTests(unittest.TestCase):
     def test_read_version_in_git_tree_matches_resolver(self):
         # In this project's real git tree, read_version is git-aware and must agree with
         # the resolver (a semver/.dev string), not necessarily the raw VERSION file.
-        source = REPO_ROOT / ".agents" / "workflows"
+        source = SOURCE_WORKFLOWS
         from agent_workflows import versioning as VER
 
         expected = VER.resolve_version(source, version_file=source / "VERSION")
@@ -317,7 +317,7 @@ class InstallerEndToEndTests(unittest.TestCase):
         # resolved semver/.dev string, which is what read_version(source) returns.
         proc = run_installer(self.repo, "--version")
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        source = REPO_ROOT / ".agents" / "workflows"
+        source = SOURCE_WORKFLOWS
         expected = INS.read_version(source)
         self.assertEqual(proc.stdout.strip(), expected)
 
@@ -507,7 +507,7 @@ class InstallerEndToEndTests(unittest.TestCase):
 
     def test_shim_expected_does_not_warn(self):
         # Every shim generated from the manifest must NOT be flagged as customized
-        source = REPO_ROOT / ".agents" / "workflows"
+        source = SOURCE_WORKFLOWS
         workflows = INS.parse_manifest(source)
         shims = INS.generate_shim_members(workflows, source)
         for rel, content in shims.items():
@@ -756,7 +756,7 @@ class SingleSourceOrchestratorTests(unittest.TestCase):
         return out
 
     def test_run_and_install_into_repo_produce_same_fileset(self):
-        source_root = REPO_ROOT / ".agents" / "workflows"
+        source_root = SOURCE_WORKFLOWS
 
         # Path A: engine.run() from a parsed namespace (the install-workflows.py / `aw run` path).
         repo_a = init_repo(self.base / "a")
@@ -777,7 +777,7 @@ class SingleSourceOrchestratorTests(unittest.TestCase):
         # cli._run_install reads result.get('migrated'); it must exist so the CLI summary can list
         # migrated files (parity with run()'s summary). Regression guard for the D83 fix.
         repo = init_repo(self.base / "m")
-        result = INS.install_into_repo(repo, REPO_ROOT / ".agents" / "workflows")
+        result = INS.install_into_repo(repo, SOURCE_WORKFLOWS)
         self.assertIn("migrated", result)
 
 
@@ -805,9 +805,7 @@ class InstallCorrectnessTests(unittest.TestCase):
         # F5: files created by create_setup_artifacts (e.g. .gitleaksignore, .agents/comms/README.md)
         # must be recorded in .created-files.json so --undo removes them.
         repo = init_repo(self.base / "r")
-        INS.install_into_repo(
-            repo, REPO_ROOT / ".agents" / "workflows", yes=True, no_color=True
-        )
+        INS.install_into_repo(repo, SOURCE_WORKFLOWS, yes=True, no_color=True)
         gitleaks = repo / ".gitleaksignore"
         comms_readme = repo / ".agents" / "comms" / "README.md"
         self.assertTrue(gitleaks.is_file())
@@ -851,9 +849,7 @@ class InstallCorrectnessTests(unittest.TestCase):
         import json
 
         repo = init_repo(self.base / "c")
-        INS.install_into_repo(
-            repo, REPO_ROOT / ".agents" / "workflows", yes=True, no_color=True
-        )
+        INS.install_into_repo(repo, SOURCE_WORKFLOWS, yes=True, no_color=True)
         # Corrupt the most recent record.
         backups = sorted(
             (repo / ".agent-workflows-installer-backups").glob("*/.created-files.json")
@@ -1098,7 +1094,7 @@ class UntrackedGitignoreInstallTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.base = Path(self._tmp.name)
-        self.source = REPO_ROOT / ".agents" / "workflows"
+        self.source = SOURCE_WORKFLOWS
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -1162,7 +1158,7 @@ class TrackingWarningScanTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.base = Path(self._tmp.name)
-        self.source = REPO_ROOT / ".agents" / "workflows"
+        self.source = SOURCE_WORKFLOWS
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -1215,7 +1211,7 @@ class UntrackedGitignoreUninstallTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.base = Path(self._tmp.name)
-        self.source = REPO_ROOT / ".agents" / "workflows"
+        self.source = SOURCE_WORKFLOWS
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -1271,7 +1267,7 @@ class DeepCleanupTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.base = Path(self._tmp.name)
-        self.source = REPO_ROOT / ".agents" / "workflows"
+        self.source = SOURCE_WORKFLOWS
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -1343,7 +1339,7 @@ class UninstallApplyTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.base = Path(self._tmp.name)
-        self.source = REPO_ROOT / ".agents" / "workflows"
+        self.source = SOURCE_WORKFLOWS
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -1399,7 +1395,7 @@ class PlanUninstallTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.base = Path(self._tmp.name)
-        self.source = REPO_ROOT / ".agents" / "workflows"
+        self.source = SOURCE_WORKFLOWS
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -1453,7 +1449,7 @@ class UninstallCharacterizationTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.base = Path(self._tmp.name)
-        self.source = REPO_ROOT / ".agents" / "workflows"
+        self.source = SOURCE_WORKFLOWS
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -1497,7 +1493,7 @@ class UntrackedSafetyCharacterizationTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.base = Path(self._tmp.name)
-        self.source = REPO_ROOT / ".agents" / "workflows"
+        self.source = SOURCE_WORKFLOWS
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -1539,7 +1535,7 @@ class AwBlockMigrationTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.base = Path(self._tmp.name)
-        self.source = REPO_ROOT / ".agents" / "workflows"
+        self.source = SOURCE_WORKFLOWS
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -1690,7 +1686,7 @@ class ManifestInstallFlowTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.base = Path(self._tmp.name)
-        self.source = REPO_ROOT / ".agents" / "workflows"
+        self.source = SOURCE_WORKFLOWS
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -1896,9 +1892,7 @@ class PreManifestCharacterizationTests(unittest.TestCase):
         import json
 
         repo = init_repo(self.base / "withmanifest")
-        INS.install_into_repo(
-            repo, REPO_ROOT / ".agents" / "workflows", yes=True, no_color=True
-        )
+        INS.install_into_repo(repo, SOURCE_WORKFLOWS, yes=True, no_color=True)
         manifest = repo / ".aw" / "system" / "managed-sections.json"
         self.assertTrue(manifest.exists(), "install must now write the manifest (CP3)")
         raw = json.loads(manifest.read_text(encoding="utf-8"))
@@ -1977,8 +1971,10 @@ class PhysicalSystemInstallTests(unittest.TestCase):
         self.assertTrue(fx.is_file(), f"Fixture missing: {fx}")
 
         pyproject_text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        # The packaged bundle ships from .aw/system ONCE (Order-11 self-migration moved the
+        # source there); the legacy .agents/workflows force-include is gone (no double-ship).
         self.assertIn(".aw/system", pyproject_text)
-        self.assertIn(".agents/workflows", pyproject_text)
+        self.assertNotIn('".agents/workflows"', pyproject_text)
 
     def test_e03(self):
         """E-03: Staged candidate system tree, validation, and atomic pivot."""
@@ -2001,7 +1997,7 @@ class PhysicalSystemInstallTests(unittest.TestCase):
         target = self.tmp_dir / "target_repo"
         target.mkdir()
         policy = ProjectPolicy(preset="private-target")
-        source = REPO_ROOT / ".agents" / "workflows"
+        source = SOURCE_WORKFLOWS
 
         res = install_system_tree(str(target), source_root=source, policy=policy)
         self.assertEqual(res["status"], "installed")
@@ -2030,7 +2026,7 @@ class PhysicalSystemInstallTests(unittest.TestCase):
         target = self.tmp_dir / "target_e04"
         target.mkdir()
         policy = ProjectPolicy(preset="private-target")
-        source = REPO_ROOT / ".agents" / "workflows"
+        source = SOURCE_WORKFLOWS
 
         install_system_tree(str(target), source_root=source, policy=policy)
 
@@ -2050,7 +2046,7 @@ class PhysicalSystemInstallTests(unittest.TestCase):
         from agent_workflows.install_wizard import ProjectPolicy
         from agent_workflows.project_layout import install_system_tree
 
-        source = REPO_ROOT / ".agents" / "workflows"
+        source = SOURCE_WORKFLOWS
 
         src_repo = self.tmp_dir / "src_positive"
         src_repo.mkdir()
@@ -2112,7 +2108,7 @@ class PhysicalSystemInstallTests(unittest.TestCase):
         target = self.tmp_dir / "target_e06"
         target.mkdir()
         policy = ProjectPolicy(preset="private-target")
-        source = REPO_ROOT / ".agents" / "workflows"
+        source = SOURCE_WORKFLOWS
 
         install_system_tree(str(target), source_root=source, policy=policy)
 
@@ -2155,7 +2151,7 @@ class PhysicalSystemInstallTests(unittest.TestCase):
         )
         self.assertTrue(fx.is_file(), f"Fixture missing: {fx}")
 
-        source = REPO_ROOT / ".agents" / "workflows"
+        source = SOURCE_WORKFLOWS
 
         target1 = self.tmp_dir / "fresh_tracked"
         target1.mkdir()
@@ -2200,7 +2196,7 @@ class SameSecondBackupCollisionTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.repo = init_repo(Path(self._tmp.name) / "repo")
-        self.source = REPO_ROOT / ".agents" / "workflows"
+        self.source = SOURCE_WORKFLOWS
         self.index = self.repo / ".aw" / "system" / "workflows" / "index.md"
         self.backups = self.repo / INS.BACKUPS_DIR
 
@@ -2418,7 +2414,7 @@ class Order15TargetLayoutTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.base = Path(self._tmp.name)
-        self.source = REPO_ROOT / ".agents" / "workflows"
+        self.source = SOURCE_WORKFLOWS
 
     def tearDown(self):
         self._tmp.cleanup()

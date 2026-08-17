@@ -13,7 +13,8 @@ from pathlib import Path
 
 from tests.support import REPO_ROOT
 
-WF = REPO_ROOT / ".agents" / "workflows"
+from tests.support import SOURCE_WORKFLOWS as WF
+
 PLAN_REVIEW = WF / "plan-review" / "plan-review.md"
 PRL_DIR = WF / "plan-review-long"
 PRL_01 = PRL_DIR / "01-discover-and-snapshot.md"

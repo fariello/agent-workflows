@@ -228,6 +228,17 @@ class PhysicalProducerRoutingTests(unittest.TestCase):
         inventory_sources = set()
         for entry in PRODUCER_INVENTORY:
             src_file = repo_root / entry.source_path
+            # Workflow-body producers relocate from .agents/workflows/ to .aw/system/workflows/
+            # after the physical-layout migration; resolve either location.
+            if not src_file.is_file() and entry.source_path.startswith(
+                ".agents/workflows/"
+            ):
+                moved = repo_root / (
+                    ".aw/system/workflows/"
+                    + entry.source_path[len(".agents/workflows/") :]
+                )
+                if moved.is_file():
+                    src_file = moved
             self.assertTrue(
                 src_file.is_file(), f"Inventory source missing: {entry.source_path}"
             )

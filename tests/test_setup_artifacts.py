@@ -14,7 +14,7 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from tests.support import REPO_ROOT, init_repo
+from tests.support import init_repo, SOURCE_WORKFLOWS
 from agent_workflows import cli, engine
 
 
@@ -217,9 +217,7 @@ class PromptsScaffoldTests(unittest.TestCase):
     def test_undo_removes_prompts_scaffold(self):
         # The prompts scaffold (dirs + READMEs) is recorded in .created-files.json so rollback
         # removes it (D85 F5 parity for the new prompts area).
-        engine.install_into_repo(
-            self.repo, REPO_ROOT / ".agents" / "workflows", yes=True, no_color=True
-        )
+        engine.install_into_repo(self.repo, SOURCE_WORKFLOWS, yes=True, no_color=True)
         readme = self.repo / ".agents/prompts/README.md"
         keep = self.repo / ".agents/prompts/executed/.gitkeep"
         self.assertTrue(readme.is_file())
@@ -235,9 +233,7 @@ class PromptsScaffoldTests(unittest.TestCase):
         # while a later, record-less dir sorts last by name. run_rollback must select the
         # latest dir that actually HAS the record, not blindly dirs[-1]; otherwise it rolls
         # back against an empty record and leaves the newly created scaffold behind.
-        engine.install_into_repo(
-            self.repo, REPO_ROOT / ".agents" / "workflows", yes=True, no_color=True
-        )
+        engine.install_into_repo(self.repo, SOURCE_WORKFLOWS, yes=True, no_color=True)
         backups = self.repo / engine.BACKUPS_DIR
         real = [d for d in backups.iterdir() if (d / ".created-files.json").is_file()]
         self.assertTrue(
@@ -260,9 +256,7 @@ class PromptsScaffoldTests(unittest.TestCase):
         import subprocess
 
         # Install once (this records the created files incl. the prompts .gitignore for --undo).
-        engine.install_into_repo(
-            self.repo, REPO_ROOT / ".agents" / "workflows", yes=True, no_color=True
-        )
+        engine.install_into_repo(self.repo, SOURCE_WORKFLOWS, yes=True, no_color=True)
         gi = self.repo / ".agents/prompts/.gitignore"
         self.assertTrue(gi.is_file())
         self.assertIn("local/", gi.read_text(encoding="utf-8"))

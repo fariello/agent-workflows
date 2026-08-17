@@ -11,7 +11,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tests.support import BENCH_ENV, REPO_ROOT, run_tool, load_module
+from tests.support import BENCH_ENV, REPO_ROOT, run_tool, load_module, SOURCE_WORKFLOWS
 
 BE = load_module("bench_env", BENCH_ENV)
 
@@ -21,8 +21,16 @@ class DiagnosisUnitTests(unittest.TestCase):
 
     def _rep_with_path(self, fs_type, free_gb=100.0):
         rep = BE.EnvReport()
-        rep.paths = [{"path": "/data", "exists": True, "fs_type": fs_type,
-                      "source": "srv:/export", "free_gb": free_gb, "total_gb": 500.0}]
+        rep.paths = [
+            {
+                "path": "/data",
+                "exists": True,
+                "fs_type": fs_type,
+                "source": "srv:/export",
+                "free_gb": free_gb,
+                "total_gb": 500.0,
+            }
+        ]
         return rep
 
     def test_flags_network_filesystem_working_set(self):
@@ -72,7 +80,11 @@ class DiagnosisUnitTests(unittest.TestCase):
 
     def test_hpc_login_node_flagged(self):
         rep = BE.EnvReport()
-        rep.hpc = {"scheduler_detected": True, "primary": "slurm", "inside_allocation": False}
+        rep.hpc = {
+            "scheduler_detected": True,
+            "primary": "slurm",
+            "inside_allocation": False,
+        }
         BE.diagnose(rep)
         self.assertIn("hpc.on_login_node", [d.id for d in rep.diagnostics])
 
@@ -81,8 +93,16 @@ class DiagnosisUnitTests(unittest.TestCase):
         rep.cpu_governor = "performance"
         rep.cpu_logical = 16
         rep.load_avg = [0.1, 0.1, 0.1]
-        rep.paths = [{"path": "/w", "exists": True, "fs_type": "ext4", "source": "/dev/sda1",
-                      "free_gb": 500.0, "total_gb": 900.0}]
+        rep.paths = [
+            {
+                "path": "/w",
+                "exists": True,
+                "fs_type": "ext4",
+                "source": "/dev/sda1",
+                "free_gb": 500.0,
+                "total_gb": 900.0,
+            }
+        ]
         BE.diagnose(rep)
         self.assertEqual(rep.diagnostics, [])
 
@@ -125,8 +145,15 @@ class ScrubTests(unittest.TestCase):
         rep = BE.EnvReport()
         rep.hostname = "secret-host.example.edu"
         rep.user = "alice"
-        rep.paths = [{"path": "/home/alice/data", "exists": True, "fs_type": "nfs4",
-                      "source": "srv:/export", "free_gb": 10.0}]
+        rep.paths = [
+            {
+                "path": "/home/alice/data",
+                "exists": True,
+                "fs_type": "nfs4",
+                "source": "srv:/export",
+                "free_gb": 10.0,
+            }
+        ]
         BE.scrub(rep)
         self.assertNotIn("alice", rep.hostname)
         self.assertNotIn("alice", rep.user)
@@ -164,26 +191,49 @@ class EndToEndTests(unittest.TestCase):
         data = json.loads(proc.stdout)
         # requirement 6: deep host context must be present as keys (values may be null on
         # some OSes, but the fields must exist and be honest).
-        for key in ("hostname", "os", "cpu_model", "cpu_logical", "mem_total_kb",
-                    "load_avg", "gpus", "paths", "hpc", "unread", "captured_at_utc"):
+        for key in (
+            "hostname",
+            "os",
+            "cpu_model",
+            "cpu_logical",
+            "mem_total_kb",
+            "load_avg",
+            "gpus",
+            "paths",
+            "hpc",
+            "unread",
+            "captured_at_utc",
+        ):
             self.assertIn(key, data, f"missing context field: {key}")
         self.assertTrue(data["paths"], "at least the repo path should be captured")
 
     def test_scrub_flag_end_to_end(self):
-        proc = run_tool(BENCH_ENV, "--repo", str(REPO_ROOT), "--format", "json", "--scrub")
+        proc = run_tool(
+            BENCH_ENV, "--repo", str(REPO_ROOT), "--format", "json", "--scrub"
+        )
         self.assertEqual(proc.returncode, 0, proc.stderr)
         data = json.loads(proc.stdout)
         self.assertEqual(data["hostname"], "host-redacted")
         self.assertEqual(data["user"], "user-redacted")
 
     def test_bad_repo_path_is_usage_error(self):
-        proc = run_tool(BENCH_ENV, "--repo", "/nonexistent/path/xyz", "--format", "json")
+        proc = run_tool(
+            BENCH_ENV, "--repo", "/nonexistent/path/xyz", "--format", "json"
+        )
         self.assertEqual(proc.returncode, 2)
 
     def test_version_flag(self):
         proc = run_tool(BENCH_ENV, "--version")
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        expected = (REPO_ROOT / ".agents/workflows/VERSION").read_text(encoding="utf-8").strip()
+        expected = (
+            (
+                SOURCE_WORKFLOWS / "VERSION"
+                if (SOURCE_WORKFLOWS / "VERSION").is_file()
+                else SOURCE_WORKFLOWS.parent / "VERSION"
+            )
+            .read_text(encoding="utf-8")
+            .strip()
+        )
         self.assertEqual(proc.stdout.strip(), expected)
 
 

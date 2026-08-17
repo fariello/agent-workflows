@@ -11,7 +11,14 @@ import unittest
 from contextlib import redirect_stderr
 from pathlib import Path
 
-from tests.support import SCANNER, REPO_ROOT, init_repo, git, run_tool, load_module
+from tests.support import (
+    SCANNER,
+    init_repo,
+    git,
+    run_tool,
+    load_module,
+    SOURCE_WORKFLOWS,
+)
 
 SS = load_module("scan_secrets", SCANNER)
 
@@ -58,7 +65,11 @@ class ScannerUnitTests(unittest.TestCase):
         proc = run_tool(SCANNER, "--version")
         self.assertEqual(proc.returncode, 0, proc.stderr)
         expected = (
-            (REPO_ROOT / ".agents/workflows/VERSION")
+            (
+                SOURCE_WORKFLOWS / "VERSION"
+                if (SOURCE_WORKFLOWS / "VERSION").is_file()
+                else SOURCE_WORKFLOWS.parent / "VERSION"
+            )
             .read_text(encoding="utf-8")
             .strip()
         )

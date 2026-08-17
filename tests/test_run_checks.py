@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tests.support import RUN_CHECKS, REPO_ROOT, run_tool, load_module
+from tests.support import RUN_CHECKS, run_tool, load_module, SOURCE_WORKFLOWS
 
 RC = load_module("run_checks", RUN_CHECKS)
 
@@ -43,7 +43,11 @@ class ClassificationUnitTests(unittest.TestCase):
         proc = run_tool(RUN_CHECKS, "--version")
         self.assertEqual(proc.returncode, 0, proc.stderr)
         expected = (
-            (REPO_ROOT / ".agents/workflows/VERSION")
+            (
+                SOURCE_WORKFLOWS / "VERSION"
+                if (SOURCE_WORKFLOWS / "VERSION").is_file()
+                else SOURCE_WORKFLOWS.parent / "VERSION"
+            )
             .read_text(encoding="utf-8")
             .strip()
         )

@@ -14,7 +14,7 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from tests.support import init_repo, REPO_ROOT
+from tests.support import init_repo, SOURCE_WORKFLOWS
 from agent_workflows import cli, engine
 
 
@@ -109,7 +109,7 @@ class Category2AuthoredReadmes(unittest.TestCase):
     def test_source_has_readme_for_every_top_level_capability(self):
         # P8/completeness: every top-level .agents/workflows/<capability>/ in SOURCE has a
         # README (so installed repos are fully self-documenting at top-level depth).
-        wf = REPO_ROOT / ".agents" / "workflows"
+        wf = SOURCE_WORKFLOWS
         missing = []
         for d in sorted(p for p in wf.iterdir() if p.is_dir()):
             if not (d / "README.md").is_file():

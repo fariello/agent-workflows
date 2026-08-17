@@ -13,19 +13,49 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 CONFORMING_ORCHESTRATOR = FIXTURES / "conforming-orchestrator.md"
 INSTALLER = REPO_ROOT / "install-workflows.py"
-SCANNER = REPO_ROOT / ".agents" / "workflows" / "assess" / "tools" / "scan_secrets.py"
-RUN_CHECKS = REPO_ROOT / ".agents" / "workflows" / "verify" / "tools" / "run_checks.py"
-BENCH_ENV = REPO_ROOT / ".agents" / "workflows" / "benchmark" / "tools" / "bench_env.py"
-SETUP_TOOLS = (
-    REPO_ROOT / ".agents" / "workflows" / "setup-repo" / "tools" / "setup_tools.py"
-)
+
+
+def _source_workflows_root() -> Path:
+    """The framework's OWN source workflow bundle, layout-aware.
+
+    Canonical nested `.aw/system/workflows/` after the physical-layout migration; falls back
+    to the legacy `.agents/workflows/` for a pre-migration checkout. Keeping this dual-aware
+    lets the self-tests run before AND after the source repo is migrated.
+    """
+
+    aw = REPO_ROOT / ".aw" / "system" / "workflows"
+    return aw if aw.is_dir() else REPO_ROOT / ".agents" / "workflows"
+
+
+SOURCE_WORKFLOWS = _source_workflows_root()
+
+
+def _source_plans_root() -> Path:
+    """The framework's OWN source plans tree, layout-aware: `.aw/records/plans/` after the
+    migration, else legacy `.agents/plans/`."""
+
+    aw = REPO_ROOT / ".aw" / "records" / "plans"
+    return aw if aw.is_dir() else REPO_ROOT / ".agents" / "plans"
+
+
+SOURCE_PLANS = _source_plans_root()
+
+
+def _source_docs_root() -> Path:
+    """The framework's OWN source docs tree, layout-aware: `.aw/records/docs/` after the
+    migration, else legacy `.agents/docs/`."""
+
+    aw = REPO_ROOT / ".aw" / "records" / "docs"
+    return aw if aw.is_dir() else REPO_ROOT / ".agents" / "docs"
+
+
+SOURCE_DOCS = _source_docs_root()
+SCANNER = SOURCE_WORKFLOWS / "assess" / "tools" / "scan_secrets.py"
+RUN_CHECKS = SOURCE_WORKFLOWS / "verify" / "tools" / "run_checks.py"
+BENCH_ENV = SOURCE_WORKFLOWS / "benchmark" / "tools" / "bench_env.py"
+SETUP_TOOLS = SOURCE_WORKFLOWS / "setup-repo" / "tools" / "setup_tools.py"
 CONFORMANCE_HARNESS = (
-    REPO_ROOT
-    / ".agents"
-    / "workflows"
-    / "conformance"
-    / "tools"
-    / "conformance_harness.py"
+    SOURCE_WORKFLOWS / "conformance" / "tools" / "conformance_harness.py"
 )
 
 

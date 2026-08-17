@@ -204,11 +204,18 @@ class BakedVersionGuardTests(unittest.TestCase):
         # tests/ -> repo root
         return Path(__file__).resolve().parent.parent
 
+    def _baked_version_path(self) -> Path:
+        # Canonical source VERSION is the .aw/system/ sibling after the physical-layout
+        # migration; fall back to the legacy .agents/workflows/VERSION for a pre-migration tree.
+        root = self._repo_root()
+        aw = root / ".aw" / "system" / "VERSION"
+        return aw if aw.is_file() else root / ".agents" / "workflows" / "VERSION"
+
     def test_baked_version_is_a_clean_release_string(self):
-        # The tracked .agents/workflows/VERSION must be a plain release (X.Y.Z or X.Y.Zrc N),
+        # The tracked source VERSION must be a plain release (X.Y.Z or X.Y.Zrc N),
         # NOT a .devN / +local string. A dev/local value here means it was baked from a
         # dirty/ahead tree and would stamp a dev version into every install.
-        vpath = self._repo_root() / ".agents" / "workflows" / "VERSION"
+        vpath = self._baked_version_path()
         baked = vpath.read_text(encoding="utf-8").strip()
         self.assertRegex(
             baked,
@@ -233,11 +240,7 @@ class BakedVersionGuardTests(unittest.TestCase):
         if proc.returncode != 0:
             self.skipTest("HEAD is not exactly a release tag; baked-vs-tag check N/A")
         tag = proc.stdout.strip().lstrip("v")
-        baked = (
-            (root / ".agents" / "workflows" / "VERSION")
-            .read_text(encoding="utf-8")
-            .strip()
-        )
+        baked = self._baked_version_path().read_text(encoding="utf-8").strip()
         self.assertEqual(
             baked,
             VER._normalize_tag("v" + tag),

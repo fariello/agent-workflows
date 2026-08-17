@@ -17,16 +17,12 @@ from pathlib import Path
 
 from agent_workflows import ipd_lint as L
 from agent_workflows import ipd_schema as S
-from tests.support import CONFORMING_ORCHESTRATOR, REPO_ROOT
+from tests.support import CONFORMING_ORCHESTRATOR, REPO_ROOT, SOURCE_PLANS, SOURCE_DOCS
 
-CHILD_TEMPLATE = REPO_ROOT / ".agents" / "workflows" / "assess" / "templates" / "ipd.md"
-SPEC = (
-    REPO_ROOT
-    / ".agents"
-    / "docs"
-    / "specs"
-    / "20260802-1904-01-ipd-structure-and-linting.spec.md"
-)
+from tests.support import SOURCE_WORKFLOWS as _SWF
+
+CHILD_TEMPLATE = _SWF / "assess" / "templates" / "ipd.md"
+SPEC = SOURCE_DOCS / "specs" / "20260802-1904-01-ipd-structure-and-linting.spec.md"
 
 
 # A minimal conforming CHILD IPD (author phase), built programmatically so tests can mutate it.
@@ -361,9 +357,7 @@ class PostTransitionExecutedHistoryTests(unittest.TestCase):
 
     def test_real_executed_plan_at_post_transition(self):
         # Verify against real executed plans in repo
-        real_executed = sorted(
-            (REPO_ROOT / ".agents" / "plans" / "executed").glob("*.md")
-        )
+        real_executed = sorted((SOURCE_PLANS / "executed").glob("*.md"))
         self.assertTrue(len(real_executed) > 0)
         # Select the latest conforming executed plan
         sample_plan = real_executed[-1]

@@ -67,25 +67,20 @@ path = "hatch_build.py"
 packages = ["agent_workflows"]
 
 # Ship the workflow tree as package data WITHOUT moving it in the repo: map the repo-root
-# .agents/workflows/ into the wheel under agent_workflows/_data/.agents/workflows/ so the
-# 3.8-safe __file__/_data lookup in _compat.packaged_source_root() finds it (OQ5, R-1).
+# .aw/system/ into the wheel under agent_workflows/_data/.aw/system/ so the 3.8-safe
+# __file__/_data lookup in _compat.packaged_source_root() finds it (OQ5, R-1). Canonical
+# layout is NESTED (spec S4.1): the invokable bundle nests under .aw/system/workflows/ with
+# VERSION/manifest as system-root siblings; resolve_source_root descends into workflows/.
+# The bundle ships ONCE, at .aw/system (the Order-11 self-migration moved it there).
 [tool.hatch.build.targets.wheel.force-include]
-".agents/workflows" = "agent_workflows/_data/.agents/workflows"
-# NOTE: the `.aw/system` force-include is intentionally NOT declared yet. Order 04 wired
-# the resolver/build to ACCEPT `.aw/system`, but the physical source relocation
-# (`.agents/workflows` -> `.aw/system`) is deferred to Order 11. Declaring a force-include
-# for a path that does not exist makes hatchling fail the wheel build. Order 11 re-adds
-# this line when it creates `.aw/system/` in the source tree. The `_compat` resolver
-# already prefers `.aw/system` when present and falls back to `.agents/workflows`.
+".aw/system" = "agent_workflows/_data/.aw/system"
 
 [tool.hatch.build.targets.sdist]
 # The sdist carries what a build needs: the package, the data tree, the version hook, and
 # the standard metadata files. It deliberately excludes dev/meta content.
 include = [
     "/agent_workflows",
-    "/.agents/workflows",
-    # "/.aw/system" is added by Order 11 when the directory exists (see the wheel
-    # force-include note above); listing a missing path here breaks the sdist build.
+    "/.aw/system",
     "/hatch_build.py",
     "/pyproject.toml",
     "/README.md",

@@ -27,7 +27,13 @@ FORBIDDEN_TOP = ("tests/", "workflow-artifacts/")
 # payload (bundled under agent_workflows/_data/). Nothing from these source subtrees may
 # ship in any form (root or under _data/): docs (research/walkthroughs/specs/prompts/
 # roadmaps), plans, and the operational prompts staging dir.
-FORBIDDEN_AGENTS_SUBSTRINGS = (".agents/docs/", ".agents/plans/", ".agents/prompts/")
+FORBIDDEN_AGENTS_SUBSTRINGS = (
+    ".agents/docs/",
+    ".agents/plans/",
+    ".agents/prompts/",
+    ".aw/records/",
+    ".aw/state/",
+)
 FORBIDDEN_FILES = (
     "DECISIONS.md",
     "ARCHITECTURE.md",
@@ -103,16 +109,25 @@ class PackagingTests(unittest.TestCase):
         self.assertIn("agent_workflows/leak_sanitizer_config.py", self.names)
 
     def test_wheel_bundles_workflow_tree_under_data(self):
-        # AC-2/AC-8: the shipped tree is mapped under agent_workflows/_data/.
-        self.assertIn("agent_workflows/_data/.agents/workflows/index.md", self.names)
-        self.assertIn("agent_workflows/_data/.agents/workflows/VERSION", self.names)
+        # AC-2/AC-8: the shipped bundle is mapped under agent_workflows/_data/.aw/system/,
+        # NESTED (invokable bundle under workflows/, VERSION a system-root sibling).
+        self.assertIn("agent_workflows/_data/.aw/system/workflows/index.md", self.names)
+        self.assertIn("agent_workflows/_data/.aw/system/VERSION", self.names)
         self.assertTrue(
             any(
-                n.startswith("agent_workflows/_data/.agents/workflows/")
+                n.startswith("agent_workflows/_data/.aw/system/workflows/")
                 and "tools/" in n
                 for n in self.names
             ),
             "expected the workflow tools under the bundled data tree",
+        )
+        # The bundle ships ONCE: the legacy .agents/workflows/ tree must NOT also ship.
+        self.assertFalse(
+            any(
+                n.startswith("agent_workflows/_data/.agents/workflows/")
+                for n in self.names
+            ),
+            "legacy .agents/workflows/ bundle double-shipped alongside .aw/system/",
         )
 
     def test_wheel_excludes_dev_and_meta_content(self):

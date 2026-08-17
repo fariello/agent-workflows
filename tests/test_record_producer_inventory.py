@@ -43,6 +43,18 @@ class TestRecordProducerInventory(unittest.TestCase):
         inventory_paths = {entry.source_path for entry in PRODUCER_INVENTORY}
         for entry in PRODUCER_INVENTORY:
             source = root / entry.source_path
+            # Workflow-body producers live in the source bundle, which the physical-layout
+            # migration relocated from .agents/workflows/ to .aw/system/workflows/; resolve
+            # either location (the inventory keeps the legacy-labeled logical path).
+            if not source.is_file() and entry.source_path.startswith(
+                ".agents/workflows/"
+            ):
+                moved = root / (
+                    ".aw/system/workflows/"
+                    + entry.source_path[len(".agents/workflows/") :]
+                )
+                if moved.is_file():
+                    source = moved
             self.assertTrue(source.is_file(), entry)
             self.assertIn(entry.anchor, source.read_text(encoding="utf-8"), entry)
         sinks = discover_legacy_write_sinks(root)

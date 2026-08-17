@@ -7,7 +7,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tests.support import REPO_ROOT, load_module, init_repo, git
+from tests.support import (
+    REPO_ROOT,
+    load_module,
+    init_repo,
+    git,
+    SOURCE_WORKFLOWS as _SWF,
+)
 
 # Tests that create a file, commit it "now", and expect status "to-rename" must use a date
 # CLOSE TO NOW: the normalizer flags a file as "imported" (held from auto-rename) when its
@@ -21,12 +27,7 @@ YMD_HYPHEN = _TODAY.strftime("%Y-%m-%d")  # hyphenated legacy form, e.g. 2026-07
 
 NPN = load_module(
     "normalize_plan_names",
-    REPO_ROOT
-    / ".agents"
-    / "workflows"
-    / "setup-repo"
-    / "tools"
-    / "normalize_plan_names.py",
+    _SWF / "setup-repo" / "tools" / "normalize_plan_names.py",
 )
 
 
@@ -358,7 +359,8 @@ class RepoConformanceTests(unittest.TestCase):
     """
 
     def test_all_plan_files_conform(self):
-        plans = REPO_ROOT / ".agents" / "plans"
+        from tests.support import SOURCE_PLANS as plans
+
         offenders = []
         for sub in (
             "pending",
