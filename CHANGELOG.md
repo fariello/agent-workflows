@@ -22,9 +22,13 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 - More tools for agents and users. A growing set of dependable, dependency-free tools
   (and CLI verbs) that both agents and humans can rely on.
 
-Major storage-layout boundary specified by `20260809-2211-01-aw-project-layout-storage-wizard-and-state.spec.md` (D126-D129):
+Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
-- Added: Four logical roots (`system`, `config`, `state`, `records`) and dual delivery/records orthogonal axes.
+- Changed (BREAKING): the canonical layout is now the physical `.aw/` hierarchy with four roots on disk: `.aw/system/` (the CLI-owned workflow bundle, nested at `.aw/system/workflows/` with `VERSION`/`manifest`/`templates` as siblings), `.aw/records/` (durable project records: plans, docs, backlog, comms, prompts), `.aw/config/` (`config.json` + allowlist tracked; `local.json` never tracked), and `.aw/state/` (runtime scratch + durable install/migration state; never tracked). Replaces the earlier logical-only four-root model that left canonical content under `.agents/`.
+- Changed (BREAKING): a fresh `aw install` now creates ONLY the `.aw/` hierarchy (no `.agents/workflows/`). Generated command shims and the AGENTS pointer reference `.aw/system/workflows/`.
+- Added: `aw install`/`aw update`/`aw setup` auto-detect a legacy `.agents/`-only repository and offer to migrate it to `.aw/` (`--to-aw` / `--keep-legacy`); declining keeps updating the legacy layout in place for a documented compatibility window with a one-time deprecation notice, never a second divergent layout.
+- Added: `aw migrate-layout` runs as a guided wizard by default (preview, records-destination choice, leftover disposition, confirm, apply) and accepts a JSON `--config` plus flags for non-interactive use; it MOVES material (no retained legacy twin), with a per-item journal for crash-safe resume and rollback, and an interactive keep/remove/defer step for anything not moved (never deletes without an explicit choice).
+- Added: the earlier logical roots (`system`, `config`, `state`, `records`) and dual delivery/records orthogonal axes, now realized as the physical `.aw/` roots above.
 - Added: User-level `AW_HOME` (`~/.aw/`) and durable project registry (`registry.json`).
 - Added: Flexible records storage backends (`home`, `companion`, `repository`) with explicit durability policies.
 - Added: Interactive and noninteractive install/update policy wizard (`aw install`).
