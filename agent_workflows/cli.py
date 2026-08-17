@@ -393,7 +393,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_install = sub.add_parser(
         "install",
         parents=[common],
-        help="Install or update the framework in a repo (idempotent); 'install all' does every configured repo.",
+        help="Install or update the framework in a repo (idempotent), creating the canonical .aw/ layout; 'install all' does every configured repo.",
     )
     p_install.add_argument(
         "targets",
@@ -405,7 +405,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--source",
         dest="source_root",
         default=None,
-        help="Path to the source .agents/workflows (dev/override).",
+        help="Path to source .aw/system or legacy .agents/workflows (dev/override).",
     )
     p_install.add_argument(
         "--dry-run", action="store_true", help="Show actions without writing."
@@ -424,7 +424,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_install.add_argument(
         "--preset",
         choices=[p.value for p in Preset],
-        help="Select a physical placement preset.",
+        help="Select physical placement preset: private-target (default), public-private-companion, clean-target, local-only.",
     )
     p_install.add_argument(
         "--delivery-mode",
@@ -434,7 +434,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_install.add_argument(
         "--records-backend",
         choices=[r.value for r in RecordsBackend],
-        help="Select records storage location.",
+        help="Select records storage location: repository (default), companion, home.",
     )
     p_install.add_argument(
         "--companion-dir",
@@ -443,12 +443,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_install.add_argument(
         "--to-aw",
         action="store_true",
-        help="Migrate a detected legacy .agents/ layout to .aw/ during install/update.",
+        help="Migrate a detected legacy .agents/ layout to canonical .aw/ during install or update.",
     )
     p_install.add_argument(
         "--keep-legacy",
         action="store_true",
-        help="Keep updating a detected legacy .agents/ layout in place without migrating.",
+        help="Keep updating a detected legacy .agents/ layout in place with deprecation notice without migrating.",
     )
 
     p_setup = sub.add_parser(
@@ -474,7 +474,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_setup.add_argument(
         "--preset",
         choices=[p.value for p in Preset],
-        help="Select a physical placement preset.",
+        help="Select physical placement preset: private-target (default), public-private-companion, clean-target, local-only.",
     )
     p_setup.add_argument(
         "--delivery-mode",
@@ -484,7 +484,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_setup.add_argument(
         "--records-backend",
         choices=[r.value for r in RecordsBackend],
-        help="Select records storage location.",
+        help="Select records storage location: repository (default), companion, home.",
     )
     p_setup.add_argument(
         "--companion-dir",
@@ -493,12 +493,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_setup.add_argument(
         "--to-aw",
         action="store_true",
-        help="Migrate a detected legacy .agents/ layout to .aw/ during setup.",
+        help="Migrate a detected legacy .agents/ layout to canonical .aw/ during setup.",
     )
     p_setup.add_argument(
         "--keep-legacy",
         action="store_true",
-        help="Keep updating a detected legacy .agents/ layout in place without migrating.",
+        help="Keep updating a detected legacy .agents/ layout in place with deprecation notice without migrating.",
     )
 
     p_uninstall = sub.add_parser(
@@ -520,7 +520,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_uninstall.add_argument(
         "--deep",
         action="store_true",
-        help="Also remove the .agents/ scaffolding (plans/docs/prompts/comms, etc.); "
+        help="Also remove durable records scaffolding (plans/docs/prompts/comms under .aw/records/ or legacy .agents/); "
         "normally offered interactively.",
     )
     p_uninstall.add_argument(
@@ -960,7 +960,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_context = sub.add_parser(
         "context",
         parents=[common],
-        help="Inspect resolved AW project context, logical roots, and policy.",
+        help="Inspect resolved AW project context, physical roots (.aw/system, .aw/records, .aw/config, .aw/state), and active storage policy.",
     )
     p_context.add_argument(
         "--repo",
@@ -988,7 +988,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_path = sub.add_parser(
         "path",
         parents=[common],
-        help="Resolve the physical path for a logical AW root (system|config|state|records).",
+        help="Resolve physical filesystem path for a logical AW root (system | config | state | records).",
     )
     p_path.add_argument(
         "root",
@@ -1271,7 +1271,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_migrate = sub.add_parser(
         "migrate-layout",
         parents=[common],
-        help="Transactional AW layout migration and backend cutover.",
+        help="Transactional AW layout migration (moves legacy .agents/ to canonical .aw/).",
     )
     p_migrate.add_argument(
         "action",
@@ -1287,7 +1287,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "wizard",
         ],
         default=None,
-        help="Action to perform: inventory, plan, apply, status, resume, rollback, cleanup, wizard.",
+        help="Action to perform: wizard (default guided flow), inventory, plan, apply, status, resume, rollback, cleanup.",
     )
     p_migrate.add_argument(
         "--config",
@@ -1298,7 +1298,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--target-backend",
         choices=["home", "companion", "repository"],
         default=None,
-        help="Target records storage backend (default: repository).",
+        help="Target records storage backend: repository (default), companion, home.",
     )
     p_migrate.add_argument(
         "--root",
