@@ -1,6 +1,71 @@
 # Repository Tools
 
-This directory contains standalone utility scripts for repository maintenance and migration.
+This directory contains standalone utility scripts for repository maintenance, workflow execution, and migration.
+
+## `agy_run.py`
+
+`tools/agy_run.py` is a unified multi-mode runner and skeptical validator for Antigravity (Gemini 3.7 Flash High). It runs a primary task turn with calibrated diligence framing, followed automatically by an evidence-backed skeptical validation turn in the exact same conversation session.
+
+### Execution Modes
+
+1. **IPD Mode**:
+   ```bash
+   python3 tools/agy_run.py 7cvh9t
+   python3 tools/agy_run.py --ipd .agents/plans/pending/20260816-test.md
+   ```
+   Executes the pending Implementation Plan Document, then runs a skeptical self-audit verifying falsifiable tests, code path wiring, and actual command outputs.
+
+2. **Spec-to-IPD Mode**:
+   ```bash
+   python3 tools/agy_run.py --spec .agents/docs/specs/example.spec.md
+   ```
+   Authors a conformant IPD from a specification document using `aw ipd scaffold`, assigns IDs with `aw ipd sync`, verifies with `aw ipd lint`, and audits complete requirement coverage.
+
+3. **Prompt File Mode**:
+   ```bash
+   python3 tools/agy_run.py --file .agents/prompts/local/brief.md
+   python3 tools/agy_run.py -f .agents/prompts/local/brief.md
+   ```
+   Executes an external prompt brief with post-run verification.
+
+4. **Raw Prompt Mode**:
+   ```bash
+   python3 tools/agy_run.py -p "refactor installer error handling in engine.py"
+   python3 tools/agy_run.py --prompt "add unit tests for resolve_target_layout"
+   ```
+   Provides convenient `agy -c -p` ergonomics with two-turn skeptical validation.
+
+### Session Continuity and Isolation
+
+- Resume project conversation (default): `python3 tools/agy_run.py -p "..."`
+- Attach to specific conversation ID: `python3 tools/agy_run.py -s <session_id> -p "..."`
+- Force clean slate without inheriting context: `python3 tools/agy_run.py --new-session 7cvh9t`
+- List sessions for this workspace: `python3 tools/agy_run.py --list-sessions`
+- Skip verification turn: `python3 tools/agy_run.py --no-audit -p "..."`
+
+## `agy_sessions.py`
+
+`tools/agy_sessions.py` inspects and lists Antigravity sessions for a project workspace or across all projects. It displays the session ID, start timestamp, last active timestamp, duration, whether the session is currently in use (ACTIVE vs IDLE via file locks), and initial prompt snippet.
+
+### Usage
+
+```bash
+# List sessions for current directory:
+python3 tools/agy_sessions.py
+
+# List sessions for a specific directory:
+python3 tools/agy_sessions.py /path/to/project
+
+# List all sessions across all projects:
+python3 tools/agy_sessions.py --all
+
+# Output machine-readable JSON:
+python3 tools/agy_sessions.py --json
+```
+
+## `antigravity_execute_ipd.py`
+
+`tools/antigravity_execute_ipd.py` is a backwards-compatible wrapper that delegates directly to `tools/agy_run.py` in IPD mode. Existing invocations continue to work without modification.
 
 ## `untrack-workflow-artifacts.py`
 

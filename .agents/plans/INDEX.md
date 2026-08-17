@@ -6,7 +6,7 @@ Showing the 40 most-recent of 82 Sets; the full manifest is INDEX.json.
 
 ## agyrun
 
-- `71ibuy` [pending] 01 pending/20260816-agyrun-01-k8m3px-agy-run-executor-validator.md
+- `71ibuy` [executed] 01 executed/20260816-agyrun-01-71ibuy-agy-run-executor-validator.md
 
 ## awphysical
 
