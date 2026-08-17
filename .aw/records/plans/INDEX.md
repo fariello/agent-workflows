@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 82 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 83 Sets; the full manifest is INDEX.json.
 
 ## awphysical
 
@@ -24,6 +24,11 @@ Showing the 40 most-recent of 82 Sets; the full manifest is INDEX.json.
 - `7cvh9t` [executed] 15 executed/20260816-awphysical-15-7cvh9t-fresh-install-aw-target.md
 - `88bnw0` [executed] 16 executed/20260816-awphysical-16-88bnw0-migrate-layout-wizard.md
 - `wvlk84` [executed] 17 executed/20260817-1357-01-assess-bugs-leftover-remove-dataloss.md
+
+## awretrofit
+
+- `pp6y76` [pending] 00 pending/20260817-1620-00-awretrofit-orchestrator.md
+- `i7um6r` [pending] 01 pending/20260817-1620-01-awretrofit-record-verbs-layout-aware.md
 
 ## agyrun
 
@@ -235,10 +240,6 @@ Showing the 40 most-recent of 82 Sets; the full manifest is INDEX.json.
 ## researchprompt
 
 - `2txx9b` [executed] 02 executed/20260717-researchprompt-02-2txx9b-scaffold-agents-prompts-staging-convention.md
-
-## agent-comms
-
-- `ssmov3` [executed] 00 executed/20260715-agent-comms-00-ssmov3-agent-comms-portable-convention.md
 
 ## (singletons: no Set)
 
