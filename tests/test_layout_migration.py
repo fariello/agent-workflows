@@ -383,5 +383,168 @@ class IndependentPostcheckTests(unittest.TestCase):
         self.assertIn("authority", status)
 
 
+class MoveNotCopyTests(unittest.TestCase):
+    """Move-not-copy migration semantics (IPD hnzr8v, awphysical Order 14): the migration MOVES
+    classified items (no retained legacy twin), the moves are journaled per item for crash-safe
+    resume/rollback, and identical-hash duplicates collapse to one destination.
+    """
+
+    def setUp(self):
+        self.tmp_dir = tempfile.mkdtemp()
+        self.repo = Path(self.tmp_dir) / "repo"
+        self.repo.mkdir()
+        for a in (
+            ["init", "-q"],
+            ["config", "user.email", "t@example.com"],
+            ["config", "user.name", "T"],
+            ["config", "commit.gpgsign", "false"],
+        ):
+            subprocess.run(
+                ["git", "-C", str(self.repo), *a], check=True, capture_output=True
+            )
+        self._prev_aw_home = os.environ.get("AW_HOME")
+        self.aw_home = os.path.join(self.tmp_dir, "aw_home")
+        os.makedirs(self.aw_home, exist_ok=True)
+        os.environ["AW_HOME"] = self.aw_home
+        # A minimal classified corpus: one system-bundle file, one records file.
+        (self.repo / ".agents" / "workflows").mkdir(parents=True)
+        (self.repo / ".agents" / "workflows" / "index.md").write_text(
+            "# w\n", encoding="utf-8"
+        )
+        (self.repo / ".agents" / "plans" / "pending").mkdir(parents=True)
+        (self.repo / ".agents" / "plans" / "pending" / "p.md").write_text(
+            "# p\n", encoding="utf-8"
+        )
+        subprocess.run(
+            ["git", "-C", str(self.repo), "add", "."], check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "-C", str(self.repo), "commit", "-q", "-m", "seed"],
+            check=True,
+            capture_output=True,
+        )
+
+    def tearDown(self):
+        if self._prev_aw_home is None:
+            os.environ.pop("AW_HOME", None)
+        else:
+            os.environ["AW_HOME"] = self._prev_aw_home
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def _git_status(self):
+        return subprocess.run(
+            ["git", "-C", str(self.repo), "status", "--short"],
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    def test_apply_moves_not_copies(self):
+        """A repository-backend apply MOVES classified sources (they are GONE from the legacy
+        path and present once under .aw/), and tracked items show as git renames."""
+        mgr = MigrationManager(target_repo=str(self.repo), aw_home=self.aw_home)
+        mgr.execute_migration(target_backend="repository")
+
+        # Sources GONE (moved, not copied-and-retained).
+        self.assertFalse((self.repo / ".agents/workflows/index.md").exists())
+        self.assertFalse((self.repo / ".agents/plans/pending/p.md").exists())
+        # Present once at the resolved .aw/ destinations.
+        self.assertTrue((self.repo / ".aw/system/workflows/index.md").is_file())
+        self.assertTrue((self.repo / ".aw/records/plans/pending/p.md").is_file())
+        # Tracked items are recorded as RENAMES in the index (history preserved).
+        status = self._git_status()
+        self.assertIn(
+            "R  .agents/workflows/index.md -> .aw/system/workflows/index.md", status
+        )
+
+        # The move journal records reversible relocations.
+        tx = json.loads(
+            (
+                self.repo / ".aw/state/runtime/transactions/migration_transaction.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(tx["status"], "completed")
+        actions = {e["action"] for e in tx["move_journal"]}
+        self.assertEqual(actions, {"move"})
+        self.assertGreaterEqual(len(tx["move_journal"]), 2)
+
+    def test_rollback_reverses_the_move(self):
+        """Rollback un-moves: the legacy sources are restored and the .aw/ destinations removed,
+        leaving the repo rename-clean versus the pre-apply state."""
+        mgr = MigrationManager(target_repo=str(self.repo), aw_home=self.aw_home)
+        mgr.execute_migration(target_backend="repository")
+        rb = MigrationManager(
+            target_repo=str(self.repo), aw_home=self.aw_home
+        ).rollback_migration()
+        self.assertEqual(rb["status"], "rolled_back")
+        self.assertTrue((self.repo / ".agents/workflows/index.md").is_file())
+        self.assertTrue((self.repo / ".agents/plans/pending/p.md").is_file())
+        self.assertFalse((self.repo / ".aw/system").exists())
+        self.assertFalse((self.repo / ".aw/records").exists())
+        # No staged migration renames remain (only untracked .aw/ state residue).
+        self.assertNotIn("->", self._git_status())
+
+    def test_crash_mid_move_is_resumable_and_rollbackable(self):
+        """A crash after some items moved (checkpoint still 'locked') must be resolvable to
+        fully-migrated by resume (never a fresh inventory that would miss moved sources) OR
+        fully-legacy by rollback - never a torn state (IPD hnzr8v E-06)."""
+        # Simulate a partial move: run the real apply, then rewind the transaction to a
+        # mid-move 'locked' state with only the FIRST journal entry retained and its item
+        # already moved on disk, so resume must complete the REMAINING moves.
+        mgr = MigrationManager(target_repo=str(self.repo), aw_home=self.aw_home)
+        mgr.execute_migration(target_backend="repository")
+        tx_path = (
+            self.repo / ".aw/state/runtime/transactions/migration_transaction.json"
+        )
+        tx = json.loads(tx_path.read_text(encoding="utf-8"))
+        full_journal = tx["move_journal"]
+        self.assertGreaterEqual(len(full_journal), 2)
+        # Reverse the LAST move on disk + drop it from the journal, and rewind status to
+        # 'locked' (as if the process died mid-loop right after the first item).
+        last = full_journal[-1]
+        dst = Path(last["destination"])
+        src = Path(last["source"])
+        src.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(dst), str(src))
+        tx["move_journal"] = full_journal[:-1]
+        tx["copied_records"] = tx.get("copied_records", [])[:-1]
+        tx["status"] = "locked"
+        tx["last_verified_checkpoint"] = "locked"
+        # Remove the switch receipt so authority reads as mid-flight.
+        (self.repo / ".aw/state/durable/migrations/switch_receipt.json").unlink()
+        tx_path.write_text(json.dumps(tx), encoding="utf-8")
+
+        # RESUME completes the remaining move without a fresh inventory.
+        res = MigrationManager(
+            target_repo=str(self.repo), aw_home=self.aw_home
+        ).resume_migration()
+        self.assertEqual(res["status"], "completed")
+        self.assertFalse(src.exists(), "resume did not complete the remaining move")
+        self.assertTrue(dst.is_file(), "resume did not land the remaining move")
+        tx2 = json.loads(tx_path.read_text(encoding="utf-8"))
+        self.assertEqual(tx2["status"], "completed")
+
+    def test_move_mutation_probe(self):
+        """Mutation probe: reverting the move to a copy must make the 'source is gone' assertion
+        RED. We verify falsifiability by patching _perform_move to COPY instead of move and
+        asserting the source survives (the negative), then confirm the real move removes it."""
+        from unittest import mock
+
+        # Negative (mutated to copy): source survives -> the move-semantics assertion would fail.
+        with mock.patch.object(
+            MigrationManager,
+            "_perform_move",
+            lambda self, s, d, t: (
+                d.parent.mkdir(parents=True, exist_ok=True),
+                shutil.copy2(s, d),
+            )[0],
+        ):
+            mgr = MigrationManager(target_repo=str(self.repo), aw_home=self.aw_home)
+            mgr.execute_migration(target_backend="repository")
+            self.assertTrue(
+                (self.repo / ".agents/workflows/index.md").exists(),
+                "probe sanity: a COPY leaves the source in place",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

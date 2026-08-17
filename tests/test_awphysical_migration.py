@@ -196,14 +196,21 @@ class TransactionalMigrationTests(unittest.TestCase):
             )
 
     def test_e05(self) -> None:
-        """E-05 / V-05: Preserve legacy sources in read-only retained state."""
+        """E-05 / V-05: MOVE-not-copy relocation (IPD hnzr8v). The legacy source is MOVED (gone
+        from the legacy path, present once under .aw/), and the manifest records the move journal
+        as the rollback source while forbidding cleanup during cutover."""
         mgr = MigrationManager(target_repo=str(self.repo))
 
-        # Positive assertion: legacy sources remain in place after cutover
         mgr.execute_migration(target_backend="repository")
 
-        self.assertTrue(self.art_file.exists())
-        self.assertEqual(self.art_file.read_text(encoding="utf-8"), "artifact data\n")
+        # Source MOVED: gone from the legacy path, content now at the .aw/records destination.
+        moved = self.repo / ".aw" / "records" / "run1" / "output.txt"
+        self.assertFalse(
+            self.art_file.exists(),
+            "move-not-copy: the legacy source should be gone after the move",
+        )
+        self.assertTrue(moved.is_file())
+        self.assertEqual(moved.read_text(encoding="utf-8"), "artifact data\n")
 
         ret_file = (
             self.repo
@@ -216,6 +223,7 @@ class TransactionalMigrationTests(unittest.TestCase):
         self.assertTrue(ret_file.exists())
         ret = json.loads(ret_file.read_text(encoding="utf-8"))
         self.assertFalse(ret["cleanup_allowed"])
+        self.assertTrue(ret.get("move_journal"), "manifest missing the move journal")
 
     def test_e06(self) -> None:
         """E-06 / V-06: Git boundaries and separate staging plans."""
@@ -259,31 +267,25 @@ class TransactionalMigrationTests(unittest.TestCase):
         st = mgr.status_migration()
         self.assertFalse(st["active"])
 
-        # Execute migration
+        # Execute migration (MOVE): the legacy source is relocated, not copied-and-retained.
         mgr.execute_migration(target_backend="repository")
+        self.assertFalse(
+            self.art_file.exists(), "move-not-copy: legacy source should be gone"
+        )
 
-        # Cleanup preview mode when confirm=False
+        # Under move semantics, cleanup has NOTHING to remove (the sources are already gone);
+        # preview is a safe no-op with an empty would_remove list (IPD hnzr8v E-05).
         prev = mgr.cleanup_migration(confirm=False)
         self.assertEqual(prev["status"], "preview")
-        self.assertTrue(prev["confirm_required"])
-        self.assertIn(str(self.art_file), prev["would_remove"])
+        self.assertEqual(prev["would_remove"], [])
 
-        # Cleanup refusal with changed retained item
-        self.art_file.write_text("modified legacy file content\n", encoding="utf-8")
-        with self.assertRaises(CleanupError):
-            mgr.cleanup_migration(confirm=True)
-
-        # Restore file content and execute cleanup with confirm=True
-        self.art_file.write_text("artifact data\n", encoding="utf-8")
-        cl = mgr.cleanup_migration(confirm=True)
-        self.assertEqual(cl["status"], "cleaned")
-        self.assertIn(str(self.art_file), cl["removed"])
-        self.assertFalse(self.art_file.exists())
-
-        # Rollback
+        # Rollback reverses the move: authority reverts to legacy AND the source is restored.
         rb = mgr.rollback_migration()
         self.assertEqual(rb["status"], "rolled_back")
         self.assertEqual(rb["authority"], "legacy")
+        self.assertTrue(
+            self.art_file.exists(), "rollback did not restore the moved source"
+        )
 
         # Config reverted to legacy
         config_file = self.repo / ".aw" / "config" / "config.json"

@@ -435,10 +435,17 @@ class SourceRepositoryMigrationTests(unittest.TestCase):
         mgr = MigrationManager(target_repo=str(rehearsal))
         mgr.execute_migration(target_backend="repository")
 
-        # (a) Source protection + record preservation: legacy source still present, retention
-        # manifest exists and forbids cleanup.
+        # (a) MOVE semantics (IPD hnzr8v): the legacy source is GONE (moved, not copied-and-
+        # retained) and its content now lives once at the resolved .aw/ destination. The
+        # move-journal manifest records the relocation and forbids cleanup during cutover.
+        migrated_art = rehearsal / ".aw" / "records" / "run1" / "output.txt"
+        self.assertFalse(
+            legacy_art.exists(),
+            "move-not-copy: legacy source should be GONE after the move, not retained",
+        )
         self.assertTrue(
-            legacy_art.exists(), "migration destroyed the retained legacy source"
+            migrated_art.is_file(),
+            "moved artifact is missing at its resolved .aw/records destination",
         )
         ret_file = (
             rehearsal
@@ -448,18 +455,29 @@ class SourceRepositoryMigrationTests(unittest.TestCase):
             / "migrations"
             / "retention_manifest.json"
         )
-        self.assertTrue(ret_file.is_file(), "no retention manifest produced")
+        self.assertTrue(ret_file.is_file(), "no move-journal manifest produced")
         import json as _json
 
         ret = _json.loads(ret_file.read_text(encoding="utf-8"))
         self.assertFalse(
-            ret["cleanup_allowed"], "retention manifest wrongly allows cleanup"
+            ret["cleanup_allowed"], "manifest wrongly allows cleanup during cutover"
+        )
+        self.assertTrue(
+            ret.get("move_journal"),
+            "manifest missing the move journal (rollback source)",
         )
 
-        # (b) Rollback reverts authority to legacy.
+        # (b) Rollback reverses the MOVE: authority reverts to legacy AND the legacy source is
+        # restored on disk while the .aw/ destination is removed.
         rb = mgr.rollback_migration()
         self.assertEqual(rb["status"], "rolled_back")
         self.assertEqual(rb["authority"], "legacy")
+        self.assertTrue(
+            legacy_art.exists(), "rollback did not restore the moved legacy source"
+        )
+        self.assertFalse(
+            migrated_art.exists(), "rollback left the .aw/ destination behind"
+        )
 
     def test_e04(self):
         """E-04: Canonical workflow source adopts .aw/system without breaking self-host resolution.

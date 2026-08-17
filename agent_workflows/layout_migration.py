@@ -232,6 +232,181 @@ class MigrationManager:
                 plans[owner]["staged_paths"].append(dst_rel)
         return plans
 
+    # ------------------------------------------------------------------
+    # Move-not-copy helpers (IPD hnzr8v, awphysical Order 14)
+    # ------------------------------------------------------------------
+
+    def _records_root_for_backend(self, target_backend: str) -> Path:
+        """Resolve the records root for the backend being MIGRATED TO (not the pre-migration
+        context default). `repository` -> <target>/.aw/records; `home` -> the AW_HOME projects
+        records root; `companion` -> the companion repo's .aw/records.
+        """
+
+        if target_backend == "repository":
+            return self.records_dir  # <target>/.aw/records
+        # home / companion: use the resolved logical root (context reflects these when the
+        # policy selects them). Fall back to the target records dir if unresolved.
+        try:
+            return Path(self.ctx.logical_roots[LogicalRoot.RECORDS.value])
+        except (KeyError, TypeError):
+            return self.records_dir
+
+    def _resolve_destination_path(
+        self, destination_relpath: str, target_backend: str = "repository"
+    ) -> Path:
+        """Map a map-item destination_relpath to its RESOLVED on-disk destination.
+
+        The `records/` class resolves to the records root for the TARGET backend being
+        migrated to (repository -> <target>/.aw/records; companion -> the companion repo's
+        .aw/records; home -> <AW_HOME>/projects/<id>/.aw/records). All other classes
+        (system/config/state) stay under the target's `.aw/`. For the `repository` backend
+        the records root IS `<target>/.aw/records`, identical to the historical
+        `self.aw_dir / destination_relpath`, so existing behavior is unchanged.
+        """
+
+        rel = destination_relpath.lstrip("/")
+        if rel == "records" or rel.startswith("records/"):
+            records_root = self._records_root_for_backend(target_backend)
+            sub = rel[len("records") :].lstrip("/")
+            return records_root / sub if sub else records_root
+        return self.aw_dir / rel
+
+    def _is_within(self, path: Path, root: Path) -> bool:
+        """True when `path` is inside `root` (both resolved)."""
+        try:
+            path.resolve().relative_to(root.resolve())
+            return True
+        except (ValueError, OSError):
+            return False
+
+    def _git_toplevel(self, path: Path) -> Optional[Path]:
+        """Return the git work-tree top-level containing `path`, or None."""
+        probe = path if path.is_dir() else path.parent
+        proc = _run_git(probe, ["rev-parse", "--show-toplevel"])
+        if proc.returncode == 0 and proc.stdout.strip():
+            return Path(proc.stdout.strip()).resolve()
+        return None
+
+    def _perform_move(self, src_p: Path, dst_p: Path, was_tracked: bool) -> None:
+        """Relocate src_p -> dst_p as a MOVE (no retained twin), honoring git tracking.
+
+        - Same git work tree + tracked: `git mv` (preserves history, stages the rename);
+          on failure falls back to filesystem rename + `git rm --cached src` + `git add dst`.
+        - Cross work tree (companion/home) + tracked: filesystem move, then a TWO-INDEX
+          stage - `git rm --cached` the source in the TARGET index and `git add` the
+          destination in the DESTINATION repo's index (a home destination outside any repo
+          just leaves the moved file untracked).
+        - Untracked (either case): plain filesystem move.
+        Symlinks are moved as links (never dereferenced).
+        """
+
+        dst_p.parent.mkdir(parents=True, exist_ok=True)
+        if dst_p.exists() or dst_p.is_symlink():
+            if dst_p.is_dir() and not dst_p.is_symlink():
+                shutil.rmtree(dst_p)
+            else:
+                dst_p.unlink()
+
+        target_top = Path(self.target_repo).resolve()
+        dst_top = self._git_toplevel(dst_p)
+        same_tree = was_tracked and dst_top is not None and dst_top == target_top
+
+        if same_tree:
+            proc = _run_git(target_top, ["mv", "--", str(src_p), str(dst_p)])
+            if proc.returncode == 0:
+                return
+            # Fall back to a manual move that still records the rename in the index.
+            self._raw_move(src_p, dst_p)
+            _run_git(target_top, ["rm", "--cached", "--", str(src_p)])
+            _run_git(target_top, ["add", "--", str(dst_p)])
+            return
+
+        # Untracked, or a cross-work-tree (companion/home) destination.
+        self._raw_move(src_p, dst_p)
+        if was_tracked:
+            # Record the removal in the TARGET index; stage the addition in the
+            # destination repo's index (if the destination lives in a git work tree).
+            _run_git(target_top, ["rm", "--cached", "--", str(src_p)])
+            if dst_top is not None:
+                _run_git(dst_top, ["add", "--", str(dst_p)])
+
+    @staticmethod
+    def _raw_move(src_p: Path, dst_p: Path) -> None:
+        """Filesystem move that preserves symlinks (never dereferences)."""
+        if src_p.is_symlink():
+            link_target = os.readlink(src_p)
+            os.symlink(link_target, dst_p)
+            src_p.unlink()
+        else:
+            shutil.move(str(src_p), str(dst_p))
+
+    # Legacy roots whose remaining (unmoved) content the leftover step governs. Host adapters
+    # (.claude/.opencode/AGENTS.md/...) are preserved in place and are NOT leftovers.
+    _LEGACY_LEFTOVER_ROOTS = (".agents", "workflow-artifacts")
+
+    def _handle_leftovers(
+        self, tx_data: Dict[str, Any], leftover_disposition: str = "defer"
+    ) -> Dict[str, Any]:
+        """Dispose of legacy material still present after the classified moves (IPD hnzr8v E-04).
+
+        `leftover_disposition` is one of keep | remove | defer (default defer). This is the
+        non-interactive contract used by the engine + CLI flag; an interactive front-end
+        (Order 16 wizard) supplies the operator's per-group choice here. `remove` deletes only
+        the listed leftover files; `defer` records them for a later cleanup; `keep` leaves them.
+        Directory pruning removes ONLY now-empty legacy directories - a directory still holding
+        any content is never removed (never `rmtree` a root wholesale).
+        """
+
+        repo_path = Path(self.target_repo)
+        leftovers: List[str] = []
+        for root_name in self._LEGACY_LEFTOVER_ROOTS:
+            root = repo_path / root_name
+            if not root.is_dir():
+                continue
+            for p in sorted(root.rglob("*")):
+                if p.is_file() or p.is_symlink():
+                    leftovers.append(str(p.relative_to(repo_path).as_posix()))
+
+        result: Dict[str, Any] = {
+            "disposition": leftover_disposition,
+            "leftovers": leftovers,
+            "removed": [],
+        }
+
+        if leftover_disposition == "remove":
+            for rel in leftovers:
+                p = repo_path / rel
+                try:
+                    proc = _run_git(repo_path, ["rm", "-f", "--", rel])
+                    if proc.returncode != 0 and (p.exists() or p.is_symlink()):
+                        p.unlink()
+                    result["removed"].append(rel)
+                except OSError:
+                    pass
+
+        # Prune now-empty legacy directories (never a directory that still holds content).
+        for root_name in self._LEGACY_LEFTOVER_ROOTS:
+            root = repo_path / root_name
+            if not root.is_dir():
+                continue
+            for d in sorted(
+                (p for p in root.rglob("*") if p.is_dir()),
+                key=lambda x: len(x.parts),
+                reverse=True,
+            ):
+                try:
+                    if not any(d.iterdir()):
+                        d.rmdir()
+                except OSError:
+                    pass
+            try:
+                if root.is_dir() and not any(root.iterdir()):
+                    root.rmdir()
+            except OSError:
+                pass
+
+        return result
+
     def _acquire_lock(self, transaction_id: str) -> None:
         """Acquire writer lock or throw TransactionLockError."""
         self.lock_file.parent.mkdir(parents=True, exist_ok=True)
@@ -300,12 +475,21 @@ class MigrationManager:
         dry_run: bool = False,
         fault_injection: Optional[str] = None,
         plan_doc: Optional[Dict[str, Any]] = None,
+        resume_tx: Optional[Dict[str, Any]] = None,
+        leftover_disposition: str = "defer",
     ) -> MigrationPlan:
-        """Execute transactional migration with complete copy-verify-switch-retain protocol."""
+        """Execute transactional move-verify-switch migration.
+
+        When ``resume_tx`` is provided (a persisted, interrupted transaction), REUSE its
+        items, move_journal, and transaction_id rather than rebuilding a fresh inventory:
+        after a partial MOVE the legacy sources are gone, so a fresh inventory would no
+        longer see them and the partial move could neither complete nor reverse (IPD hnzr8v
+        E-06). The move phase is idempotent on re-entry (already-journaled items are skipped).
+        """
         repo_path = Path(self.target_repo)
 
         # 1. Build or validate input plan/inventory/map
-        if plan_doc is None:
+        if resume_tx is None and plan_doc is None:
             roots = inv_mod._default_roots(repo_path)
             inv_res = inv_mod.inventory(repo_path, roots, False)
             map_res = inv_mod.build_migration_map(repo_path, inv_res, target_backend)
@@ -320,10 +504,12 @@ class MigrationManager:
                 and risk_res.get("valid", False),
             }
 
-        if not plan_doc.get("valid", False):
-            raise PreflightGateError(
-                f"Migration plan invalid: {plan_doc.get('risk_analysis', {}).get('errors')}"
-            )
+        if resume_tx is None:
+            assert plan_doc is not None
+            if not plan_doc.get("valid", False):
+                raise PreflightGateError(
+                    f"Migration plan invalid: {plan_doc.get('risk_analysis', {}).get('errors')}"
+                )
 
         if dry_run:
             return self.plan_migration(target_backend)
@@ -346,44 +532,52 @@ class MigrationManager:
                 json.dump(lock_data, f)
             raise TransactionLockError("Migration writer lock held by active PID 99999")
 
-        # Create unique transaction state machine (E-01)
-        tx_id = f"tx-{int(time.time())}-{os.getpid()}"
-        inv_json = json.dumps(plan_doc["inventory"], sort_keys=True)
-        map_json = json.dumps(plan_doc["migration_map"], sort_keys=True)
-        inv_digest = _sha256_str(inv_json)
-        map_digest = _sha256_str(map_json)
-        policy_digest = _sha256_str(target_backend)
+        # Create unique transaction state machine (E-01), or REUSE the interrupted one on resume.
+        if resume_tx is not None:
+            tx_id = resume_tx["transaction_id"]
+            tx_data = resume_tx
+        else:
+            assert plan_doc is not None
+            tx_id = f"tx-{int(time.time())}-{os.getpid()}"
+            inv_json = json.dumps(plan_doc["inventory"], sort_keys=True)
+            map_json = json.dumps(plan_doc["migration_map"], sort_keys=True)
+            inv_digest = _sha256_str(inv_json)
+            map_digest = _sha256_str(map_json)
+            policy_digest = _sha256_str(target_backend)
 
-        git_head = _run_git(repo_path, ["rev-parse", "HEAD"]).stdout.strip()
+            git_head = _run_git(repo_path, ["rev-parse", "HEAD"]).stdout.strip()
 
-        tx_data = {
-            "transaction_id": tx_id,
-            "schema_version": self.SCHEMA_VERSION,
-            "status": "initialized",
-            "target_backend": target_backend,
-            "inventory_digest": inv_digest,
-            "map_digest": map_digest,
-            "policy_digest": policy_digest,
-            "source_git_identity": git_head,
-            "target_git_identity": git_head,
-            "last_verified_checkpoint": "initialized",
-            "timestamps": {
-                "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            },
-            "acknowledgements": {"user_confirmed": True},
-            "phase_journal": [
-                {
-                    "phase": "initialized",
-                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                }
-            ],
-            "plan_summary": {
-                "total_items": plan_doc["risk_analysis"]["item_counts"]["total"],
-                "total_bytes": plan_doc["risk_analysis"]["total_bytes"],
-            },
-            "items": plan_doc["migration_map"].get("items", []),
-        }
+            tx_data = {
+                "transaction_id": tx_id,
+                "schema_version": self.SCHEMA_VERSION,
+                "status": "initialized",
+                "target_backend": target_backend,
+                "inventory_digest": inv_digest,
+                "map_digest": map_digest,
+                "policy_digest": policy_digest,
+                "source_git_identity": git_head,
+                "target_git_identity": git_head,
+                "last_verified_checkpoint": "initialized",
+                "timestamps": {
+                    "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                },
+                "acknowledgements": {"user_confirmed": True},
+                "phase_journal": [
+                    {
+                        "phase": "initialized",
+                        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    }
+                ],
+                "plan_summary": {
+                    "total_items": plan_doc["risk_analysis"]["item_counts"]["total"],
+                    "total_bytes": plan_doc["risk_analysis"]["total_bytes"],
+                },
+                "items": plan_doc["migration_map"].get("items", []),
+                # Persist the inventory items so a RESUME can rebuild inv_item_map without a
+                # fresh inventory (which would miss already-moved sources) - IPD hnzr8v E-06.
+                "inventory_items": plan_doc.get("inventory", {}).get("items", []),
+            }
 
         # Acquire lock (E-02)
         self._acquire_lock(tx_id)
@@ -397,10 +591,10 @@ class MigrationManager:
         )
         self._save_transaction(tx_data)
 
-        # Build lookup map from inventory items
+        # Build lookup map from inventory items (persisted in the transaction so RESUME does
+        # not need a fresh inventory that would miss already-moved sources - IPD hnzr8v E-06).
         inv_item_map = {
-            item["item_id"]: item
-            for item in plan_doc.get("inventory", {}).get("items", [])
+            item["item_id"]: item for item in tx_data.get("inventory_items", [])
         }
 
         # Preflight revalidation (E-02)
@@ -446,9 +640,23 @@ class MigrationManager:
             self._release_lock()
             raise MigrationError("Fault injected: copy failed during staging")
 
-        copied_records = []
+        # MOVE phase (IPD hnzr8v): relocate each classified item to its resolved
+        # destination as a MOVE (no retained legacy twin), journaling each relocation
+        # PER ITEM before the next so a crash leaves a precise, resumable record. A prior
+        # run's move_journal is reused on re-entry (resume) so already-moved items are
+        # skipped rather than re-processed against a source that is now gone.
+        move_journal: List[Dict[str, Any]] = tx_data.get("move_journal", [])
+        journaled_ids = {e["item_id"] for e in move_journal}
+        copied_records = tx_data.get("copied_records", [])
+        # Destinations already occupied by THIS transaction's moves (for dedup-remove).
+        dest_seen = {
+            e["destination"] for e in move_journal if e.get("action") == "move"
+        }
+
         for mapping in tx_data["items"]:
             item_id = mapping.get("item_id")
+            if item_id in journaled_ids:
+                continue  # already relocated in a prior (interrupted) run; resume-safe
             inv_item = inv_item_map.get(item_id, {})
             src_rel = (
                 inv_item.get("repo_relpath")
@@ -457,42 +665,89 @@ class MigrationManager:
                 )
             )
             src_p = repo_path / src_rel
-            dst_p = self.aw_dir / mapping["destination_relpath"]
+            dst_p = self._resolve_destination_path(
+                mapping["destination_relpath"], target_backend
+            )
             disposition = mapping.get("disposition", "migrate")
+            was_tracked = inv_item.get("git_state") == "tracked"
+            exp_hash = inv_item.get("sha256")
 
             # Host-required discovery files (host-adapter-in-place) are preserved at their exact
-            # repo-root path per spec S3.1/S9; they are NOT copied under .aw/ (doing so would
-            # both defeat host discovery and, for a root item with destination ".", try to
-            # sha256 the .aw directory). Leave them untouched.
+            # repo-root path per spec S3.1/S9; they are NEVER moved (doing so would defeat host
+            # discovery and, for a root item, operate on the .aw directory). Leave them untouched.
             if mapping.get("destination_root_class") == "host-adapter-in-place":
                 continue
 
-            if disposition in ("migrate", "preserve") and src_p.exists():
-                dst_p.parent.mkdir(parents=True, exist_ok=True)
-                if src_p.is_symlink():
-                    link_target = os.readlink(src_p)
-                    if dst_p.exists() or dst_p.is_symlink():
-                        dst_p.unlink()
-                    os.symlink(link_target, dst_p)
-                elif src_p.is_file():
-                    shutil.copy2(src_p, dst_p)
-                    # Verify byte / hash equality
-                    staged_hash = _sha256_file(dst_p)
-                    exp_hash = inv_item.get("sha256")
-                    if exp_hash and staged_hash != exp_hash:
-                        tx_data["status"] = "failed"
-                        self._save_transaction(tx_data)
-                        self._release_lock()
-                        raise VerificationError(
-                            f"Staged copy hash mismatch for {dst_p}"
-                        )
-                    copied_records.append(
-                        {
-                            "source": str(src_p),
-                            "destination": str(dst_p),
-                            "hash": staged_hash,
-                        }
-                    )
+            if disposition not in ("migrate", "preserve") or not (
+                src_p.exists() or src_p.is_symlink()
+            ):
+                continue
+
+            # Only FILES and SYMLINKS are relocated; directory inventory entries are not moved
+            # as units (their contained files carry the move, and destination parents are created
+            # on demand). This mirrors the pre-move behavior (which guarded on `is_file`).
+            if src_p.is_dir() and not src_p.is_symlink():
+                continue
+
+            # Dedup twin: build_migration_map may map two identical-hash sources to ONE
+            # destination. The first is MOVED; a later identical source cannot be moved onto
+            # the already-moved destination, so it is REMOVED (recorded for reversal).
+            if str(dst_p) in dest_seen:
+                if was_tracked:
+                    _run_git(Path(self.target_repo), ["rm", "-f", "--", str(src_p)])
+                    if src_p.exists() or src_p.is_symlink():
+                        src_p.unlink()
+                else:
+                    src_p.unlink()
+                entry = {
+                    "item_id": item_id,
+                    "source": str(src_p),
+                    "destination": str(dst_p),
+                    "hash": exp_hash,
+                    "was_tracked": was_tracked,
+                    "action": "dedup-remove",
+                }
+                move_journal.append(entry)
+                journaled_ids.add(item_id)
+                tx_data["move_journal"] = move_journal
+                self._save_transaction(tx_data)
+                continue
+
+            self._perform_move(src_p, dst_p, was_tracked)
+
+            # Verify the DESTINATION (the source is gone after the move).
+            if not dst_p.is_symlink():
+                staged_hash = _sha256_file(dst_p)
+                if exp_hash and staged_hash != exp_hash:
+                    tx_data["status"] = "failed"
+                    self._save_transaction(tx_data)
+                    self._release_lock()
+                    raise VerificationError(f"Moved-file hash mismatch for {dst_p}")
+            else:
+                staged_hash = exp_hash
+
+            entry = {
+                "item_id": item_id,
+                "source": str(src_p),
+                "destination": str(dst_p),
+                "hash": staged_hash,
+                "was_tracked": was_tracked,
+                "action": "move",
+            }
+            move_journal.append(entry)
+            journaled_ids.add(item_id)
+            dest_seen.add(str(dst_p))
+            copied_records.append(
+                {
+                    "source": str(src_p),
+                    "destination": str(dst_p),
+                    "hash": staged_hash,
+                }
+            )
+            # Persist the journal PER ITEM (crash-safe resume, E-06).
+            tx_data["move_journal"] = move_journal
+            tx_data["copied_records"] = copied_records
+            self._save_transaction(tx_data)
 
         if fault_injection == "verify-mismatch":
             tx_data["status"] = "failed"
@@ -550,7 +805,7 @@ class MigrationManager:
             "target_backend": target_backend,
             "switched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "policy_file": str(config_file),
-            "policy_digest": policy_digest,
+            "policy_digest": tx_data.get("policy_digest"),
             "authority": "switched",
         }
         with open(self.switch_receipt_file, "w", encoding="utf-8") as f:
@@ -576,18 +831,33 @@ class MigrationManager:
         )
         self._save_transaction(tx_data)
 
-        # Retention phase (E-05)
+        # Move-journal manifest (IPD hnzr8v E-05): under move-not-copy there is no retained
+        # legacy twin; the manifest records the MOVES performed (the authoritative rollback
+        # source) plus the leftover disposition. `mappings` is kept (the moves) for the legacy
+        # `cleanup` consumer, but its meaning is now "what was moved", not "copies to delete".
         self.retention_manifest_file.parent.mkdir(parents=True, exist_ok=True)
         retention_data = {
             "transaction_id": tx_id,
             "retained_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "mappings": copied_records,
-            "rollback_instructions": "Execute `aw migrate-layout rollback` to restore policy and unstage.",
+            "move_journal": tx_data.get("move_journal", []),
+            "rollback_instructions": "Execute `aw migrate-layout rollback` to reverse the moves and restore policy.",
             "retention_trigger": "post-migration independent postcheck",
             "cleanup_allowed": False,
         }
         with open(self.retention_manifest_file, "w", encoding="utf-8") as f:
             json.dump(retention_data, f, indent=2)
+
+        # Interactive leftover disposition (IPD hnzr8v E-04): after the moves, anything still
+        # under the legacy roots is UNMOVED/unclassified material. Decide its fate - keep (leave
+        # in place), remove (delete), or defer (record for a later cleanup). Non-interactive
+        # default is `defer` (never deletes without an explicit choice). Only truly-empty legacy
+        # directories are pruned; a directory that still holds content is never removed.
+        leftover_result = self._handle_leftovers(
+            tx_data, leftover_disposition=leftover_disposition
+        )
+        tx_data["leftover_disposition"] = leftover_result
+        self._save_transaction(tx_data)
 
         tx_data["status"] = "retained"
         tx_data["last_verified_checkpoint"] = "retained"
@@ -668,10 +938,14 @@ class MigrationManager:
         checkpoint = tx.get("last_verified_checkpoint", "initialized")
 
         if checkpoint in ("initialized", "locked"):
-            # Resume from beginning by re-running execute_migration
+            # Re-drive the SAME transaction (reusing its items + move_journal), never a fresh
+            # inventory: after a partial MOVE the legacy sources are gone (IPD hnzr8v E-06).
+            # Release the lock we just took so execute_migration can re-acquire it cleanly.
+            self._release_lock()
             self.execute_migration(
                 target_backend=tx.get("target_backend", "repository"),
                 fault_injection=fault_injection,
+                resume_tx=tx,
             )
             return {"status": "completed", "resumed_from": checkpoint}
 
@@ -736,24 +1010,53 @@ class MigrationManager:
         if self.retention_manifest_file.exists():
             self.retention_manifest_file.unlink()
 
-        # Remove staged items if present. NEVER touch host-adapter-in-place items: their
-        # "destination" IS the live host-required source path (e.g. AGENTS.md, .claude,
-        # .opencode), which the apply left untouched (see execute_migration); deleting dst_p
-        # for those would destroy real repo content instead of a staged .aw/ copy. Only staged
-        # copies under .aw/ (relocated classes) are removed on rollback.
+        # Reverse the MOVE journal (IPD hnzr8v): the apply MOVED classified items (no
+        # retained twin), so rollback must MOVE them back, not merely delete a staged copy.
+        # Iterate in REVERSE so a dedup twin is restored FROM the surviving destination BEFORE
+        # that destination is itself moved back. This is safe from a PARTIAL (mid-move,
+        # resumed-or-not) state because it only reverses what the journal actually recorded.
+        target_top = Path(self.target_repo).resolve()
+        move_journal = (tx or {}).get("move_journal", [])
+        for entry in reversed(move_journal):
+            src_p = Path(entry["source"])
+            dst_p = Path(entry["destination"])
+            was_tracked = entry.get("was_tracked", False)
+            action = entry.get("action", "move")
+            if action == "dedup-remove":
+                # The twin's source was removed in favor of the surviving destination;
+                # restore it by copying the destination bytes back to the source path.
+                if dst_p.exists() and not src_p.exists():
+                    src_p.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(dst_p, src_p)
+                    if was_tracked:
+                        _run_git(target_top, ["add", "--", str(src_p)])
+                continue
+            # action == "move": relocate the destination back to the original source.
+            if dst_p.exists() or dst_p.is_symlink():
+                self._perform_move(dst_p, src_p, was_tracked)
+
+        # Prune any now-empty relocated-class directories left under .aw/ (never touch
+        # host-adapter-in-place destinations, whose "destination" is a live repo-root path).
         if tx and "items" in tx:
+            rb_backend = (tx or {}).get("target_backend", "repository")
             for mapping in tx["items"]:
                 if mapping.get("destination_root_class") == "host-adapter-in-place":
                     continue
-                # Staged copies live UNDER .aw/ (self.aw_dir), matching execute_migration's
-                # dst_p = self.aw_dir / destination_relpath. Rolling back removes those staged
-                # .aw/ copies; the retained legacy sources at the repo root are left intact.
-                dst_p = self.aw_dir / mapping["destination_relpath"]
-                if dst_p.exists() or dst_p.is_symlink():
-                    if dst_p.is_file() or dst_p.is_symlink():
-                        dst_p.unlink()
-                    elif dst_p.is_dir():
-                        shutil.rmtree(dst_p, ignore_errors=True)
+                dst_p = self._resolve_destination_path(
+                    mapping["destination_relpath"], rb_backend
+                )
+                parent = dst_p.parent
+                try:
+                    while (
+                        parent != parent.parent
+                        and self._is_within(parent, self.aw_dir)
+                        and parent.is_dir()
+                        and not any(parent.iterdir())
+                    ):
+                        parent.rmdir()
+                        parent = parent.parent
+                except OSError:
+                    pass
 
         if tx:
             tx["status"] = "rolled_back"
@@ -769,7 +1072,15 @@ class MigrationManager:
         fresh_inventory: Optional[Dict[str, Any]] = None,
         fault_injection: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Perform post-retention legacy source cleanup preview or apply (E-07)."""
+        """Post-migration cleanup preview or apply.
+
+        Reconciled for move-not-copy (IPD hnzr8v E-05): under the MOVE contract the manifest
+        `mappings` sources are already GONE (moved, not copied-and-retained), so this finds
+        nothing to remove for moved items and is a safe no-op for them. It remains meaningful
+        only for material that still exists at a legacy path (e.g. a `keep`/`defer` leftover the
+        operator later chooses to remove), and it still refuses on any legacy source whose hash
+        changed since the migration. It never deletes a moved item's (nonexistent) source.
+        """
         if fault_injection == "cleanup-refusal":
             raise CleanupError("Cleanup refused: fault injected cleanup-refusal")
 

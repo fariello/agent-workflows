@@ -1303,6 +1303,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--fault-injection", default=None, help="Fault injection name for test harness."
     )
     p_migrate.add_argument(
+        "--leftovers",
+        choices=["keep", "remove", "defer"],
+        default="defer",
+        help="Disposition for legacy material NOT moved by the migration: keep (leave in "
+        "place), remove (delete), or defer (record for a later cleanup; the default). Never "
+        "deletes without an explicit 'remove'.",
+    )
+    p_migrate.add_argument(
         "--json", action="store_true", help="Output migration plan as JSON."
     )
 
@@ -3587,7 +3595,10 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
     target_backend = getattr(args, "target_backend", "repository")
     try:
         mgr.execute_migration(
-            target_backend=target_backend, dry_run=False, fault_injection=fault_inj
+            target_backend=target_backend,
+            dry_run=False,
+            fault_injection=fault_inj,
+            leftover_disposition=getattr(args, "leftovers", "defer"),
         )
     except MigrationError as exc:
         if json_out:
