@@ -15,6 +15,7 @@
 
 - 2026-08-16 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created after verifying the fresh-install gap against the code (WORKFLOWS_DIR hardcoded to .agents/workflows) and the pending Set (no Order converts fresh installs to .aw/). Maintainer ruled the compatibility story: fresh install = .aw/ only; a legacy .agents/-only repo is auto-detected on install/update and OFFERED migration; declining keeps updating .agents/ in place for the compat window with a deprecation notice; readers support both. Traces to spec S11.3 install-target contract + S13 acceptance criteria.
 - 2026-08-16 /plan-review (Gemini, via maintainer relay; findings evaluated on the merits by opencode Opus 4.8): REVIEWED - OPEN QUESTIONS (APPROVE verdict, but OQ-01 remains a human decision). Findings applied: PR-001 (MEDIUM, accepted + verified) - strengthened E-02 so GENERATED content reflects the resolved layout: `shim_body`'s `Read and execute @{workflow.body}` and `agents_pointer_prose`'s hardcoded `.agents/workflows/`/`.agents/docs/research/` must be rewritten to the `.aw/system/workflows/` bundle paths under an aw target (else shims/pointer reference a non-existent legacy path); E-04 now asserts shim+pointer paths. PR-003 (accepted) - E-02 rule made deterministic: `.aw/system` present is AUTHORITATIVE (no prompt) even with a stray legacy tree; E-04 tests it. PR-002 (partially accepted, CORRECTED) - installer-backup relocation deferred as an installer follow-up; Gemini's proposed `.aw/system/installer-backups/` is wrong per spec S6 (system is replaced on update), correct home is `.aw/state/` (classifier maps installer-backups -> durable_state). PR-004/OQ-01 - Gemini concurs with the keep-legacy non-interactive default; left OPEN for explicit maintainer confirmation. Status draft -> reviewed. NO-GO pending OQ-01 + human approval + Order 14 terminal.
+- 2026-08-16 OQ-01 resolved (human maintainer via chat): non-interactive default on a legacy-only repo is KEEP-LEGACY + deprecation notice (never auto-migrate without consent, never block CI). No open questions remain. Human EXECUTION approval NOT yet given (Status stays reviewed, not approved); implementation is paused pending that approval.
 
 ## Goal
 
@@ -93,9 +94,9 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ### OQ-01: Non-interactive default when a legacy-only repo runs `aw update` without --to-aw/--keep-legacy
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: human maintainer
-- Resolution or deferral rationale: In a genuinely non-interactive run on a legacy-only repo with neither flag, the safe default is KEEP-LEGACY + deprecation notice (never auto-migrate without consent, never block CI). Confirm this is the intended default, or specify that non-interactive update on a legacy repo should refuse until a flag is given.
+- Resolution or deferral rationale: RESOLVED 2026-08-16 (human maintainer via chat; Gemini /plan-review PR-004 concurred): the non-interactive default on a legacy-only repo with neither flag is KEEP-LEGACY + a one-time deprecation notice. It never auto-migrates without explicit consent (`--to-aw`) and never blocks or fails a CI run; migration to `.aw/` requires an explicit interactive acceptance or `--to-aw`.
 
 ## Validation and cross-check (verify before reporting done)
 
