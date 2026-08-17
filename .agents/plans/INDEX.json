@@ -1590,6 +1590,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-16",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 15,
+    "path": "executed/20260816-awphysical-15-7cvh9t-fresh-install-aw-target.md",
+    "plan_id": "7cvh9t",
+    "set_id": "awphysical",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -1643,19 +1653,19 @@
     "date": "2026-08-16",
     "disposition": "pending",
     "kind": "child",
-    "order": 13,
-    "path": "pending/20260816-awphysical-13-xzuxet-awsystem-nested-layout-reconciliation.md",
-    "plan_id": "xzuxet",
-    "set_id": "awphysical",
+    "order": 1,
+    "path": "pending/20260816-agyrun-01-k8m3px-agy-run-executor-validator.md",
+    "plan_id": "71ibuy",
+    "set_id": "agyrun",
     "status": "approved"
   },
   {
     "date": "2026-08-16",
     "disposition": "pending",
     "kind": "child",
-    "order": 15,
-    "path": "pending/20260816-awphysical-15-7cvh9t-fresh-install-aw-target.md",
-    "plan_id": "7cvh9t",
+    "order": 13,
+    "path": "pending/20260816-awphysical-13-xzuxet-awsystem-nested-layout-reconciliation.md",
+    "plan_id": "xzuxet",
     "set_id": "awphysical",
     "status": "approved"
   },

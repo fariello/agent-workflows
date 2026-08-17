@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 81 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 82 Sets; the full manifest is INDEX.json.
+
+## agyrun
+
+- `71ibuy` [pending] 01 pending/20260816-agyrun-01-k8m3px-agy-run-executor-validator.md
 
 ## awphysical
 
@@ -21,7 +25,7 @@ Showing the 40 most-recent of 81 Sets; the full manifest is INDEX.json.
 - `pszk6x` [pending] 12 pending/20260810-awphysical-12-pszk6x-documentation-release-and-end-to-end-acceptance.md
 - `xzuxet` [pending] 13 pending/20260816-awphysical-13-xzuxet-awsystem-nested-layout-reconciliation.md
 - `hnzr8v` [executed] 14 executed/20260816-awphysical-14-hnzr8v-migration-move-not-copy.md
-- `7cvh9t` [pending] 15 pending/20260816-awphysical-15-7cvh9t-fresh-install-aw-target.md
+- `7cvh9t` [executed] 15 executed/20260816-awphysical-15-7cvh9t-fresh-install-aw-target.md
 - `88bnw0` [pending] 16 pending/20260816-awphysical-16-88bnw0-migrate-layout-wizard.md
 
 ## humanapproval
@@ -234,11 +238,6 @@ Showing the 40 most-recent of 81 Sets; the full manifest is INDEX.json.
 ## agent-comms
 
 - `ssmov3` [executed] 00 executed/20260715-agent-comms-00-ssmov3-agent-comms-portable-convention.md
-
-## assess-bugs
-
-- `hq4p3a` [executed] 00 executed/20260712-assess-bugs-00-hq4p3a-assess-bugs-in-scripts.md
-- `9gfezi` [executed] 00 executed/20260715-assess-bugs-00-9gfezi-assess-bugs.md
 
 ## (singletons: no Set)
 
