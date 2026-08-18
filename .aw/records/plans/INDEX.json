@@ -1770,6 +1770,16 @@
     "status": "to-review"
   },
   {
+    "date": "2026-08-17",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 8,
+    "path": "pending/20260817-awretrofit-08-ksim8l-install-scaffolder-flat.md",
+    "plan_id": "ksim8l",
+    "set_id": "awretrofit",
+    "status": "to-review"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",
