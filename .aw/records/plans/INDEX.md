@@ -31,7 +31,7 @@ Showing the 40 most-recent of 83 Sets; the full manifest is INDEX.json.
 - `i7um6r` [executed] 01 executed/20260817-awretrofit-01-i7um6r-record-verbs-layout-aware.md
 - `ckvg3n` [executed] 02 executed/20260817-awretrofit-02-ckvg3n-shipped-docs-and-agents-md.md
 - `giiowo` [executed] 03 executed/20260817-awretrofit-03-giiowo-release-mechanics.md
-- `y5zxql` [pending] 04 pending/20260817-awretrofit-04-y5zxql-install-uninstall-migration-safety.md
+- `y5zxql` [executed] 04 executed/20260817-awretrofit-04-y5zxql-install-uninstall-migration-safety.md
 - `euqxi3` [pending] 05 pending/20260817-awretrofit-05-euqxi3-help-docstrings-manifest-deadcode.md
 - `uh295u` [executed] 06 executed/20260817-awretrofit-06-uh295u-cwd-climb-project-root.md
 - `u7xtni` [executed] 07 executed/20260817-awretrofit-07-u7xtni-records-taxonomy-cleanup.md
