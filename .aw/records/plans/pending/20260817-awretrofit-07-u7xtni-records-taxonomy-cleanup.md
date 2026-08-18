@@ -15,6 +15,7 @@
 
 - 2026-08-17 authored (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): created from spec 20260817-2124-01 (Set awretrofit Order 07); E-items finalized after the maintainer resolved the spec OQs (run-artifacts -> .aw/workflow-artifacts/; flatten -> .aw/records/{research,specs,walkthroughs,roadmaps}; library -> .aw/records/prompt-library/; no misc/). Ready for /plan-review.
 - 2026-08-17 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Structural preflight conforming. Verified against real code: PR-001 (HIGH, correctness) - `_RECORD_CLASS_SUBPATHS` (record_producers.py:120-129) is used for BOTH the `.aw/records/` primary AND the legacy `.agents/` read path (resolve_record_read_paths:603-609), so E-04 must DECOUPLE the subpaths (final `.aw/records/specs` while legacy stays `.agents/docs/specs`), NOT rewrite one constant; hardened E-04. PR-002 (MEDIUM) - the schema already has contradictory `RecordClass.RUNS -> "runs"` (the rejected `.aw/records/runs` home) AND `WORKFLOW_ARTIFACTS -> "workflow-artifacts"` (record_producers.py:126-127); E-01 hardened to reconcile them to the single `.aw/workflow-artifacts/` home. Both FIXED in plan. No open questions (spec OQs resolved). GO - PENDING HUMAN APPROVAL.
+- 2026-08-17 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified against controlling spec 20260817-2124-01 and codebase evidence (record_producers.py, layout_migration.py); structural lint conforming; no open questions; GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
