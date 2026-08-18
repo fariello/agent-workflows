@@ -1753,6 +1753,16 @@
     "date": "2026-08-18",
     "disposition": "executed",
     "kind": "child",
+    "order": 1,
+    "path": "executed/20260818-awnaming-01-f8e6y7-grammar-and-producers.md",
+    "plan_id": "f8e6y7",
+    "set_id": "awnaming",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
+    "kind": "child",
     "order": 9,
     "path": "executed/20260818-awretrofit-09-7m458z-managed-sections-regen.md",
     "plan_id": "7m458z",
@@ -1806,16 +1816,6 @@
     "order": 0,
     "path": "pending/20260818-awnaming-00-6gy9rf-awnaming-orchestrator.md",
     "plan_id": "6gy9rf",
-    "set_id": "awnaming",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260818-awnaming-01-f8e6y7-grammar-and-producers.md",
-    "plan_id": "f8e6y7",
     "set_id": "awnaming",
     "status": "approved"
   },
