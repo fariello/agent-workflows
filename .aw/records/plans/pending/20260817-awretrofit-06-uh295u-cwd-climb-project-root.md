@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Maintainer report (2026-08-17): `aw att` run from a repo SUBDIRECTORY (e.g. a nested dir like `<repo>/.aw/state`) prints nothing and exits 0, because repo-scoped verbs resolve the project root as bare cwd/`--dir` with no upward climb (attention.py:510; and ~a dozen siblings: backlog.py:280/337/439, plans_index.py:302, plans_refs.py:316, plans_archive.py:152, research_*.py, specs.py:297, cli._run_plans cli.py:2803). Worse, run from a non-project dir (e.g. `~`) the empty output is indistinguishable from "a clean project", giving the user no clue why they see nothing (P3 self-documenting failure).
 - Scope: Add ONE canonical "find the project root by climbing the directory tree for a `.aw/` or `.agents/` marker" helper (git-style), wire the repo-scoped verbs through it so they work from any subdirectory, and when NO project root is found print a clear, verbose message telling the user to check they are inside the repo directory (instead of silent empty output). OUT: changing what each verb DOES once the root is found (Orders 01/02/04 own that).
-- Status: to-review
+- Status: reviewed
 - Set: awretrofit
 - Order: 6
 - Highest E allocated: 04
@@ -15,6 +15,7 @@
 
 - 2026-08-17 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-17 authored (opencode Opus 4.8): filled from a maintainer report during release-review run 20260817-153418 (Set awretrofit Order 06).
+- 2026-08-17 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Structural preflight conforming. Re-verified against current code (post Orders 01/02/07): `find_project_root` does not yet exist; all ~12 resolver sites still do `Path(getattr(args,"dir",None) or ".")` with no climb (attention.py shifted :510->:526 by the Order-07 _classify_tree edit; other lines stable). PR-001 (LOW): clarified the E-02/E-03 interaction - climb is ONE flow (found->use; none->short-circuit with the verbose message, NOT a silent cwd-empty fallback) so the fix cannot accidentally reproduce the silent-empty output it removes; also flagged the `aw attention --check` fail-closed nuance for the no-project case. OQ-01 resolved (AW markers only, not bare .git). No open questions. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -41,8 +42,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Execution state: pending
 
 - [ ] E-03 When a repo-scoped verb finds NO project root (no `.aw/`/`.agents/` at cwd or any ancestor), print a clear, verbose message to stderr - e.g. "aw <verb>: no AW project found here. Checked <cwd> and its parents for a .aw/ (or legacy .agents/) directory. Are you inside your repository? cd into the repo (or a subdirectory of it), or pass --dir <repo>." - instead of silent empty output. Keep the exit code sensible (non-zero "nothing to do because no project", distinct from a clean project with nothing to show, which stays exit 0 with its normal empty-but-labeled board). `aw attention --check` fail-closed semantics preserved.
+  - **Contract clarification (plan-review PR-001):** the E-02 "fall back to cwd" and this E-03 "no-project message" are ONE coherent flow, not two behaviors. The verb ALWAYS climbs first. If a marker root is found -> use it and run normally. If NONE is found -> the verb SHORT-CIRCUITS with the E-03 message + the distinct exit code; it does NOT then also run its normal logic against cwd and print an empty board (that would reproduce the confusing silent-empty output this Order removes). "Fall back to cwd" in E-02 means only that an EXPLICIT `--dir` (or the resolved marker root) is what's used; there is no silent cwd-empty path. The one nuance: `aw attention --check` must keep its fail-closed exit semantics even in the no-project case (decide + document whether "no project" is check-valid or a distinct code).
   - Depends on: E-01
-  - Expected outcome: `aw att` from `~` prints the verbose no-project message (not nothing); `aw att` from a clean project still prints its normal board/empty-state.
+  - Expected outcome: `aw att` from `~` prints the verbose no-project message (not nothing); `aw att` from a clean project still prints its normal board/empty-state; `aw att` from a repo subdir climbs and prints the real board.
   - Execution state: pending
 
 ### Task group 3: tests
@@ -65,8 +67,9 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 | id | area | evidence | issue |
 |---|---|---|---|
-| U01 | project-root resolution | attention.py:510 + ~11 sibling sites | no upward climb -> broken from a repo subdir |
+| U01 | project-root resolution | attention.py:526 (was :510 pre-Order-07) + ~11 sibling sites (backlog.py:280/337/439, specs.py:297, plans_index.py:302, plans_refs.py:316, plans_archive.py:152, research_index.py:262, research_refs.py:232, research_cmd.py:276, research_archive.py:220, cli.py:2803) - all still `Path(getattr(args,"dir",None) or ".")` with no climb (re-verified at review) | no upward climb -> broken from a repo subdir |
 | U02 | empty-output UX | `aw att` from `~` and from `.aw/state` both print nothing, exit 0 | indistinguishable "no project" vs "clean project" (P3) |
+| PR-001 | plan-review (contract) | E-02 "fall back to cwd" vs E-03 "no-project message" | LOW/IN-SCOPE: clarified in E-03 that these are ONE flow (climb; found->use; none->short-circuit with message, NOT a silent cwd-empty path). FIXED in plan. |
 
 ## Proposed changes (ordered, validatable)
 
