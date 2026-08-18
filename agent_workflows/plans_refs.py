@@ -27,9 +27,26 @@ from agent_workflows import plans_index as _idx
 
 PLANS_DIR = ".agents/plans"
 
-# The clustering grammar target: YYYYMMDD-<set-id>-<NN>-<id6>-<slug>.md
+# The uniform artifact-type facets (spec 20260817-2147-01): the TYPE signal moved into the filename
+# as `<...>.<type>.md`. A CLOSED enum so a dotted slug is never mis-parsed as a facet. Research keeps
+# its own richer `.<model>.<kind>.md` naming and is not in this set.
+ARTIFACT_TYPE_FACETS = (
+    "ipd",
+    "prompt",
+    "spec",
+    "walkthrough",
+    "roadmap",
+    "backlog",
+    "comms",
+)
+_FACET_ALT = "|".join(ARTIFACT_TYPE_FACETS)
+
+# The clustering grammar target: YYYYMMDD-<set-id>-<NN>-<id6>-<slug>[.<type>].md . The optional
+# `.<type>` facet is accepted (uniform grammar) AND a bare `.md` remains valid (permanent dual-read,
+# since readers are front-matter-driven).
 _CLUSTERED_RE = re.compile(
-    r"\A(?P<date>\d{8})-(?P<set>[a-z0-9-]+?)-(?P<nn>\d{2})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9-]+)\.md\Z"
+    r"\A(?P<date>\d{8})-(?P<set>[a-z0-9-]+?)-(?P<nn>\d{2})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9-]+)"
+    r"(?:\.(?P<type>" + _FACET_ALT + r"))?\.md\Z"
 )
 # An old-style plan stem: YYYYMMDD-HHMM-NN (bare, no slug/.md). Shared with specs, so a bare-stem
 # rewrite is driven by an explicit plan map, never by this pattern alone.
@@ -120,10 +137,33 @@ class RenamePlan(NamedTuple):
     old_path: Path
     new_path: Path
     id6: str
+    # The Order to write into the plan's front matter. None means "use the enumerate index" (the
+    # historical set-assign behavior where the caller sequences a batch). `aw plans mv` passes the
+    # plan's PRESERVED order so a bare rename does not clobber `- Order:` to 0 (vf03z3).
+    order: Optional[int] = None
 
 
-def clustered_name(*, date: str, set_id: str, order: int, id6: str, slug: str) -> str:
-    return f"{date}-{_core.kebab(set_id)}-{order:02d}-{id6}-{_core.kebab(slug)}.md"
+def clustered_name(
+    *,
+    date: str,
+    set_id: str,
+    order: int,
+    id6: str,
+    slug: str,
+    artifact_type: Optional[str] = None,
+) -> str:
+    """Build a clustered name. When ``artifact_type`` is one of ``ARTIFACT_TYPE_FACETS`` the uniform
+    ``<...>.<type>.md`` facet is appended; when None (or empty) the bare ``.md`` form is produced
+    (backward-compatible)."""
+
+    facet = ""
+    if artifact_type:
+        if artifact_type not in ARTIFACT_TYPE_FACETS:
+            raise ValueError(f"unknown artifact_type {artifact_type!r}")
+        facet = f".{artifact_type}"
+    return (
+        f"{date}-{_core.kebab(set_id)}-{order:02d}-{id6}-{_core.kebab(slug)}{facet}.md"
+    )
 
 
 def _slug_of(old_name: str, id6: str) -> str:
@@ -165,6 +205,7 @@ def plan_set_assign(
                 order=order,
                 id6=id6,
                 slug=_slug_of(src.name, id6),
+                artifact_type="ipd",
             )
             plans.append(RenamePlan(src, src.parent / new_name, id6))
         else:
@@ -291,10 +332,14 @@ def apply_renames(
             )
         return
     for i, p in enumerate(plans):
-        # Update Set/Order metadata in place first.
+        # Update Set/Order metadata in place first. Use the plan's explicit order when provided
+        # (mv preserves it), else the enumerate index (set-assign batch sequencing).
         text = p.old_path.read_text(encoding="utf-8")
         text = _set_metadata(
-            text, set_id=_core.kebab(set_id), order=i, descriptive=descriptive
+            text,
+            set_id=_core.kebab(set_id),
+            order=p.order if p.order is not None else i,
+            descriptive=descriptive,
         )
         _core.atomic_write(p.old_path, text, prefix=".plans-refs-")
         if p.old_path != p.new_path:
@@ -368,17 +413,29 @@ def run_mv(args: argparse.Namespace) -> int:
     om = _ORDER_LINE_RE.search(text)
     existing_terse = _idx.set_terse_id(m.group(1)) if m else None
     set_id = getattr(args, "set", None) or existing_terse or id6
+    # Preserve the plan's existing Order unless --order is explicitly given (vf03z3: a bare rename
+    # must NOT clobber Order to 0). Prefer the front-matter Order; fall back to the current filename.
     order = getattr(args, "order", None)
-    order = order if order is not None else (int(om.group(1)) if om else 0)
+    if order is None:
+        if om:
+            order = int(om.group(1))
+        else:
+            parsed = _CLUSTERED_RE.match(src.name)
+            order = int(parsed.group("nn")) if parsed else 0
+    # Preserve the plan's existing date unless we can derive it from the front-matter (vf03z3: a bare
+    # rename must NOT recompute the date). Prefer the current filename's date, then the `- Date:` line.
+    parsed_name = _CLUSTERED_RE.match(src.name)
+    new_date = parsed_name.group("date") if parsed_name else _plan_date(text)
     slug = getattr(args, "slug", None)
     new_name = clustered_name(
-        date=_plan_date(text),
+        date=new_date,
         set_id=set_id,
         order=order,
         id6=id6,
         slug=slug if slug else _slug_of(src.name, id6),
+        artifact_type="ipd",
     )
-    plan = RenamePlan(src, src.parent / new_name, id6)
+    plan = RenamePlan(src, src.parent / new_name, id6, order=order)
     apply_renames(
         repo_root, plans_dir, [plan], set_id, apply=getattr(args, "apply", False)
     )

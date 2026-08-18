@@ -321,7 +321,7 @@ def run_new(args) -> int:
     slug = (
         core.kebab(getattr(args, "slug", None) or item.summary or "item")[:50] or "item"
     )
-    filename = f"{today}-{item.set}-01-{item.id}-{slug}.md"
+    filename = f"{today}-{item.set}-01-{item.id}-{slug}.backlog.md"
     dest = _resolve_backlog_root(repo_root) / status / filename
     body = getattr(args, "body", None) or ""
     rendered = _render_item(item, body)

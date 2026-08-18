@@ -214,8 +214,8 @@ def run_scaffold(args: argparse.Namespace) -> int:
         return 2
     title = getattr(args, "title", None)
     target = getattr(args, "path", None)
-    if not title or not target:
-        print("error: --title and --path are required")
+    if not title:
+        print("error: --title is required")
         return 2
     set_name = getattr(args, "set", None)
     order = getattr(args, "order", None)
@@ -233,8 +233,38 @@ def run_scaffold(args: argparse.Namespace) -> int:
         print("error: --author is required (or set AW_IPD_AUTHOR)")
         return 2
     when = date.today().strftime("%Y-%m-%d")
-    path = Path(target)
-    plan_id = _core.generate_id6(_existing_plan_ids(path))
+    # BACKWARD COMPAT: an explicit --path is honored exactly as before. Only when --path is omitted do
+    # we DERIVE the canonical clustered `.ipd.md` name (vf03z3), into `.aw/records/plans/pending/`.
+    if target:
+        path = Path(target)
+        plan_id = _core.generate_id6(_existing_plan_ids(path))
+    else:
+        from agent_workflows import plans_refs as _refs
+        from agent_workflows import project_context as _ctx
+
+        try:
+            repo_root = _ctx.find_project_root(Path.cwd())
+        except Exception:
+            repo_root = None
+        if repo_root is None:
+            repo_root = Path.cwd()
+        pending = repo_root / ".aw" / "records" / "plans" / "pending"
+        plan_id = _core.generate_id6(_existing_plan_ids(pending))
+        derived_set = set_name if set_name is not None else plan_id
+        derived_order = (
+            order if order is not None else (0 if kind == S.KIND_ORCHESTRATOR else 1)
+        )
+        slug = _refs._core.kebab(title)[:60] or "ipd"
+        name = _refs.clustered_name(
+            date=date.today().strftime("%Y%m%d"),
+            set_id=derived_set,
+            order=derived_order,
+            id6=plan_id,
+            slug=slug,
+            artifact_type="ipd",
+        )
+        path = pending / name
+        target = str(path)
     text = build_skeleton(
         kind=kind,
         title=title,

@@ -725,7 +725,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ipd_scaffold.add_argument(
         "--title", required=True, help="IPD title (after the H1 'IPD: ')."
     )
-    p_ipd_scaffold.add_argument("--path", required=True, help="Destination file path.")
+    p_ipd_scaffold.add_argument(
+        "--path",
+        default=None,
+        help="Destination file path. Omit to derive the canonical clustered `.ipd.md` name into .aw/records/plans/pending/.",
+    )
     p_ipd_scaffold.add_argument(
         "--set", dest="set", default=None, help="Ordered-Set id (with --order)."
     )

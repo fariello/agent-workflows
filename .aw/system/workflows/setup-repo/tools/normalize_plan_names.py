@@ -105,10 +105,15 @@ _NEW_RE = re.compile(
     r"^(?P<date>\d{8})-(?P<time>\d{4})-(?P<nn>\d{2})-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)\.md$"
 )
 # The Set-clustering grammar for plans (plans-adopter Order 06, spec 20260808-0004-01):
-# YYYYMMDD-<set-id>-<NN>-<id6>-<slug>.md, where <id6> is a 6-char base36 stable handle. This is
-# the current plan-name convention; the older HHMM-NN form above is accepted for compatibility.
+# YYYYMMDD-<set-id>-<NN>-<id6>-<slug>[.<type>].md, where <id6> is a 6-char base36 stable handle. This
+# is the current plan-name convention; the older HHMM-NN form above is accepted for compatibility.
+# The optional `.<type>` facet (spec 20260817-2147-01, uniform artifact-naming grammar) is a CLOSED
+# enum so a dotted slug is never mis-parsed as a facet; a bare `.md` remains conformant (dual-read).
+_ARTIFACT_TYPE_FACETS = ("ipd", "prompt", "spec", "walkthrough", "roadmap", "backlog", "comms")
+_FACET_ALT = "|".join(_ARTIFACT_TYPE_FACETS)
 _CLUSTERED_RE = re.compile(
-    r"^(?P<date>\d{8})-(?P<set>[a-z0-9]+(?:-[a-z0-9]+)*)-(?P<nn>\d{2})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)\.md$"
+    r"^(?P<date>\d{8})-(?P<set>[a-z0-9]+(?:-[a-z0-9]+)*)-(?P<nn>\d{2})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)"
+    r"(?:\.(?P<type>" + _FACET_ALT + r"))?\.md$"
 )
 # Legacy shapes (ordered; first match wins). Each yields date + optional time/nn + slug.
 _LEGACY_RES = (
@@ -169,6 +174,14 @@ def parse_name(filename: str) -> Optional[Parsed]:
     a date), or None if the name matches no known shape (e.g. non-numeric).
     """
 
+    # Strip a known uniform-grammar facet (`<...>.<type>.md` -> `<...>.md`) so a faceted name parses
+    # identically to its bare form (spec 20260817-2147-01). Only a CLOSED-enum facet is stripped.
+    for _facet in _ARTIFACT_TYPE_FACETS:
+        _suffix = f".{_facet}.md"
+        if filename.endswith(_suffix):
+            filename = filename[: -len(_suffix)] + ".md"
+            break
+
     m = _NEW_RE.match(filename)
     if m:
         return Parsed(
@@ -188,15 +201,21 @@ def parse_name(filename: str) -> Optional[Parsed]:
     return None
 
 
-def is_conformant(filename: str) -> bool:
+def is_conformant(filename: str, expected_type: str = "ipd") -> bool:
     """True for a valid canonical plan name: either the Set-clustering grammar
-    ``YYYYMMDD-<set-id>-<NN>-<id6>-<slug>.md`` (current, plans-adopter) or the older
+    ``YYYYMMDD-<set-id>-<NN>-<id6>-<slug>[.<type>].md`` (current, plans-adopter) or the older
     ``YYYYMMDD-HHMM-NN-<slug>.md`` form (accepted for compatibility). Both use clean
-    lowercase-kebab slugs."""
+    lowercase-kebab slugs.
 
-    return (
-        _CLUSTERED_RE.match(filename) is not None or _NEW_RE.match(filename) is not None
-    )
+    When a clustered name carries a `.<type>` facet it must match ``expected_type`` (a plan is an
+    ``ipd``); a facet of the wrong type (e.g. a plan named ``...-slug.spec.md``) is NONCONFORMANT
+    even though the facet is a known token (spec 20260817-2147-01)."""
+
+    cm = _CLUSTERED_RE.match(filename)
+    if cm is not None:
+        facet = cm.groupdict().get("type")
+        return facet is None or facet == expected_type
+    return _NEW_RE.match(filename) is not None
 
 
 # --------------------------------------------------------------------------------------
