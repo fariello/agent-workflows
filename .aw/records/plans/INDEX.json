@@ -2033,6 +2033,16 @@
     "date": "2026-08-18",
     "disposition": "pending",
     "kind": "child",
+    "order": 3,
+    "path": "pending/20260818-awrelease-03-i7c6uv-document-blocks-release-vs-blocked-by-in-agents-md.ipd.md",
+    "plan_id": "i7c6uv",
+    "set_id": "awrelease",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "child",
     "order": 1,
     "path": "pending/20260818-awresearchrev-01-z4m7bf-review-and-harden-aw-research-command-surface.ipd.md",
     "plan_id": "z4m7bf",
