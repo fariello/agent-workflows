@@ -48,6 +48,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 | 04 | 20260817-awretrofit-04-y5zxql-install-uninstall-migration-safety.md | install scaffolder + uninstall --deep + migration-engine cleanup/move safety (S2-B02/B03/M01/L01) | 01 (shares resolver) |
 | 05 | 20260817-awretrofit-05-euqxi3-help-docstrings-manifest-deadcode.md | CLI help + docstrings + records READMEs + managed-sections regen + dead-code + typing + sdist (S4-D04/D05, S5-K01, S6-V02, DC01, S2-Q01, S6-C01) | 01,02 (help mirrors behavior) |
 | 06 | 20260817-awretrofit-06-uh295u-cwd-climb-project-root.md | repo-scoped verbs climb to the project root (find .aw/.agents upward) + verbose no-project message (maintainer report during the run) | 01 (shares the resolved verbs) |
+| 07 | 20260817-awretrofit-07-u7xtni-records-taxonomy-cleanup.md | RELEASE BLOCKER: .aw/records/ taxonomy cleanup (run-artifacts home, dedup prompts, flatten docs/) per spec 20260817-2124-01; DRAFT, blocked on spec OQ approval; pre-release legacy->final only | 01,02 (resolvers + shipped docs); spec 20260817-2124-01 |
 
 ## Completion criteria (the whole Set is done only when)
 
@@ -72,6 +73,13 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 - The next-version NUMBER (S6-V01): maintainer decision (breaking `.aw/` migration argues 2.0.0; tag
   line tracks 1.3.0-rc). Recorded here; reconciled + baked in Section 9 after an explicit human GO.
 - Push / tag / PyPI publish: human-gated (RELEASING.md Section 9); never performed by this Set.
+
+## Additional release blocker discovered mid-run (Order 07)
+
+Order 07 (records-taxonomy-cleanup, spec 20260817-2124-01, backlog lavkg7) was added after a maintainer
+observation during release-review run 20260817-153418. It is a MAINTAINER-DESIGNATED RELEASE BLOCKER:
+the Set is not release-ready until Order 07 lands (or the maintainer explicitly waives it). Order 07 is
+DRAFT and blocked on the spec's OQs being resolved before it can be reviewed/approved/executed.
 
 ## Scope check
 

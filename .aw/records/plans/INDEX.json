@@ -1760,6 +1760,16 @@
     "status": "to-review"
   },
   {
+    "date": "2026-08-17",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 7,
+    "path": "pending/20260817-awretrofit-07-u7xtni-records-taxonomy-cleanup.md",
+    "plan_id": "u7xtni",
+    "set_id": "awretrofit",
+    "status": "draft"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",
