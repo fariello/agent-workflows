@@ -44,17 +44,17 @@ class Category1GeneratedReadmes(unittest.TestCase):
 
     def test_agents_and_plans_readmes_created(self):
         _run(["install", str(self.repo), "--yes"])
-        self.assertTrue((self.repo / ".agents/README.md").is_file())
-        self.assertTrue((self.repo / ".agents/plans/README.md").is_file())
+        self.assertTrue((self.repo / ".aw/records/README.md").is_file())
+        self.assertTrue((self.repo / ".aw/records/plans/README.md").is_file())
         # One per lifecycle bucket, driven by PLAN_LIFECYCLE_SUBDIRS.
         for bucket in engine.PLAN_LIFECYCLE_SUBDIRS:
             self.assertTrue(
-                (self.repo / ".agents/plans" / bucket / "README.md").is_file(),
+                (self.repo / ".aw/records/plans" / bucket / "README.md").is_file(),
                 f"missing README in plans/{bucket}",
             )
 
     def test_no_clobber_preserves_user_readme(self):
-        target = self.repo / ".agents/plans/pending/README.md"
+        target = self.repo / ".aw/records/plans/pending/README.md"
         target.parent.mkdir(parents=True)
         target.write_text("MINE\n", encoding="utf-8")
         _run(["install", str(self.repo), "--yes"])
@@ -65,12 +65,12 @@ class Category1GeneratedReadmes(unittest.TestCase):
         # A second install must not error and must leave the READMEs in place.
         code, _ = _run(["install", str(self.repo), "--yes"])
         self.assertEqual(code, 0)
-        self.assertTrue((self.repo / ".agents/README.md").is_file())
+        self.assertTrue((self.repo / ".aw/records/README.md").is_file())
 
     def test_dry_run_writes_nothing(self):
         _run(["install", str(self.repo), "--dry-run", "--yes"])
-        self.assertFalse((self.repo / ".agents/README.md").exists())
-        self.assertFalse((self.repo / ".agents/plans/README.md").exists())
+        self.assertFalse((self.repo / ".aw/records/README.md").exists())
+        self.assertFalse((self.repo / ".aw/records/plans/README.md").exists())
 
 
 class Category2AuthoredReadmes(unittest.TestCase):

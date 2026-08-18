@@ -3423,10 +3423,24 @@ def _git_file_state(repo_root: Path, rel: str) -> str:
 # and git-state-classified. Host dirs themselves are never rm -rf'd; only files are removed and
 # emptied dirs pruned.
 _DEEP_CLEANUP_ROOTS = (
+    # Migrated FLAT `.aw/records/*` roots (IPD awretrofit Order 08, B03: `aw uninstall --deep` must
+    # reach these to honor the cli.py:523 help promise). No `docs/` level (Order 07 flatten).
+    ".aw/records/plans",
+    ".aw/records/prompts",
+    ".aw/records/prompt-library",
+    ".aw/records/comms",
+    ".aw/records/backlog",
+    ".aw/records/research",
+    ".aw/records/specs",
+    ".aw/records/walkthroughs",
+    ".aw/records/roadmaps",
+    # Legacy `.agents/*` roots (a not-yet-migrated repo). A repo has one layout or the other; the
+    # per-root is_dir() check below skips whichever set is absent, so listing both is safe.
     ".agents/plans",
     ".agents/docs",
     ".agents/prompts",
     ".agents/comms",
+    ".agents/backlog",
     ".gitleaksignore",
     ".github/workflows/secret-scan.yml",
 )
@@ -3753,6 +3767,49 @@ COMMS_DIR = ".agents/comms"
 COMMS_LOCAL_SUBDIRS = ("inbox", "sent", "archive", "scheduled", "acks")
 COMMS_SHARED_SUBDIRS = ("inbox", "sent", "archive")
 
+# --- Layout-aware record scaffolding (IPD awretrofit Order 08) ---------------------------------
+# The record dirs a fresh install scaffolds, derived from the target layout so a fresh `.aw/` repo
+# gets the FLAT `.aw/records/*` tree (no `docs/`; the prompt LIBRARY is `prompt-library/`, distinct
+# from the `prompts/` staging tree) and a not-yet-migrated legacy repo still gets `.agents/*`.
+# Enumerated explicitly (NOT derived from RecordClass, which omits backlog/roadmaps/prompt-library -
+# plan-review PR-001). `plans`/`prompts` keep the lifecycle buckets; docs types are flat leaves.
+
+
+def _record_scaffold_dirs(target_layout: str) -> dict[str, str]:
+    """Return the repo-relative record roots to scaffold for the layout.
+
+    Keys are stable logical names; values are the repo-relative dirs. For `aw` the durable doc
+    types sit FLAT under `.aw/records/` (Order 07) and the library is `prompt-library/`; for
+    `legacy` the historical nested `.agents/` shape is preserved.
+    """
+
+    if target_layout == "aw":
+        base = ".aw/records"
+        return {
+            "plans": f"{base}/plans",
+            "prompts": f"{base}/prompts",
+            "prompt_library": f"{base}/prompt-library",
+            "comms": f"{base}/comms",
+            "backlog": f"{base}/backlog",
+            "research": f"{base}/research",
+            "specs": f"{base}/specs",
+            "walkthroughs": f"{base}/walkthroughs",
+            "roadmaps": f"{base}/roadmaps",
+        }
+    # Legacy nested layout (a not-yet-migrated `.agents/workflows` repo).
+    return {
+        "plans": ".agents/plans",
+        "prompts": ".agents/prompts",
+        "prompt_library": ".agents/docs/prompts",
+        "comms": ".agents/comms",
+        "backlog": ".agents/backlog",
+        "research": ".agents/docs/research",
+        "specs": ".agents/docs/specs",
+        "walkthroughs": ".agents/docs/walkthroughs",
+        "roadmaps": ".agents/docs/roadmaps",
+    }
+
+
 _COMMS_GITIGNORE_TEMPLATE = """\
 # agent-workflows inter-agent comms: ignore the box-local, ephemeral lane.
 # `local/` holds this machine's routing churn and scheduled messages; it is never committed.
@@ -4058,12 +4115,6 @@ def ensure_workflow_artifacts_readme(
 # `.agents/` root and `.agents/plans/` overview use fixed template names; each lifecycle
 # bucket uses `plans-<bucket>-README.md`. Buckets are driven by PLAN_LIFECYCLE_SUBDIRS so
 # they cannot drift from the dirs create_setup_artifacts scaffolds.
-_PLANS_README_TARGETS = (
-    (".agents/README.md", "agents-README.md"),
-    (f"{PLANS_DIR}/README.md", "plans-README.md"),
-)
-
-
 def ensure_plans_readmes(
     plan: InstallPlan,
     use_git: bool,
@@ -4077,50 +4128,21 @@ def ensure_plans_readmes(
     `.agents/workflows/templates/`; a bucket with no template is skipped defensively.
     """
 
-    targets = list(_PLANS_README_TARGETS)
+    # Layout-aware (IPD awretrofit Order 08): the record-root README goes in the FLAT `.aw/records/`
+    # (aw) or legacy `.agents/` root; the plans README + its buckets hang off the resolved plans dir.
+    dirs = _record_scaffold_dirs(resolve_target_layout(plan.repo_root))
+    record_root_readme = (
+        ".aw/records/README.md"
+        if resolve_target_layout(plan.repo_root) == "aw"
+        else ".agents/README.md"
+    )
+    targets = [
+        (record_root_readme, "agents-README.md"),
+        (f"{dirs['plans']}/README.md", "plans-README.md"),
+    ]
     for bucket in PLAN_LIFECYCLE_SUBDIRS:
-        targets.append((f"{PLANS_DIR}/{bucket}/README.md", f"plans-{bucket}-README.md"))
-
-    for rel_path, template_name in targets:
-        readme_path = plan.repo_root / rel_path
-        if readme_path.is_file():
-            skipped.append(f"{rel_path} [already current]")
-            continue
-        template_path = plan.source_root / "templates" / template_name
-        try:
-            content = template_path.read_text(encoding="utf-8")
-        except OSError:
-            # No template shipped for this target; skip rather than invent content.
-            continue
-        if plan.dry_run:
-            installed.append(f"{rel_path} [install, dry-run]")
-            continue
-        readme_path.parent.mkdir(parents=True, exist_ok=True)
-        readme_path.write_text(content, encoding="utf-8")
-        if use_git:
-            git_add_optional(plan.repo_root, rel_path)
-        installed.append(f"{rel_path} [install]")
-
-
-_DOCS_README_TARGETS = ((".agents/docs/README.md", "agents-docs-README.md"),)
-
-
-def ensure_docs_readmes(
-    plan: InstallPlan,
-    use_git: bool,
-    installed: list[str],
-    skipped: list[str],
-) -> None:
-    """Create a README.md in `.agents/docs/`, `.agents/docs/research/`, and `.agents/docs/walkthroughs/`.
-
-    No-clobber (a user's own README is never overwritten), staged, dry-run aware. Modeled
-    on `ensure_plans_readmes`. Templates live under the source `.agents/workflows/templates/`.
-    """
-
-    targets = list(_DOCS_README_TARGETS)
-    for bucket in DOCS_SUBDIRS:
         targets.append(
-            (f"{DOCS_DIR}/{bucket}/README.md", f"agents-docs-{bucket}-README.md")
+            (f"{dirs['plans']}/{bucket}/README.md", f"plans-{bucket}-README.md")
         )
 
     for rel_path, template_name in targets:
@@ -4144,7 +4166,56 @@ def ensure_docs_readmes(
         installed.append(f"{rel_path} [install]")
 
 
-_PROMPTS_README_TARGETS = ((f"{PROMPTS_DIR}/README.md", "prompts-README.md"),)
+def ensure_docs_readmes(
+    plan: InstallPlan,
+    use_git: bool,
+    installed: list[str],
+    skipped: list[str],
+) -> None:
+    """Create a README.md in `.agents/docs/`, `.agents/docs/research/`, and `.agents/docs/walkthroughs/`.
+
+    No-clobber (a user's own README is never overwritten), staged, dry-run aware. Modeled
+    on `ensure_plans_readmes`. Templates live under the source `.agents/workflows/templates/`.
+    """
+
+    # Layout-aware (IPD awretrofit Order 08): the doc types are FLAT under `.aw/records/` (aw) or
+    # nested under `.agents/docs/` (legacy). Drop the obsolete top-level `docs/README.md` for the aw
+    # layout (there is no `.aw/records/docs/`); place per-type stubs at the resolved flat dirs.
+    dirs = _record_scaffold_dirs(resolve_target_layout(plan.repo_root))
+    if resolve_target_layout(plan.repo_root) == "aw":
+        targets = []
+    else:
+        targets = [(f"{DOCS_DIR}/README.md", "agents-docs-README.md")]
+    # Per-type README stubs (the shipped template names retain the `agents-docs-<type>` prefix).
+    for key, tmpl_bucket in (
+        ("research", "research"),
+        ("walkthroughs", "walkthroughs"),
+        ("specs", "specs"),
+        ("prompt_library", "prompts"),
+    ):
+        targets.append(
+            (f"{dirs[key]}/README.md", f"agents-docs-{tmpl_bucket}-README.md")
+        )
+
+    for rel_path, template_name in targets:
+        readme_path = plan.repo_root / rel_path
+        if readme_path.is_file():
+            skipped.append(f"{rel_path} [already current]")
+            continue
+        template_path = plan.source_root / "templates" / template_name
+        try:
+            content = template_path.read_text(encoding="utf-8")
+        except OSError:
+            # No template shipped for this target; skip rather than invent content.
+            continue
+        if plan.dry_run:
+            installed.append(f"{rel_path} [install, dry-run]")
+            continue
+        readme_path.parent.mkdir(parents=True, exist_ok=True)
+        readme_path.write_text(content, encoding="utf-8")
+        if use_git:
+            git_add_optional(plan.repo_root, rel_path)
+        installed.append(f"{rel_path} [install]")
 
 
 def ensure_prompts_readmes(
@@ -4162,10 +4233,12 @@ def ensure_prompts_readmes(
     under the source `.agents/workflows/templates/`.
     """
 
-    targets = list(_PROMPTS_README_TARGETS)
+    # Layout-aware (IPD awretrofit Order 08): the prompts STAGING dir + its buckets, resolved flat.
+    dirs = _record_scaffold_dirs(resolve_target_layout(plan.repo_root))
+    targets = [(f"{dirs['prompts']}/README.md", "prompts-README.md")]
     for bucket in PROMPT_LIFECYCLE_SUBDIRS:
         targets.append(
-            (f"{PROMPTS_DIR}/{bucket}/README.md", f"prompts-{bucket}-README.md")
+            (f"{dirs['prompts']}/{bucket}/README.md", f"prompts-{bucket}-README.md")
         )
 
     for rel_path, template_name in targets:
@@ -4209,92 +4282,57 @@ def create_setup_artifacts(
     """
 
     created: list[str] = []
+    # Layout-aware records base (IPD awretrofit Order 08): a fresh/`aw` repo scaffolds the FLAT
+    # `.aw/records/*` set; a not-yet-migrated `.agents/workflows` repo keeps the legacy nested shape.
+    layout = resolve_target_layout(repo_root)
+    dirs = _record_scaffold_dirs(layout)
+    # For the legacy layout the doc types nest under DOCS_DIR; for `aw` they are flat leaves. The
+    # research reference/archive shards hang off whichever `research` root the layout resolved.
+    research_root = dirs["research"]
+    research_shards = [f"{research_root}/reference", f"{research_root}/archive"]
+
+    # (relpath, content) files this run may create, no-clobber; a bare "" content = a `.gitkeep`.
+    files: list[tuple[str, str]] = []
+    for sub in PLAN_LIFECYCLE_SUBDIRS:
+        files.append((f"{dirs['plans']}/{sub}/.gitkeep", ""))
+    # Flat doc-type leaves (aw) or nested docs buckets (legacy) - one .gitkeep each.
+    for key in (
+        "research",
+        "specs",
+        "walkthroughs",
+        "roadmaps",
+        "prompt_library",
+        "backlog",
+    ):
+        files.append((f"{dirs[key]}/.gitkeep", ""))
+    for shard in research_shards:
+        files.append((f"{shard}/.gitkeep", ""))
+    for sub in PROMPT_LIFECYCLE_SUBDIRS:
+        files.append((f"{dirs['prompts']}/{sub}/.gitkeep", ""))
+    files.append((f"{dirs['prompts']}/.gitignore", _PROMPTS_GITIGNORE_TEMPLATE))
+    files.append((GITLEAKSIGNORE_FILE, _GITLEAKSIGNORE_TEMPLATE))
+    files.append((SECRET_SCAN_CI, _SECRET_SCAN_CI_TEMPLATE))
+    files.append((f"{dirs['comms']}/.gitignore", _COMMS_GITIGNORE_TEMPLATE))
+    files.append((f"{dirs['comms']}/README.md", _COMMS_README_TEMPLATE))
+    for sub in COMMS_SHARED_SUBDIRS:
+        files.append((f"{dirs['comms']}/shared/{sub}/.gitkeep", ""))
+
     if dry_run:
-        # Report what WOULD be created without writing.
-        for sub in PLAN_LIFECYCLE_SUBDIRS:
-            keep = f"{PLANS_DIR}/{sub}/.gitkeep"
-            if not (repo_root / keep).exists():
-                created.append(keep + " [dry-run]")
-        for sub in DOCS_SUBDIRS:
-            keep = f"{DOCS_DIR}/{sub}/.gitkeep"
-            if not (repo_root / keep).exists():
-                created.append(keep + " [dry-run]")
-        for sub in RESEARCH_SHARD_SUBDIRS:
-            keep = f"{DOCS_DIR}/{sub}/.gitkeep"
-            if not (repo_root / keep).exists():
-                created.append(keep + " [dry-run]")
-        for sub in PROMPT_LIFECYCLE_SUBDIRS:
-            keep = f"{PROMPTS_DIR}/{sub}/.gitkeep"
-            if not (repo_root / keep).exists():
-                created.append(keep + " [dry-run]")
-        # Prompts quarantine lane (D94): the nested .gitignore is a created FILE (counted); the
-        # local/ dir is materialized as a side effect (mkdir), not a tracked/counted artifact.
-        if not (repo_root / f"{PROMPTS_DIR}/.gitignore").exists():
-            created.append(f"{PROMPTS_DIR}/.gitignore [dry-run]")
-        for rel in (GITLEAKSIGNORE_FILE, SECRET_SCAN_CI):
+        for rel, _content in files:
             if not (repo_root / rel).exists():
                 created.append(rel + " [dry-run]")
-        # Inter-agent comms skeleton (D81).
-        for rel in (f"{COMMS_DIR}/.gitignore", f"{COMMS_DIR}/README.md"):
-            if not (repo_root / rel).exists():
-                created.append(rel + " [dry-run]")
-        for sub in COMMS_SHARED_SUBDIRS:
-            keep = f"{COMMS_DIR}/shared/{sub}/.gitkeep"
-            if not (repo_root / keep).exists():
-                created.append(keep + " [dry-run]")
         return created
 
-    for sub in PLAN_LIFECYCLE_SUBDIRS:
-        _create_if_absent(
-            repo_root, f"{PLANS_DIR}/{sub}/.gitkeep", "", use_git, created
-        )
-    for sub in DOCS_SUBDIRS:
-        _create_if_absent(repo_root, f"{DOCS_DIR}/{sub}/.gitkeep", "", use_git, created)
-    for sub in RESEARCH_SHARD_SUBDIRS:
-        _create_if_absent(repo_root, f"{DOCS_DIR}/{sub}/.gitkeep", "", use_git, created)
-    for sub in PROMPT_LIFECYCLE_SUBDIRS:
-        _create_if_absent(
-            repo_root, f"{PROMPTS_DIR}/{sub}/.gitkeep", "", use_git, created
-        )
-    # Prompts quarantine lane (D94). The nested .gitignore ignores `local/` and is a created
-    # DELIVERABLE (counted, staged, no-clobber), NOT a change to the target root .gitignore. The
-    # `local/` dir itself is materialized so it is discoverable (installer creates all expected
-    # dirs), but git does not track it empty and its contents are uncommittable; it is NOT added to
-    # `created` (side-effect only, not `--undo`-recorded - a user may have written into it).
-    _create_if_absent(
-        repo_root,
-        f"{PROMPTS_DIR}/.gitignore",
-        _PROMPTS_GITIGNORE_TEMPLATE,
-        use_git,
-        created,
+    for rel, content in files:
+        _create_if_absent(repo_root, rel, content, use_git, created)
+
+    # Materialize the gitignored `local/` quarantine lanes so they are discoverable (D94): side
+    # effect only (uncommittable, not `--undo`-recorded - a user may write into them).
+    (repo_root / dirs["prompts"] / PROMPTS_LOCAL_SUBDIR).mkdir(
+        parents=True, exist_ok=True
     )
-    (repo_root / PROMPTS_DIR / PROMPTS_LOCAL_SUBDIR).mkdir(parents=True, exist_ok=True)
-    _create_if_absent(
-        repo_root, GITLEAKSIGNORE_FILE, _GITLEAKSIGNORE_TEMPLATE, use_git, created
-    )
-    _create_if_absent(
-        repo_root, SECRET_SCAN_CI, _SECRET_SCAN_CI_TEMPLATE, use_git, created
-    )
-    # Inter-agent comms skeleton (D81). Nested .gitignore ignores `local/`; only `shared/` subdirs
-    # get a committed .gitkeep (the `local/` lane is ignored, so a keep there would be pointless).
-    _create_if_absent(
-        repo_root,
-        f"{COMMS_DIR}/.gitignore",
-        _COMMS_GITIGNORE_TEMPLATE,
-        use_git,
-        created,
-    )
-    _create_if_absent(
-        repo_root, f"{COMMS_DIR}/README.md", _COMMS_README_TEMPLATE, use_git, created
-    )
-    for sub in COMMS_SHARED_SUBDIRS:
-        _create_if_absent(
-            repo_root, f"{COMMS_DIR}/shared/{sub}/.gitkeep", "", use_git, created
-        )
-    # Materialize the comms `local/` lane too so it is discoverable (D94: installer creates all
-    # expected dirs). Side-effect only: gitignored, not tracked, not added to `created`.
     for sub in COMMS_LOCAL_SUBDIRS:
-        (repo_root / COMMS_DIR / "local" / sub).mkdir(parents=True, exist_ok=True)
+        (repo_root / dirs["comms"] / "local" / sub).mkdir(parents=True, exist_ok=True)
     return created
 
 

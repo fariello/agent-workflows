@@ -47,64 +47,67 @@ class SetupArtifactTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         for sub in ("pending", "reusable", "executed", "superseded", "not-executed"):
             self.assertTrue(
-                (self.repo / ".agents/plans" / sub / ".gitkeep").is_file(),
+                (self.repo / ".aw/records/plans" / sub / ".gitkeep").is_file(),
                 f"missing plan dir {sub}",
             )
-        for sub in ("research", "walkthroughs"):
+        # Doc types are FLAT leaves under .aw/records/ (Order 07/08 flatten), each a .gitkeep.
+        for sub in ("research", "walkthroughs", "specs", "roadmaps", "prompt-library"):
             self.assertTrue(
-                (self.repo / ".agents/docs" / sub / ".gitkeep").is_file(),
-                f"missing docs dir {sub}",
+                (self.repo / ".aw/records" / sub / ".gitkeep").is_file(),
+                f"missing flat records dir {sub}",
             )
-        # Research cold-shard parents (research-org Order 07).
+        # Research cold-shard parents (research-org Order 07), now under the flat research root.
         for sub in ("research/reference", "research/archive"):
             self.assertTrue(
-                (self.repo / ".agents/docs" / sub / ".gitkeep").is_file(),
+                (self.repo / ".aw/records" / sub / ".gitkeep").is_file(),
                 f"missing research shard dir {sub}",
             )
         # Prompts staging buckets (D91): all 5, mirroring plans.
         for sub in ("pending", "executed", "superseded", "not-executed", "reusable"):
             self.assertTrue(
-                (self.repo / ".agents/prompts" / sub / ".gitkeep").is_file(),
+                (self.repo / ".aw/records/prompts" / sub / ".gitkeep").is_file(),
                 f"missing prompts dir {sub}",
             )
         # Prompts staging READMEs (D91): area README + one per bucket.
-        self.assertTrue((self.repo / ".agents/prompts/README.md").is_file())
+        self.assertTrue((self.repo / ".aw/records/prompts/README.md").is_file())
         for sub in ("pending", "executed", "superseded", "not-executed", "reusable"):
             self.assertTrue(
-                (self.repo / ".agents/prompts" / sub / "README.md").is_file(),
+                (self.repo / ".aw/records/prompts" / sub / "README.md").is_file(),
                 f"missing prompts README {sub}",
             )
         # Prompts quarantine lane (D94): a nested .gitignore ignores local/, and the local/ dir is
         # materialized (installer creates all expected dirs) but NOT tracked (empty + gitignored).
-        self.assertTrue((self.repo / ".agents/prompts/.gitignore").is_file())
+        self.assertTrue((self.repo / ".aw/records/prompts/.gitignore").is_file())
         self.assertIn(
             "local/",
-            (self.repo / ".agents/prompts/.gitignore").read_text(encoding="utf-8"),
+            (self.repo / ".aw/records/prompts/.gitignore").read_text(encoding="utf-8"),
         )
-        self.assertTrue((self.repo / ".agents/prompts/local").is_dir())
-        self.assertFalse((self.repo / ".agents/prompts/local/.gitkeep").exists())
+        self.assertTrue((self.repo / ".aw/records/prompts/local").is_dir())
+        self.assertFalse((self.repo / ".aw/records/prompts/local/.gitkeep").exists())
         # Comms local/ is also materialized now (D94, uniform "installer creates all expected dirs").
-        self.assertTrue((self.repo / ".agents/comms/local/inbox").is_dir())
-        # Verify no-clobber READMEs
-        self.assertTrue((self.repo / ".agents/docs/README.md").is_file())
-        self.assertTrue((self.repo / ".agents/docs/research/README.md").is_file())
-        self.assertTrue((self.repo / ".agents/docs/walkthroughs/README.md").is_file())
+        self.assertTrue((self.repo / ".aw/records/comms/local/inbox").is_dir())
+        # Verify no-clobber READMEs (flat; there is no .aw/records/docs/README.md in the aw layout).
+        self.assertFalse((self.repo / ".aw/records/docs/README.md").exists())
+        self.assertTrue((self.repo / ".aw/records/research/README.md").is_file())
+        self.assertTrue((self.repo / ".aw/records/walkthroughs/README.md").is_file())
         self.assertTrue((self.repo / ".gitleaksignore").is_file())
         self.assertTrue((self.repo / ".github/workflows/secret-scan.yml").is_file())
         # Inter-agent comms skeleton (D81): nested .gitignore, README, shared/ gitkeeps.
-        self.assertTrue((self.repo / ".agents/comms/.gitignore").is_file())
-        self.assertTrue((self.repo / ".agents/comms/README.md").is_file())
+        self.assertTrue((self.repo / ".aw/records/comms/.gitignore").is_file())
+        self.assertTrue((self.repo / ".aw/records/comms/README.md").is_file())
         for sub in ("inbox", "sent", "archive"):
             self.assertTrue(
-                (self.repo / ".agents/comms/shared" / sub / ".gitkeep").is_file(),
+                (self.repo / ".aw/records/comms/shared" / sub / ".gitkeep").is_file(),
                 f"missing comms shared dir {sub}",
             )
         # `local/` is ignored by the nested .gitignore, so it gets NO committed .gitkeep.
-        self.assertFalse((self.repo / ".agents/comms/local/inbox/.gitkeep").exists())
+        self.assertFalse(
+            (self.repo / ".aw/records/comms/local/inbox/.gitkeep").exists()
+        )
         # The nested .gitignore ignores local/ and does NOT touch the target root .gitignore.
         self.assertIn(
             "local/",
-            (self.repo / ".agents/comms/.gitignore").read_text(encoding="utf-8"),
+            (self.repo / ".aw/records/comms/.gitignore").read_text(encoding="utf-8"),
         )
         # AC-16: guidance to run /setup-repo is emitted.
         self.assertIn("/setup-repo", out)
@@ -144,8 +147,8 @@ class SetupArtifactTests(unittest.TestCase):
         # + prompts .gitignore (D94 local/ lane; the mkdir'd local/ dirs are side-effect-only,
         #   NOT counted)
         # + gitleaksignore + secret-scan CI
-        # + comms .gitignore + comms README + 3 comms shared/ gitkeeps (inbox/sent/archive) = 24.
-        self.assertEqual(len(created), 24)
+        # + comms .gitignore + comms README + 3 comms shared/ gitkeeps + backlog/roadmaps/prompt-library + flat research/specs/walkthroughs (Order 08) = 26.
+        self.assertEqual(len(created), 26)
 
     def test_install_does_not_touch_target_root_gitignore(self):
         # The comms nested .gitignore is a created deliverable; the ROOT .gitignore must not be
@@ -167,7 +170,7 @@ class SetupArtifactTests(unittest.TestCase):
 
 
 class PromptsScaffoldTests(unittest.TestCase):
-    """`.agents/prompts/` operational-staging scaffold (D91)."""
+    """`.aw/records/prompts/` operational-staging scaffold (D91)."""
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -195,7 +198,7 @@ class PromptsScaffoldTests(unittest.TestCase):
         use_git = engine.git_available(self.repo)
         created = engine.create_setup_artifacts(self.repo, use_git, dry_run=True)
         for sub in engine.PROMPT_LIFECYCLE_SUBDIRS:
-            keep = f".agents/prompts/{sub}/.gitkeep"
+            keep = f".aw/records/prompts/{sub}/.gitkeep"
             self.assertTrue(
                 any(c.startswith(keep) for c in created),
                 f"dry-run did not report {keep}: {created}",
@@ -207,7 +210,7 @@ class PromptsScaffoldTests(unittest.TestCase):
         use_git = engine.git_available(self.repo)
         created = engine.create_setup_artifacts(self.repo, use_git, dry_run=True)
         for sub in engine.RESEARCH_SHARD_SUBDIRS:
-            keep = f".agents/docs/{sub}/.gitkeep"
+            keep = f".aw/records/{sub}/.gitkeep"
             self.assertTrue(
                 any(c.startswith(keep) for c in created),
                 f"dry-run did not report {keep}: {created}",
@@ -218,8 +221,8 @@ class PromptsScaffoldTests(unittest.TestCase):
         # The prompts scaffold (dirs + READMEs) is recorded in .created-files.json so rollback
         # removes it (D85 F5 parity for the new prompts area).
         engine.install_into_repo(self.repo, SOURCE_WORKFLOWS, yes=True, no_color=True)
-        readme = self.repo / ".agents/prompts/README.md"
-        keep = self.repo / ".agents/prompts/executed/.gitkeep"
+        readme = self.repo / ".aw/records/prompts/README.md"
+        keep = self.repo / ".aw/records/prompts/executed/.gitkeep"
         self.assertTrue(readme.is_file())
         self.assertTrue(keep.is_file())
         engine.run_rollback(self.repo, no_color=True)
@@ -242,7 +245,7 @@ class PromptsScaffoldTests(unittest.TestCase):
         # Simulate the boundary-crossing artifact: a later-sorting, record-LESS backup dir.
         later = backups / "99999999-999999"
         later.mkdir()
-        readme = self.repo / ".agents/prompts/README.md"
+        readme = self.repo / ".aw/records/prompts/README.md"
         self.assertTrue(readme.is_file())
         engine.run_rollback(self.repo, no_color=True)
         self.assertFalse(
@@ -257,15 +260,23 @@ class PromptsScaffoldTests(unittest.TestCase):
 
         # Install once (this records the created files incl. the prompts .gitignore for --undo).
         engine.install_into_repo(self.repo, SOURCE_WORKFLOWS, yes=True, no_color=True)
-        gi = self.repo / ".agents/prompts/.gitignore"
+        gi = self.repo / ".aw/records/prompts/.gitignore"
         self.assertTrue(gi.is_file())
         self.assertIn("local/", gi.read_text(encoding="utf-8"))
-        self.assertTrue((self.repo / ".agents/prompts/local").is_dir())
-        self.assertFalse((self.repo / ".agents/prompts/local/.gitkeep").exists())
+        self.assertTrue((self.repo / ".aw/records/prompts/local").is_dir())
+        self.assertFalse((self.repo / ".aw/records/prompts/local/.gitkeep").exists())
         # git actually ignores content under local/
-        (self.repo / ".agents/prompts/local/x.md").write_text("raw\n", encoding="utf-8")
+        (self.repo / ".aw/records/prompts/local/x.md").write_text(
+            "raw\n", encoding="utf-8"
+        )
         r = subprocess.run(
-            ["git", "-C", str(self.repo), "check-ignore", ".agents/prompts/local/x.md"],
+            [
+                "git",
+                "-C",
+                str(self.repo),
+                "check-ignore",
+                ".aw/records/prompts/local/x.md",
+            ],
             capture_output=True,
             text=True,
         )
@@ -278,19 +289,19 @@ class PromptsScaffoldTests(unittest.TestCase):
         use_git = engine.git_available(self.repo)
         created = engine.create_setup_artifacts(self.repo, use_git, dry_run=True)
         self.assertTrue(
-            any(c.startswith(".agents/prompts/.gitignore") for c in created),
+            any(c.startswith(".aw/records/prompts/.gitignore") for c in created),
             f"dry-run did not report the prompts .gitignore: {created}",
         )
 
     def test_readmes_no_clobber(self):
         # A user's own prompts README is never overwritten.
-        (self.repo / ".agents/prompts").mkdir(parents=True)
-        (self.repo / ".agents/prompts/README.md").write_text(
+        (self.repo / ".aw/records/prompts").mkdir(parents=True)
+        (self.repo / ".aw/records/prompts/README.md").write_text(
             "MY PROMPTS DOC\n", encoding="utf-8"
         )
         _run(["install", str(self.repo), "--yes"])
         self.assertEqual(
-            (self.repo / ".agents/prompts/README.md").read_text(encoding="utf-8"),
+            (self.repo / ".aw/records/prompts/README.md").read_text(encoding="utf-8"),
             "MY PROMPTS DOC\n",
         )
 
@@ -308,7 +319,7 @@ class LocalLeaksBackstopTests(unittest.TestCase):
     def test_default_setup_artifacts_unchanged_count_24(self):
         # G6: the off-by-default backstop MUST NOT leak into the always-on path.
         created = engine.create_setup_artifacts(self.repo, use_git=False)
-        self.assertEqual(len(created), 24)
+        self.assertEqual(len(created), 26)
         # And neither backstop file is written by the default path.
         self.assertFalse((self.repo / engine.LOCAL_LEAKS_CI).exists())
         self.assertFalse((self.repo / engine.PRE_COMMIT_CONFIG).exists())

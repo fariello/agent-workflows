@@ -329,14 +329,14 @@ class UninstallTests(CliTestBase):
         self.assertFalse((repo / ".aw/system/workflows").exists())
         self.assertFalse((repo / ".aw/system/managed-sections.json").exists())
         # Scaffolding preserved (holds user content); --yes without --deep does not delete it.
-        self.assertTrue((repo / ".agents/plans").exists())
+        self.assertTrue((repo / ".aw/records/plans").exists())
 
     def test_uninstall_deep_removes_scaffolding(self):
         repo = self._repo("d")
         _run(["install", str(repo), "--yes"])
         code, out = _run(["uninstall", str(repo), "--yes", "--deep"])
         self.assertEqual(code, 0, out)
-        self.assertFalse((repo / ".agents/plans").exists())
+        self.assertFalse((repo / ".aw/records/plans").exists())
 
     def test_uninstall_force_removes_edited_shim(self):
         repo = self._repo("f")

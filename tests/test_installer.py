@@ -807,7 +807,7 @@ class InstallCorrectnessTests(unittest.TestCase):
         repo = init_repo(self.base / "r")
         INS.install_into_repo(repo, SOURCE_WORKFLOWS, yes=True, no_color=True)
         gitleaks = repo / ".gitleaksignore"
-        comms_readme = repo / ".agents" / "comms" / "README.md"
+        comms_readme = repo / ".aw" / "records" / "comms" / "README.md"
         self.assertTrue(gitleaks.is_file())
         self.assertTrue(comms_readme.is_file())
         INS.run_rollback(repo, no_color=True)
@@ -816,7 +816,7 @@ class InstallCorrectnessTests(unittest.TestCase):
         )
         self.assertFalse(
             comms_readme.exists(),
-            "rollback left .agents/comms/README.md behind (F5 regression)",
+            "rollback left .aw/records/comms/README.md behind (F5 regression)",
         )
 
     def test_run_multi_repo_isolates_systemexit(self):
@@ -1283,14 +1283,16 @@ class DeepCleanupTests(unittest.TestCase):
         repo = init_repo(self.base / "r")
         self._install_commit(repo)
         # Add a user IPD under plans and commit it (recoverable).
-        (repo / ".agents/plans/pending/my.md").write_text("mine\n", encoding="utf-8")
+        (repo / ".aw/records/plans/pending/my.md").write_text(
+            "mine\n", encoding="utf-8"
+        )
         from tests.support import git
 
         git(repo, "add", "-A")
         git(repo, "commit", "-m", "user ipd")
         plan = INS.plan_deep_cleanup(repo)
         self.assertFalse(plan.is_empty)
-        self.assertIn(".agents/plans", plan.counts)
+        self.assertIn(".aw/records/plans", plan.counts)
         self.assertTrue(
             plan.all_recoverable, "all committed -> nothing at risk (soft warning)"
         )
@@ -1299,9 +1301,9 @@ class DeepCleanupTests(unittest.TestCase):
         repo = init_repo(self.base / "a")
         self._install_commit(repo)
         # An untracked file under docs is unrecoverable.
-        (repo / ".agents/docs/research/scratch.md").write_text("x\n", encoding="utf-8")
+        (repo / ".aw/records/research/scratch.md").write_text("x\n", encoding="utf-8")
         plan = INS.plan_deep_cleanup(repo)
-        self.assertIn(".agents/docs/research/scratch.md", plan.at_risk)
+        self.assertIn(".aw/records/research/scratch.md", plan.at_risk)
         self.assertFalse(plan.all_recoverable)
 
     def test_run_removes_only_planned_files_and_prunes_dirs(self):
@@ -1313,7 +1315,7 @@ class DeepCleanupTests(unittest.TestCase):
         INS.run_deep_cleanup(repo, plan, use_git=True)
         # Scaffolding dirs pruned; host dir .agents/ only remains if something else is there.
         self.assertFalse(
-            (repo / ".agents/plans").exists(), "planned scaffolding removed"
+            (repo / ".aw/records/plans").exists(), "planned scaffolding removed"
         )
         self.assertTrue(
             (repo / "keep_me.py").is_file(), "non-scaffolding file untouched"
