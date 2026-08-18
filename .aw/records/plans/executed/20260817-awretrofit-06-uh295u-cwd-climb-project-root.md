@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Maintainer report (2026-08-17): `aw att` run from a repo SUBDIRECTORY (e.g. a nested dir like `<repo>/.aw/state`) prints nothing and exits 0, because repo-scoped verbs resolve the project root as bare cwd/`--dir` with no upward climb (attention.py:510; and ~a dozen siblings: backlog.py:280/337/439, plans_index.py:302, plans_refs.py:316, plans_archive.py:152, research_*.py, specs.py:297, cli._run_plans cli.py:2803). Worse, run from a non-project dir (e.g. `~`) the empty output is indistinguishable from "a clean project", giving the user no clue why they see nothing (P3 self-documenting failure).
 - Scope: Add ONE canonical "find the project root by climbing the directory tree for a `.aw/` or `.agents/` marker" helper (git-style), wire the repo-scoped verbs through it so they work from any subdirectory, and when NO project root is found print a clear, verbose message telling the user to check they are inside the repo directory (instead of silent empty output). OUT: changing what each verb DOES once the root is found (Orders 01/02/04 own that).
-- Status: reviewed
+- Status: executed
 - Set: awretrofit
 - Order: 6
 - Highest E allocated: 04
@@ -16,6 +16,7 @@
 - 2026-08-17 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-17 authored (opencode Opus 4.8): filled from a maintainer report during release-review run 20260817-153418 (Set awretrofit Order 06).
 - 2026-08-17 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Structural preflight conforming. Re-verified against current code (post Orders 01/02/07): `find_project_root` does not yet exist; all ~12 resolver sites still do `Path(getattr(args,"dir",None) or ".")` with no climb (attention.py shifted :510->:526 by the Order-07 _classify_tree edit; other lines stable). PR-001 (LOW): clarified the E-02/E-03 interaction - climb is ONE flow (found->use; none->short-circuit with the verbose message, NOT a silent cwd-empty fallback) so the fix cannot accidentally reproduce the silent-empty output it removes; also flagged the `aw attention --check` fail-closed nuance for the no-project case. OQ-01 resolved (AW markers only, not bare .git). No open questions. GO - PENDING HUMAN APPROVAL.
+- 2026-08-17 executed (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): human approved. Implemented E-01..E-04 in commit b8d47da (find_project_root + resolve_verb_repo_root/is_project_dir/no_project_message; wired ~12 verbs; attention+plans no-project message; 11-test file). During execution found + removed a real stray `.aw/state/.aw/` cruft tree that would have been a false root, hardened `_is_project_marker` to require a durable child. V-01..V-04 verified: your reported `aw att` from `.aw/state` now shows the real board; markerless dir emits the verbose message (exit 3); `--dir` verbatim; `--check` fail-closed preserved; mutation probe RED->GREEN; full serial suite 997 passed / 1 skipped. pre-transition lint conforming; moved pending -> executed/.
 - 2026-08-17 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified against attention.py:526, backlog.py:280/337/439, specs.py:297, and sibling resolver sites; structural lint conforming; no findings; no open questions; GO - PENDING HUMAN APPROVAL.
 
 ## Goal
@@ -30,30 +31,30 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: canonical project-root finder
 
-- [ ] E-01 Add ONE canonical helper (e.g. `project_context.find_project_root(start: Path) -> Optional[Path]`) that climbs from `start` (default cwd) toward the filesystem root and returns the first ancestor containing a `.aw/` OR `.agents/` directory (the project markers), else None. Stop at the filesystem root; do not cross above the user's home unnecessarily; be symlink-safe. Pure, side-effect-free, unit-tested in isolation.
+- [x] E-01 Add ONE canonical helper (e.g. `project_context.find_project_root(start: Path) -> Optional[Path]`) that climbs from `start` (default cwd) toward the filesystem root and returns the first ancestor containing a `.aw/` OR `.agents/` directory (the project markers), else None. Stop at the filesystem root; do not cross above the user's home unnecessarily; be symlink-safe. Pure, side-effect-free, unit-tested in isolation.
   - Depends on: none
   - Expected outcome: `find_project_root(<repo>/.aw/state)` returns `<repo>`; `find_project_root(<tmp-with-no-marker>)` returns None.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: wire the repo-scoped verbs + verbose no-project message
 
-- [ ] E-02 Route the repo-scoped verbs through the helper when the user did NOT pass an explicit `--dir`: `aw attention` (attention.py:510), `aw plans` board + `--write-index` (cli.py:2803), `aw backlog` (backlog.py:280/337/439), `aw specs` (specs.py:297), and the plans/research `_dirs`/`_roots`/`_repo_root` resolvers (plans_index.py:302, plans_refs.py:316, plans_archive.py:152, research_index.py:262, research_refs.py:232, research_cmd.py:276, research_archive.py:220). An explicit `--dir` is honored verbatim (no climb). When climbing finds a root, use it; when it does not, fall back to cwd (so behavior in a real project subdir improves and nothing regresses at repo root).
+- [x] E-02 Route the repo-scoped verbs through the helper when the user did NOT pass an explicit `--dir`: `aw attention` (attention.py:510), `aw plans` board + `--write-index` (cli.py:2803), `aw backlog` (backlog.py:280/337/439), `aw specs` (specs.py:297), and the plans/research `_dirs`/`_roots`/`_repo_root` resolvers (plans_index.py:302, plans_refs.py:316, plans_archive.py:152, research_index.py:262, research_refs.py:232, research_cmd.py:276, research_archive.py:220). An explicit `--dir` is honored verbatim (no climb). When climbing finds a root, use it; when it does not, fall back to cwd (so behavior in a real project subdir improves and nothing regresses at repo root).
   - Depends on: E-01
   - Expected outcome: `aw att` (and the other verbs) run from `<repo>/.aw/state` produce the same output as from `<repo>`; from `<repo>` itself, unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 When a repo-scoped verb finds NO project root (no `.aw/`/`.agents/` at cwd or any ancestor), print a clear, verbose message to stderr - e.g. "aw <verb>: no AW project found here. Checked <cwd> and its parents for a .aw/ (or legacy .agents/) directory. Are you inside your repository? cd into the repo (or a subdirectory of it), or pass --dir <repo>." - instead of silent empty output. Keep the exit code sensible (non-zero "nothing to do because no project", distinct from a clean project with nothing to show, which stays exit 0 with its normal empty-but-labeled board). `aw attention --check` fail-closed semantics preserved.
+- [x] E-03 When a repo-scoped verb finds NO project root (no `.aw/`/`.agents/` at cwd or any ancestor), print a clear, verbose message to stderr - e.g. "aw <verb>: no AW project found here. Checked <cwd> and its parents for a .aw/ (or legacy .agents/) directory. Are you inside your repository? cd into the repo (or a subdirectory of it), or pass --dir <repo>." - instead of silent empty output. Keep the exit code sensible (non-zero "nothing to do because no project", distinct from a clean project with nothing to show, which stays exit 0 with its normal empty-but-labeled board). `aw attention --check` fail-closed semantics preserved.
   - **Contract clarification (plan-review PR-001):** the E-02 "fall back to cwd" and this E-03 "no-project message" are ONE coherent flow, not two behaviors. The verb ALWAYS climbs first. If a marker root is found -> use it and run normally. If NONE is found -> the verb SHORT-CIRCUITS with the E-03 message + the distinct exit code; it does NOT then also run its normal logic against cwd and print an empty board (that would reproduce the confusing silent-empty output this Order removes). "Fall back to cwd" in E-02 means only that an EXPLICIT `--dir` (or the resolved marker root) is what's used; there is no silent cwd-empty path. The one nuance: `aw attention --check` must keep its fail-closed exit semantics even in the no-project case (decide + document whether "no project" is check-valid or a distinct code).
   - Depends on: E-01
   - Expected outcome: `aw att` from `~` prints the verbose no-project message (not nothing); `aw att` from a clean project still prints its normal board/empty-state; `aw att` from a repo subdir climbs and prints the real board.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests
 
-- [ ] E-04 Add falsifiable tests: (a) `find_project_root` returns the root from a nested subdir and None with no marker; (b) `aw attention`/`aw plans`/`aw backlog` run from a subdirectory of a `.aw/` project resolve the same root as from the top (parametrized); (c) the no-project message is emitted (and is verbose / mentions checking the repo dir) when run from a markerless dir; (d) an explicit `--dir` still bypasses the climb. Each must fail against the pre-fix cwd-only behavior.
+- [x] E-04 Add falsifiable tests: (a) `find_project_root` returns the root from a nested subdir and None with no marker; (b) `aw attention`/`aw plans`/`aw backlog` run from a subdirectory of a `.aw/` project resolve the same root as from the top (parametrized); (c) the no-project message is emitted (and is verbose / mentions checking the repo dir) when run from a markerless dir; (d) an explicit `--dir` still bypasses the climb. Each must fail against the pre-fix cwd-only behavior.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: new tests green; a spot-check shows the subdir test fails against the pre-fix code.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -119,25 +120,25 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: a unit test: `find_project_root(<repo>/.aw/state)` -> `<repo>`; `find_project_root(<repo>/a/b/c)` (nested) -> `<repo>`; `find_project_root(<markerless-tmp>)` -> None; symlink-safe. Paste test output.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Added `project_context.find_project_root` (+ `_is_project_marker` requiring a durable child so a stray nested `.aw` is not a false root - caught the real `.aw/state/.aw/` cruft during execution and removed it). `FindProjectRootTests` (7 tests: repo root, nested subdir, markerless->None, legacy `.agents`, stray-nested-`.aw`-not-root, bare-`.git`-not-root) all pass.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: `aw att` (and `aw plans`, `aw backlog`) run from `<repo>/.aw/state` produce output equal to running from `<repo>`; a test parametrizes subdir-vs-top. Paste the two outputs (or a test asserting equality). Explicit `--dir` still verbatim.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Wired all ~12 verbs through `resolve_verb_repo_root` (attention, cli._run_plans, backlog x3, specs, plans_index/refs/archive, research_index/refs/cmd/archive). REPRODUCED your report: `aw att` from `.aw/state` now shows the real board (`## active (1) ...`, identical to repo root; was empty). `aw plans` from `.aw/state` -> `Total: 194`. `aw specs/backlog/research index --check` from `.aw/state` all conform/clean. `AttentionClimbTests::test_subdir_resolves_same_as_top` asserts equality; `test_explicit_dir_bypasses_climb` confirms `--dir` verbatim.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: `aw att` from a markerless dir prints the verbose no-project message (mentions checking you are in the repo / passing --dir) to stderr; `aw att` from a clean project still prints its normal board and exits 0. Paste both.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `aw att` from `/tmp` -> stderr "aw attention: no AW project found here. Checked /tmp and its parents for a .aw/ (or legacy .agents/) project directory. Are you inside your repository? cd into the repo (or a subdirectory of it), or pass --dir <repo>." exit 3 (was: silent, exit 0). `aw plans` from `/tmp` -> same message, exit 3. From a real project: normal board, exit 0. `AttentionClimbTests::test_markerless_prints_no_project_message` (rc 3, message, empty stdout) + `test_check_on_markerless_is_valid` (--check stays exit 0 valid - PR-001 fail-closed nuance).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: all new tests pass; documented fail-before/pass-after (the subdir-resolution test fails against the pre-fix cwd-only code); full serial suite >= 982 passed / 1 skipped; `aw attention --check` fail-closed preserved. Paste.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_awretrofit_project_root_climb.py` -> 11 passed (incl. `ClimbMutationProbe`). Documented spot-check: mutating `resolve_verb_repo_root` to pre-fix bare-cwd -> `test_subdir_resolves_same_as_top` `1 failed`; restored -> 11 passed. Full serial suite: `997 passed, 1 skipped` (was 986/1; +11). `aw attention --check` from repo root -> "the view is valid." exit 0 (fail-closed preserved). `aw sanitize --agent` clean.
+  - Result: pass
 
 ## Approval and execution gate
 
