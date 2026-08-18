@@ -154,8 +154,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 ## Approval and execution gate
 
-- Size assessment: standard
-- Cohesion rationale: not required
+- Size assessment: exception
+- Cohesion rationale: the six E-items are one indivisible unit of work - registering a new record class REQUIRES the enum+subpath, the facet, the attention mapping, the scaffold+README, and a create/validate path to all land together, or the class is half-real (e.g. resolvable but not attention-visible, or named but not scaffolded). Splitting further would leave broken intermediate states. All six are small, mechanical, and follow the existing class-registration pattern.
 
 Execution requires human approval (`Status: approved` + attributed `- Approval:` line). The executor
 (Gemini 3.7 Flash Medium via `agy`, opencode Opus 4.8 owning verification + path-scoped commits)
