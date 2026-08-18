@@ -119,6 +119,63 @@ def _sha256_str(data: str) -> str:
     return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
 
+# --------------------------------------------------------------------------------------
+# Optional rename-on-migrate to the uniform .type.md grammar (backlog u9cicx / awnaming OQ-02).
+# --------------------------------------------------------------------------------------
+
+# The record SUB-TYPE (the `records/<subtype>/...` segment) -> its filename type facet. comms and
+# research are DOCUMENTED EXCEPTIONS (routing-named / `.<model>.<kind>.md`) and are absent here, so
+# they are never faceted. Non-durable basenames (README/INDEX/STATUS) are also skipped.
+_RECORD_SUBTYPE_FACET = {
+    "plans": "ipd",
+    "specs": "spec",
+    "walkthroughs": "walkthrough",
+    "roadmaps": "roadmap",
+    "backlog": "backlog",
+    "prompts": "prompt",
+    "prompt-library": "prompt",
+}
+_NON_DURABLE_BASENAMES = frozenset(("README.md", "INDEX.md", "STATUS.md"))
+
+
+def _grammar_facet_for(
+    destination_relpath: str, destination_root_class: str
+) -> Optional[str]:
+    """Return the `.type` facet (no dot) for a migrated record, or None to leave the name bare.
+
+    Only `records`-class items are eligible; the sub-type is parsed from the `records/<subtype>/`
+    segment of ``destination_relpath``. comms/research sub-types (absent from the map) and
+    non-durable basenames are left bare.
+    """
+
+    if destination_root_class != "records":
+        return None
+    rel = destination_relpath.lstrip("/")
+    if not (rel == "records" or rel.startswith("records/")):
+        return None
+    parts = rel.split("/")
+    if len(parts) < 2:
+        return None
+    subtype = parts[1]
+    return _RECORD_SUBTYPE_FACET.get(subtype)
+
+
+def _apply_grammar_facet(dst_p: Path, facet: Optional[str]) -> Path:
+    """Append `.<facet>` before `.md` unless the name is non-durable or already carries that facet.
+
+    Idempotent: a name that already ends in `.<facet>.md` is returned unchanged.
+    """
+
+    if facet is None:
+        return dst_p
+    name = dst_p.name
+    if name in _NON_DURABLE_BASENAMES or not name.endswith(".md"):
+        return dst_p
+    if name.endswith(f".{facet}.md"):
+        return dst_p
+    return dst_p.with_name(name[: -len(".md")] + f".{facet}.md")
+
+
 def _run_git(repo_path: Path, args: List[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", "-C", str(repo_path), *args],
@@ -546,6 +603,7 @@ class MigrationManager:
         plan_doc: Optional[Dict[str, Any]] = None,
         resume_tx: Optional[Dict[str, Any]] = None,
         leftover_disposition: str = "defer",
+        rename_to_grammar: bool = False,
     ) -> MigrationPlan:
         """Execute transactional move-verify-switch migration.
 
@@ -737,6 +795,16 @@ class MigrationManager:
             dst_p = self._resolve_destination_path(
                 mapping["destination_relpath"], target_backend
             )
+            # Optional rename-on-migrate (backlog u9cicx / awnaming OQ-02): append the class-correct
+            # .type.md facet to the destination name BEFORE the dedup dest_seen check and journaling,
+            # so twins dedup on the final name and rollback (which reverses via the journaled
+            # destination) restores correctly. comms/research/non-durable names are left bare.
+            if rename_to_grammar:
+                facet = _grammar_facet_for(
+                    mapping["destination_relpath"],
+                    mapping.get("destination_root_class", ""),
+                )
+                dst_p = _apply_grammar_facet(dst_p, facet)
             disposition = mapping.get("disposition", "migrate")
             was_tracked = inv_item.get("git_state") == "tracked"
             exp_hash = inv_item.get("sha256")

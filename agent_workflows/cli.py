@@ -1341,6 +1341,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "deletes without an explicit 'remove'.",
     )
     p_migrate.add_argument(
+        "--rename-to-grammar",
+        action="store_true",
+        help="Also rename migrated durable records to the uniform .type.md naming grammar "
+        "(opt-in; default off). Comms and research keep their own naming. When neither this flag "
+        "nor a config 'rename_to_grammar' key is set, an interactive run asks; a non-interactive "
+        "run leaves existing names (dual-read keeps them working).",
+    )
+    p_migrate.add_argument(
         "--json", action="store_true", help="Output migration plan as JSON."
     )
     p_migrate.add_argument(
@@ -3590,6 +3598,7 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
     config_leftovers = None
     config_roots: list[str] = []
     config_confirm = None
+    config_rename = None
 
     config_path = getattr(args, "config", None)
     if config_path:
@@ -3654,6 +3663,12 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
         if raw_c is not None:
             config_confirm = bool(raw_c)
 
+        raw_rename = config_data.get("rename_to_grammar")
+        if raw_rename is None:
+            raw_rename = config_data.get("rename-to-grammar")
+        if raw_rename is not None:
+            config_rename = bool(raw_rename)
+
     # 2. Formal precedence: explicit CLI flags OVERRIDE --config keys OVERRIDE defaults
     cli_backend = getattr(args, "target_backend", None)
     selected_backend = cli_backend or config_backend or "repository"
@@ -3670,6 +3685,24 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
         or getattr(args, "apply", False)
     )
     resolved_confirm = bool(cli_confirm or (config_confirm is True))
+
+    # Rename-on-migrate (backlog u9cicx / awnaming OQ-02, ask-then-offer): the CLI flag (True when
+    # present) OVERRIDES the config key OVERRIDES "unresolved" (None). When unresolved, ASK in an
+    # interactive run (a TTY), else default OFF (never rename silently). Resolved to a concrete bool
+    # HERE, at the CLI layer that owns the terminal, then passed to execute_migration.
+    if getattr(args, "rename_to_grammar", False):
+        selected_rename = True
+    elif config_rename is not None:
+        selected_rename = bool(config_rename)
+    elif sys.stdin.isatty():
+        selected_rename = _confirm(
+            term,
+            "Also rename migrated records to the uniform .type.md grammar? "
+            "(default: no, leave existing names; dual-read keeps them working)",
+            assume_yes=False,
+        )
+    else:
+        selected_rename = False
 
     # 3. Explicit sub-actions (inventory, status, resume, rollback, cleanup)
     if action == "inventory":
@@ -3814,6 +3847,7 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
                 dry_run=False,
                 fault_injection=fault_inj,
                 leftover_disposition=selected_leftovers,
+                rename_to_grammar=selected_rename,
             )
         except MigrationError as exc:
             if json_out:
@@ -3944,6 +3978,7 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
                 dry_run=False,
                 fault_injection=fault_inj,
                 leftover_disposition=selected_leftovers,
+                rename_to_grammar=selected_rename,
             )
         except MigrationError as exc:
             if json_out:
@@ -3968,6 +4003,7 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
             dry_run=False,
             fault_injection=fault_inj,
             leftover_disposition=selected_leftovers,
+            rename_to_grammar=selected_rename,
         )
     except MigrationError as exc:
         if json_out:
