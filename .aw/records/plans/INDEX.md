@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 83 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 84 Sets; the full manifest is INDEX.json.
+
+## awnaming
+
+- `6gy9rf` [pending] 00 pending/20260818-awnaming-00-6gy9rf-awnaming-orchestrator.md
 
 ## awretrofit
 
@@ -245,10 +249,6 @@ Showing the 40 most-recent of 83 Sets; the full manifest is INDEX.json.
 
 - `6a3myl` [executed] 01 executed/20260717-agentcont-01-6a3myl-whatnext-surveyor-workflow.md
 - `5twbwf` [executed] 03 executed/20260717-agentcont-03-5twbwf-handoff-workflow-session-continuity.md
-
-## researchprompt
-
-- `2txx9b` [executed] 02 executed/20260717-researchprompt-02-2txx9b-scaffold-agents-prompts-staging-convention.md
 
 ## (singletons: no Set)
 

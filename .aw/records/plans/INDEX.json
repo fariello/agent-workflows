@@ -1800,6 +1800,16 @@
     "status": "approved"
   },
   {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260818-awnaming-00-6gy9rf-awnaming-orchestrator.md",
+    "plan_id": "6gy9rf",
+    "set_id": "awnaming",
+    "status": "to-review"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",
