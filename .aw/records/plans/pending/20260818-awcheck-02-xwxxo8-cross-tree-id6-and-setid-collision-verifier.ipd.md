@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: awcheck Order 02 (spec 20260818-1525-01; TODO item 23). Add a collision verifier so name checks guarantee id6 AND setid UNIQUENESS. Today the only id6 uniqueness check is inside `attention.scan` (attention.py:153-163) and `backlog.run_check` (backlog.py:447-463, backlog-only); there is NO setid collision check anywhere. Add a reusable collision sub-check to the Order-01 check engine that verifies id6 uniqueness across ALL record trees and detects setid inconsistencies.
 - Scope: extend `agent_workflows/check_engine.py` (from Order 01) + its test file. IN: a `check_collisions(repo_root) -> List[Drift]` that scans every record tree for `- Id:` and flags any id6 appearing on more than one file (rule `check.id6-collision`), plus a setid consistency check (rule `check.setid-collision` for the same setid used with conflicting metadata as defined below); wire it into `check_types` when `all` (or a new `collisions` kind). OUT: the engine core (Order 01, done), the `--legacy`/message work (Order 03), CLI wiring (awcmdsurf).
-- Status: to-review
+- Status: reviewed
 - Set: awcheck
 - Order: 2
 - Highest E allocated: 03
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from investigation (attention id6 dedup attention.py:153-163; backlog id dup backlog.py:447-463; is_valid_id6 artifact_core.py:45; no setid check exists).
+- 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against attention.py:153-163, backlog.py:447-463, and plans_index.py:66; structural lint conforming; no findings; no blocking open questions; GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
