@@ -1852,6 +1852,16 @@
   {
     "date": "2026-08-18",
     "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260818-awcheck-01-iw1wlx-unified-check-engine-core.ipd.md",
+    "plan_id": "iw1wlx",
+    "set_id": "awcheck",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260818-awcmdsurf-00-mvz3d2-aw-command-surface-redesign-noun-verb-grammar-hard-cutover.ipd.md",

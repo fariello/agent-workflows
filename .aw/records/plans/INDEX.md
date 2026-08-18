@@ -7,6 +7,7 @@ Showing the 40 most-recent of 97 Sets; the full manifest is INDEX.json.
 ## awcheck
 
 - `t9a0b3` [pending] 00 pending/20260818-awcheck-00-t9a0b3-unified-check-and-validation-engine.ipd.md
+- `iw1wlx` [pending] 01 pending/20260818-awcheck-01-iw1wlx-unified-check-engine-core.ipd.md
 
 ## awcmdsurf
 
