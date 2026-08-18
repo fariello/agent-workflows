@@ -1690,6 +1690,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-17",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 7,
+    "path": "executed/20260817-awretrofit-07-u7xtni-records-taxonomy-cleanup.md",
+    "plan_id": "u7xtni",
+    "set_id": "awretrofit",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -1758,16 +1768,6 @@
     "plan_id": "uh295u",
     "set_id": "awretrofit",
     "status": "to-review"
-  },
-  {
-    "date": "2026-08-17",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 7,
-    "path": "pending/20260817-awretrofit-07-u7xtni-records-taxonomy-cleanup.md",
-    "plan_id": "u7xtni",
-    "set_id": "awretrofit",
-    "status": "approved"
   },
   {
     "date": "2026-08-07",

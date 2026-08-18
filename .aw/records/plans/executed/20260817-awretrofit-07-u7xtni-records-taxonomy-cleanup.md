@@ -4,19 +4,19 @@
 - Kind: child
 - Concern: Spec 20260817-2124-01 (RELEASE BLOCKER): the `.aw/records/` taxonomy has (A) workflow run-artifacts (assess-*/verify/verify-execution/release-review/advise-*) at the records ROOT, (B) two identically-named `prompts` dirs (staging vs library), (C) deeper-than-wanted `docs/` nesting. Backlog lavkg7 gates the release on this.
 - Scope: Implement the spec's FINAL `.aw/records/` taxonomy. PRE-RELEASE framing (spec Section 0): the `.aw/` layout has NOT shipped, so this changes the legacy `.agents/` -> FINAL migration DESTINATIONS in place and brings this dev repo onto the final layout by a one-time git mv - it does NOT build an intermediate `.aw/records/docs/` -> final migration hop. Task groups A (run-artifacts home), B (dedup prompts), C (flatten docs). OUT: the four physical roots, records-backend choice, changing what any workflow does.
-- Status: approved
+- Status: executed
 - Set: awretrofit
 - Order: 7
 - Highest E allocated: 08
 - Author: opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: u7xtni
-- Approval: 2026-08-17 human maintainer (chat) - approved Order 07 to execute after two independent /plan-review passes (opencode Opus 4.8 + Antigravity Gemini) both landed APPROVE WITH REVISIONS APPLIED with converging findings PR-001/PR-002. Recorded by opencode Opus 4.8. RELEASE BLOCKER (dirs); pre-release legacy->final only.
 
 ## Workflow history
 
 - 2026-08-17 authored (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): created from spec 20260817-2124-01 (Set awretrofit Order 07); E-items finalized after the maintainer resolved the spec OQs (run-artifacts -> .aw/workflow-artifacts/; flatten -> .aw/records/{research,specs,walkthroughs,roadmaps}; library -> .aw/records/prompt-library/; no misc/). Ready for /plan-review.
 - 2026-08-17 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Structural preflight conforming. Verified against real code: PR-001 (HIGH, correctness) - `_RECORD_CLASS_SUBPATHS` (record_producers.py:120-129) is used for BOTH the `.aw/records/` primary AND the legacy `.agents/` read path (resolve_record_read_paths:603-609), so E-04 must DECOUPLE the subpaths (final `.aw/records/specs` while legacy stays `.agents/docs/specs`), NOT rewrite one constant; hardened E-04. PR-002 (MEDIUM) - the schema already has contradictory `RecordClass.RUNS -> "runs"` (the rejected `.aw/records/runs` home) AND `WORKFLOW_ARTIFACTS -> "workflow-artifacts"` (record_producers.py:126-127); E-01 hardened to reconcile them to the single `.aw/workflow-artifacts/` home. Both FIXED in plan. No open questions (spec OQs resolved). GO - PENDING HUMAN APPROVAL.
 - 2026-08-17 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified against controlling spec 20260817-2124-01 and codebase evidence (record_producers.py, layout_migration.py); structural lint conforming; no open questions; GO - PENDING HUMAN APPROVAL.
+- 2026-08-17 executed (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): human approved (after two independent /plan-review passes). Implemented E-01..E-08 in commits 1308220 (resolvers/migration/gitignore/git mv/tests) + 324ef2e (shipped-doc flatten) + 95d37bf (AGENTS.md regen + evidence). Flattened .aw/records/ (docs types direct; run-artifacts -> .aw/workflow-artifacts/; docs/prompts -> prompt-library); decoupled legacy read subpaths (PR-001); removed contradictory RUNS/WORKFLOW_ARTIFACTS classes (PR-002); legacy->final migration verified DIRECT (no intermediate hop). V-01..V-08 verified with pasted evidence; full serial suite 986 passed/1 skipped; wheel ships flat layout; all checks clean. pre-transition lint conforming; moved pending -> executed/. The spec 20260817-2124-01 -> implemented and backlog lavkg7 -> done are completed immediately after this move (citing this executed IPD as evidence).
 
 ## Goal
 

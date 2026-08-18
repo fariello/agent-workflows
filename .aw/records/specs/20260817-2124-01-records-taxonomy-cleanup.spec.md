@@ -1,7 +1,7 @@
 # Spec: clean up the `.aw/records/` taxonomy (run-artifacts, duplicate prompts, flatten docs/)
 
 - Date: 2026-08-17
-- Status: implementing
+- Status: implemented
 - Author: opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)
 - Motivation: The maintainer, looking at the on-disk `.aw/records/` tree during release-review run 20260817-153418, found three structural problems: (A) workflow RUN-ARTIFACT dirs (`assess-*`, `verify`, `verify-execution`, `release-review`, `advise-*`) sit at the `.aw/records/` ROOT mixed in with durable tracked record types; (B) two confusingly-identically-named `prompts` dirs exist (`.aw/records/prompts/` staging vs `.aw/records/docs/prompts/` library); (C) the `docs/` sub-nesting (`.aw/records/docs/{research,specs,walkthroughs,roadmaps,prompts}`) is deeper than needed and the maintainer prefers a flatter `.aw/records/{research,specs,walkthroughs,roadmaps,...}`.
 - Relation to prior work: REVISES the physical layout established by spec 20260810-1447-01 (`implemented`). This is a taxonomy refinement of the SAME `.aw/records/` record class, not a new storage backend.
@@ -14,6 +14,7 @@
 - 2026-08-17 reviewed (aw specs): reviewed via the awretrofit Order 07 /plan-review (two independent passes: opencode + Antigravity), findings PR-001/PR-002 applied to the IPD
 - 2026-08-17 approved (aw specs, --by-human): human maintainer approved Order 07 (which implements this spec) in chat 2026-08-17, after two independent /plan-review passes; recorded by opencode Opus 4.8
 - 2026-08-17 implementing (aw specs): Order 07 execution in progress
+- 2026-08-17 implemented (aw specs): Order 07 (u7xtni) executed + transitioned to executed/: docs flattened, run-artifacts -> .aw/workflow-artifacts/, docs/prompts -> prompt-library, legacy->final migration direct (no intermediate hop); full serial suite 986 passed/1 skipped; wheel ships flat layout; all checks clean.
 
 ## 0. PRE-RELEASE FRAMING (READ FIRST - load-bearing simplification)
 
