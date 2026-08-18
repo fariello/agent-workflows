@@ -1862,6 +1862,16 @@
   {
     "date": "2026-08-18",
     "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260818-awcheck-02-xwxxo8-cross-tree-id6-and-setid-collision-verifier.ipd.md",
+    "plan_id": "xwxxo8",
+    "set_id": "awcheck",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260818-awcmdsurf-00-mvz3d2-aw-command-surface-redesign-noun-verb-grammar-hard-cutover.ipd.md",
