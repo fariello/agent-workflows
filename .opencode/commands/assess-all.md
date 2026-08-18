@@ -3,7 +3,7 @@ description: Cross-concern rollup: run the assess family (all, a group, or a sub
 agent: build
 ---
 
-Read and execute @.agents/workflows/assess-all/assess-all.md.
+Read and execute @.aw/system/workflows/assess-all/assess-all.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS
 

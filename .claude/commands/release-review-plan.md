@@ -3,7 +3,7 @@ description: Release review in planning-only mode: audit and consolidated implem
 argument-hint: "[optional target path or flags]"
 ---
 
-Read and execute @.agents/workflows/release-review/README.md. Run in planning-only mode: complete the audit and the consolidated implementation plan, and stop before implementation.
+Read and execute @.aw/system/workflows/release-review/README.md. Run in planning-only mode: complete the audit and the consolidated implementation plan, and stop before implementation.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS
 

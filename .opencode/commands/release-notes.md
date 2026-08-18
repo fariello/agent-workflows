@@ -3,7 +3,7 @@ description: Release discipline: decide the version bump from the actual changes
 agent: build
 ---
 
-Read and execute @.agents/workflows/release-notes/release-notes.md.
+Read and execute @.aw/system/workflows/release-notes/release-notes.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS
 

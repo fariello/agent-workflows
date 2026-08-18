@@ -3,7 +3,7 @@ description: Guided performance benchmarking (informational, not a regression ga
 agent: build
 ---
 
-Read and execute @.agents/workflows/benchmark/benchmark.md.
+Read and execute @.aw/system/workflows/benchmark/benchmark.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS
 

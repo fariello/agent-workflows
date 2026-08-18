@@ -3,7 +3,7 @@ description: Same as plan-review, in a multi-file orchestrator form: a small mem
 agent: build
 ---
 
-Read and execute @.agents/workflows/plan-review-long/plan-review-long.md.
+Read and execute @.aw/system/workflows/plan-review-long/plan-review-long.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS
 

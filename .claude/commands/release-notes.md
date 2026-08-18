@@ -3,7 +3,7 @@ description: Release discipline: decide the version bump from the actual changes
 argument-hint: "[optional target path or flags]"
 ---
 
-Read and execute @.agents/workflows/release-notes/release-notes.md.
+Read and execute @.aw/system/workflows/release-notes/release-notes.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS
 

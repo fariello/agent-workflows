@@ -106,8 +106,10 @@ class IpdLifecycleRegistrationTests(unittest.TestCase):
         for host in (".opencode", ".claude"):
             shim = REPO_ROOT / host / "commands" / "ipd-lifecycle.md"
             self.assertTrue(shim.is_file(), "missing {0} shim".format(host))
+            # Shims reference the installed bundle path; post-migration that is .aw/system/workflows/
+            # (regenerated in Order 10). Legacy .agents/workflows/ no longer appears.
             self.assertIn(
-                ".agents/workflows/ipd-lifecycle/ipd-lifecycle.md", _read(shim)
+                ".aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md", _read(shim)
             )
 
     def test_lifecycle_names_all_three_checkpoints(self):

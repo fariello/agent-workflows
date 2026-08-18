@@ -3,7 +3,7 @@ description: Post-execution cross-check: verify an EXECUTED plan (IPD) was actua
 argument-hint: "[optional target path or flags]"
 ---
 
-Read and execute @.agents/workflows/verify-execution/verify-execution.md.
+Read and execute @.aw/system/workflows/verify-execution/verify-execution.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS
 

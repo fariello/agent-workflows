@@ -3,7 +3,7 @@ description: Blameless post-mortem for a production incident: timeline, impact, 
 agent: build
 ---
 
-Read and execute @.agents/workflows/incident/incident.md.
+Read and execute @.aw/system/workflows/incident/incident.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS
 

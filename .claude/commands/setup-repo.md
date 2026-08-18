@@ -3,7 +3,7 @@ description: Guided, idempotent, drift-aware repo setup AND conformance check: d
 argument-hint: "[optional target path or flags]"
 ---
 
-Read and execute @.agents/workflows/setup-repo/setup-repo.md.
+Read and execute @.aw/system/workflows/setup-repo/setup-repo.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS
 

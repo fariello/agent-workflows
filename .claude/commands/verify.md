@@ -3,7 +3,7 @@ description: Proof, not prose: discover the repo's own test/lint/build/type-chec
 argument-hint: "[optional target path or flags]"
 ---
 
-Read and execute @.agents/workflows/verify/verify.md.
+Read and execute @.aw/system/workflows/verify/verify.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS
 

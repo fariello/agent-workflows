@@ -3,7 +3,7 @@ description: Assess-and-plan a high-risk migration (framework/DB/dependency-majo
 argument-hint: "[optional target path or flags]"
 ---
 
-Read and execute @.agents/workflows/migrate/migrate.md.
+Read and execute @.aw/system/workflows/migrate/migrate.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS
 

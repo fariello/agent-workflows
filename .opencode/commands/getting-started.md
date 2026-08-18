@@ -3,7 +3,7 @@ description: Guided in-agent tour and router for newcomers: detect repo/toolkit 
 agent: build
 ---
 
-Read and execute @.agents/workflows/getting-started/getting-started.md.
+Read and execute @.aw/system/workflows/getting-started/getting-started.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS
 

@@ -4107,7 +4107,11 @@ def ensure_workflow_artifacts_readme(
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     readme_path.write_text(readme_content, encoding="utf-8")
     if use_git:
-        git_run(plan.repo_root, ["add", "--", rel_path])
+        # Skip-when-ignored (IPD awretrofit Order 10): a repo may legitimately gitignore
+        # `workflow-artifacts/` (Order 07 gitignores run scratch), so use the tolerant helper
+        # (matches the sibling README ensurers) instead of a raw `git add` that aborts the whole
+        # install on an ignored path. The README is still written to disk; it is just not staged.
+        git_add_optional(plan.repo_root, rel_path)
     installed.append(f"{rel_path} [install]")
 
 

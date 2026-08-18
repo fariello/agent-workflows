@@ -3,7 +3,7 @@ description: Front of funnel: turn a fuzzy request into a reviewable specificati
 agent: build
 ---
 
-Read and execute @.agents/workflows/spec/spec.md.
+Read and execute @.aw/system/workflows/spec/spec.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS
 

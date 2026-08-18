@@ -3,7 +3,7 @@ description: Authoritative execution-and-transition gate for an approved IPD: ru
 argument-hint: "[optional target path or flags]"
 ---
 
-Read and execute @.agents/workflows/ipd-lifecycle/ipd-lifecycle.md.
+Read and execute @.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS
 

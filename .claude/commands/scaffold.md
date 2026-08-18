@@ -3,7 +3,7 @@ description: Guided, wizard-style creation of a new assess-* lens, standalone wo
 argument-hint: "[optional target path or flags]"
 ---
 
-Read and execute @.agents/workflows/scaffold/scaffold.md.
+Read and execute @.aw/system/workflows/scaffold/scaffold.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS
 

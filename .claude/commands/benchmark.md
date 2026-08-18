@@ -3,7 +3,7 @@ description: Guided performance benchmarking (informational, not a regression ga
 argument-hint: "[optional target path or flags]"
 ---
 
-Read and execute @.agents/workflows/benchmark/benchmark.md.
+Read and execute @.aw/system/workflows/benchmark/benchmark.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS
 
