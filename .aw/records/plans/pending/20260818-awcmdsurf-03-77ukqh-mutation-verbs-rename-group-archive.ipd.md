@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: awcmdsurf Order 03 (spec 20260818-1525-01). Implement the mutating cross-cutting verbs: `aw rename <type> <selector...>` (re-slug/re-name to the grammar, keeping Id), `aw group <type> <selector...> --set S` (assign into a Set), `aw archive <type> <selector...>` (deep-shelve terminal/aged). All default to UPDATING references across the repo (with `--no-refs` to disable) and preview-by-default with `--apply`, routing into the existing backends.
 - Scope: cli.py routers into plans_refs/plans_archive/research_refs/research_archive. IN: `rename` -> plans_refs.run_mv/research_refs.run_mv; `group` -> plans_refs.run_set_assign/research_refs.run_set_assign; `archive` -> plans_archive.run_archive/research_archive.run_archive; the default-update-references behavior + `--no-refs`; preview/`--apply`; `--json` where meaningful; `all` fan-out where it makes sense. OUT: read verbs (Order 02), merge/renames-of-list/todo (Order 04), removals (Order 05); the full selector grammar (Set E). Reference-updating already exists inside plans_refs (it rewrites citations); this Order EXPOSES it as the default and adds `--no-refs`.
-- Status: to-review
+- Status: reviewed
 - Set: awcmdsurf
 - Order: 3
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): from spec 20260818-1525-01 + investigation (plans_refs.run_mv:404, run_set_assign:377; plans_archive.run_archive:168; research_refs.run_mv:286, run_set_assign:261; research_archive.run_archive:227).
+- 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against plans_refs.py:377/404, plans_archive.py:168, research_refs.py:261/286, and research_archive.py:227; structural lint conforming; no findings; no blocking open questions; GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
