@@ -2,8 +2,8 @@
 
 - Date: 2026-08-18
 - Kind: orchestrator
-- Concern: Spec 20260817-2147-01 (RELEASE BLOCKER, backlog 047ce9): adopt ONE artifact-naming grammar `YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md` across every durable `.aw/records/` type, moving the TYPE signal into the filename (`.ipd.md`/`.prompt.md`/`.spec.md`/`.walkthrough.md`/`.roadmap.md`/`.backlog.md`/`.comms.md`; research keeps its richer `.<model>.<kind>.md`). Large: ~267 existing files + producers + parsers + `aw plan-names` + migration + docs.
-- Scope: Roll out the naming grammar in dependency-safe LAYERS so every intermediate state is green. OUT: the version NUMBER (S6-V01); run-artifacts naming (keep `<RUN_ID>/`); the directory taxonomy (spec 20260817-2124-01, done).
+- Concern: Spec 20260817-2147-01 (RELEASE BLOCKER, backlog 047ce9): adopt ONE artifact-naming grammar `YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md` across every durable `.aw/records/` type, moving the TYPE signal into the filename (`.ipd.md`/`.prompt.md`/`.spec.md`/`.walkthrough.md`/`.roadmap.md`/`.backlog.md`/`.comms.md`; research keeps its richer `.<model>.<kind>.md`). Code investigation shrank the surface: the record READERS (plans.py:184, plans_index.py:91, ipd_lint.py:758) glob `*.md` and read metadata from FRONT-MATTER, not the filename, so `.type.md` files are already read fine (dual-read is free). The filename grammar is enforced in only three narrow places: `plans_refs._CLUSTERED_RE` (31), `normalize_plan_names._CLUSTERED_RE`/`parse_name` (105/165), and `research_contract.parse_name` (265, already type-style, OUT). So the real change = extend those 2 regex tails + the name GENERATOR (`plans_refs.build_name`:126) + `aw plan-names` + rename this repo's own files.
+- Scope: Ship the grammar as new-file behavior (all-repos, small) and dogfood-rename THIS repo's existing files (this-repo). OUT: the version NUMBER (S6-V01); run-artifacts naming (keep `<RUN_ID>/`); the directory taxonomy (spec 20260817-2124-01, done); research naming (already type-style).
 - Status: to-review
 - Set: awnaming
 - Order: 0
@@ -19,8 +19,14 @@
 ## Goal
 
 Ship the uniform `.type.md` naming grammar across all durable record types without a broken
-intermediate state, by rolling it out in layers: make readers tolerant FIRST, then flip producers,
-add validation, rename existing files, and finally update the migration + docs.
+intermediate state. Because the record readers are already front-matter-driven and glob `*.md`,
+`.type.md` files are read fine today with zero changes (dual-read is free). So the rollout is two
+clean layers: (01) teach the grammar to the few filename-aware sites - the 2 clustering regexes, the
+name generator, and `aw plan-names` - and make producers emit `.type.md`; then (02) dogfood-rename
+THIS repo's ~267 existing files and reconcile AGENTS.md to the one grammar. No shipped
+`.md`->`.type.md` migration is needed (the grammar never shipped; a legacy repo migrates in one hop
+and its bare-named files keep working via the free dual-read); an optional rename-on-migrate nicety is
+demoted to a follow-up backlog item, not a blocker.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -28,41 +34,42 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: orchestrate the Set
 
-- [ ] E-01 Drive Orders 01..05 through the IPD lifecycle in dependency order (author -> /plan-review -> human approval -> execute -> verify -> transition), owning verification + path-scoped commits, never pushing; on completion advance spec 20260817-2147-01 to implemented and move blocked backlog 047ce9 to done (clearing release Blocker 2). Fold the vf03z3 tooling gaps (scaffold-derives-name, mv-preserves-Order, plan-names-validates, AGENTS.md-single-grammar) into the relevant child Orders and close vf03z3 when they land.
+- [ ] E-01 Drive Orders 01..02 through the IPD lifecycle in dependency order (author -> /plan-review -> human approval -> execute -> verify -> transition), owning verification + path-scoped commits, never pushing; on completion advance spec 20260817-2147-01 to implemented and move blocked backlog 047ce9 to done (clearing release Blocker 2). Fold the vf03z3 tooling gaps (scaffold/mv-preserves-Order/plan-names-validates/AGENTS.md-single-grammar) into Orders 01/02 and close vf03z3 when they land; file the optional rename-on-migrate nicety (OQ-02 option) as a separate follow-up backlog item rather than gating the release on it.
   - Depends on: none
-  - Expected outcome: Orders 01..05 executed; grammar in force; spec implemented; 047ce9 + vf03z3 done.
+  - Expected outcome: Orders 01..02 executed; grammar in force for new files; this repo's files renamed; AGENTS.md single-grammar; spec implemented; 047ce9 + vf03z3 done.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
 ## Child IPDs, sequence, and dependencies
 
-Order chosen so EVERY intermediate state is green (readers accept both old + new before anything is renamed):
+Split by AUDIENCE, not by micro-layer: Order 01 is the SHIPPED grammar (all-repos, small); Order 02
+is the THIS-repo dogfood rename + docs. Every intermediate state is green because the free dual-read
+means `.type.md` and bare `.md` files both read fine at all times.
 
 | Order | File | What it does | Depends on |
 |---|---|---|---|
-| 01 | (to scaffold) awnaming-contract-and-parsers | Document the grammar contract in one place; make ALL parsers/resolvers/indexers ACCEPT `.type.md` AND bare `.md` (backward-compatible read), so nothing breaks mid-rollout. + tests. | none |
-| 02 | (to scaffold) awnaming-producers | Make producers EMIT `.type.md` by default: `aw ipd scaffold` -> `.ipd.md`, prompt creation -> `.prompt.md`, `aw backlog new` -> `.backlog.md`, spec authoring -> `.spec.md` (already), comms/walkthrough/roadmap creators; standalone-singleton naming (id6-as-setid, NN=01). | 01 |
-| 03 | (to scaffold) awnaming-planames-and-mv | `aw plan-names` (+ per-type peers) VALIDATE the grammar incl. `.type.md`; `aw plans mv`/`research mv` rename to it AND preserve `- Order:` (fixes vf03z3 mv-clobber). | 01,02 |
-| 04 | (to scaffold) awnaming-rename-existing | Rename the ~267 existing dev-repo files to `.type.md` (tool-driven per type: plans/prompts/library/walkthroughs/roadmaps/backlog/comms), regenerate INDEX/STATUS manifests. | 01,02,03 |
-| 05 | (to scaffold) awnaming-migration-and-docs | Legacy `.agents/` -> final NAME mapping in layout_migration (append `.type.md` on migrate); reconcile AGENTS.md's two documented grammars to the ONE grammar + shipped docs; close vf03z3. | 01,04 |
+| 01 | (to scaffold) awnaming-grammar-and-producers | ALL-REPOS, ships. Extend the 2 filename-grammar sites to accept an optional `.<type>` before `.md` (`plans_refs._CLUSTERED_RE`:31, `normalize_plan_names._CLUSTERED_RE`/`is_conformant`/`parse_name`); make the name GENERATOR + producers EMIT `.type.md` (`plans_refs.build_name`:126, `aw ipd scaffold`->`.ipd.md`, prompt->`.prompt.md`, `aw backlog new`->`.backlog.md`, comms/walkthrough/roadmap creators; spec already `.spec.md`); `aw plan-names` VALIDATE the grammar incl. `.type.md`; `aw plans mv`/`research mv` emit it AND preserve `- Order:` (fixes vf03z3 mv-clobber). Standalone-singleton naming (id6-as-setid, NN=01). + tests. | none |
+| 02 | (to scaffold) awnaming-rename-and-docs | THIS-REPO, ships nothing. Rename this repo's ~267 existing files to `.type.md` (tool-driven per type), regenerate INDEX/STATUS manifests + fix any internal citations; reconcile AGENTS.md's two documented grammars to the ONE grammar; close vf03z3; file the optional rename-on-migrate nicety (OQ-02) as a follow-up backlog item. | 01 |
 
 ## Completion criteria (the whole Set is done only when)
 
-- Orders 01..05 all executed.
-- Every durable `.aw/records/` artifact filename matches `YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md`
-  (research excepted); `aw plan-names` (+ peers) validate it; producers emit it.
-- A legacy `.agents/` fixture migrates DIRECTLY to the final `.type.md` names.
-- AGENTS.md documents exactly ONE filename grammar; vf03z3 tooling gaps closed.
+- Orders 01..02 both executed.
+- New-file producers emit `YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md` (research excepted) and
+  `aw plan-names` (+ peers) validate it; both `.type.md` and bare `.md` still READ fine (dual-read).
+- Every durable file in THIS repo's `.aw/records/` matches the grammar (research excepted).
+- AGENTS.md documents exactly ONE filename grammar; vf03z3 tooling gaps closed; the optional
+  rename-on-migrate nicety is captured as a follow-up backlog item (not a release blocker).
 - Full serial suite green throughout; `aw attention --check` / `plans index --check` /
   `research index --check` / `specs check` / `backlog check` / `sanitize --agent` clean.
 - Spec 20260817-2147-01 -> implemented; backlog 047ce9 -> done (release Blocker 2 cleared).
 
 ## Cross-IPD validation
 
-- Order 01 (parsers accept both) MUST precede any producer flip (02) or rename (04) so no intermediate
-  state has a reader that rejects an on-disk name. Order 04 (rename) runs only after 02/03 so renamed
-  files match what producers/validators expect. Re-run the full check suite after each Order.
+- Order 01 (grammar + producers) MUST precede Order 02 (rename) so the renamed files match exactly
+  what the validators/`aw plan-names` now expect. The free front-matter dual-read means both name
+  shapes read fine at every point, so there is no broken intermediate. Re-run the full check suite
+  after each Order.
 
 ## Deferred / out of scope (with reason)
 
@@ -73,28 +80,30 @@ Order chosen so EVERY intermediate state is green (readers accept both old + new
 
 ## Scope check
 
-- Over-scope: none - every Order maps to a spec goal (G1..G8).
-- Under-scope: none - the five layers cover the contract, producers, validation, the existing-file
-  rename, and the migration+docs; research + run-artifacts are the documented exceptions.
+- Over-scope: cut. An earlier draft had five micro-layer Orders; code investigation showed the
+  readers are front-matter-driven (dual-read is free) so the surface collapses to two: ship the
+  grammar (01) + dogfood-rename this repo (02). The migration rename is demoted to an optional
+  follow-up backlog item (OQ-02), not an Order.
+- Under-scope: none - Order 01 covers the 2 grammar regexes, the name generator, producers,
+  `aw plan-names`, and `mv`; Order 02 covers this repo's rename + AGENTS.md + vf03z3. Research +
+  run-artifacts + the version number are the documented exceptions.
 
 ## THIS-repo vs ALL-repos (pre-release framing - load-bearing)
 
 Like the directory-taxonomy spec, the `.type.md` grammar has NOT shipped, so there is NO
-released-name -> new-name migration. But the layers differ in WHO they affect:
+released-name -> new-name migration to build. The two Orders differ in WHO they affect:
 
-- **Orders 01 (parsers-accept), 02 (producers emit), 03 (plan-names/mv):** ALL-REPOS. This is shipped
-  code; every repo that installs the framework gets the new producers/validators. Order 01's
-  backward-compatible read (accept BOTH bare `.md` and `.type.md`) is what lets an EXISTING legacy
-  repo keep its old-named files working while NEW files use the grammar - no forced rename of a user's
-  files.
-- **Order 04 (rename ~267 existing files):** THIS-REPO-ONLY. It is a one-time dogfooding cleanup of
-  THIS framework repo's own records; it ships nothing and imposes nothing on other repos.
-- **Order 05 (migration NAME mapping):** ALL-REPOS, and the one genuine design question (OQ-02): when
-  `aw migrate-layout` moves a legacy `.agents/` repo's records to `.aw/records/`, should it RENAME them
-  to `.type.md` in the same hop (clean, single hop since we never shipped an intermediate), or LEAVE
-  existing legacy-named files bare and rely on Order 01's dual-read (only NEW files get `.type.md`)?
-  Renaming-on-migrate is more invasive (changes users' filenames + citations); dual-read-only is
-  gentler. Resolve OQ-02 before Order 05.
+- **Order 01 (grammar regexes + name generator + producers + `plan-names`/`mv`):** ALL-REPOS. This is
+  shipped code; every repo that installs the framework gets producers that EMIT `.type.md` and
+  validators that ACCEPT it. Existing legacy repos are unaffected at rest: the record readers glob
+  `*.md` and read metadata from front-matter, so bare-named files keep working with zero changes
+  (dual-read is free, and therefore permanent) - no forced rename of a user's files.
+- **Order 02 (rename this repo's ~267 files + docs):** THIS-REPO-ONLY. A one-time dogfooding cleanup
+  of THIS framework repo's own records + AGENTS.md; it ships nothing and imposes nothing on others.
+- **The migration rename (OQ-02, RESOLVED ask-then-offer):** because dual-read is free, a legacy
+  `.agents/` repo migrates in one hop and its files keep working un-renamed. Renaming migrated files
+  to the grammar is a pure nicety, so it is DEMOTED to a follow-up backlog item (opt-in
+  `--rename-to-grammar`, default off, ask when interactive) - NOT a release blocker and NOT an Order.
 
 ## Required tests / validation
 
@@ -107,13 +116,14 @@ re-runs the full check suite + a legacy->final migration-name fixture after all 
 
 - Blocking: no
 - Status: open
-- Owner: maintainer (resolve when Order 02/04 reaches comms)
+- Owner: maintainer (resolve when Order 01/02 reaches comms)
 - Resolution or deferral rationale: comms messages have an inbox/envelope/ack convention (comms.py)
-  that may name files by routing rather than the artifact grammar. Decide at the comms-touching Order
+  that may name files by routing rather than the artifact grammar. Decide at the comms-touching work
   whether `.comms.md` + the grammar fits or comms is a second documented exception like research. Not
-  blocking the Set's start (Orders 01-03 are type-agnostic plumbing); resolve before comms rename (04).
+  blocking the Set's start (Order 01's producer/grammar work is type-agnostic plumbing); resolve
+  before renaming this repo's comms files (Order 02).
 
-### OQ-02: Does `aw migrate-layout` RENAME legacy files to `.type.md`, or only dual-read? (determines Order 05 + whether Order 01's dual-read is permanent)
+### OQ-02: Does `aw migrate-layout` RENAME legacy files to `.type.md`, or only dual-read? (RESOLVED: ask-then-offer; demoted to a follow-up backlog item, not an Order)
 
 - Blocking: no
 - Status: resolved
@@ -124,24 +134,25 @@ re-runs the full check suite + a legacy->final migration-name fixture after all 
   grammar (a self-contained P12 prompt);
   (3) when NON-INTERACTIVE, defaults OFF and supports an opt-in `--rename-to-grammar` flag for the
   uniform end-state.
-  Consequence: **Order 01's dual-read is PERMANENT** (readers always accept both bare `.md` and
-  `.type.md`, since a not-renamed migrated repo keeps mixed naming indefinitely). THIS repo's own
-  ~267 files are still fully renamed by Order 04 (dogfooding, independent of the shipped migration
-  policy). Order 05 implements the ask/flag/default-off behavior + the rename transform.
+  Consequence: **dual-read is PERMANENT and FREE** (the front-matter-driven readers already accept both
+  bare `.md` and `.type.md`, since a not-renamed migrated repo keeps mixed naming indefinitely). THIS
+  repo's own ~267 files are still fully renamed by Order 02 (dogfooding, independent of the shipped
+  migration policy). The ask/flag/default-off rename transform is filed as a follow-up backlog item,
+  not an Order in this Set.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: all five child Orders show `Status: executed` under `.aw/records/plans/executed/`; the whole-Set completion criteria are demonstrated (paste: an artifact-name grammar sweep showing every durable type on `.type.md`, `aw plan-names` clean, a legacy->final migration-name fixture, full serial suite + all `--check`s + sanitize); spec 20260817-2147-01 is `implemented` and backlog 047ce9 is `done`.
+  - Required evidence: both child Orders 01-02 show `Status: executed` under `.aw/records/plans/executed/`; the whole-Set completion criteria are demonstrated (paste: a producer emits a `.type.md` name, `aw plan-names` clean over this repo, an artifact-name grammar sweep showing every durable type on `.type.md`, AGENTS.md single-grammar, full serial suite + all `--check`s + sanitize); spec 20260817-2147-01 is `implemented`, backlog 047ce9 is `done`, and the optional rename-on-migrate follow-up backlog item exists.
   - Observed evidence:
   - Result: pending
 
 ## Approval and execution gate
 
-- Size assessment: exception
-- Cohesion rationale: the five Orders are one coherent objective (roll out the uniform naming grammar), split by dependency LAYER (parsers-accept -> producers -> validation -> rename -> migration+docs) so each is independently reviewable/executable and every intermediate state stays green.
+- Size assessment: standard
+- Cohesion rationale: two Orders for one coherent objective (roll out the uniform naming grammar), split by AUDIENCE - Order 01 is the all-repos shipped grammar+producers, Order 02 is the this-repo dogfood rename+docs - so each is independently reviewable/executable and every intermediate state stays green via the free front-matter dual-read.
 
 Execution requires human approval (`Status: approved` + attributed `- Approval:` line). The orchestrator
 (opencode Opus 4.8) drives each child Order through its own lifecycle, owns all verification + path-scoped
