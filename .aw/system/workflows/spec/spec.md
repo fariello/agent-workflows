@@ -21,7 +21,7 @@ hand off.
 ## Where the spec goes
 
 Detect the project's convention (ask if unclear): a specs/RFC/ADR directory
-(`.aw/records/docs/specs/`, `docs/rfcs/`, `.aw/records/plans/`), or create `.aw/records/docs/specs/` if none exists.
+(`.aw/records/specs/`, `docs/rfcs/`, `.aw/records/plans/`), or create `.aw/records/specs/` if none exists.
 Name the file `YYYY-MM-DD-<slug>.md`. Confirm the location with the user before writing.
 
 ## Protocol

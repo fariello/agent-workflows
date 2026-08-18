@@ -4,7 +4,7 @@ Treat this file as the controlling instruction for BEGINNING execution of an app
 performing its TERMINAL lifecycle transition. It is the single authoritative gate for both moments.
 It exists because the repository has no other general execution/transition workflow: `verify-execution`
 is POST-execution only (it cross-checks an already-executed plan and never gates pre-execution or
-pre-transition). This workflow closes that gap (spec `.aw/records/docs/specs/20260802-1904-01-ipd-structure-and-linting.spec.md`, Sections 11 and 12.1).
+pre-transition). This workflow closes that gap (spec `.aw/records/specs/20260802-1904-01-ipd-structure-and-linting.spec.md`, Sections 11 and 12.1).
 
 The deterministic structural linter `aw ipd lint` is the gate at every checkpoint. It proves
 STRUCTURE and STATE only; it never establishes semantic correctness, coverage, evidence

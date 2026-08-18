@@ -98,4 +98,4 @@ Validate and generate the durable Markdown report:
 python3 .aw/system/workflows/conformance/tools/conformance_harness.py validate-json --file observation.json
 ```
 
-Save the generated report under `.aw/records/docs/research/YYYYMMDD-HHMM-NN-conformance-results-<host>.md` to immortalize the evidence gating decision.
+Save the generated report under `.aw/records/research/YYYYMMDD-HHMM-NN-conformance-results-<host>.md` to immortalize the evidence gating decision.

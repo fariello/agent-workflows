@@ -49,7 +49,7 @@ Before proposing anything, determine and briefly report:
    library / CLI / UI / just docs). This tailors the .gitignore, CI, and hygiene steps.
 3. What is already present: `.aw/system/workflows/`, `.aw/records/plans/` (and its
     `pending/` + `executed/` + `superseded/` + `not-executed/` + `reusable/` subdirs;
-    `done/` is an accepted alias for `executed/`), `.aw/records/docs/` (and its `research/` +
+    `done/` is an accepted alias for `executed/`), `.aw/records/` (and its `research/` +
     `walkthroughs/` subdirs), `.github/workflows/`,
     `.pre-commit-config.yaml`, `.gitignore`, `.gitleaksignore`, `README`, `CONTRIBUTING`,
     `AGENTS.md` (and whether it documents the plan lifecycle and docs rules), `LICENSE`,
@@ -104,8 +104,8 @@ these workflows:
   dir named `done/` (or another), keep it - do not rename; just record which is canonical
   for this repo.
 - **Reference & Walkthroughs Directories:** offer to create the canonical docs subdirectories, each with a committed `.gitkeep`:
-  - `.aw/records/docs/research/` - durable reference and research.
-  - `.aw/records/docs/walkthroughs/` - narrative execution walkthroughs.
+  - `.aw/records/research/` - durable reference and research.
+  - `.aw/records/walkthroughs/` - narrative execution walkthroughs.
   Both follow the `YYYYMMDD-HHMM-NN-<slug>.md` naming norm (walkthroughs end in `-walkthrough.md`).
 - **Documented contract (this is the part that makes agents pick it up):** offer to add
   a short, marker-delimited "Plan/IPD lifecycle and docs" note to `AGENTS.md` (and/or
@@ -117,14 +117,14 @@ these workflows:
   (replaced) or `not-executed/` (deliberately not run) with a `RETIRED YYYY-MM-DD: <reason>;
   superseded by <path/commit>` header + `git mv` (never a silent delete; never file an un-run
   plan in `executed/`), or kept in `reusable/` if recurring. Additionally, agents must
-  immortalize relied-on research to `.aw/records/docs/research/` and save narrative walkthroughs
-  to `.aw/records/docs/walkthroughs/` following their naming conventions. Marker-delimited so
+  immortalize relied-on research to `.aw/records/research/` and save narrative walkthroughs
+  to `.aw/records/walkthroughs/` following their naming conventions. Marker-delimited so
   re-running updates it in place without duplicating.
 - **Conformance:** if the dirs exist but the contract is undocumented, that is
   "partial" - offer to add the doc. If both exist, "conformant" - skip.
 - **Filename normalization:** run the deterministic checker
   `python3 .aw/system/workflows/setup-repo/tools/normalize_plan_names.py --repo .` (check mode).
-  By default it scans `.aw/records/plans/`, `.aw/records/prompts/`, and `.aw/records/docs/` and lists any file
+  By default it scans `.aw/records/plans/`, `.aw/records/prompts/`, and `.aw/records/` and lists any file
   not matching the canonical format with its proposed `old -> new` name or a status. The date is the
   file's CREATION proxy: a date already in the name wins; otherwise the EARLIEST of its
   git-first-commit / birthtime / mtime (local time). Statuses to relay to the user:

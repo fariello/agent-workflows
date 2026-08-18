@@ -1,4 +1,4 @@
-# .aw/records/docs/prompts/
+# .aw/records/prompt-library/
 
 A historical/reference prompt library: standalone, copy-paste prompts kept as origin and reference
 material. They are independent of the installable workflows under `.aw/system/workflows/`, which are the

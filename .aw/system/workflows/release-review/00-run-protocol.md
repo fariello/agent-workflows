@@ -147,7 +147,7 @@ The target knowledge set (adapt names to the project's existing convention):
 | Intent, goals, objectives, audience | `README.md` top section or `docs/OVERVIEW.md` | Why the project exists, who it serves, what success looks like, scope and non-goals. |
 | Philosophy / guiding principles | `GUIDING_PRINCIPLES.md` (or equivalent) | The values and design philosophy the project commits to. Establish this if absent (see Section 5). |
 | Architecture and approach | `ARCHITECTURE.md` / `DESIGN.md` / `docs/architecture/` | How the system is structured, the main components and how they fit, the approach taken and why that shape. |
-| Design / architectural decision rationale | `DECISIONS.md`, an ADR directory (`docs/adr/`, `.aw/records/docs/` or legacy `.agents/decisions/`), or equivalent | Significant decisions, the *why*, alternatives considered, and trade-offs. Append-only and dated where practical. |
+| Design / architectural decision rationale | `DECISIONS.md`, an ADR directory (`docs/adr/`, `.aw/records/` or legacy `.agents/decisions/`), or equivalent | Significant decisions, the *why*, alternatives considered, and trade-offs. Append-only and dated where practical. |
 
 **Respect the project's existing convention.** If the project already keeps this knowledge somewhere (ADRs, a `docs/` tree, a wiki pointer, a `METHODS/` directory, design docs), detect it and extend/correct that rather than imposing new files. Only introduce a new file when the knowledge has no existing home. Do not duplicate the same rationale in multiple places; link instead.
 

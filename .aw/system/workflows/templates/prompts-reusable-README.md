@@ -4,5 +4,5 @@ Prompts meant to be re-run repeatedly (for example a recurring verification runb
 state.
 
 A reusable prompt stays here across runs; its per-run RESULTS are filed under
-`.aw/records/docs/research/<topic>/`. Keep the prompt self-contained so it can be re-run without the
+`.aw/records/research/<topic>/`. Keep the prompt self-contained so it can be re-run without the
 surrounding session context.

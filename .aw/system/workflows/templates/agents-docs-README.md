@@ -1,8 +1,8 @@
-# .aw/records/docs/
+# .aw/records/
 
 Durable reference documentation, research notes, and narrative execution walkthroughs.
 
-These are the STANDARD buckets. The list sets expectations; it does NOT limit what may live under `.aw/records/docs/` (other durable-doc content is allowed):
+These are the STANDARD buckets. The list sets expectations; it does NOT limit what may live under `.aw/records/` (other durable-doc content is allowed):
 
 - **`research/`** - durable research, surveys, or analysis that an agent relied on for design or architecture decisions.
 - **`walkthroughs/`** - narrative walkthroughs documenting the execution, validation, and verification details of implemented plans.

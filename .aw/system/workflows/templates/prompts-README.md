@@ -9,12 +9,12 @@ Recognized prompt kinds (front-matter `Kind:`): run-once / research prompts QUEU
 prompt for the NEXT session rather than a task to run now). Handoff drafts are written to the
 gitignored `local/` lane (below) and promoted only after review.
 
-This is NOT the same as `.aw/records/docs/prompts/`. The two prompt homes are:
+This is NOT the same as `.aw/records/prompt-library/`. The two prompt homes are:
 
 - **`.aw/records/prompts/`** (here): operational staging. "What prompt is queued to run?" A prompt lands
   in `pending/`, is run, and its lifecycle is tracked by MOVING it between the buckets below. Answer
   the question `ls .aw/records/prompts/pending/` with a glance.
-- **`.aw/records/docs/prompts/`**: the evergreen, copy-paste prompt LIBRARY (reference material, not stamped
+- **`.aw/records/prompt-library/`**: the evergreen, copy-paste prompt LIBRARY (reference material, not stamped
   with a framework version, not a run queue).
 
 ## The prompt -> results convention
@@ -23,7 +23,7 @@ A staged prompt produces RESULTS. Keep them apart:
 
 - The PROMPT lives here (`.aw/records/prompts/<bucket>/`).
 - Its RESULTS (the durable research/analysis you rely on) are filed under
-  `.aw/records/docs/research/<topic>/` (see `.aw/records/docs/research/README.md`).
+  `.aw/records/research/<topic>/` (see `.aw/records/research/README.md`).
 
 This separation follows the filesystem-encoded-state principle (GUIDING_PRINCIPLES P5, DECISIONS D91):
 the prompt's lifecycle is glanceable from its directory; the results are durable, path-cited artifacts.
