@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Release-review 20260817-153418 findings S4-D04, S4-D05, S5-K01, S6-V02, S5-DC01, S2-Q01, S6-C01 (the lower-risk cleanup tail): CLI `--help` strings + module docstrings still cite `.agents/` (code correct); relocated `.aw/records/**/README.md` stubs + tracked `.agents/README.md` describe the old layout; the self-install manifest `.aw/system/managed-sections.json` is keyed entirely on legacy `.agents/workflows/*` (150 keys, 0 `.aw/`); `DEFAULT_FRAMEWORK_VERSION` is a hardcoded second version source; dead constants/aliases linger; the pre-existing companion-dir typing errors (cli.py) and an sdist `.gitignore` inclusion + stale CI/shell comments; plus a pre-existing SyntaxWarning (plans_refs.py:204 invalid `\`` escape).
 - Scope: Prose/annotation/manifest/dead-code cleanup with no behavioral change to the fixed verbs. OUT: shipped workflow bodies/AGENTS.md (Order 02), release mechanics (Order 03), and the version NUMBER (S6-V01, maintainer).
-- Status: to-review
+- Status: reviewed
 - Set: awretrofit
 - Order: 5
 - Highest E allocated: 07
@@ -15,6 +15,7 @@
 
 - 2026-08-17 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-17 authored (opencode Opus 4.8): filled from release-review run 20260817-153418 findings S4-D04/D05, S5-K01, S6-V02, S5-DC01, S2-Q01, S6-C01 (Set awretrofit Order 05).
+- 2026-08-17 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Re-verified all findings against CURRENT code (post Orders 02/06/07): D04a help strings (cli.py:66/69/111/570/579/706) still legacy; D04b docstrings still legacy (__init__.py x2, _compat.py x3, hatch_build.py x2, versioning.py x1); K01 managed-sections still 150 legacy keys; V02 DEFAULT_FRAMEWORK_VERSION=1.2.1; DC01 plans_index.PLANS_DIR + _compat._DATA_RELATIVE still dead; Q01 companion typing (cli.py:3379/3434) still present; C01 plans_refs.py:204 SyntaxWarning CONFIRMED live (py_compile -W error raises). PR-001 (LOW): E-02's README list was stale - the layout is FLAT, the 8 stubs are backlog/comms/plans/prompts/research/roadmaps/specs/walkthroughs (prompt-library already correct); FIXED. PR-002 (LOW): after the managed-sections regen, re-run sanitize (the manifest holds this repo's file hashes); added to E-03/V-03. OQ-01 (remove vs repoint .agents/README.md) remains for the maintainer at approval. GO - PENDING HUMAN APPROVAL (pending the OQ-01 decision).
 
 ## Goal
 
@@ -36,9 +37,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: record-README stubs (D05)
 
-- [ ] E-02 Retitle/repath the tracked `.aw/records/**/README.md` stubs (plans, prompts, docs, docs/research, docs/specs, backlog, comms) from `# .agents/...` self-references to their real `.aw/records/...` location, and decide the tracked `.agents/README.md` (repoint it as a legacy pointer to `.aw/` OR remove it - propose remove since the tree moved).
+- [ ] E-02 Retitle/repath the tracked `.aw/records/**/README.md` stubs still titled `# .agents/...` to their real FLAT `.aw/records/...` location. **plan-review PR-001 (post-Order-07):** the 8 stubs still needing it are `backlog, comms, plans, prompts, research, roadmaps, specs, walkthroughs` (verified) - the layout is FLAT (no `.aw/records/docs/`); `prompt-library/README.md` is ALREADY correct (Order 07), so exclude it. Also decide the tracked `.agents/README.md` per OQ-01 (remove vs one-line legacy pointer).
   - Depends on: none
-  - Expected outcome: each `.aw/records/**/README.md` describes its own `.aw/records/...` path; `.agents/README.md` no longer misdescribes a vanished tree.
+  - Expected outcome: each of the 8 flat `.aw/records/*/README.md` describes its own `.aw/records/...` path; `.agents/README.md` no longer misdescribes a vanished tree.
   - Execution state: pending
 
 ### Task group 3: self-install manifest (K01)
@@ -91,7 +92,9 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 | V02 | DEFAULT_FRAMEWORK_VERSION | project_context.py:57 `"1.2.1"` | second version source |
 | DC01 | dead code | plans_index.PLANS_DIR (unused), _compat._DATA_RELATIVE (unused), versioning legacy default | dead/latent |
 | Q01 | typing | cli.py ~3373/3428 Any|None vs str|Path | pre-existing type error |
-| C01 | packaging/CI prose | sdist `.gitignore`; tests.yml:114; install-workflows.sh:9; plans_refs.py:204 SyntaxWarning | minor nits |
+| C01 | packaging/CI prose | sdist `.gitignore`; tests.yml:114; install-workflows.sh:9; plans_refs.py:204 SyntaxWarning (CONFIRMED live via py_compile -W error) | minor nits |
+| PR-001 | plan-review (post-Order-07) | E-02 README list cited `docs/research`,`docs/specs` | LOW: layout is FLAT; the 8 stubs are backlog/comms/plans/prompts/research/roadmaps/specs/walkthroughs; prompt-library already correct. FIXED in E-02. |
+| PR-002 | plan-review (sanitize) | managed-sections.json holds this repo's file hashes | LOW: after E-03 regen, re-run `aw sanitize --agent` to confirm the rekeyed manifest introduces no home-path/identifier leak. Added to E-03/V-03. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -148,7 +151,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: `grep -c '.agents/workflows' .aw/system/managed-sections.json` -> 0; a self-install/update dry-run is a clean no-op (no vanished-managed-file prune). Paste.
+  - Required evidence: `grep -c '.agents/workflows' .aw/system/managed-sections.json` -> 0; a self-install/update dry-run is a clean no-op (no vanished-managed-file prune); AND `aw sanitize --agent` stays clean on the rekeyed manifest (PR-002). Paste.
   - Observed evidence:
   - Result: pending
 
