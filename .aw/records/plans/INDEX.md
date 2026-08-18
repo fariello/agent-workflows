@@ -6,7 +6,7 @@ Showing the 40 most-recent of 85 Sets; the full manifest is INDEX.json.
 
 ## awmigrename
 
-- `0qp7u8` [pending] 01 pending/20260818-awmigrename-01-0qp7u8-aw-migrate-layout-optional-rename-on-migrate-to-the-type-md.ipd.md
+- `0qp7u8` [executed] 01 executed/20260818-awmigrename-01-0qp7u8-aw-migrate-layout-optional-rename-on-migrate-to-the-type-md.ipd.md
 
 ## awnaming
 
