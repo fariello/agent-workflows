@@ -7,6 +7,8 @@ Showing the 40 most-recent of 84 Sets; the full manifest is INDEX.json.
 ## awnaming
 
 - `6gy9rf` [pending] 00 pending/20260818-awnaming-00-6gy9rf-awnaming-orchestrator.md
+- `f8e6y7` [pending] 01 pending/20260818-awnaming-01-f8e6y7-grammar-and-producers.md
+- `975whv` [pending] 02 pending/20260818-awnaming-02-975whv-rename-and-docs.md
 
 ## awretrofit
 

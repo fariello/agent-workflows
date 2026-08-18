@@ -1810,6 +1810,26 @@
     "status": "to-review"
   },
   {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260818-awnaming-01-f8e6y7-grammar-and-producers.md",
+    "plan_id": "f8e6y7",
+    "set_id": "awnaming",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260818-awnaming-02-975whv-rename-and-docs.md",
+    "plan_id": "975whv",
+    "set_id": "awnaming",
+    "status": "to-review"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",
