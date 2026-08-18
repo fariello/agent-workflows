@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Backlog u9cicx (awnaming Set OQ-02, resolved ask-then-offer). The awnaming Set (spec 20260817-2147-01) shipped the uniform `.type.md` naming grammar for NEW files and renamed THIS repo's records, but `aw migrate-layout` (which moves ANOTHER repo's legacy `.agents/` records into `.aw/records/`) does NOT rename those legacy files. Because the record readers are front-matter-driven, a migrated repo's bare-`.md` records keep working (permanent dual-read), so renaming is an OPTIONAL nicety, not a correctness requirement. This adds an opt-in rename-on-migrate: gentle by default, ASK when interactive, `--rename-to-grammar` flag when non-interactive.
 - Scope: The `aw migrate-layout` rename hook only. IN: an opt-in `--rename-to-grammar` CLI flag (default OFF) + a `rename_to_grammar` config key, an interactive ASK, and the rename transform that appends the correct `.<type>` facet to a migrated durable record's destination name (reusing the awnaming grammar map); tests. OUT: renaming by DEFAULT (rejected - too invasive on users' files); comms + research (documented exceptions, same as awnaming Order 02); the grammar/producers/validators (already shipped in awnaming Order 01); this repo's own files (already renamed in Order 02).
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-18, human ("approve. go.") after /plan-review (APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed).
 - Set: awmigrename
 - Order: 1
 - Highest E allocated: 05
