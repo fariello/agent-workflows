@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Discovered executing Order 09 (2026-08-18): `aw install .` on this repo is BROKEN and leaves stale host shims. (1) `ensure_workflow_artifacts_readme` (engine.py:4082) writes `workflow-artifacts/README.md` and the install `git add`s it, but `workflow-artifacts/` is gitignored -> the whole install FAILS ("The following paths are ignored... Use -f"). (2) 42 host shims (21 `.claude/commands/*` + 21 `.opencode/commands/*`) still say `Read and execute @.agents/workflows/...` - never regenerated after the migration; a fresh `aw install` would fix them but currently can't (it fails at (1)).
 - Scope: (a) Make the installer tolerant when its `git add` target is gitignored - skip/soft-warn instead of failing the whole install (a gitignored `workflow-artifacts/` is a legitimate config, and the migration deliberately gitignores run scratch). (b) Regenerate the 42 stale `.claude`/`.opencode` command shims to `.aw/system/workflows/...`. This UNBLOCKS Order 09 (manifest regen via a now-working `aw install .`). OUT: the managed-sections manifest rekey itself (Order 09).
-- Status: reviewed
+- Status: executed
 - Set: awretrofit
 - Order: 10
 - Highest E allocated: 03
@@ -14,7 +14,8 @@
 ## Workflow history
 
 - 2026-08-18 authored (opencode Opus 4.8): created after Order 09 hit a broken `aw install .` (git-add of a gitignored path) + found 42 stale host shims. Unblocks Order 09.
-- 2026-08-18 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Structural preflight conforming. Both findings were already reproduced during Order 09 execution (the install FAILED, and 42 shims verified stale). PR-001 (fix simplification): the canonical `git_add_optional` helper (engine.py:1456) ALREADY does skip-when-ignored and is ALREADY used by the sibling README ensurers (:4165/4217/4261); the failing `ensure_workflow_artifacts_readme` (:4110) is the lone raw-`git_run(add)` outlier - so E-01 is a one-line swap to `git_add_optional`, NOT a new check-ignore mechanism; the other raw-add sites (:2105/2144/2226/2316/2441/3008) add non-gitignorable deliverables (verified) and stay raw. E-01 rescoped accordingly. No open questions. GO - PENDING HUMAN APPROVAL.
+- 2026-08-18 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. PR-001: `git_add_optional` (engine.py:1456) already does skip-when-ignored + is used by sibling ensurers; :4110 is the lone raw outlier, so E-01 is a one-line swap. GO - PENDING HUMAN APPROVAL.
+- 2026-08-18 executed (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): human approved. Implemented E-01 (ensure_workflow_artifacts_readme -> git_add_optional, engine.py) + E-02 (regenerated 42 .claude/.opencode shims to @.aw/system/workflows via a now-completing `aw install .`) + E-03 (tests/test_awretrofit_install_selfheal.py + fixed test_plan_review_parity shim assertion) in commit 8ab840d. V-01..V-03 verified (install completes; shims 0 legacy; mutation RED->GREEN; full serial suite 1011 passed / 1 skipped; sanitize+attention clean). During execution the install auto-committed a broad sync (shims + a DUAL-keyed manifest); I soft-reset it, kept ONLY the shims + E-01 fix path-scoped, and reverted the manifest (aw install ACCUMULATES keys, does not prune - recorded as a finding on Order 09). pre-transition lint conforming; moved pending -> executed/. Order 09 unblocked (with the new purge-not-just-install caveat).
 
 ## Goal
 
@@ -29,24 +30,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: install tolerates a gitignored git-add target (the failure)
 
-- [ ] E-01 Fix `ensure_workflow_artifacts_readme` to stage via the EXISTING `git_add_optional` helper instead of the raw `git_run(plan.repo_root, ["add", "--", rel_path])` (engine.py:4110). **plan-review PR-001 (verified):** the fix is a one-line swap, NOT a new check-ignore path - `git_add_optional` (engine.py:1456) ALREADY does exactly the desired thing ("stage a path, tolerating the case where it is ignored by .gitignore... warn once and continue rather than aborting; any OTHER git failure is a real error and is raised"), and the sibling README ensurers (`ensure_plans/docs/prompts_readmes`, :4165/4217/4261) ALREADY use it - line 4110 is the lone outlier that used raw `git_run(add)` and therefore aborts on a gitignored `workflow-artifacts/`. Audit the other raw `git_run(add)` sites (engine.py:2105/2144/2226/2316/2441/3008) and confirm they add paths that are NOT gitignorable deliverables (`.gitignore` itself, native host-adapter files, backups) - they are intentionally raw; only 4110 hit the hazard. The README is still WRITTEN; it is just not staged when ignored. Do NOT `-f` force-add.
+- [x] E-01 Fix `ensure_workflow_artifacts_readme` to stage via the EXISTING `git_add_optional` helper instead of the raw `git_run(plan.repo_root, ["add", "--", rel_path])` (engine.py:4110). **plan-review PR-001 (verified):** the fix is a one-line swap, NOT a new check-ignore path - `git_add_optional` (engine.py:1456) ALREADY does exactly the desired thing ("stage a path, tolerating the case where it is ignored by .gitignore... warn once and continue rather than aborting; any OTHER git failure is a real error and is raised"), and the sibling README ensurers (`ensure_plans/docs/prompts_readmes`, :4165/4217/4261) ALREADY use it - line 4110 is the lone outlier that used raw `git_run(add)` and therefore aborts on a gitignored `workflow-artifacts/`. Audit the other raw `git_run(add)` sites (engine.py:2105/2144/2226/2316/2441/3008) and confirm they add paths that are NOT gitignorable deliverables (`.gitignore` itself, native host-adapter files, backups) - they are intentionally raw; only 4110 hit the hazard. The README is still WRITTEN; it is just not staged when ignored. Do NOT `-f` force-add.
   - Depends on: none
   - Expected outcome: `aw install .` on this repo (which gitignores `workflow-artifacts/` + `.aw/workflow-artifacts/`) RUNS TO COMPLETION via `git_add_optional`'s skip-when-ignored; an ignored README is written-but-not-staged, not a fatal error.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: regenerate the stale host shims
 
-- [ ] E-02 Regenerate the 42 stale command shims (21 `.claude/commands/*` + 21 `.opencode/commands/*`) that still say `Read and execute @.agents/workflows/...` so they reference `@.aw/system/workflows/...`, via the installer's shim generation (now that E-01 lets `aw install .` complete) - NOT a hand-edit. Verify no shim still references `.agents/workflows/`.
+- [x] E-02 Regenerate the 42 stale command shims (21 `.claude/commands/*` + 21 `.opencode/commands/*`) that still say `Read and execute @.agents/workflows/...` so they reference `@.aw/system/workflows/...`, via the installer's shim generation (now that E-01 lets `aw install .` complete) - NOT a hand-edit. Verify no shim still references `.agents/workflows/`.
   - Depends on: E-01
   - Expected outcome: `grep -rl "\.agents/workflows" .claude/commands .opencode/commands` -> empty; shims resolve the real installed bundle path.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests + verify
 
-- [ ] E-03 Add a regression test: `aw install`/`create_setup_artifacts`+ensurers on a repo that gitignores `workflow-artifacts/` completes without error and does not stage the ignored README (fails against the pre-fix code). Then run a clean `aw install .` on this repo and confirm it completes; commit ONLY the shim regeneration (`.claude/commands/*`, `.opencode/commands/*`) + the E-01 code + test, path-scoped (handle any other install side-effects explicitly, do not bundle an unexplained broad rewrite).
+- [x] E-03 Add a regression test: `aw install`/`create_setup_artifacts`+ensurers on a repo that gitignores `workflow-artifacts/` completes without error and does not stage the ignored README (fails against the pre-fix code). Then run a clean `aw install .` on this repo and confirm it completes; commit ONLY the shim regeneration (`.claude/commands/*`, `.opencode/commands/*`) + the E-01 code + test, path-scoped (handle any other install side-effects explicitly, do not bundle an unexplained broad rewrite).
   - Depends on: E-01, E-02
   - Expected outcome: new test green (fail-before/pass-after); `aw install .` completes; shims regenerated; full serial suite >= 1009 passed / 1 skipped; sanitize + attention clean.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -108,20 +109,20 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `aw install .` on this repo (gitignores workflow-artifacts/) COMPLETES (exit 0, no "paths are ignored" abort); a regression test shows install/ensurers succeed on a gitignored-workflow-artifacts repo and the ignored README is written-but-not-staged; the test FAILS against the pre-fix code. Paste.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Swapped the raw `git_run(add)` at engine.py:4110 for `git_add_optional`. `aw install .` RAN TO COMPLETION this turn (previously it aborted at ensure_workflow_artifacts_readme with "The following paths are ignored... Use -f"). `tests/test_awretrofit_install_selfheal.py`: `test_ensure_workflow_artifacts_readme_survives_gitignored_dir` (README written, NOT staged) + `test_git_add_optional_returns_false_on_ignored` pass. Mutation: reverting to raw `git add` -> the survives-gitignored test `1 failed`; restored -> 2 passed.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: `grep -rl "\.agents/workflows" .claude/commands .opencode/commands` -> empty; a shim references `@.aw/system/workflows/...`. Paste a sample + the grep.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `aw install .` regenerated all 42 shims (21 .claude + 21 .opencode). `grep -rl "\.agents/workflows" .claude/commands .opencode/commands` -> empty (0). Sample: `.opencode/commands/assess.md` -> "Read and execute @.aw/system/workflows/assess/assess.md."
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the new regression test passes (fail-before/pass-after); `aw install .` completes clean; full serial suite >= 1009 passed / 1 skipped; `aw sanitize --agent` + `aw attention --check` clean. Paste.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_awretrofit_install_selfheal.py` -> 2 passed (mutation RED->GREEN documented in V-01). Full serial suite: `1011 passed, 1 skipped` (was 1009; +2 selfheal + the fixed parity test). `aw sanitize --agent` clean; `aw attention --check` valid. NOTE for Order 09: `aw install .` ADDS `.aw/system/*` manifest keys but does NOT PRUNE the 150 stale `.agents/workflows/*` keys (observed 150+150=346 after install), so Order 09's manifest rekey needs an explicit purge/rebuild, not a bare install; the manifest was reverted to its pre-install 150/0 state here (Order 10 committed only the shims + the E-01 fix, not the manifest).
+  - Result: pass
 
 ## Approval and execution gate
 

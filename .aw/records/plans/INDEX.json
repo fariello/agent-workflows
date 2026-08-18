@@ -1750,6 +1750,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-18",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 10,
+    "path": "executed/20260818-awretrofit-10-oznad0-install-selfheal-and-shims.md",
+    "plan_id": "oznad0",
+    "set_id": "awretrofit",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -1786,16 +1796,6 @@
     "order": 9,
     "path": "pending/20260818-awretrofit-09-7m458z-managed-sections-regen.md",
     "plan_id": "7m458z",
-    "set_id": "awretrofit",
-    "status": "reviewed"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 10,
-    "path": "pending/20260818-awretrofit-10-oznad0-install-selfheal-and-shims.md",
-    "plan_id": "oznad0",
     "set_id": "awretrofit",
     "status": "reviewed"
   },
