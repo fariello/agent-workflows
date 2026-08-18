@@ -301,7 +301,27 @@ class MigrationManager:
         """
 
         dst_p.parent.mkdir(parents=True, exist_ok=True)
+        # FAIL-CLOSED on a FOREIGN pre-existing destination (IPD awretrofit Order 04, M01/E-04).
+        # In a normal run the destination is freshly computed and empty; a THIS-transaction dedup
+        # twin is handled earlier in the move loop (dest_seen), and an already-journaled item is
+        # skipped on resume. So if we reach here and the destination already holds content, it is
+        # content this migration did NOT create - refuse to clobber it and surface a conflict,
+        # rather than the previous unconditional rmtree/unlink (which could destroy hand-migrated
+        # or foreign data). A hash-identical file is the one safe exception (idempotent re-move).
         if dst_p.exists() or dst_p.is_symlink():
+            safe_identical = (
+                dst_p.is_file()
+                and not dst_p.is_symlink()
+                and src_p.is_file()
+                and not src_p.is_symlink()
+                and _sha256_file(dst_p) == _sha256_file(src_p)
+            )
+            if not safe_identical:
+                raise MigrationError(
+                    f"Refusing to overwrite a pre-existing destination this migration did not "
+                    f"create: {dst_p}. Resolve the conflict (remove/rename it) and re-run; "
+                    f"the migration will not destroy foreign content."
+                )
             if dst_p.is_dir() and not dst_p.is_symlink():
                 shutil.rmtree(dst_p)
             else:
@@ -412,9 +432,20 @@ class MigrationManager:
                     continue
                 try:
                     proc = _run_git(repo_path, ["rm", "-f", "--", rel])
-                    if proc.returncode != 0 and (p.exists() or p.is_symlink()):
+                    if proc.returncode == 0:
+                        # Cleanly removed via git (staged deletion of a tracked orphan).
+                        result["removed"].append(rel)
+                    elif p.exists() or p.is_symlink():
+                        # git rm failed but the path is still present: force-unlink it, and record
+                        # it as a DEGRADED removal, NOT a clean `removed` (IPD awretrofit Order 04,
+                        # L01/E-05) - the filesystem and the git index may now disagree, which a
+                        # caller/report must be able to see rather than trusting a clean-removed
+                        # label.
                         p.unlink()
-                    result["removed"].append(rel)
+                        result.setdefault("degraded", []).append(rel)
+                    else:
+                        # git rm nonzero but the path is already gone: treat as removed.
+                        result["removed"].append(rel)
                 except OSError:
                     result["preserved"].append(rel)
         else:
@@ -1039,8 +1070,12 @@ class MigrationManager:
         if config_file.exists():
             cfg_data = json.loads(config_file.read_text(encoding="utf-8"))
             cfg_data["records_backend"] = "legacy"
-            with open(config_file, "w", encoding="utf-8") as f:
+            # Atomic write (IPD awretrofit Order 04, L01/E-05): temp-file + os.replace, matching the
+            # forward-switch idiom - a crash mid-rollback cannot truncate/corrupt config.json.
+            tmp_cfg = config_file.parent / f".tmp_config_{os.getpid()}.json"
+            with open(tmp_cfg, "w", encoding="utf-8") as f:
                 json.dump(cfg_data, f, indent=2)
+            os.replace(tmp_cfg, config_file)
 
         # Remove switch receipt & retention manifest
         if self.switch_receipt_file.exists():
@@ -1140,7 +1175,9 @@ class MigrationManager:
 
         for item in mappings:
             src_p = Path(item["source"])
-            if src_p.exists() and not src_p.is_symlink():
+            # Only FILE sources carry a hash; a directory source is content-guarded in the
+            # deletion loop below (Order 04 E-03), not hash-checked here.
+            if src_p.is_file() and not src_p.is_symlink():
                 cur_hash = _sha256_file(src_p)
                 if cur_hash != item.get("hash"):
                     raise CleanupError(
@@ -1155,16 +1192,46 @@ class MigrationManager:
                 "message": "Preview only. Pass confirm=True (--confirm) to execute deletion.",
             }
 
-        cleaned_paths = []
+        # The set of manifest-recorded source paths - the ONLY content cleanup may remove
+        # (IPD awretrofit Order 04, M01/E-03). Anything at a legacy source path that is NOT in
+        # this set is content RE-CREATED after the migration (e.g. a fresh install scaffold, a
+        # new local file), which cleanup MUST preserve rather than blindly rmtree.
+        manifest_paths = {str(p.resolve()) for p in legacy_sources}
+        cleaned_paths: List[str] = []
+        refused_paths: List[str] = []
         for src_p in legacy_sources:
-            if src_p.exists() or src_p.is_symlink():
-                if src_p.is_file() or src_p.is_symlink():
-                    src_p.unlink()
-                elif src_p.is_dir():
-                    shutil.rmtree(src_p, ignore_errors=True)
+            if not (src_p.exists() or src_p.is_symlink()):
+                continue
+            if src_p.is_file() or src_p.is_symlink():
+                # File hash was already re-verified against the manifest above; safe to remove.
+                src_p.unlink()
+                cleaned_paths.append(str(src_p))
+            elif src_p.is_dir():
+                # Only remove a directory whose ENTIRE remaining content is manifest-recorded
+                # (i.e. re-created content is absent). Never blanket-rmtree with ignore_errors:
+                # a directory holding any path this migration did not record is REFUSED and
+                # preserved intact, so re-created untracked content survives cleanup.
+                foreign = [
+                    child
+                    for child in src_p.rglob("*")
+                    if (child.is_file() or child.is_symlink())
+                    and str(child.resolve()) not in manifest_paths
+                ]
+                if foreign:
+                    refused_paths.append(str(src_p))
+                    continue
+                shutil.rmtree(src_p)
                 cleaned_paths.append(str(src_p))
 
-        return {"status": "cleaned", "removed": cleaned_paths}
+        result: Dict[str, Any] = {"status": "cleaned", "removed": cleaned_paths}
+        if refused_paths:
+            result["refused"] = refused_paths
+            result["message"] = (
+                "Some legacy dirs were PRESERVED because they hold content re-created after "
+                "migration (not recorded in the retention manifest); remove that content manually "
+                "if you intend to delete them."
+            )
+        return result
 
     def uninstall_layout(
         self, preserve_records: bool = True, deep_remove_records: bool = False

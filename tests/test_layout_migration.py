@@ -885,5 +885,160 @@ class LeftoverDispositionTests(unittest.TestCase):
             )
 
 
+class Order04MigrationSafetyTests(unittest.TestCase):
+    """IPD awretrofit Order 04 (M01/L01): the migration engine must never destroy content it did not
+    create. `_perform_move` refuses a foreign pre-existing destination; `cleanup_migration` preserves
+    content re-created at a former legacy source; the leftover-remove result is honest about a
+    degraded removal; the rollback config write is atomic.
+    """
+
+    def setUp(self):
+        self.tmp_dir = tempfile.mkdtemp()
+        self.repo = Path(self.tmp_dir) / "repo"
+        self.repo.mkdir()
+        for a in (
+            ["init", "-q"],
+            ["config", "user.email", "t@example.com"],
+            ["config", "user.name", "T"],
+            ["config", "commit.gpgsign", "false"],
+        ):
+            subprocess.run(
+                ["git", "-C", str(self.repo), *a], check=True, capture_output=True
+            )
+        self._prev_aw_home = os.environ.get("AW_HOME")
+        self.aw_home = os.path.join(self.tmp_dir, "aw_home")
+        os.makedirs(self.aw_home, exist_ok=True)
+        os.environ["AW_HOME"] = self.aw_home
+
+    def tearDown(self):
+        if self._prev_aw_home is None:
+            os.environ.pop("AW_HOME", None)
+        else:
+            os.environ["AW_HOME"] = self._prev_aw_home
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    # --- E-04: _perform_move refuses a foreign pre-existing destination -------------------------
+
+    def test_perform_move_refuses_foreign_destination(self):
+        mgr = MigrationManager(target_repo=str(self.repo), aw_home=self.aw_home)
+        src = self.repo / "src.md"
+        src.write_text("SOURCE\n", encoding="utf-8")
+        dst = self.repo / "dst.md"
+        dst.write_text("FOREIGN pre-existing content\n", encoding="utf-8")
+        from agent_workflows.layout_migration import MigrationError
+
+        with self.assertRaises(MigrationError):
+            mgr._perform_move(src, dst, was_tracked=False)
+        # The foreign destination + the source both survive the refusal (nothing destroyed).
+        self.assertTrue(dst.is_file())
+        self.assertEqual(
+            dst.read_text(encoding="utf-8"), "FOREIGN pre-existing content\n"
+        )
+        self.assertTrue(src.is_file())
+
+    def test_perform_move_allows_hash_identical_destination(self):
+        """A hash-identical pre-existing destination is the safe idempotent exception."""
+        mgr = MigrationManager(target_repo=str(self.repo), aw_home=self.aw_home)
+        src = self.repo / "s2.md"
+        src.write_text("SAME\n", encoding="utf-8")
+        dst = self.repo / "d2.md"
+        dst.write_text("SAME\n", encoding="utf-8")
+        mgr._perform_move(src, dst, was_tracked=False)  # no raise
+        self.assertTrue(dst.is_file())
+        self.assertFalse(src.exists())
+
+    def test_perform_move_fresh_destination_unchanged(self):
+        mgr = MigrationManager(target_repo=str(self.repo), aw_home=self.aw_home)
+        src = self.repo / "s3.md"
+        src.write_text("X\n", encoding="utf-8")
+        dst = self.repo / "sub" / "d3.md"
+        mgr._perform_move(src, dst, was_tracked=False)
+        self.assertTrue(dst.is_file())
+        self.assertFalse(src.exists())
+
+    def test_perform_move_mutation_probe(self):
+        """Falsifiable: the pre-fix behavior (unconditional clobber) would DESTROY the foreign
+        destination; the guard prevents it."""
+        from agent_workflows.layout_migration import MigrationError
+
+        mgr = MigrationManager(target_repo=str(self.repo), aw_home=self.aw_home)
+        src = self.repo / "s4.md"
+        src.write_text("S\n", encoding="utf-8")
+        dst = self.repo / "d4.md"
+        dst.write_text("FOREIGN\n", encoding="utf-8")
+        # Real guard raises and preserves.
+        with self.assertRaises(MigrationError):
+            mgr._perform_move(src, dst, was_tracked=False)
+        self.assertEqual(dst.read_text(encoding="utf-8"), "FOREIGN\n")
+
+    # --- E-03: cleanup_migration preserves re-created content ------------------------------------
+
+    def _seed_completed_cleanup_state(self, manifest_sources):
+        """Write a minimal completed transaction + retention manifest so cleanup_migration runs."""
+        mgr = MigrationManager(target_repo=str(self.repo), aw_home=self.aw_home)
+        # Minimal .aw config so context resolves.
+        (mgr.config_dir).mkdir(parents=True, exist_ok=True)
+        mgr._save_transaction({"status": "completed", "timestamps": {}})
+        mappings = []
+        for src_rel, content in manifest_sources:
+            p = self.repo / src_rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(content, encoding="utf-8")
+            import hashlib
+
+            h = hashlib.sha256(content.encode("utf-8")).hexdigest()
+            mappings.append({"source": str(p), "hash": h})
+        mgr.retention_manifest_file.parent.mkdir(parents=True, exist_ok=True)
+        mgr.retention_manifest_file.write_text(
+            json.dumps({"mappings": mappings}), encoding="utf-8"
+        )
+        return mgr
+
+    def test_cleanup_preserves_recreated_dir_content(self):
+        """A legacy source DIR that, after migration, holds content NOT in the retention manifest is
+        PRESERVED (refused), not blanket-rmtree'd."""
+        # Manifest records one file under a legacy dir.
+        mgr = self._seed_completed_cleanup_state(
+            [(".agents/docs/known.md", "manifest content\n")]
+        )
+        legacy_dir = self.repo / ".agents" / "docs"
+        # Re-create FOREIGN content in the same dir (e.g. a fresh install / new local file).
+        (legacy_dir / "recreated.md").write_text(
+            "NEW local content\n", encoding="utf-8"
+        )
+        # The manifest source is the file, but add the DIR as a manifest source to exercise dir logic.
+        ret = json.loads(mgr.retention_manifest_file.read_text(encoding="utf-8"))
+        ret["mappings"].append({"source": str(legacy_dir), "hash": None})
+        mgr.retention_manifest_file.write_text(json.dumps(ret), encoding="utf-8")
+
+        res = mgr.cleanup_migration(confirm=True)
+        # The foreign re-created file MUST survive.
+        self.assertTrue((legacy_dir / "recreated.md").is_file())
+        self.assertIn("refused", res)
+        self.assertIn(str(legacy_dir), res["refused"])
+
+    def test_cleanup_removes_manifest_only_file(self):
+        """A legacy source FILE that still matches its manifest hash IS removed."""
+        mgr = self._seed_completed_cleanup_state(
+            [(".agents/plans/pending/old.md", "kept content\n")]
+        )
+        f = self.repo / ".agents" / "plans" / "pending" / "old.md"
+        self.assertTrue(f.is_file())
+        res = mgr.cleanup_migration(confirm=True)
+        self.assertFalse(f.exists())
+        self.assertIn(str(f), res["removed"])
+
+    # --- E-05: atomic rollback config write ------------------------------------------------------
+
+    def test_rollback_config_write_is_atomic(self):
+        """rollback_migration writes config.json via a temp file + os.replace (no truncate risk)."""
+        import inspect
+        from agent_workflows import layout_migration
+
+        src = inspect.getsource(layout_migration.MigrationManager.rollback_migration)
+        self.assertIn("os.replace", src)
+        self.assertNotIn('open(config_file, "w"', src)
+
+
 if __name__ == "__main__":
     unittest.main()
