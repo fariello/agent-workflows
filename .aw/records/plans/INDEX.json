@@ -2023,6 +2023,16 @@
     "date": "2026-08-18",
     "disposition": "pending",
     "kind": "child",
+    "order": 2,
+    "path": "pending/20260818-awrelease-02-6wdjss-blocks-release-gate-field-parser-setter-and-validation.ipd.md",
+    "plan_id": "6wdjss",
+    "set_id": "awrelease",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "child",
     "order": 1,
     "path": "pending/20260818-awresearchrev-01-z4m7bf-review-and-harden-aw-research-command-surface.ipd.md",
     "plan_id": "z4m7bf",
