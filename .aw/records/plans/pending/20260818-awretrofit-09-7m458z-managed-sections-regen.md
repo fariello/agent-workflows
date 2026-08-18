@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Release-review 20260817-153418 finding S5-K01 (split out of Order 05, 2026-08-17): the self-install manifest `.aw/system/managed-sections.json` is keyed entirely on legacy `.agents/workflows/*` (150 keys, 0 `.aw/`) - it was `git mv`'d into `.aw/system/` in the Order-11 migration without rekeying. On the next `aw install`/update ON THIS repo, the installer may treat every `.agents/workflows/*` entry as a vanished managed file, disturbing prune/diff.
 - Scope: Regenerate `.aw/system/managed-sections.json` so its keys are `.aw/system/workflows/...`, via the manifest machinery / a controlled `aw install .` self-update (NOT a hand-edit). Verify install/update prune/diff behaves + the rekeyed manifest stays sanitize-clean. This is a self-install-only concern (running `aw install` ON this framework repo), NOT a shipped-artifact defect. OUT: prose/dead-code (Order 05, done).
-- Status: to-review
+- Status: reviewed
 - Set: awretrofit
 - Order: 9
 - Highest E allocated: 02
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): split out of Order 05 (carries finding K01 + the sanitize-after-regen check PR-002). Ready for /plan-review.
+- 2026-08-18 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE (no revisions). Structural preflight conforming. Verified: managed-sections.json still 150 legacy `.agents/workflows/*` keys, 0 `.aw/`; no standalone manifest-rebuild function exists, so the full `aw install .` regeneration path (with OQ-01's commit-only-managed-sections.json scoping) is correct. E-01/E-02 sound; OQ-01 resolved. No findings, no open questions. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 

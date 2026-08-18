@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Release-review 20260817-153418 findings S2-B02, S2-B03 + the README-stub placement handed over from Order 07 (split out of Order 04, 2026-08-17). (B02) `create_setup_artifacts` scaffolds the records tree from hardcoded legacy `.agents/*` constants (engine.py:3701 PLANS_DIR / 3709 DOCS_DIR / 3727 PROMPTS_DIR / 3752 COMMS_DIR) - a fresh install re-introduces split-brain; (README) the README-stub placement tables `_PLANS_README_TARGETS`/`_DOCS_README_TARGETS`/`_PROMPTS_README_TARGETS` (engine.py:4061/4105/4147) + `ensure_*_readmes` are legacy-hardcoded and `_DOCS_README_TARGETS` targets the Order-07-obsoleted `.agents/docs/README.md`; (B03) `aw uninstall --deep` `_DEEP_CLEANUP_ROOTS` (engine.py:3425) cleans only `.agents/*` despite cli.py:523 help promising `.aw/records/`.
 - Scope: Make the install scaffolder, its README-stub placement, and `uninstall --deep` layout-aware and FLAT, DERIVING the record roots from the canonical resolver (`record_producers.resolve_record_path`/RecordClass) so they cannot drift from the layout again. Per D136 a fresh install materializes `.aw/` only; the FINAL layout is flat `.aw/records/{plans,prompts,comms,backlog,research,specs,walkthroughs,roadmaps,prompt-library}` (Order 07, no `docs/`). OUT: migration-engine safety (Order 04, done); record verbs (Order 01); shipped docs (Order 02).
-- Status: to-review
+- Status: reviewed
 - Set: awretrofit
 - Order: 8
 - Highest E allocated: 04
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-17 authored (opencode Opus 4.8): split out of Order 04; carries findings B02, B03, and the README-stub placement (PR-001/PR-002/PR-003 from the Order-04 dual /plan-review). Ready for /plan-review.
+- 2026-08-17 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Structural preflight conforming. Verified all citations against current code (post Orders 05): scaffolder constants engine.py:3701/3709/3727/3752, README targets 4061/4105, `_DEEP_CLEANUP_ROOTS`:3425 all still legacy-hardcoded. PR-001 (MEDIUM, correctness): E-01 said "derive from RecordClass" but `RecordClass` is INCOMPLETE - `{plans,specs,research,records,prompts,comms,walkthroughs}` OMITS backlog, roadmaps, and the prompt-library; and `DOCS_SUBDIRS=(research,walkthroughs,specs,prompts)` is the OLD nested shape. Hardened E-01 to enumerate the AUTHORITATIVE flat set explicitly (or extend RecordClass first) so backlog/roadmaps/prompt-library are not silently missed. No open questions. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -27,9 +28,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: install scaffolder -> flat .aw/records/ (B02, D136)
 
-- [ ] E-01 Make `create_setup_artifacts` (engine.py ~4192) scaffold the records lifecycle under the FLAT `.aw/records/*` on a fresh/`aw`-layout install instead of the hardcoded legacy `.agents/*` constants (PLANS_DIR/DOCS_DIR/PROMPTS_DIR/COMMS_DIR). DERIVE the record roots from `record_producers.resolve_record_path`/the RecordClass set - NOT a hardcoded list, and NO `docs/` level (Order 07 flattened it: research/specs/walkthroughs/roadmaps sit directly under `.aw/records/`; the prompt LIBRARY is `prompt-library/`, distinct from the `prompts/` staging tree). Update BOTH the dry-run mirror and the real writes, and the prompts/comms nested `.gitignore` + `local/` lane placement. Route creating writes through `guard_write` where practical. Preserve `--undo` manifest recording. Keep a legacy-targeted install (`resolve_target_layout` -> legacy) scaffolding `.agents/*`.
+- [ ] E-01 Make `create_setup_artifacts` (engine.py ~4192) scaffold the records lifecycle under the FLAT `.aw/records/*` on a fresh/`aw`-layout install instead of the hardcoded legacy `.agents/*` constants (PLANS_DIR/DOCS_DIR/PROMPTS_DIR/COMMS_DIR) and the stale `DOCS_SUBDIRS`. Resolve the records BASE via `resolve_record_path`/the layout, then scaffold the AUTHORITATIVE FLAT set (NO `docs/` level): `plans/` + `prompts/` + `prompt-library/` (the library, was docs/prompts) + `comms/` + `backlog/` + `research/` (+ its reference/archive shards) + `specs/` + `walkthroughs/` + `roadmaps/`, each with its lifecycle subdirs + `.gitkeep`; plus the prompts/comms nested `.gitignore` + `local/` lanes. **plan-review PR-001 (verified):** do NOT derive the set from `RecordClass` alone - it is INCOMPLETE (`{plans,specs,research,records,prompts,comms,walkthroughs}`: it OMITS `backlog`, `roadmaps`, and the `prompt-library`); and the current `DOCS_SUBDIRS=(research,walkthroughs,specs,prompts)` is the OLD nested docs shape (and its `prompts` = the library). Enumerate the flat set explicitly from the Order-07 canonical layout (or first extend RecordClass to cover backlog/roadmaps and add a library class, then derive) so nothing is silently missed. Update BOTH the dry-run mirror and the real writes. Route creating writes through `guard_write` where practical. Preserve `--undo` manifest recording. Keep a legacy-targeted install (`resolve_target_layout` -> legacy) scaffolding `.agents/*`.
   - Depends on: none
-  - Expected outcome: a fresh `aw`-layout install creates the FLAT `.aw/records/*` tree (resolver-derived, no `docs/`), not `.agents/*`; a legacy install still scaffolds `.agents/*`.
+  - Expected outcome: a fresh `aw`-layout install creates the FULL FLAT `.aw/records/*` set (incl. backlog + roadmaps + prompt-library, no `docs/`), not `.agents/*`; a legacy install still scaffolds `.agents/*`.
   - Execution state: pending
 
 ### Task group 2: README-stub placement -> flat .aw/records/ (Order-07 handoff)
