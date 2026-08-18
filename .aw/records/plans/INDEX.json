@@ -1680,6 +1680,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-17",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260817-awretrofit-02-ckvg3n-shipped-docs-and-agents-md.md",
+    "plan_id": "ckvg3n",
+    "set_id": "awretrofit",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -1708,16 +1718,6 @@
     "plan_id": "pp6y76",
     "set_id": "awretrofit",
     "status": "approved"
-  },
-  {
-    "date": "2026-08-17",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260817-awretrofit-02-ckvg3n-shipped-docs-and-agents-md.md",
-    "plan_id": "ckvg3n",
-    "set_id": "awretrofit",
-    "status": "reviewed"
   },
   {
     "date": "2026-08-17",

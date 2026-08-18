@@ -29,7 +29,7 @@ Showing the 40 most-recent of 83 Sets; the full manifest is INDEX.json.
 
 - `pp6y76` [pending] 00 pending/20260817-awretrofit-00-pp6y76-orchestrator.md
 - `i7um6r` [executed] 01 executed/20260817-awretrofit-01-i7um6r-record-verbs-layout-aware.md
-- `ckvg3n` [pending] 02 pending/20260817-awretrofit-02-ckvg3n-shipped-docs-and-agents-md.md
+- `ckvg3n` [executed] 02 executed/20260817-awretrofit-02-ckvg3n-shipped-docs-and-agents-md.md
 - `giiowo` [pending] 03 pending/20260817-awretrofit-03-giiowo-release-mechanics.md
 - `y5zxql` [pending] 04 pending/20260817-awretrofit-04-y5zxql-install-uninstall-migration-safety.md
 - `euqxi3` [pending] 05 pending/20260817-awretrofit-05-euqxi3-help-docstrings-manifest-deadcode.md
