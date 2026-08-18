@@ -2013,6 +2013,16 @@
     "date": "2026-08-18",
     "disposition": "pending",
     "kind": "child",
+    "order": 2,
+    "path": "pending/20260818-awselect-02-miggho-aw-show-resolves-records-id6-and-status-selection.ipd.md",
+    "plan_id": "miggho",
+    "set_id": "awselect",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "child",
     "order": 1,
     "path": "pending/20260818-awuntracked-01-c32roo-rename-local-lanes-to-untracked-with-catch-all-gitignore.ipd.md",
     "plan_id": "c32roo",
