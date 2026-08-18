@@ -42,11 +42,18 @@ SOURCE_PLANS = _source_plans_root()
 
 
 def _source_docs_root() -> Path:
-    """The framework's OWN source docs tree, layout-aware: `.aw/records/docs/` after the
-    migration, else legacy `.agents/docs/`."""
+    """The framework's OWN source doc-types base, layout-aware. Consumers use ``SOURCE_DOCS/<type>``
+    (e.g. ``/specs``). Order 07 (spec 20260817-2124-01) FLATTENED the doc types out of ``docs/``:
+    they now sit directly under ``.aw/records/`` (so the base is the records root). Falls back to the
+    intermediate ``.aw/records/docs/`` and then legacy ``.agents/docs/`` for older/pre-migration trees."""
 
-    aw = REPO_ROOT / ".aw" / "records" / "docs"
-    return aw if aw.is_dir() else REPO_ROOT / ".agents" / "docs"
+    flat = REPO_ROOT / ".aw" / "records"
+    if (flat / "specs").is_dir():
+        return flat
+    nested = REPO_ROOT / ".aw" / "records" / "docs"
+    if nested.is_dir():
+        return nested
+    return REPO_ROOT / ".agents" / "docs"
 
 
 SOURCE_DOCS = _source_docs_root()

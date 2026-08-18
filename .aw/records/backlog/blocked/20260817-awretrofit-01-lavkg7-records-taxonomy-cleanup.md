@@ -5,7 +5,7 @@
 - Kind: chore
 - Summary: RELEASE BLOCKER: clean up .aw/records/ taxonomy (run-artifacts home, dup prompts, flatten docs/) before release
 - Gate-Kind: artifact
-- Gate-Ref: .aw/records/docs/specs/20260817-2124-01-records-taxonomy-cleanup.spec.md
+- Gate-Ref: .aw/records/specs/20260817-2124-01-records-taxonomy-cleanup.spec.md
 
 ## Workflow history
 - 2026-08-17 created (aw backlog): RELEASE BLOCKER: clean up .aw/records/ taxonomy (run-artifacts home, dup prompts, flatten docs/) before release

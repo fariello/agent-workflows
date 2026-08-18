@@ -92,8 +92,11 @@ class RecordClass(str, Enum):
     PROMPTS = "prompts"
     COMMS = "comms"
     WALKTHROUGHS = "walkthroughs"
-    RUNS = "runs"
-    WORKFLOW_ARTIFACTS = "workflow_artifacts"
+    # NOTE: run-artifacts (assess/verify/release-review/advise run records) are NOT a records class.
+    # They live at the top-level `.aw/workflow-artifacts/<workflow>/<RUN_ID>/` (sibling of records),
+    # written by the workflows directly and gitignored - NOT resolved via resolve_record_path. The
+    # former RUNS/WORKFLOW_ARTIFACTS members were unused and resolved under the records root by
+    # mistake; removed in IPD awretrofit Order 07 (spec 20260817-2124-01, plan-review PR-002).
 
 
 class DurableStateClass(str, Enum):
@@ -117,16 +120,27 @@ class RuntimeStateClass(str, Enum):
     TMP = "tmp"
 
 
+# FINAL `.aw/records/` subpaths (IPD awretrofit Order 07, spec 20260817-2124-01): the durable doc
+# types are FLATTENED out of `docs/` (specs/research/walkthroughs sit directly under `.aw/records/`).
 _RECORD_CLASS_SUBPATHS: Dict[str, str] = {
     RecordClass.PLANS.value: "plans",
-    RecordClass.SPECS.value: "docs/specs",
-    RecordClass.RESEARCH.value: "docs/research",
+    RecordClass.SPECS.value: "specs",
+    RecordClass.RESEARCH.value: "research",
     RecordClass.RECORDS.value: "",
     RecordClass.PROMPTS.value: "prompts",
     RecordClass.COMMS.value: "comms",
+    RecordClass.WALKTHROUGHS.value: "walkthroughs",
+}
+
+# LEGACY `.agents/` read-only subpaths (plan-review PR-001): the legacy tree keeps its `docs/` nesting
+# (`.agents/docs/specs`, ...). This map is DECOUPLED from the final map above so flattening the final
+# `.aw/records/` layout does NOT break legacy migration reads (`resolve_record_read_paths`). Only the
+# doc-family classes differ from their final subpath; the rest reuse the final subpath.
+_LEGACY_RECORD_CLASS_SUBPATHS: Dict[str, str] = {
+    **_RECORD_CLASS_SUBPATHS,
+    RecordClass.SPECS.value: "docs/specs",
+    RecordClass.RESEARCH.value: "docs/research",
     RecordClass.WALKTHROUGHS.value: "docs/walkthroughs",
-    RecordClass.RUNS.value: "runs",
-    RecordClass.WORKFLOW_ARTIFACTS.value: "workflow-artifacts",
 }
 
 _DURABLE_STATE_SUBPATHS: Dict[str, str] = {
@@ -600,7 +614,10 @@ def resolve_record_read_paths(
 
     if manifest_file.is_file():
         try:
-            legacy_sub = _RECORD_CLASS_SUBPATHS.get(record_class, "")
+            # Legacy `.agents/` reads use the DECOUPLED legacy subpath (keeps `docs/` nesting), so
+            # the flattened final `.aw/records/` layout does not break legacy migration reads
+            # (IPD awretrofit Order 07, plan-review PR-001).
+            legacy_sub = _LEGACY_RECORD_CLASS_SUBPATHS.get(record_class, "")
             target_base = Path(ctx.target_repo)
             legacy_dir = (
                 target_base / ".agents" / legacy_sub

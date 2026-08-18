@@ -60,16 +60,12 @@ workflow-artifacts/
 .aw/state/
 .aw/config/local.json
 
-# The workflow-artifacts/ run scratch (release-review/assess/advise/verify run records) is
-# gitignored at its legacy path above because it holds local context, home paths, and session
-# detail (D92). The physical-.aw migration MOVES it into these .aw/records/ subtrees, which MUST
-# stay untracked for the same reason (spec 20260810-1447-01). The .agents-derived records (plans,
-# docs, backlog, comms, prompts) remain tracked.
-.aw/records/release-review/
-.aw/records/verify/
-.aw/records/verify-execution/
-.aw/records/assess-*/
-.aw/records/advise-*/
+# The run scratch (release-review/assess/advise/verify run records) holds local context, home paths,
+# and session detail (D92), so it MUST stay untracked. Order 07 (spec 20260817-2124-01) gives it ONE
+# home: `.aw/workflow-artifacts/<workflow>/<RUN_ID>/` (a sibling of `.aw/records/`, which is now purely
+# durable tracked records - no run scratch mixed in). The repo-root `workflow-artifacts/` (line above)
+# is also ignored for the transition; new runs write under `.aw/workflow-artifacts/`.
+.aw/workflow-artifacts/
 
 # <!-- aw:block -->
 # <!-- aw:untracked -->

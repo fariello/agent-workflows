@@ -81,7 +81,9 @@ class ShippedDocsNoLegacyPathTests(unittest.TestCase):
         text = _AGENTS_MD.read_text(encoding="utf-8")
         self.assertNotIn(".agents/", text)
         # And it references the correct docs/ sub-paths (the PR-001 generator fix).
-        self.assertIn(".aw/records/docs/research/", text)
+        # Order 07 flattened the doc-family out of docs/: the generator now emits the flat path.
+        self.assertIn(".aw/records/research/", text)
+        self.assertNotIn(".aw/records/docs/", text)
         self.assertIn(".aw/system/workflows/", text)
 
     def test_release_review_leads_with_aw(self):

@@ -867,13 +867,12 @@ def agents_pointer_prose(target_layout: str = "legacy") -> str:
     if target_layout == "aw":
         workflows_dir = AW_SYSTEM_WORKFLOWS_DIR
         index_file = f"{AW_SYSTEM_WORKFLOWS_DIR}/index.md"
-        # Docs-family records live under the `docs/` sub-root (IPD awretrofit Order 02 PR-001):
-        # the physical layout is .aw/records/docs/{research,walkthroughs,specs}, not a flat
-        # .aw/records/{research,...}.
-        research_dir = ".aw/records/docs/research"
-        walkthroughs_dir = ".aw/records/docs/walkthroughs"
+        # Doc-family records are FLATTENED directly under .aw/records/ (IPD awretrofit Order 07,
+        # spec 20260817-2124-01): .aw/records/{research,walkthroughs,specs}, no docs/ level.
+        research_dir = ".aw/records/research"
+        walkthroughs_dir = ".aw/records/walkthroughs"
         plans_dir = ".aw/records/plans"
-        specs_dir = ".aw/records/docs/specs"
+        specs_dir = ".aw/records/specs"
         comms_dir = ".aw/records/comms"
         attention_root = ".aw/"
     else:

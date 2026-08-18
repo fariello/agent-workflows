@@ -265,7 +265,7 @@ def _roots(args: argparse.Namespace) -> Tuple[Path, Path]:
     try:
         res_root = resolve_record_path("research", target_repo=str(repo_root))
     except Exception:
-        res_root = repo_root / ".aw" / "records" / "docs" / "research"
+        res_root = repo_root / ".aw" / "records" / "research"
     if not res_root.is_dir() and (repo_root / ".agents" / "docs" / "research").is_dir():
         res_root = repo_root / ".agents" / "docs" / "research"
     return repo_root, res_root

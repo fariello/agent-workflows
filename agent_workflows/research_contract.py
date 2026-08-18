@@ -327,12 +327,12 @@ ARCHIVE_DIR = "archive"
 
 
 def resolve_research_root(repo_root) -> Path:
-    """Resolve the physical research root, layout-aware (IPD awretrofit Order 01).
+    """Resolve the physical research root, layout-aware (IPD awretrofit Order 01 + Order 07 flatten).
 
-    Prefers the migrated ``.aw/records/docs/research`` (via ``resolve_record_path``); falls back to
-    the legacy ``.agents/docs/research`` only when the resolved dir is absent AND the legacy dir
-    exists. Mirrors ``research_index._roots`` so every research verb (new/refs/archive) shares one
-    resolution and cannot drift.
+    Prefers the migrated FLAT ``.aw/records/research`` (via ``resolve_record_path``; the docs/ nesting
+    was removed in Order 07, spec 20260817-2124-01); falls back to the legacy ``.agents/docs/research``
+    (which keeps its docs/ nesting) only when the resolved dir is absent AND the legacy dir exists.
+    Mirrors ``research_index._roots`` so every research verb (new/refs/archive) shares one resolution.
     """
 
     repo_root = Path(repo_root)
@@ -341,7 +341,7 @@ def resolve_research_root(repo_root) -> Path:
     try:
         res_root = resolve_record_path("research", target_repo=str(repo_root))
     except Exception:
-        res_root = repo_root / ".aw" / "records" / "docs" / "research"
+        res_root = repo_root / ".aw" / "records" / "research"
     if not res_root.is_dir() and (repo_root / ".agents" / "docs" / "research").is_dir():
         res_root = repo_root / ".agents" / "docs" / "research"
     return res_root

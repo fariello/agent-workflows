@@ -23,7 +23,7 @@ from typing import List, Optional, Tuple
 from agent_workflows import artifact_core as core
 from agent_workflows import attention_contract as A
 
-SPECS_ROOT = ".aw/records/docs/specs"
+SPECS_ROOT = ".aw/records/specs"
 
 
 # --------------------------------------------------------------------------------------
@@ -73,7 +73,7 @@ def _spec_files(repo_root: Path) -> List[Path]:
     try:
         roots = list(resolve_record_read_paths("specs", target_repo=str(repo_root)))
     except Exception:
-        roots = [repo_root / ".aw" / "records" / "docs" / "specs"]
+        roots = [repo_root / ".aw" / "records" / "specs"]
     # Always include the legacy `.agents/docs/specs` read path for bounded compatibility.
     # resolve_record_read_paths only appends the legacy dir once a migration retention
     # manifest exists; but an UN-migrated repo (the common case until the Order 11
@@ -566,7 +566,7 @@ def _evidence_resolvable(spec_path: Path, evidence: str) -> bool:
     `.aw/records/plans/executed/` (after the physical-layout migration). The repo root is
     found by walking up from the spec file until a `.git` (or the `.aw`/`.agents` root) is
     seen, so this works whether the spec lives under `.agents/docs/specs/` (3 deep) or
-    `.aw/records/docs/specs/` (4 deep).
+    `.aw/records/specs/` (flattened, Order 07).
     """
 
     if not A.is_safe_descriptive(evidence):

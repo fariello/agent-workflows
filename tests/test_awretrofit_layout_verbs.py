@@ -153,15 +153,14 @@ class LegacyFallbackTests(unittest.TestCase):
 
 class ResearchAndRefsLayoutTests(_RepositoryBackendFixture):
     def test_research_root_resolves_migrated_layout(self):
-        """E-04/V-04: the shared research-root resolver targets .aw/records/docs/research."""
+        """The shared research-root resolver targets the FLAT .aw/records/research (Order 07 flatten)."""
         from agent_workflows import research_contract as R
 
-        (self.repo / ".aw" / "records" / "docs" / "research").mkdir(
-            parents=True, exist_ok=True
-        )
+        (self.repo / ".aw" / "records" / "research").mkdir(parents=True, exist_ok=True)
         root = R.resolve_research_root(self.repo)
         self.assertTrue(str(root).startswith(str(self.repo)))
-        self.assertIn(".aw/records/docs/research", str(root).replace("\\", "/"))
+        self.assertIn(".aw/records/research", str(root).replace("\\", "/"))
+        self.assertNotIn(".aw/records/docs/", str(root).replace("\\", "/"))
 
     def test_plans_refs_and_archive_resolve_migrated_layout(self):
         """E-03/V-03: plans_refs._dirs and plans_archive._dirs resolve .aw/records/plans."""

@@ -5,7 +5,7 @@
 - Kind: chore
 - Summary: RELEASE BLOCKER: uniform artifact-naming grammar (.type.md suffix, one grammar for all record types) before release
 - Gate-Kind: artifact
-- Gate-Ref: .aw/records/docs/specs/20260817-2147-01-uniform-artifact-naming-grammar.spec.md
+- Gate-Ref: .aw/records/specs/20260817-2147-01-uniform-artifact-naming-grammar.spec.md
 
 ## Workflow history
 - 2026-08-17 created (aw backlog): RELEASE BLOCKER: uniform artifact-naming grammar (.type.md suffix, one grammar for all record types) before release

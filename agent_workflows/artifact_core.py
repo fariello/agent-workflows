@@ -163,7 +163,12 @@ SCAN_ROOTS = (
     ".agents/docs",
     ".agents/backlog",
     ".aw/records/plans",
-    ".aw/records/docs",
+    # Docs types flattened out of docs/ in Order 07 (spec 20260817-2124-01); scan them directly.
+    ".aw/records/specs",
+    ".aw/records/research",
+    ".aw/records/walkthroughs",
+    ".aw/records/roadmaps",
+    ".aw/records/prompt-library",
     ".aw/records/backlog",
 )
 

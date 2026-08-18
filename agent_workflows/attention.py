@@ -50,7 +50,23 @@ def _classify_tree(rel_posix: str) -> Optional[A.TreePolicy]:
 
     norm_rel = rel_posix
     if norm_rel.startswith(".aw/records/"):
-        norm_rel = ".agents/" + norm_rel[len(".aw/records/") :]
+        tail = norm_rel[len(".aw/records/") :]
+        # Order 07 flattened the doc-family types out of docs/ in the .aw/ layout, but the
+        # TreePolicy keys (and legacy .agents/) keep the docs/ grouping. Re-insert docs/ for those
+        # types so the flat .aw/records/<type> classifies under the same policy as .agents/docs/<type>.
+        _DOCS_FAMILY = (
+            "specs",
+            "research",
+            "walkthroughs",
+            "roadmaps",
+            "prompt-library",
+        )
+        first = tail.split("/", 1)[0]
+        if first in _DOCS_FAMILY:
+            # prompt-library maps to the legacy docs/prompts policy key (renamed in Order 07).
+            legacy_type = "prompts" if first == "prompt-library" else first
+            tail = "docs/" + legacy_type + tail[len(first) :]
+        norm_rel = ".agents/" + tail
 
     best: Optional[A.TreePolicy] = None
     for pol in A.TREE_POLICY:

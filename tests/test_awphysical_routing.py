@@ -128,9 +128,8 @@ class PhysicalProducerRoutingTests(unittest.TestCase):
             target_repo=self.target_repo,
             aw_home=self.aw_home,
         )
-        self.assertTrue(
-            str(p_specs).endswith(".aw/records/docs/specs/20260810-spec.md")
-        )
+        # Order 07 flattened specs out of docs/ (spec 20260817-2124-01).
+        self.assertTrue(str(p_specs).endswith(".aw/records/specs/20260810-spec.md"))
 
         # 5. Git ownership
         self.assertEqual(

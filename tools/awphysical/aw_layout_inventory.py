@@ -643,6 +643,35 @@ def inventory(
     return result
 
 
+# Order 07 (spec 20260817-2124-01): FINAL .aw/records/ layout flattens the doc-family types out of
+# docs/ and renames the prompt LIBRARY (docs/prompts -> prompt-library). Legacy `.agents/docs/<type>/`
+# maps DIRECTLY to these final destinations (no intermediate .aw/records/docs/ hop). Order matters:
+# the specific docs/prompts rule precedes the generic docs/<type> flatten.
+_RECORDS_SUBPATH_REWRITES = (
+    ("docs/prompts/", "prompt-library/"),
+    ("docs/research/", "research/"),
+    ("docs/specs/", "specs/"),
+    ("docs/walkthroughs/", "walkthroughs/"),
+    ("docs/roadmaps/", "roadmaps/"),
+)
+
+
+def _flatten_records_subpath(source_relpath: str) -> str:
+    """Rewrite a legacy records-class source subpath to the FINAL flat .aw/records/ subpath.
+
+    e.g. ``docs/specs/x.spec.md`` -> ``specs/x.spec.md``; ``docs/prompts/lib.md`` ->
+    ``prompt-library/lib.md``. Non-doc-family subpaths (plans/, prompts/, comms/, backlog/, ...)
+    are returned unchanged.
+    """
+
+    for legacy_prefix, final_prefix in _RECORDS_SUBPATH_REWRITES:
+        if source_relpath == legacy_prefix.rstrip("/"):
+            return final_prefix.rstrip("/")
+        if source_relpath.startswith(legacy_prefix):
+            return final_prefix + source_relpath[len(legacy_prefix) :]
+    return source_relpath
+
+
 def build_migration_map(
     repo: Path,
     inv_doc: Dict[str, Any],
@@ -684,7 +713,11 @@ def build_migration_map(
         elif dest_class == "system":
             dest_relpath = f"system/{source_relpath}"
         elif dest_class == "records":
-            dest_relpath = f"records/{source_relpath}"
+            # Order 07 (spec 20260817-2124-01): the FINAL .aw/records/ layout flattens the doc-family
+            # types out of docs/ and renames the prompt LIBRARY. Map legacy .agents/docs/<type>/...
+            # DIRECTLY to the final flat destination (no intermediate .aw/records/docs/ hop; the .aw/
+            # layout has not shipped, so only legacy->final is needed). Non-doc records unchanged.
+            dest_relpath = f"records/{_flatten_records_subpath(source_relpath)}"
         elif dest_class == "durable_state":
             dest_relpath = f"state/durable/{source_relpath}"
         elif dest_class == "config":
