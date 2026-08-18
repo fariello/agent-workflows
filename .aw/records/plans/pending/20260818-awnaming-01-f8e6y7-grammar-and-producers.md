@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Spec 20260817-2147-01 (RELEASE BLOCKER, backlog 047ce9), awnaming Order 01. Adopt ONE artifact-naming grammar `YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md` for all durable record types by moving the TYPE signal into the filename. This Order is the ALL-REPOS, shipped half: teach the two filename-grammar sites to accept an optional `.<type>` before `.md`, make the name generator + producers EMIT `.type.md`, and make `aw plan-names` validate it. The record readers already glob `*.md` and read metadata from front-matter, so dual-read is free and this Order adds no reader breakage.
 - Scope: The shipped grammar + producers + validator. IN: `plans_refs._CLUSTERED_RE`/`clustered_name`, `normalize_plan_names._CLUSTERED_RE`/`is_conformant`/`parse_name`, `aw plan-names`, `aw plans mv`/`research mv` Order-preservation, `aw backlog new` name, `aw ipd scaffold` name derivation, tests. OUT: renaming this repo's existing files (Order 02); AGENTS.md prose (Order 02); the version number (S6-V01); research `.<model>.<kind>.md` (already type-style); run-artifacts; the optional rename-on-migrate nicety (follow-up backlog item).
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-18, human ("Approved. Go, one after the other.") after /plan-review (APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed).
 - Set: awnaming
 - Order: 1
 - Highest E allocated: 08

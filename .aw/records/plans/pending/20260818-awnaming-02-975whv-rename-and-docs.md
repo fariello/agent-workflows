@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Spec 20260817-2147-01 (RELEASE BLOCKER, backlog 047ce9), awnaming Order 02. The THIS-REPO, ships-nothing half of the naming-grammar rollout: rename this framework repo's own existing durable records to the `.type.md` grammar (dogfooding), regenerate the INDEX/STATUS manifests, fix internal citations, reconcile AGENTS.md's TWO conflicting documented grammars into the ONE grammar, close vf03z3, and file the optional rename-on-migrate nicety as a follow-up backlog item. Depends on Order 01 (the grammar/validator/generator must exist first so the renamed files match what the tooling expects).
 - Scope: This repo's `.aw/records/` files + docs. IN: rename plans (184), specs (16), walkthroughs (11), roadmaps (1), backlog (33), comms (22), prompts (16), prompt-library (4) to `.type.md`; regenerate `aw plans index`/`aw research index`/`aw specs`/`aw backlog check` manifests + STATUS/INDEX; fix internal path citations; reconcile AGENTS.md lines 26 + 51; close vf03z3; file the migration-rename follow-up backlog item. OUT: research files (86, keep `.<model>.<kind>.md`); the grammar/producer/validator CODE (Order 01); the version number (S6-V01); the shipped migration behavior.
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-18, human ("Approved. Go, one after the other.") after /plan-review (APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed).
 - Set: awnaming
 - Order: 2
 - Highest E allocated: 07

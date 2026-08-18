@@ -4,7 +4,8 @@
 - Kind: orchestrator
 - Concern: Spec 20260817-2147-01 (RELEASE BLOCKER, backlog 047ce9): adopt ONE artifact-naming grammar `YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md` across every durable `.aw/records/` type, moving the TYPE signal into the filename (`.ipd.md`/`.prompt.md`/`.spec.md`/`.walkthrough.md`/`.roadmap.md`/`.backlog.md`/`.comms.md`; research keeps its richer `.<model>.<kind>.md`). Code investigation shrank the surface: the record READERS (plans.py:184, plans_index.py:91, ipd_lint.py:758) glob `*.md` and read metadata from FRONT-MATTER, not the filename, so `.type.md` files are already read fine (dual-read is free). The filename grammar is enforced in only three narrow places: `plans_refs._CLUSTERED_RE` (31), `normalize_plan_names._CLUSTERED_RE`/`parse_name` (105/165), and `research_contract.parse_name` (265, already type-style, OUT). So the real change = extend those 2 regex tails + the name GENERATOR (`plans_refs.build_name`:126) + `aw plan-names` + rename this repo's own files.
 - Scope: Ship the grammar as new-file behavior (all-repos, small) and dogfood-rename THIS repo's existing files (this-repo). OUT: the version NUMBER (S6-V01); run-artifacts naming (keep `<RUN_ID>/`); the directory taxonomy (spec 20260817-2124-01, done); research naming (already type-style).
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-18, human ("Approved. Go, one after the other.") after /plan-review (APPROVE WITH REVISIONS APPLIED).
 - Set: awnaming
 - Order: 0
 - Highest E allocated: 01
