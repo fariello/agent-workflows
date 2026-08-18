@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Spec 20260817-2124-01 (RELEASE BLOCKER): the `.aw/records/` taxonomy has (A) workflow run-artifacts (assess-*/verify/verify-execution/release-review/advise-*) at the records ROOT, (B) two identically-named `prompts` dirs (staging vs library), (C) deeper-than-wanted `docs/` nesting. Backlog lavkg7 gates the release on this.
 - Scope: Implement the spec's FINAL `.aw/records/` taxonomy. PRE-RELEASE framing (spec Section 0): the `.aw/` layout has NOT shipped, so this changes the legacy `.agents/` -> FINAL migration DESTINATIONS in place and brings this dev repo onto the final layout by a one-time git mv - it does NOT build an intermediate `.aw/records/docs/` -> final migration hop. Task groups A (run-artifacts home), B (dedup prompts), C (flatten docs). OUT: the four physical roots, records-backend choice, changing what any workflow does.
-- Status: draft
+- Status: to-review
 - Set: awretrofit
 - Order: 7
 - Highest E allocated: 08
@@ -13,7 +13,7 @@
 
 ## Workflow history
 
-- 2026-08-17 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created from spec 20260817-2124-01 (Set awretrofit Order 07). DRAFT: blocked on the spec's OQ-A1/OQ-C1 being resolved (approved) before the E-items are final.
+- 2026-08-17 authored (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): created from spec 20260817-2124-01 (Set awretrofit Order 07); E-items finalized after the maintainer resolved the spec OQs (run-artifacts -> .aw/workflow-artifacts/; flatten -> .aw/records/{research,specs,walkthroughs,roadmaps}; library -> .aw/records/prompt-library/; no misc/). Ready for /plan-review.
 
 ## Goal
 
@@ -26,35 +26,38 @@ legacy->final destination change plus a one-time dev-repo `git mv`, with NO inte
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.
 
-DRAFT NOTE: The exact target names depend on spec OQ-A1 (run-artifacts home), OQ-B1 (library name),
-OQ-C1/C2 (flatten + misc). The E-items below assume the spec's RECOMMENDED defaults and MUST be
-finalized when the spec is approved (see this IPD's Open questions, which mirror the spec's). `aw ipd
-sync` will assign V-* items after the E-set is finalized in review.
+FINALIZED TARGETS (spec 20260817-2124-01 OQs resolved by the maintainer 2026-08-17):
+- Run-artifacts single home = **`.aw/workflow-artifacts/<workflow>/<RUN_ID>/`** (under `.aw/`, NOT repo-root).
+- Durable doc types FLATTENED to **`.aw/records/{research,specs,walkthroughs,roadmaps}`** (no `docs/`).
+- Prompt LIBRARY = **`.aw/records/prompt-library/`**; lifecycle STAGING `.aw/records/prompts/` UNCHANGED.
+- NO `misc/` catch-all.
+- Uniform `.type.md` FILE-naming is a SEPARATE spec (20260817-2147-01, its own Order); this Order is
+  DIRECTORIES only and keeps existing filenames.
 
-### Task group A: run-artifacts get one obvious home (spec G1, OQ-A1)
+### Task group A: run-artifacts get one obvious home (spec G1, OQ-A1 -> `.aw/workflow-artifacts/`)
 
-- [ ] E-01 Resolve the run-artifacts double-home. Per OQ-A1 recommended default (option 1): the SINGLE home is the top-level `workflow-artifacts/<workflow>/<RUN_ID>/` (what the shipped workflow bodies already write). REMOVE the `.aw/records/{assess-*,verify,verify-execution,release-review,advise-*}` home: delete its `.gitignore` lines (:68-72), remove any migration step that relocates old `workflow-artifacts/` INTO `.aw/records/`, and confirm no code writes run records under `.aw/records/`. If OQ-A1 resolves to option 2 instead (`.aw/records/runs/`), invert: point the workflow bodies + gitignore + migration there. (Finalize on OQ-A1.)
+- [ ] E-01 Make `.aw/workflow-artifacts/<workflow>/<RUN_ID>/` the SINGLE run-artifacts home. (a) Point the shipped workflow bodies that write run records (assess.md, verify.md, verify-execution.md, the release-review runbook, advise.md) at `.aw/workflow-artifacts/<workflow>/<RUN_ID>/` instead of repo-root `workflow-artifacts/`. (b) REMOVE the `.aw/records/{assess-*,verify,verify-execution,release-review,advise-*}` home: delete its `.gitignore` lines (currently :68-72) and add a single `.aw/workflow-artifacts/` ignore; remove any migration step that relocates old `workflow-artifacts/` INTO `.aw/records/`. (c) Confirm no code writes run records under `.aw/records/`.
   - Depends on: none
-  - Expected outcome: exactly ONE documented home for run-artifacts; `.aw/records/` root has no `<RUN_ID>` dirs; workflow bodies, `.gitignore`, and migration agree.
+  - Expected outcome: exactly ONE documented home (`.aw/workflow-artifacts/`); `.aw/records/` root has no `<RUN_ID>` dirs; workflow bodies + `.gitignore` + migration agree; `.aw/workflow-artifacts/` gitignored.
   - Execution state: pending
 
-- [ ] E-02 Bring THIS dev repo onto the decision: move the existing untracked `.aw/records/{assess-*,verify,verify-execution,release-review,advise-*}` run dirs to the chosen home (one-time; they are untracked so a plain `mv`), or remove them if they duplicate `workflow-artifacts/` content.
+- [ ] E-02 Bring THIS dev repo onto the decision: move the existing untracked `.aw/records/{assess-*,verify,verify-execution,release-review,advise-*}` run dirs to `.aw/workflow-artifacts/<workflow>/` (one-time; they are untracked so a plain `mv`), or remove any that duplicate content already under the run-artifacts home.
   - Depends on: E-01
-  - Expected outcome: this repo's `.aw/records/` root contains only durable record types.
+  - Expected outcome: this repo's `.aw/records/` root contains only durable record types; the moved run dirs live under `.aw/workflow-artifacts/`.
   - Execution state: pending
 
-### Task group B: dedup the `prompts` name (spec G2, OQ-B1)
+### Task group B: dedup the `prompts` name (spec G2, OQ-B1 -> `prompt-library/`)
 
-- [ ] E-03 Rename the prompt LIBRARY `.aw/records/docs/prompts/` to its agreed distinct name (OQ-B1 default `prompt-library/`, final path per Task group C), leaving the lifecycle STAGING `.aw/records/prompts/` unchanged. Update `resolve_record_path`/read-paths + any consumer + the shipped docs that reference the library path.
+- [ ] E-03 Rename the prompt LIBRARY to `.aw/records/prompt-library/` (was `.aw/records/docs/prompts/`), leaving the lifecycle STAGING `.aw/records/prompts/` UNCHANGED. Update `resolve_record_path`/read-paths + any consumer + the shipped docs that reference the library path.
   - Depends on: E-04
-  - Expected outcome: no two record subtrees share the leaf name `prompts`; the library resolves at its new path; staging `prompts/` unchanged.
+  - Expected outcome: no two record subtrees share the leaf name `prompts`; the library resolves at `.aw/records/prompt-library/`; staging `prompts/` unchanged.
   - Execution state: pending
 
-### Task group C: flatten docs/ (spec G3, OQ-C1/C2)
+### Task group C: flatten docs/ (spec G3, OQ-C1 -> flat; OQ-C2 -> no misc)
 
-- [ ] E-04 Update the canonical layout + resolvers: `resolve_record_path`/`resolve_record_read_paths` (record_producers.py) + `project_schema`/`project_context` targets so the durable doc types resolve at the FINAL flat paths `.aw/records/{specs,research,walkthroughs,roadmaps}` (per OQ-C1) instead of `.aw/records/docs/{...}`. Add `misc/` only if OQ-C2 says so.
+- [ ] E-04 Update the canonical layout + resolvers: `resolve_record_path`/`resolve_record_read_paths` (record_producers.py) + `project_schema`/`project_context` targets so the durable doc types resolve at the FINAL flat paths `.aw/records/{research,specs,walkthroughs,roadmaps}` instead of `.aw/records/docs/{...}`. Do NOT add a `misc/` catch-all (OQ-C2 resolved: omit).
   - Depends on: none
-  - Expected outcome: every resolver + consumer verb (`aw specs`, `aw research`, `aw plans`, `aw attention`, `aw backlog`) resolves the flat final paths.
+  - Expected outcome: every resolver + consumer verb (`aw specs`, `aw research`, `aw plans`, `aw attention`, `aw backlog`) resolves the flat final paths; no `docs/` level; no `misc/`.
   - Execution state: pending
 
 - [ ] E-05 Update the legacy->FINAL migration DESTINATIONS in `layout_migration.py` (and its mapping tables) so legacy `.agents/docs/{research,specs,walkthroughs,roadmaps}` and `.agents/docs/prompts` map DIRECTLY to the final flat paths + the renamed library - NO intermediate `.aw/records/docs/` hop (spec Section 0). Update the awphysical migration tests' expected destinations.
@@ -129,23 +132,22 @@ destinations; D (E-06/E-07) shipped-docs reconcile + dev-repo git mv; E (E-08) v
 
 ## Open questions
 
-### OQ-01: run-artifacts home - top-level `workflow-artifacts/` or `.aw/records/runs/`? (mirrors spec OQ-A1)
+### OQ-01: run-artifacts home - top-level `workflow-artifacts/` or `.aw/records/runs/`? (mirrors spec OQ-A1) [RESOLVED]
 
-- Blocking: yes
-- Status: open
-- Owner: maintainer (resolve at spec approval)
-- Resolution or deferral rationale: Determines E-01/E-02. Spec recommendation: option 1 (keep top-level
-  `workflow-artifacts/` as the single home, drop the `.aw/records/<run>` home) - less shipped-body churn
-  and keeps `.aw/records/` purely durable. Finalize the E-items when the spec resolves this.
+- Blocking: no
+- Status: resolved
+- Owner: maintainer (2026-08-17)
+- Resolution or deferral rationale: SINGLE home = `.aw/workflow-artifacts/<workflow>/<RUN_ID>/` (the
+  maintainer chose top-level-single-home AND under `.aw/` rather than repo-root). The `.aw/records/<run>`
+  home is removed. E-01/E-02 finalized to this.
 
-### OQ-02: flatten `docs/` fully + library name + `misc/`? (mirrors spec OQ-B1/OQ-C1/OQ-C2)
+### OQ-02: flatten `docs/` + library name + `misc/`? (mirrors spec OQ-B1/OQ-C1/OQ-C2) [RESOLVED]
 
-- Blocking: yes
-- Status: open
-- Owner: maintainer (resolve at spec approval)
-- Resolution or deferral rationale: Determines E-03/E-04/E-05/E-06/E-07 target names. Spec defaults:
-  flat `.aw/records/{specs,research,walkthroughs,roadmaps}`, library `prompt-library/`, `misc/` only if
-  a real need. Finalize on spec approval.
+- Blocking: no
+- Status: resolved
+- Owner: maintainer (2026-08-17)
+- Resolution or deferral rationale: FLATTEN to `.aw/records/{research,specs,walkthroughs,roadmaps}`;
+  library = `.aw/records/prompt-library/`; NO `misc/`. E-03/E-04/E-05/E-06/E-07 finalized to these.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -196,9 +198,9 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-BLOCKED ON SPEC APPROVAL: this IPD is a draft whose E-item target names depend on spec 20260817-2124-01
-OQ-A1/OQ-B1/OQ-C1/OQ-C2. It must reach `to-review` -> `/plan-review` -> human `approved` only AFTER the
-spec's blocking OQs are resolved (finalizing the E-items). Execution requires human approval
+SPEC OQs RESOLVED (2026-08-17): the E-item target names are finalized (`.aw/workflow-artifacts/`,
+flat `.aw/records/{research,specs,walkthroughs,roadmaps}`, `.aw/records/prompt-library/`, no `misc/`),
+so this IPD is ready for `/plan-review` -> human `approved` -> execution. Execution requires human approval
 (`Status: approved` + attributed `- Approval:` line). The executor implements E-01..E-08, pastes actual
 evidence (resolver outputs, the legacy->final migration test, the drift guard, the full serial suite,
 the spec/backlog transitions), commits only the scoped paths (`agent_workflows/record_producers.py`,
