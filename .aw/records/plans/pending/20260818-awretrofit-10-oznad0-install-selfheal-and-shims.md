@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Discovered executing Order 09 (2026-08-18): `aw install .` on this repo is BROKEN and leaves stale host shims. (1) `ensure_workflow_artifacts_readme` (engine.py:4082) writes `workflow-artifacts/README.md` and the install `git add`s it, but `workflow-artifacts/` is gitignored -> the whole install FAILS ("The following paths are ignored... Use -f"). (2) 42 host shims (21 `.claude/commands/*` + 21 `.opencode/commands/*`) still say `Read and execute @.agents/workflows/...` - never regenerated after the migration; a fresh `aw install` would fix them but currently can't (it fails at (1)).
 - Scope: (a) Make the installer tolerant when its `git add` target is gitignored - skip/soft-warn instead of failing the whole install (a gitignored `workflow-artifacts/` is a legitimate config, and the migration deliberately gitignores run scratch). (b) Regenerate the 42 stale `.claude`/`.opencode` command shims to `.aw/system/workflows/...`. This UNBLOCKS Order 09 (manifest regen via a now-working `aw install .`). OUT: the managed-sections manifest rekey itself (Order 09).
-- Status: to-review
+- Status: reviewed
 - Set: awretrofit
 - Order: 10
 - Highest E allocated: 03
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-18 authored (opencode Opus 4.8): created after Order 09 hit a broken `aw install .` (git-add of a gitignored path) + found 42 stale host shims. Unblocks Order 09.
+- 2026-08-18 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Structural preflight conforming. Both findings were already reproduced during Order 09 execution (the install FAILED, and 42 shims verified stale). PR-001 (fix simplification): the canonical `git_add_optional` helper (engine.py:1456) ALREADY does skip-when-ignored and is ALREADY used by the sibling README ensurers (:4165/4217/4261); the failing `ensure_workflow_artifacts_readme` (:4110) is the lone raw-`git_run(add)` outlier - so E-01 is a one-line swap to `git_add_optional`, NOT a new check-ignore mechanism; the other raw-add sites (:2105/2144/2226/2316/2441/3008) add non-gitignorable deliverables (verified) and stay raw. E-01 rescoped accordingly. No open questions. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -28,9 +29,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: install tolerates a gitignored git-add target (the failure)
 
-- [ ] E-01 Fix the install so a `git add` of a target that git IGNORES does not abort the whole run. The concrete failure is `ensure_workflow_artifacts_readme` (engine.py:4082) -> `git add workflow-artifacts/README.md` when `workflow-artifacts/` is gitignored. Make the staging tolerant: check `git check-ignore` (or catch the add failure) and SKIP staging an ignored path with a soft note, rather than propagating a fatal error. Apply the same tolerance to any other installer `git add` that can hit a gitignored deliverable (audit `git_add_optional`/the README/comms/prompts ensurers). The file is still WRITTEN (a discoverable README on disk); it is just not staged when ignored. Do NOT `-f` force-add (that would fight the user's/framework's own gitignore).
+- [ ] E-01 Fix `ensure_workflow_artifacts_readme` to stage via the EXISTING `git_add_optional` helper instead of the raw `git_run(plan.repo_root, ["add", "--", rel_path])` (engine.py:4110). **plan-review PR-001 (verified):** the fix is a one-line swap, NOT a new check-ignore path - `git_add_optional` (engine.py:1456) ALREADY does exactly the desired thing ("stage a path, tolerating the case where it is ignored by .gitignore... warn once and continue rather than aborting; any OTHER git failure is a real error and is raised"), and the sibling README ensurers (`ensure_plans/docs/prompts_readmes`, :4165/4217/4261) ALREADY use it - line 4110 is the lone outlier that used raw `git_run(add)` and therefore aborts on a gitignored `workflow-artifacts/`. Audit the other raw `git_run(add)` sites (engine.py:2105/2144/2226/2316/2441/3008) and confirm they add paths that are NOT gitignorable deliverables (`.gitignore` itself, native host-adapter files, backups) - they are intentionally raw; only 4110 hit the hazard. The README is still WRITTEN; it is just not staged when ignored. Do NOT `-f` force-add.
   - Depends on: none
-  - Expected outcome: `aw install .` on this repo (which gitignores `workflow-artifacts/` + `.aw/workflow-artifacts/`) RUNS TO COMPLETION; an ignored README is written-but-not-staged, not a fatal error.
+  - Expected outcome: `aw install .` on this repo (which gitignores `workflow-artifacts/` + `.aw/workflow-artifacts/`) RUNS TO COMPLETION via `git_add_optional`'s skip-when-ignored; an ignored README is written-but-not-staged, not a fatal error.
   - Execution state: pending
 
 ### Task group 2: regenerate the stale host shims
@@ -54,13 +55,15 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 - The `workflow-artifacts/` README template asserts "DO NOT gitignore this folder", but Order 07 (spec 20260817-2124-01) deliberately gitignores run scratch (`.aw/workflow-artifacts/` + repo-root `workflow-artifacts/`). So the installer must TOLERATE a gitignored target, not force it tracked - the design says run scratch is ephemeral/untracked.
 - Command shims are GENERATED from the workflow manifest during install (never hand-maintained); regenerate via the installer.
 - Firm rule: the installer must not `-f` force-add against the user's gitignore.
+- `git_add_optional` (engine.py:1456) is the CANONICAL skip-when-ignored staging helper (it warns once + continues, raising only on non-ignore git failures); the fix is to route the one raw-add outlier (4110) through it, matching the sibling ensurers - not to invent new tolerance logic.
 
 ## Findings
 
 | id | area | evidence | issue |
 |---|---|---|---|
-| INST01 | install failure | engine.py:4082 ensure_workflow_artifacts_readme -> git add of gitignored workflow-artifacts/README.md | `aw install .` aborts on a repo that gitignores workflow-artifacts/ |
+| INST01 | install failure | engine.py:4110 ensure_workflow_artifacts_readme uses raw `git_run(add)` on gitignored workflow-artifacts/README.md | `aw install .` aborts on a repo that gitignores workflow-artifacts/ |
 | SHIM01 | stale host shims | 21 .claude/commands/* + 21 .opencode/commands/* say `@.agents/workflows/...` | never regenerated post-migration; shims point at a vanished path |
+| PR-001 | plan-review (fix simplification) | `git_add_optional` already exists (engine.py:1456) + is used by the sibling README ensurers (:4165/4217/4261); 4110 is the lone raw-add outlier | E-01 is a one-line swap to `git_add_optional`, not a new check-ignore mechanism. FIXED in E-01. |
 
 ## Proposed changes (ordered, validatable)
 
