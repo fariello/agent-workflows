@@ -16,6 +16,7 @@
 - 2026-08-17 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-17 authored (opencode Opus 4.8): filled from release-review run 20260817-153418 finding S4-D03 (Set awretrofit Order 03).
 - 2026-08-17 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE (no revisions). Structural preflight conforming. Verified citations against real code: Makefile:48/51 write `.agents/workflows/{VERSION,index.md}` (accurate); RELEASING.md:44 documents `.agents/workflows/VERSION` (accurate). Additionally verified the index-stamp anchors E-01 relies on still exist in the flat `.aw/system/workflows/index.md` (line 3 `<!-- WORKFLOWS-VERSION: -->`, line 4 `Version: \`1.2.1\``) so the re-stamp regex will match post-Order-02/07. Scope correctly excludes the version NUMBER (S6-V01). No findings; no open questions. GO - PENDING HUMAN APPROVAL.
+- 2026-08-17 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against Makefile:48/51, RELEASING.md:44, and .aw/system/workflows/index.md anchors; structural lint conforming; no findings; no open questions; GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
