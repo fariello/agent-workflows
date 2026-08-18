@@ -4,10 +4,10 @@
 - Kind: child
 - Concern: Release-review 20260817-153418 findings S2-B02, S2-B03, S2-M01, S2-L01: (B02) the install/setup scaffolder writes the records tree into legacy `.agents/` (engine.py constants 3699/3707/3725/3750) re-introducing split-brain on a fresh install; (B03) `aw uninstall --deep` cleans only `.agents/*` (engine.py:3423-3430) despite help promising `.aw/records/`; (M01) `cleanup_migration` can `rmtree`/`unlink` a re-created legacy source path and `_perform_move` clobbers a pre-existing destination unconditionally; (L01) leftover `remove` marks a path "removed" on `git rm` failure then force-unlinks, and rollback config write is non-atomic.
 - Scope: Make the install scaffolder + `uninstall --deep` layout-aware and harden the migration engine's cleanup/move/rollback against destroying re-created or foreign content. OUT: the record-VERB cluster (Order 01, done) and shipped docs (Order 02).
-- Status: to-review
+- Status: reviewed
 - Set: awretrofit
 - Order: 4
-- Highest E allocated: 06
+- Highest E allocated: 07
 - Author: opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: y5zxql
 
@@ -15,6 +15,7 @@
 
 - 2026-08-17 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-17 authored (opencode Opus 4.8): filled from release-review run 20260817-153418 findings S2-B02/B03/M01/L01 (Set awretrofit Order 04).
+- 2026-08-17 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Structural preflight conforming. Re-verified ALL citations against current code (post Orders 01/02/07): scaffolder constants engine.py:3701/3709/3727/3752; README targets 4061/4105/4147; _DEEP_CLEANUP_ROOTS:3425; _perform_move clobber 304-308; cleanup_migration 1107/1162; leftover-remove 414-417; rollback config 1042-1043 (non-atomic) vs atomic idiom 834-837 - all accurate. Findings: PR-001 (HIGH) E-01/E-02 target set was stale - Order 07 flattened `.aw/records/docs/` away, so DERIVE roots from the resolver + use the FLAT layout (no `docs/`); PR-002 (HIGH) added E-07 for the README-stub PLACEMENT (`_*_README_TARGETS`/ensure_*_readmes, legacy-hardcoded + the Order-07-obsoleted `.agents/docs/README.md`) that Order 07 explicitly handed to this Order; PR-003 (MED) E-02 deep-cleanup roots likewise flat/resolver-derived. All FIXED in plan (E-07 added, E-06/V-07 extended). OQ-01 resolved (D136 fresh=.aw/-only). No open questions. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -29,16 +30,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: install scaffolder targets .aw/records (B02, per D136)
 
-- [ ] E-01 Make `create_setup_artifacts` (engine.py ~4190) scaffold the plans/docs/prompts/comms lifecycle under `.aw/records/` on a fresh/`aw`-layout install instead of the hardcoded `.agents/*` constants (engine.py:3699/3707/3725/3750), deriving the record roots from the resolved target layout (D136: fresh install = `.aw/` only). Route the creating writes through `guard_write` where practical so the "no legacy writes" contract actually covers scaffolding. Preserve the `--undo` manifest recording.
+- [ ] E-01 Make `create_setup_artifacts` (engine.py ~4192) scaffold the records lifecycle under `.aw/records/` on a fresh/`aw`-layout install instead of the hardcoded legacy `.agents/*` constants (engine.py:3701 PLANS_DIR, 3709 DOCS_DIR, 3727 PROMPTS_DIR, 3752 COMMS_DIR). **plan-review PR-001 (post-Order-07 layout):** the FINAL layout is FLAT `.aw/records/{plans,prompts,comms,backlog,research,specs,walkthroughs,roadmaps,prompt-library}` - there is NO `.aw/records/docs/` level anymore (Order 07 flattened it). Do NOT hardcode a new `.aw/records/{plans,docs,...}` list; DERIVE the record roots from the canonical resolver (`record_producers.resolve_record_path(<class>)` / the RecordClass set) so the scaffolder cannot drift from the real layout again (that drift is the root cause of this whole Set). Route the creating writes through `guard_write` where practical. Preserve the `--undo` manifest recording. Keep a legacy-targeted install working (if `resolve_target_layout` -> legacy).
   - Depends on: none
-  - Expected outcome: `aw setup`/install on a fresh repo creates `.aw/records/{plans,docs,prompts,comms}/...`, not `.agents/*`; a legacy-targeted install (if still supported) still works.
+  - Expected outcome: `aw setup`/install on a fresh repo creates the FLAT `.aw/records/*` tree (derived from the resolver, no `docs/` level), not `.agents/*`; a legacy install still scaffolds `.agents/*`.
+  - Execution state: pending
+
+- [ ] E-07 **plan-review PR-002 (README-stub placement, folded from Order 07):** the installer README-stub placement is ALSO legacy-hardcoded and post-Order-07-stale: `_PLANS_README_TARGETS` (engine.py:4061 -> `.agents/README.md`), `_DOCS_README_TARGETS` (engine.py:4105 -> `.agents/docs/README.md` + the `agents-docs-README.md` stub that Order 07 obsoleted when it removed the `docs/` level), `_PROMPTS_README_TARGETS` (engine.py:4147 -> `PROMPTS_DIR/README.md`), and `ensure_plans_readmes`/`ensure_docs_readmes`/`ensure_prompts_readmes` (called at ~4395-4398). Repoint these to drop the README stubs into the FLAT `.aw/records/*` dirs on an `aw`-layout install, derived from the same resolver as E-01. Drop the obsolete top-level `docs/` README target (there is no `.aw/records/docs/`); if per-type README stubs are wanted, place them at `.aw/records/{research,specs,walkthroughs,roadmaps}` (the Order-02 templates were already retitled to these flat paths).
+  - Depends on: E-01
+  - Expected outcome: a fresh `aw`-layout install drops README stubs into the flat `.aw/records/*` dirs (not `.agents/*`, no `.aw/records/docs/README.md`); legacy install unchanged.
   - Execution state: pending
 
 ### Task group 2: uninstall --deep reaches .aw/records (B03)
 
-- [ ] E-02 Extend `_DEEP_CLEANUP_ROOTS` (engine.py:3423-3430) / `plan_deep_cleanup` so `aw uninstall --deep` targets the `.aw/records/{plans,docs,prompts,comms}` roots (layout-aware) in addition to the legacy `.agents/*`, matching the cli.py:523 help promise. Keep the existing safety confirmations.
+- [ ] E-02 Extend `_DEEP_CLEANUP_ROOTS` (engine.py:3425) / `plan_deep_cleanup` so `aw uninstall --deep` targets the FLAT `.aw/records/*` roots (layout-aware, derived from the resolver like E-01 - NOT a hardcoded `.aw/records/{plans,docs,...}` list; note post-Order-07 there is no `docs/` level) in addition to the legacy `.agents/*`, matching the cli.py:523 help promise. Keep the existing safety confirmations.
   - Depends on: none
-  - Expected outcome: `aw uninstall --deep` (dry-run) on a migrated repo lists `.aw/records/*` for removal; help and behavior agree.
+  - Expected outcome: `aw uninstall --deep` (dry-run) on a migrated repo lists the flat `.aw/records/*` roots for removal; help and behavior agree.
   - Execution state: pending
 
 ### Task group 3: migration-engine data-safety (M01, L01)
@@ -60,9 +66,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 4: tests
 
-- [ ] E-06 Add regression tests: (a) fresh install scaffolds `.aw/records/*` not `.agents/*` (B02); (b) `uninstall --deep` dry-run targets `.aw/records/*` (B03); (c) cleanup preserves re-created untracked content (M01); (d) `_perform_move` refuses a foreign destination (M01); (e) leftover result distinguishes degraded removal + atomic rollback config (L01). Each falsifiable.
-  - Depends on: E-01, E-02, E-03, E-04, E-05
-  - Expected outcome: new tests green; each fails against the pre-fix behavior (spot-check at least the M01 cleanup-preservation and B02 scaffold cases).
+- [ ] E-06 Add regression tests: (a) fresh install scaffolds the FLAT `.aw/records/*` not `.agents/*` and NO `.aw/records/docs/` (B02); (b) fresh install drops README stubs into the flat `.aw/records/*` dirs, no `.aw/records/docs/README.md` (E-07); (c) `uninstall --deep` dry-run targets the flat `.aw/records/*` (B03); (d) cleanup preserves re-created untracked content (M01); (e) `_perform_move` refuses a foreign destination (M01); (f) leftover result distinguishes degraded removal + atomic rollback config (L01). Each falsifiable.
+  - Depends on: E-01, E-02, E-03, E-04, E-05, E-07
+  - Expected outcome: new tests green; each fails against the pre-fix behavior (spot-check at least the M01 cleanup-preservation and the B02 flat-scaffold cases).
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -70,7 +76,8 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ## Project conventions discovered (Step 0)
 
 - D136: a fresh install materializes `.aw/` only (no legacy `.agents/` scaffolding); legacy is detected + offered migration. This resolves B02's "intended target" question - it is `.aw/records/`.
-- `resolve_target_layout(repo_root)` governs the workflow BUNDLE path only; the record-scaffold constants (engine.py:3699/3707/3725/3750) were never wired to it - that is the B02 gap.
+- `resolve_target_layout(repo_root)` governs the workflow BUNDLE path only; the record-scaffold constants (engine.py:3701/3709/3727/3752) + the README-stub target tables (4061/4105/4147) were never wired to it - that is the B02/PR-002 gap.
+- POST-ORDER-07: the final `.aw/records/` layout is FLAT (no `docs/`): plans, prompts, comms, backlog, research, specs, walkthroughs, roadmaps, prompt-library. Derive scaffold/cleanup roots from `record_producers.resolve_record_path`/the RecordClass set, NOT a hardcoded list, so the installer cannot drift from the layout again.
 - `_is_removable_leftover` (layout_migration.py, from IPD wvlk84) is the proven tracked/ignored guard; reuse it for cleanup.
 - Move-not-copy engine already journals per-item + hash-verifies; the M01/E-04 gap is only the unconditional destination clobber + the cleanup of re-created sources.
 
@@ -82,8 +89,11 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 | B03 | uninstall --deep | engine.py:3423-3430 vs cli.py:523 help | deep clean misses `.aw/records/*` |
 | M01a | cleanup_migration | layout_migration.py ~1158-1165 | rmtree/unlink re-created legacy source (ignore_errors) |
 | M01b | _perform_move | layout_migration.py ~304-308 | unconditional destination clobber |
-| L01a | leftover remove | layout_migration.py ~414-417 | git-rm-fail force-unlink mislabeled `removed` |
-| L01b | rollback config | layout_migration.py ~1042-1043 | non-atomic write vs the atomic idiom elsewhere |
+| L01a | leftover remove | layout_migration.py 414-417 (verified) | git-rm-fail force-unlink mislabeled `removed` |
+| L01b | rollback config | layout_migration.py 1042-1043 (verified) | non-atomic write vs the atomic idiom (834-837) |
+| PR-001 | plan-review (post-Order-07) | Order 07 flattened `.aw/records/docs/` away | E-01/E-02 target set stale (`{plans,docs,prompts,comms}`); DERIVE from the resolver, use the FLAT layout, no `docs/`. FIXED |
+| PR-002 | plan-review (Order-07 handoff) | engine.py:4061/4105/4147 `_*_README_TARGETS` + ensure_*_readmes legacy-hardcoded; `_DOCS_README_TARGETS` references the Order-07-obsoleted `.agents/docs/README.md` | README-stub PLACEMENT was flagged in Order 07 as belonging here; added as E-07. FIXED |
+| PR-003 | plan-review | cli.py:523 help + `_DEEP_CLEANUP_ROOTS` | E-02 target set also stale/flat; derive from resolver. FIXED |
 
 ## Proposed changes (ordered, validatable)
 
@@ -156,13 +166,18 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 
+- [ ] V-07 validates E-07
+  - Required evidence: a fresh `aw`-layout install drops README stubs into the flat `.aw/records/*` dirs (not `.agents/*`); no `.aw/records/docs/README.md` is created; the `_*_README_TARGETS` / `ensure_*_readmes` derive from the resolver. Paste the created README paths / test output.
+  - Observed evidence:
+  - Result: pending
+
 ## Approval and execution gate
 
 - Size assessment: standard
 - Cohesion rationale: not required
 
 Execution requires human approval (`Status: approved` + attributed `- Approval:` line). The executor
-implements E-01..E-06, pastes actual evidence (fresh-install tree, uninstall dry-run, the M01/L01
+implements E-01..E-07, pastes actual evidence (fresh-install FLAT tree + README stubs, uninstall dry-run, the M01/L01
 regression tests with fail-before/pass-after, full serial + migration suites), commits only the scoped
 paths (`agent_workflows/engine.py`, `agent_workflows/layout_migration.py`, and the new/edited tests),
 never pushes, runs `aw ipd lint --phase pre-transition` + the full suite before transition, and the
