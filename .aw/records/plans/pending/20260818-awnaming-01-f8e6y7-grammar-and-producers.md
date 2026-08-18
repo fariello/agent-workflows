@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Spec 20260817-2147-01 (RELEASE BLOCKER, backlog 047ce9), awnaming Order 01. Adopt ONE artifact-naming grammar `YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md` for all durable record types by moving the TYPE signal into the filename. This Order is the ALL-REPOS, shipped half: teach the two filename-grammar sites to accept an optional `.<type>` before `.md`, make the name generator + producers EMIT `.type.md`, and make `aw plan-names` validate it. The record readers already glob `*.md` and read metadata from front-matter, so dual-read is free and this Order adds no reader breakage.
 - Scope: The shipped grammar + producers + validator. IN: `plans_refs._CLUSTERED_RE`/`clustered_name`, `normalize_plan_names._CLUSTERED_RE`/`is_conformant`/`parse_name`, `aw plan-names`, `aw plans mv`/`research mv` Order-preservation, `aw backlog new` name, `aw ipd scaffold` name derivation, tests. OUT: renaming this repo's existing files (Order 02); AGENTS.md prose (Order 02); the version number (S6-V01); research `.<model>.<kind>.md` (already type-style); run-artifacts; the optional rename-on-migrate nicety (follow-up backlog item).
-- Status: to-review
+- Status: reviewed
 - Set: awnaming
 - Order: 1
 - Highest E allocated: 08
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): built from spec 20260817-2147-01 + code investigation (2 grammar sites, front-matter-driven readers => dual-read free).
+- 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE WITH REVISIONS APPLIED; cited lines verified (plans_refs.py:31/125/162/374, backlog.py:324, normalize_plan_names.py:110); PR-003 (closed-enum facet to avoid dotted-slug mis-parse, E-01/E-02) and PR-004 (scaffold --path backward-compat, E-05) fixed in place.
 
 ## Goal
 
@@ -31,13 +32,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: teach the grammar to the two filename-aware sites
 
-- [ ] E-01 Extend `plans_refs._CLUSTERED_RE` (agent_workflows/plans_refs.py:31) to accept an OPTIONAL `.<type>` facet before the trailing `.md` (e.g. add a `(?:\.(?P<type>ipd|prompt|spec|walkthrough|roadmap|backlog|comms))?` group before `\.md\Z`), so a clustered plan name both with and without the `.ipd.md` facet parses. Keep the existing groups (date/set/nn/id6/slug) intact.
+- [ ] E-01 Extend `plans_refs._CLUSTERED_RE` (agent_workflows/plans_refs.py:31, which uses `\A...\Z` and a non-greedy `<slug>`) to accept an OPTIONAL `.<type>` facet before the trailing `.md`, as a CLOSED enum group `(?:\.(?P<type>ipd|prompt|spec|walkthrough|roadmap|backlog|comms))?` inserted before `\.md\Z`. The closed enum (not `.+`) prevents a dotted slug from being mis-parsed as a facet. Keep the existing groups (date/set/nn/id6/slug) intact.
   - Depends on: none
-  - Expected outcome: `_CLUSTERED_RE.match("20260818-awnaming-01-f8e6y7-grammar-and-producers.ipd.md")` and the same name without `.ipd` both match with identical date/set/nn/id6/slug groups.
+  - Expected outcome: `_CLUSTERED_RE.match("20260818-awnaming-01-f8e6y7-grammar-and-producers.ipd.md")` and the same name without `.ipd` both match with identical date/set/nn/id6/slug groups; a name with an unknown facet like `.foo.md` does NOT match as a facet.
   - Execution state: pending
-- [ ] E-02 Extend `normalize_plan_names._CLUSTERED_RE` (.aw/system/workflows/setup-repo/tools/normalize_plan_names.py:110) with the same optional `.<type>` facet, and update `parse_name` (:165) + `is_conformant` (:198) so a `.type.md` clustered name is parsed and reported conformant (and bare `.md` remains conformant). This is the tool `aw plan-names` loads (cli.py:2897).
+- [ ] E-02 Extend `normalize_plan_names._CLUSTERED_RE` (.aw/system/workflows/setup-repo/tools/normalize_plan_names.py:110, which uses `^...$` and a greedy kebab `<slug>`) with the SAME closed-enum `.<type>` facet group adapted to its anchors, and update `parse_name` (:165) + `is_conformant` (:198) so a `.type.md` clustered name is parsed and reported conformant (and bare `.md` remains conformant). This is the tool `aw plan-names` loads (cli.py:2897). Because the two regexes differ in anchors/slug greediness, insert the facet in each without altering their existing anchor/slug semantics.
   - Depends on: none
-  - Expected outcome: `is_conformant("20260818-awnaming-01-f8e6y7-grammar-and-producers.ipd.md")` is True; `parse_name(...)` returns the same Parsed as the bare name; bare `.md` stays conformant.
+  - Expected outcome: `is_conformant("20260818-awnaming-01-f8e6y7-grammar-and-producers.ipd.md")` is True; `parse_name(...)` returns the same Parsed as the bare name; bare `.md` stays conformant; an unknown `.foo.md` facet is not treated as a valid type.
   - Execution state: pending
 
 ### Task group 2: make the name generator + producers emit .type.md
@@ -50,9 +51,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-01
   - Expected outcome: `aw backlog new` writes a `<...>.backlog.md` file; `aw backlog check` passes on both a new `.backlog.md` item and a legacy bare `.md` item.
   - Execution state: pending
-- [ ] E-05 Make `aw ipd scaffold` derive the canonical clustered `.ipd.md` filename when `--set`/`--order` are given (closing part of vf03z3 scaffold-name gap): in `ipd_authoring.run_scaffold` (agent_workflows/ipd_authoring.py:210) compute the destination name via `clustered_name(..., artifact_type="ipd")` (date=today, id6 minted or from `--id`) instead of requiring the caller to hand-build `--path`; keep `--path` as an override.
+- [ ] E-05 Make `aw ipd scaffold` derive the canonical clustered `.ipd.md` filename when `--set`/`--order` are given (closing part of vf03z3 scaffold-name gap): in `ipd_authoring.run_scaffold` (agent_workflows/ipd_authoring.py:210) compute the destination name via `clustered_name(..., artifact_type="ipd")` (date=today, id6 minted or from `--id`) WHEN `--path` is omitted. BACKWARD COMPAT: an explicit `--path` remains fully honored (existing callers, tests, and workflow docs that pass `--path` must behave exactly as before); the derivation is additive, only for the no-`--path` case. Also ensure the minted id6 is written into the front-matter `- Id:` so name and Id agree.
   - Depends on: E-03
-  - Expected outcome: `aw ipd scaffold --kind child --set demo --order 1 --title X` (no `--path`) writes `.aw/records/plans/pending/<today>-demo-01-<id6>-x.ipd.md` and the front-matter `- Id:` equals the filename id6.
+  - Expected outcome: `aw ipd scaffold --kind child --set demo --order 1 --title X` (no `--path`) writes `.aw/records/plans/pending/<today>-demo-01-<id6>-x.ipd.md` with front-matter `- Id:` == the filename id6; an invocation WITH `--path` still writes exactly that path (compat test green).
   - Execution state: pending
 
 ### Task group 3: validate the grammar + preserve Order on rename

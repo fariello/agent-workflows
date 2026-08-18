@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Spec 20260817-2147-01 (RELEASE BLOCKER, backlog 047ce9), awnaming Order 02. The THIS-REPO, ships-nothing half of the naming-grammar rollout: rename this framework repo's own existing durable records to the `.type.md` grammar (dogfooding), regenerate the INDEX/STATUS manifests, fix internal citations, reconcile AGENTS.md's TWO conflicting documented grammars into the ONE grammar, close vf03z3, and file the optional rename-on-migrate nicety as a follow-up backlog item. Depends on Order 01 (the grammar/validator/generator must exist first so the renamed files match what the tooling expects).
 - Scope: This repo's `.aw/records/` files + docs. IN: rename plans (184), specs (16), walkthroughs (11), roadmaps (1), backlog (33), comms (22), prompts (16), prompt-library (4) to `.type.md`; regenerate `aw plans index`/`aw research index`/`aw specs`/`aw backlog check` manifests + STATUS/INDEX; fix internal path citations; reconcile AGENTS.md lines 26 + 51; close vf03z3; file the migration-rename follow-up backlog item. OUT: research files (86, keep `.<model>.<kind>.md`); the grammar/producer/validator CODE (Order 01); the version number (S6-V01); the shipped migration behavior.
-- Status: to-review
+- Status: reviewed
 - Set: awnaming
 - Order: 2
 - Highest E allocated: 07
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): built from spec 20260817-2147-01 + inventory (287 non-research files; AGENTS.md has 2 conflicting grammars at lines 26/51).
+- 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE WITH REVISIONS APPLIED; verified backlog is front-matter-driven (dual-read holds) and the test basename literals are synthetic fixtures; PR-001 (prescribe scripted facet-append git mv over aw plans mv, E-01) and PR-002 (scope E-07 to renamed-real-file assertions only) fixed in place.
 
 ## Goal
 
@@ -30,9 +31,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: rename this repo's durable records to .type.md
 
-- [ ] E-01 Rename the 184 plan files under `.aw/records/plans/**` to `<...>.ipd.md` using `git mv` (driven by a per-type transform that appends `.ipd` before `.md`), leaving research untouched. Use `aw plans mv` where it applies (Order 01 fixed it to preserve `- Order:`/`- Date:`) or a direct `git mv` + a manifest regen for the terminal/reusable dirs.
+- [ ] E-01 Rename the 184 plan files under `.aw/records/plans/**` to `<...>.ipd.md` with a SCRIPTED `git mv` that only APPENDS the `.ipd` facet before `.md` (leaving date/set/order/id6/slug byte-identical), across all lifecycle dirs (pending/approved/executed/reusable/superseded/not-executed), skipping README/INDEX/STATUS and research. Do NOT drive this via `aw plans mv` per file: that verb recomputes the name from front-matter (`_plan_date(text)` at plans_refs.py:374) and is per-id6/slow; the pure facet-append is safer and preserves everything. Reserve `aw plans mv` only for a case that also needs a slug/order change.
   - Depends on: none
-  - Expected outcome: every `*.md` under `.aw/records/plans/` (except READMEs/INDEX/STATUS) ends in `.ipd.md`; `git status` shows renames, not delete+add.
+  - Expected outcome: every `*.md` under `.aw/records/plans/` (except READMEs/INDEX/STATUS) ends in `.ipd.md`; `git status` shows renames (R), not delete+add; date/set/order/id6/slug are unchanged from the old name.
   - Execution state: pending
 - [ ] E-02 Rename the non-plan durable records: specs (16) -> `.spec.md`, walkthroughs (11) -> `.walkthrough.md`, roadmaps (1) -> `.roadmap.md`, backlog (33) -> `.backlog.md`, comms (22) -> `.comms.md`, prompts (16) + prompt-library (4) -> `.prompt.md`, via `git mv`. Leave research (86) as `.<model>.<kind>.md`.
   - Depends on: none
@@ -63,9 +64,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 4: verify the whole repo
 
-- [ ] E-07 Run the FULL serial suite (`python3 -m pytest -p no:xdist`) + `aw sanitize --agent` + all `--check`s after the rename, and paste the tails. Confirm no test hard-coded an old bare `.md` basename (fix any that did).
+- [ ] E-07 Run the FULL serial suite (`python3 -m pytest -p no:xdist`) + `aw sanitize --agent` + all `--check`s after the rename, and paste the tails. Note: the known basename literals in tests (`test_layout_migration.py:452/611` `p.md`, `test_awphysical_routing.py:123/155` `test.md`, `test_installer.py:1286` `my.md`, `test_dir_readmes.py:57` `README.md`, `fixtures/awphysical/order08/e05-external-records.json` `20260810-home-plan.md`) are SYNTHETIC fixtures the tests create themselves, NOT references to this repo's real records, so the rename does not touch them. The specific obligation here is to grep the test tree for any assertion that names one of THIS repo's ACTUALLY-RENAMED real record basenames and fix only those.
   - Depends on: E-01,E-02,E-03,E-04,E-05,E-06
-  - Expected outcome: full serial suite green; sanitize clean; all manifest `--check`s pass against the renamed tree.
+  - Expected outcome: full serial suite green; sanitize clean; all manifest `--check`s pass against the renamed tree; no test references a renamed real record by its old bare-`.md` basename.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
