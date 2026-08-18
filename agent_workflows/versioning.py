@@ -248,7 +248,7 @@ def resolve_version(repo_root: Path, *, version_file: Optional[Path] = None) -> 
     Args:
         repo_root: the directory to run ``git describe`` in.
         version_file: explicit path to the fallback VERSION file. When omitted, defaults
-            to ``repo_root/.agents/workflows/VERSION``.
+            to ``repo_root/.aw/system/VERSION`` (legacy ``.agents/workflows/VERSION``).
 
     Returns:
         A PEP 440 version string, or the file's contents, or ``"unknown"``.
@@ -259,7 +259,16 @@ def resolve_version(repo_root: Path, *, version_file: Optional[Path] = None) -> 
         return parse_describe(describe)
 
     if version_file is None:
-        version_file = repo_root / ".agents" / "workflows" / VERSION_FILENAME
+        # Default to the canonical `.aw/system/VERSION` (matches the docstring + the migrated
+        # layout); fall back to the legacy in-bundle path only if the sibling is absent, so an
+        # older/partially-migrated tree still resolves (Order 05, S5-DC01: the previous bare
+        # `.agents/workflows/VERSION` default was a stale landmine that disagreed with the docstring).
+        aw_version = repo_root / ".aw" / "system" / VERSION_FILENAME
+        version_file = (
+            aw_version
+            if aw_version.is_file()
+            else repo_root / ".agents" / "workflows" / VERSION_FILENAME
+        )
     return read_version_file(version_file)
 
 

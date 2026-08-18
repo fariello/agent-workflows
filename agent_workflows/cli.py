@@ -63,10 +63,10 @@ _DESCRIPTIONS = {
     ),
     "plans": (
         "Show a board of plan/IPD readiness Status grouped by lifecycle (pending/reviewed/"
-        "approved/executed/...). Read-only view over .agents/plans. Alias of 'plans' verbs."
+        "approved/executed/...). Read-only view over .aw/records/plans. Alias of 'plans' verbs."
     ),
     "plans-index": (
-        "Regenerate .agents/plans/INDEX.json (every plan, all fields) plus a browse-by-Set "
+        "Regenerate .aw/records/plans/INDEX.json (every plan, all fields) plus a browse-by-Set "
         "INDEX.md from plan front matter. With --check, fail (nonzero) on drift instead of "
         "rewriting (CI gate). Alias: 'plans index'."
     ),
@@ -108,7 +108,7 @@ _DESCRIPTIONS = {
         "Dry-run by default; refuses if the watermark is below the largest existing E."
     ),
     "research": (
-        "Research-artifact tooling for .agents/docs/research. Subcommands create correctly "
+        "Research-artifact tooling for .aw/records/research. Subcommands create correctly "
         "named docs ('new'/'new-comparison'), regroup them ('set-assign'/'mv'), manage the "
         "manifest ('index'/'find'), and check/curate ('check-refs'/'promote'/etc.)."
     ),
@@ -567,7 +567,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_plans.add_argument(
         "--write-index",
         action="store_true",
-        help="(Re)generate .agents/plans/STATUS.md instead of printing.",
+        help="(Re)generate .aw/records/plans/STATUS.md instead of printing.",
     )
 
     # The plans manifest verbs are separate top-level parsers (`plans-index`, `plans-find`) to avoid
@@ -576,7 +576,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_plans_index = sub.add_parser(
         "plans-index",
         parents=[common],
-        help="Regenerate .agents/plans/INDEX.json + a browse-by-Set INDEX.md; --check fails on drift. Alias: 'plans index'.",
+        help="Regenerate .aw/records/plans/INDEX.json + a browse-by-Set INDEX.md; --check fails on drift. Alias: 'plans index'.",
     )
     p_plans_index.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
@@ -703,7 +703,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ipd_lint.add_argument(
         "--all",
         action="store_true",
-        help="Lint every plan under .agents/plans and report a per-disposition inventory.",
+        help="Lint every plan under .aw/records/plans and report a per-disposition inventory.",
     )
     p_ipd_lint.add_argument(
         "--legacy",
@@ -3368,6 +3368,12 @@ def _run_storage_move(args: argparse.Namespace, term: Term) -> int:
     new_dir = getattr(args, "new_dir", None)
     dry_run = getattr(args, "dry_run", False)
 
+    # --new-dir is optional in argparse but required for this verb; fail cleanly (and narrow the
+    # type from Any|None to str for move_companion) rather than passing None (Order 05, S2-Q01).
+    if not new_dir:
+        term.status("fail", "storage move requires --new-dir <path>.")
+        return 2
+
     if dry_run:
         term.status(
             "info",
@@ -3429,6 +3435,12 @@ def _run_storage_preflight(args: argparse.Namespace, term: Term) -> int:
 
     repo_path = getattr(args, "repo", None) or os.getcwd()
     companion_dir = getattr(args, "companion_dir", None)
+
+    # --companion-dir is optional in argparse but required for this verb; fail cleanly (and narrow
+    # the type from Any|None to str) rather than passing None (Order 05, S2-Q01).
+    if not companion_dir:
+        term.status("fail", "storage preflight requires --companion-dir <path>.")
+        return 2
 
     try:
         report = validate_companion_preflight(

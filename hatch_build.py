@@ -5,7 +5,7 @@ This one file hosts BOTH hatchling plugins the project uses, which can coexist h
 1. Version `code` source: `[tool.hatch.version] source = "code", path = "hatch_build.py",
    expression = "VERSION"` imports this file (repo root on sys.path) and reads `VERSION`.
    The WHEEL version must equal `agent_workflows.versioning.resolve_version` and what
-   `make version-file` bakes into `.agents/workflows/VERSION`. We deliberately do NOT use
+   `make version-file` bakes into `.aw/system/VERSION` (legacy `.agents/workflows/VERSION`). We deliberately do NOT use
    `hatch-vcs`/`setuptools-scm` (extra build dep + resolver duplication -> drift).
 
 2. Custom metadata hook: `[tool.hatch.metadata.hooks.custom]` (default `path =
@@ -16,7 +16,7 @@ This one file hosts BOTH hatchling plugins the project uses, which can coexist h
    (a build dep, which would violate D46 zero-deps).
 
 The resolver reads `git describe` at build time; an exported sdist with no git falls back to
-the baked `.agents/workflows/VERSION`, so sdist-based builds still get a version.
+the baked `.aw/system/VERSION` (legacy `.agents/workflows/VERSION`), so sdist-based builds still get a version.
 """
 
 from __future__ import annotations

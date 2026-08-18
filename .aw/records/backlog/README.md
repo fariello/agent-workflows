@@ -1,10 +1,10 @@
-# .agents/backlog/
+# .aw/records/backlog/
 
 The attention-visible BACKLOG TIER (spec `20260813-1833-01`). A lightweight, tracked place for
 COMMITTED and candidate work, so `aw attention` (which feeds `/whatnext`) is not silently blind to
 work that used to live only in the free-prose `TODO.md`.
 
-This is a `records`-class sub-tree: it materializes here at `.agents/backlog/` pre-migration and at
+This is a `records`-class sub-tree: it materializes here at `.aw/records/backlog/` pre-migration and at
 `.aw/records/backlog/` after the awphysical layout migration (dual-path, like `plans`).
 
 ## Layout (status by directory)
@@ -56,7 +56,7 @@ Status is encoded BOTH by directory and by the `- Status:` bullet, and the two M
 
 ## Promotion to a plan
 
-When a backlog item becomes committed execution work, author an IPD under `.agents/plans/pending/`,
+When a backlog item becomes committed execution work, author an IPD under `.aw/records/plans/pending/`,
 then `aw backlog set <item> --status done` with a history line citing the plan id. The backlog captured
 the intent; the plan owns execution.
 

@@ -1,4 +1,4 @@
-# .agents/comms/
+# .aw/records/comms/
 
 Filesystem inter-agent communication (IAC). A portable, agent-agnostic convention for leaving
 messages between agents (and between an agent and a human). It works WITH OR WITHOUT any broker or
@@ -44,4 +44,4 @@ target agent (read/in-progress/done/not-done/executed/not-executed). A target-as
 `executed` is a CLAIM by that agent, not proof; no automation may treat it as proof. Anything needing
 prose is a reply message, not an ack.
 
-See the agent-comms convention spec under `.agents/docs/specs/` for the full definition.
+See the agent-comms convention spec under `.aw/records/specs/` for the full definition.

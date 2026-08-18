@@ -54,6 +54,14 @@ class PathSecurityError(ProjectContextError):
     pass
 
 
+# Explicit FLOOR only: the fallback framework version used when NO baked `.aw/system/VERSION` is
+# present (see the resolution below - a real baked VERSION always wins). This is deliberately a
+# static floor, NOT a second source of truth: the authoritative version is the git-tag resolver
+# (`versioning.resolve_version`) baked into `.aw/system/VERSION` at release time (RELEASING.md
+# bake-then-tag). Keep this floor at the last released MAJOR.MINOR baseline; do not chase the
+# resolver here (importing `versioning` at module load would add a fragile import-time dependency
+# for a value only used when the baked file is missing). Drift is bounded and harmless: it is a
+# floor for an un-baked tree, overridden by the baked file in every real install. (Order 05 / S6-V02.)
 DEFAULT_FRAMEWORK_VERSION = "1.2.1"
 DEFAULT_ENABLED_HOSTS = ["opencode", "claude", "antigravity"]
 

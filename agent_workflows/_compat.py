@@ -1,7 +1,7 @@
 """Compatibility helpers, notably a version-robust locator for the shipped workflow tree.
 
-The framework ships `.agents/workflows/` as package data. From an installed wheel it
-lives at `agent_workflows/_data/.agents/workflows/`; from a source checkout it lives at
+The framework ships `.aw/system/` (legacy `.agents/workflows/`) as package data. From an installed
+wheel it lives at `agent_workflows/_data/.aw/system/` (legacy `.agents/workflows/`); from a source checkout it lives at
 the repo root. We must find it without a runtime third-party dependency and across
 supported Python versions.
 
@@ -21,7 +21,8 @@ from typing import Optional
 # Relative locations of the bundled tree inside the installed package.
 SYSTEM_DATA_RELATIVE = ("_data", ".aw", "system")
 LEGACY_DATA_RELATIVE = ("_data", ".agents", "workflows")
-_DATA_RELATIVE = LEGACY_DATA_RELATIVE
+# (The former `_DATA_RELATIVE = LEGACY_DATA_RELATIVE` alias was unused and removed in Order 05,
+# S5-DC01; the loop below uses SYSTEM_DATA_RELATIVE + LEGACY_DATA_RELATIVE directly.)
 
 
 def packaged_source_root() -> Optional[Path]:

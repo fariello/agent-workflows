@@ -111,7 +111,7 @@ jobs:
     runs-on: ubuntu-latest
     # The cross-tree attention view and the specs contract are validated here as a fail-closed gate,
     # matching the secret-scan / local-leaks single-job precedent. Read-only; writes nothing; no
-    # secrets; needs the full .agents/ tree once (not per Python matrix). Zero runtime deps.
+    # secrets; needs the full .aw/records/ tree once (not per Python matrix). Zero runtime deps.
     steps:
       - name: Checkout
         uses: actions/checkout@v4

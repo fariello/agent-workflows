@@ -201,7 +201,7 @@ def plan_reference_rewrites(
     (b) bare stem ``YYYYMMDD-HHMM-NN`` -> the NEW stem, ONLY for stems that belong to a plan in the
         map (so spec-only stems sharing the grammar are never touched);
     (c) range shorthand is a special case of (b): the stem inside a range is rewritten by the same
-        stem map, so ``\`<oldstem>\`..\`NN\``` becomes ``\`<newstem>\`..\`NN\```.
+        stem map, so a ``<oldstem>..NN`` range becomes ``<newstem>..NN``.
     """
 
     # Build a bare-stem map from ONLY the plan renames (old stem -> new stem, both stemmed).

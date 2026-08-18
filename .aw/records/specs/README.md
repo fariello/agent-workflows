@@ -1,4 +1,4 @@
-# .agents/docs/specs/
+# .aw/records/specs/
 
 Design specifications and RFC-style documents. This is the `spec` workflow's home for detailed
 proposals that are larger than an IPD and describe a design or contract before implementation.

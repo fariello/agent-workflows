@@ -87,6 +87,11 @@ include = [
     "/LICENSE",
     "/NOTICE",
 ]
+# NOTE (Order 05, S6-C01): hatchling injects the VCS `.gitignore` into the sdist by default and a
+# sdist-target `exclude` does not override that injection (verified). The include-list above is the
+# intended contract; the extra `.gitignore` is harmless dev-meta (the WHEEL never carries it). Left
+# as-is rather than adding non-functional config; a future hatchling `ignore-vcs`-style knob can drop
+# it if desired. This was the only optional C01 nit not applied.
 
 # Pytest is used ONLY as a parallel test runner (see the `test` extra). The tests are
 # stdlib unittest.TestCase and also run under `python -m unittest discover -s tests -t .`.

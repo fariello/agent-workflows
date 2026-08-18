@@ -5,7 +5,7 @@
 # This shell wrapper looks for install-workflows.py next to itself and passes all
 # arguments through to it. install-workflows.py is now a thin shim over the packaged
 # `agent_workflows` engine (IPD-2), so this wrapper keeps working unchanged. It
-# clean-syncs the workflow bodies into .agents/workflows/, generates per-tool
+# clean-syncs the workflow bodies into .aw/system/workflows/ (legacy .agents/workflows/), generates per-tool
 # slash-command shims, and adds a one-line pointer to AGENTS.md. Stale framework files
 # are pruned (tracked ones via `git rm`); nothing is committed.
 #

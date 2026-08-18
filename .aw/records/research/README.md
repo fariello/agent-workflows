@@ -1,4 +1,4 @@
-# .agents/docs/research/
+# .aw/records/research/
 
 Durable research, technology surveys, and structured analysis that an agent relied on to support a
 design or architecture decision, kept for provenance and cold-start handoff (GUIDING_PRINCIPLES P4).
@@ -6,7 +6,7 @@ design or architecture decision, kept for provenance and cold-start handoff (GUI
 ## Naming and identity
 
 Research artifacts follow the grammar (spec
-`.agents/docs/specs/20260730-2152-01-agents-artifact-organization.spec.md`):
+`.aw/records/specs/20260730-2152-01-agents-artifact-organization.spec.md`):
 
 ```
 YYYYMMDD-<set-id>-<NN>-<id6>-<slug>[.<model>].<kind>.md

@@ -1,4 +1,4 @@
-# .agents/plans/
+# .aw/records/plans/
 
 Your Implementation Plan Documents (IPDs), organized by lifecycle state. Plan files are
 named `YYYYMMDD-HHMM-NN-<slug>.md` (the creating machine's local date and time; `NN` is a two-digit per-minute
@@ -20,7 +20,7 @@ plan** - retiring preserves the record and the reason.
 
 **Private/brain-dir plans MUST be mirrored here.** If an agent keeps a plan/IPD in a
 private, hidden, or tool-internal "brain"/memory/scratch dir (e.g. Antigravity/Gemini), it
-MUST also keep an exact, conventions-compliant copy under `.agents/plans/` and move THAT copy
+MUST also keep an exact, conventions-compliant copy under `.aw/records/plans/` and move THAT copy
 through the lifecycle; the tracked copy is the source of truth, the private copy is
 disposable. (Also stated in the always-loaded `AGENT-WORKFLOWS` block.)
 
@@ -66,7 +66,7 @@ only the name/grouping is mutable via the stable `Id`).
 
 ## The plans manifest and weekly shards
 
-- `aw plans index [--check]` regenerates `.agents/plans/INDEX.json` (every plan) and `INDEX.md` (a
+- `aw plans index [--check]` regenerates `.aw/records/plans/INDEX.json` (every plan) and `INDEX.md` (a
   browse-by-`Set:` view, the most-recent Sets); `--check` fails on drift (missing/invalid `Id`,
   name-vs-metadata mismatch, stale view, dangling plan citation). `aw plans find` queries the
   manifest. This complements the disposition-grouped `STATUS.md`.

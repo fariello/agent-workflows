@@ -1,7 +1,7 @@
 """agent-workflows: reusable, tool-agnostic agent workflows + their installer/CLI.
 
 This package holds the install engine and CLI. The shipped workflow tree
-(`.agents/workflows/`) is bundled as package data under `agent_workflows/_data/` in the
+(`.aw/system/`, legacy `.agents/workflows/`) is bundled as package data under `agent_workflows/_data/` in the
 wheel and located at runtime via `_compat.packaged_source_root()`. In a source checkout
 the tree lives at the repo root instead; both layouts are supported.
 
@@ -22,7 +22,7 @@ def _resolve_own_version() -> str:
     """Best-effort version of this package for `__version__` (never raises).
 
     - Installed wheel: read the baked VERSION from the bundled data tree
-      (`agent_workflows/_data/.agents/workflows/VERSION`) - AC-1.
+      (`agent_workflows/_data/.aw/system/VERSION`, legacy `.agents/workflows/VERSION`) - AC-1.
     - Source checkout: resolve from git via the repo-root tree (two parents up), so a
       clean tagged tree reports the semver and a dirty/ahead tree reports a .devN string.
     """
