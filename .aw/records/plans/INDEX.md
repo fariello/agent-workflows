@@ -4,6 +4,19 @@
 
 Showing the 40 most-recent of 83 Sets; the full manifest is INDEX.json.
 
+## awretrofit
+
+- `pp6y76` [pending] 00 pending/20260817-awretrofit-00-pp6y76-orchestrator.md
+- `i7um6r` [executed] 01 executed/20260817-awretrofit-01-i7um6r-record-verbs-layout-aware.md
+- `ckvg3n` [executed] 02 executed/20260817-awretrofit-02-ckvg3n-shipped-docs-and-agents-md.md
+- `giiowo` [executed] 03 executed/20260817-awretrofit-03-giiowo-release-mechanics.md
+- `y5zxql` [executed] 04 executed/20260817-awretrofit-04-y5zxql-install-uninstall-migration-safety.md
+- `euqxi3` [executed] 05 executed/20260817-awretrofit-05-euqxi3-help-docstrings-manifest-deadcode.md
+- `uh295u` [executed] 06 executed/20260817-awretrofit-06-uh295u-cwd-climb-project-root.md
+- `u7xtni` [executed] 07 executed/20260817-awretrofit-07-u7xtni-records-taxonomy-cleanup.md
+- `ksim8l` [pending] 08 pending/20260817-awretrofit-08-ksim8l-install-scaffolder-flat.md
+- `7m458z` [pending] 09 pending/20260818-awretrofit-09-7m458z-managed-sections-regen.md
+
 ## awphysical
 
 - `rma3j4` [executed] 00 executed/20260810-awphysical-00-rma3j4-physical-aw-hierarchy-and-migration-orchestrator.md
@@ -24,18 +37,6 @@ Showing the 40 most-recent of 83 Sets; the full manifest is INDEX.json.
 - `7cvh9t` [executed] 15 executed/20260816-awphysical-15-7cvh9t-fresh-install-aw-target.md
 - `88bnw0` [executed] 16 executed/20260816-awphysical-16-88bnw0-migrate-layout-wizard.md
 - `wvlk84` [executed] 17 executed/20260817-1357-01-assess-bugs-leftover-remove-dataloss.md
-
-## awretrofit
-
-- `pp6y76` [pending] 00 pending/20260817-awretrofit-00-pp6y76-orchestrator.md
-- `i7um6r` [executed] 01 executed/20260817-awretrofit-01-i7um6r-record-verbs-layout-aware.md
-- `ckvg3n` [executed] 02 executed/20260817-awretrofit-02-ckvg3n-shipped-docs-and-agents-md.md
-- `giiowo` [executed] 03 executed/20260817-awretrofit-03-giiowo-release-mechanics.md
-- `y5zxql` [executed] 04 executed/20260817-awretrofit-04-y5zxql-install-uninstall-migration-safety.md
-- `euqxi3` [executed] 05 executed/20260817-awretrofit-05-euqxi3-help-docstrings-manifest-deadcode.md
-- `uh295u` [executed] 06 executed/20260817-awretrofit-06-uh295u-cwd-climb-project-root.md
-- `u7xtni` [executed] 07 executed/20260817-awretrofit-07-u7xtni-records-taxonomy-cleanup.md
-- `ksim8l` [pending] 08 pending/20260817-awretrofit-08-ksim8l-install-scaffolder-flat.md
 
 ## agyrun
 

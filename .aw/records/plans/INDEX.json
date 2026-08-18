@@ -1780,6 +1780,16 @@
     "status": "to-review"
   },
   {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 9,
+    "path": "pending/20260818-awretrofit-09-7m458z-managed-sections-regen.md",
+    "plan_id": "7m458z",
+    "set_id": "awretrofit",
+    "status": "to-review"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",
