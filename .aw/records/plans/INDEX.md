@@ -27,10 +27,16 @@ Showing the 40 most-recent of 97 Sets; the full manifest is INDEX.json.
 ## awdoctor
 
 - `zz2dum` [pending] 00 pending/20260818-awdoctor-00-zz2dum-aw-doctor-and-attention-view-upgrades.ipd.md
+- `zi9kjl` [pending] 01 pending/20260818-awdoctor-01-zi9kjl-compact-attention-board-with-urgency-and-blocking-columns.ipd.md
+- `jc4fus` [pending] 02 pending/20260818-awdoctor-02-jc4fus-attention-highlights-setup-needed-and-release-blockers.ipd.md
+- `5vvlm3` [pending] 03 pending/20260818-awdoctor-03-5vvlm3-aw-doctor-deep-repo-inspector.ipd.md
 
 ## awhelp
 
 - `ny1pjz` [pending] 00 pending/20260818-awhelp-00-ny1pjz-help-text-and-agent-facing-ux-overhaul.ipd.md
+- `1fpmg7` [pending] 01 pending/20260818-awhelp-01-1fpmg7-rewrite-terse-and-jargon-help-strings.ipd.md
+- `vrk3l0` [pending] 02 pending/20260818-awhelp-02-vrk3l0-verbose-non-tty-agent-help-and-arg-hungry-verb-examples.ipd.md
+- `oc4cph` [pending] 03 pending/20260818-awhelp-03-oc4cph-json-output-and-documented-exit-codes-on-read-verbs.ipd.md
 
 ## awhelparg
 
@@ -39,6 +45,9 @@ Showing the 40 most-recent of 97 Sets; the full manifest is INDEX.json.
 ## awhistory
 
 - `x97z83` [pending] 00 pending/20260818-awhistory-00-x97z83-global-history-sidecar-and-inline-metadata-slimming.ipd.md
+- `im90a5` [pending] 01 pending/20260818-awhistory-01-im90a5-global-history-jsonl-store-and-writer-module.ipd.md
+- `b0behn` [pending] 02 pending/20260818-awhistory-02-b0behn-route-status-writers-to-the-sidecar-and-slim-inline-history.ipd.md
+- `cizkf4` [pending] 03 pending/20260818-awhistory-03-cizkf4-migrate-inline-history-into-the-sidecar-and-history-read-ver.ipd.md
 
 ## awlintmulti
 

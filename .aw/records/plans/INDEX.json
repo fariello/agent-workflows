@@ -1857,7 +1857,7 @@
     "path": "pending/20260818-awcheck-01-iw1wlx-unified-check-engine-core.ipd.md",
     "plan_id": "iw1wlx",
     "set_id": "awcheck",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -1867,7 +1867,7 @@
     "path": "pending/20260818-awcheck-02-xwxxo8-cross-tree-id6-and-setid-collision-verifier.ipd.md",
     "plan_id": "xwxxo8",
     "set_id": "awcheck",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -1877,7 +1877,7 @@
     "path": "pending/20260818-awcheck-03-5qwy7d-legacy-flag-stale-message-fix-and-ipd-lint-name-conformity.ipd.md",
     "plan_id": "5qwy7d",
     "set_id": "awcheck",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -1887,7 +1887,7 @@
     "path": "pending/20260818-awcmdsurf-00-mvz3d2-aw-command-surface-redesign-noun-verb-grammar-hard-cutover.ipd.md",
     "plan_id": "mvz3d2",
     "set_id": "awcmdsurf",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -1897,7 +1897,7 @@
     "path": "pending/20260818-awcmdsurf-01-p1859z-type-noun-vocabulary-and-cross-cutting-verb-parser-scaffoldi.ipd.md",
     "plan_id": "p1859z",
     "set_id": "awcmdsurf",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -1962,10 +1962,70 @@
   {
     "date": "2026-08-18",
     "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260818-awdoctor-01-zi9kjl-compact-attention-board-with-urgency-and-blocking-columns.ipd.md",
+    "plan_id": "zi9kjl",
+    "set_id": "awdoctor",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260818-awdoctor-02-jc4fus-attention-highlights-setup-needed-and-release-blockers.ipd.md",
+    "plan_id": "jc4fus",
+    "set_id": "awdoctor",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260818-awdoctor-03-5vvlm3-aw-doctor-deep-repo-inspector.ipd.md",
+    "plan_id": "5vvlm3",
+    "set_id": "awdoctor",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260818-awhelp-00-ny1pjz-help-text-and-agent-facing-ux-overhaul.ipd.md",
     "plan_id": "ny1pjz",
+    "set_id": "awhelp",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260818-awhelp-01-1fpmg7-rewrite-terse-and-jargon-help-strings.ipd.md",
+    "plan_id": "1fpmg7",
+    "set_id": "awhelp",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260818-awhelp-02-vrk3l0-verbose-non-tty-agent-help-and-arg-hungry-verb-examples.ipd.md",
+    "plan_id": "vrk3l0",
+    "set_id": "awhelp",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260818-awhelp-03-oc4cph-json-output-and-documented-exit-codes-on-read-verbs.ipd.md",
+    "plan_id": "oc4cph",
     "set_id": "awhelp",
     "status": "draft"
   },
@@ -1986,6 +2046,36 @@
     "order": 0,
     "path": "pending/20260818-awhistory-00-x97z83-global-history-sidecar-and-inline-metadata-slimming.ipd.md",
     "plan_id": "x97z83",
+    "set_id": "awhistory",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260818-awhistory-01-im90a5-global-history-jsonl-store-and-writer-module.ipd.md",
+    "plan_id": "im90a5",
+    "set_id": "awhistory",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260818-awhistory-02-b0behn-route-status-writers-to-the-sidecar-and-slim-inline-history.ipd.md",
+    "plan_id": "b0behn",
+    "set_id": "awhistory",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260818-awhistory-03-cizkf4-migrate-inline-history-into-the-sidecar-and-history-read-ver.ipd.md",
+    "plan_id": "cizkf4",
     "set_id": "awhistory",
     "status": "draft"
   },
