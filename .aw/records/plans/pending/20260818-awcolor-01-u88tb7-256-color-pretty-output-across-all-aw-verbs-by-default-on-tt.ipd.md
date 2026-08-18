@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: awcolor Order 01 (TODO items 21 + 34). `aw` output is inconsistently colored. The `Term` class (`term.py`) already makes the correct color DECISION centrally (`should_color`, term.py:56-80: honors NO_COLOR / FORCE_COLOR / TERM / `isatty()`) and already supports 256-color escapes (`color256`, term.py:100). But roughly a dozen backend modules BYPASS `Term` entirely, writing with raw `print`/`sys.stdout.write` and taking no `term` argument (backlog.py, specs.py, ipd_lint.py, plans_index.py, plans_refs.py, plans_archive.py, research_cmd.py, research_refs.py, research_index.py, research_archive.py, ipd_authoring.py, leak_sanitizer.py), so their human-readable output never colorizes. This Order routes the THREE HIGHEST-VALUE surfaces (specs.py, backlog.py, ipd_lint.py) through `Term` so they colorize by default on a TTY and stay plain when piped / NO_COLOR / `--no-color`, applies a consistent 256-color style vocabulary to them, and proves the on/off policy with a test. The remaining nine raw-print modules are listed in Deferred for follow-up Orders.
 - Scope: THREE existing modules edited (`agent_workflows/specs.py`, `agent_workflows/backlog.py`, `agent_workflows/ipd_lint.py`) + ONE new test file (`tests/test_color_output.py`). IN: build a `Term` inside each of these modules' `run_*` entrypoints from the already-parsed `--no-color` flag (`args.no_color`), replace their raw `print`/`sys.stdout.write` HUMAN-readable writes with `Term`-mediated colorized output, and apply a small 256-color style vocabulary (status/severity words, headings, ids, paths) via `Term.color256`. OUT: no change to `should_color` policy (term.py:56-80) or to the `--no-color` flag on the shared `common` parent (cli.py:371); the shared `Term` at cli.py:4033 is unchanged; the machine-readable `--agent`/`--json` branches (`core.render_agent_drift`, the tab-separated lint records) STAY uncolored; the other nine raw-print modules are NOT touched here (Deferred).
-- Status: draft
+- Status: to-review
 - Set: awcolor
 - Order: 1
 - Highest E allocated: 03
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from TODO items 21,34 (Set awcolor).
+- 2026-08-18 to-review (opencode Opus 4.8): authored + lint-conforming; advanced draft->to-review (readiness, not a review).
 
 ## Goal
 

@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: awhelp Order 02 (spec 20260818-1525-01 goal G6; TODO items 4, 10, 13, 14, 29, 31). A coding agent (no TTY, cannot explore interactively) reaches for `aw --help` first, but the top-level parser (cli.py:378-383) has a one-line `description` and NO epilog, so `aw --help` never tells an agent WHEN or WHY to reach for `aw` versus doing the work by hand, and shows no worked examples. Separately, the "arg-hungry" verbs (`ipd`, `show`, `storage`) fail unhelpfully when a required argument is missing: argparse prints a bare `error: the following arguments are required: ...` usage line with no example of a correct invocation, which is exactly the moment an agent needs a copy-pasteable example. This Order adds a verbose, agent-oriented top-level epilog with a "when/why to use aw" block plus common examples, and enriches the arg-hungry verbs so a missing-arg or `--help` prints a usage-plus-examples block instead of a bare error. Text-only: verb behavior is unchanged.
 - Scope: `agent_workflows/cli.py` (the top-level `argparse.ArgumentParser(...)` at cli.py:378-383 - add an `epilog=` and `formatter_class` retention; the `ipd`/`show`/`storage` subparsers - add `epilog=`/richer `description` and/or a friendly missing-arg message) plus a new test `tests/test_help_verbose.py`. IN: a top-level epilog with a "when/why to use aw" block and 4-6 worked examples aimed at a non-TTY agent; an examples/usage block on the arg-hungry verbs' `--help`; a friendlier missing-required-arg path that surfaces the examples. OUT: rewriting the per-verb `_DESCRIPTIONS` jargon (awhelp Order 01); `--json`/exit-code documentation (awhelp Order 03); any change to argument parsing semantics or dispatch (a missing required arg still fails with a nonzero exit - only the MESSAGE improves).
-- Status: draft
+- Status: to-review
 - Set: awhelp
 - Order: 2
 - Highest E allocated: 03
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from TODO items 4,10,13,14,29,31 (Set awhelp).
+- 2026-08-18 to-review (opencode Opus 4.8): authored + lint-conforming; advanced draft->to-review (readiness, not a review).
 
 ## Goal
 

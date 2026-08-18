@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: awcmdsurf Order 05 (spec 20260818-1525-01, D1 hard cutover). With the new grammar fully in place (Orders 01-04), REMOVE the old verbs and the argv shim, then sweep + update EVERY in-repo reference to a removed verb across shipped docs/workflows/tests. This is the terminal, breaking Order; it runs LAST so all prior intermediate states stayed runnable.
 - Scope: cli.py removals + a repo-wide reference sweep. IN: remove parsers + dispatch for `plans`, `plans-mv`, `plans-find`, `plans-index`, `plans-set-assign`, `plans-archive`, `plan-names`, `list`, and the old `todo` action-list behavior superseded by the attention alias; remove the `plans <verb>` argv-rewrite shim (cli.py:4023-4031); update every reference in `.aw/system/workflows/**`, `AGENTS.md`, `RELEASING.md`, `CONTRIBUTING.md`, READMEs, and `tests/**` to the new grammar; advance spec 20260818-1525-01 to implemented (orchestrator does the spec transition). OUT: the behavior of the new verbs (Orders 01-04); the check engine / selector grammar (Sets D/E).
-- Status: to-review
+- Status: reviewed
 - Set: awcmdsurf
 - Order: 5
 - Highest E allocated: 06
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): from spec 20260818-1525-01 D1 + investigation (old parsers cli.py:532/545/576/600/619/642/660/1626; argv shim cli.py:4023-4031; dispatch chain 4018-4241).
+- 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against cli.py:532-660, cli.py:1626, and cli.py:4023-4031; cutover sequencing and reference sweep completeness sound; structural lint conforming; no findings; no open questions; GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 

@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: awhistory Order 01 (spec 20260818-1525-02; RELEASE BLOCKER; requirements R1; acceptance AC1/AC2 substrate). Build ONE self-contained store-and-writer module for the ONE GLOBAL append-only history sidecar `.aw/records/history.jsonl` (spec Section 3), keyed by id6, where each line is a JSON object `{id6, date, tree, workflow, actor, message}`. This is a PURE PRIMITIVE with no CLI wiring and no edits to existing writers: Order 02 (route status writers + slim inline) and Order 03 (migrate + read verb) consume it. Building the store/append/read as its own module with its own tests keeps this Order small, unambiguous, and independently green.
 - Scope: ONE new module `agent_workflows/record_history.py` + ONE new test file `tests/test_record_history.py`. IN: `history_path(repo_root)->Path` (the `.aw/records/history.jsonl` location), `append(repo_root, *, id6, tree, workflow, actor, message, date=None)` (one JSON line, parent-dir create, utf-8 append, default date = today YYYYMMDD, ValueError on a bad id6 via `artifact_core.ID6_RE`), `read_for(repo_root, id6)->List[dict]` (file order, `[]` when missing, skip malformed JSON lines), `read_all(repo_root)->List[dict]`, and the `MANAGED_BY_DIRECTIVE` string constant (spec G4). OUT: any change to `cli.py`, `specs.py`, `backlog.py`, `attention_contract.py`, any existing writer, any template/generator, the migration, or the read verb (all Order 02 / Order 03 / spec R5). This Order adds a NEW file and a NEW test file ONLY.
-- Status: draft
+- Status: to-review
 - Set: awhistory
 - Order: 1
 - Highest E allocated: 06
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from spec 20260818-1525-02.
+- 2026-08-18 to-review (opencode Opus 4.8): authored + lint-conforming; advanced draft->to-review (readiness, not a review).
 
 ## Goal
 

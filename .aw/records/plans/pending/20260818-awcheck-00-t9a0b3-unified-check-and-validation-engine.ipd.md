@@ -4,7 +4,7 @@
 - Kind: orchestrator
 - Concern: Build the ENGINE behind the `aw check` verb from spec 20260818-1525-01 and satisfy the maintainer's validation TODO items (6, 11, 19, 20, 23). Today validation is scattered across per-type tools with inconsistent scope, messages, and flags: specs.run_check (specs.py:296), backlog.run_check (backlog.py:442, which alone does an id6 dup check at backlog.py:447-463), plans_index.check_drift (plans_index.py:235), research_index.check_drift (research_index.py:231), and the shipped normalize_plan_names.is_conformant/parse_name. Cross-tree id6 uniqueness is checked ONLY inside attention.scan (attention.py:153-163), there is NO setid collision check anywhere, `aw ipd lint` does not verify filename conformity, and normalize_plan_names still prints a stale grammar message (normalize_plan_names.py:677) with no --allow-legacy escape. This Set unifies those into one engine, per type, emitting the shared Drift convention (artifact_core.py:247, drift_exit_code:262, render_agent_drift:255; exit 0 clean / 1 findings / 2 cannot-run).
 - Scope: The check/validation engine and its integration points. IN: a unified engine module that, per artifact TYPE, composes name-conformity + front-matter/status conformity + reference-integrity by reusing the existing per-type validators as sub-checks and emitting Drift; a cross-tree id6 AND setid uniqueness verifier generalized from attention's id6 dedup; a --legacy/--allow-legacy flag on every check path; the stale-message fix (normalize_plan_names.py:677); and making `aw ipd lint` call name-conformity. OUT: the `aw check <type>` VERB GRAMMAR + argv routing (Set A / awcmdsurf owns the parser and dispatch; this Set is the engine it dispatches INTO); the selector grammar internals (Set E / awselect); color/pretty output (Set C); help-text quality (Set B). This Set is referenced by Set A (awcmdsurf), whose Order 02 routes `aw check` into this engine.
-- Status: draft
+- Status: to-review
 - Set: awcheck
 - Order: 0
 - Highest E allocated: 01
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): high-level orchestrator skeleton from spec 20260818-1525-01 + validation TODO items 6,11,19,20,23; children to be fleshed out.
+- 2026-08-18 to-review (opencode Opus 4.8): authored + lint-conforming; advanced draft->to-review (readiness, not a review).
 
 ## Goal
 

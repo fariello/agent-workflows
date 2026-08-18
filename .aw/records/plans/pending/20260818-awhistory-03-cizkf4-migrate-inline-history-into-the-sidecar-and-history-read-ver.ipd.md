@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: awhistory Order 03 (spec 20260818-1525-02; RELEASE BLOCKER; requirements R3, R4; acceptance AC2, AC3). Two closely-related pieces close the sidecar story: (a) a one-time, IDEMPOTENT migration that folds EVERY existing inline `## Workflow history` block across all record trees into the ONE GLOBAL `.aw/records/history.jsonl` (Order 01 store), preserving each record's date/actor/message, then slims each file's inline history down to the latest ONE line (spec Section 3 + OQ-2); and (b) a READ verb that prints a record's full chronological history from the sidecar by id6. Both consume the Order 01 module (`agent_workflows/record_history.py`) and assume Order 02 has already routed NEW writes to the sidecar; this Order handles the LEGACY backfill + the reader.
 - Scope: EDIT two existing modules + ONE test file. IN: (1) a `migrate_inline_history(repo_root, apply=False) -> int` function ADDED to `agent_workflows/record_history.py` (the Order 01 module) that walks every record tree, parses each file's inline `## Workflow history` records (grammar per `attention_contract.HISTORY_RECORD_RE`, attention_contract.py:431), appends each as a sidecar record (id6 from the file's `- Id:`, tree from its path) via the Order 01 writer, skips any record already present (idempotent, keyed on id6+date+message), then slims the inline block to its latest one line; (2) a `record-history <id6>` CLI verb ADDED to `agent_workflows/cli.py` (a parser + dispatch + a `_run_record_history` handler) that prints `read_for(repo_root, id6)` chronologically; (3) `tests/test_record_history_migrate.py`. OUT: the store/append/read_for writer (Order 01), routing NEW writes (Order 02), the `- Managed-by:` directive + templates (spec R5, separate work), any manifest/index/attention change (spec R6 leaves those reading inline state unchanged).
-- Status: draft
+- Status: to-review
 - Set: awhistory
 - Order: 3
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from spec 20260818-1525-02; idempotent inline->sidecar migration + aw history read verb.
+- 2026-08-18 to-review (opencode Opus 4.8): authored + lint-conforming; advanced draft->to-review (readiness, not a review).
 
 ## Goal
 

@@ -4,7 +4,7 @@
 - Kind: orchestrator
 - Concern: Spec 20260818-1525-03 (RELEASE BLOCKER, TODO item #35): whether a backlog item / spec / plan BLOCKS THE NEXT RELEASE is captured only in prose today ("RELEASE BLOCKER" paragraphs), with no programmatically parsable single source and no artifact representing "the release" to gate against. This is DISTINCT from an item being blocked-BY something (the existing `Status: blocked` + typed `Gate-Kind`/`Gate-Ref`, attention_contract.py). The maintainer DECIDED (spec Section 3): a NEW dedicated `.aw/records/releases/` record class + tree (files `...*.release.md`), where a release record is a thin ship-gate anchor (front-matter Id / Status{planned,blocked,shipped} / Version-or-`next` / Summary), and items declare they gate a release via a machine-readable `Blocks-Release: <release-id6|next>` field pointing FROM the item TO the release. `next` resolves to the single planned/active release record; an explicit release id6 is also allowed.
 - Scope: This Set builds the release-record class and the `Blocks-Release` gate FIELD end to end. IN: (a) the new `.aw/records/releases/` record class - a `_RECORD_CLASS_SUBPATHS` entry (record_producers.py:125), a resolver subpath, an attention class-map (`_RELEASES_MAP` registered in CLASS_MAPS, attention_contract.py:194-275), a check validator, README + installer scaffolding (engine.py DOCS_SUBDIRS/scaffold), plus a release-record creator/validator; (b) the `release` naming-grammar facet added to ARTIFACT_TYPE_FACETS at BOTH grammar sites (plans_refs.py:33, normalize_plan_names.py:113) since files are `*.release.md`; (c) the `Blocks-Release:` item field - parser support in the backlog/specs/plans front-matter parsers plus a setter (`--blocks-release` on `aw backlog set` / `aw specs set`) and dangling-ref validation folded into the check engine (Set awcheck); (d) documenting BLOCKS-RELEASE vs BLOCKED-BY in AGENTS.md. OUT: `aw attention` SURFACING of "what blocks the next/active release" (owned by Set awdoctor, which DEPENDS ON this Set for the gate data); automating the actual release (RELEASING.md Section 9, human-gated); a full roadmap/milestone system (spec Non-goals).
-- Status: draft
+- Status: to-review
 - Set: awrelease
 - Order: 0
 - Highest E allocated: 01
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): high-level skeleton from spec 20260818-1525-03 (new .aw/records/releases/ class + Blocks-Release gate, RELEASE BLOCKER); children to be fleshed out.
+- 2026-08-18 to-review (opencode Opus 4.8): authored + lint-conforming; advanced draft->to-review (readiness, not a review).
 
 ## Goal
 

@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: awuntracked Order 01 (TODO item #39). The prompts and comms scaffolding create `local/` lanes whose SOLE purpose is to hold untracked, machine-local content (raw/sensitive prompt drafts; ephemeral comms routing). The name `local/` is ambiguous - it reads like "local config" and conceptually collides with several unrelated `local` uses in the tree - whereas `untracked/` states the intent plainly and matches the repo's own untracked-safety vocabulary. The lane is defined in a small set of engine.py constants/templates (PROMPTS_LOCAL_SUBDIR="local" engine.py:3756; the prompts gitignore template engine.py:3757-3763 with literal `local/` at :3762; COMMS_LOCAL_SUBDIRS engine.py:3769; the comms gitignore template engine.py:3815-3820 with literal `local/` at :3819; the comms README template engine.py:3822-3838 referencing `local/` at :3831/:3837; the scaffold mkdir engine.py:4337-4341; the uninstall guidance engine.py:2383; the AGENTS pointer engine.py:949), preserved across migration at layout_migration.py:429-438 (the `/local/` check at :438). A ready-made untracked convention already exists to reuse (UNTRACKED_SLUG="untracked" / UNTRACKED_PATTERNS engine.py:1206-1207, whose `**/*untracked*/` pattern already catch-alls any dir named `untracked`; `ensure_untracked_gitignore` engine.py:2407). Rename the prompts/comms `local/` lanes to `untracked/`, ensure the catch-all gitignore covers any `untracked/` dir, and migrate installed repos.
 - Scope: IN: rename the prompts/comms `local/` lanes to `untracked/` across engine.py scaffolding + templates (the two constants + the two gitignore templates + the comms README template + the scaffold mkdir + the uninstall guidance + the AGENTS pointer), thread the rename through the migration-preservation path (layout_migration.py:429-438), ensure a catch-all `.gitignore` covers any `untracked/` dir (reuse UNTRACKED_SLUG/UNTRACKED_PATTERNS/ensure_untracked_gitignore), update the tests that assert `local/` (tests/test_setup_artifacts.py, tests/test_installer.py:1179, tests/test_comms.py:146, tests/test_layout_migration.py:747-884, tools/agy_run.py docstring + tools/test_agy_run.py), and ADD a migration that renames an existing repo's prompts/comms `local/` lane to `untracked/` preserving contents. OUT: any unrelated `local` name MUST NOT change - `.aw/config/local.json`, `local-leaks-allowlist.toml`, the `local-only` preset, and the `LOCAL_GIT`/`CONFIG_LOCAL` enums (project_schema.py:37/:59) are explicitly excluded.
-- Status: draft
+- Status: to-review
 - Set: awuntracked
 - Order: 1
 - Highest E allocated: 03
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from TODO item 39 (local/ -> untracked/).
+- 2026-08-18 to-review (opencode Opus 4.8): authored + lint-conforming; advanced draft->to-review (readiness, not a review).
 
 ## Goal
 

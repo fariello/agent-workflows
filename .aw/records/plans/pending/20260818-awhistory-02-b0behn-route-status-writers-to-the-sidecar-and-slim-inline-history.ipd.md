@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: awhistory Order 02 (spec 20260818-1525-02; RELEASE BLOCKER; requirement R2; acceptance AC1). Route the EXISTING status-transition writers so that, in ADDITION to their current inline-history append, they ALSO append one record to the ONE GLOBAL sidecar `.aw/records/history.jsonl` (the Order 01 module), and slim the inline `## Workflow history` block down to the LATEST ONE record line (spec Section 3 + OQ-2). The writers touched are `agent_workflows/specs.py` (`_append_history` specs.py:224, `run_set` specs.py:330, `run_note` specs.py:550) and `agent_workflows/backlog.py` (the history append in `_reattach_history` backlog.py:413). CRITICAL: `aw attention`'s `last_history_at` derivation reads the inline `## Workflow history` record DATE (attention_contract.py:434, grammar attention_contract.py:431), so this Order KEEPS the latest-one inline record line (it must NOT remove the `## Workflow history` section) or that derivation breaks (spec R6 / AC4).
 - Scope: EDIT two existing modules + ONE new test file. IN: (1) route `specs.py`'s three writers to ALSO call `record_history.append(...)` and slim the inline block to the latest one line; (2) route `backlog.py`'s history append likewise; (3) `tests/test_history_routing.py` proving a routed write appends exactly one sidecar record AND that a slimmed file still yields the correct `attention` `last_history_at`. OUT: the store/append/read writer (Order 01, consumed here), the legacy inline-history migration + the read verb (Order 03), the `- Managed-by:` directive + templates (spec R5), any manifest/index/attention derivation CHANGE (spec R6 leaves those reading inline state unchanged - this Order keeps the inline latest-one line precisely so `attention` is untouched).
-- Status: draft
+- Status: to-review
 - Set: awhistory
 - Order: 2
 - Highest E allocated: 04
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from spec 20260818-1525-02.
+- 2026-08-18 to-review (opencode Opus 4.8): authored + lint-conforming; advanced draft->to-review (readiness, not a review).
 
 ## Goal
 

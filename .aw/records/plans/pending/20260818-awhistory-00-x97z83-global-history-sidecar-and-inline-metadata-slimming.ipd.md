@@ -4,7 +4,7 @@
 - Kind: orchestrator
 - Concern: Implement spec 20260818-1525-02 (sidecar administrative metadata, RELEASE BLOCKER). Every record type carries a `## Workflow history` narrative that grows unbounded; agents that consume these files fully read + cache the whole body, so the history burns tokens on administrative narrative that adds little value to the task at hand (the maintainer specifically flagged history). Adopt the DECIDED middle path: keep the small high-value fields (Status/Set/Id/Order/gate) inline, and move the bulky low-per-read-value history to ONE GLOBAL append-only `.aw/records/history.jsonl` keyed by id6 (line = {id6,date,tree,workflow,actor,message}); records keep inline state + a `- Managed-by:` directive + the LATEST-ONE history line, while the full chronological log lives only in the sidecar.
 - Scope: A new `record_history.py` owning `.aw/records/history.jsonl` (append + read-by-id6) and its schema; routing every status-transition writer (specs.run_set, backlog.run_set, the IPD lifecycle transition, research status changes) to append a sidecar line and stop growing the inline history (latest-one kept inline); the `- Managed-by:` directive added to record templates + the generator; an idempotent migration folding existing inline `## Workflow history` blocks into the sidecar; and a `history` read verb (or `aw show --history`). IN: the sidecar store/writer, writer routing, template/generator directive, migration + read verb. OUT: the front-matter PARSERS (plans_index, specs, backlog, research_contract keep reading inline Status/Set/Id/Order UNCHANGED); manifest/index/attention/validators are untouched by design (only history moves).
-- Status: draft
+- Status: to-review
 - Set: awhistory
 - Order: 0
 - Highest E allocated: 01
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): high-level skeleton from spec 20260818-1525-02 (global .aw/records/history.jsonl, RELEASE BLOCKER); children to be fleshed out.
+- 2026-08-18 to-review (opencode Opus 4.8): authored + lint-conforming; advanced draft->to-review (readiness, not a review).
 
 ## Goal
 

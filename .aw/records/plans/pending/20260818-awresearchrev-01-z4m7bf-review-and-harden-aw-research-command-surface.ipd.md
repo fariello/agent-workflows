@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: The `aw research` command surface (subparsers at cli.py:770: new, new-comparison, set-assign, mv, check-refs, index, find, promote, check-miscategorized; backends research_cmd/research_refs/research_index/research_archive; its own `.<model>.<kind>.md` grammar in research_contract.py) grew organically and, under the new noun-verb grammar being introduced by Set awcmdsurf, several research subverbs (find/index/mv/set-assign/archive) now OVERLAP the cross-cutting verbs (`aw find/index/rename/group/archive research`). TODO item #30 asks to confirm the surface is well thought out; this is a REVIEW-and-harden task, not a large build - audit for consistency with the new grammar, decide which subverbs should fold into the cross-cutting verbs vs stay research-specific (new/new-comparison/promote/check-miscategorized), document the findings, and apply the modest agreed fixes.
 - Scope: IN: a focused audit of the research subverb surface against the awcmdsurf noun-verb grammar, a documented recommendation of fold-vs-keep per subverb, and the small consistency fixes that are clearly agreed (with a test). OUT: any large rewrite of the research backends or its `.<model>.<kind>.md` grammar; the actual cross-cutting-verb implementation (that is Set awcmdsurf); anything requiring a maintainer judgment call (captured as an OQ rather than changed unilaterally).
-- Status: draft
+- Status: to-review
 - Set: awresearchrev
 - Order: 1
 - Highest E allocated: 02
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from TODO item 30 (review/harden aw research).
+- 2026-08-18 to-review (opencode Opus 4.8): authored + lint-conforming; advanced draft->to-review (readiness, not a review).
 
 ## Goal
 

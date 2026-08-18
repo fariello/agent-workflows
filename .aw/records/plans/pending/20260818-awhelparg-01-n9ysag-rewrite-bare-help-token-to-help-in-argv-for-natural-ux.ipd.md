@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: awhelparg Order 01 (TODO item #3). Users naturally type `aw help`, `aw ipd help`, or `aw plans help`, but argparse only understands `--help`, so those bare-`help` invocations error ("invalid choice", "unrecognized arguments") or behave unexpectedly instead of showing help. There is already a pre-parse argv rewriting stage in `_dispatch` (cli.py:4023-4031, the plans shim runs BEFORE `parser.parse_args`). The concern is to rewrite a standalone bare `help` token to `--help` at the position it appears, in that same pre-parse stage, so `help` in a command/subcommand position naturally shows help - WITHOUT clobbering a legitimate positional/option VALUE that happens to equal the string "help" (e.g. `aw backlog set x --message help`).
 - Scope: `agent_workflows/cli.py` `_dispatch` pre-parse stage ONLY, plus a test. IN: a `_rewrite_help_token(argv)` helper near the existing plans shim (cli.py:4023) that converts a standalone `help` token to `--help` in place per a documented, guarded rule; wiring it into `_dispatch` before `parse_args` alongside the plans-shim rewrite; a test (`tests/test_help_token.py`) proving `aw help` / `aw ipd help` / `aw <noun> help` all yield help output and that a `help` value bound to a value-taking option is NOT clobbered. OUT: no change to argparse's own help formatting/content; no new first-class `help` subcommand object; no rewrite of a token that is a value bound to a value-taking option.
-- Status: draft
+- Status: to-review
 - Set: awhelparg
 - Order: 1
 - Highest E allocated: 03
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from TODO item 3 (bare help token -> --help).
+- 2026-08-18 to-review (opencode Opus 4.8): authored + lint-conforming; advanced draft->to-review (readiness, not a review).
 
 ## Goal
 

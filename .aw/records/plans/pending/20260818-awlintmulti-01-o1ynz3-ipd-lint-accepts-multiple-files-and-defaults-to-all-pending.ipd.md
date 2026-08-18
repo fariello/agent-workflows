@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: `aw ipd lint` accepts at most a SINGLE IPD path today. `run_lint` (ipd_lint.py:761) reads one `args.path` (the positional is `nargs="?"` at cli.py:692), errors with "a FILE is required (or use --all)" when zero are given (ipd_lint.py:802-804), and only the separate `--all` flag (cli.py:703) does a batch (over ONE root via `_iter_plan_files`, ipd_lint.py:744). There is no way to lint a hand-picked set of files in one call, and no ergonomic "lint everything in pending" default. This addresses TODO item #2.
 - Scope: `agent_workflows/cli.py` (the `lint` `path` positional) + `agent_workflows/ipd_lint.py` (`run_lint`) ONLY, plus ONE test. IN: change the `path` positional to `nargs="*"` (accept zero-or-more files); in `run_lint`, when zero paths are given AND `--all` is not set, DEFAULT to every `*.ipd.md`/`*.md` (excluding README/INDEX/STATUS) under BOTH pending dirs (`.aw/records/plans/pending/` and legacy `.agents/plans/pending/`) discovered via `record_producers.resolve_record_read_paths("plans")`; when multiple explicit paths are given, lint EACH; aggregate exit codes across all linted files (1 if any ERROR disposition, else 0); keep the existing `--agent` tab-separated per-file output. OUT: no change to `--all`'s existing meaning; no change to per-file lint rules/phases; no recursive tree-wide lint beyond the pending dirs.
-- Status: draft
+- Status: to-review
 - Set: awlintmulti
 - Order: 1
 - Highest E allocated: 04
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from TODO item 2 (ipd lint multi-file + default-all-pending).
+- 2026-08-18 to-review (opencode Opus 4.8): authored + lint-conforming; advanced draft->to-review (readiness, not a review).
 
 ## Goal
 
