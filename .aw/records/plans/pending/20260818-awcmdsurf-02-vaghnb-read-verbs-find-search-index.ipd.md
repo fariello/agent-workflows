@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: awcmdsurf Order 02 (spec 20260818-1525-01). Implement the read-only cross-cutting verbs on the Order-01 scaffolding: `aw find <type> <selector...>` (manifest query), `aw search <type> <regex>` (in-file grep), `aw index <type> [--check]` (regenerate/verify manifests). `aw check <type>` ROUTING is wired here too but its ENGINE is the awcheck Set (D).
 - Scope: cli.py routers + light glue into existing backends. IN: `find` -> plans_index.run_find/research_index.run_find (+ a clear "not supported" for types without a manifest finder); `index` -> plans_index.run_index/research_index.run_index; `search` -> a new small text-grep over the resolved type trees (new helper); `check` -> dispatch into the awcheck engine (Set D) or a temporary delegation to the existing per-type checks (specs.run_check/backlog.run_check/plans_index --check/research_index --check) until awcheck lands; `all` fans out; `--json`/`--agent`/exit codes. OUT: mutation verbs (Order 03), the check ENGINE (Set D), the full selector grammar (Set E; Order 02 uses the minimal selector from Order 01), removals (Order 05).
-- Status: to-review
+- Status: reviewed
 - Set: awcmdsurf
 - Order: 2
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): from spec 20260818-1525-01 + investigation (find/index backends: plans_index.py:317/346, research_index.py:276/307; per-type checks: specs.py:296, backlog.py:442).
+- 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against plans_index.py:317/346, research_index.py:276/307, specs.py:296, and backlog.py:442; structural lint conforming; no findings; no blocking open questions; GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
