@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 84 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 85 Sets; the full manifest is INDEX.json.
+
+## awmigrename
+
+- `0qp7u8` [pending] 01 pending/20260818-awmigrename-01-0qp7u8-aw-migrate-layout-optional-rename-on-migrate-to-the-type-md.ipd.md
 
 ## awnaming
 
@@ -246,11 +250,6 @@ Showing the 40 most-recent of 84 Sets; the full manifest is INDEX.json.
 ## purge-personal
 
 - `3visab` [executed] 00 executed/20260718-purge-personal-00-3visab-purge-personal-path-and-identity-leaks.ipd.md
-
-## agentcont
-
-- `6a3myl` [executed] 01 executed/20260717-agentcont-01-6a3myl-whatnext-surveyor-workflow.ipd.md
-- `5twbwf` [executed] 03 executed/20260717-agentcont-03-5twbwf-handoff-workflow-session-continuity.ipd.md
 
 ## (singletons: no Set)
 

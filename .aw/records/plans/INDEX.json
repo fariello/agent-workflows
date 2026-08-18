@@ -1830,6 +1830,16 @@
     "status": "approved"
   },
   {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260818-awmigrename-01-0qp7u8-aw-migrate-layout-optional-rename-on-migrate-to-the-type-md.ipd.md",
+    "plan_id": "0qp7u8",
+    "set_id": "awmigrename",
+    "status": "to-review"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",
