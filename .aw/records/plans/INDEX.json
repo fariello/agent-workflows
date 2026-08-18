@@ -2004,6 +2004,16 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260818-awselect-01-axkviw-shared-selector-resolver-module.ipd.md",
+    "plan_id": "axkviw",
+    "set_id": "awselect",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260818-awuntracked-01-c32roo-rename-local-lanes-to-untracked-with-catch-all-gitignore.ipd.md",
     "plan_id": "c32roo",
     "set_id": "awuntracked",
