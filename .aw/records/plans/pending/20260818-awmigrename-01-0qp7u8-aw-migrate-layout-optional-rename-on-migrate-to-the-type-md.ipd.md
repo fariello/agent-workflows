@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Backlog u9cicx (awnaming Set OQ-02, resolved ask-then-offer). The awnaming Set (spec 20260817-2147-01) shipped the uniform `.type.md` naming grammar for NEW files and renamed THIS repo's records, but `aw migrate-layout` (which moves ANOTHER repo's legacy `.agents/` records into `.aw/records/`) does NOT rename those legacy files. Because the record readers are front-matter-driven, a migrated repo's bare-`.md` records keep working (permanent dual-read), so renaming is an OPTIONAL nicety, not a correctness requirement. This adds an opt-in rename-on-migrate: gentle by default, ASK when interactive, `--rename-to-grammar` flag when non-interactive.
 - Scope: The `aw migrate-layout` rename hook only. IN: an opt-in `--rename-to-grammar` CLI flag (default OFF) + a `rename_to_grammar` config key, an interactive ASK, and the rename transform that appends the correct `.<type>` facet to a migrated durable record's destination name (reusing the awnaming grammar map); tests. OUT: renaming by DEFAULT (rejected - too invasive on users' files); comms + research (documented exceptions, same as awnaming Order 02); the grammar/producers/validators (already shipped in awnaming Order 01); this repo's own files (already renamed in Order 02).
-- Status: to-review
+- Status: reviewed
 - Set: awmigrename
 - Order: 1
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): from backlog u9cicx; grounded in layout_migration.py (_resolve_destination_path:254, _perform_move:290) + cli.py _run_migrate_layout:3574 (config/interactive flow).
+- 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE WITH REVISIONS APPLIED. Verified apply-flow (layout_migration.py:737 dst compute, 764 dedup, 773 journal, 1095/1108 rollback) + destination_root_class is high-level (aw_layout_inventory.py:691-727). Fixed: PR-001 (no per-item sub-type field; derive sub-type from destination_relpath, class resolution is two-level), PR-002 (apply facet BEFORE dedup dest_seen check), PR-003 (journal the faceted destination so rollback reverses correctly; hook at call site not inside _resolve_destination_path which rollback pruning reuses), PR-004 (destination_root_class only gates records-eligibility). All folded into E-03/E-04 + conventions.
 
 ## Goal
 
@@ -42,13 +43,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: the rename transform
 
-- [ ] E-03 Implement the rename map in the migration move path: when rename-on-migrate is ON, the destination name for a migrated DURABLE record gets the correct `.<type>` facet appended (plans->`.ipd`, specs->`.spec`, walkthroughs->`.walkthrough`, roadmaps->`.roadmap`, backlog->`.backlog`, prompts/prompt-library->`.prompt`), reusing the awnaming facet enum (`plans_refs.ARTIFACT_TYPE_FACETS`) and the class->facet mapping. Apply it where the destination is computed (`MigrationManager._resolve_destination_path`, layout_migration.py:254, or the move in `_perform_move`:290) so the rename rides the SAME atomic tracked move (no second pass, no history loss). Skip an already-faceted name (idempotent).
+- [ ] E-03 Implement the rename in the migration apply path, at the destination computed at layout_migration.py:737 (`dst_p = self._resolve_destination_path(mapping["destination_relpath"], target_backend)`): when rename-on-migrate is ON, append the correct `.<type>` facet to `dst_p`'s name. Class resolution is TWO-LEVEL: the mapping's `destination_root_class` gives the high-level class (only `records` items are eligible; `system`/`config`/`doc`/`host-adapter-in-place` are never faceted), and for a `records` item the SUB-TYPE is parsed from the `records/<subtype>/...` segment of `destination_relpath` (plans->`.ipd`, specs->`.spec`, walkthroughs->`.walkthrough`, roadmaps->`.roadmap`, backlog->`.backlog`, prompts + prompt-library->`.prompt`). Reuse `plans_refs.ARTIFACT_TYPE_FACETS`. CRITICAL ORDERING: compute the faceted `dst_p` BEFORE the `dest_seen`/dedup-twin check (line 764) and BEFORE journaling (`entry["destination"]`, line 773), so twins still dedup on the final name and rollback (which reverses via the journaled `destination`, line 1095/1108) restores correctly. The rename thus rides the SAME atomic `_perform_move` (no second pass, no history loss). Skip an already-faceted name (idempotent).
   - Depends on: E-01
-  - Expected outcome: with rename ON, a legacy `.agents/.../plans/pending/20260101-0001-01-a.md` lands as `.aw/records/plans/pending/20260101-0001-01-a.ipd.md`; with rename OFF it lands bare; research + comms records are never faceted.
+  - Expected outcome: with rename ON, a legacy `.agents/.../plans/pending/20260101-0001-01-a.md` lands as `.aw/records/plans/pending/20260101-0001-01-a.ipd.md`; with rename OFF it lands bare; research + comms records are never faceted; the move journal records the faceted destination.
   - Execution state: pending
-- [ ] E-04 Guard the exceptions + facet-class resolution: comms (routing-named) and research (`.<model>.<kind>.md`) records are NEVER renamed even when the flag is on; the facet is chosen by the record CLASS (the migration map already classifies each item), and a record class with no durable facet (e.g. a README/INDEX/STATUS or an unknown class) is left bare.
+- [ ] E-04 Guard the exceptions + sub-type resolution: only `records`-class items are eligible; comms (routing-named) and research (`.<model>.<kind>.md`) sub-types are NEVER renamed even when the flag is on; a `records` sub-type with no durable facet, a non-`records` class, or a README/INDEX/STATUS basename is left bare. The comms/research exclusion is by SUB-TYPE (parsed from `destination_relpath`), mirroring awnaming Order 02.
   - Depends on: E-03
-  - Expected outcome: with rename ON over a fixture containing plans + specs + comms + research + a README, only plans/specs get faceted; comms/research/README stay bare.
+  - Expected outcome: with rename ON over a fixture containing plans + specs + comms + research + a README, only plans/specs get faceted; comms/research/README/non-records classes stay bare.
   - Execution state: pending
 
 ### Task group 3: tests
@@ -61,7 +62,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Project conventions discovered (Step 0)
 
 - The migration is transactional and MOVES (no retained twin): `MigrationManager._perform_move` (layout_migration.py:290) uses `git mv` on the same work tree with a filesystem-move + `git rm --cached`/`git add` fallback; the rename must ride this same move to preserve history.
-- The destination name is computed at `_resolve_destination_path` (layout_migration.py:254) from the map item's `destination_relpath`; that is the natural place to append a facet.
+- The destination name is computed at the apply-flow call site (layout_migration.py:737) via `_resolve_destination_path` from the map item's `destination_relpath`; append the facet to that computed `dst_p` BEFORE the dedup-twin `dest_seen` check (764) and journaling (773), NOT inside `_resolve_destination_path` (which is also used for rollback empty-dir pruning at 1118).
+- `MigrationItem`/mapping has NO record-sub-type field: `destination_root_class` is HIGH-LEVEL (`records`/`system`/`config`/`doc`/`host-adapter-in-place`, from aw_layout_inventory.py:691-727). The record SUB-TYPE (plans/specs/comms/...) must be parsed from the `records/<subtype>/` segment of `destination_relpath`.
+- Rollback reverses a move via the JOURNALED `entry["destination"]` (layout_migration.py:1095/1108), so as long as the faceted name is journaled, reversal is correct; the `_resolve_destination_path` re-derivation at 1118 is only for empty-dir pruning.
 - `_run_migrate_layout` (cli.py:3574) already parses a JSON `--config` with `target_backend`/`leftovers`/`roots`/`confirm` and supports both interactive and non-interactive flows; the new flag/key/ask slot into that shape.
 - The awnaming Set already provides the grammar primitives: `plans_refs.ARTIFACT_TYPE_FACETS` + `clustered_name(artifact_type=)`, and the class->facet mapping used in Order 02 (plans->ipd, specs->spec, walkthroughs->walkthrough, roadmaps->roadmap, backlog->backlog, prompts/prompt-library->prompt).
 - comms + research are documented naming EXCEPTIONS (awnaming Order 02 OQ-01 + spec 20260817-2147-01): comms are routing-named, research keeps `.<model>.<kind>.md`.
