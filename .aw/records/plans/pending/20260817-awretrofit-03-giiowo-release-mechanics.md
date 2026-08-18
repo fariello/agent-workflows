@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Release-review 20260817-153418 finding S4-D03: the release mechanics still target the moved VERSION artifact. `make version-file` writes `.agents/workflows/VERSION` + `.agents/workflows/index.md` (Makefile:48,51) and RELEASING.md:44 documents `.agents/workflows/VERSION` as the bake target - both moved to `.aw/system/` in the migration. A releaser following RELEASING.md verbatim would re-bake the WRONG file, leave `.aw/system/VERSION` stale, and ship a wrong baked version (the exact failure the bake-then-tag section warns against).
 - Scope: Repoint the `version-file` Makefile target and the RELEASING.md bake-then-tag instruction to `.aw/system/VERSION` and `.aw/system/workflows/index.md`. Verify `make version-file` stamps the real shipped files. OUT: choosing the next version NUMBER (orchestrator/maintainer, S6-V01) - this Order only fixes WHERE the bake writes.
-- Status: to-review
+- Status: reviewed
 - Set: awretrofit
 - Order: 3
 - Highest E allocated: 03
@@ -15,6 +15,7 @@
 
 - 2026-08-17 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-17 authored (opencode Opus 4.8): filled from release-review run 20260817-153418 finding S4-D03 (Set awretrofit Order 03).
+- 2026-08-17 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE (no revisions). Structural preflight conforming. Verified citations against real code: Makefile:48/51 write `.agents/workflows/{VERSION,index.md}` (accurate); RELEASING.md:44 documents `.agents/workflows/VERSION` (accurate). Additionally verified the index-stamp anchors E-01 relies on still exist in the flat `.aw/system/workflows/index.md` (line 3 `<!-- WORKFLOWS-VERSION: -->`, line 4 `Version: \`1.2.1\``) so the re-stamp regex will match post-Order-02/07. Scope correctly excludes the version NUMBER (S6-V01). No findings; no open questions. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
