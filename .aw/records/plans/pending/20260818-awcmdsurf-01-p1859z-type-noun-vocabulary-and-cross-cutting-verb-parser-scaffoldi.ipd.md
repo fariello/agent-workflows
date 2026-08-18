@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: awcmdsurf Order 01 (spec 20260818-1525-01). Lay the foundation for the noun-verb grammar: a single shared TYPE-noun vocabulary + a type->backend resolver, and the top-level argparse scaffolding for the seven cross-cutting verbs (`check`/`find`/`search`/`index`/`rename`/`group`/`archive`), each dispatching to a thin router. Added ALONGSIDE the existing verbs (nothing removed here) so every intermediate state stays runnable; removal is Order 05.
 - Scope: agent_workflows/cli.py (new parsers + dispatch) + a new small module for the type vocabulary. IN: the TYPE-noun constant + singular aliases + a resolver mapping each type to its backend module/callable; the seven verb subparsers (parsers + thin routers that currently delegate to the existing backends or a not-yet-wired stub for engine-dependent parts); a shared `--json`/`--agent` convention helper; tests. OUT: the actual read-verb behavior (Order 02), mutation-verb behavior (Order 03), the ipd merge (Order 04), removals (Order 05), the check ENGINE (Set D awcheck) and the full selector parser (Set E awselect).
-- Status: to-review
+- Status: reviewed
 - Set: awcmdsurf
 - Order: 1
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): from spec 20260818-1525-01 + cli.py investigation (flat dispatch chain cli.py:4018-4241; backend module map).
+- 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against cli.py:369-1747, cli.py:1600, plans_refs.py:33, and artifact_core.py:255-262; structural lint conforming; no findings; no blocking open questions; GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
