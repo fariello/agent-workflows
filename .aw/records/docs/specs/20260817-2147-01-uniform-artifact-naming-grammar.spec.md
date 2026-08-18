@@ -5,7 +5,7 @@
 - Author: opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)
 - Motivation: Today the record types name their files inconsistently: plans/specs/research use an id6-bearing clustered name, but prompts/backlog/comms/walkthroughs/roadmaps do not all share one grammar, and only specs carry a type suffix (`.spec.md`). The DIRECTORY carries the type, so two dirs named `prompts` (staging vs library) are indistinguishable at a glance - actively hostile to a reader who pattern-matches on the word (the maintainer flagged this as a recurring, dyslexia-aggravating confusion). Moving the TYPE signal into the filename (`.prompt.md`, `.ipd.md`, ...) makes every artifact self-identifying regardless of its directory, greppable/sortable by type, and robust to being moved to the wrong place.
 - Relation to prior work: BUILDS ON the Set-clustering filename grammar (`YYYYMMDD-<set-id>-NN-<id6>-<slug>.md`) already used by plans/specs/research and documented in AGENTS.md; EXTENDS it to all durable record types and adds a `.type.md` suffix. Companion to spec 20260817-2124-01 (the DIRECTORY taxonomy cleanup): that spec fixes WHERE artifacts live, this spec fixes HOW they are NAMED. Absorbs the tooling gaps captured in backlog vf03z3.
-- **RELEASE-BLOCKER STATUS: TBD by the maintainer.** This is a naming-CONTRACT change. Doing it pre-release avoids a future rename migration (same logic as spec 20260817-2124-01 Section 0); doing it post-release would require a name-migration hop. The maintainer will decide whether this blocks the first `.aw/`-layout release or ships immediately after. Default recommendation: pre-release (avoid the later migration), but it is separable from the directory-taxonomy blocker (spec 20260817-2124-01), which blocks regardless.
+- **RELEASE BLOCKER (maintainer-confirmed 2026-08-17):** this MUST be addressed before the first `.aw/`-layout release. It is a naming-CONTRACT change; doing it pre-release avoids a future rename migration (same logic as spec 20260817-2124-01 Section 0). The release-review Go/No-Go (run 20260817-153418) is NO-GO until this spec is implemented (or explicitly waived). Separable from the directory-taxonomy blocker (spec 20260817-2124-01) - both block.
 
 ## Workflow history
 
@@ -100,9 +100,9 @@ YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md
   differently (inbox routing). Decide whether `.comms.md` + the grammar fits or comms is a second
   documented exception like research.
 
-### OQ-2: is this a release blocker?
-- Blocking: yes (sequencing). Maintainer to decide: pre-release (avoid a later name migration, recommended)
-  vs immediately post-release. Independent of spec 20260817-2124-01, which blocks regardless.
+### OQ-2: is this a release blocker? [RESOLVED]
+- Blocking: no (resolved). Maintainer confirmed 2026-08-17: YES, pre-release release blocker (avoid a
+  later name migration). Tracked via blocked backlog + the release-review Go/No-Go.
 
 ### OQ-3: `.gitkeep`/`README.md`/`INDEX.*`/`STATUS.md` are NOT artifacts.
 - Blocking: no. Confirm the grammar applies only to artifact files, not to the structural
