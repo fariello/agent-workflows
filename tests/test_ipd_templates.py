@@ -19,7 +19,7 @@ from tests.support import SOURCE_WORKFLOWS, SOURCE_DOCS
 TEMPLATES = SOURCE_WORKFLOWS / "assess" / "templates"
 CHILD = TEMPLATES / "ipd.md"
 ORCH = TEMPLATES / "orchestrator-ipd.md"
-IPD_SPEC = SOURCE_DOCS / "specs" / "20260726-1340-01-ipd-spec.md"
+IPD_SPEC = SOURCE_DOCS / "specs" / "20260726-1340-01-ipd-spec.spec.md"
 
 CHILD_TITLE = "<short title of the change>"
 ORCH_TITLE = "<short title of the coordinated change>"

@@ -1,5 +1,5 @@
 - Id: vf03z3
-- Status: open
+- Status: done
 - Set: awretrofit
 - Priority: medium
 - Kind: bug
@@ -8,6 +8,7 @@
 ## Workflow history
 - 2026-08-17 created (aw backlog): Plan-name tooling: scaffold/mv/plan-names/AGENTS.md disagree on the Set-clustering filename grammar
 - 2026-08-17 promoted (opencode Opus 4.8): all four gaps are folded into spec 20260817-2147-01 (uniform artifact-naming grammar) as goals G2/G4/G5/G7. Kept OPEN and linked; close as "promoted to spec" once that spec is approved, so the fixes ship as part of the naming-grammar work rather than as separate one-offs. Also add: `aw backlog set` cannot resolve a blocked/ item by id, and Gate-Kind rejects 'spec' (release-review finding S5-DC02).
+- 2026-08-18 set (aw backlog): Closed by awnaming Set: aw ipd scaffold derives the clustered .ipd.md name (Order 01), aw plans mv preserves Order/Date + emits .ipd.md (Order 01 vf03z3 root-cause fix in apply_renames), aw plan-names validates the .type.md grammar, AGENTS.md reconciled to one grammar (Order 02).
 
 Discovered during release-review run 20260817-153418 while /plan-review-ing the awretrofit Set. Four related defects in the plan-naming tooling/docs:
 1. aw ipd scaffold does not derive/enforce the canonical Set-clustering filename (YYYYMMDD-<set-id>-NN-<id6>-<slug>.md); it wrote whatever --path was passed, producing a hybrid YYYYMMDD-HHMM-NN-<setid>-<slug> that dropped the id6 and kept HHMM.

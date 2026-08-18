@@ -121,7 +121,7 @@ date, purpose, and a "read this first" line. Order the body so the session-conte
 
 Omit any section only with an explicit "N/A because ..." line.
 
-Structural reference (SHAPE only, not facts): `.aw/records/prompts/pending/20260717-1950-01-session-handoff-resume-here.md`
+Structural reference (SHAPE only, not facts): `.aw/records/prompts/superseded/20260717-1950-01-session-handoff-resume-here.prompt.md`
 is a hand-authored example of the sections and the nuance layer. Copy its structure, never its
 (now-stale) specifics.
 

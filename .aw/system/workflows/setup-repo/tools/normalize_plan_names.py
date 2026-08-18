@@ -102,7 +102,8 @@ DEFAULT_EXCLUDES = ("*/README.md", "README.md")
 
 # Canonical form: YYYYMMDD-HHMM-NN-<slug>.md
 _NEW_RE = re.compile(
-    r"^(?P<date>\d{8})-(?P<time>\d{4})-(?P<nn>\d{2})-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)\.md$"
+    r"^(?P<date>\d{8})-(?P<time>\d{4})-(?P<nn>\d{2})-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)"
+    r"(?:\.(?P<type>ipd|prompt|spec|walkthrough|roadmap|backlog|comms))?\.md$"
 )
 # The Set-clustering grammar for plans (plans-adopter Order 06, spec 20260808-0004-01):
 # YYYYMMDD-<set-id>-<NN>-<id6>-<slug>[.<type>].md, where <id6> is a 6-char base36 stable handle. This

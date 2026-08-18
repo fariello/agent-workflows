@@ -6,262 +6,262 @@ Showing the 40 most-recent of 84 Sets; the full manifest is INDEX.json.
 
 ## awnaming
 
-- `6gy9rf` [pending] 00 pending/20260818-awnaming-00-6gy9rf-awnaming-orchestrator.md
-- `f8e6y7` [executed] 01 executed/20260818-awnaming-01-f8e6y7-grammar-and-producers.md
-- `975whv` [pending] 02 pending/20260818-awnaming-02-975whv-rename-and-docs.md
+- `6gy9rf` [pending] 00 pending/20260818-awnaming-00-6gy9rf-awnaming-orchestrator.ipd.md
+- `f8e6y7` [executed] 01 executed/20260818-awnaming-01-f8e6y7-grammar-and-producers.ipd.md
+- `975whv` [pending] 02 pending/20260818-awnaming-02-975whv-rename-and-docs.ipd.md
 
 ## awretrofit
 
-- `pp6y76` [pending] 00 pending/20260817-awretrofit-00-pp6y76-orchestrator.md
-- `i7um6r` [executed] 01 executed/20260817-awretrofit-01-i7um6r-record-verbs-layout-aware.md
-- `ckvg3n` [executed] 02 executed/20260817-awretrofit-02-ckvg3n-shipped-docs-and-agents-md.md
-- `giiowo` [executed] 03 executed/20260817-awretrofit-03-giiowo-release-mechanics.md
-- `y5zxql` [executed] 04 executed/20260817-awretrofit-04-y5zxql-install-uninstall-migration-safety.md
-- `euqxi3` [executed] 05 executed/20260817-awretrofit-05-euqxi3-help-docstrings-manifest-deadcode.md
-- `uh295u` [executed] 06 executed/20260817-awretrofit-06-uh295u-cwd-climb-project-root.md
-- `u7xtni` [executed] 07 executed/20260817-awretrofit-07-u7xtni-records-taxonomy-cleanup.md
-- `ksim8l` [executed] 08 executed/20260817-awretrofit-08-ksim8l-install-scaffolder-flat.md
-- `7m458z` [executed] 09 executed/20260818-awretrofit-09-7m458z-managed-sections-regen.md
-- `oznad0` [executed] 10 executed/20260818-awretrofit-10-oznad0-install-selfheal-and-shims.md
+- `pp6y76` [pending] 00 pending/20260817-awretrofit-00-pp6y76-orchestrator.ipd.md
+- `i7um6r` [executed] 01 executed/20260817-awretrofit-01-i7um6r-record-verbs-layout-aware.ipd.md
+- `ckvg3n` [executed] 02 executed/20260817-awretrofit-02-ckvg3n-shipped-docs-and-agents-md.ipd.md
+- `giiowo` [executed] 03 executed/20260817-awretrofit-03-giiowo-release-mechanics.ipd.md
+- `y5zxql` [executed] 04 executed/20260817-awretrofit-04-y5zxql-install-uninstall-migration-safety.ipd.md
+- `euqxi3` [executed] 05 executed/20260817-awretrofit-05-euqxi3-help-docstrings-manifest-deadcode.ipd.md
+- `uh295u` [executed] 06 executed/20260817-awretrofit-06-uh295u-cwd-climb-project-root.ipd.md
+- `u7xtni` [executed] 07 executed/20260817-awretrofit-07-u7xtni-records-taxonomy-cleanup.ipd.md
+- `ksim8l` [executed] 08 executed/20260817-awretrofit-08-ksim8l-install-scaffolder-flat.ipd.md
+- `7m458z` [executed] 09 executed/20260818-awretrofit-09-7m458z-managed-sections-regen.ipd.md
+- `oznad0` [executed] 10 executed/20260818-awretrofit-10-oznad0-install-selfheal-and-shims.ipd.md
 
 ## awphysical
 
-- `rma3j4` [executed] 00 executed/20260810-awphysical-00-rma3j4-physical-aw-hierarchy-and-migration-orchestrator.md
-- `cwjnj0` [executed] 01 executed/20260810-awphysical-01-cwjnj0-physical-root-ownership-and-git-policy-contract.md
-- `sywony` [executed] 02 executed/20260810-awphysical-02-sywony-policy-schema-and-deterministic-context-resolution.md
-- `x2dfen` [executed] 03 executed/20260810-awphysical-03-x2dfen-wizard-presets-custom-placement-and-persistence.md
-- `ru5pmd` [executed] 04 executed/20260810-awphysical-04-ru5pmd-canonical-system-installation-and-source-checkout-mode.md
-- `1e9ggw` [executed] 05 executed/20260810-awphysical-05-1e9ggw-private-companion-attachment-and-durability.md
-- `fcgala` [executed] 06 executed/20260810-awphysical-06-fcgala-migration-inventory-and-mapping-tools.md
-- `nhv0qm` [executed] 07 executed/20260810-awphysical-07-nhv0qm-transactional-migration-rollback-and-resume.md
-- `mb9xn2` [executed] 08 executed/20260810-awphysical-08-mb9xn2-record-producers-and-legacy-reference-cutover.md
-- `2e2jrw` [executed] 09 executed/20260810-awphysical-09-2e2jrw-host-adapters-and-clean-delta-integration.md
-- `n3fz8b` [executed] 10 executed/20260810-awphysical-10-n3fz8b-post-migration-independent-audit.md
-- `g5zl1u` [executed] 11 executed/20260810-awphysical-11-g5zl1u-agent-workflows-source-repository-self-migration.md
-- `pszk6x` [executed] 12 executed/20260810-awphysical-12-pszk6x-documentation-release-and-end-to-end-acceptance.md
-- `xzuxet` [executed] 13 executed/20260816-awphysical-13-xzuxet-awsystem-nested-layout-reconciliation.md
-- `hnzr8v` [executed] 14 executed/20260816-awphysical-14-hnzr8v-migration-move-not-copy.md
-- `7cvh9t` [executed] 15 executed/20260816-awphysical-15-7cvh9t-fresh-install-aw-target.md
-- `88bnw0` [executed] 16 executed/20260816-awphysical-16-88bnw0-migrate-layout-wizard.md
-- `wvlk84` [executed] 17 executed/20260817-1357-01-assess-bugs-leftover-remove-dataloss.md
+- `rma3j4` [executed] 00 executed/20260810-awphysical-00-rma3j4-physical-aw-hierarchy-and-migration-orchestrator.ipd.md
+- `cwjnj0` [executed] 01 executed/20260810-awphysical-01-cwjnj0-physical-root-ownership-and-git-policy-contract.ipd.md
+- `sywony` [executed] 02 executed/20260810-awphysical-02-sywony-policy-schema-and-deterministic-context-resolution.ipd.md
+- `x2dfen` [executed] 03 executed/20260810-awphysical-03-x2dfen-wizard-presets-custom-placement-and-persistence.ipd.md
+- `ru5pmd` [executed] 04 executed/20260810-awphysical-04-ru5pmd-canonical-system-installation-and-source-checkout-mode.ipd.md
+- `1e9ggw` [executed] 05 executed/20260810-awphysical-05-1e9ggw-private-companion-attachment-and-durability.ipd.md
+- `fcgala` [executed] 06 executed/20260810-awphysical-06-fcgala-migration-inventory-and-mapping-tools.ipd.md
+- `nhv0qm` [executed] 07 executed/20260810-awphysical-07-nhv0qm-transactional-migration-rollback-and-resume.ipd.md
+- `mb9xn2` [executed] 08 executed/20260810-awphysical-08-mb9xn2-record-producers-and-legacy-reference-cutover.ipd.md
+- `2e2jrw` [executed] 09 executed/20260810-awphysical-09-2e2jrw-host-adapters-and-clean-delta-integration.ipd.md
+- `n3fz8b` [executed] 10 executed/20260810-awphysical-10-n3fz8b-post-migration-independent-audit.ipd.md
+- `g5zl1u` [executed] 11 executed/20260810-awphysical-11-g5zl1u-agent-workflows-source-repository-self-migration.ipd.md
+- `pszk6x` [executed] 12 executed/20260810-awphysical-12-pszk6x-documentation-release-and-end-to-end-acceptance.ipd.md
+- `xzuxet` [executed] 13 executed/20260816-awphysical-13-xzuxet-awsystem-nested-layout-reconciliation.ipd.md
+- `hnzr8v` [executed] 14 executed/20260816-awphysical-14-hnzr8v-migration-move-not-copy.ipd.md
+- `7cvh9t` [executed] 15 executed/20260816-awphysical-15-7cvh9t-fresh-install-aw-target.ipd.md
+- `88bnw0` [executed] 16 executed/20260816-awphysical-16-88bnw0-migrate-layout-wizard.ipd.md
+- `wvlk84` [executed] 17 executed/20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md
 
 ## agyrun
 
-- `71ibuy` [executed] 01 executed/20260816-agyrun-01-71ibuy-agy-run-executor-validator.md
+- `71ibuy` [executed] 01 executed/20260816-agyrun-01-71ibuy-agy-run-executor-validator.ipd.md
 
 ## humanapproval
 
-- `0g0rid` [executed] 01 executed/20260815-humanapproval-01-0g0rid-by-human-attestation.md
+- `0g0rid` [executed] 01 executed/20260815-humanapproval-01-0g0rid-by-human-attestation.ipd.md
 
 ## backlogtier
 
-- `crv40v` [executed] 01 executed/20260813-backlogtier-01-crv40v-attention-visible-backlog-tier.md
+- `crv40v` [executed] 01 executed/20260813-backlogtier-01-crv40v-attention-visible-backlog-tier.ipd.md
 
 ## ipdexechist
 
-- `69xrut` [executed] 01 executed/20260813-ipdexechist-01-69xrut-executed-history-lint-guard.md
+- `69xrut` [executed] 01 executed/20260813-ipdexechist-01-69xrut-executed-history-lint-guard.ipd.md
 
 ## migdispo
 
-- `bsxowq` [executed] 01 executed/20260812-migdispo-01-bsxowq-generalize-layout-migration-dispositions-and-entrypoint.md
+- `bsxowq` [executed] 01 executed/20260812-migdispo-01-bsxowq-generalize-layout-migration-dispositions-and-entrypoint.ipd.md
 
 ## clianx
 
-- `3e70cv` [executed] 01 executed/20260810-clianx-01-3e70cv-cli-ux-exclude-alpha-help.md
+- `3e70cv` [executed] 01 executed/20260810-clianx-01-3e70cv-cli-ux-exclude-alpha-help.ipd.md
 
 ## awlayout
 
-- `az9912` [executed] 00 executed/20260809-awlayout-00-az9912-aw-project-layout-orchestrator.md
-- `m9tqof` [executed] 01 executed/20260809-awlayout-01-m9tqof-aw-context-and-logical-roots.md
-- `bgyymp` [executed] 02 executed/20260809-awlayout-02-bgyymp-aw-home-project-identity-and-registry.md
-- `g4y28x` [executed] 03 executed/20260809-awlayout-03-g4y28x-records-backends-and-durability.md
-- `q0wpk4` [executed] 04 executed/20260809-awlayout-04-q0wpk4-install-update-policy-wizard.md
-- `tg60qo` [executed] 05 executed/20260809-awlayout-05-tg60qo-system-config-state-layout-and-ownership.md
-- `anlovz` [executed] 06 executed/20260809-awlayout-06-anlovz-operational-actions-and-install-history.md
-- `b31tuy` [executed] 07 executed/20260809-awlayout-07-b31tuy-action-workflow-and-status-integration.md
-- `0me1hr` [executed] 08 executed/20260809-awlayout-08-0me1hr-producing-workflow-record-routing.md
-- `es1phc` [executed] 09 executed/20260809-awlayout-09-es1phc-layout-migration-rollback-and-uninstall.md
-- `jmjh97` [executed] 10 executed/20260809-awlayout-10-jmjh97-clean-delta-skills-and-host-gates.md
-- `blw6qp` [executed] 11 executed/20260809-awlayout-11-blw6qp-docs-release-and-end-to-end-cutover.md
+- `az9912` [executed] 00 executed/20260809-awlayout-00-az9912-aw-project-layout-orchestrator.ipd.md
+- `m9tqof` [executed] 01 executed/20260809-awlayout-01-m9tqof-aw-context-and-logical-roots.ipd.md
+- `bgyymp` [executed] 02 executed/20260809-awlayout-02-bgyymp-aw-home-project-identity-and-registry.ipd.md
+- `g4y28x` [executed] 03 executed/20260809-awlayout-03-g4y28x-records-backends-and-durability.ipd.md
+- `q0wpk4` [executed] 04 executed/20260809-awlayout-04-q0wpk4-install-update-policy-wizard.ipd.md
+- `tg60qo` [executed] 05 executed/20260809-awlayout-05-tg60qo-system-config-state-layout-and-ownership.ipd.md
+- `anlovz` [executed] 06 executed/20260809-awlayout-06-anlovz-operational-actions-and-install-history.ipd.md
+- `b31tuy` [executed] 07 executed/20260809-awlayout-07-b31tuy-action-workflow-and-status-integration.ipd.md
+- `0me1hr` [executed] 08 executed/20260809-awlayout-08-0me1hr-producing-workflow-record-routing.ipd.md
+- `es1phc` [executed] 09 executed/20260809-awlayout-09-es1phc-layout-migration-rollback-and-uninstall.ipd.md
+- `jmjh97` [executed] 10 executed/20260809-awlayout-10-jmjh97-clean-delta-skills-and-host-gates.ipd.md
+- `blw6qp` [executed] 11 executed/20260809-awlayout-11-blw6qp-docs-release-and-end-to-end-cutover.ipd.md
 
 ## attnview
 
-- `94dhrt` [executed] 00 executed/20260808-attnview-00-94dhrt-attention-view-orchestrator.md
-- `0i8ass` [executed] 01 executed/20260808-attnview-01-0i8ass-phase0-contracts-and-fixtures.md
-- `u4q8ml` [executed] 02 executed/20260808-attnview-02-u4q8ml-aw-specs-owner-verbs.md
-- `h3dadd` [executed] 03 executed/20260808-attnview-03-h3dadd-aw-attention-scanner.md
-- `dxoxgi` [executed] 04 executed/20260808-attnview-04-dxoxgi-specs-migration.md
-- `9y2fz1` [executed] 05 executed/20260808-attnview-05-9y2fz1-whatnext-and-ci.md
+- `94dhrt` [executed] 00 executed/20260808-attnview-00-94dhrt-attention-view-orchestrator.ipd.md
+- `0i8ass` [executed] 01 executed/20260808-attnview-01-0i8ass-phase0-contracts-and-fixtures.ipd.md
+- `u4q8ml` [executed] 02 executed/20260808-attnview-02-u4q8ml-aw-specs-owner-verbs.ipd.md
+- `h3dadd` [executed] 03 executed/20260808-attnview-03-h3dadd-aw-attention-scanner.ipd.md
+- `dxoxgi` [executed] 04 executed/20260808-attnview-04-dxoxgi-specs-migration.ipd.md
+- `9y2fz1` [executed] 05 executed/20260808-attnview-05-9y2fz1-whatnext-and-ci.ipd.md
 
 ## plans-adopter
 
-- `lus9ou` [executed] 00 executed/20260808-0004-00-plans-adopter-orchestrator.md
-- `7qx7ys` [executed] 06 executed/20260808-0004-06-migrate-existing-plans.md
-- `8q6yr9` [executed] 07 executed/20260808-0004-07-plans-scaffold-directives-decisions.md
+- `lus9ou` [executed] 00 executed/20260808-0004-00-plans-adopter-orchestrator.ipd.md
+- `7qx7ys` [executed] 06 executed/20260808-0004-06-migrate-existing-plans.ipd.md
+- `8q6yr9` [executed] 07 executed/20260808-0004-07-plans-scaffold-directives-decisions.ipd.md
 
 ## plansadopt
 
-- `qkc93l` [executed] 01 executed/20260808-plansadopt-01-qkc93l-shared-artifact-core.md
-- `2bpoz6` [executed] 02 executed/20260808-plansadopt-02-2bpoz6-plan-id-in-ipd-schema.md
-- `xh08he` [executed] 03 executed/20260808-plansadopt-03-xh08he-plans-manifest-and-check.md
-- `qb3ubs` [executed] 04 executed/20260808-plansadopt-04-qb3ubs-plans-regroup-and-refs.md
-- `gxa8xb` [executed] 05 executed/20260808-plansadopt-05-gxa8xb-plans-shards-and-archival.md
+- `qkc93l` [executed] 01 executed/20260808-plansadopt-01-qkc93l-shared-artifact-core.ipd.md
+- `2bpoz6` [executed] 02 executed/20260808-plansadopt-02-2bpoz6-plan-id-in-ipd-schema.ipd.md
+- `xh08he` [executed] 03 executed/20260808-plansadopt-03-xh08he-plans-manifest-and-check.ipd.md
+- `qb3ubs` [executed] 04 executed/20260808-plansadopt-04-qb3ubs-plans-regroup-and-refs.ipd.md
+- `gxa8xb` [executed] 05 executed/20260808-plansadopt-05-gxa8xb-plans-shards-and-archival.ipd.md
 
 ## ipd-history
 
-- `wrt0wq` [superseded] 01 superseded/20260807-ipd-history-01-wrt0wq-ipd-lifecycle-history-tracking.md
+- `wrt0wq` [superseded] 01 superseded/20260807-ipd-history-01-wrt0wq-ipd-lifecycle-history-tracking.ipd.md
 
 ## verify-execution
 
-- `c5685e` [executed] 00 executed/20260712-verify-execution-00-c5685e-verify-execution-workflow.md
-- `2p9fd3` [executed] 01 executed/20260807-verify-execution-01-2p9fd3-thorough-execution-verification-workflow.md
+- `c5685e` [executed] 00 executed/20260712-verify-execution-00-c5685e-verify-execution-workflow.ipd.md
+- `2p9fd3` [executed] 01 executed/20260807-verify-execution-01-2p9fd3-thorough-execution-verification-workflow.ipd.md
 
 ## ipdstruct
 
-- `by245s` [executed] 00 executed/20260802-ipdstruct-00-by245s-ipd-structure-orchestrator.md
-- `ktv5h3` [executed] 01 executed/20260802-ipdstruct-01-ktv5h3-canonical-ipd-schema.md
-- `dkpqmy` [executed] 02 executed/20260802-ipdstruct-02-dkpqmy-ipd-lint-parser-and-state-machine.md
-- `l060ep` [executed] 03 executed/20260802-ipdstruct-03-l060ep-ipd-scaffold-and-sync.md
-- `x9engh` [executed] 04 executed/20260802-ipdstruct-04-x9engh-templates-and-spec-and-defect-fixes.md
-- `nyfgsz` [executed] 05 executed/20260802-ipdstruct-05-nyfgsz-review-preflight-and-enforcement.md
-- `5xwaxi` [executed] 06 executed/20260802-ipdstruct-06-5xwaxi-migrate-nonterminal-and-adopt.md
+- `by245s` [executed] 00 executed/20260802-ipdstruct-00-by245s-ipd-structure-orchestrator.ipd.md
+- `ktv5h3` [executed] 01 executed/20260802-ipdstruct-01-ktv5h3-canonical-ipd-schema.ipd.md
+- `dkpqmy` [executed] 02 executed/20260802-ipdstruct-02-dkpqmy-ipd-lint-parser-and-state-machine.ipd.md
+- `l060ep` [executed] 03 executed/20260802-ipdstruct-03-l060ep-ipd-scaffold-and-sync.ipd.md
+- `x9engh` [executed] 04 executed/20260802-ipdstruct-04-x9engh-templates-and-spec-and-defect-fixes.ipd.md
+- `nyfgsz` [executed] 05 executed/20260802-ipdstruct-05-nyfgsz-review-preflight-and-enforcement.ipd.md
+- `5xwaxi` [executed] 06 executed/20260802-ipdstruct-06-5xwaxi-migrate-nonterminal-and-adopt.ipd.md
 
 ## researchorg
 
-- `jwbo2u` [executed] 00 executed/20260730-researchorg-00-jwbo2u-research-org-orchestrator.md
-- `3x7po2` [executed] 01 executed/20260730-researchorg-01-3x7po2-research-naming-and-frontmatter-contract.md
-- `g7w8ul` [executed] 02 executed/20260730-researchorg-02-g7w8ul-aw-research-create-tool.md
-- `7xzlug` [executed] 03 executed/20260730-researchorg-03-7xzlug-research-index-generator.md
-- `evuvbe` [executed] 04 executed/20260730-researchorg-04-evuvbe-research-rename-and-refs-tool.md
-- `9tdap2` [executed] 05 executed/20260730-researchorg-05-9tdap2-research-archival-and-states.md
-- `w2u8ws` [executed] 06 executed/20260730-researchorg-06-w2u8ws-migrate-existing-research.md
-- `bv7oat` [executed] 07 executed/20260730-researchorg-07-bv7oat-scaffold-directives-and-decision-updates.md
+- `jwbo2u` [executed] 00 executed/20260730-researchorg-00-jwbo2u-research-org-orchestrator.ipd.md
+- `3x7po2` [executed] 01 executed/20260730-researchorg-01-3x7po2-research-naming-and-frontmatter-contract.ipd.md
+- `g7w8ul` [executed] 02 executed/20260730-researchorg-02-g7w8ul-aw-research-create-tool.ipd.md
+- `7xzlug` [executed] 03 executed/20260730-researchorg-03-7xzlug-research-index-generator.ipd.md
+- `evuvbe` [executed] 04 executed/20260730-researchorg-04-evuvbe-research-rename-and-refs-tool.ipd.md
+- `9tdap2` [executed] 05 executed/20260730-researchorg-05-9tdap2-research-archival-and-states.ipd.md
+- `w2u8ws` [executed] 06 executed/20260730-researchorg-06-w2u8ws-migrate-existing-research.ipd.md
+- `bv7oat` [executed] 07 executed/20260730-researchorg-07-bv7oat-scaffold-directives-and-decision-updates.ipd.md
 
 ## dualchk
 
-- `3a4wh8` [executed] 00 executed/20260727-dualchk-00-3a4wh8-dual-checklist-convention-orchestrator.md
-- `r42p0d` [executed] 01 executed/20260727-dualchk-01-r42p0d-ipd-template-dual-checklist.md
-- `v46x84` [executed] 02 executed/20260727-dualchk-02-v46x84-plan-review-dual-checklist-duties.md
-- `oz1cj6` [executed] 03 executed/20260727-dualchk-03-oz1cj6-ipd-spec-and-orchestrator-template.md
+- `3a4wh8` [executed] 00 executed/20260727-dualchk-00-3a4wh8-dual-checklist-convention-orchestrator.ipd.md
+- `r42p0d` [executed] 01 executed/20260727-dualchk-01-r42p0d-ipd-template-dual-checklist.ipd.md
+- `v46x84` [executed] 02 executed/20260727-dualchk-02-v46x84-plan-review-dual-checklist-duties.ipd.md
+- `oz1cj6` [executed] 03 executed/20260727-dualchk-03-oz1cj6-ipd-spec-and-orchestrator-template.ipd.md
 
 ## two-sets
 
-- `ykdobx` [executed] 00 executed/20260727-two-sets-00-ykdobx-two-sets-prose-quality-fixes.md
+- `ykdobx` [executed] 00 executed/20260727-two-sets-00-ykdobx-two-sets-prose-quality-fixes.ipd.md
 
 ## untrack-artifacts
 
-- `r2lbj2` [executed] 00 executed/20260727-untrack-artifacts-00-r2lbj2-untrack-artifacts-prose-corrections.md
+- `r2lbj2` [executed] 00 executed/20260727-untrack-artifacts-00-r2lbj2-untrack-artifacts-prose-corrections.ipd.md
 
 ## untrackwf
 
-- `wn2jto` [executed] 00 executed/20260727-untrackwf-00-wn2jto-untrack-workflow-artifacts-orchestrator.md
-- `0pf3pn` [executed] 01 executed/20260727-untrackwf-01-0pf3pn-untrack-policy-code-and-docs.md
-- `1h8whs` [executed] 02 executed/20260727-untrackwf-02-1h8whs-untrack-policy-runbooks.md
-- `5zg7tu` [executed] 03 executed/20260727-untrackwf-03-5zg7tu-migration-tool-and-remediation.md
+- `wn2jto` [executed] 00 executed/20260727-untrackwf-00-wn2jto-untrack-workflow-artifacts-orchestrator.ipd.md
+- `0pf3pn` [executed] 01 executed/20260727-untrackwf-01-0pf3pn-untrack-policy-code-and-docs.ipd.md
+- `1h8whs` [executed] 02 executed/20260727-untrackwf-02-1h8whs-untrack-policy-runbooks.ipd.md
+- `5zg7tu` [executed] 03 executed/20260727-untrackwf-03-5zg7tu-migration-tool-and-remediation.ipd.md
 
 ## conformance-harness
 
-- `hypynh` [executed] 00 executed/20260726-conformance-harness-00-hypynh-conformance-harness-phase0.md
+- `hypynh` [executed] 00 executed/20260726-conformance-harness-00-hypynh-conformance-harness-phase0.ipd.md
 
 ## ipdcomplete
 
-- `yyxyt9` [executed] 01 executed/20260726-ipdcomplete-01-yyxyt9-ipd-checklist-and-completion-clause.md
-- `h409oe` [executed] 02 executed/20260726-ipdcomplete-02-h409oe-ipd-spec-and-always-loaded-directive.md
+- `yyxyt9` [executed] 01 executed/20260726-ipdcomplete-01-yyxyt9-ipd-checklist-and-completion-clause.ipd.md
+- `h409oe` [executed] 02 executed/20260726-ipdcomplete-02-h409oe-ipd-spec-and-always-loaded-directive.ipd.md
 
 ## plan-review
 
-- `yxai1b` [executed] 00 executed/20260726-plan-review-00-yxai1b-plan-review-scope-ledger-wording.md
+- `yxai1b` [executed] 00 executed/20260726-plan-review-00-yxai1b-plan-review-scope-ledger-wording.ipd.md
 
 ## instsafe
 
-- `920qnm` [executed] 01 executed/20260723-instsafe-01-920qnm-install-manifest-and-managed-sections-model.md
-- `kcjgmy` [executed] 02 executed/20260723-instsafe-02-kcjgmy-sectioned-managed-block-for-shared-files.md
-- `2jovaz` [executed] 03 executed/20260723-instsafe-03-2jovaz-untracked-safety-convention-and-tracking-warning.md
-- `80128k` [executed] 04 executed/20260723-instsafe-04-80128k-aw-uninstall-conservative.md
-- `kemhdg` [executed] 05 executed/20260723-instsafe-05-kemhdg-external-install-and-skills-delivery-research-spec.md
-- `mv7hw7` [executed] 06 executed/20260722-instsafe-06-mv7hw7-deepen-interactive-questions-convention.md
-- `qrokie` [executed] 07 executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.md
+- `920qnm` [executed] 01 executed/20260723-instsafe-01-920qnm-install-manifest-and-managed-sections-model.ipd.md
+- `kcjgmy` [executed] 02 executed/20260723-instsafe-02-kcjgmy-sectioned-managed-block-for-shared-files.ipd.md
+- `2jovaz` [executed] 03 executed/20260723-instsafe-03-2jovaz-untracked-safety-convention-and-tracking-warning.ipd.md
+- `80128k` [executed] 04 executed/20260723-instsafe-04-80128k-aw-uninstall-conservative.ipd.md
+- `kemhdg` [executed] 05 executed/20260723-instsafe-05-kemhdg-external-install-and-skills-delivery-research-spec.ipd.md
+- `mv7hw7` [executed] 06 executed/20260722-instsafe-06-mv7hw7-deepen-interactive-questions-convention.ipd.md
+- `qrokie` [executed] 07 executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md
 
 ## assess-and
 
-- `49eeuc` [executed] 00 executed/20260722-assess-and-00-49eeuc-assess-and-producers-closing-artifacts-report.md
+- `49eeuc` [executed] 00 executed/20260722-assess-and-00-49eeuc-assess-and-producers-closing-artifacts-report.ipd.md
 
 ## overwrite-prompt
 
-- `1wt4qz` [executed] 00 executed/20260722-overwrite-prompt-00-1wt4qz-overwrite-prompt-clarity-and-input-validation.md
+- `1wt4qz` [executed] 00 executed/20260722-overwrite-prompt-00-1wt4qz-overwrite-prompt-clarity-and-input-validation.ipd.md
 
 ## leak-sanitizer
 
-- `kq6akq` [executed] 00 executed/20260721-leak-sanitizer-00-kq6akq-leak-sanitizer-agent-rewire-and-optional-install.md
-- `l994g9` [executed] 00 executed/20260721-leak-sanitizer-00-l994g9-leak-sanitizer-config-wizard.md
+- `kq6akq` [executed] 00 executed/20260721-leak-sanitizer-00-kq6akq-leak-sanitizer-agent-rewire-and-optional-install.ipd.md
+- `l994g9` [executed] 00 executed/20260721-leak-sanitizer-00-l994g9-leak-sanitizer-config-wizard.ipd.md
 
 ## per-workflow
 
-- `lwug80` [executed] 00 executed/20260721-per-workflow-00-lwug80-per-workflow-argument-hint-in-command-shims.md
+- `lwug80` [executed] 00 executed/20260721-per-workflow-00-lwug80-per-workflow-argument-hint-in-command-shims.ipd.md
 
 ## prompts-local
 
-- `btn0my` [executed] 00 executed/20260721-prompts-local-00-btn0my-prompts-local-quarantine-lane.md
+- `btn0my` [executed] 00 executed/20260721-prompts-local-00-btn0my-prompts-local-quarantine-lane.ipd.md
 
 ## release-review
 
-- `ez65jl` [executed] 00 executed/20260711-release-review-00-ez65jl-release-review-terminal-decision-and-ci-verify.md
-- `6cdker` [executed] 00 executed/20260712-release-review-00-6cdker-release-review-todo-and-pending-prompts.md
-- `s3axqd` [executed] 00 executed/20260721-release-review-00-s3axqd-release-review-full-release-publishes-gh-release.md
+- `ez65jl` [executed] 00 executed/20260711-release-review-00-ez65jl-release-review-terminal-decision-and-ci-verify.ipd.md
+- `6cdker` [executed] 00 executed/20260712-release-review-00-6cdker-release-review-todo-and-pending-prompts.ipd.md
+- `s3axqd` [executed] 00 executed/20260721-release-review-00-s3axqd-release-review-full-release-publishes-gh-release.ipd.md
 
 ## sanitizer-engine
 
-- `qjdklk` [executed] 00 executed/20260721-sanitizer-engine-00-qjdklk-sanitizer-engine-and-local-leaks-migration.md
+- `qjdklk` [executed] 00 executed/20260721-sanitizer-engine-00-qjdklk-sanitizer-engine-and-local-leaks-migration.ipd.md
 
 ## self-contained
 
-- `vgxk6c` [executed] 00 executed/20260721-self-contained-00-vgxk6c-self-contained-interactive-questions-convention.md
+- `vgxk6c` [executed] 00 executed/20260721-self-contained-00-vgxk6c-self-contained-interactive-questions-convention.ipd.md
 
 ## version-resolver
 
-- `ey1dex` [executed] 00 executed/20260721-version-resolver-00-ey1dex-version-resolver-match-release-tags-only.md
+- `ey1dex` [executed] 00 executed/20260721-version-resolver-00-ey1dex-version-resolver-match-release-tags-only.ipd.md
 
 ## whatnext-chat
 
-- `wa7uiw` [executed] 00 executed/20260721-whatnext-chat-00-wa7uiw-whatnext-chat-history-todowrite-save-to-todo.md
+- `wa7uiw` [executed] 00 executed/20260721-whatnext-chat-00-wa7uiw-whatnext-chat-history-todowrite-save-to-todo.ipd.md
 
 ## assess-self
 
-- `55vpda` [executed] 00 executed/20260720-assess-self-00-55vpda-assess-self-documentation.md
+- `55vpda` [executed] 00 executed/20260720-assess-self-00-55vpda-assess-self-documentation.ipd.md
 
 ## assess-documentation
 
-- `7ibobm` [executed] 00 executed/20260630-assess-documentation-00-7ibobm-assess-documentation.md
-- `yye9f8` [executed] 00 executed/20260703-assess-documentation-00-yye9f8-assess-documentation.md
-- `g2payb` [executed] 00 executed/20260704-assess-documentation-00-g2payb-assess-documentation-2.md
-- `ge2a5r` [executed] 00 executed/20260704-assess-documentation-00-ge2a5r-assess-documentation.md
-- `5by84z` [executed] 00 executed/20260711-assess-documentation-00-5by84z-assess-documentation.md
-- `z0416p` [executed] 00 executed/20260715-assess-documentation-00-z0416p-assess-documentation.md
-- `lud5t5` [not-executed] 00 not-executed/20260719-assess-documentation-00-lud5t5-assess-documentation.md
+- `7ibobm` [executed] 00 executed/20260630-assess-documentation-00-7ibobm-assess-documentation.ipd.md
+- `yye9f8` [executed] 00 executed/20260703-assess-documentation-00-yye9f8-assess-documentation.ipd.md
+- `g2payb` [executed] 00 executed/20260704-assess-documentation-00-g2payb-assess-documentation-2.ipd.md
+- `ge2a5r` [executed] 00 executed/20260704-assess-documentation-00-ge2a5r-assess-documentation.ipd.md
+- `5by84z` [executed] 00 executed/20260711-assess-documentation-00-5by84z-assess-documentation.ipd.md
+- `z0416p` [executed] 00 executed/20260715-assess-documentation-00-z0416p-assess-documentation.ipd.md
+- `lud5t5` [not-executed] 00 not-executed/20260719-assess-documentation-00-lud5t5-assess-documentation.ipd.md
 
 ## local-leaks
 
-- `8vc1r6` [executed] 00 executed/20260719-local-leaks-00-8vc1r6-local-leaks-detection-capability.md
+- `8vc1r6` [executed] 00 executed/20260719-local-leaks-00-8vc1r6-local-leaks-detection-capability.ipd.md
 
 ## purge-personal
 
-- `3visab` [executed] 00 executed/20260718-purge-personal-00-3visab-purge-personal-path-and-identity-leaks.md
+- `3visab` [executed] 00 executed/20260718-purge-personal-00-3visab-purge-personal-path-and-identity-leaks.ipd.md
 
 ## agentcont
 
-- `6a3myl` [executed] 01 executed/20260717-agentcont-01-6a3myl-whatnext-surveyor-workflow.md
-- `5twbwf` [executed] 03 executed/20260717-agentcont-03-5twbwf-handoff-workflow-session-continuity.md
+- `6a3myl` [executed] 01 executed/20260717-agentcont-01-6a3myl-whatnext-surveyor-workflow.ipd.md
+- `5twbwf` [executed] 03 executed/20260717-agentcont-03-5twbwf-handoff-workflow-session-continuity.ipd.md
 
 ## (singletons: no Set)
 
-- `d5tz36` [executed] executed/20260704-advise-workflow-00-d5tz36-advise-workflow-and-personas.md
-- `bl0nph` [executed] executed/20260704-command-surface-00-bl0nph-command-surface-redesign.md
-- `ksvzgc` [executed] executed/20260704-guided-onboarding-00-ksvzgc-guided-onboarding-tour.md
-- `i9xi81` [executed] executed/20260704-lifecycle-workflows-00-i9xi81-lifecycle-workflows.md
-- `bqcbnk` [executed] executed/20260704-self-tests-00-bqcbnk-self-tests-and-assess-all.md
-- `or78s2` [executed] executed/20260704-toolkit-discovery-00-or78s2-toolkit-discovery-and-version.md
-- `4ys2p2` [executed] executed/20260704-verification-evidence-00-4ys2p2-verification-evidence-layer.md
-- `vfa1tl` [executed] executed/20260709-interactive-git-00-vfa1tl-interactive-git-workflow.md
-- `vw1ich` [executed] executed/20260709-target-directory-00-vw1ich-target-directory-readmes.md
-- `4025ak` [executed] executed/20260710-plan-lifecycle-00-4025ak-plan-lifecycle-superseded-notexecuted-dirs.md
-- `4o5lt9` [executed] executed/20260815-2156-01-installer-rollback-same-second-backup-collision.md
+- `d5tz36` [executed] executed/20260704-advise-workflow-00-d5tz36-advise-workflow-and-personas.ipd.md
+- `bl0nph` [executed] executed/20260704-command-surface-00-bl0nph-command-surface-redesign.ipd.md
+- `ksvzgc` [executed] executed/20260704-guided-onboarding-00-ksvzgc-guided-onboarding-tour.ipd.md
+- `i9xi81` [executed] executed/20260704-lifecycle-workflows-00-i9xi81-lifecycle-workflows.ipd.md
+- `bqcbnk` [executed] executed/20260704-self-tests-00-bqcbnk-self-tests-and-assess-all.ipd.md
+- `or78s2` [executed] executed/20260704-toolkit-discovery-00-or78s2-toolkit-discovery-and-version.ipd.md
+- `4ys2p2` [executed] executed/20260704-verification-evidence-00-4ys2p2-verification-evidence-layer.ipd.md
+- `vfa1tl` [executed] executed/20260709-interactive-git-00-vfa1tl-interactive-git-workflow.ipd.md
+- `vw1ich` [executed] executed/20260709-target-directory-00-vw1ich-target-directory-readmes.ipd.md
+- `4025ak` [executed] executed/20260710-plan-lifecycle-00-4025ak-plan-lifecycle-superseded-notexecuted-dirs.ipd.md
+- `4o5lt9` [executed] executed/20260815-2156-01-installer-rollback-same-second-backup-collision.ipd.md
