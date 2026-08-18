@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 85 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 86 Sets; the full manifest is INDEX.json.
+
+## awcmdsurf
+
+- `mvz3d2` [pending] 00 pending/20260818-awcmdsurf-00-mvz3d2-aw-command-surface-redesign-noun-verb-grammar-hard-cutover.ipd.md
 
 ## awmigrename
 
@@ -246,10 +250,6 @@ Showing the 40 most-recent of 85 Sets; the full manifest is INDEX.json.
 ## local-leaks
 
 - `8vc1r6` [executed] 00 executed/20260719-local-leaks-00-8vc1r6-local-leaks-detection-capability.ipd.md
-
-## purge-personal
-
-- `3visab` [executed] 00 executed/20260718-purge-personal-00-3visab-purge-personal-path-and-identity-leaks.ipd.md
 
 ## (singletons: no Set)
 

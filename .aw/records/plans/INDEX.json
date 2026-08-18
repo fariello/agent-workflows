@@ -1840,6 +1840,16 @@
     "status": "approved"
   },
   {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260818-awcmdsurf-00-mvz3d2-aw-command-surface-redesign-noun-verb-grammar-hard-cutover.ipd.md",
+    "plan_id": "mvz3d2",
+    "set_id": "awcmdsurf",
+    "status": "to-review"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",
