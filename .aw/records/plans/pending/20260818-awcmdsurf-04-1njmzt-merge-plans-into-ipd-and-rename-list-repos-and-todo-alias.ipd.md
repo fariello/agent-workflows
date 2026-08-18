@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: awcmdsurf Order 04 (spec 20260818-1525-01, D2/D4/D5). Merge the `aw plans` board into the `aw ipd` noun (a plan IS an ipd); rename `aw list` -> `aw list-repos`; make `aw todo` an alias of `aw attention`. Additive here (new names added; old `plans`/`list`/`todo` removed in Order 05 for a clean cutover, EXCEPT `plans` whose board relocates to `ipd` and is removed in 05).
 - Scope: cli.py parser + dispatch + the plans board function. IN: expose the board (`_run_plans`, cli.py:2810) under `aw ipd` (bare `aw ipd` or `aw ipd board`) defaulting to pending+reusable (item 8); add `aw list-repos` (same handler as `list`, `_run_list` cli.py:2579); make `aw todo` run the attention board (attention.run). OUT: removing the old `plans`/`list`/`todo` verbs (Order 05); the ipd authoring subverbs (unchanged: lint/scaffold/sync); attention's own upgrades (Set F).
-- Status: to-review
+- Status: reviewed
 - Set: awcmdsurf
 - Order: 4
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): from spec 20260818-1525-01 + investigation (_run_plans cli.py:2810, ipd subparsers cli.py:686, _run_list cli.py:2579, attention.run).
+- 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against cli.py:686/2579/2810/4088 and attention.run; structural lint conforming; no findings; no blocking open questions; GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
