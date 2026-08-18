@@ -6,7 +6,7 @@ Showing the 40 most-recent of 84 Sets; the full manifest is INDEX.json.
 
 ## awnaming
 
-- `6gy9rf` [pending] 00 pending/20260818-awnaming-00-6gy9rf-awnaming-orchestrator.ipd.md
+- `6gy9rf` [executed] 00 executed/20260818-awnaming-00-6gy9rf-awnaming-orchestrator.ipd.md
 - `f8e6y7` [executed] 01 executed/20260818-awnaming-01-f8e6y7-grammar-and-producers.ipd.md
 - `975whv` [executed] 02 executed/20260818-awnaming-02-975whv-rename-and-docs.ipd.md
 

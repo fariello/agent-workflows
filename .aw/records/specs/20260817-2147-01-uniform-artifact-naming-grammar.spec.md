@@ -1,7 +1,7 @@
 # Spec: uniform artifact-naming grammar with a `.type.md` suffix across `.aw/records/`
 
 - Date: 2026-08-17
-- Status: draft
+- Status: implemented
 - Author: opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)
 - Motivation: Today the record types name their files inconsistently: plans/specs/research use an id6-bearing clustered name, but prompts/backlog/comms/walkthroughs/roadmaps do not all share one grammar, and only specs carry a type suffix (`.spec.md`). The DIRECTORY carries the type, so two dirs named `prompts` (staging vs library) are indistinguishable at a glance - actively hostile to a reader who pattern-matches on the word (the maintainer flagged this as a recurring, dyslexia-aggravating confusion). Moving the TYPE signal into the filename (`.prompt.md`, `.ipd.md`, ...) makes every artifact self-identifying regardless of its directory, greppable/sortable by type, and robust to being moved to the wrong place.
 - Relation to prior work: BUILDS ON the Set-clustering filename grammar (`YYYYMMDD-<set-id>-NN-<id6>-<slug>.md`) already used by plans/specs/research and documented in AGENTS.md; EXTENDS it to all durable record types and adds a `.type.md` suffix. Companion to spec 20260817-2124-01 (the DIRECTORY taxonomy cleanup): that spec fixes WHERE artifacts live, this spec fixes HOW they are NAMED. Absorbs the tooling gaps captured in backlog vf03z3.
@@ -10,6 +10,11 @@
 ## Workflow history
 
 - 2026-08-17 draft (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): authored from a maintainer proposal during release-review run 20260817-153418. Contract details settled interactively (type-token set, standalone shape, run-artifact scope). Separated from the directory-taxonomy spec 20260817-2124-01 per the maintainer.
+- 2026-08-18 to-review (aw specs): Completed for review; drove the awnaming Set IPDs.
+- 2026-08-18 reviewed (aw specs): Reviewed via /plan-review of the awnaming orchestrator + Orders 01/02 (APPROVE WITH REVISIONS APPLIED).
+- 2026-08-18 approved (aw specs, --by-human): Human approved the awnaming Set ('Approved. Go, one after the other.', 2026-08-18) which implements this spec.
+- 2026-08-18 implementing (aw specs): awnaming Set executing (Orders 01, 02).
+- 2026-08-18 implemented (aw specs): Implemented by awnaming Set: Order 01 f8e6y7 at 0f8a861, Order 02 975whv at f0ddd40; comms + research documented exceptions; suite 1021 passed 1 skipped.
 
 ## 0. PRE-RELEASE FRAMING
 

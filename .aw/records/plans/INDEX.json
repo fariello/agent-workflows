@@ -1752,6 +1752,16 @@
   {
     "date": "2026-08-18",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260818-awnaming-00-6gy9rf-awnaming-orchestrator.ipd.md",
+    "plan_id": "6gy9rf",
+    "set_id": "awnaming",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260818-awnaming-01-f8e6y7-grammar-and-producers.ipd.md",
@@ -1817,16 +1827,6 @@
     "path": "pending/20260817-awretrofit-00-pp6y76-orchestrator.ipd.md",
     "plan_id": "pp6y76",
     "set_id": "awretrofit",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260818-awnaming-00-6gy9rf-awnaming-orchestrator.ipd.md",
-    "plan_id": "6gy9rf",
-    "set_id": "awnaming",
     "status": "approved"
   },
   {

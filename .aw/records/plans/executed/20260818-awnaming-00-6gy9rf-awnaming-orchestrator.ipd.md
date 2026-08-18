@@ -4,8 +4,7 @@
 - Kind: orchestrator
 - Concern: Spec 20260817-2147-01 (RELEASE BLOCKER, backlog 047ce9): adopt ONE artifact-naming grammar `YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md` across every durable `.aw/records/` type, moving the TYPE signal into the filename (`.ipd.md`/`.prompt.md`/`.spec.md`/`.walkthrough.md`/`.roadmap.md`/`.backlog.md`/`.comms.md`; research keeps its richer `.<model>.<kind>.md`). Code investigation shrank the surface: the record READERS (plans.py:184, plans_index.py:91, ipd_lint.py:758) glob `*.md` and read metadata from FRONT-MATTER, not the filename, so `.type.md` files are already read fine (dual-read is free). The filename grammar is enforced in only three narrow places: `plans_refs._CLUSTERED_RE` (31), `normalize_plan_names._CLUSTERED_RE`/`parse_name` (105/165), and `research_contract.parse_name` (265, already type-style, OUT). So the real change = extend those 2 regex tails + the name GENERATOR (`plans_refs.build_name`:126) + `aw plan-names` + rename this repo's own files.
 - Scope: Ship the grammar as new-file behavior (all-repos, small) and dogfood-rename THIS repo's existing files (this-repo). OUT: the version NUMBER (S6-V01); run-artifacts naming (keep `<RUN_ID>/`); the directory taxonomy (spec 20260817-2124-01, done); research naming (already type-style).
-- Status: approved
-- Approval: 2026-08-18, human ("Approved. Go, one after the other.") after /plan-review (APPROVE WITH REVISIONS APPLIED).
+- Status: executed
 - Set: awnaming
 - Order: 0
 - Highest E allocated: 01
@@ -17,6 +16,7 @@
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): built from spec 20260817-2147-01 (Set awnaming); by-layer decomposition (parsers-accept-first) so every intermediate state stays green.
 - 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE WITH REVISIONS APPLIED; child table verified against real filenames; no orchestrator-level findings; child findings PR-001..PR-004 fixed in Orders 01/02.
+- 2026-08-18 executed (opencode Opus 4.8): E-01 performed, V-01 pass; both child Orders executed (01 f8e6y7 code 0f8a861; 02 975whv renames 36c454f + code f0ddd40); spec 20260817-2147-01 implemented; backlog 047ce9 + vf03z3 done; u9cicx follow-up filed; suite 1021 passed 1 skipped; sanitize + all --check clean. Release Blocker 2 cleared.
 
 ## Goal
 
@@ -36,10 +36,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: orchestrate the Set
 
-- [ ] E-01 Drive Orders 01..02 through the IPD lifecycle in dependency order (author -> /plan-review -> human approval -> execute -> verify -> transition), owning verification + path-scoped commits, never pushing; on completion advance spec 20260817-2147-01 to implemented and move blocked backlog 047ce9 to done (clearing release Blocker 2). Fold the vf03z3 tooling gaps (scaffold/mv-preserves-Order/plan-names-validates/AGENTS.md-single-grammar) into Orders 01/02 and close vf03z3 when they land; file the optional rename-on-migrate nicety (OQ-02 option) as a separate follow-up backlog item rather than gating the release on it.
+- [x] E-01 Drive Orders 01..02 through the IPD lifecycle in dependency order (author -> /plan-review -> human approval -> execute -> verify -> transition), owning verification + path-scoped commits, never pushing; on completion advance spec 20260817-2147-01 to implemented and move blocked backlog 047ce9 to done (clearing release Blocker 2). Fold the vf03z3 tooling gaps (scaffold/mv-preserves-Order/plan-names-validates/AGENTS.md-single-grammar) into Orders 01/02 and close vf03z3 when they land; file the optional rename-on-migrate nicety (OQ-02 option) as a separate follow-up backlog item rather than gating the release on it.
   - Depends on: none
   - Expected outcome: Orders 01..02 executed; grammar in force for new files; this repo's files renamed; AGENTS.md single-grammar; spec implemented; 047ce9 + vf03z3 done.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -117,13 +117,12 @@ re-runs the full check suite + a legacy->final migration-name fixture after all 
 ### OQ-01: Do comms messages adopt `.comms.md`, or keep their envelope naming? (mirrors spec OQ-1)
 
 - Blocking: no
-- Status: open
-- Owner: maintainer (resolve when Order 01/02 reaches comms)
-- Resolution or deferral rationale: comms messages have an inbox/envelope/ack convention (comms.py)
-  that may name files by routing rather than the artifact grammar. Decide at the comms-touching work
-  whether `.comms.md` + the grammar fits or comms is a second documented exception like research. Not
-  blocking the Set's start (Order 01's producer/grammar work is type-agnostic plumbing); resolve
-  before renaming this repo's comms files (Order 02).
+- Status: resolved
+- Owner: opencode (resolved at Order 02 E-02, 2026-08-18)
+- Resolution or deferral rationale: RESOLVED = comms is a SECOND DOCUMENTED EXCEPTION (like research).
+  Comms filenames are routing-named (`<sender>--to--<recipient>-<kind>-<slug>`), not the clustered
+  grammar, and already contain dots; the `.type.md` grammar does not apply. The 22 comms files were
+  left as-is; no AGENTS.md grammar change needed.
 
 ### OQ-02: Does `aw migrate-layout` RENAME legacy files to `.type.md`, or only dual-read? (RESOLVED: ask-then-offer; demoted to a follow-up backlog item, not an Order)
 
@@ -146,10 +145,10 @@ re-runs the full check suite + a legacy->final migration-name fixture after all 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: both child Orders 01-02 show `Status: executed` under `.aw/records/plans/executed/`; the whole-Set completion criteria are demonstrated (paste: a producer emits a `.type.md` name, `aw plan-names` clean over this repo, an artifact-name grammar sweep showing every durable type on `.type.md`, AGENTS.md single-grammar, full serial suite + all `--check`s + sanitize); spec 20260817-2147-01 is `implemented`, backlog 047ce9 is `done`, and the optional rename-on-migrate follow-up backlog item exists.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Order 01 (f8e6y7) executed at .aw/records/plans/executed/20260818-awnaming-01-f8e6y7-grammar-and-producers.ipd.md (code 0f8a861); Order 02 (975whv) executed at .aw/records/plans/executed/20260818-awnaming-02-975whv-rename-and-docs.ipd.md (renames 36c454f, code f0ddd40). Grammar sweep: plans 184/184 .ipd.md, specs 16/16 .spec.md, walkthroughs 11/11 .walkthrough.md, roadmaps 1/1 .roadmap.md, backlog (tracked) .backlog.md, prompts+library .prompt.md; comms + research documented exceptions. Producer emits `.type.md` (aw backlog new -> .backlog.md, aw ipd scaffold -> .ipd.md). AGENTS.md documents one grammar (`rg YYYYMMDD-HHMM-NN AGENTS.md` empty). Full serial suite 1021 passed, 1 skipped; aw sanitize --agent exit 0; aw plans/research index --check + specs/backlog check + attention --check all clean. Spec 20260817-2147-01 -> implemented; backlog 047ce9 -> done (Release Blocker 2 cleared); vf03z3 -> done; follow-up u9cicx filed open.
+  - Result: pass
 
 ## Approval and execution gate
 
