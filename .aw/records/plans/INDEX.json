@@ -1844,6 +1844,16 @@
     "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
+    "path": "pending/20260818-awcheck-00-t9a0b3-unified-check-and-validation-engine.ipd.md",
+    "plan_id": "t9a0b3",
+    "set_id": "awcheck",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
     "path": "pending/20260818-awcmdsurf-00-mvz3d2-aw-command-surface-redesign-noun-verb-grammar-hard-cutover.ipd.md",
     "plan_id": "mvz3d2",
     "set_id": "awcmdsurf",
@@ -1898,6 +1908,106 @@
     "plan_id": "1z3byy",
     "set_id": "awcmdsurf",
     "status": "to-review"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260818-awcolor-01-u88tb7-256-color-pretty-output-across-all-aw-verbs-by-default-on-tt.ipd.md",
+    "plan_id": "u88tb7",
+    "set_id": "awcolor",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260818-awdoctor-00-zz2dum-aw-doctor-and-attention-view-upgrades.ipd.md",
+    "plan_id": "zz2dum",
+    "set_id": "awdoctor",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260818-awhelp-00-ny1pjz-help-text-and-agent-facing-ux-overhaul.ipd.md",
+    "plan_id": "ny1pjz",
+    "set_id": "awhelp",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260818-awhelparg-01-n9ysag-rewrite-bare-help-token-to-help-in-argv-for-natural-ux.ipd.md",
+    "plan_id": "n9ysag",
+    "set_id": "awhelparg",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260818-awhistory-00-x97z83-global-history-sidecar-and-inline-metadata-slimming.ipd.md",
+    "plan_id": "x97z83",
+    "set_id": "awhistory",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260818-awlintmulti-01-o1ynz3-ipd-lint-accepts-multiple-files-and-defaults-to-all-pending.ipd.md",
+    "plan_id": "o1ynz3",
+    "set_id": "awlintmulti",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260818-awrelease-00-rreixg-releases-record-class-and-blocks-release-gate.ipd.md",
+    "plan_id": "rreixg",
+    "set_id": "awrelease",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260818-awresearchrev-01-z4m7bf-review-and-harden-aw-research-command-surface.ipd.md",
+    "plan_id": "z4m7bf",
+    "set_id": "awresearchrev",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260818-awselect-00-1qe40j-universal-selectors-and-multi-target-and-aw-show-id6-resolut.ipd.md",
+    "plan_id": "1qe40j",
+    "set_id": "awselect",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260818-awuntracked-01-c32roo-rename-local-lanes-to-untracked-with-catch-all-gitignore.ipd.md",
+    "plan_id": "c32roo",
+    "set_id": "awuntracked",
+    "status": "draft"
   },
   {
     "date": "2026-08-07",

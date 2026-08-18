@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 86 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 97 Sets; the full manifest is INDEX.json.
+
+## awcheck
+
+- `t9a0b3` [pending] 00 pending/20260818-awcheck-00-t9a0b3-unified-check-and-validation-engine.ipd.md
 
 ## awcmdsurf
 
@@ -13,6 +17,30 @@ Showing the 40 most-recent of 86 Sets; the full manifest is INDEX.json.
 - `1njmzt` [pending] 04 pending/20260818-awcmdsurf-04-1njmzt-merge-plans-into-ipd-and-rename-list-repos-and-todo-alias.ipd.md
 - `1z3byy` [pending] 05 pending/20260818-awcmdsurf-05-1z3byy-hard-cutover-remove-old-verbs-and-sweep-references.ipd.md
 
+## awcolor
+
+- `u88tb7` [pending] 01 pending/20260818-awcolor-01-u88tb7-256-color-pretty-output-across-all-aw-verbs-by-default-on-tt.ipd.md
+
+## awdoctor
+
+- `zz2dum` [pending] 00 pending/20260818-awdoctor-00-zz2dum-aw-doctor-and-attention-view-upgrades.ipd.md
+
+## awhelp
+
+- `ny1pjz` [pending] 00 pending/20260818-awhelp-00-ny1pjz-help-text-and-agent-facing-ux-overhaul.ipd.md
+
+## awhelparg
+
+- `n9ysag` [pending] 01 pending/20260818-awhelparg-01-n9ysag-rewrite-bare-help-token-to-help-in-argv-for-natural-ux.ipd.md
+
+## awhistory
+
+- `x97z83` [pending] 00 pending/20260818-awhistory-00-x97z83-global-history-sidecar-and-inline-metadata-slimming.ipd.md
+
+## awlintmulti
+
+- `o1ynz3` [pending] 01 pending/20260818-awlintmulti-01-o1ynz3-ipd-lint-accepts-multiple-files-and-defaults-to-all-pending.ipd.md
+
 ## awmigrename
 
 - `0qp7u8` [executed] 01 executed/20260818-awmigrename-01-0qp7u8-aw-migrate-layout-optional-rename-on-migrate-to-the-type-md.ipd.md
@@ -22,6 +50,14 @@ Showing the 40 most-recent of 86 Sets; the full manifest is INDEX.json.
 - `6gy9rf` [executed] 00 executed/20260818-awnaming-00-6gy9rf-awnaming-orchestrator.ipd.md
 - `f8e6y7` [executed] 01 executed/20260818-awnaming-01-f8e6y7-grammar-and-producers.ipd.md
 - `975whv` [executed] 02 executed/20260818-awnaming-02-975whv-rename-and-docs.ipd.md
+
+## awrelease
+
+- `rreixg` [pending] 00 pending/20260818-awrelease-00-rreixg-releases-record-class-and-blocks-release-gate.ipd.md
+
+## awresearchrev
+
+- `z4m7bf` [pending] 01 pending/20260818-awresearchrev-01-z4m7bf-review-and-harden-aw-research-command-surface.ipd.md
 
 ## awretrofit
 
@@ -36,6 +72,14 @@ Showing the 40 most-recent of 86 Sets; the full manifest is INDEX.json.
 - `ksim8l` [executed] 08 executed/20260817-awretrofit-08-ksim8l-install-scaffolder-flat.ipd.md
 - `7m458z` [executed] 09 executed/20260818-awretrofit-09-7m458z-managed-sections-regen.ipd.md
 - `oznad0` [executed] 10 executed/20260818-awretrofit-10-oznad0-install-selfheal-and-shims.ipd.md
+
+## awselect
+
+- `1qe40j` [pending] 00 pending/20260818-awselect-00-1qe40j-universal-selectors-and-multi-target-and-aw-show-id6-resolut.ipd.md
+
+## awuntracked
+
+- `c32roo` [pending] 01 pending/20260818-awuntracked-01-c32roo-rename-local-lanes-to-untracked-with-catch-all-gitignore.ipd.md
 
 ## awphysical
 
@@ -202,59 +246,6 @@ Showing the 40 most-recent of 86 Sets; the full manifest is INDEX.json.
 ## overwrite-prompt
 
 - `1wt4qz` [executed] 00 executed/20260722-overwrite-prompt-00-1wt4qz-overwrite-prompt-clarity-and-input-validation.ipd.md
-
-## leak-sanitizer
-
-- `kq6akq` [executed] 00 executed/20260721-leak-sanitizer-00-kq6akq-leak-sanitizer-agent-rewire-and-optional-install.ipd.md
-- `l994g9` [executed] 00 executed/20260721-leak-sanitizer-00-l994g9-leak-sanitizer-config-wizard.ipd.md
-
-## per-workflow
-
-- `lwug80` [executed] 00 executed/20260721-per-workflow-00-lwug80-per-workflow-argument-hint-in-command-shims.ipd.md
-
-## prompts-local
-
-- `btn0my` [executed] 00 executed/20260721-prompts-local-00-btn0my-prompts-local-quarantine-lane.ipd.md
-
-## release-review
-
-- `ez65jl` [executed] 00 executed/20260711-release-review-00-ez65jl-release-review-terminal-decision-and-ci-verify.ipd.md
-- `6cdker` [executed] 00 executed/20260712-release-review-00-6cdker-release-review-todo-and-pending-prompts.ipd.md
-- `s3axqd` [executed] 00 executed/20260721-release-review-00-s3axqd-release-review-full-release-publishes-gh-release.ipd.md
-
-## sanitizer-engine
-
-- `qjdklk` [executed] 00 executed/20260721-sanitizer-engine-00-qjdklk-sanitizer-engine-and-local-leaks-migration.ipd.md
-
-## self-contained
-
-- `vgxk6c` [executed] 00 executed/20260721-self-contained-00-vgxk6c-self-contained-interactive-questions-convention.ipd.md
-
-## version-resolver
-
-- `ey1dex` [executed] 00 executed/20260721-version-resolver-00-ey1dex-version-resolver-match-release-tags-only.ipd.md
-
-## whatnext-chat
-
-- `wa7uiw` [executed] 00 executed/20260721-whatnext-chat-00-wa7uiw-whatnext-chat-history-todowrite-save-to-todo.ipd.md
-
-## assess-self
-
-- `55vpda` [executed] 00 executed/20260720-assess-self-00-55vpda-assess-self-documentation.ipd.md
-
-## assess-documentation
-
-- `7ibobm` [executed] 00 executed/20260630-assess-documentation-00-7ibobm-assess-documentation.ipd.md
-- `yye9f8` [executed] 00 executed/20260703-assess-documentation-00-yye9f8-assess-documentation.ipd.md
-- `g2payb` [executed] 00 executed/20260704-assess-documentation-00-g2payb-assess-documentation-2.ipd.md
-- `ge2a5r` [executed] 00 executed/20260704-assess-documentation-00-ge2a5r-assess-documentation.ipd.md
-- `5by84z` [executed] 00 executed/20260711-assess-documentation-00-5by84z-assess-documentation.ipd.md
-- `z0416p` [executed] 00 executed/20260715-assess-documentation-00-z0416p-assess-documentation.ipd.md
-- `lud5t5` [not-executed] 00 not-executed/20260719-assess-documentation-00-lud5t5-assess-documentation.ipd.md
-
-## local-leaks
-
-- `8vc1r6` [executed] 00 executed/20260719-local-leaks-00-8vc1r6-local-leaks-detection-capability.ipd.md
 
 ## (singletons: no Set)
 
