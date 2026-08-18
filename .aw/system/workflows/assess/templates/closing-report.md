@@ -6,7 +6,7 @@ user always knows exactly what was written (or that nothing was) and what to do 
 the single canonical definition (GUIDING_PRINCIPLES P8, P2 honest reporting, P3
 self-documenting); the producing workflows reference it rather than restating it. It lives
 here as the anchor producer's shared template; other producers reference it by this path
-(`.agents/workflows/assess/templates/closing-report.md`).
+(`.aw/system/workflows/assess/templates/closing-report.md`).
 
 The report has two required parts and one branch:
 
@@ -26,7 +26,7 @@ The report has two required parts and one branch:
 
 ```
 Created:
-  IPD:        .agents/plans/pending/20260722-1430-01-<slug>.md
+  IPD:        .aw/records/plans/pending/20260722-1430-01-<slug>.md
   Run record: workflow-artifacts/assess-security/20260722-143012/
 
 Next steps:

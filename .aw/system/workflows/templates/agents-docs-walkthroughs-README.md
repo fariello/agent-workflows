@@ -1,4 +1,4 @@
-# .agents/docs/walkthroughs/
+# .aw/records/docs/walkthroughs/
 
 Narrative execution walkthroughs documenting the implementation, verification, and testing results of executed plans.
 

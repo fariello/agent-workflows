@@ -28,7 +28,7 @@ the same failure harder next time, not to assign fault.
 Write the post-mortem to the project's convention (ask if unclear): `docs/incidents/`,
 `docs/postmortems/`, or create `docs/incidents/`. Name it
 `YYYY-MM-DD-<incident-slug>.md`. Emit follow-up action IPDs into the project's pending
-plans directory (default `.agents/plans/pending/`), one per action, dated and named. These
+plans directory (default `.aw/records/plans/pending/`), one per action, dated and named. These
 run through the normal IPD -> plan-review -> approve -> execute pipeline.
 
 ## Protocol

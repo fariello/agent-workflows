@@ -67,7 +67,7 @@ honest. Reference `todo-reconciliation.md`.
 ## Pending plans / staged prompts
 
 State loudly whether any pending agent plans (IPDs) or staged prompt files were found
-(`.agents/plans/pending/`, IPDs marked pending/awaiting-approval, `prompts/` staging
+(`.aw/records/plans/pending/` or legacy `.agents/plans/pending/`, IPDs marked pending/awaiting-approval, `prompts/` staging
 dirs, or status/location mismatches). If any in-scope pending item exists, lead with a
 bold warning line, for example:
 

@@ -26,17 +26,18 @@ the git-first-commit date differ by more than a day (the tell-tale of an importe
 file, whose git-commit records when it entered THIS repo, not when it was authored), the
 file is flagged `imported?` and held from auto-rename unless `--assume-dates` is passed.
 
-Scope (D50): by default scans `.agents/plans/`, `.agents/prompts/`, and `.agents/docs/`. `--area NAME`
-(repeatable) replaces that set with exactly the named top-level areas; `--all` scans every
-top-level area under `.agents/`. Only `*.md` whose IMMEDIATE parent is a lifecycle dir
-(pending/executed/superseded/not-executed/reusable/done) is rename-eligible; files nested
-deeper are reported but not renamed unless `--include-nested`. `.agents/workflows/` is never
-a rename target.
+Scope (D50; layout-aware per IPD awretrofit Order 02): the records base is `.aw/records/` when
+present, else legacy `.agents/`. By default scans the `plans/`, `prompts/`, and `docs/` areas under
+that base. `--area NAME` (repeatable) replaces that set with exactly the named top-level areas;
+`--all` scans every top-level area under the records base. Only `*.md` whose IMMEDIATE parent is a
+lifecycle dir (pending/executed/superseded/not-executed/reusable/done) is rename-eligible; files
+nested deeper are reported but not renamed unless `--include-nested`. The framework `workflows/` tree
+is never a rename target.
 
 Usage:
   python3 normalize_plan_names.py --repo .                       # check (text)
   python3 normalize_plan_names.py --repo . --format json          # machine-readable
-  python3 normalize_plan_names.py --repo . --all                  # scan every .agents/ area
+  python3 normalize_plan_names.py --repo . --all                  # scan every records area
   python3 normalize_plan_names.py --repo . --area plans           # only plans/
   python3 normalize_plan_names.py --repo . --exclude '*/drafts/*' # extra exclusion
   python3 normalize_plan_names.py --repo . --apply                # staged git mv renames
@@ -60,6 +61,10 @@ from pathlib import Path
 from typing import NamedTuple, Optional
 
 AGENTS_DIR = ".agents"
+# Migrated layout: records live under `.aw/records/` (areas: plans, prompts, docs). This shipped
+# tool is standalone/dependency-free (it cannot import agent_workflows.record_producers), so it
+# resolves the records base inline: prefer `.aw/records/` when present, else legacy `.agents/`.
+AW_RECORDS_DIR = ".aw/records"
 DEFAULT_AREAS = ("plans", "prompts", "docs")
 LIFECYCLE_SUBDIRS = (
     "pending",
@@ -77,6 +82,19 @@ DOCS_SUBDIRS = (
 )
 # The framework tree is never a rename target regardless of flags.
 NEVER_AREA = "workflows"
+
+
+def _resolve_records_base(repo_root):
+    """Resolve the records base dir, layout-aware (IPD awretrofit Order 02).
+
+    Prefer the migrated ``.aw/records/`` when it exists, else fall back to legacy ``.agents/``.
+    Inline (no ``agent_workflows`` import) because this is a shipped standalone script.
+    """
+
+    aw_base = repo_root / AW_RECORDS_DIR
+    if aw_base.is_dir():
+        return aw_base
+    return repo_root / AGENTS_DIR
 
 # Default exclusions: only README.md (the sole framework-owned file that must never be
 # renamed). We deliberately do NOT hardcode personal-layout globs like */sources/* (D50).
@@ -342,7 +360,7 @@ def _is_excluded(rel: str, excludes) -> bool:
 
 
 def _resolve_areas(all_areas: bool, areas) -> Optional[list]:
-    """Return the list of area names to scan; None means 'every top-level area under .agents/'."""
+    """Return the list of area names to scan; None means 'every top-level area under the records base'."""
 
     if all_areas:
         return None
@@ -375,7 +393,7 @@ def scan(
     base = list(DEFAULT_EXCLUDES) if include_default_excludes else []
     excludes = base + list(excludes or [])
     area_list = _resolve_areas(all_areas, areas)
-    agents = repo_root / AGENTS_DIR
+    agents = _resolve_records_base(repo_root)
 
     # Determine which top-level area dirs to walk.
     if area_list is None:
@@ -542,14 +560,14 @@ def main(argv=None) -> int:
         "--area",
         action="append",
         default=None,
-        help="Top-level .agents/ area to scan (repeatable); replaces the default "
+        help="Top-level records-base area to scan (repeatable); replaces the default "
         "plans+prompts set. E.g. --area plans --area prompts.",
     )
     ap.add_argument(
         "--all",
         dest="all_areas",
         action="store_true",
-        help="Scan every top-level area under .agents/ (never .agents/workflows/).",
+        help="Scan every top-level area under the records base (never .agents/workflows/).",
     )
     ap.add_argument(
         "--exclude",

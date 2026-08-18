@@ -98,7 +98,9 @@ class IpdLifecycleRegistrationTests(unittest.TestCase):
     def test_lifecycle_registered_in_index(self):
         t = _read(INDEX)
         self.assertIn("| ipd-lifecycle |", t)
-        self.assertIn(".agents/workflows/ipd-lifecycle/ipd-lifecycle.md", t)
+        # Post-.aw/-migration the shipped bundle is under .aw/system/workflows/ (IPD awretrofit
+        # Order 02); the index invocation column must reference the real installed path.
+        self.assertIn(".aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md", t)
 
     def test_lifecycle_shims_exist_both_hosts(self):
         for host in (".opencode", ".claude"):

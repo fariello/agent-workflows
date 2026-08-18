@@ -13,7 +13,7 @@ is PRIMARILY a session-context capturer; the on-disk record is only a thin suppo
 ## What this workflow does and does not do
 
 - It PRODUCES one markdown resume document and writes it to the gitignored quarantine lane
-  `.agents/prompts/local/` (see "Output" below). It is read-only with respect to all product code
+  `.aw/records/prompts/local/` (see "Output" below). It is read-only with respect to all product code
   and the durable record.
 - It does NOT `git add`, stage, commit, or push the handoff. Making it durable/tracked is the
   human's deliberate decision (the file can hold raw session context). It runs no other workflow.
@@ -27,7 +27,7 @@ Re-read before drafting and before the exit gate:
 2. Apply the Sensitivity and privacy contract to EVERYTHING you write (below). The input is raw
    conversation, the output is a durable, pushable file: classify, then omit / reframe-and-confirm /
    never-raw-secrets.
-3. Write to `.agents/prompts/local/` only. Never auto-stage or commit. The human promotes.
+3. Write to `.aw/records/prompts/local/` only. Never auto-stage or commit. The human promotes.
 4. Run `aw check-local-leaks` on the finished file before you are done.
 5. If run cold (little live session context), say so plainly; do not invent nuance.
 
@@ -59,7 +59,7 @@ Actively record the tacit layer a naive summary loses:
 - Future intentions / roadmap: the ordered Sets, headline features, sequencing and dependencies.
 - Repo-boundary and environment rules: directories not to enter; how cross-repo writes work
   (permission prompt); which sibling agents can be consulted and how (inter-agent comms).
-- Inter-agent comms lever if in use: that `.agents/comms/` exists, who has been driven, that
+- Inter-agent comms lever if in use: that `.aw/records/comms/` exists, who has been driven, that
   delivery is currently manual, and the untrusted-payload stance (D81).
 
 If the session has little live context (cold invocation), synthesize what you can from the record and
@@ -105,8 +105,8 @@ durable, pushable file. While drafting:
 
 ## Output
 
-Write ONE document to `.agents/prompts/local/YYYYMMDD-HHMM-NN-session-handoff-<slug>.md` (slug is a
-short focus, or `resume`). Create the `local/` dir if absent (`mkdir -p .agents/prompts/local`); it is
+Write ONE document to `.aw/records/prompts/local/YYYYMMDD-HHMM-NN-session-handoff-<slug>.md` (slug is a
+short focus, or `resume`). Create the `local/` dir if absent (`mkdir -p .aw/records/prompts/local`); it is
 gitignored so nothing there can be committed. Front-matter: `Kind: session-handoff`, `Status: draft`,
 date, purpose, and a "read this first" line. Order the body so the session-context core leads:
 
@@ -121,7 +121,7 @@ date, purpose, and a "read this first" line. Order the body so the session-conte
 
 Omit any section only with an explicit "N/A because ..." line.
 
-Structural reference (SHAPE only, not facts): `.agents/prompts/pending/20260717-1950-01-session-handoff-resume-here.md`
+Structural reference (SHAPE only, not facts): `.aw/records/prompts/pending/20260717-1950-01-session-handoff-resume-here.md`
 is a hand-authored example of the sections and the nuance layer. Copy its structure, never its
 (now-stale) specifics.
 
@@ -131,12 +131,12 @@ is a hand-authored example of the sections and the nuance layer. Copy its struct
 - [ ] Every required section is present or explicitly "N/A because ...".
 - [ ] The Sensitivity and privacy contract was applied: sensitive items omitted, or reframed WITH
       the human's approval of the wording; no raw secrets; when unsure, asked.
-- [ ] The file is in `.agents/prompts/local/`, `Kind: session-handoff`, `Status: draft`.
+- [ ] The file is in `.aw/records/prompts/local/`, `Kind: session-handoff`, `Status: draft`.
 - [ ] `aw check-local-leaks <the file>` (or `python -m agent_workflows check-local-leaks .`) run and
       any hit resolved.
 - [ ] NOT staged, committed, or pushed. No product-code change.
 - [ ] Told the human the output path and that promoting it to durable/tracked is their call
-      (`git mv` a reviewed, scrubbed copy into a tracked bucket like `.agents/prompts/pending/`).
+      (`git mv` a reviewed, scrubbed copy into a tracked bucket like `.aw/records/prompts/pending/`).
 
 ## Reminders
 

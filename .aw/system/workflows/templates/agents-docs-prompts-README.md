@@ -1,7 +1,7 @@
-# .agents/docs/prompts/
+# .aw/records/docs/prompts/
 
 A historical/reference prompt library: standalone, copy-paste prompts kept as origin and reference
-material. They are independent of the installable workflows under `.agents/workflows/`, which are the
+material. They are independent of the installable workflows under `.aw/system/workflows/`, which are the
 canonical, maintained versions of these ideas.
 
 These files are historical reference: not stamped with the framework version, not updated in lockstep

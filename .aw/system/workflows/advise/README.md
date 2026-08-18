@@ -3,7 +3,7 @@
 Interrogate and coach: an expert persona examines the current context or a named artifact
 (spec, plan, design) and pushes back. Run `/advise <persona> [target]` (e.g.
 `/advise skeptic`), or from any agent: "read and execute
-`.agents/workflows/advise/advise.md`" with the persona. See `.agents/workflows/index.md`
+`.aw/system/workflows/advise/advise.md`" with the persona. See `.aw/system/workflows/index.md`
 for the persona catalog.
 
 ## Subdirectories

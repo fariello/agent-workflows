@@ -6,7 +6,7 @@ standalone workflow, or a new command. You ask what the user wants, generate the
 from the existing patterns, wire them into the manifest, regenerate the command shims,
 and tell the user exactly what to edit. It edits framework/authoring files only.
 
-This is an authoring/meta workflow. It changes `.agents/workflows/` (the framework
+This is an authoring/meta workflow. It changes `.aw/system/workflows/` (the framework
 itself), so it is exempt from the usual "do not review/modify the framework" scope
 exclusion when explicitly invoked by the repo owner. Stage changes; do not commit unless
 asked; never push.
@@ -29,11 +29,11 @@ asked; never push.
 ## Step 0: Discover the conventions (do not hardcode)
 
 Read to match current reality:
-- `.agents/workflows/index.md` - the manifest format (`command | body | lens |
+- `.aw/system/workflows/index.md` - the manifest format (`command | body | lens |
   description`) and the existing rows.
-- `.agents/workflows/assess/assess.md` and one or two `assess/lenses/*.md` - the lens
+- `.aw/system/workflows/assess/assess.md` and one or two `assess/lenses/*.md` - the lens
   shape (focus, lead personas, rubric, IPD emphasis).
-- `.agents/workflows/CONTRIBUTING`-style rules if present, and `ARCHITECTURE.md`'s
+- `.aw/system/workflows/CONTRIBUTING`-style rules if present, and `ARCHITECTURE.md`'s
   "Capability layout" section (in the repo that authors the framework).
 - Confirm how to regenerate shims: the `aw` CLI (`aw install <dir>`) or, from a source
   checkout, the deprecated root shim `python3 install-workflows.py` (both drive the same
@@ -54,12 +54,12 @@ Offer these choices and gather the details for the chosen one:
 
 ## Step 2: Generate the file(s) from the pattern
 
-- **assess lens:** create `.agents/workflows/assess/lenses/<concern>.md` following the
+- **assess lens:** create `.aw/system/workflows/assess/lenses/<concern>.md` following the
   structure of existing lenses: a focus paragraph (what this concern is and how it
   differs from adjacent lenses), "Lead personas", a concrete "Rubric" (checkable
   bullets), and "IPD emphasis" (what a good IPD for this concern contains, and the Fix
   Bar framing). Cross-reference related lenses rather than duplicating them.
-- **standalone workflow:** create `.agents/workflows/<name>/<name>.md` with a controlling
+- **standalone workflow:** create `.aw/system/workflows/<name>/<name>.md` with a controlling
   header, an "Operating principles (MUST)" block, a "Step 0: Discover" section, the
   steps, and a clear statement of what it does/does not change. Reference the Fix Bar
   and personas rather than restating them. If it needs a template or helper script, put
@@ -71,7 +71,7 @@ Show the user the generated file(s) and let them refine before wiring.
 
 ## Step 3: Wire it into the manifest
 
-Add a row to the manifest table in `.agents/workflows/index.md` between the
+Add a row to the manifest table in `.aw/system/workflows/index.md` between the
 `WORKFLOWS-MANIFEST` markers, keeping the `command | body | lens | description` columns
 stable. For an assess lens the body is the assess harness and the `lens` column points
 at the new lens file; for a standalone workflow the body is the new file and `lens` is

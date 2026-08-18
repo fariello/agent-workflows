@@ -22,7 +22,7 @@ Step 1: Scaffold Isolated Fixture -> Step 2: Run Rendered Host Commands -> Step 
 Run the scaffolder to build a clean base directory containing a clean temp `$HOME`, an empty target git repository, external content, and a unique nonce:
 
 ```bash
-python3 .agents/workflows/conformance/tools/conformance_harness.py scaffold \
+python3 .aw/system/workflows/conformance/tools/conformance_harness.py scaffold \
   --base /tmp/probe-<host>-<tier> \
   --host <host_id> \
   --version <host_version> \
@@ -40,7 +40,7 @@ Parameters:
 Render the exact environment setup, execution commands, and diagnostic queries for the scaffolded fixture:
 
 ```bash
-python3 .agents/workflows/conformance/tools/conformance_harness.py render \
+python3 .aw/system/workflows/conformance/tools/conformance_harness.py render \
   --base /tmp/probe-<host>-<tier> \
   --host <host_id> \
   --version <host_version> \
@@ -95,7 +95,7 @@ Example observation JSON format (`observation.json`):
 Validate and generate the durable Markdown report:
 
 ```bash
-python3 .agents/workflows/conformance/tools/conformance_harness.py validate-json --file observation.json
+python3 .aw/system/workflows/conformance/tools/conformance_harness.py validate-json --file observation.json
 ```
 
-Save the generated report under `.agents/docs/research/YYYYMMDD-HHMM-NN-conformance-results-<host>.md` to immortalize the evidence gating decision.
+Save the generated report under `.aw/records/docs/research/YYYYMMDD-HHMM-NN-conformance-results-<host>.md` to immortalize the evidence gating decision.

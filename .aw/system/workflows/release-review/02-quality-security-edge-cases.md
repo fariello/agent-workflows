@@ -81,7 +81,7 @@ importantly, secrets hide in **git history** even after being removed from the w
 tree. Run the deterministic scanner (read-only, redacted output):
 
 ```
-python3 .agents/workflows/assess/tools/scan_secrets.py --repo . --format json \
+python3 .aw/system/workflows/assess/tools/scan_secrets.py --repo . --format json \
   --out workflow-artifacts/release-review/<RUN_ID>/secrets-scan.json
 ```
 

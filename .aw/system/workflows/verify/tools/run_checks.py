@@ -598,12 +598,12 @@ def emit(results: list[Result], fmt: str, out) -> None:
 def _framework_version() -> str:
     """Return the agent-workflows framework version this tool ships with.
 
-    VERSION lives at .agents/workflows/VERSION; this script is at
-    .agents/workflows/verify/tools/run_checks.py, so it is three directories up.
+    VERSION lives at .aw/system/workflows/VERSION; this script is at
+    .aw/system/workflows/verify/tools/run_checks.py, so it is three directories up.
     """
 
     _tool_root = Path(__file__).resolve().parent.parent.parent
-    # VERSION lives at the bundle root (legacy .agents/workflows/VERSION) OR, under the
+    # VERSION lives at the bundle root (legacy .aw/system/workflows/VERSION) OR, under the
     # nested .aw/system/ layout, as the system-root SIBLING one level up (.aw/system/VERSION).
     version_path = (
         _tool_root / "VERSION"

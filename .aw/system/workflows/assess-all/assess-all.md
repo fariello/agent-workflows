@@ -46,7 +46,7 @@ Running all concerns is expensive (many deep passes). Before running anything:
    - **Surface conflicts:** where two concerns pull in opposite directions (e.g. a
      performance change vs. a readability change), name the trade-off and recommend.
 4. **Emit ONE consolidated IPD** into the project's pending plans directory (default
-   `.agents/plans/pending/`): a single prioritized, cross-concern plan, with findings
+   `.aw/records/plans/pending/`): a single prioritized, cross-concern plan, with findings
    grouped by priority and each tagged with its originating concern(s). Set the IPD's
    front-matter `Status: to-review` and add ONE `## Workflow history` line that NAMES the
    concerns rolled up: `- <date> /assess-all (<agent/model>): rolled up <concerns>; proposed

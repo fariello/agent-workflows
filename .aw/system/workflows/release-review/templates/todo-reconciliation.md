@@ -2,7 +2,7 @@
 
 Triage of every discovered backlog item against this release. Sources include
 `TODO.md`, `TODO`, `TODOS.md`, `BACKLOG.md`, `ROADMAP.md`, `KNOWN_ISSUES.md`,
-`.agents/TODO.md`, issue-tracker exports, and in-code `TODO`/`FIXME`/`HACK`/`XXX`
+`.aw/` backlog or legacy `.agents/TODO.md`, issue-tracker exports, and in-code `TODO`/`FIXME`/`HACK`/`XXX`
 markers.
 
 ## Discovered backlog sources

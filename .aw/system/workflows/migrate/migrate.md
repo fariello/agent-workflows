@@ -12,7 +12,7 @@ still hold afterward, move in reversible steps, verify at each.
 ## What it produces (and does not)
 
 - Produces: a dated IPD in the project's pending plans directory (default
-  `.agents/plans/pending/`), through the normal IPD -> plan-review -> approve -> execute
+  `.aw/records/plans/pending/`, or legacy `.agents/plans/pending/`), through the normal IPD -> plan-review -> approve -> execute
   pipeline.
 - Does NOT: change code, run the migration, or move the IPD out of pending. Investigating
   and writing the plan (and its run record) is not "executing".

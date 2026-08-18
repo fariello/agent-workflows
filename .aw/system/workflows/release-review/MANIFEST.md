@@ -2,7 +2,7 @@
 
 This directory contains a modular, executable repository review runbook for use with OpenCode or another modern coding agent.
 
-The framework is installed under `.agents/workflows/release-review/` (alongside the sibling `plan-review/`). The installer (`install-workflows.py`, at the agent-workflows repo root) also generates per-tool slash-command shims under `.opencode/commands/` and `.claude/commands/`, and adds a one-line pointer to `AGENTS.md`. See `.agents/workflows/index.md` for the workflow manifest.
+The framework is installed under `.aw/system/workflows/release-review/` (alongside the sibling `plan-review/`). The installer (`install-workflows.py`, at the agent-workflows repo root) also generates per-tool slash-command shims under `.opencode/commands/` and `.claude/commands/`, and adds a one-line pointer to `AGENTS.md`. See `.aw/system/workflows/index.md` for the workflow manifest.
 
 ## How to use
 
@@ -23,7 +23,7 @@ These commands are convenience shims. The controlling file remains this director
 From the repository root, in any agent, tell it:
 
 ```text
-Read and execute .agents/workflows/release-review/README.md
+Read and execute .aw/system/workflows/release-review/README.md
 ```
 
 `README.md` is the controlling instruction. The agent should read `00-run-protocol.md`, then execute sections `01` through `08` in order. Section `09` (release execution) runs only after a GO/CONDITIONAL GO and explicit user approval.
@@ -32,7 +32,7 @@ The review is conducted through eight expert personas (QA/QC, testing/regression
 
 ## Slash commands (generated shims)
 
-The installer generates these from the `.agents/workflows/index.md` manifest, into
+The installer generates these from the `.aw/system/workflows/index.md` manifest, into
 both `.opencode/commands/` (OpenCode) and `.claude/commands/` (Claude Code). Each shim
 just says "read and execute" the workflow body and accepts optional `$ARGUMENTS`.
 
@@ -45,7 +45,7 @@ just says "read and execute" the workflow body and accepts optional `$ARGUMENTS`
 The sibling `assess/` workflow adds a family of single-concern commands (e.g.
 `/assess-security`, `/assess-performance`) that each assess one concern deeply and write
 an IPD into the project's pending-plans directory for human approval (they do not
-auto-execute). See `.agents/workflows/index.md` for the full, authoritative and current
+auto-execute). See `.aw/system/workflows/index.md` for the full, authoritative and current
 command list; it is the source of truth, so this file does not enumerate the assess
 commands.
 

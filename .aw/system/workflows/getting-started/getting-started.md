@@ -19,7 +19,7 @@ off. Keep the tour short and adaptive.
 Quietly check the repo so the tour fits the situation:
 
 - Is the toolkit freshly installed, or already in use (any run records under
-  `workflow-artifacts/`, any IPDs under `.agents/plans/`)?
+  `workflow-artifacts/`, any IPDs under `.aw/records/plans/`)?
 - Has `setup-repo` likely been run (secret-scanning config, CI, `.gitignore`, the plan
   lifecycle dirs present)?
 - What kind of repo is this (language/build, app vs. library, has tests/CI)?
@@ -39,7 +39,7 @@ In a few sentences, not a lecture:
 - **Coaching** (`advise <persona>`) is a conversation, not a report.
 - **Guided/meta** workflows change files with your confirmation (`setup-repo`, `scaffold`);
   `verify` produces evidence; `list-workflows` shows everything.
-- Where things land: assessment/plan proposals as IPDs in `.agents/plans/pending/`; durable
+- Where things land: assessment/plan proposals as IPDs in `.aw/records/plans/pending/`; durable
   run records under `workflow-artifacts/<workflow>/<RUN_ID>/`.
 
 ## Step 3: Ask the goal and route
@@ -72,7 +72,7 @@ recommend the best first step and explain why.
   `/advise skeptic`. Arguments are supported.
 - **Codex, Cursor, Antigravity, VS Code Copilot, any other agent:** no repo-file
   slash-command mechanism - use the universal fallback: "Read and execute
-  `.agents/workflows/<body path>`" (the body path is in `index.md` / `/list-workflows`).
+  `.aw/system/workflows/<body path>`" (the body path is in `index.md` / `/list-workflows`).
 
 Confirm which tool the user is in and give the exact invocation for the workflow you
 routed to.

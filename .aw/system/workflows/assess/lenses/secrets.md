@@ -15,12 +15,12 @@ with the software engineer on prevention (gitignore, hooks, secret managers).
 ## Do not rely on the LLM to crawl everything
 
 A repo can have millions of lines and thousands of commits. **Run the deterministic
-scanner** rather than eyeballing: `.agents/workflows/assess/tools/scan_secrets.py`.
+scanner** rather than eyeballing: `.aw/system/workflows/assess/tools/scan_secrets.py`.
 It is read-only, redacts every match (so it is safe to save), and scans the working
 tree and full git history. Recommended invocation:
 
 ```
-python3 .agents/workflows/assess/tools/scan_secrets.py --repo . --format json \
+python3 .aw/system/workflows/assess/tools/scan_secrets.py --repo . --format json \
   --out workflow-artifacts/assess-secrets/<RUN_ID>/scan.json
 ```
 

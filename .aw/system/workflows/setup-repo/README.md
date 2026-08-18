@@ -4,7 +4,7 @@ Guided, idempotent, drift-aware repo setup AND conformance check: detect state, 
 each area (conformant/partial/missing/outdated), then ask-before-each-change to install
 tools, add secret scanning, establish the plan/IPD lifecycle, and add hygiene files. Run
 `/setup-repo`, or from any agent: "read and execute
-`.agents/workflows/setup-repo/setup-repo.md`". Safe to re-run; stages changes.
+`.aw/system/workflows/setup-repo/setup-repo.md`". Safe to re-run; stages changes.
 
 ## Subdirectories
 

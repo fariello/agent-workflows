@@ -35,7 +35,7 @@ This preserves the existing verdict vocabulary and its GO-only-on-genuine-green 
 
 ## Mapping to the corrective-IPD status (D65, unchanged)
 
-When the verdict is DIVERGES or INCOMPLETE, emit ONE corrective IPD into `.agents/plans/pending/`
+When the verdict is DIVERGES or INCOMPLETE, emit ONE corrective IPD into `.aw/records/plans/pending/`
 per `verify-execution.md`. Its born status follows the EXISTING D65 rule, judged by COMPLEXITY/risk,
 not by the fidelity label:
 

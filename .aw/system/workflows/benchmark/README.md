@@ -2,7 +2,7 @@
 
 Guided performance benchmarking (informational, not a regression gate): author an ISOLATED
 benchmark, capture the environment, and report results honestly. Run `/benchmark`, or from
-any agent: "read and execute `.agents/workflows/benchmark/benchmark.md`".
+any agent: "read and execute `.aw/system/workflows/benchmark/benchmark.md`".
 
 ## Subdirectories
 

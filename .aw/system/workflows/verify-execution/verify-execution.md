@@ -163,7 +163,7 @@ clean MATCHES.
 ### Corrective IPD (only when there are gaps)
 
 If MATCHES with green validation and no gaps, emit NO corrective IPD - say so. Otherwise write ONE
-corrective IPD into `.agents/plans/pending/`, named
+corrective IPD into `.aw/records/plans/pending/`, named
 `YYYYMMDD-HHMM-NN-fix-<original-slug>-<short>.md`, that:
 
 - states exactly what was missed / diverged / left red and what must be done to close it;

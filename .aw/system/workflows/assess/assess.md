@@ -42,7 +42,7 @@ If this file was invoked with a specific lens already named (an explicit
 `lenses/<concern>.md` reference), just use it.
 
 It shares this framework's policies rather than redefining them (the release-review
-runbook is a sibling under `.agents/workflows/`):
+runbook is a sibling under `.aw/system/workflows/`):
 
 - **Fix Bar - applied here as "what to propose":** `../release-review/fix-decision-policy.md`.
   Propose addressing every finding by default; recommend deferring only when the
@@ -80,13 +80,13 @@ directory) and a run record (the evidence and report of this assessment, under
    fallback in `../release-review/00-run-protocol.md`.
 3. **Plan/IPD lifecycle location and format** - where plans live and any required
    structure. Discover the project's existing convention and USE it (do not impose a
-   different one): a pending dir (e.g. `.agents/plans/pending/`, `docs/rfcs/`, an ADR
+   different one): a pending dir (e.g. `.aw/records/plans/pending/`, `docs/rfcs/`, an ADR
    dir) and terminal dirs for finished plans. If none exists, create and use the
-   canonical five-state lifecycle: `.agents/plans/pending/` (new/awaiting-approval IPDs),
-   `.agents/plans/executed/` (terminal; implemented, verified, and tested),
-   `.agents/plans/superseded/` (replaced by a better/subsequent plan; kept for the
-   record), `.agents/plans/not-executed/` (deliberately decided against, no replacement),
-   and `.agents/plans/reusable/` (recurring plans meant to be re-run repeatedly, e.g. a
+   canonical five-state lifecycle: `.aw/records/plans/pending/` (new/awaiting-approval IPDs),
+   `.aw/records/plans/executed/` (terminal; implemented, verified, and tested),
+   `.aw/records/plans/superseded/` (replaced by a better/subsequent plan; kept for the
+   record), `.aw/records/plans/not-executed/` (deliberately decided against, no replacement),
+   and `.aw/records/plans/reusable/` (recurring plans meant to be re-run repeatedly, e.g. a
    periodic audit or rollout runbook - these stay here rather than moving on after a run).
    Plan files are named `YYYYMMDD-HHMM-NN-<slug>.md` (local date+time; `NN` a two-digit
    per-minute sequence, `00` reserved for an orchestrator, `01+` otherwise; lowercase-kebab
@@ -101,7 +101,7 @@ directory) and a run record (the evidence and report of this assessment, under
    canonical vocabulary). A newly-written IPD is born `to-review`.
 4. **Contributor contract** - `AGENTS.md`/`CONTRIBUTING.md` for plan/spec-sync rules.
 5. **Apply the review scope exclusions** from `../release-review/00-run-protocol.md`:
-   do not assess the framework's own directory (`.agents/workflows/`) or
+   do not assess the framework's own directory (`.aw/system/workflows/`) or
    `workflow-artifacts/` run records as if they were the project.
 
 Then read the selected lens file and adopt its focus, lead personas, and rubric.

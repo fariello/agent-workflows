@@ -17,4 +17,4 @@ path-scoped commit) is a POST-gate transaction, never an `E-*`/`V-*` checklist i
 proves structure and state only; it never establishes semantic correctness.
 
 Run `/ipd-lifecycle <approved-plan-path>`, or from any agent: "read and execute
-`.agents/workflows/ipd-lifecycle/ipd-lifecycle.md`" against a named approved plan.
+`.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md`" against a named approved plan.

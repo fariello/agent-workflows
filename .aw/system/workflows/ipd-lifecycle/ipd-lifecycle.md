@@ -4,7 +4,7 @@ Treat this file as the controlling instruction for BEGINNING execution of an app
 performing its TERMINAL lifecycle transition. It is the single authoritative gate for both moments.
 It exists because the repository has no other general execution/transition workflow: `verify-execution`
 is POST-execution only (it cross-checks an already-executed plan and never gates pre-execution or
-pre-transition). This workflow closes that gap (spec `.agents/docs/specs/20260802-1904-01-ipd-structure-and-linting.spec.md`, Sections 11 and 12.1).
+pre-transition). This workflow closes that gap (spec `.aw/records/docs/specs/20260802-1904-01-ipd-structure-and-linting.spec.md`, Sections 11 and 12.1).
 
 The deterministic structural linter `aw ipd lint` is the gate at every checkpoint. It proves
 STRUCTURE and STATE only; it never establishes semantic correctness, coverage, evidence
@@ -63,7 +63,7 @@ Perform these steps as one finalization transaction, in order:
 1. Append the required `## Workflow history` entry (`<date> executed (<agent/model>): ...`).
 2. Set the terminal `Status:` (`executed`, or `superseded`/`not-executed` with a `RETIRED ...`
    header).
-3. `git mv` the file from `.agents/plans/pending/` to the matching terminal directory.
+3. `git mv` the file from `.aw/records/plans/pending/` to the matching terminal directory.
 4. Create the path-scoped lifecycle commit (only the plan file and, if not already committed, its
    product changes; never `git add -A`; never push).
 5. Run the post-transition check on the MOVED file:

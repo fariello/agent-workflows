@@ -30,7 +30,7 @@ only propose changes for the non-conformant items.
 - **Stage, do not commit** (unless the user asks you to commit). Leave changes staged so
   the user reviews the diff. Never push.
 - **Tool installs go through the helper**, and only after confirmation: run
-  `python3 .agents/workflows/setup-repo/tools/setup_tools.py` to detect, and
+  `python3 .aw/system/workflows/setup-repo/tools/setup_tools.py` to detect, and
   `... --install <tool>` to install once the user agrees. The helper uses the platform's
   own package manager; it never pipes a download to a shell.
 - **Fix Bar applies:** propose everything sensible by default; the only reason to skip a
@@ -47,16 +47,16 @@ Before proposing anything, determine and briefly report:
    it and offer to proceed carefully, changing only setup files.)
 2. Project type / stack (languages, package manager, frameworks, whether it has an app /
    library / CLI / UI / just docs). This tailors the .gitignore, CI, and hygiene steps.
-3. What is already present: `.agents/workflows/`, `.agents/plans/` (and its
+3. What is already present: `.aw/system/workflows/`, `.aw/records/plans/` (and its
     `pending/` + `executed/` + `superseded/` + `not-executed/` + `reusable/` subdirs;
-    `done/` is an accepted alias for `executed/`), `.agents/docs/` (and its `research/` +
+    `done/` is an accepted alias for `executed/`), `.aw/records/docs/` (and its `research/` +
     `walkthroughs/` subdirs), `.github/workflows/`,
     `.pre-commit-config.yaml`, `.gitignore`, `.gitleaksignore`, `README`, `CONTRIBUTING`,
     `AGENTS.md` (and whether it documents the plan lifecycle and docs rules), `LICENSE`,
     `.editorconfig`, lockfiles, `GUIDING_PRINCIPLES.md`.
 4. Tool availability: run the helper in detect mode
    (`setup_tools.py`) and report which of gitleaks / pre-commit / detect-secrets exist.
-5. Drift check (for re-runs / post-update): is `.agents/workflows/` present but behind
+5. Drift check (for re-runs / post-update): is `.aw/system/workflows/` present but behind
    the source you were invoked from (renamed/removed files, missing new lenses)? If so,
    the framework-install step (1) is "outdated", not "conformant".
 
@@ -73,7 +73,7 @@ only on confirmation. Mark clearly when a step is already-satisfied so re-runs a
 
 ### 1. Agent-workflows framework installed (and up to date)
 
-If `.agents/workflows/` is absent, offer to run the installer (`install-workflows.py`, at
+If `.aw/system/workflows/` is absent, offer to run the installer (`install-workflows.py`, at
 the agent-workflows repo root; not present inside an installed target)
 so `/release-review`, `/assess-*`, etc. are available. If it is present but **outdated**
 (the drift check in Step 0 found renamed/removed/missing files vs. the source), offer to
@@ -89,13 +89,13 @@ these workflows:
 - **Directories:** discover the existing convention and respect it; otherwise offer to
   create the canonical five-state lifecycle, each with a committed `.gitkeep` so the empty
   dirs are tracked:
-  - `.agents/plans/pending/` - new/awaiting-approval IPDs.
-  - `.agents/plans/executed/` - terminal; implemented, verified, and tested.
-  - `.agents/plans/superseded/` - replaced by a better/subsequent plan; kept for the
+  - `.aw/records/plans/pending/` - new/awaiting-approval IPDs.
+  - `.aw/records/plans/executed/` - terminal; implemented, verified, and tested.
+  - `.aw/records/plans/superseded/` - replaced by a better/subsequent plan; kept for the
     record, not the live path.
-  - `.agents/plans/not-executed/` - deliberately decided against, no replacement
+  - `.aw/records/plans/not-executed/` - deliberately decided against, no replacement
     (explored/rejected or overtaken by events).
-  - `.agents/plans/reusable/` - recurring plans meant to be re-run repeatedly (e.g. a
+  - `.aw/records/plans/reusable/` - recurring plans meant to be re-run repeatedly (e.g. a
     periodic audit or rollout runbook); they stay here rather than moving on after a run.
 
   Plan files are named `YYYYMMDD-HHMM-NN-<slug>.md` (local date + time; `NN` a two-digit
@@ -104,12 +104,12 @@ these workflows:
   dir named `done/` (or another), keep it - do not rename; just record which is canonical
   for this repo.
 - **Reference & Walkthroughs Directories:** offer to create the canonical docs subdirectories, each with a committed `.gitkeep`:
-  - `.agents/docs/research/` - durable reference and research.
-  - `.agents/docs/walkthroughs/` - narrative execution walkthroughs.
+  - `.aw/records/docs/research/` - durable reference and research.
+  - `.aw/records/docs/walkthroughs/` - narrative execution walkthroughs.
   Both follow the `YYYYMMDD-HHMM-NN-<slug>.md` naming norm (walkthroughs end in `-walkthrough.md`).
 - **Documented contract (this is the part that makes agents pick it up):** offer to add
   a short, marker-delimited "Plan/IPD lifecycle and docs" note to `AGENTS.md` (and/or
-  `CONTRIBUTING.md`) stating: proposals are dated IPDs in `.agents/plans/pending/`; each
+  `CONTRIBUTING.md`) stating: proposals are dated IPDs in `.aw/records/plans/pending/`; each
   carries a front-matter `Status:` recording readiness (`draft` -> `to-review` -> `reviewed`
   -> `approved`; then a terminal status mirroring the dir) and an appended `## Workflow
   history`; they are reviewed (optionally via `plan-review`), approved by a human, then
@@ -117,14 +117,14 @@ these workflows:
   (replaced) or `not-executed/` (deliberately not run) with a `RETIRED YYYY-MM-DD: <reason>;
   superseded by <path/commit>` header + `git mv` (never a silent delete; never file an un-run
   plan in `executed/`), or kept in `reusable/` if recurring. Additionally, agents must
-  immortalize relied-on research to `.agents/docs/research/` and save narrative walkthroughs
-  to `.agents/docs/walkthroughs/` following their naming conventions. Marker-delimited so
+  immortalize relied-on research to `.aw/records/docs/research/` and save narrative walkthroughs
+  to `.aw/records/docs/walkthroughs/` following their naming conventions. Marker-delimited so
   re-running updates it in place without duplicating.
 - **Conformance:** if the dirs exist but the contract is undocumented, that is
   "partial" - offer to add the doc. If both exist, "conformant" - skip.
 - **Filename normalization:** run the deterministic checker
-  `python3 .agents/workflows/setup-repo/tools/normalize_plan_names.py --repo .` (check mode).
-  By default it scans `.agents/plans/`, `.agents/prompts/`, and `.agents/docs/` and lists any file
+  `python3 .aw/system/workflows/setup-repo/tools/normalize_plan_names.py --repo .` (check mode).
+  By default it scans `.aw/records/plans/`, `.aw/records/prompts/`, and `.aw/records/docs/` and lists any file
   not matching the canonical format with its proposed `old -> new` name or a status. The date is the
   file's CREATION proxy: a date already in the name wins; otherwise the EARLIEST of its
   git-first-commit / birthtime / mtime (local time). Statuses to relay to the user:
@@ -135,8 +135,8 @@ these workflows:
   - `nested` - a `*.md` below (not directly in) a lifecycle dir, e.g. a plan's reference inputs;
     left alone unless `--include-nested`. Usually you should NOT rename these.
   - `excluded` - matched a `--exclude` glob or the built-in `README.md` default.
-  Also available: `--area <name>` (repeatable; scan exactly those top-level `.agents/` areas),
-  `--all` (every area under `.agents/`, never `workflows/`), `--exclude PATTERN`,
+  Also available: `--area <name>` (repeatable; scan exactly those top-level areas under the records base),
+  `--all` (every area under the records base, never `workflows/`), `--exclude PATTERN`,
   `--no-default-excludes`. If any files are nonconforming, SHOW the user the full preview and ASK
   whether to normalize (and, for `imported?`/non-numeric/nested items, whether to pass
   `--assume-dates`/`--rename-non-numeric`/`--include-nested`). On yes, re-run with `--apply` (+ the

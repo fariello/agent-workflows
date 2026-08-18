@@ -1,4 +1,4 @@
-# .agents/
+# .aw/records/
 
 Agent tooling for this repository.
 

@@ -22,10 +22,10 @@ and then fall through to the full listing.
 
 ## Single source of truth
 
-Read `.agents/workflows/index.md` and use ONLY what is declared there:
+Read `.aw/system/workflows/index.md` and use ONLY what is declared there:
 
 - The version: the `<!-- WORKFLOWS-VERSION: ... -->` header line (and/or
-  `.agents/workflows/VERSION`).
+  `.aw/system/workflows/VERSION`).
 - The capabilities: the manifest table between `<!-- WORKFLOWS-MANIFEST:BEGIN -->` and
   `<!-- WORKFLOWS-MANIFEST:END -->`. Each row is `command | body | lens | description`.
 

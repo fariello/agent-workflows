@@ -7,4 +7,4 @@ headers only, TODO, and the current session's chat history, labeled ephemeral), 
 brief "what to consider" list plus a 1-3 item ranked recommendation. The survey and recommendation are read-only; the only write is an
 opt-in, confirmed save of uncaptured findings to `TODO.md`. Run `/whatnext` (optionally with a
 focus like `/whatnext release`), or from any agent: "read and execute
-`.agents/workflows/whatnext/whatnext.md`". See `.agents/workflows/index.md` for the full catalog.
+`.aw/system/workflows/whatnext/whatnext.md`". See `.aw/system/workflows/index.md` for the full catalog.

@@ -17,7 +17,7 @@ If a section file appears to conflict with this protocol, follow this protocol a
 
 The review operates on the **target project**. The framework's own files and its run records are NOT part of the project under review. Unless the user explicitly states that the framework itself is the subject of this review, exclude the following from the audit scope of every section (and every parallel audit lane):
 
-- **This framework's own directory** (wherever it is installed - e.g. `.agents/workflows/release-review/` and the sibling `plan-review/`, or a `release-review/` directory at the repo root) and any agent-tooling wrappers it ships (`.opencode/commands/`, `.claude/commands/`, `.agents/workflows/index.md`). Do not file findings about the runbook, do not assess it for quality/docs/usability, and do not modify it as part of fixing the target project. You are *executing* these instructions, not reviewing or editing them.
+- **This framework's own directory** (wherever it is installed - e.g. `.aw/system/workflows/release-review/` and the sibling `plan-review/`, or a `release-review/` directory at the repo root) and any agent-tooling wrappers it ships (`.opencode/commands/`, `.claude/commands/`, `.aw/system/workflows/index.md`). Do not file findings about the runbook, do not assess it for quality/docs/usability, and do not modify it as part of fixing the target project. You are *executing* these instructions, not reviewing or editing them.
 - **`workflow-artifacts/`** - the authoritative run records (this run and any prior runs). Do not audit them as if they were project code or docs.
 
 This is an exclusion from *review scope*, not from all action:
@@ -114,7 +114,7 @@ You do not have to write eight separate persona analyses in every section. Inste
 
 ## Guiding principles adherence
 
-If the repository contains a guiding-principles document (`GUIDING_PRINCIPLES.md`, `PRINCIPLES.md`, `.agents/GUIDING_PRINCIPLES.md`, a "Principles" section in `README.md`/`CONTRIBUTING.md`, or an equivalent named in `AGENTS.md`), treat it as a binding contract for this review:
+If the repository contains a guiding-principles document (`GUIDING_PRINCIPLES.md`, `PRINCIPLES.md`, `.aw/GUIDING_PRINCIPLES.md` or legacy `.agents/GUIDING_PRINCIPLES.md`, a "Principles" section in `README.md`/`CONTRIBUTING.md`, or an equivalent named in `AGENTS.md`), treat it as a binding contract for this review:
 
 1. Discover and read it during Section 1; record its location and a summary in `01-repository-inventory.md`.
 2. In every audit section, check the project against each stated principle and file findings for violations (type `GP`).
@@ -147,7 +147,7 @@ The target knowledge set (adapt names to the project's existing convention):
 | Intent, goals, objectives, audience | `README.md` top section or `docs/OVERVIEW.md` | Why the project exists, who it serves, what success looks like, scope and non-goals. |
 | Philosophy / guiding principles | `GUIDING_PRINCIPLES.md` (or equivalent) | The values and design philosophy the project commits to. Establish this if absent (see Section 5). |
 | Architecture and approach | `ARCHITECTURE.md` / `DESIGN.md` / `docs/architecture/` | How the system is structured, the main components and how they fit, the approach taken and why that shape. |
-| Design / architectural decision rationale | `DECISIONS.md`, an ADR directory (`docs/adr/`, `.agents/decisions/`), or equivalent | Significant decisions, the *why*, alternatives considered, and trade-offs. Append-only and dated where practical. |
+| Design / architectural decision rationale | `DECISIONS.md`, an ADR directory (`docs/adr/`, `.aw/records/docs/` or legacy `.agents/decisions/`), or equivalent | Significant decisions, the *why*, alternatives considered, and trade-offs. Append-only and dated where practical. |
 
 **Respect the project's existing convention.** If the project already keeps this knowledge somewhere (ADRs, a `docs/` tree, a wiki pointer, a `METHODS/` directory, design docs), detect it and extend/correct that rather than imposing new files. Only introduce a new file when the knowledge has no existing home. Do not duplicate the same rationale in multiple places; link instead.
 
@@ -170,7 +170,7 @@ If intent or decision rationale is genuinely missing and cannot be recovered fro
 
 ## TODO.md and tracked-backlog reconciliation
 
-Many repositories carry a `TODO.md` (or equivalent: `TODO`, `TODOS.md`, `BACKLOG.md`, `ROADMAP.md`, `KNOWN_ISSUES.md`, `.agents/TODO.md`, issue-tracker exports, or `TODO`/`FIXME`/`HACK`/`XXX` markers in code). These often contain items that should - or might need to - be addressed before a release. This review must not ignore them.
+Many repositories carry a `TODO.md` (or equivalent: `TODO`, `TODOS.md`, `BACKLOG.md`, `ROADMAP.md`, `KNOWN_ISSUES.md`, `.aw/` backlog or legacy `.agents/TODO.md`, issue-tracker exports, or `TODO`/`FIXME`/`HACK`/`XXX` markers in code). These often contain items that should - or might need to - be addressed before a release. This review must not ignore them.
 
 1. **Discover** all such backlog sources in Section 1 and inventory them in `01-repository-inventory.md`.
 2. **Triage** every TODO-like item against this release. For each, classify it as:
@@ -187,8 +187,8 @@ Many repositories carry a `TODO.md` (or equivalent: `TODO`, `TODOS.md`, `BACKLOG
 Repositories driven by agent workflows often accumulate **planned-but-not-executed work**: implementation plans / IPDs awaiting approval or execution, and staged prompt files queued to be run. These are distinct from `TODO.md` backlog items - they are concrete, often-approved units of work that were prepared and then left un-actioned. Shipping while such plans sit pending frequently means releasing with known, already-planned work deliberately or accidentally skipped. This review must surface them **loudly**, not silently.
 
 1. **Discover** in Section 1 and inventory in `01-repository-inventory.md`. Common locations (check those that exist, do not invent):
-   - `.agents/plans/pending/` (and any sibling `pending/`-style plan staging dir); IPDs anywhere clearly marked pending/awaiting-approval/not-executed by their `Status:` line.
-   - `prompts/`, `.agents/prompts/`, or a similar staging directory holding prompt files queued for execution.
+   - `.aw/records/plans/pending/` (or legacy `.agents/plans/pending/`, and any sibling `pending/`-style plan staging dir); IPDs anywhere clearly marked pending/awaiting-approval/not-executed by their `Status:` line.
+   - `prompts/`, `.aw/records/prompts/` (or legacy `.agents/prompts/`), or a similar staging directory holding prompt files queued for execution.
    - Plans in a `done/`/executed dir whose `Status:` still says pending, or vice versa (a status/location mismatch).
 2. **Do not execute them.** Discovering a pending plan or staged prompt never authorizes running it during the review.
 3. **Classify** each pending plan/prompt against this release: is it work that was expected to ship in this release (a blocker signal), legitimately deferred to a later release, or stale/superseded?
@@ -199,7 +199,7 @@ Repositories driven by agent workflows often accumulate **planned-but-not-execut
 
 After Section 1 discovery (above) and BEFORE any audit work - specifically BEFORE starting any parallel audit lanes, so an abort saves the whole run - apply an early, interactive pre-flight gate. This is an EARLY safety net that is DISTINCT from, and in addition to, the thorough Section 7 TODO reconciliation and the Section 8 pending-plans WARNING (all of which remain). Its purpose: catch "did you mean to ship without handling this?" before spending a full review.
 
-1. **Cursory look, not a second triage.** Take a genuinely cursory pass over (a) the discovered `TODO.md`/backlog items and (b) the discovered pending agent plans (`.agents/plans/pending/`) and staged prompts (`.agents/prompts/pending/`), including any status/location mismatch. You are only judging whether a REAL SIGNAL exists that should be confirmed, addressed, or actively ignored before contemplating a release: a pending plan/IPD or staged prompt, a status/location mismatch, or an obviously risky/blocking TODO item. You are not scoring every item.
+1. **Cursory look, not a second triage.** Take a genuinely cursory pass over (a) the discovered `TODO.md`/backlog items and (b) the discovered pending agent plans (`.aw/records/plans/pending/` or legacy `.agents/plans/pending/`) and staged prompts (`.aw/records/prompts/pending/` or legacy `.agents/prompts/pending/`), including any status/location mismatch. You are only judging whether a REAL SIGNAL exists that should be confirmed, addressed, or actively ignored before contemplating a release: a pending plan/IPD or staged prompt, a status/location mismatch, or an obviously risky/blocking TODO item. You are not scoring every item.
 2. **Ask ONLY when a real signal exists.** If the cursory look surfaces such a signal, ASK the user a single, bounded pre-flight question that names the specific items found (TODO items AND pending plans/prompts together, one interruption, not two). If the look is CLEAN (no such signal), SKIP the ask and proceed silently to the audit - do NOT manufacture a question, and do NOT manufacture a "nothing found" verdict.
 3. **Verdict-free framing (MUST).** When the ask fires, it states WHAT WAS FOUND and asks what to do about it; it MUST NOT assert or imply any release-readiness verdict - no "no blockers", "looks clean", "release-ready", or pre-classifying a signal as "not a blocker". The readiness call is Section 8's alone, earned from the full audit. General principle: a gate question must not leak the verdict the gate precedes. Phrase it item-anchored, e.g.: "Found <items>. Handle any of these before I audit (abort to discuss), or proceed?"
 4. **On "yes, address first" -> ABORT (a first-class outcome).** Stop before the audit. Record the abort in `00-run-metadata.md` (which gate fired, which items, the user's answer) and tell the user how to resume once they have discussed/addressed the items. This ABORTED-PRE-FLIGHT result is distinct from a Section 8 NO-GO (which follows a full audit).

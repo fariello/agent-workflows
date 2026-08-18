@@ -89,7 +89,7 @@ Drive triage from the `--agent` records (the `severity` field is the engine's, n
 
 1. **Intended-public identifiers** (the author email in package metadata, the public repo
    origin URL): confirm and ADD them to the repo-committed allowlist
-   `.agents/local-leaks-allowlist.toml` (`allow_line_substrings = [...]`). This travels
+   `.aw/config/local-leaks-allowlist.toml` (`allow_line_substrings = [...]`). This travels
    with the repo and keeps CI deterministic. `aw sanitize --configure` authors this file (and
    the personal hints + the IP/hostname toggles) interactively with a diff and confirmation,
    rather than hand-editing the TOML.

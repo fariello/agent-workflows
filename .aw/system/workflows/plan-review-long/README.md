@@ -7,5 +7,5 @@ time to reduce directive drift on long runs. Kept in deliberate parity with the 
 `../plan-review/plan-review.md`.
 
 Run `/plan-review-long [path]`, or from any agent: "read and execute
-`.agents/workflows/plan-review-long/plan-review-long.md`" (it will read its own step files in
+`.aw/system/workflows/plan-review-long/plan-review-long.md`" (it will read its own step files in
 order).
