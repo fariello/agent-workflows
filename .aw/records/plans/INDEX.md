@@ -16,6 +16,7 @@ Showing the 40 most-recent of 83 Sets; the full manifest is INDEX.json.
 - `u7xtni` [executed] 07 executed/20260817-awretrofit-07-u7xtni-records-taxonomy-cleanup.md
 - `ksim8l` [executed] 08 executed/20260817-awretrofit-08-ksim8l-install-scaffolder-flat.md
 - `7m458z` [pending] 09 pending/20260818-awretrofit-09-7m458z-managed-sections-regen.md
+- `oznad0` [pending] 10 pending/20260818-awretrofit-10-oznad0-install-selfheal-and-shims.md
 
 ## awphysical
 

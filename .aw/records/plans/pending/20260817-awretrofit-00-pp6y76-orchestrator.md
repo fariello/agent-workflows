@@ -50,7 +50,8 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 | 06 | 20260817-awretrofit-06-uh295u-cwd-climb-project-root.md | repo-scoped verbs climb to the project root (find .aw/.agents upward) + verbose no-project message (maintainer report during the run) | 01 (shares the resolved verbs) |
 | 07 | 20260817-awretrofit-07-u7xtni-records-taxonomy-cleanup.md | RELEASE BLOCKER: .aw/records/ taxonomy cleanup (run-artifacts home, dedup prompts, flatten docs/) per spec 20260817-2124-01; pre-release legacy->final only | 01,02 (resolvers + shipped docs); spec 20260817-2124-01 |
 | 08 | 20260817-awretrofit-08-ksim8l-install-scaffolder-flat.md | install scaffolder + README-stub placement + uninstall --deep -> layout-aware FLAT .aw/records/ (B02/B03; split out of Order 04) | 01,07 (resolver + flat layout) |
-| 09 | 20260818-awretrofit-09-7m458z-managed-sections-regen.md | regenerate self-install managed-sections.json to .aw/system keys (K01; split out of Order 05) | 07 (flat layout stable before regen) |
+| 09 | 20260818-awretrofit-09-7m458z-managed-sections-regen.md | regenerate self-install managed-sections.json to .aw/system keys (K01; split out of Order 05); BLOCKED on Order 10 (aw install . is broken) | 07, 10 |
+| 10 | 20260818-awretrofit-10-oznad0-install-selfheal-and-shims.md | fix aw install failing on a gitignored git-add target (workflow-artifacts README) + regenerate 42 stale .claude/.opencode host shims (found executing Order 09) | 07,08 |
 
 ## Completion criteria (the whole Set is done only when)
 

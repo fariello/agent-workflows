@@ -16,6 +16,7 @@
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): split out of Order 05 (carries finding K01 + the sanitize-after-regen check PR-002). Ready for /plan-review.
 - 2026-08-18 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE (no revisions). Structural preflight conforming. Verified: managed-sections.json still 150 legacy `.agents/workflows/*` keys, 0 `.aw/`; no standalone manifest-rebuild function exists, so the full `aw install .` regeneration path (with OQ-01's commit-only-managed-sections.json scoping) is correct. E-01/E-02 sound; OQ-01 resolved. No findings, no open questions. GO - PENDING HUMAN APPROVAL.
+- 2026-08-18 BLOCKED (opencode Opus 4.8): approved + attempted, but `aw install .` FAILS before reaching the manifest - `ensure_workflow_artifacts_readme` (engine.py:4082) tries to `git add workflow-artifacts/README.md` which is gitignored ("paths are ignored... Use -f"). It also regenerates 43 stale `.claude/commands/*` (+ `.opencode/commands/*`) shims still pointing at `.agents/workflows/` and creates `.aw/config/project.json` - beyond this Order's manifest scope. Partial install reset cleanly (manifest still 150/0, nothing committed). This Order is BLOCKED on a new Order 10 (fix the install `git add` gitignore bug + regenerate the stale host shims); once `aw install .` runs cleanly, the manifest rekey follows. Reverted Status to `reviewed` (needs re-approval after Order 10).
 
 ## Goal
 
