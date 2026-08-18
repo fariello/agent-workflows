@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Spec 20260817-2124-01 (RELEASE BLOCKER): the `.aw/records/` taxonomy has (A) workflow run-artifacts (assess-*/verify/verify-execution/release-review/advise-*) at the records ROOT, (B) two identically-named `prompts` dirs (staging vs library), (C) deeper-than-wanted `docs/` nesting. Backlog lavkg7 gates the release on this.
 - Scope: Implement the spec's FINAL `.aw/records/` taxonomy. PRE-RELEASE framing (spec Section 0): the `.aw/` layout has NOT shipped, so this changes the legacy `.agents/` -> FINAL migration DESTINATIONS in place and brings this dev repo onto the final layout by a one-time git mv - it does NOT build an intermediate `.aw/records/docs/` -> final migration hop. Task groups A (run-artifacts home), B (dedup prompts), C (flatten docs). OUT: the four physical roots, records-backend choice, changing what any workflow does.
-- Status: to-review
+- Status: reviewed
 - Set: awretrofit
 - Order: 7
 - Highest E allocated: 08
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-17 authored (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): created from spec 20260817-2124-01 (Set awretrofit Order 07); E-items finalized after the maintainer resolved the spec OQs (run-artifacts -> .aw/workflow-artifacts/; flatten -> .aw/records/{research,specs,walkthroughs,roadmaps}; library -> .aw/records/prompt-library/; no misc/). Ready for /plan-review.
+- 2026-08-17 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Structural preflight conforming. Verified against real code: PR-001 (HIGH, correctness) - `_RECORD_CLASS_SUBPATHS` (record_producers.py:120-129) is used for BOTH the `.aw/records/` primary AND the legacy `.agents/` read path (resolve_record_read_paths:603-609), so E-04 must DECOUPLE the subpaths (final `.aw/records/specs` while legacy stays `.agents/docs/specs`), NOT rewrite one constant; hardened E-04. PR-002 (MEDIUM) - the schema already has contradictory `RecordClass.RUNS -> "runs"` (the rejected `.aw/records/runs` home) AND `WORKFLOW_ARTIFACTS -> "workflow-artifacts"` (record_producers.py:126-127); E-01 hardened to reconcile them to the single `.aw/workflow-artifacts/` home. Both FIXED in plan. No open questions (spec OQs resolved). GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -36,9 +37,9 @@ FINALIZED TARGETS (spec 20260817-2124-01 OQs resolved by the maintainer 2026-08-
 
 ### Task group A: run-artifacts get one obvious home (spec G1, OQ-A1 -> `.aw/workflow-artifacts/`)
 
-- [ ] E-01 Make `.aw/workflow-artifacts/<workflow>/<RUN_ID>/` the SINGLE run-artifacts home. (a) Point the shipped workflow bodies that write run records (assess.md, verify.md, verify-execution.md, the release-review runbook, advise.md) at `.aw/workflow-artifacts/<workflow>/<RUN_ID>/` instead of repo-root `workflow-artifacts/`. (b) REMOVE the `.aw/records/{assess-*,verify,verify-execution,release-review,advise-*}` home: delete its `.gitignore` lines (currently :68-72) and add a single `.aw/workflow-artifacts/` ignore; remove any migration step that relocates old `workflow-artifacts/` INTO `.aw/records/`. (c) Confirm no code writes run records under `.aw/records/`.
+- [ ] E-01 Make `.aw/workflow-artifacts/<workflow>/<RUN_ID>/` the SINGLE run-artifacts home. (a) Point the shipped workflow bodies that write run records (assess.md, verify.md, verify-execution.md, the release-review runbook, advise.md) at `.aw/workflow-artifacts/<workflow>/<RUN_ID>/` instead of repo-root `workflow-artifacts/`. (b) REMOVE the `.aw/records/{assess-*,verify,verify-execution,release-review,advise-*}` home: delete its `.gitignore` lines (currently :68-72) and add a single `.aw/workflow-artifacts/` ignore; remove any migration step that relocates old `workflow-artifacts/` INTO `.aw/records/`. (c) Confirm no code writes run records under `.aw/records/`. **plan-review PR-002:** the schema ALREADY has `RecordClass.RUNS -> "runs"` and `RecordClass.WORKFLOW_ARTIFACTS -> "workflow-artifacts"` (record_producers.py:126-127) - i.e. two competing run-artifact classes, one of which (`runs` = `.aw/records/runs`) is the option-2 home the maintainer REJECTED. Reconcile: make the run-artifacts class resolve to `.aw/workflow-artifacts/` (not `.aw/records/runs`), and retire/redirect the now-unused `RUNS`/`runs` subpath (remove it or point it at the single home) so there are not two contradictory enum values. Check + update every consumer of those two enum values.
   - Depends on: none
-  - Expected outcome: exactly ONE documented home (`.aw/workflow-artifacts/`); `.aw/records/` root has no `<RUN_ID>` dirs; workflow bodies + `.gitignore` + migration agree; `.aw/workflow-artifacts/` gitignored.
+  - Expected outcome: exactly ONE documented home (`.aw/workflow-artifacts/`); `.aw/records/` root has no `<RUN_ID>` dirs; no contradictory `RUNS` vs `WORKFLOW_ARTIFACTS` enum resolution; workflow bodies + `.gitignore` + migration + schema enums agree; `.aw/workflow-artifacts/` gitignored.
   - Execution state: pending
 
 - [ ] E-02 Bring THIS dev repo onto the decision: move the existing untracked `.aw/records/{assess-*,verify,verify-execution,release-review,advise-*}` run dirs to `.aw/workflow-artifacts/<workflow>/` (one-time; they are untracked so a plain `mv`), or remove any that duplicate content already under the run-artifacts home.
@@ -55,9 +56,9 @@ FINALIZED TARGETS (spec 20260817-2124-01 OQs resolved by the maintainer 2026-08-
 
 ### Task group C: flatten docs/ (spec G3, OQ-C1 -> flat; OQ-C2 -> no misc)
 
-- [ ] E-04 Update the canonical layout + resolvers: `resolve_record_path`/`resolve_record_read_paths` (record_producers.py) + `project_schema`/`project_context` targets so the durable doc types resolve at the FINAL flat paths `.aw/records/{research,specs,walkthroughs,roadmaps}` instead of `.aw/records/docs/{...}`. Do NOT add a `misc/` catch-all (OQ-C2 resolved: omit).
+- [ ] E-04 Update the canonical layout + resolvers so the durable doc types resolve at the FINAL flat paths `.aw/records/{research,specs,walkthroughs,roadmaps}` instead of `.aw/records/docs/{...}`. The single source is `_RECORD_CLASS_SUBPATHS` (record_producers.py:120-129: `SPECS: "docs/specs"`, `RESEARCH: "docs/research"`, `WALKTHROUGHS: "docs/walkthroughs"`; add ROADMAPS if not present). **CRITICAL (plan-review PR-001):** that same subpath is used for BOTH the `.aw/records/` primary path AND the LEGACY `.agents/` read path (`resolve_record_read_paths` :603-609 builds `.agents/<subpath>`). Legacy is genuinely `.agents/docs/specs`, so the flatten MUST DECOUPLE the two: introduce a separate legacy-subpath map (or per-class `(final_sub, legacy_sub)`) where the `.aw/records/` sub becomes `specs`/`research`/... while the LEGACY sub stays `docs/specs`/`docs/research`/.... Do NOT just rewrite the one constant (that would make legacy reads resolve `.agents/specs`, breaking migration reads). Also update `research_contract.py` (`RESEARCH_ROOT`=`.agents/docs/research` legacy + `resolve_research_root` :344 `.aw/records/docs/research` -> `.aw/records/research`) and `project_schema`/`project_context` targets. Do NOT add a `misc/` catch-all (OQ-C2: omit).
   - Depends on: none
-  - Expected outcome: every resolver + consumer verb (`aw specs`, `aw research`, `aw plans`, `aw attention`, `aw backlog`) resolves the flat final paths; no `docs/` level; no `misc/`.
+  - Expected outcome: every resolver + consumer verb (`aw specs`, `aw research`, `aw plans`, `aw attention`, `aw backlog`) resolves the flat final `.aw/records/<type>`; LEGACY `.agents/docs/<type>` reads still resolve (decoupled subpath); no `docs/` level in `.aw/records/`; no `misc/`.
   - Execution state: pending
 
 - [ ] E-05 Update the legacy->FINAL migration DESTINATIONS in `layout_migration.py` (and its mapping tables) so legacy `.agents/docs/{research,specs,walkthroughs,roadmaps}` and `.agents/docs/prompts` map DIRECTLY to the final flat paths + the renamed library - NO intermediate `.aw/records/docs/` hop (spec Section 0). Update the awphysical migration tests' expected destinations.
