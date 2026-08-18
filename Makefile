@@ -45,10 +45,10 @@ version-file:
 override = '$(VERSION)'.strip(); \
 valid = re.match(r'^\d+\.\d+\.\d+(-?rc\.?\d+)?$$', override) if override else None; \
 sys.exit('error: VERSION=%r is not a valid release version (expected X.Y.Z or X.Y.Z-rc.N)' % override) if (override and not valid) else None; \
-p = pathlib.Path('.agents/workflows/VERSION'); \
+p = pathlib.Path('.aw/system/VERSION'); \
 v = override if override else versioning.resolve_version(pathlib.Path('.')); \
 p.write_text(v + '\n', encoding='utf-8'); \
-idx = pathlib.Path('.agents/workflows/index.md'); \
+idx = pathlib.Path('.aw/system/workflows/index.md'); \
 t = idx.read_text(encoding='utf-8') if idx.is_file() else None; \
 t2 = (re.sub(r'<!-- WORKFLOWS-VERSION: [^>]*-->', '<!-- WORKFLOWS-VERSION: %s -->' % v, t, count=1) if t else t); \
 t2 = (re.sub(r'(?m)^Version: \`[^\`]*\`', 'Version: \`%s\`' % v, t2, count=1) if t2 else t2); \

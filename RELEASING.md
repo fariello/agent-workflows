@@ -41,7 +41,7 @@ On a `NO-GO`, no rungs are offered.
   440 `X.Y.ZrcN`, so pip treats it as a pre-release and does not install it without `--pre`.
 - Tags are ALWAYS annotated (signed if the project signs tags), never lightweight, and are
   created on a clean, CI-green tree.
-- **Bake-then-tag.** The tracked `.agents/workflows/VERSION` is a derived artifact the installer
+- **Bake-then-tag.** The tracked `.aw/system/VERSION` is a derived artifact the installer
   copies into every target repo. At release time, re-bake it to the intended version and commit it
   BEFORE tagging: `make version-file VERSION=<X.Y.Z>`, commit, then `git tag -a vX.Y.Z ...` on that
   commit. This keeps the tag's tree carrying a VERSION equal to its own tag, so installs from any
