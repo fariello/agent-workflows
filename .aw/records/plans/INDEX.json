@@ -1693,6 +1693,16 @@
     "date": "2026-08-17",
     "disposition": "executed",
     "kind": "child",
+    "order": 3,
+    "path": "executed/20260817-awretrofit-03-giiowo-release-mechanics.md",
+    "plan_id": "giiowo",
+    "set_id": "awretrofit",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-17",
+    "disposition": "executed",
+    "kind": "child",
     "order": 7,
     "path": "executed/20260817-awretrofit-07-u7xtni-records-taxonomy-cleanup.md",
     "plan_id": "u7xtni",
@@ -1728,16 +1738,6 @@
     "plan_id": "pp6y76",
     "set_id": "awretrofit",
     "status": "approved"
-  },
-  {
-    "date": "2026-08-17",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 3,
-    "path": "pending/20260817-awretrofit-03-giiowo-release-mechanics.md",
-    "plan_id": "giiowo",
-    "set_id": "awretrofit",
-    "status": "reviewed"
   },
   {
     "date": "2026-08-17",

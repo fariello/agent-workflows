@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Release-review 20260817-153418 finding S4-D03: the release mechanics still target the moved VERSION artifact. `make version-file` writes `.agents/workflows/VERSION` + `.agents/workflows/index.md` (Makefile:48,51) and RELEASING.md:44 documents `.agents/workflows/VERSION` as the bake target - both moved to `.aw/system/` in the migration. A releaser following RELEASING.md verbatim would re-bake the WRONG file, leave `.aw/system/VERSION` stale, and ship a wrong baked version (the exact failure the bake-then-tag section warns against).
 - Scope: Repoint the `version-file` Makefile target and the RELEASING.md bake-then-tag instruction to `.aw/system/VERSION` and `.aw/system/workflows/index.md`. Verify `make version-file` stamps the real shipped files. OUT: choosing the next version NUMBER (orchestrator/maintainer, S6-V01) - this Order only fixes WHERE the bake writes.
-- Status: reviewed
+- Status: executed
 - Set: awretrofit
 - Order: 3
 - Highest E allocated: 03
@@ -16,6 +16,7 @@
 - 2026-08-17 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-17 authored (opencode Opus 4.8): filled from release-review run 20260817-153418 finding S4-D03 (Set awretrofit Order 03).
 - 2026-08-17 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE (no revisions). Structural preflight conforming. Verified citations against real code: Makefile:48/51 write `.agents/workflows/{VERSION,index.md}` (accurate); RELEASING.md:44 documents `.agents/workflows/VERSION` (accurate). Additionally verified the index-stamp anchors E-01 relies on still exist in the flat `.aw/system/workflows/index.md` (line 3 `<!-- WORKFLOWS-VERSION: -->`, line 4 `Version: \`1.2.1\``) so the re-stamp regex will match post-Order-02/07. Scope correctly excludes the version NUMBER (S6-V01). No findings; no open questions. GO - PENDING HUMAN APPROVAL.
+- 2026-08-17 executed (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): human approved. Implemented E-01 (Makefile version-file -> .aw/system/VERSION + .aw/system/workflows/index.md) + E-02 (RELEASING.md:44 -> .aw/system/VERSION) in commit b9a6841. V-01..V-03 verified: greps show 0 legacy refs in Makefile/RELEASING.md; `make version-file VERSION=1.2.1` is a genuine idempotent no-op (only .aw/system files touched, no stray .agents/workflows/*). No product-code change, so the serial suite is unaffected (no .py modified). pre-transition lint conforming; moved pending -> executed/.
 - 2026-08-17 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against Makefile:48/51, RELEASING.md:44, and .aw/system/workflows/index.md anchors; structural lint conforming; no findings; no open questions; GO - PENDING HUMAN APPROVAL.
 
 ## Goal
@@ -30,22 +31,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: repoint the bake target and its doc
 
-- [ ] E-01 In the Makefile `version-file` target, change the two write paths from `.agents/workflows/VERSION` and `.agents/workflows/index.md` (Makefile:48,51) to `.aw/system/VERSION` and `.aw/system/workflows/index.md`. Preserve the version-validation regex, the resolver call, and the `WORKFLOWS-VERSION`/`Version:` index-stamp substitutions.
+- [x] E-01 In the Makefile `version-file` target, change the two write paths from `.agents/workflows/VERSION` and `.agents/workflows/index.md` (Makefile:48,51) to `.aw/system/VERSION` and `.aw/system/workflows/index.md`. Preserve the version-validation regex, the resolver call, and the `WORKFLOWS-VERSION`/`Version:` index-stamp substitutions.
   - Depends on: none
   - Expected outcome: `make version-file VERSION=<X.Y.Z>` writes `.aw/system/VERSION` and re-stamps `.aw/system/workflows/index.md`; no stray `.agents/workflows/*` is created.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Update RELEASING.md:44 (the bake-then-tag paragraph) to name `.aw/system/VERSION` as the tracked derived artifact the installer copies, keeping the bake-then-tag ordering rule intact.
+- [x] E-02 Update RELEASING.md:44 (the bake-then-tag paragraph) to name `.aw/system/VERSION` as the tracked derived artifact the installer copies, keeping the bake-then-tag ordering rule intact.
   - Depends on: none
   - Expected outcome: RELEASING.md documents `.aw/system/VERSION`; no `.agents/workflows/VERSION` reference remains in the live release instructions.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: verify the bake round-trips
 
-- [ ] E-03 Run `make version-file` with the CURRENT resolved version (no VERSION override, so the baked value is unchanged) and confirm it rewrites `.aw/system/VERSION` + `.aw/system/workflows/index.md` in place with no spurious change, and creates no `.agents/workflows/*`. Restore any incidental reformatting.
+- [x] E-03 Run `make version-file` with the CURRENT resolved version (no VERSION override, so the baked value is unchanged) and confirm it rewrites `.aw/system/VERSION` + `.aw/system/workflows/index.md` in place with no spurious change, and creates no `.agents/workflows/*`. Restore any incidental reformatting.
   - Depends on: E-01
   - Expected outcome: a no-op-value bake touches only the `.aw/system` files (idempotent), never the legacy path.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -103,20 +104,20 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `make version-file` writes `.aw/system/VERSION` + re-stamps `.aw/system/workflows/index.md`; `git grep -n "\.agents/workflows" Makefile` -> 0. Paste.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Makefile version-file paths changed to `.aw/system/VERSION` + `.aw/system/workflows/index.md`. `git grep -n "\.agents/workflows" Makefile` -> empty (0). `make version-file` output: `wrote .aw/system/VERSION -> <v> (+ synced index.md stamp)`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: `git grep -n "\.agents/workflows/VERSION" RELEASING.md` -> 0; the paragraph names `.aw/system/VERSION`. Paste.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: RELEASING.md:44 now reads "The tracked `.aw/system/VERSION` is a derived artifact the installer copies...". `git grep -n "\.agents/workflows/VERSION" RELEASING.md` -> empty (0).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: a current-version `make version-file` touches only `.aw/system/VERSION` + `.aw/system/workflows/index.md` (no value change, no `.agents/workflows/*` created). Paste `git status --short` after + `ls .agents/workflows/VERSION` (absent).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `make version-file VERSION=1.2.1` (the current baked value) -> `wrote .aw/system/VERSION -> 1.2.1`; `git status --short .aw/system/VERSION .aw/system/workflows/index.md` -> EMPTY (genuine idempotent no-op, value unchanged); `ls .agents/workflows/VERSION` -> No such file (no stray legacy). NOTE for S6-V01: a bare `make version-file` (no override) resolves the git-describe dev version `1.3.0rc2.dev487+...` != stale baked `1.2.1`, confirming the baked file is stale; the actual release NUMBER is the maintainer's Section 9 decision, out of scope here.
+  - Result: pass
 
 ## Approval and execution gate
 
