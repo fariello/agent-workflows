@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: awcheck Order 03 (spec 20260818-1525-01; TODO items 6, 11, 20). Finish the check surface: (11) fix the stale message "All scanned plan/prompt filenames conform to YYYYMMDD-HHMM-NN-<slug>.md." (normalize_plan_names.py:677) which advertises the OLD grammar; (20) give the check engine a `--legacy` behavior so legacy-named files pass without findings; (6) make `aw ipd lint` also verify filename conformity via the engine's name check. Small, targeted edits building on the Order-01 engine.
 - Scope: `.aw/system/workflows/setup-repo/tools/normalize_plan_names.py` (message), `agent_workflows/check_engine.py` (legacy behavior in check_names), `agent_workflows/ipd_lint.py` (call name conformity), + test updates. IN: correct + grammar-accurate message honoring legacy; `check_names(..., legacy=True)` treats a legacy `YYYYMMDD-HHMM-NN-<slug>.md` name as conformant (no drift); `aw ipd lint` emits a name-conformity diagnostic for a nonconformant plan filename. OUT: the engine core (Order 01) + collisions (Order 02); CLI verb wiring for `aw check` (awcmdsurf).
-- Status: to-review
+- Status: reviewed
 - Set: awcheck
 - Order: 3
 - Highest E allocated: 04
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from investigation (stale message normalize_plan_names.py:677; is_conformant expected_type normalize_plan_names.py:205; ipd_lint.run_lint legacy flag ipd_lint.py:767; _NEW_RE legacy grammar already faceted).
+- 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against normalize_plan_names.py:677, ipd_lint.py:761-770, and check_engine.py:check_names; structural lint conforming; no findings; no open questions; GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
