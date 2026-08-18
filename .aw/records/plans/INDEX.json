@@ -1872,6 +1872,16 @@
   {
     "date": "2026-08-18",
     "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260818-awcheck-03-5qwy7d-legacy-flag-stale-message-fix-and-ipd-lint-name-conformity.ipd.md",
+    "plan_id": "5qwy7d",
+    "set_id": "awcheck",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260818-awcmdsurf-00-mvz3d2-aw-command-surface-redesign-noun-verb-grammar-hard-cutover.ipd.md",
