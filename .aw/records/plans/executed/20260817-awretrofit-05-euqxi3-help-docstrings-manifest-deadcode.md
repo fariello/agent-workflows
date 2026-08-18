@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Release-review 20260817-153418 findings S4-D04, S4-D05, S5-K01, S6-V02, S5-DC01, S2-Q01, S6-C01 (the lower-risk cleanup tail): CLI `--help` strings + module docstrings still cite `.agents/` (code correct); relocated `.aw/records/**/README.md` stubs + tracked `.agents/README.md` describe the old layout; the self-install manifest `.aw/system/managed-sections.json` is keyed entirely on legacy `.agents/workflows/*` (150 keys, 0 `.aw/`); `DEFAULT_FRAMEWORK_VERSION` is a hardcoded second version source; dead constants/aliases linger; the pre-existing companion-dir typing errors (cli.py) and an sdist `.gitignore` inclusion + stale CI/shell comments; plus a pre-existing SyntaxWarning (plans_refs.py:204 invalid `\`` escape).
 - Scope: Prose/annotation/manifest/dead-code cleanup with no behavioral change to the fixed verbs. OUT: shipped workflow bodies/AGENTS.md (Order 02), release mechanics (Order 03), and the version NUMBER (S6-V01, maintainer).
-- Status: reviewed
+- Status: executed
 - Set: awretrofit
 - Order: 5
 - Highest E allocated: 07
@@ -15,7 +15,8 @@
 
 - 2026-08-17 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-17 authored (opencode Opus 4.8): filled from release-review run 20260817-153418 findings S4-D04/D05, S5-K01, S6-V02, S5-DC01, S2-Q01, S6-C01 (Set awretrofit Order 05).
-- 2026-08-17 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Re-verified all findings against CURRENT code (post Orders 02/06/07): D04a help strings (cli.py:66/69/111/570/579/706) still legacy; D04b docstrings still legacy (__init__.py x2, _compat.py x3, hatch_build.py x2, versioning.py x1); K01 managed-sections still 150 legacy keys; V02 DEFAULT_FRAMEWORK_VERSION=1.2.1; DC01 plans_index.PLANS_DIR + _compat._DATA_RELATIVE still dead; Q01 companion typing (cli.py:3379/3434) still present; C01 plans_refs.py:204 SyntaxWarning CONFIRMED live (py_compile -W error raises). PR-001 (LOW): E-02's README list was stale - the layout is FLAT, the 8 stubs are backlog/comms/plans/prompts/research/roadmaps/specs/walkthroughs (prompt-library already correct); FIXED. PR-002 (LOW): after the managed-sections regen, re-run sanitize (the manifest holds this repo's file hashes); added to E-03/V-03. OQ-01 (remove vs repoint .agents/README.md) remains for the maintainer at approval. GO - PENDING HUMAN APPROVAL (pending the OQ-01 decision).
+- 2026-08-17 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Re-verified all findings against CURRENT code (post Orders 02/06/07). PR-001 (LOW): E-02 README list corrected to the FLAT 8-stub set. PR-002 (LOW): sanitize-after-regen moved with E-03 to Order 09. OQ-01 for the maintainer. GO - PENDING HUMAN APPROVAL.
+- 2026-08-17 executed (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): human approved; OQ-01 resolved = REMOVE .agents/README.md. Implemented E-01/E-02/E-04/E-05/E-06 in commit 8ba0bef (help+docstrings -> .aw/; 8 record READMEs retitled + .agents/README.md removed; DEFAULT_FRAMEWORK_VERSION documented as floor; dead plans_index.PLANS_DIR + _compat._DATA_RELATIVE removed + versioning legacy-default landmine fixed; companion typing guards + plans_refs SyntaxWarning fixed + CI/shell comments). E-03 (managed-sections regen, K01) SPLIT to Order 09 (needs a full self-install). V-01/V-02/V-04/V-05/V-06/V-07 verified; full serial suite 1004 passed / 1 skipped (no behavioral change); sanitize + attention clean; 0 tracked .agents/ files. pre-transition lint conforming; moved pending -> executed/.
 
 ## Goal
 
@@ -30,48 +31,50 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: help + docstrings (D04)
 
-- [ ] E-01 Update the CLI `--help` strings that cite moved paths (cli.py: the `plans`/`plans-index`/`plans --write-index`/`research`/`ipd lint --all` help at ~66/69/111/570/579/706) to `.aw/records/...`; and the stale docstrings in `__init__.py` (4/25), `_compat.py` (3-6), `hatch_build.py` (8/19), `versioning.py` (251/262) to the `.aw/system/...` canonical path. Keep the legacy-fallback CODE unchanged (docstrings only).
+- [x] E-01 Update the CLI `--help` strings that cite moved paths (cli.py: the `plans`/`plans-index`/`plans --write-index`/`research`/`ipd lint --all` help at ~66/69/111/570/579/706) to `.aw/records/...`; and the stale docstrings in `__init__.py` (4/25), `_compat.py` (3-6), `hatch_build.py` (8/19), `versioning.py` (251/262) to the `.aw/system/...` canonical path. Keep the legacy-fallback CODE unchanged (docstrings only).
   - Depends on: none
   - Expected outcome: `aw <verb> --help` shows `.aw/records/...`; the four packaging modules' docstrings name `.aw/system/...`. No behavior change.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: record-README stubs (D05)
 
-- [ ] E-02 Retitle/repath the tracked `.aw/records/**/README.md` stubs still titled `# .agents/...` to their real FLAT `.aw/records/...` location. **plan-review PR-001 (post-Order-07):** the 8 stubs still needing it are `backlog, comms, plans, prompts, research, roadmaps, specs, walkthroughs` (verified) - the layout is FLAT (no `.aw/records/docs/`); `prompt-library/README.md` is ALREADY correct (Order 07), so exclude it. Also decide the tracked `.agents/README.md` per OQ-01 (remove vs one-line legacy pointer).
+- [x] E-02 Retitle/repath the tracked `.aw/records/**/README.md` stubs still titled `# .agents/...` to their real FLAT `.aw/records/...` location. **plan-review PR-001 (post-Order-07):** the 8 stubs still needing it are `backlog, comms, plans, prompts, research, roadmaps, specs, walkthroughs` (verified) - the layout is FLAT (no `.aw/records/docs/`); `prompt-library/README.md` is ALREADY correct (Order 07), so exclude it. Also decide the tracked `.agents/README.md` per OQ-01 (remove vs one-line legacy pointer).
   - Depends on: none
   - Expected outcome: each of the 8 flat `.aw/records/*/README.md` describes its own `.aw/records/...` path; `.agents/README.md` no longer misdescribes a vanished tree.
-  - Execution state: pending
+  - Execution state: performed
 
-### Task group 3: self-install manifest (K01)
+### Task group 3: self-install manifest (K01) - SPLIT to Order 09
 
-- [ ] E-03 Regenerate `.aw/system/managed-sections.json` against the `.aw/system/` tree (via the manifest machinery / `aw install` self-update, NOT hand-edit) so its keys are `.aw/system/workflows/...` not the 150 stale `.agents/workflows/*` keys; verify install/update prune/diff behaves correctly with the rekeyed manifest.
-  - Depends on: none
-  - Expected outcome: `grep -c '.agents/workflows' managed-sections.json` -> 0; a self-install/update is a clean no-op (no spurious "vanished managed file" prune).
-  - Execution state: pending
+- E-03 (regenerate `.aw/system/managed-sections.json`, 150 stale `.agents/workflows/*` keys) was SPLIT
+  OUT to a new Order 09 (2026-08-17): the designed regeneration is a full `aw install .` on this repo,
+  which also rewrites shims/AGENTS.md/config/state - a broad self-install operation that warrants its
+  own isolated, carefully-verified pass rather than being bundled with this LOW-risk prose cleanup. The
+  stale manifest is a self-install-only concern (prune/diff when running `aw install` ON this framework
+  repo), not a shipped-artifact defect. Tracked as Order 09; K01 finding recorded there.
 
 ### Task group 4: version second-source + dead code + latent warnings (V02, DC01, Q01, C01)
 
-- [ ] E-04 Resolve `DEFAULT_FRAMEWORK_VERSION` (project_context.py:57) as a second version source: derive it from `versioning`/the baked VERSION, or document it as an explicit floor with a comment tying it to the release process (do not leave a bare literal that silently drifts).
+- [x] E-04 Resolve `DEFAULT_FRAMEWORK_VERSION` (project_context.py:57) as a second version source: derive it from `versioning`/the baked VERSION, or document it as an explicit floor with a comment tying it to the release process (do not leave a bare literal that silently drifts).
   - Depends on: none
   - Expected outcome: no bare hand-maintained version literal that can diverge from the resolver.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Remove the dead constants/aliases: `plans_index.PLANS_DIR` (unused), `_compat._DATA_RELATIVE` (unused alias); annotate or derive `versioning.py`'s legacy default (latent landmine). Confirm zero remaining references before removal.
+- [x] E-05 Remove the dead constants/aliases: `plans_index.PLANS_DIR` (unused), `_compat._DATA_RELATIVE` (unused alias); annotate or derive `versioning.py`'s legacy default (latent landmine). Confirm zero remaining references before removal.
   - Depends on: none
   - Expected outcome: dead constants removed; modules still import; grep shows no references.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Fix the pre-existing companion-dir typing errors (cli.py ~3373/3428: `Any|None` passed where `str|Path` expected) by narrowing/asserting the companion dir is non-None at the callsite; and fix the `plans_refs.py:204` docstring SyntaxWarning (invalid `\`` escape -> raw string or escaped). Optionally add hatchling sdist `exclude=[".gitignore"]` and refresh the stale `.agents/` comments in `tests.yml:114` + `install-workflows.sh:9`.
+- [x] E-06 Fix the pre-existing companion-dir typing errors (cli.py ~3373/3428: `Any|None` passed where `str|Path` expected) by narrowing/asserting the companion dir is non-None at the callsite; and fix the `plans_refs.py:204` docstring SyntaxWarning (invalid `\`` escape -> raw string or escaped). Optionally add hatchling sdist `exclude=[".gitignore"]` and refresh the stale `.agents/` comments in `tests.yml:114` + `install-workflows.sh:9`.
   - Depends on: none
   - Expected outcome: the two LSP typing errors clear; no SyntaxWarning from plans_refs import; (optional) sdist omits `.gitignore`; CI/shell comments say `.aw/`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 5: verification
 
-- [ ] E-07 Run the full serial suite + `aw sanitize --agent` + `aw attention --check`; confirm no behavioral regression from the prose/manifest/dead-code changes and that the manifest rekey did not disturb install semantics.
-  - Depends on: E-01, E-02, E-03, E-04, E-05, E-06
+- [x] E-07 Run the full serial suite + `aw sanitize --agent` + `aw attention --check`; confirm no behavioral regression from the prose/manifest/dead-code changes and that the manifest rekey did not disturb install semantics.
+  - Depends on: E-01, E-02, E-04, E-05, E-06
   - Expected outcome: full serial suite >= 982 passed / 1 skipped; sanitize + attention clean.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -94,7 +97,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 | Q01 | typing | cli.py ~3373/3428 Any|None vs str|Path | pre-existing type error |
 | C01 | packaging/CI prose | sdist `.gitignore`; tests.yml:114; install-workflows.sh:9; plans_refs.py:204 SyntaxWarning (CONFIRMED live via py_compile -W error) | minor nits |
 | PR-001 | plan-review (post-Order-07) | E-02 README list cited `docs/research`,`docs/specs` | LOW: layout is FLAT; the 8 stubs are backlog/comms/plans/prompts/research/roadmaps/specs/walkthroughs; prompt-library already correct. FIXED in E-02. |
-| PR-002 | plan-review (sanitize) | managed-sections.json holds this repo's file hashes | LOW: after E-03 regen, re-run `aw sanitize --agent` to confirm the rekeyed manifest introduces no home-path/identifier leak. Added to E-03/V-03. |
+| PR-002 | plan-review (sanitize) | managed-sections.json holds this repo's file hashes | LOW: MOVED with E-03/K01 to Order 09 (the sanitize-after-regen check goes there). |
 
 ## Proposed changes (ordered, validatable)
 
@@ -129,51 +132,44 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ### OQ-01: Remove the tracked `.agents/README.md`, or repoint it as a legacy pointer?
 
 - Blocking: no
-- Status: open
-- Owner: opencode Opus 4.8
-- Resolution or deferral rationale: Proposed: REMOVE it (the tree it describes moved to `.aw/`, and a
-  stale pointer is worse than none). Left OPEN for the maintainer to confirm at Order-05 approval, since
-  some may prefer a one-line `.agents/README.md` -> "moved to .aw/, run `aw migrate-layout`" breadcrumb
-  for users landing in a half-migrated checkout. Non-blocking; either choice is Low risk.
+- Status: resolved
+- Owner: human maintainer (2026-08-17)
+- Resolution or deferral rationale: REMOVE it (maintainer chose option (a) at approval). The tree it
+  described moved to `.aw/`; a stale pointer is worse than none. E-02 `git rm`s `.agents/README.md`.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `aw plans/plans-index/research/ipd --help` show `.aw/...` (no `.agents/`); the four packaging-module docstrings name `.aw/system/...`. Paste grep/help excerpts.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Updated 6 cli.py help strings (66/69/111/570/579/706) -> `.aw/records/...`. `aw research --help` -> "Research-artifact tooling for .aw/records/research"; `aw plans --help` -> ".aw/records/plans" + "--write-index (Re)generate .aw/records/plans/STATUS.md". Docstrings in __init__.py/_compat.py/hatch_build.py/versioning.py now lead with `.aw/system/...` (legacy `.agents/workflows/` retained as a labeled mention). cli.py:408 `--source .aw/system or legacy .agents/workflows` legitimately keeps legacy. Imports OK.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: each `.aw/records/**/README.md` describes its own `.aw/records/...` path; `.agents/README.md` removed or repointed per OQ-01. Paste heads + the decision applied.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All 8 flat stubs retitled: `# .aw/records/{backlog,comms,plans,prompts,research,roadmaps,specs,walkthroughs}/` with 0 remaining `.agents/` body refs (docs-family flattened; prompt-library already correct from Order 07). OQ-01 resolved = REMOVE: `git rm .agents/README.md`; `git ls-files .agents/` -> 0 (no tracked legacy files remain).
+  - Result: pass
 
-- [ ] V-03 validates E-03
-  - Required evidence: `grep -c '.agents/workflows' .aw/system/managed-sections.json` -> 0; a self-install/update dry-run is a clean no-op (no vanished-managed-file prune); AND `aw sanitize --agent` stays clean on the rekeyed manifest (PR-002). Paste.
-  - Observed evidence:
-  - Result: pending
-
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: `DEFAULT_FRAMEWORK_VERSION` is derived or documented as an explicit floor (no bare drifting literal). Paste the changed lines.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `DEFAULT_FRAMEWORK_VERSION = "1.2.1"` (project_context.py:57) now carries a block comment documenting it as an EXPLICIT FLOOR (fallback only when no baked `.aw/system/VERSION`; the git-tag resolver baked at release time is authoritative; importing versioning at module load would add a fragile import-time dep). Not a bare undocumented literal.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: `grep -rn "PLANS_DIR" plans_index.py` / `_DATA_RELATIVE` _compat.py -> 0 refs; modules still import. Paste.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Removed dead `plans_index.PLANS_DIR` and `_compat._DATA_RELATIVE` (both had 0 references, verified repo-wide). Also fixed the `versioning.py` legacy default (real latent bug: docstring said `.aw/system/VERSION` but code defaulted `.agents/workflows/VERSION`) to prefer `.aw/system/VERSION` with legacy fallback. `import agent_workflows.plans_index, agent_workflows._compat, agent_workflows.versioning` -> OK.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: cli.py has no `Any|None`-vs-`str|Path` LSP error at the companion callsites; `python3 -W error::SyntaxWarning -c "import agent_workflows.plans_refs"` succeeds; (optional) sdist omits `.gitignore`; tests.yml/install-workflows.sh comments updated. Paste.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Added non-None guards before `move_companion`/`validate_companion_preflight` (cli.py `_run_storage_move`/preflight): the two `Any|None` LSP errors cleared. SyntaxWarning fixed (plans_refs.py:204 docstring rewritten to plain text; `py_compile -W error` -> clean). tests.yml:114 + install-workflows.sh:8 comments updated to `.aw/`. sdist `.gitignore`: NOT applied - hatchling injects it and a sdist `exclude` does not override (verified); documented in pyproject.toml as the one optional C01 nit left (harmless dev-meta; wheel unaffected).
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: full serial suite >= 982 passed / 1 skipped; `aw sanitize --agent` + `aw attention --check` clean. Paste summaries.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: full serial suite `1004 passed, 1 skipped in 187.20s` (unchanged - pure prose/annotation/dead-code, no behavioral regression). `aw sanitize --agent` clean; `aw attention --check: the view is valid.` `git ls-files .agents/` -> 0.
+  - Result: pass
 
 ## Approval and execution gate
 

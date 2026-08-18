@@ -1713,6 +1713,16 @@
     "date": "2026-08-17",
     "disposition": "executed",
     "kind": "child",
+    "order": 5,
+    "path": "executed/20260817-awretrofit-05-euqxi3-help-docstrings-manifest-deadcode.md",
+    "plan_id": "euqxi3",
+    "set_id": "awretrofit",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-17",
+    "disposition": "executed",
+    "kind": "child",
     "order": 6,
     "path": "executed/20260817-awretrofit-06-uh295u-cwd-climb-project-root.md",
     "plan_id": "uh295u",
@@ -1758,16 +1768,6 @@
     "plan_id": "pp6y76",
     "set_id": "awretrofit",
     "status": "approved"
-  },
-  {
-    "date": "2026-08-17",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 5,
-    "path": "pending/20260817-awretrofit-05-euqxi3-help-docstrings-manifest-deadcode.md",
-    "plan_id": "euqxi3",
-    "set_id": "awretrofit",
-    "status": "reviewed"
   },
   {
     "date": "2026-08-17",
