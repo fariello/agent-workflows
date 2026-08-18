@@ -273,7 +273,9 @@ def plan_new_comparison(
 
 
 def _research_root(args: argparse.Namespace) -> Path:
-    root = Path(getattr(args, "dir", None) or ".").resolve()
+    from agent_workflows.project_context import resolve_verb_repo_root
+
+    root = resolve_verb_repo_root(getattr(args, "dir", None))
     return R.resolve_research_root(root)
 
 

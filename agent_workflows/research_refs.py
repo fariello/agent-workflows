@@ -229,7 +229,10 @@ def plan_mv(
 
 
 def _repo_root(args: argparse.Namespace) -> Path:
-    return Path(getattr(args, "dir", None) or ".").resolve()
+    # Climb to the project root so research verbs work from any subdirectory (Order 06).
+    from agent_workflows.project_context import resolve_verb_repo_root
+
+    return resolve_verb_repo_root(getattr(args, "dir", None))
 
 
 def _apply_renames(repo_root: Path, plans: List[RenamePlan], apply: bool) -> None:

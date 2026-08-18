@@ -313,7 +313,9 @@ def apply_renames(
 
 
 def _dirs(args: argparse.Namespace) -> Tuple[Path, Path]:
-    repo_root = Path(getattr(args, "dir", None) or ".").resolve()
+    from agent_workflows.project_context import resolve_verb_repo_root
+
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
     # Layout-aware (IPD awretrofit Order 01): resolve .aw/records/plans with a legacy
     # .agents/plans read-fallback, mirroring plans_index._dirs.
     from agent_workflows.record_producers import resolve_record_path

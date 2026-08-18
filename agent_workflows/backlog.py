@@ -277,7 +277,9 @@ def _render_item(item: BacklogItem, body: str) -> str:
 
 
 def run_new(args) -> int:
-    repo_root = Path(getattr(args, "dir", ".") or ".")
+    from agent_workflows.project_context import resolve_verb_repo_root
+
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
     status = getattr(args, "status", None) or "open"
     if status not in STATUSES:
         sys.stderr.write(
@@ -334,7 +336,9 @@ def run_new(args) -> int:
 
 
 def run_set(args) -> int:
-    repo_root = Path(getattr(args, "dir", ".") or ".")
+    from agent_workflows.project_context import resolve_verb_repo_root
+
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
     target = getattr(args, "path", None)
     new_status = getattr(args, "status", None)
     if not target or new_status not in STATUSES:
@@ -436,7 +440,9 @@ def _reattach_history(
 
 
 def run_check(args) -> int:
-    repo_root = Path(getattr(args, "dir", ".") or ".")
+    from agent_workflows.project_context import resolve_verb_repo_root
+
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
     drift: List[core.Drift] = []
     seen_ids: Dict[str, str] = {}
     for f in _iter_items(repo_root):

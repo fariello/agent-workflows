@@ -2797,12 +2797,19 @@ def _run_config_exclude(args: argparse.Namespace, term: Term) -> int:
 
 def _run_plans(args: argparse.Namespace, term: Term) -> int:
     from . import plans as plans_mod
-
-    root = (
-        Path(args.dir).expanduser().resolve()
-        if getattr(args, "dir", None)
-        else Path.cwd()
+    from agent_workflows.project_context import (
+        resolve_verb_repo_root,
+        is_project_dir,
+        no_project_message,
     )
+
+    # Climb to the project root so `aw plans` works from any subdirectory; explicit --dir verbatim
+    # (IPD awretrofit Order 06).
+    explicit_dir = getattr(args, "dir", None)
+    root = resolve_verb_repo_root(explicit_dir)
+    if not explicit_dir and not is_project_dir(root):
+        sys.stderr.write(no_project_message("plans") + "\n")
+        return 3
 
     # Validate --status up front so a typo teaches the valid set instead of silently
     # returning an empty board (assess-self-documentation S1). Handler-side (not argparse

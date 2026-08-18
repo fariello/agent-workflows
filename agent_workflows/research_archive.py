@@ -217,7 +217,9 @@ def apply_moves(repo_root: Path, research_root: Path, moves: List[Move]) -> None
 
 
 def _roots(args: argparse.Namespace) -> Tuple[Path, Path]:
-    repo_root = Path(getattr(args, "dir", None) or ".").resolve()
+    from agent_workflows.project_context import resolve_verb_repo_root
+
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
     # Layout-aware (IPD awretrofit Order 01): shared research-root resolution.
     return repo_root, R.resolve_research_root(repo_root)
 

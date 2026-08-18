@@ -294,7 +294,10 @@ def _add_gate_fields(
 
 
 def run_check(args) -> int:
-    repo_root = Path(getattr(args, "dir", ".") or ".")
+    from agent_workflows.project_context import resolve_verb_repo_root
+
+    # Climb to the project root so `aw specs check` works from any subdirectory (Order 06).
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
     target = getattr(args, "path", None)
     if target:
         paths = [Path(target)]

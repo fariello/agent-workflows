@@ -299,7 +299,9 @@ def check_drift(
 
 
 def _dirs(args: argparse.Namespace) -> Tuple[Path, Path]:
-    repo_root = Path(getattr(args, "dir", None) or ".").resolve()
+    from agent_workflows.project_context import resolve_verb_repo_root
+
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
     from agent_workflows.record_producers import resolve_record_path
 
     try:

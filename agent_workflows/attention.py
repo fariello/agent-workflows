@@ -523,7 +523,29 @@ def render_board(
 
 
 def run(args) -> int:
-    repo_root = Path(getattr(args, "dir", None) or ".")
+    # Climb to the project root so `aw attention` works from any subdirectory; an explicit --dir is
+    # honored verbatim (IPD awretrofit Order 06).
+    from agent_workflows.project_context import (
+        resolve_verb_repo_root,
+        is_project_dir,
+        no_project_message,
+    )
+
+    explicit_dir = getattr(args, "dir", None)
+    repo_root = resolve_verb_repo_root(explicit_dir)
+    check = getattr(args, "check", False)
+    # No AW project at cwd or any ancestor (and none named via --dir): emit the verbose guidance
+    # instead of a silent empty board. --check stays fail-closed-valid (nothing to violate).
+    if not explicit_dir and not is_project_dir(repo_root):
+        if check:
+            agent = getattr(args, "agent", False)
+            if agent:
+                sys.stdout.write(core.render_agent_drift([]))
+            else:
+                sys.stdout.write("aw attention --check: the view is valid.\n")
+            return 0
+        sys.stderr.write(no_project_message("attention") + "\n")
+        return 3
     try:
         items, drift = scan(repo_root)
     except (
@@ -532,7 +554,6 @@ def run(args) -> int:
         sys.stderr.write(f"aw attention: could not run: {exc}\n")
         return 2
 
-    check = getattr(args, "check", False)
     agent = getattr(args, "agent", False)
     fmt = getattr(args, "format", None)
 

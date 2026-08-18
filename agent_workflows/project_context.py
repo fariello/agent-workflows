@@ -174,6 +174,89 @@ def _find_git_root(start_dir: str) -> Optional[str]:
     return None
 
 
+def find_project_root(start: Optional[str | Path] = None) -> Optional[Path]:
+    """Climb from ``start`` (default cwd) for the nearest ancestor that IS an AW project root.
+
+    Returns the first directory (``start`` itself or an ancestor) that contains a ``.aw/`` or a
+    legacy ``.agents/`` marker directory, else ``None``. Git-style upward walk (like
+    ``_find_git_root``), so a repo-scoped ``aw`` verb works from any subdirectory. Pure and
+    side-effect-free; symlink-safe (paths are resolved). git presence is NOT a marker: a ``.aw/``
+    tree can exist without git, and a bare ``.git`` ancestor with no AW marker is NOT an AW project
+    (IPD awretrofit Order 06, OQ-01).
+    """
+
+    curr = Path(start).resolve() if start is not None else Path.cwd().resolve()
+    while True:
+        if _is_project_marker(curr / ".aw") or _is_project_marker(
+            curr / ".agents", legacy=True
+        ):
+            return curr
+        if curr == curr.parent:  # reached the filesystem root
+            return None
+        curr = curr.parent
+
+
+def _is_project_marker(marker: Path, legacy: bool = False) -> bool:
+    """True if ``marker`` is a REAL AW project root dir, not a stray nested one.
+
+    A genuine ``.aw/`` project root holds at least one DURABLE class dir (``system``/``records``/
+    ``config``); a stray runtime ``.aw/`` (e.g. one accidentally scaffolded under ``.aw/state/``)
+    typically holds only ``state`` and MUST NOT be mistaken for the root. The legacy ``.agents/``
+    root holds ``workflows``/``plans``/``docs``. Requiring a durable child avoids the false positive
+    where a bare ``.aw`` dir appears nested inside the tree (IPD awretrofit Order 06).
+    """
+
+    if not marker.is_dir():
+        return False
+    if legacy:
+        anchors = ("workflows", "plans", "docs", "prompts", "comms", "backlog")
+    else:
+        anchors = ("system", "records", "config")
+    return any((marker / a).is_dir() for a in anchors)
+
+
+def resolve_verb_repo_root(explicit_dir: Optional[str] = None) -> Path:
+    """Resolve the repo root a repo-scoped ``aw`` verb should operate on (IPD awretrofit Order 06).
+
+    - An EXPLICIT ``--dir`` is honored verbatim (resolved, no climb) - the operator asked for it.
+    - Otherwise CLIMB from cwd via ``find_project_root``; if an AW project root is found, use it (so
+      the verb works from any subdirectory, git-style).
+    - If no project root is found, fall through to cwd (the caller then emits the no-project message
+      via ``no_project_message`` rather than printing a silent empty result).
+    """
+
+    if explicit_dir:
+        return Path(explicit_dir).expanduser().resolve()
+    root = find_project_root()
+    return root if root is not None else Path.cwd().resolve()
+
+
+def no_project_message(verb: str) -> str:
+    """The verbose 'no AW project found' message a repo-scoped verb prints instead of empty output.
+
+    Emitted when the operator did not pass ``--dir`` and no ``.aw/``/``.agents/`` marker exists at cwd
+    or any ancestor (IPD awretrofit Order 06). Names the verb, what was checked, and the two fixes.
+    """
+
+    return (
+        f"aw {verb}: no AW project found here.\n"
+        f"Checked {Path.cwd()} and its parents for a .aw/ (or legacy .agents/) project directory.\n"
+        f"Are you inside your repository? cd into the repo (or a subdirectory of it), "
+        f"or pass --dir <repo>."
+    )
+
+
+def is_project_dir(repo_root: str | Path) -> bool:
+    """True if ``repo_root`` is (or contains) an AW project marker - i.e. a real project, not a bare
+    directory with nothing to survey. Used by repo-scoped verbs to decide between running and
+    emitting ``no_project_message`` (IPD awretrofit Order 06)."""
+
+    p = Path(repo_root)
+    return _is_project_marker(p / ".aw") or _is_project_marker(
+        p / ".agents", legacy=True
+    )
+
+
 def _derive_project_id(target_repo: str) -> str:
     """Derive deterministic project ID from target_repo path."""
     repo_name = Path(target_repo).name or "project"
