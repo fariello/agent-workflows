@@ -18,6 +18,8 @@
 - 2026-08-18 /plan-review (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE (no revisions). Structural preflight conforming. Verified: managed-sections.json still 150 legacy `.agents/workflows/*` keys, 0 `.aw/`; no standalone manifest-rebuild function exists, so the full `aw install .` regeneration path (with OQ-01's commit-only-managed-sections.json scoping) is correct. E-01/E-02 sound; OQ-01 resolved. No findings, no open questions. GO - PENDING HUMAN APPROVAL.
 - 2026-08-18 BLOCKED (opencode Opus 4.8): approved + attempted, but `aw install .` FAILS before reaching the manifest - `ensure_workflow_artifacts_readme` (engine.py:4082) tries to `git add workflow-artifacts/README.md` which is gitignored ("paths are ignored... Use -f"). It also regenerates 42 stale `.claude/commands/*` (+ `.opencode/commands/*`) shims still pointing at `.agents/workflows/` and creates `.aw/config/project.json` - beyond this Order's manifest scope. Partial install reset cleanly (manifest still 150/0, nothing committed). This Order is BLOCKED on a new Order 10 (fix the install `git add` gitignore bug + regenerate the stale host shims); once `aw install .` runs cleanly, the manifest rekey follows. Reverted Status to `reviewed` (needs re-approval after Order 10).
 - 2026-08-18 UNBLOCKED + FINDING (opencode Opus 4.8): Order 10 executed (commit 8ab840d) - `aw install .` now completes. BUT executing it revealed the E-01 assumption is WRONG: `aw install .` ACCUMULATES manifest keys - it ADDS the current `.aw/system/*` keys but does NOT PRUNE the stale `.agents/workflows/*` keys (observed 150 legacy + 150 aw = 346 after a full install). So a bare `aw install .` does NOT reach the "0 legacy keys" goal; E-01 needs a purge/rebuild step (drop keys whose path no longer exists in the tree, or rebuild the manifest fresh from the installed `.aw/system/` members), not just `aw install .`. This Order needs a re-plan-review of E-01 with that mechanism before re-approval.
+- 2026-08-18 REWORKED (opencode Opus 4.8): rewrote E-01 to the FRESH-REBUILD mechanism (DELETE the manifest first, then `aw install .` rebuilds it empty->current-only, since the install records every member it writes). Traced the root cause to `install_into_repo` load+append with no stale-key prune (engine.py:4405); confirmed a fresh rebuild captures all three entry classes (file/shim/section). Added finding K01b + convention notes. Re-review next; Status remains `to-review` (needs a fresh /plan-review + human approval).
+- 2026-08-18 /plan-review [re-review after rework] (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): APPROVE (no further revisions). Structural preflight conforming. Verified the reworked mechanism against real code: `manifest_mod.load()` on an absent path returns an empty Manifest (0 files) - confirmed by execution; `install_into_repo` records every written member via `manifest.record()` (engine.py:1585 file/shim, :1371 section), so deleting the manifest then `aw install .` yields a complete current-only rebuild (the 150 stale legacy `file` keys are simply not re-created). K01b root cause (load+append, no prune at :4405) accurate. Order 10 already made `aw install .` complete on this repo + regenerated the shims (so E-01's install is a no-op for them). No findings, no open questions. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -31,9 +33,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: regenerate the manifest
 
-- [ ] E-01 Regenerate `.aw/system/managed-sections.json` so its keys reflect the current `.aw/system/` install layout (`.aw/system/workflows/...`), NOT the 150 stale `.agents/workflows/*` keys. Use the manifest machinery / a controlled `aw install .` self-update (idempotent), NOT a hand-edit. If a full `aw install .` also rewrites shims/AGENTS.md/config/state, commit ONLY the managed-sections.json change path-scoped (verify the other touched files are no-op / already-current, or handle them explicitly). Confirm install/update prune/diff is a clean no-op afterward.
+- [ ] E-01 Rebuild `.aw/system/managed-sections.json` FRESH so it contains ONLY current keys, not the 150 stale `.agents/workflows/*`. **REWORKED (Order-10 finding): a bare `aw install .` does NOT work - `install_into_repo` LOADS the existing manifest (engine.py:4405) and RECORDS what it writes but never PRUNES stale keys, so it ACCUMULATES (observed 150 legacy + 150 aw = 346).** The correct mechanism is a FRESH rebuild: DELETE `.aw/system/managed-sections.json` first, then run `aw install .` - `manifest_mod.load()` on an absent path returns an empty Manifest, and the install records every member it writes (files at engine.py:1585, sections at :1371), so the rebuilt manifest is complete and current-only. The rebuilt manifest holds all three entry classes (150 `file` bundle members + 44 `shim` .claude/.opencode + 2 `section` for `.gitignore#aw:untracked` and `AGENTS.md#aw:pointer`) keyed to `.aw/system/*` / the real host-adapter paths. Order 10 already fixed the install so it completes on this repo. Handle the install's other outputs (shims already regenerated by Order 10 = no-op; do NOT let it re-commit - reset any auto-commit and commit ONLY managed-sections.json path-scoped, verifying nothing else changed).
   - Depends on: none
-  - Expected outcome: `grep -c '.agents/workflows' .aw/system/managed-sections.json` -> 0; a second `aw install .`/update dry-run reports no spurious prune.
+  - Expected outcome: `grep -c '\.agents/workflows' .aw/system/managed-sections.json` -> 0; the manifest keys are the current `.aw/system/*` + shim + section set (~196 entries, no legacy `file` keys); a second `aw install .` is a clean no-op (no accumulation, no spurious prune).
   - Execution state: pending
 
 ### Task group 2: verify
@@ -48,13 +50,16 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ## Project conventions discovered (Step 0)
 
 - `managed-sections.json` is a GENERATED manifest (manifest.py; populated during `install_all` keyed by each file's install `relative_posix`), NOT hand-maintained; regenerate via the machinery.
-- There is no standalone "rebuild from tree" function; the designed regeneration is a full `aw install .` (idempotent), which also touches shims/AGENTS.md/config/state - hence this is its own isolated Order (split from Order 05).
+- There is no standalone "rebuild from tree" function; regeneration is a full `aw install .`.
+- CRITICAL (Order-10 finding): `install_into_repo` LOADS the existing manifest (engine.py:4405) and only RECORDS what it writes - it does NOT prune stale keys. So a bare `aw install .` ACCUMULATES (150 legacy + 150 aw). The fix is to DELETE the manifest FIRST so the install rebuilds it fresh (empty-load -> records only current members). `aw install` records `file`/`shim` (engine.py:1585) + `section` (:1371) entries, so a fresh rebuild is complete.
+- Order 10 fixed the install to complete on this repo (it previously aborted on the gitignored workflow-artifacts README); the shims are already regenerated, so this Order's install run should be a no-op for them.
 
 ## Findings
 
 | id | area | evidence | issue |
 |---|---|---|---|
 | K01 | managed-sections.json | 150 `.agents/workflows/*` keys, 0 `.aw/` (git mv'd in Order 11 without rekey) | self-install prune/diff churn on re-install |
+| K01b | install accumulates | `install_into_repo` load+append (engine.py:4405), no stale-key prune | a bare `aw install .` yields 150+150=346, not a rekey; E-01 must DELETE the manifest first for a fresh rebuild |
 
 ## Proposed changes (ordered, validatable)
 
