@@ -5,7 +5,7 @@
 - Author: opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)
 - Motivation: Every record file (plan/spec/backlog/research/prompt) carries a `## Workflow history` narrative that grows unbounded. Agents that consume these files fully read + cache the entire body, so the history burns tokens on administrative narrative that provides little value to the task at hand (the maintainer specifically flagged history). The tension: moving admin metadata OUT of the file saves tokens but risks agents "forgetting" to use the tool and missing information. This spec resolves that tension with a middle path.
 - Relation to prior work: Touches EVERY record type and the manifest/index layer (plans_index, research_index, specs, backlog, attention). Consumes the id6 handle (spec 20260808 plans-adopter) as the sidecar join key. Independent of, but sequenced after, the naming grammar (spec 20260817-2147-01).
-- This is a DESIGN spec: it proposes the model for maintainer approval BEFORE any implementation. It is NOT a release blocker unless the maintainer marks it so; it is an efficiency + hygiene improvement.
+- This is a DESIGN spec that proposes the model. All design decisions are now RESOLVED (Sections 3, 6). **RELEASE BLOCKER (maintainer-confirmed 2026-08-18):** implementation IPDs are authored after the release-critical UX Sets (A-F) but MUST land before the first `.aw/`-layout release.
 
 ## Workflow history
 
@@ -31,14 +31,11 @@
 - Changing the naming grammar or directory taxonomy.
 - A networked/remote store; the sidecar is a local repo file.
 
-## 3. Design options for the sidecar shape (for maintainer decision)
+## 3. Sidecar shape (DECIDED, maintainer 2026-08-18)
 
-Two candidate shapes; the maintainer picks one at review (this is why it is a design spec):
-
-- OPTION A - per-tree append-only JSONL: one `history.jsonl` per record tree (e.g. `.aw/records/plans/history.jsonl`), each line `{id6, date, workflow, actor, message}`. Pros: few files, cheap append, easy to scan for one id6. Cons: a single hot file per tree.
-- OPTION B - per-record sidecar: `<recordname>.history.jsonl` next to each record (or under a shadow dir). Pros: co-located, moves/deletes with the record, no hot file. Cons: many small files, more git churn.
-
-Recommendation: OPTION A (per-tree JSONL) - fewer files, matches the existing per-tree INDEX.json manifest pattern, and a record's history is retrieved by id6 filter. The record file keeps only inline state + the `Managed-by` directive.
+- **ONE GLOBAL append-only JSONL: `.aw/records/history.jsonl`**, keyed by id6, covering every record type. Each line is a JSON object `{id6, date, tree, workflow, actor, message}` (tree in {plans,specs,research,backlog,prompts,walkthroughs,roadmaps,releases,...}). Append-only, so line order is irrelevant and git merges of concurrent appends rarely conflict.
+- Rationale: single reader/writer, trivial cross-tree "what happened to id6 X" and "everything on date D" queries, matches the id6-as-universal-handle model, and append-only JSONL neutralizes the write-hotspot concern. Simpler than per-tree or per-record.
+- Records keep inline state (Status/Set/Id/Order/gate) + a `- Managed-by:` directive + the latest-one history line (OQ-2 below); the FULL chronological log lives only in `.aw/records/history.jsonl`.
 
 ## 4. Requirements (once a shape is chosen)
 
@@ -59,23 +56,23 @@ Recommendation: OPTION A (per-tree JSONL) - fewer files, matches the existing pe
 
 ## 6. Open questions
 
-### OQ-1: JSONL-per-tree (A) vs sidecar-per-record (B)?
-
-- Blocking: yes
-- Status: open
-- Owner: maintainer
-- Resolution or deferral rationale: determines R1/R2. Recommendation A (per-tree JSONL). Maintainer to decide at spec review.
-
-### OQ-2: keep a short inline history TAIL (latest N) or move it entirely?
+### OQ-1: sidecar shape? RESOLVED
 
 - Blocking: no
-- Status: open
-- Owner: maintainer
-- Resolution or deferral rationale: a 1-3 line "latest" tail in the file preserves at-a-glance context for an agent that does not call the tool, at a small token cost. Recommendation: keep the LATEST ONE line inline (the current state's provenance) + full log in the sidecar.
+- Status: resolved
+- Owner: maintainer (2026-08-18)
+- Resolution or deferral rationale: ONE GLOBAL `.aw/records/history.jsonl` keyed by id6 (Section 3). Maintainer chose global over per-tree/per-record for simplicity + cross-tree queries; append-only JSONL keeps conflicts rare.
 
-### OQ-3: is this a release blocker?
+### OQ-2: keep a short inline history TAIL? RESOLVED
 
 - Blocking: no
-- Status: open
-- Owner: maintainer
-- Resolution or deferral rationale: Recommendation NOT a release blocker - it is an efficiency improvement, safe to ship in a follow-up. Maintainer to confirm so it can be sequenced after the UX batch.
+- Status: resolved
+- Owner: maintainer (2026-08-18)
+- Resolution or deferral rationale: KEEP THE LATEST ONE line inline (the current state's provenance); full chronological log lives in `.aw/records/history.jsonl`.
+
+### OQ-3: is this a release blocker? RESOLVED
+
+- Blocking: no
+- Status: resolved
+- Owner: maintainer (2026-08-18)
+- Resolution or deferral rationale: YES - the maintainer designated both this spec and the release-record spec (03) as RELEASE BLOCKERS for the first `.aw/`-layout release. Implementation IPDs are authored after the release-critical UX Sets (A-F) but before the release ships.
