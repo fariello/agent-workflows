@@ -60,8 +60,35 @@ class ReadVerbsTests(unittest.TestCase):
         rc, out = self._run(["index", "backlog"])
         self.assertEqual(rc, 2)
 
+    def test_search_without_type(self) -> None:
+        rc, out = self._run(["search", "findable content"])
+        self.assertEqual(rc, 0)
+        self.assertIn("findable content", out)
+
+    def test_search_line_numbers(self) -> None:
+        rc, out = self._run(["search", "--line-numbers", "specs", "findable content"])
+        self.assertEqual(rc, 0)
+        self.assertIn("findable content", out)
+        # Assert line number 8 appears in output
+        self.assertTrue(any(line.strip().startswith("8:") for line in out.splitlines()))
+
+    def test_find_without_type(self) -> None:
+        rc, out = self._run(["find", "aaa111"])
+        self.assertEqual(rc, 0)
+        self.assertIn("aaa111", out)
+
+    def test_find_with_type(self) -> None:
+        rc, out = self._run(["find", "specs", "aaa111"])
+        self.assertEqual(rc, 0)
+        self.assertIn("aaa111", out)
+
+    def test_find_help_query_not_hijacked_as_help_flag(self) -> None:
+        rc, out = self._run(["find", "help"])
+        self.assertEqual(rc, 0)
+        self.assertNotIn("usage: agent-workflows find", out)
+
     def test_unknown_type(self) -> None:
-        rc, out = self._run(["find", "bogus"])
+        rc, out = self._run(["index", "bogus"])
         self.assertEqual(rc, 2)
 
 

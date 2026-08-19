@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 from typing import List, Optional, Sequence
@@ -232,8 +233,8 @@ _DESCRIPTIONS = {
     "history": "Show the lifecycle history (state transitions over time) of a single action.",
     "record-history": "Print a record's full chronological workflow history from the global .aw/records/history.jsonl sidecar, looked up by its 6-char id6.",
     "check": "Validate the artifacts of a given TYPE (plans, specs, ...) against their contract; exit 0 clean, 1 findings, 2 cannot-run.",
-    "find": "Find artifacts of a given TYPE by selector (id6, status, Set, filename fragment).",
-    "search": "Search the artifacts of a given TYPE for matching content.",
+    "find": "Find artifacts of a given TYPE by selector (id6, status, Set, filename fragment), or across all types when omitted.",
+    "search": "Search the artifacts of a given TYPE for matching content (regex-enabled), or across all types when omitted. Groups matches by file with color highlighting.",
     "index": "Rebuild and print the manifest/index for a given artifact TYPE.",
     "rename": "Rename or move an artifact of a given TYPE, rewriting references to it across the repo.",
     "group": "Assign an artifact of a given TYPE to a Set/group, re-clustering its name.",
@@ -1250,22 +1251,38 @@ def _build_parser() -> argparse.ArgumentParser:
             "check",
             "Validate artifacts of a TYPE against their contract (0 ok / 1 findings / 2 cannot-run).",
         ),
-        ("find", "Find artifacts of a TYPE by selector."),
-        ("search", "Search artifacts of a TYPE."),
+        (
+            "find",
+            "Find artifacts of a TYPE by selector (or across all types if omitted).",
+        ),
+        ("search", "Search artifacts of a TYPE (or across all types if omitted)."),
         ("index", "Rebuild/print the index for a TYPE."),
         ("rename", "Rename/move an artifact of a TYPE (rewriting references)."),
         ("group", "Assign an artifact of a TYPE to a Set/group."),
     ):
         _p = sub.add_parser(_verb, parents=[common], help=_vhelp)
-        _p.add_argument(
-            "type",
-            help="Artifact type (plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms) or 'all'.",
-        )
-        _p.add_argument(
-            "selector",
-            nargs="*",
-            help="Selector/args for the verb (id6, status, filename, ...).",
-        )
+        if _verb in ("search", "find"):
+            _p.add_argument(
+                "type",
+                nargs="?",
+                default=None,
+                help="Artifact type (plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms) or 'all' (optional).",
+            )
+            _p.add_argument(
+                "selector",
+                nargs="*",
+                help="Selector / search pattern / args for the verb.",
+            )
+        else:
+            _p.add_argument(
+                "type",
+                help="Artifact type (plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms) or 'all'.",
+            )
+            _p.add_argument(
+                "selector",
+                nargs="*",
+                help="Selector/args for the verb (id6, status, filename, ...).",
+            )
         _p.add_argument(
             "--dir", default=None, help="Repo root (default: current directory)."
         )
@@ -1278,6 +1295,14 @@ def _build_parser() -> argparse.ArgumentParser:
             action="store_true",
             help="Emit findings as tab-separated machine output.",
         )
+        if _verb == "search":
+            _p.add_argument(
+                "--line-numbers",
+                "-n",
+                dest="line_numbers",
+                action="store_true",
+                help="Print line numbers for matched lines.",
+            )
         # backend-relevant passthrough flags (index/find/check)
         _p.add_argument(
             "--check",
@@ -3686,6 +3711,13 @@ def _nv_backend_args(args, artifact_type):
     return sub
 
 
+def _highlight_matches(text: str, rx: re.Pattern, term: Term) -> str:
+    """Highlight regex match(es) in text using bold yellow when color is active."""
+    if not term.color:
+        return text
+    return rx.sub(lambda m: term.colorize(m.group(0), "bold", "yellow"), text)
+
+
 def _run_noun_verb(args: argparse.Namespace, term: Term) -> int:
     """awcmdsurf: dispatch a noun-verb command to the right backend. Order 01 scaffolded the router;
     Order 02 wires index/find/search/check; Order 03 wires rename/group (+ archive)."""
@@ -3694,6 +3726,8 @@ def _run_noun_verb(args: argparse.Namespace, term: Term) -> int:
         return _run_search(args, term)
     if verb == "check":
         return _run_check(args, term)
+    if verb == "find":
+        return _run_find(args, term)
     types = _nv_resolve_types(args, term, verb)
     if types is None:
         return 2
@@ -3710,6 +3744,148 @@ def _run_noun_verb(args: argparse.Namespace, term: Term) -> int:
         if isinstance(result, int):
             rc = max(rc, result)
     return rc
+
+
+def _find_type_records(
+    repo_root: Path,
+    artifact_type: str,
+    selectors_list: List[str],
+    args: argparse.Namespace,
+    term: Term,
+) -> List[str]:
+    """Find and format matching records for a given artifact type. Returns lines to print."""
+    from agent_workflows import selectors as sel_mod
+
+    if artifact_type == "plans":
+        from agent_workflows import plans_index as pi
+
+        _repo, plans_dir = pi._dirs(args)
+        entries, _drift = pi.scan_plans(plans_dir)
+        plan_id = getattr(args, "id", None) or (
+            selectors_list[0] if selectors_list else None
+        )
+        results = pi.query(
+            entries,
+            plan_id=plan_id
+            if (plan_id and len(plan_id) == 6)
+            else getattr(args, "id", None),
+            set_id=getattr(args, "set", None),
+            status=getattr(args, "status", None),
+            disposition=getattr(args, "disposition", None),
+        )
+        if not results and selectors_list:
+            matched = set(sel_mod.resolve_selectors(repo_root, "plans", selectors_list))
+            results = [e for e in entries if (plans_dir / e.path) in matched]
+        lines = []
+        for e in results:
+            status = e.disposition or e.status or "-"
+            status_txt = term.status_256(status, width=12)
+            id6_txt = (
+                term.color256(e.plan_id or "??????", 39, bold=True)
+                if term.color
+                else (e.plan_id or "??????")
+            )
+            set_txt = f"{e.set_id or '-':<14}"
+            lines.append(f"{status_txt}  {id6_txt}  {set_txt}  {e.path}")
+        return lines
+
+    if artifact_type == "research":
+        from agent_workflows import research_index as ri
+
+        _repo, research_root = ri._roots(args)
+        entries, _drift = ri._scan_docs(research_root)
+        id6 = getattr(args, "id", None) or (
+            selectors_list[0] if selectors_list else None
+        )
+        results = ri.query(
+            entries,
+            id6=id6 if (id6 and len(id6) == 6) else getattr(args, "id", None),
+            set_id=getattr(args, "set", None),
+            topic=getattr(args, "topic", None),
+            status=getattr(args, "status", None),
+        )
+        if not results and selectors_list:
+            matched = set(
+                sel_mod.resolve_selectors(repo_root, "research", selectors_list)
+            )
+            results = [e for e in entries if (research_root / e.path) in matched]
+        lines = []
+        for e in results:
+            status = e.status or "-"
+            status_txt = term.status_256(status, width=12)
+            id6_txt = (
+                term.color256(e.id6 or "??????", 39, bold=True)
+                if term.color
+                else (e.id6 or "??????")
+            )
+            summary = f"  {e.summary}" if e.summary else ""
+            lines.append(f"{status_txt}  {id6_txt}  {e.path}{summary}")
+        return lines
+
+    # All other types: specs, prompts, backlog, walkthroughs, roadmaps, comms
+    if selectors_list:
+        matched_paths = sel_mod.resolve_selectors(
+            repo_root, artifact_type, selectors_list
+        )
+    else:
+        matched_paths = [p for p, _ in sel_mod._iter_files(repo_root, artifact_type)]
+
+    lines = []
+    for p in sorted(matched_paths):
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        id6 = sel_mod._read_id(text) or "-"
+        status = sel_mod._read_status(text) or "-"
+        try:
+            rel = str(p.relative_to(repo_root))
+        except ValueError:
+            rel = str(p)
+        status_txt = term.status_256(status, width=12)
+        id6_txt = term.color256(id6, 39, bold=True) if term.color else id6
+        lines.append(f"{status_txt}  {id6_txt}  {rel}")
+    return lines
+
+
+def _run_find(args: argparse.Namespace, term: Term) -> int:
+    """awcmdsurf Order 02: find artifacts of a TYPE (or all types if omitted) by selector."""
+    import os
+    from pathlib import Path
+    from agent_workflows import artifact_types as at
+
+    raw_type = getattr(args, "type", None)
+    raw_selector = list(getattr(args, "selector", None) or [])
+
+    if at.is_type_token(raw_type):
+        norm = at.normalize_type(raw_type)
+        selectors = raw_selector
+    else:
+        norm = "all"
+        selectors = ([raw_type] if raw_type is not None else []) + raw_selector
+
+    repo_root = Path(getattr(args, "dir", None) or os.getcwd())
+    types = at.ARTIFACT_TYPES if norm == "all" else (norm,)
+
+    all_lines = []
+    for t in types:
+        sub = _nv_backend_args(args, t)
+        sub.selector = selectors
+        if selectors and not getattr(sub, "id", None):
+            sub.id = selectors[0]
+        lines = _find_type_records(repo_root, t, selectors, sub, term)
+        all_lines.extend(lines)
+
+    if not all_lines:
+        if norm == "all":
+            print("no matching artifacts")
+        else:
+            print(f"no matching {norm}")
+        return 0
+
+    for line in all_lines:
+        print(line)
+    return 0
 
 
 def _run_archive(args: argparse.Namespace, term: Term) -> int:
@@ -3758,19 +3934,27 @@ def _run_archive(args: argparse.Namespace, term: Term) -> int:
 
 
 def _run_search(args: argparse.Namespace, term: Term) -> int:
-    """awcmdsurf Order 02: grep-lite across a TYPE's record tree(s). Walks *.md (facets match) and
-    reports file:line per match. `all` spans every type incl. backlog/roadmaps."""
+    """Search record tree(s) for regex matches. If the first positional is a known TYPE,
+    restricts search to that type; otherwise searches 'all' types. Prints file path once
+    in bold blue, followed by matching lines with matches highlighted in bold yellow
+    (with line numbers if --line-numbers)."""
+    import json
     import os
     import re
     from pathlib import Path
     from agent_workflows import artifact_types as at
 
-    try:
-        norm = at.normalize_type(args.type)
-    except ValueError as exc:
-        term.status("fail", str(exc))
-        return 2
-    pattern = " ".join(args.selector) if args.selector else None
+    raw_type = getattr(args, "type", None)
+    raw_selector = list(getattr(args, "selector", None) or [])
+
+    if at.is_type_token(raw_type):
+        norm = at.normalize_type(raw_type)
+        pattern_tokens = raw_selector
+    else:
+        norm = "all"
+        pattern_tokens = ([raw_type] if raw_type is not None else []) + raw_selector
+
+    pattern = " ".join(pattern_tokens) if pattern_tokens else None
     if not pattern:
         term.status("fail", "search requires a pattern (positional selector).")
         return 2
@@ -3779,23 +3963,53 @@ def _run_search(args: argparse.Namespace, term: Term) -> int:
     except re.error as exc:
         term.status("fail", f"invalid regex: {exc}")
         return 2
+
     repo_root = Path(getattr(args, "dir", None) or os.getcwd())
     types = at.ARTIFACT_TYPES if norm == "all" else (norm,)
+    as_json = getattr(args, "as_json", False)
+    line_numbers = getattr(args, "line_numbers", False)
+
     hits = 0
+    json_results = []
+
     for t in types:
         for base in (repo_root / ".aw" / "records" / t, repo_root / ".agents" / t):
             if not base.is_dir():
                 continue
             for p in sorted(base.rglob("*.md")):
                 try:
-                    for i, line in enumerate(
-                        p.read_text(encoding="utf-8").split("\n"), 1
-                    ):
-                        if rx.search(line):
-                            term.line(f"{p}:{i}: {line.strip()}")
-                            hits += 1
+                    text = p.read_text(encoding="utf-8")
                 except OSError:
                     continue
+
+                file_matches = []
+                for i, line in enumerate(text.split("\n"), 1):
+                    if rx.search(line):
+                        hits += 1
+                        file_matches.append((i, line))
+                        if as_json:
+                            json_results.append(
+                                {"path": str(p), "line": i, "text": line.strip()}
+                            )
+
+                if file_matches and not as_json:
+                    file_header = (
+                        term.color256(str(p), 39, bold=True) if term.color else str(p)
+                    )
+                    term.line(file_header)
+                    for i, line in file_matches:
+                        highlighted = _highlight_matches(line.strip(), rx, term)
+                        if line_numbers:
+                            line_no = (
+                                term.color256(f"{i}:", 244) if term.color else f"{i}:"
+                            )
+                            term.line(f"  {line_no} {highlighted}")
+                        else:
+                            term.line(f"  {highlighted}")
+
+    if as_json:
+        print(json.dumps(json_results, indent=2))
+
     return 0 if hits else 1
 
 
@@ -4278,6 +4492,12 @@ def _rewrite_help_token(argv):
     """awhelparg Order 01: rewrite a standalone `help` subcommand token to `--help` so `aw help`,
     `aw ipd help`, `aw <verb> help` all show help. A `help` that is an OPTION VALUE (the token
     immediately follows an option like `--message`) is left verbatim. Returns a new list."""
+    if not argv:
+        return []
+    # If the root command is a freeform search/query verb, do NOT rewrite positional 'help' to '--help'
+    # because 'help' is a valid query or selector (e.g. `aw search help`, `aw find help`, `aw show help`).
+    if argv[0] in ("search", "find", "show"):
+        return list(argv)
     out = []
     for i, tok in enumerate(argv):
         prev = argv[i - 1] if i > 0 else ""

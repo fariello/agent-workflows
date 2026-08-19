@@ -80,6 +80,29 @@ def should_color(stream: Optional[TextIO] = None) -> bool:
         return False
 
 
+STATUS_COLOR_256 = {
+    "active": 39,
+    "intake": 44,  # teal
+    "open": 40,
+    "ready": 40,
+    "pending": 40,
+    "approved": 46,  # bright green
+    "reviewed": 226,  # yellow
+    "to-review": 214,  # orange
+    "draft": 245,  # gray
+    "implementing": 51,  # cyan
+    "implemented": 46,
+    "executed": 46,
+    "reusable": 39,
+    "blocked": 203,
+    "deferred": 208,  # orange-red
+    "done": 244,
+    "parked": 244,
+    "superseded": 240,
+    "not-executed": 240,
+}
+
+
 class Term:
     """A small styling helper bound to a stream's color decision."""
 
@@ -111,6 +134,14 @@ class Term:
         n = max(0, min(255, int(code)))
         prefix = "1;" if bold else ""
         return f"\033[{prefix}38;5;{n}m{text}{_RESET}"
+
+    def status_256(self, status: str, *, width: int = 0) -> str:
+        """Format a status word with its 256-color palette index, padded to width."""
+        code = STATUS_COLOR_256.get(status.lower(), 244)
+        styled = self.color256(status, code, bold=True)
+        if width > len(status):
+            return styled + (" " * (width - len(status)))
+        return styled
 
     def status_label(self, status: str) -> str:
         """Return the styled status LABEL (a word, optionally colored) for a status key.

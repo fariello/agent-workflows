@@ -606,7 +606,7 @@ def render_board(
     # awdoctorfix Order 01: a legend for the compact markers, colored HUMAN view only.
     if colored:
         lines.append(
-            "legend: ! stale(>30d)  ? unknown-age  # blocked-by-gate  > release-blocker  [P:_] priority"
+            "legend: ! stale(>30d)  ? unknown-age  # blocked-by-gate  > release-blocker  [priority]"
         )
         lines.append("")
     by_class: Dict[str, List[Item]] = {}
@@ -646,13 +646,14 @@ def render_board(
                     it.native_status, _CLASS_COLOR_256.get(cls, 244)
                 )
                 status_txt = term.color256(status_word, code, bold=True)
+                status_padded = status_txt + (" " * max(0, 12 - len(status_word)))
                 # awdoctor Order 01 + awdoctorfix Order 01: compact leading markers from Item fields:
                 #   age ('!' >30d / '?' unknown) + gate ('#') + release-blocker ('>').
                 age = _age_marker(it.last_history_at)
                 gate_glyph = "#" if it.gate else ""
                 rb_glyph = ">" if it.blocks_release else ""
                 blk = (age + gate_glyph + rb_glyph).strip()
-                lead = f"{blk} " if blk else ""
+                lead = f"{blk:<3}" if blk else "   "
                 # awdoctorfix Order 02: compact identity stem by default; --long -> full tree-colored
                 # path.
                 if long:
@@ -665,14 +666,14 @@ def render_board(
                     inline_gate = (
                         f"  [gate {g.get('kind')}: {A.escape_detail(g.get('ref', ''))}]"
                     )
-                # awdoctorfix Order 01: priority bracket, colored by level, only when set.
+                # Priority bracket, colored by level, without "P:" prefix
                 prio = ""
                 if it.priority:
                     pcode = {"high": 196, "medium": 214, "low": 244}.get(
                         it.priority, 244
                     )
-                    prio = "  " + term.color256(f"[P:{it.priority}]", pcode, bold=True)
-                lines.append(f"- {lead}{path_txt} ({status_txt}){prio}{inline_gate}")
+                    prio = "  " + term.color256(f"[{it.priority}]", pcode, bold=True)
+                lines.append(f"- {lead}{status_padded}  {path_txt}{prio}{inline_gate}")
             else:
                 suffix = ""
                 if it.gate:

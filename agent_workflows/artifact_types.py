@@ -33,6 +33,13 @@ _ALIASES = {
 }
 
 
+def is_type_token(token: Optional[str]) -> bool:
+    """Return True if `token` is a known artifact type (plural), alias (singular), or 'all'."""
+    if not token:
+        return False
+    return token == "all" or token in ARTIFACT_TYPES or token in _ALIASES
+
+
 def normalize_type(token: str) -> str:
     """Return the canonical plural type for `token` (a plural, a known singular alias, or `all`).
     Raises ValueError listing the valid set for an unknown token."""
