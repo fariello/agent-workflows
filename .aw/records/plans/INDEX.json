@@ -1822,6 +1822,16 @@
   {
     "date": "2026-08-18",
     "disposition": "executed",
+    "kind": "child",
+    "order": 4,
+    "path": "executed/20260818-awcmdsurf-04-1njmzt-merge-plans-into-ipd-and-rename-list-repos-and-todo-alias.ipd.md",
+    "plan_id": "1njmzt",
+    "set_id": "awcmdsurf",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
     "kind": "orchestrator",
     "order": 0,
     "path": "executed/20260818-awhistory-00-x97z83-global-history-sidecar-and-inline-metadata-slimming.ipd.md",
@@ -2026,16 +2036,6 @@
     "order": 0,
     "path": "pending/20260818-awcmdsurf-00-mvz3d2-aw-command-surface-redesign-noun-verb-grammar-hard-cutover.ipd.md",
     "plan_id": "mvz3d2",
-    "set_id": "awcmdsurf",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 4,
-    "path": "pending/20260818-awcmdsurf-04-1njmzt-merge-plans-into-ipd-and-rename-list-repos-and-todo-alias.ipd.md",
-    "plan_id": "1njmzt",
     "set_id": "awcmdsurf",
     "status": "approved"
   },
