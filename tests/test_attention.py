@@ -235,13 +235,11 @@ class ScanTests(unittest.TestCase):
         self.assertNotIn("[research]", board)
         # Status is 256-colored + bold.
         self.assertIn("\033[1;38;5;39mactive\033[0m", board)  # active azure
-        # awdoctor Order 01: the compact colored board folds the group's common dir prefix into the
-        # header and shows BARE filenames on the item lines; a None last_history_at yields a '?'
-        # age marker.
-        self.assertIn(
-            ".agents/docs/research/", stripped
-        )  # prefix folded into the ready/active header
-        self.assertRegex(stripped, r"- \?? ?r\.md \(active\)")
+        # awdoctorfix Order 02: the default colored board shows the compact identity stem (not the
+        # folded prefix / full path); a non-clustered name like `r.md` falls back to `r`. A None
+        # last_history_at yields a '?' age marker.
+        self.assertNotIn(".agents/docs/research/r.md (active)", stripped)
+        self.assertRegex(stripped, r"- \?? ?r \(active\)")
         # Blocked gate folds into the section header, not each line.
         self.assertIn("## blocked (1) in TODO.md", board)
         self.assertNotIn("[gate artifact: TODO.md]", board)

@@ -16,6 +16,7 @@ no timestamps/mtime/locale; `last_history_at` parsed from history, never mtime.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Tuple
@@ -532,6 +533,21 @@ def release_blockers(items: List[Item], repo_root: Path) -> List[Item]:
     return out
 
 
+_STEM_RE = re.compile(r"^(\d{8}-[a-z0-9-]+?-\d{2}-[0-9a-z]{6})")
+_FACET_STRIP_RE = re.compile(r"(\.[a-z0-9-]+)*\.md$")
+
+
+def _identity_stem(path: str) -> str:
+    """awdoctorfix Order 02: the compact, tree-independent identity of a board line's file:
+    `YYYYMMDD-<setid>-NN-<id6>` when the basename matches the clustering grammar, else the basename
+    with its trailing `.md` / `.<type>.md` facet(s) stripped (e.g. `setup-repo-v1`)."""
+    base = path.replace("\\", "/").rsplit("/", 1)[-1]
+    m = _STEM_RE.match(base)
+    if m:
+        return m.group(1)
+    return _FACET_STRIP_RE.sub("", base)
+
+
 def _common_dir_prefix(paths: List[str]) -> str:
     """The common directory prefix (posix, trailing '/') shared by all paths, or '' if none.
     awdoctor Order 01: folded into a colored section header so per-item lines can be bare names."""
@@ -565,6 +581,7 @@ def render_board(
     drift: List[core.Drift],
     show_all: bool = False,
     term: "T.Term | None" = None,
+    long: bool = False,
 ) -> str:
     """Render the attention board.
 
@@ -617,11 +634,10 @@ def render_board(
             lines.append(f"## {cls} ({len(group)}) [hidden; use --all]")
             continue
 
-        # awdoctor Order 01 (colored only): fold the group's common directory prefix into the
-        # header so per-item lines can show BARE filenames (narrower, scannable board).
-        group_prefix = _common_dir_prefix([it.path for it in group]) if colored else ""
-        header_prefix = f" {group_prefix}" if group_prefix else ""
-        lines.append(f"## {cls} ({len(group)}){header_extra}{header_prefix}")
+        # awdoctorfix Order 02: the colored default view shows a compact identity stem per item
+        # (tree-independent), so no directory prefix is folded into the header. `--long` restores
+        # full paths (rendered per-item below); either way the header carries no path prefix.
+        lines.append(f"## {cls} ({len(group)}){header_extra}")
 
         for it in group:
             status_word = it.native_status
@@ -637,15 +653,12 @@ def render_board(
                 rb_glyph = ">" if it.blocks_release else ""
                 blk = (age + gate_glyph + rb_glyph).strip()
                 lead = f"{blk} " if blk else ""
-                # Show the bare filename when the group prefix was folded into the header; else
-                # the tree-colored full path.
-                path = it.path.replace("\\", "/")
-                if group_prefix and path.startswith(group_prefix):
-                    path_txt = path[
-                        len(group_prefix) :
-                    ]  # bare filename (prefix in header)
-                else:
+                # awdoctorfix Order 02: compact identity stem by default; --long -> full tree-colored
+                # path.
+                if long:
                     path_txt = _colorize_tree_segment(term, it.path, it.tree)
+                else:
+                    path_txt = _identity_stem(it.path)
                 inline_gate = ""
                 if it.gate and cls != A.BLOCKED:
                     g = it.gate
@@ -736,7 +749,11 @@ def run(args) -> int:
                 "NOTE: setup not complete - run `aw setup` to configure this repo.\n\n"
             )
         board = render_board(
-            items, drift, show_all=getattr(args, "all", False), term=term
+            items,
+            drift,
+            show_all=getattr(args, "all", False),
+            term=term,
+            long=getattr(args, "long", False),
         )
         blockers = release_blockers(items, repo_root)
         if blockers:

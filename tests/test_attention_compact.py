@@ -34,15 +34,15 @@ class AttentionCompactTests(unittest.TestCase):
             _item(".aw/records/backlog/open/b.backlog.md"),
         ]
         out = self._colored(items)
-        self.assertIn("## ready (2) .aw/records/backlog/open/", out)
-        # bare filenames on the item lines (no full path)
-        self.assertRegex(out, r"- (?:[!?#]+ )?a\.backlog\.md \(open\)")
+        # awdoctorfix Order 02: the default colored view shows the compact identity stem, not the
+        # folded-prefix/full-path form. A non-clustered name like `a.backlog.md` -> facet-stripped `a`.
+        self.assertRegex(out, r"- (?:[!?#>]+ )?a \(open\)")
         self.assertNotIn(".aw/records/backlog/open/a.backlog.md (open)", out)
 
     def test_stale_marker(self):
         old = (date.today() - timedelta(days=60)).strftime("%Y-%m-%d")
         out = self._colored([_item(".aw/records/backlog/open/a.backlog.md", lha=old)])
-        self.assertRegex(out, r"- ! a\.backlog\.md")
+        self.assertRegex(out, r"- ! a \(open\)")
 
     def test_unknown_and_gate_markers(self):
         # lha=None -> '?'; gate -> '#'
@@ -57,7 +57,7 @@ class AttentionCompactTests(unittest.TestCase):
                 )
             ]
         )
-        self.assertRegex(out, r"- [?]?# a\.backlog\.md")
+        self.assertRegex(out, r"- [?]?# a \(")
 
     def test_plain_board_unchanged(self):
         # the machine-readable (uncolored) form keeps the stable [tree] path (status) shape.

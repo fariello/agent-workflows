@@ -1429,6 +1429,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_attention.add_argument(
         "--all", action="store_true", help="Show done/parked groups in the board."
     )
+    p_attention.add_argument(
+        "--long",
+        dest="long",
+        action="store_true",
+        help="Show the full repo-relative path instead of the compact identity stem.",
+    )
 
     p_backlog = sub.add_parser(
         "backlog",

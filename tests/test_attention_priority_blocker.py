@@ -51,7 +51,7 @@ class AttentionPriorityBlockerTests(unittest.TestCase):
             [_item(".aw/records/backlog/open/a.backlog.md", blocks_release="next")]
         )
         # the '>' release-blocker glyph leads the item line
-        self.assertRegex(out, r"- [!?#]*> a\.backlog\.md")
+        self.assertRegex(out, r"- [!?#]*> a \(")
 
     def test_legend_present_colored(self):
         out = self._colored([_item(".aw/records/backlog/open/a.backlog.md")])
