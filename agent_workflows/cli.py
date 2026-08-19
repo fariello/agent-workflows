@@ -67,9 +67,11 @@ _DESCRIPTIONS = {
         "and per-repo install currency. Read-only diagnostics."
     ),
     "ipd": (
-        "IPD (Implementation Plan Document) tooling for structure and state. Subcommands: "
-        "'lint' (deterministic structural/state check), 'scaffold' (new skeleton), 'sync' "
-        "(assign ids + validation skeletons)."
+        "Work with IPDs (Implementation Plan Documents: the structured plan files under "
+        ".aw/records/plans/ that describe a change as numbered execution + validation steps). "
+        "Subcommands: 'board' (show the plan board; also bare 'aw ipd'), 'lint' (deterministic "
+        "structural/state check), 'scaffold' (create a new conformant skeleton), 'sync' (assign "
+        "step ids + validation skeletons)."
     ),
     "ipd lint": (
         "Deterministically lint an IPD's STRUCTURE and STATE only (heading order, E-*/V-* "
@@ -571,7 +573,14 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ipd_lint.add_argument(
         "--phase",
         default="author",
-        help="Lint checkpoint: author | review-finalize | pre-execution | pre-transition | post-transition.",
+        help=(
+            "Lifecycle checkpoint to lint against: "
+            "author (a freshly drafted plan: structure + ids present), "
+            "review-finalize (after /plan-review: revisions applied, Status reviewed), "
+            "pre-execution (approved + ready to run), "
+            "pre-transition (every E step performed + every V step verified, still approved), "
+            "post-transition (moved to executed/: Status executed, executed history line present)."
+        ),
     )
     p_ipd_lint.add_argument(
         "--all",
@@ -1472,7 +1481,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "check",
         parents=[common],
         description="Validate the backlog tree against the contract; fail closed.",
-        help="Validate the backlog tree; fail closed.",
+        help="Check backlog items conform (valid status/gate/id/summary); exit nonzero on any violation.",
     )
     p_backlog_check.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
