@@ -1754,6 +1754,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260818-awcheck-01-iw1wlx-unified-check-engine-core.ipd.md",
+    "plan_id": "iw1wlx",
+    "set_id": "awcheck",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260818-awmigrename-01-0qp7u8-aw-migrate-layout-optional-rename-on-migrate-to-the-type-md.ipd.md",
     "plan_id": "0qp7u8",
     "set_id": "awmigrename",
@@ -1876,16 +1886,6 @@
     "order": 0,
     "path": "pending/20260818-awcheck-00-t9a0b3-unified-check-and-validation-engine.ipd.md",
     "plan_id": "t9a0b3",
-    "set_id": "awcheck",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260818-awcheck-01-iw1wlx-unified-check-engine-core.ipd.md",
-    "plan_id": "iw1wlx",
     "set_id": "awcheck",
     "status": "approved"
   },
