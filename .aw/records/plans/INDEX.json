@@ -2087,7 +2087,7 @@
     "path": "pending/20260818-awlintmulti-01-o1ynz3-ipd-lint-accepts-multiple-files-and-defaults-to-all-pending.ipd.md",
     "plan_id": "o1ynz3",
     "set_id": "awlintmulti",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -2097,7 +2097,7 @@
     "path": "pending/20260818-awrelease-00-rreixg-releases-record-class-and-blocks-release-gate.ipd.md",
     "plan_id": "rreixg",
     "set_id": "awrelease",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -2107,7 +2107,7 @@
     "path": "pending/20260818-awrelease-01-wl6c7z-create-the-releases-record-class-and-tree.ipd.md",
     "plan_id": "wl6c7z",
     "set_id": "awrelease",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -2117,7 +2117,7 @@
     "path": "pending/20260818-awrelease-02-6wdjss-blocks-release-gate-field-parser-setter-and-validation.ipd.md",
     "plan_id": "6wdjss",
     "set_id": "awrelease",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -2127,7 +2127,7 @@
     "path": "pending/20260818-awrelease-03-i7c6uv-document-blocks-release-vs-blocked-by-in-agents-md.ipd.md",
     "plan_id": "i7c6uv",
     "set_id": "awrelease",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -2137,7 +2137,7 @@
     "path": "pending/20260818-awresearchrev-01-z4m7bf-review-and-harden-aw-research-command-surface.ipd.md",
     "plan_id": "z4m7bf",
     "set_id": "awresearchrev",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -2147,7 +2147,7 @@
     "path": "pending/20260818-awselect-00-1qe40j-universal-selectors-and-multi-target-and-aw-show-id6-resolut.ipd.md",
     "plan_id": "1qe40j",
     "set_id": "awselect",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -2157,7 +2157,7 @@
     "path": "pending/20260818-awselect-01-axkviw-shared-selector-resolver-module.ipd.md",
     "plan_id": "axkviw",
     "set_id": "awselect",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -2167,7 +2167,7 @@
     "path": "pending/20260818-awselect-02-miggho-aw-show-resolves-records-id6-and-status-selection.ipd.md",
     "plan_id": "miggho",
     "set_id": "awselect",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -2177,7 +2177,7 @@
     "path": "pending/20260818-awuntracked-01-c32roo-rename-local-lanes-to-untracked-with-catch-all-gitignore.ipd.md",
     "plan_id": "c32roo",
     "set_id": "awuntracked",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-07",

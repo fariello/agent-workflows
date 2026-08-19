@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: awrelease Order 02 (spec 20260818-1525-03, RELEASE BLOCKER; TODO item 35). Add the item-side `Blocks-Release:` field so a backlog item / spec / plan can DECLARE it gates a release (distinct from being blocked-BY). Add a setter to write/clear it, teach the item front-matter parsers to read it, and add a validation that the value resolves to an existing release record (from Order 01) or the literal `next`.
 - Scope: `agent_workflows/backlog.py` + `agent_workflows/specs.py` (parse + set `Blocks-Release`), `agent_workflows/cli.py` (the `--blocks-release` option on `backlog set` / `specs set`), `agent_workflows/check_engine.py` or `agent_workflows/releases.py` (dangling-release validation), + tests. IN: read/write the field, a `--blocks-release <release-id6|next|->` CLI option (`-` clears), and a `check.blocks-release-dangling` Drift when the value does not resolve. OUT: the releases CLASS (Order 01, done); AGENTS.md docs (Order 03); attention SURFACING of the blocker set (awdoctor Set).
-- Status: to-review
+- Status: reviewed
 - Set: awrelease
 - Order: 2
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from spec 20260818-1525-03 + investigation (backlog parse_item backlog.py:90 + field regexes :57-61; backlog run_set backlog.py + cli.py:1450; specs run_set specs.py:330; releases class from Order 01).
+- 2026-08-18 /plan-review (opencode Opus 4.8, RIGOROUS): APPROVE. Verified backlog field regexes/parse_item/BacklogItem (backlog.py:57/90/65), specs _read_gate template, and that validation is the check_blocks_release FUNCTION (its own V-04 correctly asks for the function's Drift, not a verb). `next`=exactly-one-planned rule is deterministic. No findings.
 
 ## Goal
 

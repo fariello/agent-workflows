@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: awrelease Order 03 (spec 20260818-1525-03, RELEASE BLOCKER; TODO item 35). Document the release-gate model so agents capture release-blockers consistently in ONE place: explain the `.aw/records/releases/` class (Order 01) and the `Blocks-Release:` field (Order 02), and draw the crisp distinction between BLOCKS-RELEASE (this item gates shipping a release) and BLOCKED-BY (this item is itself blocked by a typed gate). Docs-only.
 - Scope: `AGENTS.md` (or the engine generator source `engine.py` if the relevant block is managed) + the `.aw/records/releases/README.md` cross-reference. IN: a short AGENTS.md subsection defining the two concepts, how to set `Blocks-Release`, and that `aw attention` surfaces the release-blocker set (once awdoctor lands). OUT: any code (Orders 01/02 shipped it); attention surfacing (awdoctor Set).
-- Status: to-review
+- Status: reviewed
 - Set: awrelease
 - Order: 3
 - Highest E allocated: 02
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade docs child from spec 20260818-1525-03; depends on Orders 01/02 shipping the class + field.
+- 2026-08-18 /plan-review (opencode Opus 4.8, RIGOROUS): APPROVE. Docs-only (AGENTS.md BLOCKS-RELEASE vs BLOCKED-BY); managed-vs-handwritten guard present; no-dashes; V-items satisfiable (no phantom verb). No findings.
 
 ## Goal
 

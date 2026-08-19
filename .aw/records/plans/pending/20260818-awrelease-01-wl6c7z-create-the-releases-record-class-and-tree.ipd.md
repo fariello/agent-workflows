@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: awrelease Order 01 (spec 20260818-1525-03, RELEASE BLOCKER; TODO item 35). Create the new `.aw/records/releases/` record class + tree so a release is a first-class artifact (a thin ship-gate anchor). This Order adds the CLASS plumbing (enum, subpath, facet, attention mapping, README, installer scaffolding) + a minimal release-record creator/validator. The `Blocks-Release` gate field + setter is Order 02; docs are Order 03.
 - Scope: `agent_workflows/record_producers.py` (RecordClass + subpaths), `agent_workflows/plans_refs.py` + `.aw/system/workflows/setup-repo/tools/normalize_plan_names.py` (add the `release` facet), `agent_workflows/attention_contract.py` (a _RELEASES_MAP + register), `agent_workflows/engine.py` (scaffold the dir), a new `.aw/records/releases/README.md`, and tests. IN: everything needed for `.aw/records/releases/*.release.md` to be a recognized, scaffolded, attention-visible class + a way to create/validate a release record. OUT: the `Blocks-Release:` item field + setter (Order 02); AGENTS.md docs (Order 03); attention SURFACING of release blockers (awdoctor Set).
-- Status: to-review
+- Status: reviewed
 - Set: awrelease
 - Order: 1
 - Highest E allocated: 06
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from spec 20260818-1525-03 + investigation (RecordClass record_producers.py:85; _RECORD_CLASS_SUBPATHS:125; ARTIFACT_TYPE_FACETS plans_refs.py:33 + normalize_plan_names.py:113; CLASS_MAPS attention_contract.py:249; _record_scaffold_dirs engine.py:3780; DOCS_SUBDIRS engine.py:3726).
+- 2026-08-18 /plan-review (opencode Opus 4.8, RIGOROUS): APPROVE WITH REVISIONS APPLIED. Verified RecordClass/subpath/facet/CLASS_MAPS/scaffold anchors. PR-001 (MEDIUM): E-04/E-06 missed that DOCS_SUBDIRS is DUPLICATED (engine.py:3726 + normalize_plan_names.py:77) with a drift-guard test (test_normalize_plan_names.py:430) that FAILS unless both get `releases`, and that _record_scaffold_dirs is a hand-maintained two-branch dict (only the aw branch needs releases; no legacy form). Made E-04/E-06 explicit. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -54,9 +55,9 @@ sites (they are duplicated). Run the full suite after E-05. Do not change unrela
 
 ### Task group 4: scaffolding + README
 
-- [ ] E-04 Scaffold the directory: add `releases` to the record scaffold set so `aw install`/setup creates `.aw/records/releases/` with a README. Add `"releases"` to `DOCS_SUBDIRS` (engine.py:3726) and ensure `_record_scaffold_dirs` (engine.py:3780) includes it; add `.aw/records/releases` to `_DEEP_CLEANUP_ROOTS` (engine.py:3427) so uninstall --deep removes it. Create `.aw/records/releases/README.md` describing the class (mirror the roadmaps README tone): "Release records: thin ship-gate anchors. A release record (`<...>.release.md`) names a planned release (Version or 'next'), its Status (planned/blocked/shipped), and a Summary. Items declare they gate a release via a `Blocks-Release:` field (see AGENTS.md). This is a COMMITTED ship gate, distinct from roadmaps (possibilities).").
+- [ ] E-04 Scaffold the directory: add `releases` to the record scaffold set so `aw install`/setup creates `.aw/records/releases/` with a README. Specifically: (1) add `"releases"` to `DOCS_SUBDIRS` in BOTH copies that must stay in sync - `engine.py:3726` AND the DUPLICATED `normalize_plan_names.py:77` (a drift-guard test, tests/test_normalize_plan_names.py:430, asserts `NPN.DOCS_SUBDIRS == engine.DOCS_SUBDIRS`, so updating only one BREAKS that test); (2) add a `releases` entry to `_record_scaffold_dirs` (engine.py:3780) - it is a HAND-MAINTAINED dict with two branches; add `"releases": f"{base}/releases"` to the `aw` branch (~engine.py:3789). The `legacy` branch does NOT get releases (it is a new `.aw/`-only class with no `.agents/` history); (3) add `.aw/records/releases` to `_DEEP_CLEANUP_ROOTS` (engine.py:3427) so uninstall --deep removes it. Create `.aw/records/releases/README.md` (mirror the roadmaps README tone): "Release records: thin ship-gate anchors. A release record (`<...>.release.md`) names a planned release (Version or 'next'), its Status (planned/blocked/shipped), and a Summary. Items declare they gate a release via a `Blocks-Release:` field (see AGENTS.md). This is a COMMITTED ship gate, distinct from roadmaps (possibilities)."
   - Depends on: E-01
-  - Expected outcome: a fresh `aw install` (or the scaffold path in a test) creates `.aw/records/releases/README.md`; `_DEEP_CLEANUP_ROOTS` includes the releases tree.
+  - Expected outcome: a fresh `aw install` (or the scaffold path in a test) creates `.aw/records/releases/README.md`; `_DEEP_CLEANUP_ROOTS` includes the releases tree; the DOCS_SUBDIRS drift-guard test still passes (both copies updated).
   - Execution state: pending
 
 ### Task group 5: create + validate a release record
@@ -68,7 +69,7 @@ sites (they are duplicated). Run the full suite after E-05. Do not change unrela
 
 ### Task group 6: tests
 
-- [ ] E-06 Add `tests/test_releases.py` (`ReleasesClassTests`): `test_class_resolves` (resolve_record_path("releases") ends in .aw/records/releases), `test_facet_recognized` (is_conformant of a `.release.md` name), `test_attention_shows_release` (a planned release appears in the attention scan as ready + `--check` valid), `test_create_and_validate` (create_release writes a valid record; validate_release flags a bad status), `test_deep_cleanup_includes_releases`. Update any test asserting the exact facet tuple / RecordClass membership / scaffold-dir count to include `releases`. Run the FULL serial suite and paste the tail.
+- [ ] E-06 Add `tests/test_releases.py` (`ReleasesClassTests`): `test_class_resolves` (resolve_record_path("releases") ends in .aw/records/releases), `test_facet_recognized` (is_conformant of a `.release.md` name), `test_attention_shows_release` (a planned release appears in the attention scan as ready + `--check` valid), `test_create_and_validate` (create_release writes a valid record; validate_release flags a bad status), `test_deep_cleanup_includes_releases`. Update any test asserting the exact facet tuple / RecordClass membership / scaffold-dir count to include `releases`, and SPECIFICALLY re-run tests/test_normalize_plan_names.py:421-432 (the DOCS_SUBDIRS drift guard `NPN.DOCS_SUBDIRS == engine.DOCS_SUBDIRS`) which will FAIL unless BOTH DOCS_SUBDIRS copies got `releases` (E-04). Run the FULL serial suite and paste the tail.
   - Depends on: E-01,E-02,E-03,E-04,E-05
   - Expected outcome: the new tests pass; membership/count tests updated; full serial suite green.
   - Execution state: pending

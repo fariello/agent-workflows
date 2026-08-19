@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: awselect Order 02 (TODO items 16, 18). Today `aw show pp6y76` FAILS with "Action 'pp6y76' not found" because `_run_show` (cli.py:3514) only searches the operational action ledger (`ActionManager.find_action_file`, actions.py:136), which knows nothing about the RECORDS id6 namespace (plans/specs/research/backlog/...). Fix `aw show` to FIRST resolve the token as a records artifact using the Order-01 selector resolver, printing the matching record file(s), and only fall back to the action ledger if no records artifact matches. Also clarify the confusing "Action ID or ID@generation" help text.
 - Scope: `agent_workflows/cli.py` `_run_show` + the `show` parser help ONLY, plus a test. IN: make `_run_show` try `selectors.resolve_selectors` across the record types before the action-ledger lookup; update the `show` positional help; a test proving `aw show <id6>` finds a records artifact and the action-ledger path still works. OUT: the selector module itself (Order 01, already built); the cross-cutting verbs (awcmdsurf); any change to ActionManager.
-- Status: to-review
+- Status: reviewed
 - Set: awselect
 - Order: 2
 - Highest E allocated: 04
@@ -15,6 +15,7 @@
 
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade detail from investigation (_run_show cli.py:3514; show parser cli.py:1246-1251; resolve_verb_repo_root cli.py:2813; selectors.resolve_selectors from awselect Order 01).
+- 2026-08-18 /plan-review (opencode Opus 4.8, RIGOROUS): APPROVE. Records-first _run_show (via selectors) with action-ledger fallback; verified _run_show:3514, ActionManager.find_action_file:136, resolve_verb_repo_root; uses an inline record-types tuple (no cross-Set artifact_types dependency). No findings.
 
 ## Goal
 
