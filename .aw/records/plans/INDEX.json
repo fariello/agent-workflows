@@ -1792,6 +1792,16 @@
   {
     "date": "2026-08-18",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260818-awcmdsurf-00-mvz3d2-aw-command-surface-redesign-noun-verb-grammar-hard-cutover.ipd.md",
+    "plan_id": "mvz3d2",
+    "set_id": "awcmdsurf",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260818-awcmdsurf-01-p1859z-type-noun-vocabulary-and-cross-cutting-verb-parser-scaffolding.ipd.md",
@@ -1826,6 +1836,16 @@
     "order": 4,
     "path": "executed/20260818-awcmdsurf-04-1njmzt-merge-plans-into-ipd-and-rename-list-repos-and-todo-alias.ipd.md",
     "plan_id": "1njmzt",
+    "set_id": "awcmdsurf",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 5,
+    "path": "executed/20260818-awcmdsurf-05-1z3byy-hard-cutover-remove-old-verbs-and-sweep-references.ipd.md",
+    "plan_id": "1z3byy",
     "set_id": "awcmdsurf",
     "status": "executed"
   },
@@ -2027,26 +2047,6 @@
     "path": "pending/20260817-awretrofit-00-pp6y76-orchestrator.ipd.md",
     "plan_id": "pp6y76",
     "set_id": "awretrofit",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260818-awcmdsurf-00-mvz3d2-aw-command-surface-redesign-noun-verb-grammar-hard-cutover.ipd.md",
-    "plan_id": "mvz3d2",
-    "set_id": "awcmdsurf",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 5,
-    "path": "pending/20260818-awcmdsurf-05-1z3byy-hard-cutover-remove-old-verbs-and-sweep-references.ipd.md",
-    "plan_id": "1z3byy",
-    "set_id": "awcmdsurf",
     "status": "approved"
   },
   {
