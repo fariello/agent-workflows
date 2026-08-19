@@ -3012,6 +3012,12 @@ def _run_exclude(args: argparse.Namespace, term: Term) -> int:
     cfg = config.load()
     current_exclude = list(cfg.get("exclude", []))
     current_repos = list(cfg.get("repos", []))
+    cfg_path_str = config._preserve_home(str(config.config_path()))
+    term.line(
+        f"{term.colorize('Config:', 'bold')} {term.color256(cfg_path_str, 39)} "
+        f"({len(current_exclude)} excluded, {len(current_repos)} configured)"
+    )
+    term.line()
 
     if not raw_repos:
         if not current_exclude:
@@ -3055,6 +3061,12 @@ def _run_include(args: argparse.Namespace, term: Term) -> int:
     cfg = config.load()
     current_exclude = list(cfg.get("exclude", []))
     current_repos = list(cfg.get("repos", []))
+    cfg_path_str = config._preserve_home(str(config.config_path()))
+    term.line(
+        f"{term.colorize('Config:', 'bold')} {term.color256(cfg_path_str, 39)} "
+        f"({len(current_exclude)} excluded, {len(current_repos)} configured)"
+    )
+    term.line()
 
     if not raw_repos:
         if not current_repos:

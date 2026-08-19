@@ -52,6 +52,9 @@ class ExcludeIncludeStatusTests(unittest.TestCase):
         code, out = _run(["include", "repos", str(r1), str(r2)])
         self.assertEqual(code, 0)
         self.assertIn("Included repository", out)
+        self.assertIn("Config:", out)
+        self.assertIn("excluded", out)
+        self.assertIn("configured", out)
 
         cfg = CFG.load()
         self.assertIn(CFG._preserve_home(str(r1)), cfg["repos"])
@@ -61,11 +64,13 @@ class ExcludeIncludeStatusTests(unittest.TestCase):
         code, out = _run(["include"])
         self.assertEqual(code, 0)
         self.assertIn("Configured Repositories", out)
+        self.assertIn("Config:", out)
 
         # Exclude repo1 with noun syntax
         code, out = _run(["exclude", "repo", str(r1)])
         self.assertEqual(code, 0)
         self.assertIn("Excluded repository", out)
+        self.assertIn("Config:", out)
 
         cfg = CFG.load()
         self.assertIn(CFG._preserve_home(str(r1)), cfg["exclude"])
@@ -75,6 +80,7 @@ class ExcludeIncludeStatusTests(unittest.TestCase):
         code, out = _run(["exclude"])
         self.assertEqual(code, 0)
         self.assertIn("Excluded Repositories", out)
+        self.assertIn("Config:", out)
 
         # Re-include repo1
         code, out = _run(["include", str(r1)])
