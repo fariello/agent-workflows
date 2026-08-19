@@ -14,7 +14,7 @@ Showing the 40 most-recent of 97 Sets; the full manifest is INDEX.json.
 ## awcmdsurf
 
 - `mvz3d2` [pending] 00 pending/20260818-awcmdsurf-00-mvz3d2-aw-command-surface-redesign-noun-verb-grammar-hard-cutover.ipd.md
-- `p1859z` [pending] 01 pending/20260818-awcmdsurf-01-p1859z-type-noun-vocabulary-and-cross-cutting-verb-parser-scaffoldi.ipd.md
+- `p1859z` [executed] 01 executed/20260818-awcmdsurf-01-p1859z-type-noun-vocabulary-and-cross-cutting-verb-parser-scaffolding.ipd.md
 - `vaghnb` [pending] 02 pending/20260818-awcmdsurf-02-vaghnb-read-verbs-find-search-index.ipd.md
 - `77ukqh` [pending] 03 pending/20260818-awcmdsurf-03-77ukqh-mutation-verbs-rename-group-archive.ipd.md
 - `1njmzt` [pending] 04 pending/20260818-awcmdsurf-04-1njmzt-merge-plans-into-ipd-and-rename-list-repos-and-todo-alias.ipd.md

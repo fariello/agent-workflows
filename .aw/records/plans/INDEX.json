@@ -1792,6 +1792,16 @@
   {
     "date": "2026-08-18",
     "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260818-awcmdsurf-01-p1859z-type-noun-vocabulary-and-cross-cutting-verb-parser-scaffolding.ipd.md",
+    "plan_id": "p1859z",
+    "set_id": "awcmdsurf",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
     "kind": "orchestrator",
     "order": 0,
     "path": "executed/20260818-awhistory-00-x97z83-global-history-sidecar-and-inline-metadata-slimming.ipd.md",
@@ -1996,16 +2006,6 @@
     "order": 0,
     "path": "pending/20260818-awcmdsurf-00-mvz3d2-aw-command-surface-redesign-noun-verb-grammar-hard-cutover.ipd.md",
     "plan_id": "mvz3d2",
-    "set_id": "awcmdsurf",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260818-awcmdsurf-01-p1859z-type-noun-vocabulary-and-cross-cutting-verb-parser-scaffoldi.ipd.md",
-    "plan_id": "p1859z",
     "set_id": "awcmdsurf",
     "status": "approved"
   },
