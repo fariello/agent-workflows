@@ -1794,6 +1794,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260818-awhistory-01-im90a5-global-history-jsonl-store-and-writer-module.ipd.md",
+    "plan_id": "im90a5",
+    "set_id": "awhistory",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260818-awmigrename-01-0qp7u8-aw-migrate-layout-optional-rename-on-migrate-to-the-type-md.ipd.md",
     "plan_id": "0qp7u8",
     "set_id": "awmigrename",
@@ -2116,16 +2126,6 @@
     "order": 0,
     "path": "pending/20260818-awhistory-00-x97z83-global-history-sidecar-and-inline-metadata-slimming.ipd.md",
     "plan_id": "x97z83",
-    "set_id": "awhistory",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260818-awhistory-01-im90a5-global-history-jsonl-store-and-writer-module.ipd.md",
-    "plan_id": "im90a5",
     "set_id": "awhistory",
     "status": "approved"
   },
