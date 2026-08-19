@@ -1984,6 +1984,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260818-awlintmulti-01-o1ynz3-ipd-lint-accepts-multiple-files-and-defaults-to-all-pending.ipd.md",
+    "plan_id": "o1ynz3",
+    "set_id": "awlintmulti",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260818-awmigrename-01-0qp7u8-aw-migrate-layout-optional-rename-on-migrate-to-the-type-md.ipd.md",
     "plan_id": "0qp7u8",
     "set_id": "awmigrename",
@@ -2147,16 +2157,6 @@
     "path": "pending/20260818-awhelparg-01-n9ysag-rewrite-bare-help-token-to-help-in-argv-for-natural-ux.ipd.md",
     "plan_id": "n9ysag",
     "set_id": "awhelparg",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260818-awlintmulti-01-o1ynz3-ipd-lint-accepts-multiple-files-and-defaults-to-all-pending.ipd.md",
-    "plan_id": "o1ynz3",
-    "set_id": "awlintmulti",
     "status": "approved"
   },
   {

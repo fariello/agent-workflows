@@ -51,7 +51,7 @@ Showing the 40 most-recent of 97 Sets; the full manifest is INDEX.json.
 
 ## awlintmulti
 
-- `o1ynz3` [pending] 01 pending/20260818-awlintmulti-01-o1ynz3-ipd-lint-accepts-multiple-files-and-defaults-to-all-pending.ipd.md
+- `o1ynz3` [executed] 01 executed/20260818-awlintmulti-01-o1ynz3-ipd-lint-accepts-multiple-files-and-defaults-to-all-pending.ipd.md
 
 ## awmigrename
 
