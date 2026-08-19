@@ -1792,6 +1792,16 @@
   {
     "date": "2026-08-18",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260818-awhistory-00-x97z83-global-history-sidecar-and-inline-metadata-slimming.ipd.md",
+    "plan_id": "x97z83",
+    "set_id": "awhistory",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260818-awhistory-01-im90a5-global-history-jsonl-store-and-writer-module.ipd.md",
@@ -1806,6 +1816,16 @@
     "order": 2,
     "path": "executed/20260818-awhistory-02-b0behn-route-status-writers-to-the-sidecar-and-slim-inline-history.ipd.md",
     "plan_id": "b0behn",
+    "set_id": "awhistory",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 3,
+    "path": "executed/20260818-awhistory-03-cizkf4-inline-to-sidecar-migration-and-record-history-read-verb.ipd.md",
+    "plan_id": "cizkf4",
     "set_id": "awhistory",
     "status": "executed"
   },
@@ -2127,26 +2147,6 @@
     "path": "pending/20260818-awhelparg-01-n9ysag-rewrite-bare-help-token-to-help-in-argv-for-natural-ux.ipd.md",
     "plan_id": "n9ysag",
     "set_id": "awhelparg",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260818-awhistory-00-x97z83-global-history-sidecar-and-inline-metadata-slimming.ipd.md",
-    "plan_id": "x97z83",
-    "set_id": "awhistory",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 3,
-    "path": "pending/20260818-awhistory-03-cizkf4-migrate-inline-history-into-the-sidecar-and-history-read-ver.ipd.md",
-    "plan_id": "cizkf4",
-    "set_id": "awhistory",
     "status": "approved"
   },
   {
