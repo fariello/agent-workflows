@@ -15,6 +15,7 @@
 
 - 2026-08-19 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created - suppress the `?` age marker for trees with no history lifecycle, and make `aw doctor` source-repo-aware (no false version-not-installed) with an informative summary line.
 - 2026-08-19 reviewed (opencode): self-review - verified _age_marker single call site + tree values, doctor._version_drift source-checkout guard (pyproject contains agent-workflows + no baked VERSION), the summary line does not change --agent/exit codes, and E/V bijection. Awaiting explicit human approval before execution.
+- 2026-08-19 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (tightened the E-02 source-repo predicate to name = "agent-workflows" + agent_workflows/ dir + no VERSION, added a consumer-repo regression guard to E-04). Structural preflight conforming (author + review-finalize). Readiness: GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -33,9 +34,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: aw doctor source-repo awareness + summary
 
-- [ ] E-02 In `agent_workflows/doctor.py` `_version_drift`, detect a FRAMEWORK SOURCE checkout and skip the version probe there (no false `version-not-installed`). A source checkout is: no installed `.aw/VERSION` / `.agents/VERSION` AND a `pyproject.toml` at `repo_root` whose text contains `agent-workflows` (or an `agent_workflows/` package dir at root). In that case return `[]`. Otherwise keep the existing behavior (flag stale/unknown/not-installed on a real installed target).
+- [ ] E-02 In `agent_workflows/doctor.py` `_version_drift`, detect the FRAMEWORK SOURCE checkout and skip the version probe there (no false `version-not-installed`). The PRECISE source signal (PR-001): no installed `.aw/VERSION` / `.agents/VERSION` AND `repo_root/pyproject.toml` exists with `name = "agent-workflows"` AND an `repo_root/agent_workflows/` package dir is present. Require ALL of these (not "pyproject merely mentions agent-workflows") so a DOWNSTREAM consumer repo that only lists agent-workflows as a dependency is NOT mistaken for the source and still gets a correct `version-not-installed`. In the source case return `[]`; otherwise keep the existing behavior.
   - Depends on: none
-  - Expected outcome: `aw doctor` in this source repo emits NO `doctor.version-*` drift; an installed target with a missing/stale VERSION still gets `doctor.version-not-installed`/`-stale`.
+  - Expected outcome: `aw doctor` in this framework source repo emits NO `doctor.version-*` drift; an installed target (has `.aw/VERSION`) is unaffected; a consumer repo that merely names agent-workflows in pyproject but has no `agent_workflows/` package dir at root still gets `version-not-installed`.
   - Execution state: pending
 
 - [ ] E-03 In `agent_workflows/doctor.py` `run`, add an informative SUMMARY: after listing findings (human, non-agent branch), print a final line `aw doctor: N finding(s) (git: G, names: M, version: V).` counting by rule prefix, and clarify that untracked files are informational (e.g. append ` - untracked files are informational, not errors` when the only findings are `doctor.git-untracked`). The `--agent` and exit-code behavior are unchanged (still 0 clean / 1 findings). When there are zero findings keep the existing `aw doctor: no findings.` line.
@@ -45,7 +46,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: tests
 
-- [ ] E-04 Add `tests/test_doctor_and_marker.py` (`DoctorAndMarkerTests`): (a) `_age_marker(None, "research")=="" ` and `_age_marker(None, "backlog")=="?"` and `_age_marker(<60d-old>, "backlog")=="!"`; (b) `_version_drift` returns `[]` in a fixture that looks like a source checkout (a `pyproject.toml` containing `agent-workflows`, no VERSION) and still flags an installed-target fixture (a `.aw/VERSION` mismatching packaged); (c) `doctor.run` prints a summary line and, when the only findings are untracked, the informational note. Run the FULL serial suite and paste the tail. Update `tests/test_doctor.py` if its clean-repo fixture now trips the source-repo skip (it should not: that fixture writes a matching `.aw/VERSION`, so it is treated as installed).
+- [ ] E-04 Add `tests/test_doctor_and_marker.py` (`DoctorAndMarkerTests`): (a) `_age_marker(None, "research")=="" ` and `_age_marker(None, "actions")==""` and `_age_marker(None, "backlog")=="?"` and `_age_marker(<60d-old>, "backlog")=="!"`; (b) `_version_drift` returns `[]` for a source-checkout fixture (pyproject with `name = "agent-workflows"` + an `agent_workflows/` dir + no VERSION); STILL flags an installed-target fixture (a `.aw/VERSION` mismatching packaged); and STILL flags a CONSUMER-repo fixture (pyproject mentions agent-workflows as a dep but NO `agent_workflows/` dir + no VERSION) with `version-not-installed` (PR-001 regression guard); (c) `doctor.run` prints a summary line and, when the only findings are untracked, the informational note. Run the FULL serial suite and paste the tail. Update `tests/test_doctor.py` if its clean-repo fixture now trips the source-repo skip (it should not: that fixture writes a matching `.aw/VERSION`, so it is treated as installed).
   - Depends on: E-01,E-02,E-03
   - Expected outcome: the new module passes; test_doctor still green; full serial suite green.
   - Execution state: pending
@@ -60,6 +61,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Findings
 
 `?` on history-less trees and a false `version-not-installed` in the source repo are both "the tool is technically right but the reader is misinformed" defects. This IPD scopes them to `_age_marker` + `_version_drift`/`run` and adds a summary so `aw doctor` output is self-explaining.
+
+- PR-001 (MEDIUM, IN-SCOPE, /plan-review): the initial E-02 source-repo predicate ("pyproject contains agent-workflows OR an agent_workflows/ dir") could over-match a downstream CONSUMER repo that merely lists agent-workflows as a dependency, wrongly suppressing its legitimate `version-not-installed`. Tightened to require ALL of: no installed VERSION + `pyproject.toml` with `name = "agent-workflows"` + an `agent_workflows/` package dir at root (the framework-source-only signature; an installed target has `.aw/`, never the package). E-04 gained a consumer-repo regression guard. Remediation risk Low (local predicate). Decision: FIXED.
 
 ## Proposed changes (ordered, validatable)
 
