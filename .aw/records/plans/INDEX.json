@@ -2083,6 +2083,16 @@
     "date": "2026-08-18",
     "disposition": "executed",
     "kind": "child",
+    "order": 1,
+    "path": "executed/20260818-awresearchrev-01-z4m7bf-review-and-harden-aw-research-command-surface.ipd.md",
+    "plan_id": "z4m7bf",
+    "set_id": "awresearchrev",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
+    "kind": "child",
     "order": 9,
     "path": "executed/20260818-awretrofit-09-7m458z-managed-sections-regen.ipd.md",
     "plan_id": "7m458z",
@@ -2157,16 +2167,6 @@
     "path": "pending/20260817-awretrofit-00-pp6y76-orchestrator.ipd.md",
     "plan_id": "pp6y76",
     "set_id": "awretrofit",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260818-awresearchrev-01-z4m7bf-review-and-harden-aw-research-command-surface.ipd.md",
-    "plan_id": "z4m7bf",
-    "set_id": "awresearchrev",
     "status": "approved"
   },
   {

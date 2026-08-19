@@ -72,7 +72,7 @@ Showing the 40 most-recent of 97 Sets; the full manifest is INDEX.json.
 
 ## awresearchrev
 
-- `z4m7bf` [pending] 01 pending/20260818-awresearchrev-01-z4m7bf-review-and-harden-aw-research-command-surface.ipd.md
+- `z4m7bf` [executed] 01 executed/20260818-awresearchrev-01-z4m7bf-review-and-harden-aw-research-command-surface.ipd.md
 
 ## awretrofit
 
