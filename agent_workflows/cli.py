@@ -4268,10 +4268,27 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
     return 0
 
 
+def _rewrite_help_token(argv):
+    """awhelparg Order 01: rewrite a standalone `help` subcommand token to `--help` so `aw help`,
+    `aw ipd help`, `aw <verb> help` all show help. A `help` that is an OPTION VALUE (the token
+    immediately follows an option like `--message`) is left verbatim. Returns a new list."""
+    out = []
+    for i, tok in enumerate(argv):
+        prev = argv[i - 1] if i > 0 else ""
+        if tok == "help" and not prev.startswith("-"):
+            out.append("--help")
+        else:
+            out.append(tok)
+    return out
+
+
 def _dispatch(argv: Optional[Sequence[str]]) -> int:
     parser = _build_parser()
     # awcmdsurf Order 05 (hard cutover): the `aw plans <verb>` -> `plans-<verb>` alias shim was
     # removed with the plan-family verbs; the grammar is now `aw <verb> plans` (index/find/...).
+    # awhelparg Order 01: a bare `help` token becomes `--help` (natural `aw ipd help` UX).
+    argv_list = list(sys.argv[1:] if argv is None else argv)
+    argv = _rewrite_help_token(argv_list)
     args = parser.parse_args(argv)
 
     term = Term(color=False if args.no_color else None)
