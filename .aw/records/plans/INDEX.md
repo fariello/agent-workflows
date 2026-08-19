@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 97 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 98 Sets; the full manifest is INDEX.json.
+
+## awdoctorfix
+
+- `hblwtx` [executed] 01 executed/20260819-awdoctorfix-01-hblwtx-attention-board-priority-labeled-blocker-columns-with-legend.ipd.md
 
 ## awcheck
 
@@ -259,10 +263,6 @@ Showing the 40 most-recent of 97 Sets; the full manifest is INDEX.json.
 ## assess-and
 
 - `49eeuc` [executed] 00 executed/20260722-assess-and-00-49eeuc-assess-and-producers-closing-artifacts-report.ipd.md
-
-## overwrite-prompt
-
-- `1wt4qz` [executed] 00 executed/20260722-overwrite-prompt-00-1wt4qz-overwrite-prompt-clarity-and-input-validation.ipd.md
 
 ## (singletons: no Set)
 

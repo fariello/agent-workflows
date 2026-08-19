@@ -2150,6 +2150,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-19",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260819-awdoctorfix-01-hblwtx-attention-board-priority-labeled-blocker-columns-with-legend.ipd.md",
+    "plan_id": "hblwtx",
+    "set_id": "awdoctorfix",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
