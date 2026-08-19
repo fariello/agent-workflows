@@ -2160,6 +2160,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-19",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260819-awdoctorfix-02-2pyjga-attention-board-shows-identity-stem-by-default-long-for-full.ipd.md",
+    "plan_id": "2pyjga",
+    "set_id": "awdoctorfix",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,

@@ -7,6 +7,7 @@ Showing the 40 most-recent of 98 Sets; the full manifest is INDEX.json.
 ## awdoctorfix
 
 - `hblwtx` [executed] 01 executed/20260819-awdoctorfix-01-hblwtx-attention-board-priority-labeled-blocker-columns-with-legend.ipd.md
+- `2pyjga` [executed] 02 executed/20260819-awdoctorfix-02-2pyjga-attention-board-shows-identity-stem-by-default-long-for-full.ipd.md
 
 ## awcheck
 
