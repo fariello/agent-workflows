@@ -4,17 +4,19 @@
 - Kind: child
 - Concern: The `untracked/` quarantine lanes are ignored by TWO nested per-lane files (`.aw/records/comms/.gitignore`, `.aw/records/prompts/.gitignore`), scattered + duplicated + needing `_ensure_untracked_gitignore` upkeep. The stated reason for nesting ("not a root .gitignore edit") conflated the USER's `repo/.gitignore` (which the framework must not touch) with `repo/.aw/.gitignore` (INSIDE the framework-owned `.aw/` tree - entirely ours, the whole point of the `.agents/`->`.aw/` rename). `.aw/` is framework-exclusive, so a single owned `.aw/.gitignore` is the clean design.
 - Scope: `agent_workflows/engine.py` (replace the two nested-gitignore deliverables + `_ensure_untracked_gitignore` with a single `.aw/.gitignore` deliverable + writer); the comms-convention spec `20260715-1722-01` (rewrite the nested-gitignore prescription to the consolidated file); the affected tests; migrate THIS repo. Nothing has shipped since before the `.aw/` migration, so there is NO compatibility burden - do the right thing and rewrite the spec to match (do not preserve the nested design for users who do not exist).
-- Status: reviewed
+- Status: approved
 - Set: awgitignore
 - Order: 1
 - Highest E allocated: 04
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: 65t5sk
+- Approval: maintainer (human), 2026-08-19: approved this specific plan and said execute now.
 
 ## Workflow history
 
 - 2026-08-19 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created - `.aw/` is framework-owned (unlike the shared `.agents/`), so the two nested per-lane `.gitignore`s consolidate into one `.aw/.gitignore` (`records/*/untracked/`). Nothing shipped since pre-`.aw/`, so the comms spec is rewritten, not preserved.
 - 2026-08-19 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): reviewed - verified `.aw/` is the exclusive framework namespace (spec 20260810-1447-01:19), the root-gitignore rule is about repo/.gitignore not repo/.aw/.gitignore, `.aw/.gitignore` with records/*/untracked/ ignores both lanes (git check-ignore), scaffold deliverable sites (engine.py:4321/4324), and nothing shipped since pre-.aw/. Verdict: GO - PENDING HUMAN APPROVAL. Awaiting explicit human approval.
+- 2026-08-19 approved (maintainer, human): explicitly approved this plan and instructed execute now.
 
 ## Goal
 
