@@ -3,7 +3,7 @@
 - Date: 2026-08-18
 - Kind: child
 - Concern: awcmdsurf Order 03 (spec 20260818-1525-01). Implement the mutating cross-cutting verbs: `aw rename <type> <selector...>` (re-slug/re-name to the grammar, keeping Id), `aw group <type> <selector...> --set S` (assign into a Set), `aw archive <type> <selector...>` (deep-shelve terminal/aged). All default to UPDATING references across the repo (with `--no-refs` to disable) and preview-by-default with `--apply`, routing into the existing backends.
-- Scope: cli.py routers into plans_refs/plans_archive/research_refs/research_archive. IN: `rename` -> plans_refs.run_mv/research_refs.run_mv; `group` -> plans_refs.run_set_assign/research_refs.run_set_assign; `archive` -> plans_archive.run_archive/research_archive.run_archive; the default-update-references behavior + `--no-refs`; preview/`--apply`; `--json` where meaningful; `all` fan-out where it makes sense. OUT: read verbs (Order 02), merge/renames-of-list/todo (Order 04), removals (Order 05); the full selector grammar (Set E). Reference-updating already exists inside plans_refs (it rewrites citations); this Order EXPOSES it as the default and adds `--no-refs`.
+- Scope: cli.py routers into plans_refs/plans_archive/research_refs/research_archive. IN: `rename` -> plans_refs.run_mv/research_refs.run_mv; `group` -> plans_refs.run_set_assign/research_refs.run_set_assign; `archive` -> plans_archive.run_archive/research_archive.run_archive; the default-update-references behavior + `--no-refs`; preview/`--apply`; `--json` where meaningful; `all` fan-out where it makes sense. OUT: read verbs (Order 02), merge/renames-of-list/todo (Order 04), removals (Order 05); the full selector grammar (Set E). Reference-updating already exists inside plans_refs (it rewrites citations ALWAYS); this Order EXPOSES it as the default and adds `--no-refs`, which requires a SMALL bounded backend change: an `update_refs: bool = True` kwarg on `apply_renames` (plans_refs.py:304) that gates the `apply_reference_rewrites` call (plans_refs.py:350), threaded from run_mv/run_set_assign. That backend touch is IN scope for this Order (it is the only way to honor --no-refs; the router cannot skip a rewrite buried inside apply_renames).
 - Status: reviewed
 - Set: awcmdsurf
 - Order: 3
@@ -17,6 +17,7 @@
 - 2026-08-18 authored (opencode Opus 4.8): from spec 20260818-1525-01 + investigation (plans_refs.run_mv:404, run_set_assign:377; plans_archive.run_archive:168; research_refs.run_mv:286, run_set_assign:261; research_archive.run_archive:227).
 - 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against plans_refs.py:377/404, plans_archive.py:168, research_refs.py:261/286, and research_archive.py:227; structural lint conforming; no findings; no blocking open questions; GO - PENDING HUMAN APPROVAL.
 - 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE WITH REVISIONS APPLIED; re-review (opencode): PR-001 downstream - this Order now OWNS generalizing the `archive` parser atomically + repoints old `aw archive <id6>` to `aw archive research`. Conforming.
+- 2026-08-18 /plan-review (opencode Opus 4.8, RIGOROUS): APPROVE WITH REVISIONS APPLIED. PR-002 (MEDIUM): verified `apply_renames` (plans_refs.py:304) ALWAYS calls apply_reference_rewrites (line 350) with NO skip param, so the promised `--no-refs` flag was NOT implementable in the router alone (this Order's stated method). Made E-01/E-02 + Scope explicit that a small bounded backend change is required: an `update_refs: bool=True` kwarg on apply_renames gated + threaded from run_mv/run_set_assign. Conforms at review-finalize. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -31,11 +32,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: rename + group
 
-- [ ] E-01 Implement `_run_rename(args, term)`: resolve type + selector(s); dispatch to the backend `rename` entrypoint (`plans_refs.run_mv`, `research_refs.run_mv`), passing `--slug`/`--order`/`--set`/`--dir`/`--apply`. Add `--no-refs` (default: refs ARE updated); when NOT set, ensure the backend's reference-rewrite runs (plans_refs already rewrites citations via apply_reference_rewrites); when `--no-refs`, skip the rewrite. Multiple selectors rename each in turn.
+- [ ] E-01 Implement `_run_rename(args, term)`: resolve type + selector(s); dispatch to the backend `rename` entrypoint (`plans_refs.run_mv`, `research_refs.run_mv`), passing `--slug`/`--order`/`--set`/`--dir`/`--apply`. Add a `--no-refs` flag (default: refs ARE updated). IMPORTANT (verified): `plans_refs.apply_renames` (plans_refs.py:304) UNCONDITIONALLY computes ref edits and calls `apply_reference_rewrites` (plans_refs.py:350) - there is currently NO way for the router to skip it, so `--no-refs` CANNOT be implemented in the router alone. This Order must add a keyword param `update_refs: bool = True` to `apply_renames` (and thread it from `run_mv`/`run_set_assign` via a new `no_refs`/`update_refs` on their args) that, when False, skips the `apply_reference_rewrites` call. This is a small, bounded backend change (in scope: see Scope note). Do the same for `research_refs` if it has an analogous rewrite. Multiple selectors rename each in turn.
   - Depends on: none
-  - Expected outcome: `aw rename plans <id6> --slug x --apply` == old `aw plans-mv ... --apply` AND updates references by default; `--no-refs` renames the file only.
+  - Expected outcome: `aw rename plans <id6> --slug x --apply` == old `aw plans-mv ... --apply` AND updates references by default; `aw rename plans <id6> --slug x --no-refs --apply` renames the file only (a citing doc is NOT rewritten); the new `update_refs=False` path in `apply_renames` is exercised by a test.
   - Execution state: pending
-- [ ] E-02 Implement `_run_group(args, term)`: resolve type + selector(s); dispatch to `plans_refs.run_set_assign`/`research_refs.run_set_assign` with `--set`(required)/`--order`/`--rename`/`--apply` and the same `--no-refs` default-on reference update. `all` is NOT supported for group (grouping is per-type by design) - report exit 2 for `all`.
+- [ ] E-02 Implement `_run_group(args, term)`: resolve type + selector(s); dispatch to `plans_refs.run_set_assign`/`research_refs.run_set_assign` with `--set`(required)/`--order`/`--rename`/`--apply` and the same `--no-refs` reference-update control (threaded to the SAME `apply_renames(update_refs=...)` param added in E-01, since `run_set_assign` also routes through `apply_renames`). `all` is NOT supported for group (grouping is per-type by design) - report exit 2 for `all`.
   - Depends on: none
   - Expected outcome: `aw group plans <id6...> --set s --apply` == old `aw plans-set-assign ... --set s --apply`, updating refs by default.
   - Execution state: pending
@@ -73,6 +74,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F2 | Id/Order/Date preserved by the awnaming fix. | rename is safe; the test just re-asserts preservation. |
 | F3 | group/rename over `all` is ill-defined. | Report exit 2 with a "specify a type" message rather than guess. |
 | F4 | archive already exists (research, `target` positional cli.py:1600). | Order 01 left it untouched (avoiding a mid-Set signature break); THIS Order generalizes the parser to `<type>`-first atomically + wires the plans branch + fan-out, and repoints old `aw archive <id6>` usages to `aw archive research <id6>`. |
+| F5 | `apply_renames` (plans_refs.py:304) ALWAYS rewrites references (line 350); no skip param exists. | `--no-refs` is NOT implementable in the router alone; this Order adds an `update_refs: bool=True` kwarg to `apply_renames` + threads it from run_mv/run_set_assign. Verified against source. |
 
 ## Proposed changes (ordered, validatable)
 
