@@ -543,9 +543,18 @@ def _build_parser() -> argparse.ArgumentParser:
     p_list_repos.add_argument(
         "--recursive", action="store_true", help="Discover repos recursively."
     )
+    p_list_repos.add_argument(
+        "--json",
+        dest="as_json",
+        action="store_true",
+        help="Emit the repo list as JSON.",
+    )
 
-    sub.add_parser(
+    p_status = sub.add_parser(
         "status", parents=[common], help="Show environment + currency summary."
+    )
+    p_status.add_argument(
+        "--json", dest="as_json", action="store_true", help="Emit the status as JSON."
     )
 
     # awdoctor Order 03: a read-only deep repo inspector aggregating every check signal.
@@ -2575,6 +2584,21 @@ def _repos_for_report(recursive: bool) -> List[Path]:
 def _run_list(args: argparse.Namespace, term: Term) -> int:
     packaged = _packaged_version()
     repos = _repos_for_report(args.recursive)
+    if getattr(args, "as_json", False):
+        import json
+
+        rows = []
+        for repo in repos:
+            installed = engine.read_installed_version(repo)
+            rows.append(
+                {
+                    "repo": str(repo),
+                    "installed": installed or None,
+                    "state": versioning.status(installed, packaged),
+                }
+            )
+        sys.stdout.write(json.dumps({"packaged": packaged, "repos": rows}) + "\n")
+        return 0
     if not repos:
         term.status("warn", "No configured or discovered repos. Run 'aw setup'.")
         return 0
@@ -2587,8 +2611,33 @@ def _run_list(args: argparse.Namespace, term: Term) -> int:
     return 0
 
 
-def _run_status(term: Term) -> int:
+def _run_status(args, term: Term) -> int:
     packaged = _packaged_version()
+    if getattr(args, "as_json", False):
+        import json
+
+        cfg = config.load()
+        repos = _repos_for_report(recursive=False)
+        counts: dict = {}
+        for repo in repos:
+            state = versioning.status(engine.read_installed_version(repo), packaged)
+            counts[state] = counts.get(state, 0) + 1
+        sys.stdout.write(
+            json.dumps(
+                {
+                    "packaged_version": packaged,
+                    "python": sys.version.split()[0],
+                    "git": engine.git_available(Path.cwd()),
+                    "config": str(config.config_path()),
+                    "config_present": config.config_path().is_file(),
+                    "search_roots": cfg.get("search_roots", []),
+                    "repos_configured": len(cfg.get("repos", [])),
+                    "currency": counts,
+                }
+            )
+            + "\n"
+        )
+        return 0
     term.heading("agent-workflows status")
     term.kv("Packaged version", packaged)
     term.kv("Python", sys.version.split()[0])
@@ -2628,7 +2677,7 @@ def _run_setup(args: argparse.Namespace, term: Term) -> int:
     if args.roots is None and config.is_configured() and not sys.stdin.isatty():
         # Non-interactive re-run of a configured tool: summarize, do not re-interview.
         term.status("ok", "Already configured.")
-        return _run_status(term)
+        return _run_status(argparse.Namespace(as_json=False), term)
 
     # Gather search roots.
     roots: List[str] = []
@@ -4238,8 +4287,8 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
                     term,
                 )
             term.status("warn", "Not configured. Run 'aw setup' to get started.")
-            return _run_status(term)
-        _run_status(term)
+            return _run_status(argparse.Namespace(as_json=False), term)
+        _run_status(argparse.Namespace(as_json=False), term)
         term.line()
         term.line(
             "Commands: install <dir>|all, setup, todo, complete, dismiss, status, plans, "
@@ -4308,7 +4357,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     if args.command == "list-repos":
         return _run_list(args, term)
     if args.command == "status":
-        return _run_status(term)
+        return _run_status(args, term)
     if args.command == "doctor":
         from agent_workflows import doctor as _doctor
 
