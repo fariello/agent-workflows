@@ -16,6 +16,7 @@
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): high-level skeleton from TODO items 4,10,13,14,29,31 + --json/exit-code consistency; children to be fleshed out.
 - 2026-08-18 to-review (opencode Opus 4.8): authored + lint-conforming; advanced draft->to-review (readiness, not a review).
+- 2026-08-18 /plan-review (opencode Opus 4.8, RIGOROUS): APPROVE. Orchestrator for help/UX; verified _DESCRIPTIONS:36 / _apply_descriptions:326 / --phase:699 anchors; child decomposition sound; text/output-shape changes only; no findings.
 
 ## Goal
 

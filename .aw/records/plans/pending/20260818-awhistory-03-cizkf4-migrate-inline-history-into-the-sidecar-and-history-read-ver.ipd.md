@@ -3,7 +3,7 @@
 - Date: 2026-08-18
 - Kind: child
 - Concern: awhistory Order 03 (spec 20260818-1525-02; RELEASE BLOCKER; requirements R3, R4; acceptance AC2, AC3). Two closely-related pieces close the sidecar story: (a) a one-time, IDEMPOTENT migration that folds EVERY existing inline `## Workflow history` block across all record trees into the ONE GLOBAL `.aw/records/history.jsonl` (Order 01 store), preserving each record's date/actor/message, then slims each file's inline history down to the latest ONE line (spec Section 3 + OQ-2); and (b) a READ verb that prints a record's full chronological history from the sidecar by id6. Both consume the Order 01 module (`agent_workflows/record_history.py`) and assume Order 02 has already routed NEW writes to the sidecar; this Order handles the LEGACY backfill + the reader.
-- Scope: EDIT two existing modules + ONE test file. IN: (1) a `migrate_inline_history(repo_root, apply=False) -> int` function ADDED to `agent_workflows/record_history.py` (the Order 01 module) that walks every record tree, parses each file's inline `## Workflow history` records (grammar per `attention_contract.HISTORY_RECORD_RE`, attention_contract.py:431), appends each as a sidecar record (id6 from the file's `- Id:`, tree from its path) via the Order 01 writer, skips any record already present (idempotent, keyed on id6+date+message), then slims the inline block to its latest one line; (2) a `record-history <id6>` CLI verb ADDED to `agent_workflows/cli.py` (a parser + dispatch + a `_run_record_history` handler) that prints `read_for(repo_root, id6)` chronologically; (3) `tests/test_record_history_migrate.py`. OUT: the store/append/read_for writer (Order 01), routing NEW writes (Order 02), the `- Managed-by:` directive + templates (spec R5, separate work), any manifest/index/attention change (spec R6 leaves those reading inline state unchanged).
+- Scope: EDIT two existing modules + ONE test file. IN: (1) a `migrate_inline_history(repo_root, apply=False) -> int` function ADDED to `agent_workflows/record_history.py` (the Order 01 module) that walks every record tree EXCEPT `plans` (plans/IPDs are DELIBERATELY excluded - see the critical guard below), parses each file's inline `## Workflow history` records (grammar per `attention_contract.HISTORY_RECORD_RE`, attention_contract.py:431), appends each as a sidecar record (id6 from the file's `- Id:`, tree from its path) via the Order 01 writer, skips any record already present (idempotent, keyed on id6+date+message), then slims the inline block to its latest one line; (2) a `record-history <id6>` CLI verb ADDED to `agent_workflows/cli.py` (a parser + dispatch + a `_run_record_history` handler) that prints `read_for(repo_root, id6)` chronologically; (3) `tests/test_record_history_migrate.py`. OUT: the store/append/read_for writer (Order 01), routing NEW writes (Order 02), the `- Managed-by:` directive + templates (spec R5, separate work), any manifest/index/attention change (spec R6 leaves those reading inline state unchanged); and CRITICALLY the `plans` tree - IPDs are NEVER folded/slimmed because `ipd_lint` IPD-S405 (ipd_lint.py:666) requires the inline `executed` history entry at post-transition, so slimming plan history would break every executed plan's lint (a silent invariant violation across the whole plans tree). Plans keep their full inline history; the IPD lifecycle owns it.
 - Status: to-review
 - Set: awhistory
 - Order: 3
@@ -16,6 +16,7 @@
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from spec 20260818-1525-02; idempotent inline->sidecar migration + aw history read verb.
 - 2026-08-18 to-review (opencode Opus 4.8): authored + lint-conforming; advanced draft->to-review (readiness, not a review).
+- 2026-08-18 /plan-review (opencode Opus 4.8, RIGOROUS): APPROVE WITH REVISIONS APPLIED. PR-003 (BLOCKER): `migrate_inline_history` walked `_RECORD_TREES` INCLUDING `plans` and slimmed each file's inline history to latest-one - which would DELETE the `executed` `## Workflow history` entry that ipd_lint IPD-S405 (ipd_lint.py:666) requires on all ~184 executed plans, silently breaking the whole plans tree's post-transition lint (irreversible content loss). Fixed: removed `plans` from `_RECORD_TREES` with a critical guard comment; plans keep full inline history (the IPD lifecycle owns it). Conforms at review-finalize. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -58,8 +59,13 @@ If any Order-01 symbol name differs at execution time, adapt the CALL SITES (not
   # id6 line + the record trees to walk (first path segment under .aw/records/ is the sidecar `tree`).
   _ID_LINE_RE = _re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
   _HIST_HEADING = "## Workflow history"
+  # CRITICAL: `plans` is DELIBERATELY EXCLUDED. IPDs keep their FULL inline `## Workflow history`
+  # because `ipd_lint` IPD-S405 (ipd_lint.py:666) REQUIRES an inline `executed` entry at
+  # post-transition; folding+slimming plan history would delete that entry across every executed
+  # plan and break the whole plans tree's lint. The IPD lifecycle owns plan history; the sidecar
+  # covers the other record types only.
   _RECORD_TREES = (
-      "plans", "specs", "research", "backlog", "prompts", "walkthroughs", "roadmaps", "releases",
+      "specs", "research", "backlog", "prompts", "walkthroughs", "roadmaps", "releases",
   )
   # Parse "workflow" + "actor" out of the free tail when it matches "<workflow> (<actor>): <message>";
   # otherwise the whole tail is the message and workflow/actor are "" (grammar only pins the date).

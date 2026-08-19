@@ -16,6 +16,7 @@
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from TODO item 3 (bare help token -> --help).
 - 2026-08-18 to-review (opencode Opus 4.8): authored + lint-conforming; advanced draft->to-review (readiness, not a review).
+- 2026-08-18 /plan-review (opencode Opus 4.8, RIGOROUS): APPROVE. Verified the pre-parse argv stage exists at cli.py:4023 (before parse_args) where _rewrite_help_token is placed. The guard errs conservatively (leaves a token untouched when unsure), so the residual ambiguity (store_true flag followed by `help`) is at worst a benign false-negative, not a clobber; acceptable. No blocking findings.
 
 ## Goal
 

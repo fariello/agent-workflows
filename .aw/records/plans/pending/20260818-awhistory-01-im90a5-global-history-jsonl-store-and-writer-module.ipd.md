@@ -16,6 +16,7 @@
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from spec 20260818-1525-02.
 - 2026-08-18 to-review (opencode Opus 4.8): authored + lint-conforming; advanced draft->to-review (readiness, not a review).
+- 2026-08-18 /plan-review (opencode Opus 4.8, RIGOROUS): APPROVE. Pure new module (record_history.py) + tests; verified artifact_core.ID6_RE, the global-sidecar path, and append/read_for shape; no interaction with existing code; no findings.
 
 ## Goal
 

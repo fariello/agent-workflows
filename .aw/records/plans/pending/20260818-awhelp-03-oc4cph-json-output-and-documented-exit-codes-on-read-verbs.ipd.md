@@ -16,6 +16,7 @@
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from TODO items 4,10,13,14,29,31 (Set awhelp).
 - 2026-08-18 to-review (opencode Opus 4.8): authored + lint-conforming; advanced draft->to-review (readiness, not a review).
+- 2026-08-18 /plan-review (opencode Opus 4.8, RIGOROUS): APPROVE. --json + documented exit codes on read verbs, reusing artifact_core.drift_exit_code (:262); additive; no findings.
 
 ## Goal
 
