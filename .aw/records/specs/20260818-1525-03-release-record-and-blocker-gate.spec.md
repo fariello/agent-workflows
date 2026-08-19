@@ -1,7 +1,7 @@
 # Spec: release record + `Blocks-Release` gate (make release-blockers first-class)
 
 - Date: 2026-08-18
-- Status: draft
+- Status: approved
 - Author: opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)
 - Motivation: Today, whether a backlog item / spec / plan BLOCKS THE NEXT RELEASE is captured only in prose (e.g. a spec paragraph "RELEASE BLOCKER"). There is no programmatically parsable, single-source way to (a) mark that an item gates a release, and (b) surface "what blocks the next release" in `aw attention`. This is DISTINCT from an item being blocked-BY something (the existing `blocked` status + typed gate). Item #35 asks for a consistent, machine-readable release-blocker model, and notes there is currently no artifact representing "the release" to block against. The maintainer chose: introduce a lightweight RELEASE record that items target via a gate field.
 - Relation to prior work: BUILDS ON the typed-gate model (`Gate-Kind`/`Gate-Ref`, attention_contract.py) and the attention view (attention.py). Consumes the roadmaps record tree (a natural home for a release record) or a new record class. Feeds Set F (attention must surface release-blockers).
@@ -11,6 +11,9 @@
 
 - 2026-08-18 draft (opencode Opus 4.8): authored from TODO item #35; the maintainer explicitly asked to discuss/decide and chose the release-record model (a release artifact that items target via a Blocks-Release field).
 - 2026-08-18 note (aw specs): spec-editor pass (opencode Opus 4.8): added Users/scenarios + Constraints/dependencies sections, tagged requirements MUST/SHOULD; fixed stale/verb-coupled items (02 R2/AC1 latest-one + plans/IPD-S405 exclusion; 03 R5/AC3 -> check_blocks_release engine function not the aw check verb).
+- 2026-08-18 to-review (aw specs): Completed + fleshed out (Users/scenarios + Constraints + MUST/SHOULD); ready to review.
+- 2026-08-18 reviewed (aw specs): Reviewed: spec-editor pass applied, all decisions resolved, conforms; internally consistent.
+- 2026-08-18 approved (aw specs, --by-human): Human approved (maintainer, 2026-08-18): 'I don't want to defer them. Please approve them.' All three are RELEASE BLOCKERS to be implemented.
 
 ## 0. Concepts (kept distinct)
 

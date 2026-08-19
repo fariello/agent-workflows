@@ -1,7 +1,7 @@
 # Spec: sidecar administrative metadata (keep status inline, move history to a sidecar)
 
 - Date: 2026-08-18
-- Status: draft
+- Status: approved
 - Author: opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)
 - Motivation: Every record file (plan/spec/backlog/research/prompt) carries a `## Workflow history` narrative that grows unbounded. Agents that consume these files fully read + cache the entire body, so the history burns tokens on administrative narrative that provides little value to the task at hand (the maintainer specifically flagged history). The tension: moving admin metadata OUT of the file saves tokens but risks agents "forgetting" to use the tool and missing information. This spec resolves that tension with a middle path.
 - Relation to prior work: Touches EVERY record type and the manifest/index layer (plans_index, research_index, specs, backlog, attention). Consumes the id6 handle (spec 20260808 plans-adopter) as the sidecar join key. Independent of, but sequenced after, the naming grammar (spec 20260817-2147-01).
@@ -11,6 +11,9 @@
 
 - 2026-08-18 draft (opencode Opus 4.8): authored from a maintainer question during the 39-item pre-release review - whether admin metadata (status/history/disposition) should move to a sidecar `.json`. Maintainer chose the middle path (status inline, history to sidecar) and asked for a design spec kept OUT of the UX batch.
 - 2026-08-18 note (aw specs): spec-editor pass (opencode Opus 4.8): added Users/scenarios + Constraints/dependencies sections, tagged requirements MUST/SHOULD; fixed stale/verb-coupled items (02 R2/AC1 latest-one + plans/IPD-S405 exclusion; 03 R5/AC3 -> check_blocks_release engine function not the aw check verb).
+- 2026-08-18 to-review (aw specs): Completed + fleshed out (Users/scenarios + Constraints + MUST/SHOULD); ready to review.
+- 2026-08-18 reviewed (aw specs): Reviewed: spec-editor pass applied, all decisions resolved, conforms; internally consistent.
+- 2026-08-18 approved (aw specs, --by-human): Human approved (maintainer, 2026-08-18): 'I don't want to defer them. Please approve them.' All three are RELEASE BLOCKERS to be implemented.
 
 ## 0. The tension (why a middle path)
 

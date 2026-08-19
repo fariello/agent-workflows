@@ -1,7 +1,7 @@
 # Spec: `aw` command-surface redesign (noun-verb grammar, hard cutover)
 
 - Date: 2026-08-18
-- Status: draft
+- Status: approved
 - Author: opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)
 - Motivation: The `aw` CLI surface grew organically into a MIX of two grammars: true noun-verb subparser families (`ipd`, `research`, `specs`, `backlog`, `storage`, `project`) and flat hyphenated verbs (`plans-mv`, `plans-find`, `plans-index`, `plans-archive`, `plans-set-assign`, `plan-names`, `check-local-leaks`). Only `plans <verb>` fakes noun-verb via an argv rewrite (cli.py:4023-4031). This is inconsistent, hard to learn, and hard to extend. The maintainer wants ONE consistent grammar where cross-cutting operations (check, find, search, index, rename, group, archive) are VERBS that take an artifact-TYPE noun (`all|plans|specs|prompts|research|backlog|...`) plus selectors, and where per-artifact tooling is unified. Addresses TODO items 5, 9, 19, 22, 24, 25, 26, 27, 28, 32.
 - Relation to prior work: BUILDS ON the uniform naming grammar (spec 20260817-2147-01, `.type.md`) and the record-class taxonomy (spec 20260817-2124-01). Consumes the existing per-type validators/indexers/finders (plans_index, research_index, specs, backlog) as the BACKENDS the new verbs dispatch into. Companion to the `aw check`/`aw doctor` validation spec (Set D) and the selectors spec (Set E) which this spec references for the shared selector grammar.
@@ -11,6 +11,9 @@
 
 - 2026-08-18 draft (opencode Opus 4.8): authored from the maintainer's 39-item pre-release TODO (tmp/todo.md) + a code-grounded CLI-surface investigation. Decisions settled interactively: full plans+ipd merge, hard cutover (no alias retention).
 - 2026-08-18 note (aw specs): spec-editor pass (opencode Opus 4.8): added Users/scenarios + Constraints/dependencies sections, tagged requirements MUST/SHOULD; fixed stale/verb-coupled items (02 R2/AC1 latest-one + plans/IPD-S405 exclusion; 03 R5/AC3 -> check_blocks_release engine function not the aw check verb).
+- 2026-08-18 to-review (aw specs): Completed + fleshed out (Users/scenarios + Constraints + MUST/SHOULD); ready to review.
+- 2026-08-18 reviewed (aw specs): Reviewed: spec-editor pass applied, all decisions resolved, conforms; internally consistent.
+- 2026-08-18 approved (aw specs, --by-human): Human approved (maintainer, 2026-08-18): 'I don't want to defer them. Please approve them.' All three are RELEASE BLOCKERS to be implemented.
 
 ## 0. Decisions locked (maintainer, 2026-08-18)
 
