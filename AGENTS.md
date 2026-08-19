@@ -55,3 +55,24 @@ This repository follows a structured Implementation Plan Document (IPD) lifecycl
 5. **Retirement (superseded / not-executed)**: A plan that is never run is NOT filed under `executed/` (that would falsely claim implementation). Instead, prepend a `RETIRED YYYY-MM-DD: <reason>; superseded by <path/commit>` header and `git mv` it to `.aw/records/plans/superseded/` (replaced by a better/subsequent plan) or `.aw/records/plans/not-executed/` (deliberately decided against, no replacement). Never silently delete a plan; retiring preserves the record and the reason.
 6. **Validation Requirement**: Before moving any plan to `executed/` (or marking it `executed` in the status metadata), the executor MUST execute the validation plan specified in the IPD (e.g. running the unit/integration tests). The executor MUST NOT mark a plan executed or write a walkthrough claiming success unless that validation actually passed. "Tests pass" must be demonstrated and verified, never assumed.
 <!-- AGENT-PLANS:END -->
+
+## Release gates (Blocks-Release)
+
+A release is a first-class record under `.aw/records/releases/` (`<...>.release.md`) with a Status of
+`planned`, `blocked`, or `shipped`, a Version (or `next`), and a Summary. See
+`.aw/records/releases/README.md` for the record shape.
+
+Any backlog item, spec, or plan may carry a `- Blocks-Release: <release-id6|next>` front-matter field to
+declare it MUST be done before that release ships. Set it with `aw backlog set <item> --status ...
+--blocks-release next` (or `aw specs set ... --blocks-release next`); clear it with `--blocks-release -`.
+`next` resolves to the single `planned` release record.
+
+BLOCKS-RELEASE vs BLOCKED-BY are distinct and independent:
+- BLOCKS-RELEASE points FROM an item TO a release: "this item gates shipping that release." A `ready`
+  or `open` item can still be a release blocker (it must reach done before release).
+- BLOCKED-BY is the item's OWN state: `Status: blocked` plus a typed `Gate-Kind`/`Gate-Ref` meaning the
+  item itself cannot proceed until something else happens.
+
+Capture a release blocker in ONE place: the `Blocks-Release` field on the item (not in prose). `aw check`
+flags a `Blocks-Release` value that resolves to no release record, and `aw attention` surfaces the
+outstanding release-blocker set for the active release.
