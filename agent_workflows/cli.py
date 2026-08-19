@@ -332,8 +332,9 @@ def _apply_descriptions(parser: argparse.ArgumentParser) -> None:
     walk(parser, "")
 
 
-class _AlphaHelpFormatter(argparse.HelpFormatter):
-    """Help formatter that lists subcommands alphabetically (clianx-01 E-05).
+class _AlphaHelpFormatter(argparse.RawDescriptionHelpFormatter):
+    """Help formatter that lists subcommands alphabetically (clianx-01 E-05) and preserves the raw
+    line breaks of description/epilog blocks (awhelp Order 02: the when/why + examples blocks).
 
     Display-only: it sorts the sub-actions shown under a ``{cmd ...}`` listing by their
     name so ``--help`` is scannable, WITHOUT reordering how parsers were registered and
@@ -368,6 +369,22 @@ def _build_parser() -> argparse.ArgumentParser:
         description="Install and manage the agent-workflows framework across your repos.",
         parents=[common],
         formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "WHEN AND WHY TO USE aw\n"
+            "  aw manages the agent-workflows framework INSIDE a repo: it installs the\n"
+            "  reusable workflows, and it reads/checks/organizes the records (plans, specs,\n"
+            "  backlog, research, releases) that live under .aw/records/. Use it to see what\n"
+            "  needs attention, validate artifacts before a commit, and keep names/indexes tidy.\n"
+            "\n"
+            "COMMON EXAMPLES\n"
+            "  aw attention                 # what needs attention across every records tree\n"
+            "  aw doctor                    # read-only deep health check (git + names + version)\n"
+            "  aw ipd board                 # the plan/IPD readiness board\n"
+            "  aw check all                 # validate every records tree; exit nonzero on findings\n"
+            "  aw find plans --status approved   # list approved plans\n"
+            "  aw rename plans <id6> --slug new-name --apply   # rename a plan + rewrite refs\n"
+            "  aw install <dir>             # install/update the framework in a repo\n"
+        ),
     )
     parser.add_argument(
         "-V",
@@ -557,6 +574,13 @@ def _build_parser() -> argparse.ArgumentParser:
         parents=[common],
         help="IPD tooling (structure/state). 'ipd lint' deterministically checks an IPD.",
         formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw ipd board                         # the plan/IPD readiness board (also bare 'aw ipd')\n"
+            "  aw ipd lint --phase author FILE      # structural lint of a freshly drafted plan\n"
+            "  aw ipd scaffold --kind child ...     # create a new conformant IPD skeleton\n"
+            "  aw ipd sync FILE --apply             # assign step ids + validation skeletons\n"
+        ),
     )
     ipd_sub = p_ipd.add_subparsers(dest="ipd_command")
     p_ipd_lint = ipd_sub.add_parser(
@@ -970,6 +994,12 @@ def _build_parser() -> argparse.ArgumentParser:
         parents=[common],
         help="Owner verbs for records storage backends, durability, and initialization.",
         formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw storage status            # inspect the records backend + durability for this repo\n"
+            "  aw storage status --json     # machine-readable status\n"
+            "  aw storage init              # initialize records storage (+ optional git)\n"
+        ),
     )
     storage_sub = p_storage.add_subparsers(dest="storage_command")
 
@@ -1149,6 +1179,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "show",
         parents=[common],
         help="Inspect a record or action by id6, set id, filename, or status (records first, then the action ledger).",
+        formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw show pp6y76               # print the record with id6 pp6y76 (plans/specs/research/...)\n"
+            "  aw show <set-id>             # the records in a Set\n"
+            "  aw show setup-repo-v1        # an action from the ledger\n"
+        ),
     )
     p_show.add_argument(
         "action_ref",
