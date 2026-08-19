@@ -5,17 +5,19 @@
 - Concern: awuntracked-01 shipped `migrate_local_lanes_to_untracked` but it never took effect. (1) It receives only the ACTIVE layout's `dirs` (`.aw/records/*`), so it structurally cannot rename the legacy `.agents/{prompts,comms}/local`. (2) It runs only during `aw install`/scaffold, so it is NOT retroactive - a repo not reinstalled keeps `local/` (this repo still has all four: `.aw/records/{prompts,comms}/local` + `.agents/{prompts,comms}/local`). (3) It does not rewrite the nested `.gitignore`'s `local/` line to `untracked/`, and the legacy `.agents/comms/` has NO nested `.gitignore` at all (its ephemeral acks are safe only by the accident that `.agents/` is entirely untracked). Verified: `.agents/` has 0 tracked files (stale post-migration litter; canonical tree is `.aw/records/`).
 - Scope: `agent_workflows/engine.py` (`migrate_local_lanes_to_untracked`: both-layout coverage + recursive content merge + scaffold ordering + nested-gitignore rewrite) and a new `aw normalize-lanes` verb (`agent_workflows/cli.py`, NO `tools.` import); rename this repo's four lanes as evidence; tests incl. an installed-wheel check. Does NOT route through `aw migrate-layout` (PR-001: that verb is dead when pip-installed) and does NOT fix that broader packaging defect (PR-003/backlog) or decide the `.agents/` litter fate (backlog wxz7gg).
 - Verified in an installed wheel (Step (a)): PR-001 - `aw migrate-layout` raises `ModuleNotFoundError: No module named 'tools'` (cli.py:4061 + layout_migration.py:30 import the unshipped `tools.awphysical`; wheel ships `agent_workflows` only). PR-002 - even `aw install .` on a repo with an existing `local/acks/x.json` leaves the ack STRANDED in `local/` (scaffold mkdir's empty `untracked/acks/` first, then the shallow merge skips the nested file). Fresh installs correctly create `untracked/` (awuntracked-01's scaffold rename works only when no `local/` pre-exists).
-- Status: reviewed
+- Status: approved
 - Set: awuntrackedfix
 - Order: 1
 - Highest E allocated: 04
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: njfyjt
+- Approval: maintainer (human), 2026-08-19: approved this specific plan and said go.
 
 ## Workflow history
 
 - 2026-08-19 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created - awuntracked-01's lane migration only touched the active layout, ran only on install, and left the nested gitignore unrewritten; this makes the rename cover BOTH layouts, be retroactive via `aw migrate-layout`, and keep the lane gitignored.
 - 2026-08-19 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): reviewed + revised after an INSTALLED-WHEEL portability test. Proven: PR-001 (migrate-layout crashes when pip-installed - tools.awphysical unshipped) and PR-002 (reinstall strands nested local/acks/x.json). Revised E-02 (recursive merge + scaffold order), E-03 (dropped migrate-layout; added tools-free `aw normalize-lanes` + scaffold path), E-04 (added installed-wheel validation). Filed PR-003 to backlog revnjq (migrate-layout dead when installed, out of scope here). Verdict: GO - PENDING HUMAN APPROVAL. Awaiting explicit human approval.
+- 2026-08-19 approved (maintainer, human): explicitly approved this plan and instructed go.
 
 ## Goal
 
