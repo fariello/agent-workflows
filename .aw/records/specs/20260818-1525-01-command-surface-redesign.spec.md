@@ -10,6 +10,7 @@
 ## Workflow history
 
 - 2026-08-18 draft (opencode Opus 4.8): authored from the maintainer's 39-item pre-release TODO (tmp/todo.md) + a code-grounded CLI-surface investigation. Decisions settled interactively: full plans+ipd merge, hard cutover (no alias retention).
+- 2026-08-18 note (aw specs): spec-editor pass (opencode Opus 4.8): added Users/scenarios + Constraints/dependencies sections, tagged requirements MUST/SHOULD; fixed stale/verb-coupled items (02 R2/AC1 latest-one + plans/IPD-S405 exclusion; 03 R5/AC3 -> check_blocks_release engine function not the aw check verb).
 
 ## 0. Decisions locked (maintainer, 2026-08-18)
 
@@ -35,6 +36,20 @@
 - Color/pretty output is Set C.
 - The operational action ledger (`show`/`complete`/`dismiss`/`reopen`/`history`) internals.
 - Removing the per-type subverbs that make sense to keep (e.g. `research new`, `backlog set`, `specs set`).
+
+## 2.1 Users / actors and scenarios
+
+- **Coding agent (primary):** invokes `aw` non-interactively to check/find/index/rename/group/archive records and parse machine output. Scenario: "validate every plan's name + front-matter" today needs `aw plan-names` + `aw plans index --check` (two grammars); after this spec it is one `aw check plans`. Scenario: "find the approved plans" is `aw find plans --status approved`. The agent benefits most from ONE predictable `aw <verb> <type>` shape + `--json`/exit codes.
+- **Maintainer / power user (human):** browses the board (`aw ipd`), renames/groups/archives records, and reads help. Wants a learnable surface where the verb is the thing you want to DO and the type is what you do it TO.
+- **Novice:** should be able to guess `aw find plans`, `aw check specs` without memorizing per-type verb families.
+Key flow the redesign optimizes: pick a VERB (the operation), then a TYPE (the artifact) - the same shape for every cross-cutting operation.
+
+## 2.2 Constraints and dependencies
+
+- Depends on Set E (awselect) for the shared SELECTOR parser (id6/setid/filename/status + multiple), and Set D (awcheck) for the `check` ENGINE that `aw check` routes into. This spec defines the GRAMMAR; those provide the pieces the verbs consume. Sequencing: awselect + awcheck land before, or with, this Set (a minimal interim selector/engine keeps intermediate states runnable).
+- Bounded by the existing single-file argparse CLI (`agent_workflows/cli.py`): this is a routing/parser change, not a CLI-framework rewrite (R7).
+- Backends (plans_index/research_index/specs/backlog/plans_refs/plans_archive/research_archive/normalize_plan_names) are REUSED unchanged as dispatch targets; their function names stay even as the verbs change.
+- The uniform naming grammar (spec 20260817-2147-01, `.type.md`) and record-class taxonomy (spec 20260817-2124-01) are prerequisites already shipped.
 
 ## 3. The target grammar (normative)
 
@@ -75,13 +90,15 @@ The artifact TYPE noun used by the cross-cutting verbs:
 
 ## 4. Requirements
 
-- R1. Implement the seven cross-cutting verbs (Section 3.2) as true subcommands dispatching into the existing backends (plans_index, research_index, specs, backlog, plans_refs, plans_archive, research_archive, normalize_plan_names, and the new check engine from Set D).
-- R2. Remove the old flat verbs (`plans`, `plans-mv`, `plans-find`, `plans-index`, `plans-set-assign`, `plans-archive`, `plan-names`) and the `plans <verb>` argv-rewrite shim (cli.py:4023-4031). Keep `ipd` (with the merged board) + `research`/`specs`/`backlog` authoring subverbs.
-- R3. `aw list-repos` (rename of `list`); `aw todo` -> attention alias.
-- R4. Every cross-cutting verb: `--json` (structured) where a machine consumer benefits, documented exit codes (0/1/2), reuse `drift_exit_code`.
-- R5. Update EVERY in-repo reference to a removed verb: shipped workflow bodies under `.aw/system/workflows/`, `AGENTS.md`, `RELEASING.md`, `CONTRIBUTING.md`, READMEs, tests, and the assess/release-review/plan-review workflow docs. Hard cutover (D1) - no old verb may survive except as the new grammar.
-- R6. `aw --help` lists the new grammar cleanly (the TYPE-noun verbs grouped/legible). Full help text quality is Set B, but the verb list must be correct here.
-- R7. Backends stay where they are; this is a ROUTING/parser change plus reference updates, not a rewrite of validators/indexers.
+(MUST = required for this spec to be met; SHOULD = strongly preferred, may be refined by a sibling Set.)
+
+- R1 (MUST). Implement the seven cross-cutting verbs (Section 3.2) as true subcommands dispatching into the existing backends (plans_index, research_index, specs, backlog, plans_refs, plans_archive, research_archive, normalize_plan_names, and the new check engine from Set D).
+- R2 (MUST). Remove the old flat verbs (`plans`, `plans-mv`, `plans-find`, `plans-index`, `plans-set-assign`, `plans-archive`, `plan-names`) and the `plans <verb>` argv-rewrite shim (cli.py:4023-4031). Keep `ipd` (with the merged board) + `research`/`specs`/`backlog` authoring subverbs.
+- R3 (MUST). `aw list-repos` (rename of `list`); `aw todo` -> attention alias.
+- R4 (MUST). Every cross-cutting verb: `--json` (structured) where a machine consumer benefits, documented exit codes (0/1/2), reuse `drift_exit_code`.
+- R5 (MUST). Update EVERY in-repo reference to a removed verb: shipped workflow bodies under `.aw/system/workflows/`, `AGENTS.md`, `RELEASING.md`, `CONTRIBUTING.md`, READMEs, tests, in-code docstrings/help/comments under `agent_workflows/**`, and the assess/release-review/plan-review workflow docs. Hard cutover (D1) - no old verb may survive except as the new grammar. (Historical logs DECISIONS.md/CHANGELOG.md are excluded as accurate history.)
+- R6 (SHOULD). `aw --help` lists the new grammar cleanly (the TYPE-noun verbs grouped/legible). Full help text quality is Set B, but the verb list MUST be correct here.
+- R7 (MUST). Backends stay where they are; this is a ROUTING/parser change plus reference updates, not a rewrite of validators/indexers.
 
 ## 5. Testable acceptance criteria
 

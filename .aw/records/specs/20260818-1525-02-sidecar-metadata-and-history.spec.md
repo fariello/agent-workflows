@@ -10,6 +10,7 @@
 ## Workflow history
 
 - 2026-08-18 draft (opencode Opus 4.8): authored from a maintainer question during the 39-item pre-release review - whether admin metadata (status/history/disposition) should move to a sidecar `.json`. Maintainer chose the middle path (status inline, history to sidecar) and asked for a design spec kept OUT of the UX batch.
+- 2026-08-18 note (aw specs): spec-editor pass (opencode Opus 4.8): added Users/scenarios + Constraints/dependencies sections, tagged requirements MUST/SHOULD; fixed stale/verb-coupled items (02 R2/AC1 latest-one + plans/IPD-S405 exclusion; 03 R5/AC3 -> check_blocks_release engine function not the aw check verb).
 
 ## 0. The tension (why a middle path)
 
@@ -37,22 +38,39 @@
 - Rationale: single reader/writer, trivial cross-tree "what happened to id6 X" and "everything on date D" queries, matches the id6-as-universal-handle model, and append-only JSONL neutralizes the write-hotspot concern. Simpler than per-tree or per-record.
 - Records keep inline state (Status/Set/Id/Order/gate) + a `- Managed-by:` directive + the latest-one history line (OQ-2 below); the FULL chronological log lives only in `.aw/records/history.jsonl`.
 
-## 4. Requirements (once a shape is chosen)
+## 2.1 Users / actors and scenarios
 
-- R1. Define the sidecar schema + location (per the chosen option) and a reader/writer in a new module (e.g. `record_history.py`).
-- R2. Route every status-transition writer (`specs set`, `backlog set`, the IPD lifecycle transition, `research` status changes) to ALSO append a sidecar history record, and STOP writing the growing inline `## Workflow history` (or keep only the latest N lines as a convenience tail - maintainer to decide).
-- R3. A `history` read verb (or `aw show ... --history`) reads the sidecar for a given id6.
-- R4. A migration that folds existing inline `## Workflow history` blocks into the sidecar, idempotently, preserving dates/actors.
-- R5. Add the `- Managed-by: aw ...` front-matter directive to the record templates + a generator so new files carry it.
-- R6. The manifest/index/attention/validators keep reading inline Status/Set/Id/Order (unchanged); only history moves.
+- **Coding agent (primary beneficiary):** reads a record file and caches its full body. Today the unbounded `## Workflow history` narrative is dead weight in that cache. Scenario: an agent opens a plan to reason about its CURRENT state - it needs Status/Set/Id/Order (inline, kept) but not 15 lines of transition prose (moved to the sidecar). When the agent DOES need history, it calls `aw record-history <id6>`.
+- **`aw` tooling (writer):** `specs set` / `backlog set` transition a record and must record provenance; they now append one line to the global sidecar and keep only the latest-one inline.
+- **Maintainer (human):** wants an at-a-glance "how did this reach its current state" (the latest-one inline line) without the file bloating over time, and a full audit trail on demand.
+Key flow: state stays inline (cheap, always-needed); the growing narrative lives in one queryable append-only log.
+
+## 2.2 Constraints and dependencies
+
+- The front-matter PARSERS (plans_index, specs, backlog, research_contract) and the attention `last_history_at` derivation (attention_contract.py:434, which reads the LAST inline record's date) MUST keep working unchanged - this is why the latest-one inline line is retained (R6/AC4).
+- PLANS/IPD `## Workflow history` is a HARD CONSTRAINT EXCLUSION: `ipd_lint` IPD-S405 (ipd_lint.py:666) requires an inline `executed` history entry at post-transition, so plan/IPD history MUST NOT be slimmed or moved by this work. The sidecar covers non-plan record types; the IPD lifecycle owns plan history. (IPD/research writer routing is a deliberate follow-up, not this spec's initial scope.)
+- Depends on the id6 handle (spec 20260808 plans-adopter) as the sidecar join key, and is sequenced after the naming grammar (spec 20260817-2147-01). The store is a LOCAL repo file (`.aw/records/history.jsonl`), no network.
+- Append-only JSONL is chosen so concurrent-append git merges rarely conflict (a single global file otherwise risks a write hotspot).
+
+## 4. Requirements
+
+(MUST = required; SHOULD = strongly preferred.)
+
+- R1 (MUST). Define the sidecar schema + location (Section 3: `.aw/records/history.jsonl`, line `{id6,date,tree,workflow,actor,message}`) and an append/read module `record_history.py`.
+- R2 (MUST). Route the specs + backlog status-transition writers (`specs set`, `specs note`, `backlog set`) to ALSO append one sidecar history record, and SLIM the inline `## Workflow history` to the LATEST ONE record line (OQ-2 resolved: latest-one, not N). The IPD lifecycle transition + research status writers are a DOCUMENTED FOLLOW-UP, NOT this spec's initial scope, and plans/IPD history is never slimmed (Section 2.2 constraint).
+- R3 (MUST). A history read verb (`aw record-history <id6>`; NOTE `aw history` collides with the existing action-lifecycle verb) reads the sidecar for a given id6, chronologically.
+- R4 (MUST). An idempotent migration folds existing inline `## Workflow history` blocks into the sidecar (preserving dates/actors) then slims to latest-one - EXCLUDING the `plans` tree (IPD-S405 constraint).
+- R5 (SHOULD). Add the `- Managed-by: aw ...` front-matter directive to the record templates + a generator so new files carry it (mitigates tool-skipping).
+- R6 (MUST). The manifest/index/attention/validators keep reading inline Status/Set/Id/Order + the latest-one history line (unchanged behavior); only the FULL history log moves.
 
 ## 5. Testable acceptance criteria
 
-- AC1. Creating/transitioning a record appends exactly one sidecar history line and does NOT grow the inline body's history unbounded.
-- AC2. The history read verb returns a record's full chronological history from the sidecar by id6.
-- AC3. The migration folds a legacy inline-history file into the sidecar with no loss and is idempotent (re-running adds nothing).
-- AC4. `aw attention`/`specs check`/`backlog check`/`index --check` still pass reading inline state (unchanged).
-- AC5. A measurable token reduction on a representative record (history removed from the cached body).
+- AC1. Transitioning a specs/backlog record appends exactly one sidecar history line AND slims its inline `## Workflow history` to a single (latest) record line.
+- AC2. The `aw record-history <id6>` verb returns a record's full chronological history from the sidecar.
+- AC3. The migration folds legacy inline-history into the sidecar with no loss and is idempotent (re-running adds nothing).
+- AC4. `aw attention --check` / `aw specs check` / `aw backlog check` / `aw index ... --check` still pass, and `attention` `last_history_at` still resolves from the retained latest-one inline line.
+- AC5. A representative slimmed record is measurably smaller (history removed from the cached body).
+- AC6. Plans/IPDs are UNTOUCHED: every executed plan still carries its inline `executed` `## Workflow history` entry and passes `aw ipd lint --phase post-transition` (IPD-S405). The migration does not fold or slim the `plans` tree.
 
 ## 6. Open questions
 
