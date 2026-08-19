@@ -17,6 +17,7 @@
 - 2026-08-18 authored (opencode Opus 4.8): from spec 20260818-1525-01 D1 + investigation (old parsers cli.py:532/545/576/600/619/642/660/1626; argv shim cli.py:4023-4031; dispatch chain 4018-4241).
 - 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against cli.py:532-660, cli.py:1626, and cli.py:4023-4031; cutover sequencing and reference sweep completeness sound; structural lint conforming; no findings; no open questions; GO - PENDING HUMAN APPROVAL.
 - 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE; re-review (opencode): verified removal targets + argv shim 4023-4031; hard-cutover reference sweep is the completeness gate; conforming; no findings.
+- 2026-08-18 /plan-review (opencode Opus 4.8, RIGOROUS): APPROVE WITH REVISIONS APPLIED. RAN the actual repo-wide enumeration (which prior passes asserted "sound" without running). PR-001 (MEDIUM, UNDER-SCOPE): removed-verb references also live IN `agent_workflows/**/*.py` (docstrings/help/comments: plans_refs.py:8/141, plans.py, plans_index.py, plans_archive.py, attention_contract.py, engine.py, cli.py) - NOT covered by the docs+workflows+tests sweep, so the shipped source would keep advertising dead verbs. Extended E-04 + E-06 to sweep `agent_workflows/**/*.py` user-facing verb strings (excluding kept function names + DECISIONS.md/CHANGELOG.md history). Confirmed the overall sweep is bounded/tractable (a handful of files per target). Conforms at review-finalize. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -46,9 +47,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-01,E-02
   - Expected outcome: `rg -n "plans-mv|plans-set-assign|plans-find|plans-index|plans-archive|plan-names|aw plans\b|aw list\b" .aw/system/` returns nothing (or only the new grammar).
   - Execution state: pending
-- [ ] E-04 Sweep + update the top-level docs: `AGENTS.md`, `RELEASING.md`, `CONTRIBUTING.md`, and any `README.md`/`.aw/records/*/README.md` that reference a removed verb. Regenerate the AGENTS.md managed block via the engine generator if the reference lives there (engine.py agents_pointer_prose); otherwise edit in place. No em/en dashes in user-facing prose.
+- [ ] E-04 Sweep + update the top-level docs AND in-code user-facing references. (a) Docs: `AGENTS.md`, `RELEASING.md`, `CONTRIBUTING.md`, any `README.md`/`.aw/records/*/README.md` referencing a removed verb (regenerate the AGENTS.md managed block via the engine generator if the reference lives there, else edit in place; no em/en dashes). (b) IN-CODE under `agent_workflows/**/*.py`: module DOCSTRINGS, `help=`/`description=` strings, and code COMMENTS that mention a removed VERB (verified present, e.g. `plans_refs.py:8` docstring "aw plans mv ...", `:141` comment; plus plans.py/plans_index.py/plans_archive.py/attention_contract.py/engine.py/cli.py). Rewrite user-facing verb mentions to the new grammar (`aw plans mv`->`aw rename plans`, `aw plan-names`->`aw check plans names`, etc.). CRITICAL: do NOT rename backend FUNCTION names (`run_mv`/`run_set_assign`/`run_index` stay, kept per E-01), and do NOT rewrite historical logs `DECISIONS.md`/`CHANGELOG.md` (their old-verb mentions are accurate history). Only user-facing verb strings/docstrings/comments change.
   - Depends on: E-01,E-02
-  - Expected outcome: `rg -n "<removed-verb set>" AGENTS.md RELEASING.md CONTRIBUTING.md **/README.md` returns nothing stale.
+  - Expected outcome: `rg -n "<removed-verb set>"` over AGENTS.md/RELEASING.md/CONTRIBUTING.md/READMEs AND `agent_workflows/` returns nothing that is a stale user-facing verb mention (kept function names + DECISIONS.md/CHANGELOG.md history excluded).
   - Execution state: pending
 - [ ] E-05 Sweep + update the TESTS: any test invoking a removed verb (`tests/test_cli.py`, `tests/test_plans_board.py`, `tests/test_plan_status.py`, and any test asserting `aw plans*`/`aw plan-names`/`aw list`) is rewritten to the new grammar. Prefer updating assertions to the new verb; where a test specifically tested the OLD verb's existence, retarget it to the NEW verb's behavior.
   - Depends on: E-01,E-02
@@ -57,7 +58,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: verify the cutover
 
-- [ ] E-06 Run the FULL serial suite (`python3 -m pytest -p no:xdist`) + `aw sanitize --agent` + `aw check all` + `aw index all --check` + `aw attention --check`, and a final `rg` proving NO removed verb survives anywhere in tracked files (cli.py, .aw/system, docs, tests). Paste all tails.
+- [ ] E-06 Run the FULL serial suite (`python3 -m pytest -p no:xdist`) + `aw sanitize --agent` + `aw check all` + `aw index all --check` + `aw attention --check`, and a final `rg` proving NO removed verb survives as a user-facing reference anywhere in tracked files - INCLUDING `agent_workflows/**/*.py` (docstrings/help/comments), `.aw/system/`, docs, and tests - EXCLUDING kept backend function names and the historical logs DECISIONS.md/CHANGELOG.md. Paste all tails.
   - Depends on: E-01,E-02,E-03,E-04,E-05
   - Expected outcome: full suite green; all checks clean; the removed-verb grep is empty repo-wide.
   - Execution state: pending
@@ -77,6 +78,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F2 | Backends are shared. | Removing CLI entry points does not touch the backend modules; low risk. |
 | F3 | References are broad. | An exhaustive `rg` sweep (docs+workflows+tests) is the acceptance gate (E-06). |
 | F4 | AGENTS.md is partly generated. | Update the engine generator source where the reference is in the managed block, else edit in place. |
+| F5 | Removed-verb refs also live IN `agent_workflows/**/*.py` (docstrings/help/comments), not only docs/tests. | Empirically enumerated: plans_refs.py:8/141, plans.py, plans_index.py, plans_archive.py, attention_contract.py, engine.py, cli.py all mention old verbs. E-04 must sweep these too (rewriting user-facing verb strings, NOT the kept function names), or the shipped source keeps advertising dead verbs. DECISIONS.md/CHANGELOG.md are history and excluded. |
 
 ## Proposed changes (ordered, validatable)
 
