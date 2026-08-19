@@ -1,7 +1,7 @@
 # Spec: release record + `Blocks-Release` gate (make release-blockers first-class)
 
 - Date: 2026-08-18
-- Status: approved
+- Status: implemented
 - Author: opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)
 - Motivation: Today, whether a backlog item / spec / plan BLOCKS THE NEXT RELEASE is captured only in prose (e.g. a spec paragraph "RELEASE BLOCKER"). There is no programmatically parsable, single-source way to (a) mark that an item gates a release, and (b) surface "what blocks the next release" in `aw attention`. This is DISTINCT from an item being blocked-BY something (the existing `blocked` status + typed gate). Item #35 asks for a consistent, machine-readable release-blocker model, and notes there is currently no artifact representing "the release" to block against. The maintainer chose: introduce a lightweight RELEASE record that items target via a gate field.
 - Relation to prior work: BUILDS ON the typed-gate model (`Gate-Kind`/`Gate-Ref`, attention_contract.py) and the attention view (attention.py). Consumes the roadmaps record tree (a natural home for a release record) or a new record class. Feeds Set F (attention must surface release-blockers).
@@ -14,6 +14,8 @@
 - 2026-08-18 to-review (aw specs): Completed + fleshed out (Users/scenarios + Constraints + MUST/SHOULD); ready to review.
 - 2026-08-18 reviewed (aw specs): Reviewed: spec-editor pass applied, all decisions resolved, conforms; internally consistent.
 - 2026-08-18 approved (aw specs, --by-human): Human approved (maintainer, 2026-08-18): 'I don't want to defer them. Please approve them.' All three are RELEASE BLOCKERS to be implemented.
+- 2026-08-18 implementing (aw specs): awrelease Set executing.
+- 2026-08-18 implemented (aw specs): Implemented by the awrelease Set (releases class + Blocks-Release gate + validation + AGENTS.md docs); suite 1067 passed 1 skipped.
 
 ## 0. Concepts (kept distinct)
 
