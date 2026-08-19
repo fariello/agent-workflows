@@ -2,13 +2,17 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 99 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 100 Sets; the full manifest is INDEX.json.
 
 ## awdoctorfix
 
 - `hblwtx` [executed] 01 executed/20260819-awdoctorfix-01-hblwtx-attention-board-priority-labeled-blocker-columns-with-legend.ipd.md
 - `2pyjga` [executed] 02 executed/20260819-awdoctorfix-02-2pyjga-attention-board-shows-identity-stem-by-default-long-for-full.ipd.md
 - `qa1k8z` [executed] 03 executed/20260819-awdoctorfix-03-qa1k8z-attention-hides-for-history-less-trees-aw-doctor-source-repo.ipd.md
+
+## awgitignore
+
+- `65t5sk` [executed] 01 executed/20260819-awgitignore-01-65t5sk-consolidate-untracked-lane-gitignore-to-a-single-framework-o.ipd.md
 
 ## awuntrackedfix
 
@@ -255,16 +259,6 @@ Showing the 40 most-recent of 99 Sets; the full manifest is INDEX.json.
 ## plan-review
 
 - `yxai1b` [executed] 00 executed/20260726-plan-review-00-yxai1b-plan-review-scope-ledger-wording.ipd.md
-
-## instsafe
-
-- `920qnm` [executed] 01 executed/20260723-instsafe-01-920qnm-install-manifest-and-managed-sections-model.ipd.md
-- `kcjgmy` [executed] 02 executed/20260723-instsafe-02-kcjgmy-sectioned-managed-block-for-shared-files.ipd.md
-- `2jovaz` [executed] 03 executed/20260723-instsafe-03-2jovaz-untracked-safety-convention-and-tracking-warning.ipd.md
-- `80128k` [executed] 04 executed/20260723-instsafe-04-80128k-aw-uninstall-conservative.ipd.md
-- `kemhdg` [executed] 05 executed/20260723-instsafe-05-kemhdg-external-install-and-skills-delivery-research-spec.ipd.md
-- `mv7hw7` [executed] 06 executed/20260722-instsafe-06-mv7hw7-deepen-interactive-questions-convention.ipd.md
-- `qrokie` [executed] 07 executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md
 
 ## (singletons: no Set)
 

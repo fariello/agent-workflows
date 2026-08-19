@@ -2194,6 +2194,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260819-awgitignore-01-65t5sk-consolidate-untracked-lane-gitignore-to-a-single-framework-o.ipd.md",
+    "plan_id": "65t5sk",
+    "set_id": "awgitignore",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-19",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260819-awuntrackedfix-01-njfyjt-actually-rename-local-lanes-to-untracked-on-both-layouts-ret.ipd.md",
     "plan_id": "njfyjt",
     "set_id": "awuntrackedfix",
