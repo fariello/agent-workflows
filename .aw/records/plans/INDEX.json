@@ -1892,6 +1892,16 @@
   {
     "date": "2026-08-18",
     "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260818-awhelp-01-1fpmg7-rewrite-terse-and-jargon-help-strings.ipd.md",
+    "plan_id": "1fpmg7",
+    "set_id": "awhelp",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
     "kind": "orchestrator",
     "order": 0,
     "path": "executed/20260818-awhistory-00-x97z83-global-history-sidecar-and-inline-metadata-slimming.ipd.md",
@@ -2106,16 +2116,6 @@
     "order": 0,
     "path": "pending/20260818-awhelp-00-ny1pjz-help-text-and-agent-facing-ux-overhaul.ipd.md",
     "plan_id": "ny1pjz",
-    "set_id": "awhelp",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260818-awhelp-01-1fpmg7-rewrite-terse-and-jargon-help-strings.ipd.md",
-    "plan_id": "1fpmg7",
     "set_id": "awhelp",
     "status": "approved"
   },
