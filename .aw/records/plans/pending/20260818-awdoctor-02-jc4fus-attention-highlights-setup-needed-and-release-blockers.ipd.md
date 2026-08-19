@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: awdoctor Order 02 (TODO items 1 + release-blocker surfacing). The attention board today shows the per-tree classes but says nothing about two cross-cutting facts a human needs at a glance: (a) whether `aw setup` / the `/setup-repo` workflow still needs running in this repo (item 1), and (b) which artifacts are RELEASE BLOCKERS (carry the awrelease Set's `Blocks-Release:` field and are not yet done). Add two top-of-board notices to `aw attention`: a setup-needed notice (shown UNLESS setup has been run or the setup-repo action was dismissed) and a dedicated release-blocker section (populated by scanning items for `Blocks-Release: next|<release-id6>`). This Set CONSUMES the awrelease `Blocks-Release` field; if that field/class is absent it degrades gracefully to no section.
 - Scope: ONE edited module `agent_workflows/attention.py` (add notice builders + call them from the top of `render_board` attention.py:436-517, above the class loop; add a release-blocker collector consumed by `run`/`render_board`) + ONE new test file `tests/test_attention_notices.py`. IN: a `setup_needed(repo_root)` predicate reading configured-state (`config.is_configured` per cli.py:4037) and the `setup-repo` action's status (via `actions.ActionManager`, the ledger seeded at cli.py:2029-2034); a `release_blockers(items_or_repo)` collector reading a `Blocks-Release:` bullet; and two top-of-board notice renders. OUT: any change to `scan`'s per-tree records, to `render_json`'s existing keys (attention.py:362), to the compacted class rendering from Order 01, to `attention_contract.py`, or to the awrelease field DEFINITION (that is the awrelease Set's job - this Order only READS it).
-- Status: to-review
+- Status: reviewed
 - Set: awdoctor
 - Order: 2
 - Highest E allocated: 03
@@ -16,6 +16,7 @@
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from TODO items 1,33,36,37 (Set awdoctor).
 - 2026-08-18 to-review (opencode Opus 4.8): authored + lint-conforming; advanced draft->to-review (readiness, not a review).
+- 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against config.py, actions.py:ActionManager, and cli.py:2029/4037; notice gating and graceful degrade of release-blockers sound; structural lint conforming; no findings; no blocking open questions; GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
