@@ -1843,6 +1843,16 @@
     "date": "2026-08-18",
     "disposition": "executed",
     "kind": "child",
+    "order": 2,
+    "path": "executed/20260818-awrelease-02-6wdjss-blocks-release-gate-field-parser-setter-and-validation.ipd.md",
+    "plan_id": "6wdjss",
+    "set_id": "awrelease",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
+    "kind": "child",
     "order": 9,
     "path": "executed/20260818-awretrofit-09-7m458z-managed-sections-regen.ipd.md",
     "plan_id": "7m458z",
@@ -2136,16 +2146,6 @@
     "order": 0,
     "path": "pending/20260818-awrelease-00-rreixg-releases-record-class-and-blocks-release-gate.ipd.md",
     "plan_id": "rreixg",
-    "set_id": "awrelease",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260818-awrelease-02-6wdjss-blocks-release-gate-field-parser-setter-and-validation.ipd.md",
-    "plan_id": "6wdjss",
     "set_id": "awrelease",
     "status": "approved"
   },
