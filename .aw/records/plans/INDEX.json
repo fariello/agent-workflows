@@ -1862,6 +1862,16 @@
   {
     "date": "2026-08-18",
     "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260818-awdoctor-02-jc4fus-attention-highlights-setup-needed-and-release-blockers.ipd.md",
+    "plan_id": "jc4fus",
+    "set_id": "awdoctor",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
     "kind": "orchestrator",
     "order": 0,
     "path": "executed/20260818-awhistory-00-x97z83-global-history-sidecar-and-inline-metadata-slimming.ipd.md",
@@ -2076,16 +2086,6 @@
     "order": 0,
     "path": "pending/20260818-awdoctor-00-zz2dum-aw-doctor-and-attention-view-upgrades.ipd.md",
     "plan_id": "zz2dum",
-    "set_id": "awdoctor",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260818-awdoctor-02-jc4fus-attention-highlights-setup-needed-and-release-blockers.ipd.md",
-    "plan_id": "jc4fus",
     "set_id": "awdoctor",
     "status": "approved"
   },

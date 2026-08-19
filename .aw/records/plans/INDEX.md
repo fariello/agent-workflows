@@ -28,7 +28,7 @@ Showing the 40 most-recent of 97 Sets; the full manifest is INDEX.json.
 
 - `zz2dum` [pending] 00 pending/20260818-awdoctor-00-zz2dum-aw-doctor-and-attention-view-upgrades.ipd.md
 - `zi9kjl` [executed] 01 executed/20260818-awdoctor-01-zi9kjl-compact-attention-board-with-urgency-and-blocking-columns.ipd.md
-- `jc4fus` [pending] 02 pending/20260818-awdoctor-02-jc4fus-attention-highlights-setup-needed-and-release-blockers.ipd.md
+- `jc4fus` [executed] 02 executed/20260818-awdoctor-02-jc4fus-attention-highlights-setup-needed-and-release-blockers.ipd.md
 - `5vvlm3` [pending] 03 pending/20260818-awdoctor-03-5vvlm3-aw-doctor-deep-repo-inspector.ipd.md
 
 ## awhelp
