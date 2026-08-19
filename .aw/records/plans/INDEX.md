@@ -33,10 +33,10 @@ Showing the 40 most-recent of 97 Sets; the full manifest is INDEX.json.
 
 ## awhelp
 
-- `ny1pjz` [pending] 00 pending/20260818-awhelp-00-ny1pjz-help-text-and-agent-facing-ux-overhaul.ipd.md
+- `ny1pjz` [executed] 00 executed/20260818-awhelp-00-ny1pjz-help-text-and-agent-facing-ux-overhaul.ipd.md
 - `1fpmg7` [executed] 01 executed/20260818-awhelp-01-1fpmg7-rewrite-terse-and-jargon-help-strings.ipd.md
 - `vrk3l0` [executed] 02 executed/20260818-awhelp-02-vrk3l0-verbose-non-tty-agent-help-and-arg-hungry-verb-examples.ipd.md
-- `oc4cph` [pending] 03 pending/20260818-awhelp-03-oc4cph-json-output-and-documented-exit-codes-on-read-verbs.ipd.md
+- `oc4cph` [executed] 03 executed/20260818-awhelp-03-oc4cph-json-output-and-documented-exit-codes-on-read-verbs.ipd.md
 
 ## awhelparg
 

@@ -1892,6 +1892,16 @@
   {
     "date": "2026-08-18",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260818-awhelp-00-ny1pjz-help-text-and-agent-facing-ux-overhaul.ipd.md",
+    "plan_id": "ny1pjz",
+    "set_id": "awhelp",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260818-awhelp-01-1fpmg7-rewrite-terse-and-jargon-help-strings.ipd.md",
@@ -1906,6 +1916,16 @@
     "order": 2,
     "path": "executed/20260818-awhelp-02-vrk3l0-verbose-non-tty-agent-help-and-arg-hungry-verb-examples.ipd.md",
     "plan_id": "vrk3l0",
+    "set_id": "awhelp",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 3,
+    "path": "executed/20260818-awhelp-03-oc4cph-json-output-and-documented-exit-codes-on-read-verbs.ipd.md",
+    "plan_id": "oc4cph",
     "set_id": "awhelp",
     "status": "executed"
   },
@@ -2117,26 +2137,6 @@
     "path": "pending/20260818-awcolor-01-u88tb7-256-color-pretty-output-across-all-aw-verbs-by-default-on-tt.ipd.md",
     "plan_id": "u88tb7",
     "set_id": "awcolor",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260818-awhelp-00-ny1pjz-help-text-and-agent-facing-ux-overhaul.ipd.md",
-    "plan_id": "ny1pjz",
-    "set_id": "awhelp",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 3,
-    "path": "pending/20260818-awhelp-03-oc4cph-json-output-and-documented-exit-codes-on-read-verbs.ipd.md",
-    "plan_id": "oc4cph",
-    "set_id": "awhelp",
     "status": "approved"
   },
   {
