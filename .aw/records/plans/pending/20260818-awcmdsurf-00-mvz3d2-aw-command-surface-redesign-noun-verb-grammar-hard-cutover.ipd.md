@@ -17,6 +17,7 @@
 - 2026-08-18 authored (opencode Opus 4.8): built from spec 20260818-1525-01 + a code-grounded cli.py investigation (flat dispatch chain cli.py:4018-4241; plans argv shim cli.py:4023-4031; backends mapped).
 - 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified against spec 20260818-1525-01 and cli.py:4018-4031; multi-order sequencing and dependency layering sound; structural lint conforming; no findings; no blocking open questions; GO - PENDING HUMAN APPROVAL.
 - 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE; re-review (opencode): verified spec + dispatch chain 4018/argv shim 4023; sequencing sound; conforming; no findings.
+- 2026-08-18 /plan-review (opencode Opus 4.8, RIGOROUS): APPROVE (no revisions). Empirically checked the two things that could make completion/V-01 unsatisfiable: (a) V-01 requires `aw check plans` etc. output - satisfiable here because THIS Set BUILDS those verbs (unlike awcheck-00, whose identical requirement was a defect); (b) the "`aw check all` clean" criterion - verified this repo is currently clean under all per-type checks AND has 0 cross-tree id6 collisions (aw attention --check valid), so the criterion is achievable. Confirmed awcmdsurf-05 preserves the normalize_plan_names backend the awcheck engine depends on. Cross-Set deps (awselect + awcheck) truthfully stated with a runnable-intermediate strategy. OQ-01 correctly non-blocking. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
