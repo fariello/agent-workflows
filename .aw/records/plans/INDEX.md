@@ -6,10 +6,10 @@ Showing the 40 most-recent of 97 Sets; the full manifest is INDEX.json.
 
 ## awcheck
 
-- `t9a0b3` [pending] 00 pending/20260818-awcheck-00-t9a0b3-unified-check-and-validation-engine.ipd.md
+- `t9a0b3` [executed] 00 executed/20260818-awcheck-00-t9a0b3-unified-check-and-validation-engine.ipd.md
 - `iw1wlx` [executed] 01 executed/20260818-awcheck-01-iw1wlx-unified-check-engine-core.ipd.md
 - `xwxxo8` [executed] 02 executed/20260818-awcheck-02-xwxxo8-cross-tree-id6-and-setid-collision-verifier.ipd.md
-- `5qwy7d` [pending] 03 pending/20260818-awcheck-03-5qwy7d-legacy-flag-stale-message-fix-and-ipd-lint-name-conformity.ipd.md
+- `5qwy7d` [executed] 03 executed/20260818-awcheck-03-5qwy7d-legacy-flag-stale-message-fix-and-ipd-lint-name-conformity.ipd.md
 
 ## awcmdsurf
 

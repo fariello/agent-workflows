@@ -1752,6 +1752,16 @@
   {
     "date": "2026-08-18",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260818-awcheck-00-t9a0b3-unified-check-and-validation-engine.ipd.md",
+    "plan_id": "t9a0b3",
+    "set_id": "awcheck",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260818-awcheck-01-iw1wlx-unified-check-engine-core.ipd.md",
@@ -1766,6 +1776,16 @@
     "order": 2,
     "path": "executed/20260818-awcheck-02-xwxxo8-cross-tree-id6-and-setid-collision-verifier.ipd.md",
     "plan_id": "xwxxo8",
+    "set_id": "awcheck",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 3,
+    "path": "executed/20260818-awcheck-03-5qwy7d-legacy-flag-stale-message-fix-and-ipd-lint-name-conformity.ipd.md",
+    "plan_id": "5qwy7d",
     "set_id": "awcheck",
     "status": "executed"
   },
@@ -1887,26 +1907,6 @@
     "path": "pending/20260817-awretrofit-00-pp6y76-orchestrator.ipd.md",
     "plan_id": "pp6y76",
     "set_id": "awretrofit",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260818-awcheck-00-t9a0b3-unified-check-and-validation-engine.ipd.md",
-    "plan_id": "t9a0b3",
-    "set_id": "awcheck",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 3,
-    "path": "pending/20260818-awcheck-03-5qwy7d-legacy-flag-stale-message-fix-and-ipd-lint-name-conformity.ipd.md",
-    "plan_id": "5qwy7d",
-    "set_id": "awcheck",
     "status": "approved"
   },
   {
