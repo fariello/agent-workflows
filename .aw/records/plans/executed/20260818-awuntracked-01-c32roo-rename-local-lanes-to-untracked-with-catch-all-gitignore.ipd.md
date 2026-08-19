@@ -204,32 +204,32 @@ Update the AGENTS pointer wording (engine.py:949) and the prompts/comms nested-`
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a fresh scaffold's relevant tree showing `.aw/records/prompts/untracked/` and `.aw/records/comms/untracked/inbox/` exist and NO `local/` lane; paste the prompts + comms nested `.gitignore` contents showing `untracked/`; paste the AGENTS pointer clause (`engine.agents_pointer_block()`) showing `untracked/inbox/`; and paste a grep proving the unrelated names are unchanged, e.g.:
     ```bash
     python3 -c "from agent_workflows import engine; print(engine.PROMPTS_LOCAL_SUBDIR); print(engine._PROMPTS_GITIGNORE_TEMPLATE); print(engine._COMMS_GITIGNORE_TEMPLATE); print('untracked/inbox/' in engine.agents_pointer_block())"
     rg -n "local\.json|local-leaks-allowlist|local-only|LOCAL_GIT|CONFIG_LOCAL" agent_workflows/engine.py agent_workflows/project_schema.py
     ```
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: PROMPTS_LOCAL_SUBDIR=="untracked"; both nested gitignore templates emit `untracked/`; `agents_pointer_block()` contains `untracked/inbox/`; unrelated `local.json`/config names unchanged. Confirmed via the engine edits + full serial suite (1150 passed, 1 skipped).
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste the passing updated test modules and the tail of the full serial suite:
     ```bash
     python3 -m pytest tests/test_setup_artifacts.py tests/test_installer.py tests/test_comms.py tests/test_layout_migration.py tools/test_agy_run.py -p no:xdist -q
     python3 -m pytest -p no:xdist
     ```
     plus a snippet running the migration on a fixture with a populated `local/` lane and printing that the `untracked/` lane now holds the same file contents, the old `local/` lane is gone, and a second run is a no-op.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: updated test_setup_artifacts/test_comms/test_installer pass; migration rename+content-preservation+idempotency proven by test_untracked_lane_migration (3 pass); full serial suite 1150 passed, 1 skipped.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste the focused migration test result (rename + content-preservation + idempotency) and the full serial suite tail:
     ```bash
     python3 -m pytest tests/test_untracked_lane_migration.py -p no:xdist -q
     python3 -m pytest -p no:xdist
     ```
     (If E-03 is not taken, mark this V `n/a` with a one-line rationale - E-02 already exercises the migration.)
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: tests/test_untracked_lane_migration.py 3 pass (rename preserves contents, idempotent second run returns [], no-op when no local/); full serial suite 1150 passed, 1 skipped.
+  - Result: pass
 
 ## Approval and execution gate
 
