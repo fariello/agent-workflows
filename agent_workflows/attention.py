@@ -561,11 +561,18 @@ def _common_dir_prefix(paths: List[str]) -> str:
     return (common + "/") if common else ""
 
 
-def _age_marker(last_history_at: Optional[str]) -> str:
-    """awdoctor Order 01: a compact staleness marker from last_history_at. '!' when older than
-    ~30 days, '?' when unknown (None), else '' (recent). Deterministic: compares ISO dates only."""
+# awdoctorfix Order 03: trees with no workflow-history lifecycle (research is commonly at intake with
+# no history; actions carry status, not a history block) - a None last_history_at is NORMAL there, so
+# suppress the `?` unknown-age marker rather than showing noise.
+_HISTORYLESS_TREES = {"actions", "research"}
+
+
+def _age_marker(last_history_at: Optional[str], tree: str = "") -> str:
+    """awdoctor Order 01 + awdoctorfix Order 03: a compact staleness marker from last_history_at.
+    '!' when older than ~30 days, '?' when unknown (None) EXCEPT on a history-less tree (returns ''),
+    else '' (recent). Deterministic: compares ISO dates only."""
     if last_history_at is None:
-        return "?"
+        return "" if tree in _HISTORYLESS_TREES else "?"
     try:
         from datetime import date
 
@@ -649,7 +656,7 @@ def render_board(
                 status_padded = status_txt + (" " * max(0, 12 - len(status_word)))
                 # awdoctor Order 01 + awdoctorfix Order 01: compact leading markers from Item fields:
                 #   age ('!' >30d / '?' unknown) + gate ('#') + release-blocker ('>').
-                age = _age_marker(it.last_history_at)
+                age = _age_marker(it.last_history_at, it.tree)
                 gate_glyph = "#" if it.gate else ""
                 rb_glyph = ">" if it.blocks_release else ""
                 blk = (age + gate_glyph + rb_glyph).strip()

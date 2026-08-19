@@ -93,6 +93,20 @@ def _version_drift(repo_root: Path) -> List[core.Drift]:
         if not vfile.is_file():
             vfile = repo_root / ".agents" / "VERSION"
         target = vfile.read_text(encoding="utf-8").strip() if vfile.is_file() else None
+        # awdoctorfix Order 03 (PR-001): skip the version probe in the FRAMEWORK SOURCE checkout - no
+        # installed VERSION AND a pyproject naming agent-workflows AND an agent_workflows/ package dir
+        # at root. Require ALL (a downstream consumer that merely lists agent-workflows as a dependency
+        # has no agent_workflows/ dir, so it still gets a correct version-not-installed).
+        if target is None and (repo_root / "agent_workflows").is_dir():
+            pyproject = repo_root / "pyproject.toml"
+            if pyproject.is_file():
+                try:
+                    if 'name = "agent-workflows"' in pyproject.read_text(
+                        encoding="utf-8"
+                    ):
+                        return []
+                except OSError:
+                    pass
         try:
             packaged = versioning.resolve_version(engine.resolve_source_root(None))
         except Exception:
@@ -127,4 +141,19 @@ def run(args) -> int:
     else:
         for d in drift:
             sys.stdout.write(f"- {d.location}: {d.rule} {d.detail}\n")
+        # awdoctorfix Order 03: an informative summary by category, so the reader knows whether the
+        # findings are actionable.
+        g = sum(1 for d in drift if d.rule.startswith("doctor.git-"))
+        m = sum(
+            1
+            for d in drift
+            if d.rule.startswith("doctor.name") or d.rule.startswith("attention.")
+        )
+        v = sum(1 for d in drift if d.rule.startswith("doctor.version-"))
+        summary = (
+            f"aw doctor: {len(drift)} finding(s) (git: {g}, names: {m}, version: {v})."
+        )
+        if all(d.rule == "doctor.git-untracked" for d in drift):
+            summary += " - untracked files are informational, not errors"
+        sys.stdout.write(summary + "\n")
     return core.drift_exit_code(drift)
