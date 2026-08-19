@@ -46,7 +46,7 @@ Showing the 40 most-recent of 97 Sets; the full manifest is INDEX.json.
 
 - `x97z83` [pending] 00 pending/20260818-awhistory-00-x97z83-global-history-sidecar-and-inline-metadata-slimming.ipd.md
 - `im90a5` [executed] 01 executed/20260818-awhistory-01-im90a5-global-history-jsonl-store-and-writer-module.ipd.md
-- `b0behn` [pending] 02 pending/20260818-awhistory-02-b0behn-route-status-writers-to-the-sidecar-and-slim-inline-history.ipd.md
+- `b0behn` [executed] 02 executed/20260818-awhistory-02-b0behn-route-status-writers-to-the-sidecar-and-slim-inline-history.ipd.md
 - `cizkf4` [pending] 03 pending/20260818-awhistory-03-cizkf4-migrate-inline-history-into-the-sidecar-and-history-read-ver.ipd.md
 
 ## awlintmulti
