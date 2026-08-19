@@ -143,7 +143,7 @@ class AckTests(unittest.TestCase):
 class PointerBlockTests(unittest.TestCase):
     def test_agents_block_has_check_inbox_clause(self):
         block = engine.agents_pointer_block()
-        self.assertIn(".agents/comms/local/inbox/", block)
+        self.assertIn(".agents/comms/untracked/inbox/", block)
         self.assertIn("UNTRUSTED", block)
 
 

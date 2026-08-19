@@ -426,9 +426,10 @@ class MigrationManager:
 
         Git TRACKING STATE is the primary safety signal: `remove` deletes ONLY a path that git
         TRACKS in the target repo (a genuine orphaned tracked leftover). Anything UNTRACKED or
-        IGNORED is preserved - critically the untracked-but-not-gitignored local lanes
-        (`.agents/prompts/local/`, `.agents/comms/local/`, the `*untracked*` convention), which a
-        `git check-ignore`-only guard would MISS (they are untracked, not matched by .gitignore).
+        IGNORED is preserved - critically the untracked-but-not-gitignored quarantine lanes
+        (`.agents/prompts/untracked/`, `.agents/comms/untracked/`, and the legacy `local/` lane still
+        on disk in un-migrated repos), which a `git check-ignore`-only guard would MISS (they are
+        untracked, not matched by .gitignore).
         """
 
         repo_path = Path(self.target_repo)

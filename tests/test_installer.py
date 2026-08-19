@@ -1176,7 +1176,7 @@ class TrackingWarningScanTests(unittest.TestCase):
         repo = init_repo(self.base / "notice")
         out = self._install_capture(repo)
         self.assertIn("git-tracks IPDs, prompts, and research by default", out)
-        self.assertIn(".agents/prompts/local/", out)
+        self.assertIn(".agents/prompts/untracked/", out)
         self.assertIn("untracked", out)
 
     def test_clean_repo_has_no_per_file_warning(self):

@@ -79,13 +79,15 @@ class SetupArtifactTests(unittest.TestCase):
         # materialized (installer creates all expected dirs) but NOT tracked (empty + gitignored).
         self.assertTrue((self.repo / ".aw/records/prompts/.gitignore").is_file())
         self.assertIn(
-            "local/",
+            "untracked/",
             (self.repo / ".aw/records/prompts/.gitignore").read_text(encoding="utf-8"),
         )
-        self.assertTrue((self.repo / ".aw/records/prompts/local").is_dir())
-        self.assertFalse((self.repo / ".aw/records/prompts/local/.gitkeep").exists())
+        self.assertTrue((self.repo / ".aw/records/prompts/untracked").is_dir())
+        self.assertFalse(
+            (self.repo / ".aw/records/prompts/untracked/.gitkeep").exists()
+        )
         # Comms local/ is also materialized now (D94, uniform "installer creates all expected dirs").
-        self.assertTrue((self.repo / ".aw/records/comms/local/inbox").is_dir())
+        self.assertTrue((self.repo / ".aw/records/comms/untracked/inbox").is_dir())
         # Verify no-clobber READMEs (flat; there is no .aw/records/docs/README.md in the aw layout).
         self.assertFalse((self.repo / ".aw/records/docs/README.md").exists())
         self.assertTrue((self.repo / ".aw/records/research/README.md").is_file())
@@ -102,11 +104,11 @@ class SetupArtifactTests(unittest.TestCase):
             )
         # `local/` is ignored by the nested .gitignore, so it gets NO committed .gitkeep.
         self.assertFalse(
-            (self.repo / ".aw/records/comms/local/inbox/.gitkeep").exists()
+            (self.repo / ".aw/records/comms/untracked/inbox/.gitkeep").exists()
         )
         # The nested .gitignore ignores local/ and does NOT touch the target root .gitignore.
         self.assertIn(
-            "local/",
+            "untracked/",
             (self.repo / ".aw/records/comms/.gitignore").read_text(encoding="utf-8"),
         )
         # AC-16: guidance to run /setup-repo is emitted.
@@ -262,11 +264,13 @@ class PromptsScaffoldTests(unittest.TestCase):
         engine.install_into_repo(self.repo, SOURCE_WORKFLOWS, yes=True, no_color=True)
         gi = self.repo / ".aw/records/prompts/.gitignore"
         self.assertTrue(gi.is_file())
-        self.assertIn("local/", gi.read_text(encoding="utf-8"))
-        self.assertTrue((self.repo / ".aw/records/prompts/local").is_dir())
-        self.assertFalse((self.repo / ".aw/records/prompts/local/.gitkeep").exists())
+        self.assertIn("untracked/", gi.read_text(encoding="utf-8"))
+        self.assertTrue((self.repo / ".aw/records/prompts/untracked").is_dir())
+        self.assertFalse(
+            (self.repo / ".aw/records/prompts/untracked/.gitkeep").exists()
+        )
         # git actually ignores content under local/
-        (self.repo / ".aw/records/prompts/local/x.md").write_text(
+        (self.repo / ".aw/records/prompts/untracked/x.md").write_text(
             "raw\n", encoding="utf-8"
         )
         r = subprocess.run(
@@ -275,7 +279,7 @@ class PromptsScaffoldTests(unittest.TestCase):
                 "-C",
                 str(self.repo),
                 "check-ignore",
-                ".aw/records/prompts/local/x.md",
+                ".aw/records/prompts/untracked/x.md",
             ],
             capture_output=True,
             text=True,
