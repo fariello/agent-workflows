@@ -1820,6 +1820,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-18",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260818-awselect-02-miggho-aw-show-resolves-records-id6-and-status-selection.ipd.md",
+    "plan_id": "miggho",
+    "set_id": "awselect",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -2156,16 +2166,6 @@
     "order": 0,
     "path": "pending/20260818-awselect-00-1qe40j-universal-selectors-and-multi-target-and-aw-show-id6-resolut.ipd.md",
     "plan_id": "1qe40j",
-    "set_id": "awselect",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260818-awselect-02-miggho-aw-show-resolves-records-id6-and-status-selection.ipd.md",
-    "plan_id": "miggho",
     "set_id": "awselect",
     "status": "approved"
   },
