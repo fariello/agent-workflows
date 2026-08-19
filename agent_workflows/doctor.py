@@ -1,159 +1,664 @@
-"""`aw doctor`: a read-only deep repo inspector that AGGREGATES existing check signals (attention
-validity incl. malformed names + status-vs-location + duplicate-id + unclassified-tree, git state,
-version drift) into one Drift-based report. Composes existing checks; reimplements none; writes
-nothing. Reuses the shared Drift / --agent / drift_exit_code convention (artifact_core)."""
+"""`aw doctor`: a comprehensive, read-only deep repo inspector that aggregates and reports health
+signals across git state, framework configuration, version currency, cross-tree attention,
+artifact schema/contract integrity, release gates, and local security/leak hygiene into one
+structured, actionable report. Composes existing checks; reimplements none; writes nothing."""
 
 from __future__ import annotations
 
+import os
+import subprocess
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List
+from typing import Dict, List, Optional, Tuple
 
 from agent_workflows import artifact_core as core
 from agent_workflows import attention as attention_mod
+from agent_workflows import check_engine
+from agent_workflows import engine
+from agent_workflows import leak_sanitizer
+from agent_workflows import term as T
+from agent_workflows import versioning
 
 
-def run_doctor(repo_root: Path) -> List[core.Drift]:
-    """Aggregate every existing check signal into one List[Drift]. Read-only, deterministic (sorted
-    by (location, rule)). Each probe is wrapped so one failing probe degrades to a single
-    `doctor.probe-failed` drift, never aborting the report."""
-    drift: List[core.Drift] = []
-    drift.extend(_attention_drift(repo_root))
-    drift.extend(_git_drift(repo_root))
-    drift.extend(_version_drift(repo_root))
-    return sorted(drift, key=lambda d: (d.location, d.rule))
+@dataclass
+class GitProbeResult:
+    available: bool = False
+    branch: str = ""
+    upstream: str = ""
+    ahead: int = 0
+    behind: int = 0
+    staged: List[Tuple[str, str]] = field(default_factory=list)  # (code, path)
+    modified: List[Tuple[str, str]] = field(default_factory=list)  # (code, path)
+    untracked: List[str] = field(default_factory=list)
+    conflicts: List[str] = field(default_factory=list)
+    drift: List[core.Drift] = field(default_factory=list)
 
 
-def _attention_drift(repo_root: Path) -> List[core.Drift]:
-    """Reuse attention.scan: it already emits malformed-name, status-vs-location, duplicate-id, and
-    unclassified-tree drift. The attention view's validity == (no drift)."""
-    try:
-        _items, drift = attention_mod.scan(repo_root)
-        return list(drift)
-    except Exception as exc:
-        return [core.Drift("<attention>", "doctor.probe-failed", str(exc)[:120])]
+@dataclass
+class EnvironmentProbeResult:
+    is_source_repo: bool = False
+    installed_version: Optional[str] = None
+    packaged_version: str = ""
+    version_status: str = "current"
+    layout: str = "none"  # ".aw", ".agents", or "unconfigured"
+    preset: Optional[str] = None
+    backend: Optional[str] = None
+    setup_needed: bool = False
+    drift: List[core.Drift] = field(default_factory=list)
 
 
-def _git_drift(repo_root: Path) -> List[core.Drift]:
-    """Reuse engine.classify_git_state over `git status --porcelain`. Read-only: no pull, no
-    interactive path."""
-    import subprocess
+@dataclass
+class AttentionProbeResult:
+    total_items: int = 0
+    by_class: Dict[str, int] = field(default_factory=dict)
+    active_release: Optional[str] = None
+    release_blockers: List[str] = field(default_factory=list)
+    drift: List[core.Drift] = field(default_factory=list)
 
-    from agent_workflows import engine
 
+@dataclass
+class ArtifactsProbeResult:
+    type_counts: Dict[str, int] = field(default_factory=dict)
+    type_drift: Dict[str, List[core.Drift]] = field(default_factory=dict)
+    all_drift: List[core.Drift] = field(default_factory=list)
+
+
+@dataclass
+class SanitizerProbeResult:
+    scanned_files: int = 0
+    findings: List[leak_sanitizer.Finding] = field(default_factory=list)
+    drift: List[core.Drift] = field(default_factory=list)
+
+
+@dataclass
+class DoctorReport:
+    repo_root: Path
+    git: GitProbeResult
+    env: EnvironmentProbeResult
+    attention: AttentionProbeResult
+    artifacts: ArtifactsProbeResult
+    sanitizer: SanitizerProbeResult
+    all_drift: List[core.Drift] = field(default_factory=list)
+
+
+# --------------------------------------------------------------------------------------
+# Probes
+# --------------------------------------------------------------------------------------
+
+
+def probe_git(repo_root: Path) -> GitProbeResult:
+    """Inspect git branch, upstream sync status, staged changes, unstaged modifications,
+    and untracked files."""
+    res = GitProbeResult()
     try:
         if not engine.git_available(repo_root):
-            return []
-        porc = subprocess.run(
-            ["git", "status", "--porcelain"],
+            return res
+        res.available = True
+
+        proc = subprocess.run(
+            ["git", "status", "--porcelain=v1", "-b", "-uall"],
             cwd=str(repo_root),
             capture_output=True,
             text=True,
             shell=False,
-        ).stdout
-        branch = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            cwd=str(repo_root),
-            capture_output=True,
-            text=True,
-            shell=False,
-        ).stdout.strip()
-        state = engine.classify_git_state(
-            porc, behind=0, has_tracking=True, branch=branch, tracking_branch=""
         )
-        out: List[core.Drift] = []
-        if getattr(state, "tracked_dirty", 0):
-            out.append(
-                core.Drift(
-                    "<git>",
-                    "doctor.git-dirty",
-                    f"{state.tracked_dirty} uncommitted tracked change(s)",
-                )
+        if proc.returncode != 0:
+            res.drift.append(
+                core.Drift("<git>", "doctor.probe-failed", "git status failed")
             )
-        if getattr(state, "untracked", 0):
-            out.append(
-                core.Drift(
-                    "<git>",
-                    "doctor.git-untracked",
-                    f"{state.untracked} untracked file(s)",
-                )
-            )
-        return out
+            return res
+
+        lines = proc.stdout.splitlines()
+        if lines:
+            header = lines[0]
+            # Parse `## branch...upstream [ahead X, behind Y]` or `## HEAD (no branch)`
+            if header.startswith("## "):
+                head_info = header[3:].strip()
+                if "..." in head_info:
+                    b_part, rest = head_info.split("...", 1)
+                    res.branch = b_part.strip()
+                    if "[" in rest and "]" in rest:
+                        u_part, track = rest.split("[", 1)
+                        res.upstream = u_part.strip()
+                        track = track.rstrip("]")
+                        for part in track.split(","):
+                            part = part.strip()
+                            if part.startswith("ahead "):
+                                try:
+                                    res.ahead = int(part.split()[1])
+                                except ValueError:
+                                    pass
+                            elif part.startswith("behind "):
+                                try:
+                                    res.behind = int(part.split()[1])
+                                except ValueError:
+                                    pass
+                    else:
+                        res.upstream = rest.strip()
+                else:
+                    res.branch = head_info
+
+            for line in lines[1:]:
+                if not line or len(line) < 3:
+                    continue
+                code = line[:2]
+                path = line[3:].strip()
+                # Conflicts
+                if code in ("UU", "AA", "DD", "UD", "DU", "AU", "UA"):
+                    res.conflicts.append(path)
+                    res.drift.append(
+                        core.Drift(
+                            path, "doctor.git-conflict", f"unmerged conflict ({code})"
+                        )
+                    )
+                elif code == "??":
+                    res.untracked.append(path)
+                    res.drift.append(
+                        core.Drift(path, "doctor.git-untracked", "untracked file")
+                    )
+                else:
+                    x, y = code[0], code[1]
+                    if x in "MADRC":
+                        res.staged.append((x, path))
+                        res.drift.append(
+                            core.Drift(
+                                path, "doctor.git-staged", f"staged change ({x})"
+                            )
+                        )
+                    if y in "MD":
+                        res.modified.append((y, path))
+                        res.drift.append(
+                            core.Drift(
+                                path,
+                                "doctor.git-dirty",
+                                f"uncommitted modification ({y})",
+                            )
+                        )
     except Exception as exc:
-        return [core.Drift("<git>", "doctor.probe-failed", str(exc)[:120])]
+        res.drift.append(core.Drift("<git>", "doctor.probe-failed", str(exc)[:120]))
+    return res
 
 
-def _version_drift(repo_root: Path) -> List[core.Drift]:
-    """Reuse versioning.status comparing the installed VERSION to the packaged (source) version.
-    'stale'/'dev'/'unknown'/'not-installed' become one `doctor.version-*` drift; else none."""
+def probe_environment(repo_root: Path) -> EnvironmentProbeResult:
+    """Inspect framework layout, configuration preset/backend, and version currency."""
+    res = EnvironmentProbeResult()
     try:
-        from agent_workflows import engine, versioning
+        # Detect framework source repository
+        if (repo_root / "agent_workflows").is_dir() and (
+            repo_root / "pyproject.toml"
+        ).is_file():
+            try:
+                pyproject = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
+                if 'name = "agent-workflows"' in pyproject:
+                    res.is_source_repo = True
+            except OSError:
+                pass
 
+        # Layout & config
+        if (repo_root / ".aw").is_dir():
+            res.layout = ".aw"
+        elif (repo_root / ".agents").is_dir():
+            res.layout = ".agents"
+        else:
+            res.layout = "unconfigured"
+
+        config_path = repo_root / ".aw" / "config.json"
+        if not config_path.is_file():
+            config_path = repo_root / ".agents" / "config.json"
+        if config_path.is_file():
+            try:
+                import json
+
+                cfg = json.loads(config_path.read_text(encoding="utf-8"))
+                res.preset = cfg.get("preset")
+                res.backend = cfg.get("records_backend")
+            except Exception:
+                pass
+
+        # Versioning
         vfile = repo_root / ".aw" / "VERSION"
         if not vfile.is_file():
             vfile = repo_root / ".agents" / "VERSION"
-        target = vfile.read_text(encoding="utf-8").strip() if vfile.is_file() else None
-        # awdoctorfix Order 03 (PR-001): skip the version probe in the FRAMEWORK SOURCE checkout - no
-        # installed VERSION AND a pyproject naming agent-workflows AND an agent_workflows/ package dir
-        # at root. Require ALL (a downstream consumer that merely lists agent-workflows as a dependency
-        # has no agent_workflows/ dir, so it still gets a correct version-not-installed).
-        if target is None and (repo_root / "agent_workflows").is_dir():
-            pyproject = repo_root / "pyproject.toml"
-            if pyproject.is_file():
-                try:
-                    if 'name = "agent-workflows"' in pyproject.read_text(
-                        encoding="utf-8"
-                    ):
-                        return []
-                except OSError:
-                    pass
+        if vfile.is_file():
+            try:
+                res.installed_version = vfile.read_text(encoding="utf-8").strip()
+            except OSError:
+                pass
+
         try:
-            packaged = versioning.resolve_version(engine.resolve_source_root(None))
+            res.packaged_version = versioning.resolve_version(
+                engine.resolve_source_root(None)
+            )
         except Exception:
-            packaged = ""
-        st = versioning.status(target, packaged)
-        # 'dev' is normal on a development checkout (not drift the user must fix); only flag genuine
-        # currency problems.
-        if st in ("stale", "unknown", "not-installed"):
-            return [
-                core.Drift(
-                    "<version>",
-                    f"doctor.version-{st}",
-                    f"installed={target!r} packaged={packaged!r}",
+            res.packaged_version = ""
+
+        if not res.is_source_repo:
+            res.version_status = versioning.status(
+                res.installed_version, res.packaged_version
+            )
+            if res.version_status in ("stale", "unknown", "not-installed"):
+                res.drift.append(
+                    core.Drift(
+                        "<version>",
+                        f"doctor.version-{res.version_status}",
+                        f"installed={res.installed_version!r} packaged={res.packaged_version!r}",
+                    )
                 )
-            ]
-        return []
+
+        # Setup needed
+        res.setup_needed = attention_mod.setup_needed(repo_root)
+        if res.setup_needed:
+            res.drift.append(
+                core.Drift(
+                    "<setup>",
+                    "doctor.setup-needed",
+                    "initial setup-repo action is open and repo is unconfigured",
+                )
+            )
     except Exception as exc:
-        return [core.Drift("<version>", "doctor.probe-failed", str(exc)[:120])]
+        res.drift.append(core.Drift("<version>", "doctor.probe-failed", str(exc)[:120]))
+    return res
 
 
-def run(args) -> int:
+def probe_attention(repo_root: Path) -> AttentionProbeResult:
+    """Inspect cross-tree attention board validity and release gates."""
+    res = AttentionProbeResult()
+    try:
+        items, drift = attention_mod.scan(repo_root)
+        res.total_items = len(items)
+        res.drift = list(drift)
+        for it in items:
+            res.by_class[it.attention_class] = (
+                res.by_class.get(it.attention_class, 0) + 1
+            )
+        res.release_blockers = [
+            it.path for it in attention_mod.release_blockers(items, repo_root)
+        ]
+        try:
+            from agent_workflows import releases
+
+            act = releases.load_active_release(repo_root)
+            if act:
+                res.active_release = f"{act.id6} ({act.version})"
+        except Exception:
+            pass
+    except Exception as exc:
+        res.drift.append(
+            core.Drift("<attention>", "doctor.probe-failed", str(exc)[:120])
+        )
+    return res
+
+
+def probe_artifacts(repo_root: Path) -> ArtifactsProbeResult:
+    """Inspect artifact schema conformity, frontmatter contracts, index reference integrity,
+    and set-id collisions across all artifact types."""
+    res = ArtifactsProbeResult()
+    try:
+        from agent_workflows import artifact_types as at
+
+        for t in at.ARTIFACT_TYPES:
+            files = list(check_engine._iter_type_files(repo_root, t))
+            res.type_counts[t] = len(files)
+            if t in check_engine.SUPPORTED:
+                tdrift = check_engine.check_type(repo_root, t)
+                if tdrift:
+                    # Normalize location to relative path if under repo_root
+                    normalized_drift = []
+                    for d in tdrift:
+                        loc = d.location
+                        try:
+                            p = Path(loc)
+                            if p.is_absolute() and p.is_relative_to(repo_root):
+                                loc = str(p.relative_to(repo_root))
+                        except Exception:
+                            pass
+                        normalized_drift.append(core.Drift(loc, d.rule, d.detail))
+                    res.type_drift[t] = normalized_drift
+                    res.all_drift.extend(normalized_drift)
+
+        # Global setid collisions across types
+        collisions = check_engine.check_collisions(repo_root)
+        if collisions:
+            normalized_collisions = []
+            for d in collisions:
+                loc = d.location
+                try:
+                    p = Path(loc)
+                    if p.is_absolute() and p.is_relative_to(repo_root):
+                        loc = str(p.relative_to(repo_root))
+                except Exception:
+                    pass
+                normalized_collisions.append(core.Drift(loc, d.rule, d.detail))
+            res.all_drift.extend(normalized_collisions)
+    except Exception as exc:
+        res.all_drift.append(
+            core.Drift("<artifacts>", "doctor.probe-failed", str(exc)[:120])
+        )
+    return res
+
+
+def probe_sanitizer(repo_root: Path) -> SanitizerProbeResult:
+    """Scan tracked working tree for maintainer or machine identifying leaks."""
+    res = SanitizerProbeResult()
+    try:
+        findings = leak_sanitizer.scan_working_tree(repo_root)
+        res.findings = findings
+        for f in findings:
+            res.drift.append(
+                core.Drift(
+                    f.location, f"doctor.leak-{f.rule}", f"{f.severity}: {f.matched}"
+                )
+            )
+    except Exception as exc:
+        res.drift.append(
+            core.Drift("<sanitizer>", "doctor.probe-failed", str(exc)[:120])
+        )
+    return res
+
+
+def collect_doctor_report(repo_root: Path) -> DoctorReport:
+    """Run all doctor probes and assemble the DoctorReport."""
+    git_res = probe_git(repo_root)
+    env_res = probe_environment(repo_root)
+    attn_res = probe_attention(repo_root)
+    art_res = probe_artifacts(repo_root)
+    san_res = probe_sanitizer(repo_root)
+
+    # De-duplicate drift by (location, rule, detail)
+    seen = set()
+    combined: List[core.Drift] = []
+    for d in (
+        git_res.drift
+        + env_res.drift
+        + attn_res.drift
+        + art_res.all_drift
+        + san_res.drift
+    ):
+        key = (d.location, d.rule, d.detail)
+        if key not in seen:
+            seen.add(key)
+            combined.append(d)
+
+    combined.sort(key=lambda d: (d.location, d.rule))
+    return DoctorReport(
+        repo_root=repo_root,
+        git=git_res,
+        env=env_res,
+        attention=attn_res,
+        artifacts=art_res,
+        sanitizer=san_res,
+        all_drift=combined,
+    )
+
+
+def run_doctor(repo_root: Path) -> List[core.Drift]:
+    """Aggregate every check signal into one List[Drift]. Read-only, deterministic (sorted
+    by (location, rule)). Composes existing checks; reimplements none; writes nothing."""
+    report = collect_doctor_report(repo_root)
+    return report.all_drift
+
+
+def _version_drift(repo_root: Path) -> List[core.Drift]:
+    """Legacy helper for testing version drift isolatedly."""
+    return probe_environment(repo_root).drift
+
+
+# --------------------------------------------------------------------------------------
+# Human Report Renderer
+# --------------------------------------------------------------------------------------
+
+
+def render_human_report(report: DoctorReport, term: T.Term) -> str:
+    """Render a comprehensive, colorized, beautifully structured health inspection report."""
+    lines: List[str] = []
+
+    def _badge(status: str) -> str:
+        if status == "PASS":
+            return term.color256("[PASS]", 46, bold=True)
+        if status == "WARN":
+            return term.color256("[WARN]", 214, bold=True)
+        if status == "FAIL":
+            return term.color256("[FAIL]", 196, bold=True)
+        return term.color256("[INFO]", 39, bold=True)
+
+    header = term.colorize("aw doctor: deep repo inspection", "bold")
+    lines.append(f"{header} ({report.repo_root})")
+    lines.append("")
+
+    total_passed = 0
+    total_findings = len(report.all_drift)
+
+    # 1. Environment & Framework
+    env = report.env
+    env_status = (
+        "FAIL"
+        if any(d.rule.startswith("doctor.version-") for d in env.drift)
+        else ("WARN" if env.setup_needed else "PASS")
+    )
+    if env_status == "PASS":
+        total_passed += 1
+
+    lines.append(f"{_badge(env_status)} Environment & Framework")
+    if env.is_source_repo:
+        lines.append(f"  Repository:  Framework source checkout ({report.repo_root})")
+        lines.append(
+            f"  Package:     agent-workflows {env.packaged_version or '0.1.0'} (source root)"
+        )
+    else:
+        lines.append(f"  Repository:  Target project repository ({report.repo_root})")
+        ver_info = f"{env.installed_version or 'not installed'}"
+        if env.packaged_version:
+            ver_info += f" (packaged: {env.packaged_version})"
+        lines.append(f"  Version:     {ver_info} [{env.version_status}]")
+
+    layout_info = env.layout
+    if env.preset or env.backend:
+        layout_info += f" (preset: {env.preset or 'standard'}, backend: {env.backend or 'repo-tracked'})"
+    lines.append(f"  Layout:      {layout_info}")
+    if env.setup_needed:
+        lines.append(
+            "  Notice:      "
+            + term.color256(
+                "Initial setup needed (setup-repo action open)", 214, bold=True
+            )
+        )
+    lines.append("")
+
+    # 2. Git Working Tree
+    git = report.git
+    git_status = "PASS"
+    if git.conflicts or git.modified:
+        git_status = "FAIL"
+    elif git.untracked or git.staged:
+        git_status = "WARN"
+
+    if git_status == "PASS":
+        total_passed += 1
+
+    git_count_info = f" ({len(git.drift)} finding(s))" if git.drift else ""
+    lines.append(f"{_badge(git_status)} Git Working Tree{git_count_info}")
+    if not git.available:
+        lines.append("  Git:         Not a git repository or git unavailable")
+    else:
+        track_parts = []
+        if git.upstream:
+            track_parts.append(f"tracking {git.upstream}")
+            if git.ahead:
+                track_parts.append(f"ahead {git.ahead}")
+            if git.behind:
+                track_parts.append(f"behind {git.behind}")
+            if not git.ahead and not git.behind:
+                track_parts.append("up to date")
+        track_str = f" ({', '.join(track_parts)})" if track_parts else ""
+        lines.append(f"  Branch:      {git.branch or 'HEAD'}{track_str}")
+
+        if git.conflicts:
+            lines.append(
+                "  Conflicts:   "
+                + term.color256(
+                    f"{len(git.conflicts)} unmerged conflict(s)", 196, bold=True
+                )
+            )
+            for c in git.conflicts:
+                lines.append(f"    {term.color256('!', 196, bold=True)} {c}")
+
+        if git.staged:
+            lines.append(f"  Staged ({len(git.staged)}):")
+            for code, p in git.staged:
+                lines.append(f"    {term.color256('+', 46, bold=True)} [{code}] {p}")
+
+        if git.modified:
+            lines.append(f"  Unstaged modifications ({len(git.modified)}):")
+            for code, p in git.modified:
+                lines.append(f"    {term.color256('M', 214, bold=True)} [{code}] {p}")
+
+        if git.untracked:
+            lines.append(f"  Untracked files ({len(git.untracked)}):")
+            for p in git.untracked:
+                lines.append(f"    {term.color256('?', 39, bold=True)} {p}")
+
+        if (
+            not git.staged
+            and not git.modified
+            and not git.untracked
+            and not git.conflicts
+        ):
+            lines.append("  Working tree: Clean (0 uncommitted or untracked changes)")
+    lines.append("")
+
+    # 3. Cross-Tree Attention & Release Gates
+    attn = report.attention
+    attn_status = "FAIL" if attn.drift else "PASS"
+    if attn_status == "PASS":
+        total_passed += 1
+
+    attn_count_info = f" ({len(attn.drift)} violation(s))" if attn.drift else ""
+    lines.append(
+        f"{_badge(attn_status)} Cross-Tree Attention & Release Gates{attn_count_info}"
+    )
+    if attn.drift:
+        lines.append(
+            "  Attention:   "
+            + term.color256(
+                f"INVALID ({len(attn.drift)} contract violation(s))", 196, bold=True
+            )
+        )
+        for d in attn.drift:
+            lines.append(f"    - {d.location}: {d.rule} {d.detail}")
+    else:
+        breakdown = ", ".join(f"{count} {cls}" for cls, count in attn.by_class.items())
+        lines.append(
+            f"  Attention:   Valid (0 contract violations across {attn.total_items} items: {breakdown})"
+        )
+
+    if attn.active_release:
+        rb_str = (
+            f" ({len(attn.release_blockers)} active release blocker(s))"
+            if attn.release_blockers
+            else " (0 active blockers)"
+        )
+        lines.append(f"  Release:     {attn.active_release}{rb_str}")
+        if attn.release_blockers:
+            for rb in attn.release_blockers:
+                lines.append(f"    > {term.color256(rb, 208, bold=True)}")
+    lines.append("")
+
+    # 4. Security & Local Leak Sanitizer
+    san = report.sanitizer
+    san_status = "FAIL" if san.findings else "PASS"
+    if san_status == "PASS":
+        total_passed += 1
+
+    san_count_info = f" ({len(san.findings)} finding(s))" if san.findings else ""
+    lines.append(
+        f"{_badge(san_status)} Security & Local Leak Sanitizer{san_count_info}"
+    )
+    if san.findings:
+        lines.append(
+            "  Sanitizer:   "
+            + term.color256(
+                f"{len(san.findings)} leak finding(s) detected", 196, bold=True
+            )
+        )
+        for f in san.findings:
+            lines.append(f"    - {f.location}: {f.rule} ({f.severity}: {f.matched})")
+    else:
+        lines.append("  Sanitizer:   Clean (0 maintainer/local leak findings)")
+    lines.append("")
+
+    # 5. Artifact Integrity & Schema Contracts
+    art = report.artifacts
+    art_status = "FAIL" if art.all_drift else "PASS"
+    if art_status == "PASS":
+        total_passed += 1
+
+    art_count_info = f" ({len(art.all_drift)} finding(s))" if art.all_drift else ""
+    lines.append(
+        f"{_badge(art_status)} Artifact Integrity & Schema Contracts{art_count_info}"
+    )
+    type_summaries = []
+    for t, count in art.type_counts.items():
+        drift_count = len(art.type_drift.get(t, []))
+        if drift_count:
+            type_summaries.append(f"{t}: {count} ({drift_count} drift)")
+        else:
+            type_summaries.append(f"{t}: {count} conforming")
+    lines.append(f"  Inventory:   {', '.join(type_summaries)}")
+
+    if art.all_drift:
+        lines.append("  Findings:")
+        for d in art.all_drift:
+            lines.append(f"    - {d.location}: {d.rule} {d.detail}")
+    lines.append("")
+
+    # Summary Line
+    lines.append("-" * 78)
+    g = sum(1 for d in report.all_drift if d.rule.startswith("doctor.git-"))
+    m = sum(
+        1
+        for d in report.all_drift
+        if d.rule.startswith("doctor.name")
+        or d.rule.startswith("check.")
+        or d.rule.startswith("attention.")
+        or "stale-index" in d.rule
+    )
+    v = sum(1 for d in report.all_drift if d.rule.startswith("doctor.version-"))
+    summary = (
+        f"aw doctor: {total_findings} finding(s) (git: {g}, names: {m}, version: {v})."
+    )
+    if (
+        all(d.rule == "doctor.git-untracked" for d in report.all_drift)
+        and report.all_drift
+    ):
+        summary += " - untracked files are informational, not errors"
+    lines.append(summary)
+
+    return "\n".join(lines) + "\n"
+
+
+# --------------------------------------------------------------------------------------
+# CLI Entrypoint
+# --------------------------------------------------------------------------------------
+
+
+def run(args, term: Optional[T.Term] = None) -> int:
     """`aw doctor` entrypoint: run every probe, print findings (or `no findings`), return the
     standard 0/1 exit code. `--agent` emits tab-separated `location\\trule\\tdetail`."""
-    import os
-
     repo_root = Path(getattr(args, "dir", None) or os.getcwd())
+    if term is None:
+        term = T.Term(color=not getattr(args, "no_color", False))
+
     drift = run_doctor(repo_root)
+
     if getattr(args, "agent", False) or getattr(args, "as_agent", False):
         sys.stdout.write(core.render_agent_drift(drift))
     elif not drift:
         sys.stdout.write("aw doctor: no findings.\n")
     else:
-        for d in drift:
-            sys.stdout.write(f"- {d.location}: {d.rule} {d.detail}\n")
-        # awdoctorfix Order 03: an informative summary by category, so the reader knows whether the
-        # findings are actionable.
-        g = sum(1 for d in drift if d.rule.startswith("doctor.git-"))
-        m = sum(
-            1
-            for d in drift
-            if d.rule.startswith("doctor.name") or d.rule.startswith("attention.")
-        )
-        v = sum(1 for d in drift if d.rule.startswith("doctor.version-"))
-        summary = (
-            f"aw doctor: {len(drift)} finding(s) (git: {g}, names: {m}, version: {v})."
-        )
-        if all(d.rule == "doctor.git-untracked" for d in drift):
-            summary += " - untracked files are informational, not errors"
-        sys.stdout.write(summary + "\n")
+        report = collect_doctor_report(repo_root)
+        if report.all_drift != drift:
+            report.all_drift = drift
+        sys.stdout.write(render_human_report(report, term))
+
     return core.drift_exit_code(drift)

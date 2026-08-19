@@ -4631,7 +4631,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     if args.command == "doctor":
         from agent_workflows import doctor as _doctor
 
-        return _doctor.run(args)
+        return _doctor.run(args, term)
     if args.command == "setup":
         return _run_setup(args, term)
     # awcmdsurf Order 05 (hard cutover): the plan-family + `list` + `plan-names` command dispatch was
