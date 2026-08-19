@@ -40,7 +40,7 @@ Showing the 40 most-recent of 97 Sets; the full manifest is INDEX.json.
 
 ## awhelparg
 
-- `n9ysag` [pending] 01 pending/20260818-awhelparg-01-n9ysag-rewrite-bare-help-token-to-help-in-argv-for-natural-ux.ipd.md
+- `n9ysag` [executed] 01 executed/20260818-awhelparg-01-n9ysag-rewrite-bare-help-token-to-help-in-argv-for-natural-ux.ipd.md
 
 ## awhistory
 

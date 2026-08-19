@@ -1942,6 +1942,16 @@
   {
     "date": "2026-08-18",
     "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260818-awhelparg-01-n9ysag-rewrite-bare-help-token-to-help-in-argv-for-natural-ux.ipd.md",
+    "plan_id": "n9ysag",
+    "set_id": "awhelparg",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
     "kind": "orchestrator",
     "order": 0,
     "path": "executed/20260818-awhistory-00-x97z83-global-history-sidecar-and-inline-metadata-slimming.ipd.md",
@@ -2147,16 +2157,6 @@
     "path": "pending/20260817-awretrofit-00-pp6y76-orchestrator.ipd.md",
     "plan_id": "pp6y76",
     "set_id": "awretrofit",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260818-awhelparg-01-n9ysag-rewrite-bare-help-token-to-help-in-argv-for-natural-ux.ipd.md",
-    "plan_id": "n9ysag",
-    "set_id": "awhelparg",
     "status": "approved"
   },
   {
