@@ -22,7 +22,7 @@ Showing the 40 most-recent of 97 Sets; the full manifest is INDEX.json.
 
 ## awcolor
 
-- `u88tb7` [pending] 01 pending/20260818-awcolor-01-u88tb7-256-color-pretty-output-across-all-aw-verbs-by-default-on-tt.ipd.md
+- `u88tb7` [executed] 01 executed/20260818-awcolor-01-u88tb7-256-color-pretty-output-across-all-aw-verbs-by-default-on-tt.ipd.md
 
 ## awdoctor
 
