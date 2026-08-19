@@ -90,7 +90,7 @@ Showing the 40 most-recent of 97 Sets; the full manifest is INDEX.json.
 
 ## awselect
 
-- `1qe40j` [pending] 00 pending/20260818-awselect-00-1qe40j-universal-selectors-and-multi-target-and-aw-show-id6-resolut.ipd.md
+- `1qe40j` [executed] 00 executed/20260818-awselect-00-1qe40j-universal-selectors-and-multi-target-and-aw-show-id6-resolut.ipd.md
 - `axkviw` [executed] 01 executed/20260818-awselect-01-axkviw-shared-selector-resolver-module.ipd.md
 - `miggho` [executed] 02 executed/20260818-awselect-02-miggho-aw-show-resolves-records-id6-and-status-selection.ipd.md
 

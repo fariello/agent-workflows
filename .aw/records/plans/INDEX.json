@@ -1812,6 +1812,16 @@
   {
     "date": "2026-08-18",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260818-awselect-00-1qe40j-universal-selectors-and-multi-target-and-aw-show-id6-resolut.ipd.md",
+    "plan_id": "1qe40j",
+    "set_id": "awselect",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260818-awselect-01-axkviw-shared-selector-resolver-module.ipd.md",
@@ -2157,16 +2167,6 @@
     "path": "pending/20260818-awresearchrev-01-z4m7bf-review-and-harden-aw-research-command-surface.ipd.md",
     "plan_id": "z4m7bf",
     "set_id": "awresearchrev",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260818-awselect-00-1qe40j-universal-selectors-and-multi-target-and-aw-show-id6-resolut.ipd.md",
-    "plan_id": "1qe40j",
-    "set_id": "awselect",
     "status": "approved"
   },
   {
