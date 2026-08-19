@@ -588,6 +588,23 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Machine-readable tab-separated findings.",
     )
+    p_doctor.add_argument(
+        "--include-untracked",
+        action="store_true",
+        help="Include artifacts in untracked/ directories in checks (default: excluded).",
+    )
+    p_doctor.add_argument(
+        "--include-executed",
+        action="store_true",
+        help="Strictly check historical executed/ artifacts as errors (default: advisory warning).",
+    )
+    p_doctor.add_argument(
+        "-a",
+        "--all",
+        dest="include_all",
+        action="store_true",
+        help="Include both untracked/ artifacts and strict executed/ checks.",
+    )
 
     # awcmdsurf Order 05 (hard cutover): the old plan-family verbs (plans, plans-index, plans-find,
     # plans-set-assign, plans-mv, plans-archive) were REMOVED. Their capabilities are now the

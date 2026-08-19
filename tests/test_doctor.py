@@ -61,6 +61,48 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn("\t", out.getvalue())
 
+    def test_untracked_dir_excluded_by_default(self) -> None:
+        pdir = self.root / ".aw" / "records" / "prompts" / "untracked"
+        pdir.mkdir(parents=True)
+        (pdir / "bad-name.md").write_text("# Bad\n", encoding="utf-8")
+        _git(self.root, "add", "-A")
+        _git(self.root, "commit", "-qm", "add untracked prompt")
+
+        # Default excludes untracked/ directory artifacts
+        drift_default = doctor.run_doctor(self.root, include_untracked=False)
+        self.assertEqual(drift_default, [])
+
+        # include_untracked=True includes them and flags grammar issue
+        drift_all = doctor.run_doctor(self.root, include_untracked=True)
+        self.assertTrue(any(d.rule == "check.name-nonconformant" for d in drift_all))
+
+    def test_executed_dir_warns_by_default(self) -> None:
+        pdir = self.root / ".aw" / "records" / "plans" / "executed"
+        pdir.mkdir(parents=True)
+        (pdir / "bad-plan-name.md").write_text(
+            "# Plan\n- Id: ppp111\n- Status: executed\n", encoding="utf-8"
+        )
+        _git(self.root, "add", "-A")
+        _git(self.root, "commit", "-qm", "add executed plan")
+
+        report = doctor.collect_doctor_report(self.root, include_executed=False)
+        # Treated as executed warning, not in all_drift as name-nonconformant
+        self.assertFalse(
+            any(d.rule == "check.name-nonconformant" for d in report.all_drift)
+        )
+        self.assertTrue(
+            any(
+                d.rule == "check.name-nonconformant"
+                for d in report.artifacts.executed_warnings
+            )
+        )
+
+        # include_executed=True treats it as error
+        report_strict = doctor.collect_doctor_report(self.root, include_executed=True)
+        self.assertTrue(
+            any(d.rule == "check.name-nonconformant" for d in report_strict.all_drift)
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

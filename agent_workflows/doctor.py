@@ -21,6 +21,21 @@ from agent_workflows import term as T
 from agent_workflows import versioning
 
 
+def tag_error(term: T.Term) -> str:
+    """Return `[ERROR]` with ERROR in bold red (xterm 196)."""
+    return "[" + term.color256("ERROR", 196, bold=True) + "]"
+
+
+def tag_warn(term: T.Term) -> str:
+    """Return `[WARN ]` with WARN in bold yellow (xterm 226)."""
+    return "[" + term.color256("WARN ", 226, bold=True) + "]"
+
+
+def tag_info(term: T.Term) -> str:
+    """Return `[INFO ]` with INFO in bold green (xterm 46)."""
+    return "[" + term.color256("INFO ", 46, bold=True) + "]"
+
+
 @dataclass
 class GitProbeResult:
     available: bool = False
@@ -61,6 +76,8 @@ class AttentionProbeResult:
 class ArtifactsProbeResult:
     type_counts: Dict[str, int] = field(default_factory=dict)
     type_drift: Dict[str, List[core.Drift]] = field(default_factory=dict)
+    executed_warnings: List[core.Drift] = field(default_factory=list)
+    untracked_skipped: int = 0
     all_drift: List[core.Drift] = field(default_factory=list)
 
 
@@ -290,21 +307,30 @@ def probe_attention(repo_root: Path) -> AttentionProbeResult:
     return res
 
 
-def probe_artifacts(repo_root: Path) -> ArtifactsProbeResult:
+def probe_artifacts(
+    repo_root: Path,
+    include_untracked: bool = False,
+    include_executed: bool = False,
+) -> ArtifactsProbeResult:
     """Inspect artifact schema conformity, frontmatter contracts, index reference integrity,
-    and set-id collisions across all artifact types."""
+    and set-id collisions across all artifact types. By default excludes untracked/ directories
+    and classifies executed/ non-conformances as historical warnings rather than errors."""
     res = ArtifactsProbeResult()
     try:
         from agent_workflows import artifact_types as at
 
         for t in at.ARTIFACT_TYPES:
-            files = list(check_engine._iter_type_files(repo_root, t))
-            res.type_counts[t] = len(files)
+            all_files = list(check_engine._iter_type_files(repo_root, t))
+            if not include_untracked:
+                filtered_files = [p for p in all_files if "untracked" not in p.parts]
+                res.untracked_skipped += len(all_files) - len(filtered_files)
+            else:
+                filtered_files = all_files
+
+            res.type_counts[t] = len(filtered_files)
             if t in check_engine.SUPPORTED:
                 tdrift = check_engine.check_type(repo_root, t)
                 if tdrift:
-                    # Normalize location to relative path if under repo_root
-                    normalized_drift = []
                     for d in tdrift:
                         loc = d.location
                         try:
@@ -313,14 +339,22 @@ def probe_artifacts(repo_root: Path) -> ArtifactsProbeResult:
                                 loc = str(p.relative_to(repo_root))
                         except Exception:
                             pass
-                        normalized_drift.append(core.Drift(loc, d.rule, d.detail))
-                    res.type_drift[t] = normalized_drift
-                    res.all_drift.extend(normalized_drift)
+
+                        # Exclude untracked/ items if requested
+                        if not include_untracked and "untracked" in loc.split(os.sep):
+                            continue
+
+                        drift_item = core.Drift(loc, d.rule, d.detail)
+                        # Categorize executed/ artifacts as warnings unless strict
+                        if not include_executed and "executed" in loc.split(os.sep):
+                            res.executed_warnings.append(drift_item)
+                        else:
+                            res.type_drift.setdefault(t, []).append(drift_item)
+                            res.all_drift.append(drift_item)
 
         # Global setid collisions across types
         collisions = check_engine.check_collisions(repo_root)
         if collisions:
-            normalized_collisions = []
             for d in collisions:
                 loc = d.location
                 try:
@@ -329,8 +363,15 @@ def probe_artifacts(repo_root: Path) -> ArtifactsProbeResult:
                         loc = str(p.relative_to(repo_root))
                 except Exception:
                     pass
-                normalized_collisions.append(core.Drift(loc, d.rule, d.detail))
-            res.all_drift.extend(normalized_collisions)
+
+                if not include_untracked and "untracked" in loc.split(os.sep):
+                    continue
+
+                drift_item = core.Drift(loc, d.rule, d.detail)
+                if not include_executed and "executed" in loc.split(os.sep):
+                    res.executed_warnings.append(drift_item)
+                else:
+                    res.all_drift.append(drift_item)
     except Exception as exc:
         res.all_drift.append(
             core.Drift("<artifacts>", "doctor.probe-failed", str(exc)[:120])
@@ -357,13 +398,56 @@ def probe_sanitizer(repo_root: Path) -> SanitizerProbeResult:
     return res
 
 
-def collect_doctor_report(repo_root: Path) -> DoctorReport:
-    """Run all doctor probes and assemble the DoctorReport."""
-    git_res = probe_git(repo_root)
+def collect_doctor_report(
+    repo_root: Path,
+    include_untracked: bool = False,
+    include_executed: bool = False,
+    term: Optional[T.Term] = None,
+    verbose_progress: bool = False,
+) -> DoctorReport:
+    """Run all doctor probes with periodic status updates and assemble the DoctorReport."""
+    if verbose_progress and term is not None:
+        term.line(
+            f"{tag_info(term)} Checking environment and framework installation..."
+        )
+        term.stream.flush()
+
     env_res = probe_environment(repo_root)
+
+    if verbose_progress and term is not None:
+        term.line(f"{tag_info(term)} Inspecting git working tree and sync status...")
+        term.stream.flush()
+
+    git_res = probe_git(repo_root)
+
+    if verbose_progress and term is not None:
+        term.line(
+            f"{tag_info(term)} Scanning cross-tree attention view and release gates..."
+        )
+        term.stream.flush()
+
     attn_res = probe_attention(repo_root)
-    art_res = probe_artifacts(repo_root)
+
+    if verbose_progress and term is not None:
+        term.line(f"{tag_info(term)} Running security and local leak sanitizer...")
+        term.stream.flush()
+
     san_res = probe_sanitizer(repo_root)
+
+    if verbose_progress and term is not None:
+        term.line(
+            f"{tag_info(term)} Validating artifact schema contracts and reference integrity..."
+        )
+        term.stream.flush()
+
+    art_res = probe_artifacts(
+        repo_root,
+        include_untracked=include_untracked,
+        include_executed=include_executed,
+    )
+
+    if verbose_progress and term is not None:
+        term.line("")
 
     # De-duplicate drift by (location, rule, detail)
     seen = set()
@@ -392,10 +476,18 @@ def collect_doctor_report(repo_root: Path) -> DoctorReport:
     )
 
 
-def run_doctor(repo_root: Path) -> List[core.Drift]:
+def run_doctor(
+    repo_root: Path,
+    include_untracked: bool = False,
+    include_executed: bool = False,
+) -> List[core.Drift]:
     """Aggregate every check signal into one List[Drift]. Read-only, deterministic (sorted
     by (location, rule)). Composes existing checks; reimplements none; writes nothing."""
-    report = collect_doctor_report(repo_root)
+    report = collect_doctor_report(
+        repo_root,
+        include_untracked=include_untracked,
+        include_executed=include_executed,
+    )
     return report.all_drift
 
 
@@ -413,33 +505,26 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
     """Render a comprehensive, colorized, beautifully structured health inspection report."""
     lines: List[str] = []
 
-    def _badge(status: str) -> str:
-        if status == "PASS":
-            return term.color256("[PASS]", 46, bold=True)
-        if status == "WARN":
-            return term.color256("[WARN]", 214, bold=True)
-        if status == "FAIL":
-            return term.color256("[FAIL]", 196, bold=True)
-        return term.color256("[INFO]", 39, bold=True)
-
     header = term.colorize("aw doctor: deep repo inspection", "bold")
     lines.append(f"{header} ({report.repo_root})")
     lines.append("")
 
-    total_passed = 0
     total_findings = len(report.all_drift)
 
     # 1. Environment & Framework
     env = report.env
     env_status = (
-        "FAIL"
+        "ERROR"
         if any(d.rule.startswith("doctor.version-") for d in env.drift)
-        else ("WARN" if env.setup_needed else "PASS")
+        else ("WARN" if env.setup_needed else "INFO")
     )
-    if env_status == "PASS":
-        total_passed += 1
+    badge_env = (
+        tag_error(term)
+        if env_status == "ERROR"
+        else (tag_warn(term) if env_status == "WARN" else tag_info(term))
+    )
 
-    lines.append(f"{_badge(env_status)} Environment & Framework")
+    lines.append(f"{badge_env} Environment & Framework")
     if env.is_source_repo:
         lines.append(f"  Repository:  Framework source checkout ({report.repo_root})")
         lines.append(
@@ -458,26 +543,26 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
     lines.append(f"  Layout:      {layout_info}")
     if env.setup_needed:
         lines.append(
-            "  Notice:      "
-            + term.color256(
-                "Initial setup needed (setup-repo action open)", 214, bold=True
-            )
+            f"  Notice:      {tag_warn(term)} Initial setup needed (setup-repo action open)"
         )
     lines.append("")
 
     # 2. Git Working Tree
     git = report.git
-    git_status = "PASS"
+    git_status = "INFO"
     if git.conflicts or git.modified:
-        git_status = "FAIL"
+        git_status = "ERROR"
     elif git.untracked or git.staged:
         git_status = "WARN"
 
-    if git_status == "PASS":
-        total_passed += 1
+    badge_git = (
+        tag_error(term)
+        if git_status == "ERROR"
+        else (tag_warn(term) if git_status == "WARN" else tag_info(term))
+    )
 
     git_count_info = f" ({len(git.drift)} finding(s))" if git.drift else ""
-    lines.append(f"{_badge(git_status)} Git Working Tree{git_count_info}")
+    lines.append(f"{badge_git} Git Working Tree{git_count_info}")
     if not git.available:
         lines.append("  Git:         Not a git repository or git unavailable")
     else:
@@ -529,14 +614,11 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
 
     # 3. Cross-Tree Attention & Release Gates
     attn = report.attention
-    attn_status = "FAIL" if attn.drift else "PASS"
-    if attn_status == "PASS":
-        total_passed += 1
+    attn_status = "ERROR" if attn.drift else "INFO"
+    badge_attn = tag_error(term) if attn_status == "ERROR" else tag_info(term)
 
     attn_count_info = f" ({len(attn.drift)} violation(s))" if attn.drift else ""
-    lines.append(
-        f"{_badge(attn_status)} Cross-Tree Attention & Release Gates{attn_count_info}"
-    )
+    lines.append(f"{badge_attn} Cross-Tree Attention & Release Gates{attn_count_info}")
     if attn.drift:
         lines.append(
             "  Attention:   "
@@ -566,14 +648,11 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
 
     # 4. Security & Local Leak Sanitizer
     san = report.sanitizer
-    san_status = "FAIL" if san.findings else "PASS"
-    if san_status == "PASS":
-        total_passed += 1
+    san_status = "ERROR" if san.findings else "INFO"
+    badge_san = tag_error(term) if san_status == "ERROR" else tag_info(term)
 
     san_count_info = f" ({len(san.findings)} finding(s))" if san.findings else ""
-    lines.append(
-        f"{_badge(san_status)} Security & Local Leak Sanitizer{san_count_info}"
-    )
+    lines.append(f"{badge_san} Security & Local Leak Sanitizer{san_count_info}")
     if san.findings:
         lines.append(
             "  Sanitizer:   "
@@ -589,14 +668,19 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
 
     # 5. Artifact Integrity & Schema Contracts
     art = report.artifacts
-    art_status = "FAIL" if art.all_drift else "PASS"
-    if art_status == "PASS":
-        total_passed += 1
+    art_status = (
+        "ERROR"
+        if art.all_drift
+        else ("WARN" if (art.executed_warnings or art.untracked_skipped) else "INFO")
+    )
+    badge_art = (
+        tag_error(term)
+        if art_status == "ERROR"
+        else (tag_warn(term) if art_status == "WARN" else tag_info(term))
+    )
 
     art_count_info = f" ({len(art.all_drift)} finding(s))" if art.all_drift else ""
-    lines.append(
-        f"{_badge(art_status)} Artifact Integrity & Schema Contracts{art_count_info}"
-    )
+    lines.append(f"{badge_art} Artifact Integrity & Schema Contracts{art_count_info}")
     type_summaries = []
     for t, count in art.type_counts.items():
         drift_count = len(art.type_drift.get(t, []))
@@ -605,6 +689,15 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
         else:
             type_summaries.append(f"{t}: {count} conforming")
     lines.append(f"  Inventory:   {', '.join(type_summaries)}")
+
+    if art.executed_warnings:
+        lines.append(
+            f"  Warnings:    {tag_warn(term)} {len(art.executed_warnings)} historical non-conformance(s) in executed/ (use --include-executed to check strictly)"
+        )
+    if art.untracked_skipped:
+        lines.append(
+            f"  Notice:      {tag_info(term)} Excluded {art.untracked_skipped} artifact(s) in untracked/ directories (use --include-untracked to include)"
+        )
 
     if art.all_drift:
         lines.append("  Findings:")
@@ -649,14 +742,32 @@ def run(args, term: Optional[T.Term] = None) -> int:
     if term is None:
         term = T.Term(color=not getattr(args, "no_color", False))
 
-    drift = run_doctor(repo_root)
+    as_agent = getattr(args, "agent", False) or getattr(args, "as_agent", False)
+    include_all = getattr(args, "include_all", False)
+    include_untracked = include_all or getattr(args, "include_untracked", False)
+    include_executed = include_all or getattr(args, "include_executed", False)
 
-    if getattr(args, "agent", False) or getattr(args, "as_agent", False):
+    try:
+        drift = run_doctor(
+            repo_root,
+            include_untracked=include_untracked,
+            include_executed=include_executed,
+        )
+    except TypeError:
+        drift = run_doctor(repo_root)
+
+    if as_agent:
         sys.stdout.write(core.render_agent_drift(drift))
     elif not drift:
         sys.stdout.write("aw doctor: no findings.\n")
     else:
-        report = collect_doctor_report(repo_root)
+        report = collect_doctor_report(
+            repo_root,
+            include_untracked=include_untracked,
+            include_executed=include_executed,
+            term=term,
+            verbose_progress=True,
+        )
         if report.all_drift != drift:
             report.all_drift = drift
         sys.stdout.write(render_human_report(report, term))
