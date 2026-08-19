@@ -65,10 +65,10 @@ Showing the 40 most-recent of 97 Sets; the full manifest is INDEX.json.
 
 ## awrelease
 
-- `rreixg` [pending] 00 pending/20260818-awrelease-00-rreixg-releases-record-class-and-blocks-release-gate.ipd.md
+- `rreixg` [executed] 00 executed/20260818-awrelease-00-rreixg-releases-record-class-and-blocks-release-gate.ipd.md
 - `wl6c7z` [executed] 01 executed/20260818-awrelease-01-wl6c7z-create-the-releases-record-class-and-tree.ipd.md
 - `6wdjss` [executed] 02 executed/20260818-awrelease-02-6wdjss-blocks-release-gate-field-parser-setter-and-validation.ipd.md
-- `i7c6uv` [pending] 03 pending/20260818-awrelease-03-i7c6uv-document-blocks-release-vs-blocked-by-in-agents-md.ipd.md
+- `i7c6uv` [executed] 03 executed/20260818-awrelease-03-i7c6uv-document-blocks-release-vs-blocked-by-in-agents-md.ipd.md
 
 ## awresearchrev
 

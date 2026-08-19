@@ -1832,6 +1832,16 @@
   {
     "date": "2026-08-18",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260818-awrelease-00-rreixg-releases-record-class-and-blocks-release-gate.ipd.md",
+    "plan_id": "rreixg",
+    "set_id": "awrelease",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260818-awrelease-01-wl6c7z-create-the-releases-record-class-and-tree.ipd.md",
@@ -1846,6 +1856,16 @@
     "order": 2,
     "path": "executed/20260818-awrelease-02-6wdjss-blocks-release-gate-field-parser-setter-and-validation.ipd.md",
     "plan_id": "6wdjss",
+    "set_id": "awrelease",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 3,
+    "path": "executed/20260818-awrelease-03-i7c6uv-document-blocks-release-vs-blocked-by-in-agents-md.ipd.md",
+    "plan_id": "i7c6uv",
     "set_id": "awrelease",
     "status": "executed"
   },
@@ -2137,26 +2157,6 @@
     "path": "pending/20260818-awlintmulti-01-o1ynz3-ipd-lint-accepts-multiple-files-and-defaults-to-all-pending.ipd.md",
     "plan_id": "o1ynz3",
     "set_id": "awlintmulti",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260818-awrelease-00-rreixg-releases-record-class-and-blocks-release-gate.ipd.md",
-    "plan_id": "rreixg",
-    "set_id": "awrelease",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 3,
-    "path": "pending/20260818-awrelease-03-i7c6uv-document-blocks-release-vs-blocked-by-in-agents-md.ipd.md",
-    "plan_id": "i7c6uv",
-    "set_id": "awrelease",
     "status": "approved"
   },
   {
