@@ -17,6 +17,7 @@
 - 2026-08-18 authored (opencode Opus 4.8): from spec 20260818-1525-01 + investigation (find/index backends: plans_index.py:317/346, research_index.py:276/307; per-type checks: specs.py:296, backlog.py:442).
 - 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against plans_index.py:317/346, research_index.py:276/307, specs.py:296, and backlog.py:442; structural lint conforming; no findings; no blocking open questions; GO - PENDING HUMAN APPROVAL.
 - 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE WITH REVISIONS APPLIED; re-review (opencode): PR-002 fixed - `_run_check` must set check=True when delegating to run_index (getattr-gated at plans_index.py:318). Conforming.
+- 2026-08-18 /plan-review (opencode Opus 4.8, RIGOROUS): APPROVE WITH REVISIONS APPLIED. PR-001 (MEDIUM): E-03 `search_type` resolved dirs via `resolve_record_read_paths(<class>)`, which RAISES for backlog/roadmaps (not RecordClass members), so `aw search all` (spans every type) would CRASH - same root cause fixed in awcheck-01/02; made E-03 resolve dirs defensively (try/except + `.aw/records/<type>` fallback + legacy `.agents/<type>`) with resolved-path de-dup. (Prior passes checked the find/index backends but not the search-all dir resolution.) Conforms at review-finalize. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -42,9 +43,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: search
 
-- [ ] E-03 Implement `_run_search(args, term)` + a helper `search_type(repo_root, type, regex)`: resolve the type's record tree via `record_producers.resolve_record_read_paths(<class>)`, walk `*.md` (+ `.type.md`), and report every `path:line` whose text matches the compiled `regex` (Python `re`). `all` searches every type's tree. Output plain (`path:line: matchtext`) or `--json` (list of `{path,line,text}`). Read-only; no writes.
+- [ ] E-03 Implement `_run_search(args, term)` + a helper `search_type(repo_root, type, regex)`: resolve the type's record tree(s), walk `*.md` (facets like `.ipd.md` already match `*.md`), and report every `path:line` whose text matches the compiled `regex` (Python `re`). CRITICAL: `record_producers.resolve_record_read_paths` RAISES `Invalid record or state class` for `backlog` and `roadmaps` (they are NOT RecordClass members - verified), so a naive `resolve_record_read_paths(<class>)` makes `aw search all` (which spans every type) CRASH. Resolve dirs defensively: `try: dirs = resolve_record_read_paths(type, target_repo=str(repo_root)) except Exception: dirs = [repo_root/".aw/records"/type]` and additionally include `repo_root/".agents"/type` if it exists (covers backlog/roadmaps/legacy). Keep only existing dirs; de-dup by resolved path. `all` searches every type's tree. Output plain (`path:line: matchtext`) or `--json` (list of `{path,line,text}`). Read-only; no writes.
   - Depends on: none
-  - Expected outcome: `aw search plans "release blocker"` lists matching plan files + line numbers; `aw search all "<regex>"` spans all trees; an invalid regex errors with exit 2.
+  - Expected outcome: `aw search plans "release blocker"` lists matching plan files + line numbers; `aw search all "<regex>"` spans all trees INCLUDING backlog/roadmaps WITHOUT crashing; an invalid regex errors with exit 2.
   - Execution state: pending
 
 ### Task group 3: check routing (engine is Set D)
@@ -76,6 +77,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F2 | No text-search exists anywhere. | `search` is genuinely new (a small `re`-based walker); the only net-new behavior in this Order. |
 | F3 | The check ENGINE is Set D. | `check` here is ROUTING with an interim delegation so it works before awcheck lands; awcheck replaces the interim body. |
 | F4 | `all` needs exit aggregation. | Define once (max severity) and reuse across all read verbs. |
+| F5 | `resolve_record_read_paths` RAISES for backlog/roadmaps (not RecordClass members). | `search_type` (which `all` runs over every type) must resolve dirs defensively (try/except + `.aw/records/<type>` fallback), or `aw search all` crashes. Verified empirically. |
 
 ## Proposed changes (ordered, validatable)
 
