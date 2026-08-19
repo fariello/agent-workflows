@@ -1833,6 +1833,16 @@
     "date": "2026-08-18",
     "disposition": "executed",
     "kind": "child",
+    "order": 1,
+    "path": "executed/20260818-awrelease-01-wl6c7z-create-the-releases-record-class-and-tree.ipd.md",
+    "plan_id": "wl6c7z",
+    "set_id": "awrelease",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
+    "kind": "child",
     "order": 9,
     "path": "executed/20260818-awretrofit-09-7m458z-managed-sections-regen.ipd.md",
     "plan_id": "7m458z",
@@ -2126,16 +2136,6 @@
     "order": 0,
     "path": "pending/20260818-awrelease-00-rreixg-releases-record-class-and-blocks-release-gate.ipd.md",
     "plan_id": "rreixg",
-    "set_id": "awrelease",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260818-awrelease-01-wl6c7z-create-the-releases-record-class-and-tree.ipd.md",
-    "plan_id": "wl6c7z",
     "set_id": "awrelease",
     "status": "approved"
   },
