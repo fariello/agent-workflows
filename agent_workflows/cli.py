@@ -2879,6 +2879,7 @@ def _run_status(args, term: Term) -> int:
                     "config_present": config.config_path().is_file(),
                     "search_roots": cfg.get("search_roots", []),
                     "repos_configured": len(cfg.get("repos", [])),
+                    "repos_excluded": len(excluded_entries),
                     "currency": counts,
                     "repositories": repo_details,
                     "excluded": excluded_entries,
@@ -2900,6 +2901,7 @@ def _run_status(args, term: Term) -> int:
     )
     term.kv("  Search roots", ", ".join(cfg.get("search_roots", [])) or "(none)")
     term.kv("  Repos configured", str(len(cfg.get("repos", []))))
+    term.kv("  Repos excluded", str(len(excluded_entries)))
     term.line()
 
     # Repositories Section

@@ -96,12 +96,16 @@ class ExcludeIncludeStatusTests(unittest.TestCase):
         _run(["install", str(r1), "--yes"])
         cfg = CFG.load()
         cfg["repos"] = [str(r1)]
+        cfg["exclude"] = ["~/src/legacy"]
         CFG.save(cfg)
 
         code, out = _run(["status"])
         self.assertEqual(code, 0)
         self.assertIn("Managed Repositories", out)
         self.assertIn("proj1", out)
+        self.assertIn("Repos configured: 1", out)
+        self.assertIn("Repos excluded: 1", out)
+        self.assertIn("Excluded Repositories", out)
         self.assertIn("Version:", out)
         self.assertIn("Layout:", out)
         self.assertIn("Git:", out)
@@ -111,11 +115,14 @@ class ExcludeIncludeStatusTests(unittest.TestCase):
         _run(["install", str(r1), "--yes"])
         cfg = CFG.load()
         cfg["repos"] = [str(r1)]
+        cfg["exclude"] = ["~/src/legacy"]
         CFG.save(cfg)
 
         code, out = _run(["status", "--json"])
         self.assertEqual(code, 0)
         data = json.loads(out)
+        self.assertEqual(data["repos_configured"], 1)
+        self.assertEqual(data["repos_excluded"], 1)
         self.assertIn("repositories", data)
         self.assertEqual(len(data["repositories"]), 1)
         repo_data = data["repositories"][0]
