@@ -86,7 +86,7 @@ Showing the 40 most-recent of 99 Sets; the full manifest is INDEX.json.
 
 ## awretrofit
 
-- `pp6y76` [pending] 00 pending/20260817-awretrofit-00-pp6y76-orchestrator.ipd.md
+- `pp6y76` [executed] 00 executed/20260817-awretrofit-00-pp6y76-orchestrator.ipd.md
 - `i7um6r` [executed] 01 executed/20260817-awretrofit-01-i7um6r-record-verbs-layout-aware.ipd.md
 - `ckvg3n` [executed] 02 executed/20260817-awretrofit-02-ckvg3n-shipped-docs-and-agents-md.ipd.md
 - `giiowo` [executed] 03 executed/20260817-awretrofit-03-giiowo-release-mechanics.ipd.md

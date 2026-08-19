@@ -1672,6 +1672,16 @@
   {
     "date": "2026-08-17",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260817-awretrofit-00-pp6y76-orchestrator.ipd.md",
+    "plan_id": "pp6y76",
+    "set_id": "awretrofit",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-17",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260817-awretrofit-01-i7um6r-record-verbs-layout-aware.ipd.md",
@@ -2198,16 +2208,6 @@
     "plan_id": "lud5t5",
     "set_id": "assess-documentation",
     "status": "not-executed"
-  },
-  {
-    "date": "2026-08-17",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260817-awretrofit-00-pp6y76-orchestrator.ipd.md",
-    "plan_id": "pp6y76",
-    "set_id": "awretrofit",
-    "status": "approved"
   },
   {
     "date": "2026-08-19",
