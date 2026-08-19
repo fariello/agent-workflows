@@ -127,10 +127,13 @@ class ScanTests(unittest.TestCase):
             root = _mk_repo(Path(d))
             items, drift = att.scan(root)
             obj = json.loads(att.render_json(items, drift))
-            self.assertEqual(obj["schema_version"], 1)
+            # awdoctorfix Order 01: schema bumped to 2 (items gained priority + blocks_release).
+            self.assertEqual(obj["schema_version"], 2)
             self.assertTrue(obj["valid"])
             self.assertEqual(obj["violations"], [])
             self.assertTrue(all("attention_class" in it for it in obj["items"]))
+            self.assertTrue(all("priority" in it for it in obj["items"]))
+            self.assertTrue(all("blocks_release" in it for it in obj["items"]))
 
     def test_check_fail_closed(self):
         import tempfile

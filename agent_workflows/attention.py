@@ -27,7 +27,7 @@ from agent_workflows import research_contract
 from agent_workflows import specs as specs_mod
 from agent_workflows import term as T
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2  # awdoctorfix Order 01: items gained priority + blocks_release
 MAPPING_VERSION = 1
 
 
@@ -39,6 +39,10 @@ class Item(NamedTuple):
     attention_class: str
     gate: Optional[Dict[str, str]]
     last_history_at: Optional[str]
+    # awdoctorfix Order 01: surface priority + release-blocker on the board. Optional + trailing so
+    # the existing positional Item(...) constructions keep working; readers set them where they apply.
+    priority: Optional[str] = None
+    blocks_release: Optional[str] = None
 
 
 def _rel_posix(repo_root: Path, p: Path) -> str:
@@ -281,7 +285,17 @@ def _spec_record(
         if summary:
             gate["summary"] = summary
     lha = A.last_history_at(_history_section_lines(text))
-    return Item("", rel, "specs", status, A.class_of("specs", status), gate, lha), drift
+    br = specs_mod._read_blocks_release(lines)
+    return Item(
+        "",
+        rel,
+        "specs",
+        status,
+        A.class_of("specs", status),
+        gate,
+        lha,
+        blocks_release=br,
+    ), drift
 
 
 def _plans_record(
@@ -383,7 +397,15 @@ def _backlog_record(
         gate = {"kind": item.gate_kind, "ref": item.gate_ref}
     lha = A.last_history_at(_history_section_lines(text))
     return Item(
-        item.id or "", rel, "backlog", status, A.class_of("backlog", status), gate, lha
+        item.id or "",
+        rel,
+        "backlog",
+        status,
+        A.class_of("backlog", status),
+        gate,
+        lha,
+        priority=item.priority,
+        blocks_release=item.blocks_release,
     ), drift
 
 
@@ -406,6 +428,8 @@ def render_json(items: List[Item], drift: List[core.Drift]) -> str:
                 "attention_class": it.attention_class,
                 "gate": it.gate,
                 "last_history_at": it.last_history_at,
+                "priority": it.priority,
+                "blocks_release": it.blocks_release,
             }
             for it in items
         ],
@@ -562,6 +586,12 @@ def render_board(
         for d in drift:
             lines.append(f"  ! {d.location}: {d.rule}: {d.detail}")
         lines.append("")
+    # awdoctorfix Order 01: a legend for the compact markers, colored HUMAN view only.
+    if colored:
+        lines.append(
+            "legend: ! stale(>30d)  ? unknown-age  # blocked-by-gate  > release-blocker  [P:_] priority"
+        )
+        lines.append("")
     by_class: Dict[str, List[Item]] = {}
     for it in items:
         by_class.setdefault(it.attention_class, []).append(it)
@@ -600,11 +630,12 @@ def render_board(
                     it.native_status, _CLASS_COLOR_256.get(cls, 244)
                 )
                 status_txt = term.color256(status_word, code, bold=True)
-                # awdoctor Order 01: compact leading markers from EXISTING Item fields:
-                #   age marker ('!' stale >30d / '?' unknown / '' recent) + gate glyph ('#').
+                # awdoctor Order 01 + awdoctorfix Order 01: compact leading markers from Item fields:
+                #   age ('!' >30d / '?' unknown) + gate ('#') + release-blocker ('>').
                 age = _age_marker(it.last_history_at)
                 gate_glyph = "#" if it.gate else ""
-                blk = (age + gate_glyph).strip()
+                rb_glyph = ">" if it.blocks_release else ""
+                blk = (age + gate_glyph + rb_glyph).strip()
                 lead = f"{blk} " if blk else ""
                 # Show the bare filename when the group prefix was folded into the header; else
                 # the tree-colored full path.
@@ -621,7 +652,14 @@ def render_board(
                     inline_gate = (
                         f"  [gate {g.get('kind')}: {A.escape_detail(g.get('ref', ''))}]"
                     )
-                lines.append(f"- {lead}{path_txt} ({status_txt}){inline_gate}")
+                # awdoctorfix Order 01: priority bracket, colored by level, only when set.
+                prio = ""
+                if it.priority:
+                    pcode = {"high": 196, "medium": 214, "low": 244}.get(
+                        it.priority, 244
+                    )
+                    prio = "  " + term.color256(f"[P:{it.priority}]", pcode, bold=True)
+                lines.append(f"- {lead}{path_txt} ({status_txt}){prio}{inline_gate}")
             else:
                 suffix = ""
                 if it.gate:
