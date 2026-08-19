@@ -1997,7 +1997,7 @@
     "path": "pending/20260818-awhelp-00-ny1pjz-help-text-and-agent-facing-ux-overhaul.ipd.md",
     "plan_id": "ny1pjz",
     "set_id": "awhelp",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -2007,7 +2007,7 @@
     "path": "pending/20260818-awhelp-01-1fpmg7-rewrite-terse-and-jargon-help-strings.ipd.md",
     "plan_id": "1fpmg7",
     "set_id": "awhelp",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -2017,7 +2017,7 @@
     "path": "pending/20260818-awhelp-02-vrk3l0-verbose-non-tty-agent-help-and-arg-hungry-verb-examples.ipd.md",
     "plan_id": "vrk3l0",
     "set_id": "awhelp",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -2027,7 +2027,7 @@
     "path": "pending/20260818-awhelp-03-oc4cph-json-output-and-documented-exit-codes-on-read-verbs.ipd.md",
     "plan_id": "oc4cph",
     "set_id": "awhelp",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -2037,7 +2037,7 @@
     "path": "pending/20260818-awhelparg-01-n9ysag-rewrite-bare-help-token-to-help-in-argv-for-natural-ux.ipd.md",
     "plan_id": "n9ysag",
     "set_id": "awhelparg",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -2047,7 +2047,7 @@
     "path": "pending/20260818-awhistory-00-x97z83-global-history-sidecar-and-inline-metadata-slimming.ipd.md",
     "plan_id": "x97z83",
     "set_id": "awhistory",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -2057,7 +2057,7 @@
     "path": "pending/20260818-awhistory-01-im90a5-global-history-jsonl-store-and-writer-module.ipd.md",
     "plan_id": "im90a5",
     "set_id": "awhistory",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -2067,7 +2067,7 @@
     "path": "pending/20260818-awhistory-02-b0behn-route-status-writers-to-the-sidecar-and-slim-inline-history.ipd.md",
     "plan_id": "b0behn",
     "set_id": "awhistory",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -2077,7 +2077,7 @@
     "path": "pending/20260818-awhistory-03-cizkf4-migrate-inline-history-into-the-sidecar-and-history-read-ver.ipd.md",
     "plan_id": "cizkf4",
     "set_id": "awhistory",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
