@@ -12,7 +12,7 @@ Showing the 40 most-recent of 99 Sets; the full manifest is INDEX.json.
 
 ## awuntrackedfix
 
-- `njfyjt` [pending] 01 pending/20260819-awuntrackedfix-01-njfyjt-actually-rename-local-lanes-to-untracked-on-both-layouts-ret.ipd.md
+- `njfyjt` [executed] 01 executed/20260819-awuntrackedfix-01-njfyjt-actually-rename-local-lanes-to-untracked-on-both-layouts-ret.ipd.md
 
 ## awcheck
 

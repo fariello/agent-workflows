@@ -2190,6 +2190,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-19",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260819-awuntrackedfix-01-njfyjt-actually-rename-local-lanes-to-untracked-on-both-layouts-ret.ipd.md",
+    "plan_id": "njfyjt",
+    "set_id": "awuntrackedfix",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -2208,16 +2218,6 @@
     "plan_id": "lud5t5",
     "set_id": "assess-documentation",
     "status": "not-executed"
-  },
-  {
-    "date": "2026-08-19",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260819-awuntrackedfix-01-njfyjt-actually-rename-local-lanes-to-untracked-on-both-layouts-ret.ipd.md",
-    "plan_id": "njfyjt",
-    "set_id": "awuntrackedfix",
-    "status": "reviewed"
   },
   {
     "date": "2026-08-07",
