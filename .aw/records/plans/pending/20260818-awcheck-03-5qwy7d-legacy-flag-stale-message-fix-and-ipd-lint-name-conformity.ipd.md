@@ -16,6 +16,7 @@
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from investigation (stale message normalize_plan_names.py:677; is_conformant expected_type normalize_plan_names.py:205; ipd_lint.run_lint legacy flag ipd_lint.py:767; _NEW_RE legacy grammar already faceted).
 - 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against normalize_plan_names.py:677, ipd_lint.py:761-770, and check_engine.py:check_names; structural lint conforming; no findings; no open questions; GO - PENDING HUMAN APPROVAL.
+- 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE; re-review (opencode): verified stale message:677, run_lint/legacy:761-768; conforming; no findings.
 
 ## Goal
 

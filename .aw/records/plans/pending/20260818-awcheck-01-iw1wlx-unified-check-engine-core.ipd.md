@@ -16,6 +16,7 @@
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from investigation (Drift artifact_core.py:247; validate_spec specs.py:128; validate_item backlog.py:129; check_drift plans_index.py:235 + research_index.py:231; is_conformant normalize_plan_names.py:205).
 - 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against artifact_core.py:247, specs.py:128, backlog.py:129, plans_index.py:235, and normalize_plan_names.py:205; structural lint conforming; no findings; no open questions; GO - PENDING HUMAN APPROVAL.
+- 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE; re-review (opencode): verified validate_spec/validate_item/check_drift/is_conformant/Drift citations; conforming; no findings.
 
 ## Goal
 

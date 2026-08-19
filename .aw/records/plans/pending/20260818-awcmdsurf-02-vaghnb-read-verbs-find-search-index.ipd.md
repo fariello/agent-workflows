@@ -16,6 +16,7 @@
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): from spec 20260818-1525-01 + investigation (find/index backends: plans_index.py:317/346, research_index.py:276/307; per-type checks: specs.py:296, backlog.py:442).
 - 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against plans_index.py:317/346, research_index.py:276/307, specs.py:296, and backlog.py:442; structural lint conforming; no findings; no blocking open questions; GO - PENDING HUMAN APPROVAL.
+- 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE WITH REVISIONS APPLIED; re-review (opencode): PR-002 fixed - `_run_check` must set check=True when delegating to run_index (getattr-gated at plans_index.py:318). Conforming.
 
 ## Goal
 
@@ -48,7 +49,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: check routing (engine is Set D)
 
-- [ ] E-04 Implement `_run_check(args, term)` routing: parse the optional literal sub-token `names` (from the selector list); resolve type(s); dispatch to the awcheck engine if present, ELSE (interim) delegate per type to the existing checks - `specs.run_check`, `backlog.run_check`, `plans_index.run_index(--check)`, `research_index.run_index(--check)` - and for `names` delegate to the normalize_plan_names conformance path. Aggregate exit codes. Document (code comment + help) that the unified engine is Set D and this is the routing layer.
+- [ ] E-04 Implement `_run_check(args, term)` routing: parse the optional literal sub-token `names` (from the selector list); resolve type(s); dispatch to the awcheck engine if present, ELSE (interim) delegate per type to the existing checks - `specs.run_check`, `backlog.run_check`, `plans_index.run_index`, `research_index.run_index` - and for `names` delegate to the normalize_plan_names conformance path. NOTE: `plans_index.run_index`/`research_index.run_index` gate on `getattr(args, "check", False)` (plans_index.py:318), so when delegating to them for a CHECK the router MUST pass an args namespace with `check=True` set (build a shallow copy/SimpleNamespace with `check=True`, plus `dir`/`agent`/`limit` passed through) - do not rely on the caller's args carrying it. Aggregate exit codes. Document (code comment + help) that the unified engine is Set D and this is the routing layer.
   - Depends on: none
   - Expected outcome: `aw check specs` == old `aw specs check`; `aw check backlog` == old `aw backlog check`; `aw check plans names` runs name conformance; `aw check all` fans out; exit codes aggregate.
   - Execution state: pending

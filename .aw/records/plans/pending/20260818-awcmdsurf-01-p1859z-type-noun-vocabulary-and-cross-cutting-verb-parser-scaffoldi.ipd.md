@@ -2,8 +2,8 @@
 
 - Date: 2026-08-18
 - Kind: child
-- Concern: awcmdsurf Order 01 (spec 20260818-1525-01). Lay the foundation for the noun-verb grammar: a single shared TYPE-noun vocabulary + a type->backend resolver, and the top-level argparse scaffolding for the seven cross-cutting verbs (`check`/`find`/`search`/`index`/`rename`/`group`/`archive`), each dispatching to a thin router. Added ALONGSIDE the existing verbs (nothing removed here) so every intermediate state stays runnable; removal is Order 05.
-- Scope: agent_workflows/cli.py (new parsers + dispatch) + a new small module for the type vocabulary. IN: the TYPE-noun constant + singular aliases + a resolver mapping each type to its backend module/callable; the seven verb subparsers (parsers + thin routers that currently delegate to the existing backends or a not-yet-wired stub for engine-dependent parts); a shared `--json`/`--agent` convention helper; tests. OUT: the actual read-verb behavior (Order 02), mutation-verb behavior (Order 03), the ipd merge (Order 04), removals (Order 05), the check ENGINE (Set D awcheck) and the full selector parser (Set E awselect).
+- Concern: awcmdsurf Order 01 (spec 20260818-1525-01). Lay the foundation for the noun-verb grammar: a single shared TYPE-noun vocabulary + a type->backend resolver, and the top-level argparse scaffolding for six cross-cutting verbs (`check`/`find`/`search`/`index`/`rename`/`group`), each dispatching to a thin router (the seventh verb `archive` is stood up by Order 03, which owns it, to avoid breaking the existing `aw archive` signature mid-Set). Added ALONGSIDE the existing verbs (nothing removed here) so every intermediate state stays runnable; removal is Order 05.
+- Scope: agent_workflows/cli.py (new parsers + dispatch) + a new small module for the type vocabulary. IN: the TYPE-noun constant + singular aliases + a resolver mapping each type to its backend module/callable; six new verb subparsers (`check`/`find`/`search`/`index`/`rename`/`group`; `archive` deferred to Order 03) (parsers + thin routers that currently delegate to the existing backends or a not-yet-wired stub for engine-dependent parts); a shared `--json`/`--agent` convention helper; tests. OUT: the actual read-verb behavior (Order 02), mutation-verb behavior (Order 03), the ipd merge (Order 04), removals (Order 05), the check ENGINE (Set D awcheck) and the full selector parser (Set E awselect).
 - Status: reviewed
 - Set: awcmdsurf
 - Order: 1
@@ -16,12 +16,13 @@
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): from spec 20260818-1525-01 + cli.py investigation (flat dispatch chain cli.py:4018-4241; backend module map).
 - 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against cli.py:369-1747, cli.py:1600, plans_refs.py:33, and artifact_core.py:255-262; structural lint conforming; no findings; no blocking open questions; GO - PENDING HUMAN APPROVAL.
+- 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE WITH REVISIONS APPLIED; re-review (opencode): PR-001 fixed - Order 01 no longer stands up `archive` (would break `aw archive <id6>` mid-Set); defers archive parser to Order 03; six verbs here. Conforming.
 
 ## Goal
 
 Introduce the shared vocabulary and parser skeleton the whole redesign builds on: one closed TYPE-noun
-set with singular aliases, a resolver that maps a type to its backend, and the seven cross-cutting verb
-subparsers wired to thin routers. This Order adds surface WITHOUT removing anything, so the CLI stays
+set with singular aliases, a resolver that maps a type to its backend, and six cross-cutting verb
+subparsers wired to thin routers (`archive` is added by Order 03). This Order adds surface WITHOUT removing anything, so the CLI stays
 fully runnable and the suite stays green; later Orders fill in behavior and Order 05 removes the old
 verbs.
 
@@ -47,13 +48,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: a helper that, given a verb result, returns the correct exit code and can emit `--json` or `--agent` output consistently; unit-tested for the three exit codes.
   - Execution state: pending
 
-### Task group 3: the seven verb parsers + thin routers
+### Task group 3: the six verb parsers + thin routers
 
-- [ ] E-04 In `agent_workflows/cli.py` `_build_parser` (cli.py:369-1747), register seven NEW top-level subparsers - `check`, `find`, `search`, `index`, `rename`, `group`, `archive` - each taking a positional `type` (validated via `artifact_types.normalize_type`), the verb-appropriate selectors/flags (a minimal `selector` positional `nargs="*"` for now; the full selector grammar is Set E awselect), and the shared `--json`/`--agent`. NOTE: a top-level `archive` verb ALREADY EXISTS (cli.py:1600, research-only); rename the existing one's internals to be reachable via the new `archive research` path and make the new `archive` the general router (Order 03 finishes archive behavior; here just stand up the parser without breaking the current research-archive path). Add each to the dispatch chain (cli.py:4018-4241) routing to a thin `_run_<verb>(args, term)` that resolves the backend via `TYPE_BACKENDS` and either delegates (where a backend exists) or prints "not yet wired / not supported for <type>" (exit 2) for the parts later Orders fill.
+- [ ] E-04 In `agent_workflows/cli.py` `_build_parser` (cli.py:369-1747), register SIX NEW top-level subparsers - `check`, `find`, `search`, `index`, `rename`, `group` - each taking a positional `type` (validated via `artifact_types.normalize_type`), the verb-appropriate selectors/flags (a minimal `selector` positional `nargs="*"` for now; the full selector grammar is Set E awselect), and the shared `--json`/`--agent`. DO NOT touch the existing top-level `archive` verb in this Order: it currently has a `target` positional (cli.py:1600, research-only) and generalizing it to a `type`-first signature would BREAK `aw archive <id6>` for the whole window between this Order and Order 03. The `archive` verb is generalized by Order 03 (awcmdsurf-03), which owns archive and can flip its signature + wire `aw archive research`/`aw archive plans` in one atomic step. Add each of the six new verbs to the dispatch chain (cli.py:4018-4241) routing to a thin `_run_<verb>(args, term)` that resolves the backend via `TYPE_BACKENDS` and either delegates (where a backend exists) or prints "not yet wired / not supported for <type>" (exit 2) for the parts later Orders fill.
   - Depends on: E-01,E-02,E-03
-  - Expected outcome: `aw check --help`, `aw find --help`, `aw search --help`, `aw index --help`, `aw rename --help`, `aw group --help`, `aw archive --help` all parse; each rejects an unknown type with a clear error; the pre-existing research `archive` behavior still works via the new router.
+  - Expected outcome: `aw check --help`, `aw find --help`, `aw search --help`, `aw index --help`, `aw rename --help`, `aw group --help` all parse; each rejects an unknown type with a clear error; the existing `aw archive <id6>` research path is UNCHANGED (still works exactly as before, because `archive` is not modified in this Order).
   - Execution state: pending
-- [ ] E-05 Add `tests/test_awcmdsurf_vocab_and_parsers.py` covering: `normalize_type`/`expand_types` (happy + unknown + `all`), `TYPE_BACKENDS` lookups (supported + None), the exit-code helper (0/1/2), and that each of the seven new verbs parses `--help` and errors on an unknown type. Run the FULL serial suite (`python3 -m pytest -p no:xdist`) and paste the tail (the new parsers must not break existing dispatch).
+- [ ] E-05 Add `tests/test_awcmdsurf_vocab_and_parsers.py` covering: `normalize_type`/`expand_types` (happy + unknown + `all`), `TYPE_BACKENDS` lookups (supported + None), the exit-code helper (0/1/2), and that each of the six new verbs parses `--help` and errors on an unknown type. Run the FULL serial suite (`python3 -m pytest -p no:xdist`) and paste the tail (the new parsers must not break existing dispatch).
   - Depends on: E-01,E-02,E-03,E-04
   - Expected outcome: the new module passes; full serial suite green (existing verbs unaffected; new verbs added alongside).
   - Execution state: pending
@@ -72,7 +73,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | # | Finding | Consequence |
 |---|---|---|
 | F1 | Single-file flat dispatch. | New verbs are added as more `if args.command ==` blocks; low risk, no framework change. |
-| F2 | `archive` already taken (research). | Order 01 generalizes it carefully; the research path must keep working (regression test). |
+| F2 | `archive` already taken (research, `target` positional cli.py:1600). | Order 01 does NOT touch `archive` (that would break `aw archive <id6>` mid-Set); Order 03 owns generalizing it atomically. |
 | F3 | Backends already exist + are lazily imported. | Routers delegate; no backend rewrite. `TYPE_BACKENDS` is a pure data map to avoid cycles. |
 | F4 | Selector grammar is a separate Set (E). | Order 01 ships a minimal `selector nargs="*"`; awselect replaces it. Keep the parser shape forward-compatible. |
 
@@ -131,7 +132,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: paste `--help` for each of the seven new verbs, an unknown-type error, and a run proving the existing research `archive` path still works.
+  - Required evidence: paste `--help` for each of the six new verbs, an unknown-type error, and a run proving the existing `aw archive <id6>` research path is unchanged (archive untouched this Order).
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05

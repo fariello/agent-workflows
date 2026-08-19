@@ -16,6 +16,7 @@
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): from spec 20260818-1525-01 + investigation (_run_plans cli.py:2810, ipd subparsers cli.py:686, _run_list cli.py:2579, attention.run).
 - 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against cli.py:686/2579/2810/4088 and attention.run; structural lint conforming; no findings; no blocking open questions; GO - PENDING HUMAN APPROVAL.
+- 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE; re-review (opencode): verified _run_plans:2810, _run_list:2579, attention.run:525, ipd add_subparsers (clean board add, no shim needed); conforming; no findings.
 
 ## Goal
 

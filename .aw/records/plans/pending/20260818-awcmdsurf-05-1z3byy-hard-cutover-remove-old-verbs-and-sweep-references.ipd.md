@@ -16,6 +16,7 @@
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): from spec 20260818-1525-01 D1 + investigation (old parsers cli.py:532/545/576/600/619/642/660/1626; argv shim cli.py:4023-4031; dispatch chain 4018-4241).
 - 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against cli.py:532-660, cli.py:1626, and cli.py:4023-4031; cutover sequencing and reference sweep completeness sound; structural lint conforming; no findings; no open questions; GO - PENDING HUMAN APPROVAL.
+- 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE; re-review (opencode): verified removal targets + argv shim 4023-4031; hard-cutover reference sweep is the completeness gate; conforming; no findings.
 
 ## Goal
 

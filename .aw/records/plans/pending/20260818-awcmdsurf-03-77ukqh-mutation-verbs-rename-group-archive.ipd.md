@@ -16,6 +16,7 @@
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): from spec 20260818-1525-01 + investigation (plans_refs.run_mv:404, run_set_assign:377; plans_archive.run_archive:168; research_refs.run_mv:286, run_set_assign:261; research_archive.run_archive:227).
 - 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against plans_refs.py:377/404, plans_archive.py:168, research_refs.py:261/286, and research_archive.py:227; structural lint conforming; no findings; no blocking open questions; GO - PENDING HUMAN APPROVAL.
+- 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE WITH REVISIONS APPLIED; re-review (opencode): PR-001 downstream - this Order now OWNS generalizing the `archive` parser atomically + repoints old `aw archive <id6>` to `aw archive research`. Conforming.
 
 ## Goal
 
@@ -41,7 +42,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: archive
 
-- [ ] E-03 Implement `_run_archive(args, term)` as the GENERAL router (generalizing the existing research-only `archive` from Order 01): resolve type + selector(s); dispatch to `plans_archive.run_archive` (plans) / `research_archive.run_archive` (research), passing target/`--dir`/`--apply` (+ research's `--keep`). `all`/plans/research supported; a type without an archive backend reports "archive not supported for <type>". Preview by default; `--apply` writes.
+- [ ] E-03 Generalize the `archive` verb here (Order 01 deliberately left it untouched to avoid breaking the old signature mid-Set). GENERALIZE the existing top-level `archive` parser (cli.py:1600, currently a research-only `target` positional) to the noun-verb shape `aw archive <type> [selector...]` and implement `_run_archive(args, term)`: resolve type + selector(s); dispatch to `plans_archive.run_archive` (plans) / `research_archive.run_archive` (research), passing target/`--dir`/`--apply` (+ research's `--keep`). `all`/plans/research supported; a type without an archive backend reports "archive not supported for <type>". Preview by default; `--apply` writes. Because this Order flips the signature atomically, update any in-repo caller/doc of the OLD `aw archive <id6>` form to `aw archive research <id6>` in the same change (the old research-archive behavior is preserved via `aw archive research`).
   - Depends on: none
   - Expected outcome: `aw archive plans <target> --apply` == old `aw plans-archive ... --apply`; `aw archive research ... --apply` == old top-level `aw archive`; `aw archive all` previews both.
   - Execution state: pending
@@ -71,7 +72,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F1 | Reference rewrite already exists in plans_refs. | `--no-refs` is the new lever; default-on matches spec + existing behavior. |
 | F2 | Id/Order/Date preserved by the awnaming fix. | rename is safe; the test just re-asserts preservation. |
 | F3 | group/rename over `all` is ill-defined. | Report exit 2 with a "specify a type" message rather than guess. |
-| F4 | archive already exists (research). | Order 01 stood up the general parser; this Order fills the plans branch + fan-out. |
+| F4 | archive already exists (research, `target` positional cli.py:1600). | Order 01 left it untouched (avoiding a mid-Set signature break); THIS Order generalizes the parser to `<type>`-first atomically + wires the plans branch + fan-out, and repoints old `aw archive <id6>` usages to `aw archive research <id6>`. |
 
 ## Proposed changes (ordered, validatable)
 

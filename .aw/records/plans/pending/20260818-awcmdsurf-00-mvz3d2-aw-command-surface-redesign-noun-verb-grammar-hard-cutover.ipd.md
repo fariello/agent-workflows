@@ -16,6 +16,7 @@
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): built from spec 20260818-1525-01 + a code-grounded cli.py investigation (flat dispatch chain cli.py:4018-4241; plans argv shim cli.py:4023-4031; backends mapped).
 - 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified against spec 20260818-1525-01 and cli.py:4018-4031; multi-order sequencing and dependency layering sound; structural lint conforming; no findings; no blocking open questions; GO - PENDING HUMAN APPROVAL.
+- 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE; re-review (opencode): verified spec + dispatch chain 4018/argv shim 4023; sequencing sound; conforming; no findings.
 
 ## Goal
 
