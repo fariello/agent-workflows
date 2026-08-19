@@ -17,6 +17,7 @@
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from investigation (Drift artifact_core.py:247; validate_spec specs.py:128; validate_item backlog.py:129; check_drift plans_index.py:235 + research_index.py:231; is_conformant normalize_plan_names.py:205).
 - 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against artifact_core.py:247, specs.py:128, backlog.py:129, plans_index.py:235, and normalize_plan_names.py:205; structural lint conforming; no findings; no open questions; GO - PENDING HUMAN APPROVAL.
 - 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE; re-review (opencode): verified validate_spec/validate_item/check_drift/is_conformant/Drift citations; conforming; no findings.
+- 2026-08-18 /plan-review (opencode Opus 4.8, RIGOROUS): APPROVE WITH REVISIONS APPLIED. Empirically verified real signatures. PR-001 (MEDIUM): E-02's hand-rolled `Path(__file__).parent.parent/.aw/system/...` normalizer path is non-portable and BREAKS when pip-installed; replaced with `engine.resolve_source_root(None)` (the cli.py:2890 portable pattern). PR-002 (LOW): E-03 passed `limit=None` to `check_drift` whose param is an int; corrected to omit `limit`. (Prior APPROVE passes, incl. mine, missed both by checking citations but not signatures/portability.) Conforms at review-finalize. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -67,17 +68,23 @@ cli.py. Every check function must return a `List[artifact_core.Drift]` (never pr
 ### Task group 2: name-conformity sub-check
 
 - [ ] E-02 Add `check_names(repo_root: Path, record_type: str, legacy: bool = False) -> List[Drift]` that walks the type's record dirs (reuse `_rp.resolve_record_read_paths(record_type, target_repo=str(repo_root))`, keep existing dirs) and, for every `*.md` file that is NOT README/INDEX/STATUS, checks filename conformity to the grammar. Load the shipped normalizer by path and call its `is_conformant(name, expected_type=<facet>)` where `<facet>` is the type's facet (`plans`->`ipd`, `specs`->`spec`, `backlog`->`backlog`, `prompts`->`prompt`, `walkthroughs`->`walkthrough`, `roadmaps`->`roadmap`, `research` skip - it has its own grammar). For a nonconformant name emit `Drift(str(path), "check.name-nonconformant", "filename does not match the <type> grammar")`. `legacy` is accepted and threaded to `is_conformant` handling in Order 03 (for now, pass it through; do not special-case).
-  - Load the normalizer with:
+  - Load the normalizer the SAME portable way the CLI already does (do NOT hand-roll a `Path(__file__).parent.parent` path - that assumes a source checkout and BREAKS when the framework is pip-installed into another repo, because the bundle is then packaged, not at that relative path). Reuse `engine.resolve_source_root(None)`, which resolves the workflow-bundle root layout-agnostically for both a source checkout and an installed wheel (this is exactly what `cli.py:2890` `_load_normalizer` does):
   ```python
   import importlib.util
+  from agent_workflows import engine as _engine
   def _load_normalizer():
-      root = Path(__file__).resolve().parent.parent  # repo root of the installed framework
-      script = root / ".aw" / "system" / "workflows" / "setup-repo" / "tools" / "normalize_plan_names.py"
+      try:
+          root = _engine.resolve_source_root(None)
+      except SystemExit:
+          return None
+      script = root / "setup-repo" / "tools" / "normalize_plan_names.py"
+      if not script.is_file():
+          return None
       spec = importlib.util.spec_from_file_location("awcheck_npn", script)
       mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
       return mod
   ```
-  (If the script path does not resolve, return `[]` for names rather than raising.)
+  (If the normalizer cannot be located/loaded, return `[]` for names rather than raising - name-conformity is then simply not checked, which is safe.)
   - Depends on: E-01
   - Expected outcome: over a fixture with a well-named plan and a badly-named plan (`not-a-grammar.md`), `check_names(root,"plans")` returns exactly one Drift for the bad file with rule `check.name-nonconformant`.
   - Execution state: pending
@@ -87,8 +94,8 @@ cli.py. Every check function must return a `List[artifact_core.Drift]` (never pr
 - [ ] E-03 Add `check_content(repo_root, record_type, legacy=False) -> List[Drift]` that delegates to the EXISTING per-type content validators and returns their Drift:
   - `specs`: for each spec file (reuse `specs._spec_files(repo_root)`), call `specs.validate_spec(path, text)` and extend.
   - `backlog`: for each item (reuse `backlog._iter_items(repo_root)`), call `backlog.validate_item(path, text)` and extend.
-  - `plans`: front-matter/name-vs-metadata drift is produced by `plans_index.check_drift(repo_root, plans_dir, limit=None)` - call it and extend (this also covers refs; see E-04 note).
-  - `research`: `research_index.check_drift(...)` similarly.
+  - `plans`: front-matter/name-vs-metadata drift is produced by `plans_index.check_drift(repo_root, plans_dir)` - call it and extend (this also covers refs; see E-04 note). NOTE the real signature is `check_drift(repo_root, plans_dir, limit=DEFAULT_INDEX_LIMIT)` where `limit` is an int; OMIT `limit` to take the default (do NOT pass `limit=None` - it is not an int and is used in numeric context). Resolve `plans_dir` via `_rp.resolve_record_read_paths("plans", target_repo=str(repo_root))[0]`.
+  - `research`: `research_index.check_drift(repo_root, research_root)` similarly (same `(repo_root, root, limit=int)` signature; omit `limit`; resolve `research_root` the same way).
   - types without a content validator (`prompts`/`walkthroughs`/`roadmaps`): return `[]`.
   Import these lazily inside the function to avoid import cycles.
   - Depends on: E-01
@@ -110,7 +117,8 @@ cli.py. Every check function must return a `List[artifact_core.Drift]` (never pr
 
 - Shared result type: `artifact_core.Drift(location, rule, detail)` (artifact_core.py:247); `drift_exit_code` (:262) and `render_agent_drift` (:255) are the CLI-layer's job (awcmdsurf), NOT the engine's - the engine returns Drift only.
 - Existing validators returning Drift: `specs.validate_spec` (specs.py:128), `backlog.validate_item` (backlog.py:129), `plans_index.check_drift` (plans_index.py:235), `research_index.check_drift` (research_index.py:231). File collectors: `specs._spec_files`, `backlog._iter_items`.
-- Name conformity: the shipped `normalize_plan_names.is_conformant(name, expected_type=...)` (normalize_plan_names.py:205); research has its own grammar (skip names for research or use research_index).
+- Name conformity: the shipped `normalize_plan_names.is_conformant(name, expected_type=...)` (normalize_plan_names.py:205); research has its own grammar (skip names for research or use research_index). Locate the shipped normalizer via `engine.resolve_source_root(None)` (layout-agnostic: source checkout AND installed wheel), exactly as `cli.py:2890` does - NOT a hand-rolled `Path(__file__).parent.parent` path, which breaks when pip-installed.
+- Real validator signatures: `plans_index.check_drift(repo_root, plans_dir, limit=int)` and `research_index.check_drift(repo_root, research_root, limit=int)` - `limit` is an int (default DEFAULT_INDEX_LIMIT); omit it, do not pass None. `specs._spec_files(repo_root)` / `backlog._iter_items(repo_root)` collect files.
 - Tree dirs: `record_producers.resolve_record_read_paths(<class>, target_repo=...)` (record_producers.py:597).
 - The engine is PURE: returns Drift, never prints, no argparse. The verb layer (awcmdsurf) renders + sets exit codes.
 
