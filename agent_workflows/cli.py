@@ -238,13 +238,23 @@ _DESCRIPTIONS = {
         "non-open (completed/dismissed) actions; --agent prints machine-readable output."
     ),
     "show": (
-        "Inspect a single action document by ID (or ID@generation), printing its full "
-        "current state and metadata."
+        "Inspect a record or action and print its full content. Resolves the given selector as a "
+        "RECORDS artifact first (an id6 like pp6y76, a set id, a filename fragment, or a status, "
+        "across plans/specs/research/backlog/prompts/walkthroughs/roadmaps), and falls back to the "
+        "operational action ledger (an action id, or id@generation) if nothing matches. Use --dir to "
+        "point the records lookup at a specific repo."
     ),
     "complete": "Mark an operational action as completed (a lifecycle transition in the action ledger).",
     "dismiss": "Mark an operational action as dismissed (a lifecycle transition in the action ledger).",
     "reopen": "Reopen a completed or dismissed action, returning it to the open lane.",
     "history": "Show the lifecycle history (state transitions over time) of a single action.",
+    "record-history": "Print a record's full chronological workflow history from the global .aw/records/history.jsonl sidecar, looked up by its 6-char id6.",
+    "check": "Validate the artifacts of a given TYPE (plans, specs, ...) against their contract; exit 0 clean, 1 findings, 2 cannot-run.",
+    "find": "Find artifacts of a given TYPE by selector (id6, status, Set, filename fragment).",
+    "search": "Search the artifacts of a given TYPE for matching content.",
+    "index": "Rebuild and print the manifest/index for a given artifact TYPE.",
+    "rename": "Rename or move an artifact of a given TYPE, rewriting references to it across the repo.",
+    "group": "Assign an artifact of a given TYPE to a Set/group, re-clustering its name.",
     "migrate-layout": (
         "Transactional AW layout migration and records-backend cutover, with a rollback "
         "journal. Moves/copies records to the chosen backend and updates the registry "
@@ -1246,9 +1256,17 @@ def _build_parser() -> argparse.ArgumentParser:
     p_show = sub.add_parser(
         "show",
         parents=[common],
-        help="Inspect an action document by ID or ID@generation.",
+        help="Inspect a record or action by id6, set id, filename, or status (records first, then the action ledger).",
     )
-    p_show.add_argument("action_ref", help="Action ID or ID@generation.")
+    p_show.add_argument(
+        "action_ref",
+        help="A selector: an id6 (e.g. pp6y76), a set id, a filename fragment, a status, or an action id[@generation].",
+    )
+    p_show.add_argument(
+        "--dir",
+        default=None,
+        help="Repo root to search for a records artifact (default: current directory).",
+    )
 
     p_complete = sub.add_parser(
         "complete", parents=[common], help="Mark an action as completed."
@@ -1271,6 +1289,72 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Show lifecycle history of an action.",
     )
     p_history.add_argument("action_ref", help="Action ID or ID@generation.")
+
+    p_record_history = sub.add_parser(
+        "record-history",
+        parents=[common],
+        help="Print a record's full chronological workflow history from the global sidecar (by id6).",
+    )
+    p_record_history.add_argument(
+        "id6", help="The 6-char record id (from a file's `- Id:`)."
+    )
+    p_record_history.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+
+    # awcmdsurf Order 01: the six noun-verb top-level verbs (spec 20260818-1525-01). Each takes a
+    # positional TYPE (plans/specs/... or `all`, validated at dispatch) + a minimal selector + the
+    # shared --json/--agent. Backends are wired lazily via artifact_types.TYPE_BACKENDS; verbs/types
+    # without a backend report "not supported for <type>" (exit 2). The existing top-level `archive`
+    # verb is intentionally NOT touched here (Order 03 generalizes it atomically).
+    for _verb, _vhelp in (
+        (
+            "check",
+            "Validate artifacts of a TYPE against their contract (0 ok / 1 findings / 2 cannot-run).",
+        ),
+        ("find", "Find artifacts of a TYPE by selector."),
+        ("search", "Search artifacts of a TYPE."),
+        ("index", "Rebuild/print the index for a TYPE."),
+        ("rename", "Rename/move an artifact of a TYPE (rewriting references)."),
+        ("group", "Assign an artifact of a TYPE to a Set/group."),
+    ):
+        _p = sub.add_parser(_verb, parents=[common], help=_vhelp)
+        _p.add_argument(
+            "type",
+            help="Artifact type (plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms) or 'all'.",
+        )
+        _p.add_argument(
+            "selector",
+            nargs="*",
+            help="Selector/args for the verb (id6, status, filename, ...).",
+        )
+        _p.add_argument(
+            "--dir", default=None, help="Repo root (default: current directory)."
+        )
+        _p.add_argument(
+            "--json", dest="as_json", action="store_true", help="Emit findings as JSON."
+        )
+        _p.add_argument(
+            "--agent",
+            dest="as_agent",
+            action="store_true",
+            help="Emit findings as tab-separated machine output.",
+        )
+        # backend-relevant passthrough flags (index/find/check)
+        _p.add_argument(
+            "--check",
+            action="store_true",
+            help="Validation mode (index/check): fail on drift.",
+        )
+        _p.add_argument("--status", default=None, help="Filter/selector: status.")
+        _p.add_argument("--id", default=None, help="Filter/selector: id6.")
+        _p.add_argument("--set", default=None, help="Filter/selector: Set id.")
+        _p.add_argument(
+            "--topic", default=None, help="Filter/selector: topic (research)."
+        )
+        _p.add_argument(
+            "--limit", type=int, default=None, help="Max rows (index/find)."
+        )
 
     p_migrate = sub.add_parser(
         "migrate-layout",
@@ -1473,6 +1557,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Gate-Ref (required when moving to blocked).",
     )
+    p_backlog_set.add_argument(
+        "--blocks-release",
+        dest="blocks_release",
+        default=None,
+        help="Declare this item gates a release: a release id6, 'next', or '-' to clear.",
+    )
 
     p_backlog_check = backlog_sub.add_parser(
         "check",
@@ -1522,6 +1612,12 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="gate_summary",
         default=None,
         help="Optional human gate context.",
+    )
+    p_specs_set.add_argument(
+        "--blocks-release",
+        dest="blocks_release",
+        default=None,
+        help="Declare this spec gates a release: a release id6, 'next', or '-' to clear.",
     )
     p_specs_set.add_argument(
         "--evidence",
@@ -3512,16 +3608,43 @@ def _run_todo(args: argparse.Namespace, term: Term) -> int:
 
 
 def _run_show(args: argparse.Namespace, term: Term) -> int:
+    from agent_workflows import selectors
+    from agent_workflows.project_context import resolve_verb_repo_root
+
+    ref = args.action_ref
+    # 1. Try to resolve the token as a RECORDS artifact (id6 | setid | filename | status),
+    #    searching each record type; print every match.
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    record_types = (
+        "plans",
+        "specs",
+        "research",
+        "backlog",
+        "prompts",
+        "walkthroughs",
+        "roadmaps",
+    )
+    hits: list = []
+    for rt in record_types:
+        hits.extend(selectors.resolve_selectors(repo_root, rt, [ref]))
+    # de-dup preserving order
+    seen: set = set()
+    unique = [p for p in hits if not (str(p) in seen or seen.add(str(p)))]
+    if unique:
+        for p in unique:
+            term.heading(str(p))
+            print(p.read_text(encoding="utf-8"))
+        return 0
+    # 2. Fallback: the operational action ledger (unchanged behavior).
     from agent_workflows.actions import ActionManager, ActionError
 
     try:
         mgr = ActionManager()
-        status, path = mgr.find_action_file(args.action_ref)
-        content = path.read_text(encoding="utf-8")
-        print(content)
+        _status, path = mgr.find_action_file(ref)
+        print(path.read_text(encoding="utf-8"))
         return 0
-    except ActionError as exc:
-        term.status("fail", str(exc))
+    except ActionError:
+        term.status("fail", f"No records artifact or action matched '{ref}'.")
         return 1
 
 
@@ -3577,6 +3700,170 @@ def _run_action_history(args: argparse.Namespace, term: Term) -> int:
     except ActionError as exc:
         term.status("fail", str(exc))
         return 1
+
+
+def _run_record_history(args: argparse.Namespace, term: Term) -> int:
+    import os
+    from pathlib import Path
+    from agent_workflows import record_history as rh
+
+    repo_root = Path(getattr(args, "dir", None) or os.getcwd())
+    id6 = args.id6
+    records = rh.read_for(repo_root, id6)
+    if not records:
+        term.status("warn", f"No sidecar history for id6 {id6}.")
+        return 0
+    term.heading(f"History for {id6}")
+    for r in records:
+        date = r.get("date", "")
+        workflow = r.get("workflow", "")
+        actor = r.get("actor", "")
+        tree = r.get("tree", "")
+        message = r.get("message", "")
+        who = f" ({actor})" if actor else ""
+        wf = f" {workflow}" if workflow else ""
+        term.line(f"- {date} [{tree}]{wf}{who}: {message}")
+    return 0
+
+
+def _nv_resolve_types(args, term, verb):
+    """Resolve the verb's TYPE argument to a list of supported types, or None on error (after
+    emitting a fail). `all` expands to every type this verb has a backend for."""
+    from agent_workflows import artifact_types as at
+
+    try:
+        norm = at.normalize_type(args.type)
+    except ValueError as exc:
+        term.status("fail", str(exc))
+        return None
+    if norm == "all":
+        types = [t for t in at.ARTIFACT_TYPES if at.backend_name(t, verb)]
+        if not types:
+            term.status("fail", f"'{verb}' is not supported for any type yet.")
+            return None
+        return types
+    if at.backend_name(norm, verb) is None:
+        term.status("warn", f"'{verb}' is not supported for {norm}.")
+        return None
+    return [norm]
+
+
+def _nv_backend_args(args, artifact_type):
+    """Build an args namespace a legacy backend runner understands from the noun-verb args."""
+    import os
+
+    sub = argparse.Namespace(**vars(args))
+    sub.dir = getattr(args, "dir", None) or os.getcwd()
+    sub.agent = bool(getattr(args, "as_agent", False))
+    sub.resolved_type = artifact_type
+    return sub
+
+
+def _run_noun_verb(args: argparse.Namespace, term: Term) -> int:
+    """awcmdsurf: dispatch a noun-verb command to the right backend. Order 01 scaffolded the router;
+    Order 02 wires index/find/search/check; Order 03 wires rename/group (+ archive)."""
+    verb = args.command
+    if verb == "search":
+        return _run_search(args, term)
+    if verb == "check":
+        return _run_check(args, term)
+    types = _nv_resolve_types(args, term, verb)
+    if types is None:
+        return 2
+    from agent_workflows import artifact_types as at
+
+    rc = 0
+    for t in types:
+        fn = at.resolve_backend(t, verb)
+        if fn is None:
+            term.status("warn", f"'{verb}' is not yet wired / not supported for {t}.")
+            rc = max(rc, 2)
+            continue
+        result = fn(_nv_backend_args(args, t))
+        if isinstance(result, int):
+            rc = max(rc, result)
+    return rc
+
+
+def _run_search(args: argparse.Namespace, term: Term) -> int:
+    """awcmdsurf Order 02: grep-lite across a TYPE's record tree(s). Walks *.md (facets match) and
+    reports file:line per match. `all` spans every type incl. backlog/roadmaps."""
+    import os
+    import re
+    from pathlib import Path
+    from agent_workflows import artifact_types as at
+
+    try:
+        norm = at.normalize_type(args.type)
+    except ValueError as exc:
+        term.status("fail", str(exc))
+        return 2
+    pattern = " ".join(args.selector) if args.selector else None
+    if not pattern:
+        term.status("fail", "search requires a pattern (positional selector).")
+        return 2
+    try:
+        rx = re.compile(pattern)
+    except re.error as exc:
+        term.status("fail", f"invalid regex: {exc}")
+        return 2
+    repo_root = Path(getattr(args, "dir", None) or os.getcwd())
+    types = at.ARTIFACT_TYPES if norm == "all" else (norm,)
+    hits = 0
+    for t in types:
+        for base in (repo_root / ".aw" / "records" / t, repo_root / ".agents" / t):
+            if not base.is_dir():
+                continue
+            for p in sorted(base.rglob("*.md")):
+                try:
+                    for i, line in enumerate(
+                        p.read_text(encoding="utf-8").split("\n"), 1
+                    ):
+                        if rx.search(line):
+                            term.line(f"{p}:{i}: {line.strip()}")
+                            hits += 1
+                except OSError:
+                    continue
+    return 0 if hits else 1
+
+
+def _run_check(args: argparse.Namespace, term: Term) -> int:
+    """awcmdsurf Order 02: validate a TYPE via the awcheck engine (falls back to legacy per-type
+    run_check). Optional literal sub-token `names` restricts to name conformance."""
+    import os
+    from pathlib import Path
+    from agent_workflows import artifact_types as at
+
+    try:
+        norm = at.normalize_type(args.type)
+    except ValueError as exc:
+        term.status("fail", str(exc))
+        return 2
+    selectors = list(args.selector or [])
+    only_names = "names" in selectors
+    repo_root = Path(getattr(args, "dir", None) or os.getcwd())
+    try:
+        from agent_workflows import check_engine as ce
+
+        drift = ce.check_types(
+            repo_root,
+            [norm] if norm != "all" else ["all"],
+            names_only=only_names,
+            collisions=(norm == "all"),
+        )
+        return at.emit_findings(
+            term,
+            drift,
+            as_json=getattr(args, "as_json", False),
+            as_agent=getattr(args, "as_agent", False),
+        )
+    except Exception:
+        fn = at.resolve_backend(norm, "check")
+        if fn is None:
+            term.status("warn", f"'check' is not supported for {norm}.")
+            return 2
+        result = fn(_nv_backend_args(args, norm))
+        return result if isinstance(result, int) else 0
 
 
 def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
@@ -4097,6 +4384,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return _run_reopen(args, term)
     if args.command == "history":
         return _run_action_history(args, term)
+    if args.command == "record-history":
+        return _run_record_history(args, term)
+    if args.command in ("check", "find", "search", "index", "rename", "group"):
+        return _run_noun_verb(args, term)
     if args.command == "migrate-layout":
         return _run_migrate_layout(args, term)
     if args.command == "install":
