@@ -70,7 +70,15 @@ _DESCRIPTIONS = {
     ),
     "status": (
         "Show an environment and currency summary: resolved versions, config location, "
-        "and per-repo install currency. Read-only diagnostics."
+        "git working-tree status, attention summaries, and per-repo install currency. Read-only diagnostics."
+    ),
+    "exclude": (
+        "Exclude specified repositories from agent-workflows management. "
+        "Syntax: 'aw exclude [repo|repos] repodir1 [repodir2 ...]' (or bare 'aw exclude' to list)."
+    ),
+    "include": (
+        "Include specified repositories in agent-workflows management. "
+        "Syntax: 'aw include [repo|repos] repodir1 [repodir2 ...]' (or bare 'aw include' to list)."
     ),
     "ipd": (
         "Work with IPDs (Implementation Plan Documents: the structured plan files under "
@@ -604,6 +612,30 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="include_all",
         action="store_true",
         help="Include both untracked/ artifacts and strict executed/ checks.",
+    )
+
+    # aw exclude [repo|repos] repodir1 [repodir2 ...]
+    p_exclude = sub.add_parser(
+        "exclude",
+        parents=[common],
+        help="Exclude specified repositories from agent-workflows management.",
+    )
+    p_exclude.add_argument(
+        "repos",
+        nargs="*",
+        help="Repository directories to exclude (optional leading 'repo'/'repos' noun).",
+    )
+
+    # aw include [repo|repos] repodir1 [repodir2 ...]
+    p_include = sub.add_parser(
+        "include",
+        parents=[common],
+        help="Include specified repositories in agent-workflows management.",
+    )
+    p_include.add_argument(
+        "repos",
+        nargs="*",
+        help="Repository directories to include (optional leading 'repo'/'repos' noun).",
     )
 
     # awcmdsurf Order 05 (hard cutover): the old plan-family verbs (plans, plans-index, plans-find,
@@ -2674,16 +2706,168 @@ def _run_list(args: argparse.Namespace, term: Term) -> int:
     return 0
 
 
+def _status_badge_256(status: str, term: Term) -> str:
+    s = status.lower()
+    if s in ("current", "ok", "pass"):
+        return "[" + term.color256("current", 46, bold=True) + "]"
+    if s in ("source-root", "source", "dev"):
+        label = "source root" if s in ("source-root", "source") else "dev"
+        return "[" + term.color256(label, 39, bold=True) + "]"
+    if s in ("stale", "warn"):
+        return "[" + term.color256("stale", 226, bold=True) + "]"
+    if s in ("not-installed", "not installed", "fail", "error"):
+        return "[" + term.color256("not installed", 196, bold=True) + "]"
+    if s == "ahead":
+        return "[" + term.color256("ahead", 207, bold=True) + "]"
+    return "[" + term.color256(status, 244, bold=True) + "]"
+
+
+def _collect_repo_status_details(repo: Path, packaged: str) -> dict:
+    installed = engine.read_installed_version(repo)
+    is_source = False
+    if (repo / "agent_workflows").is_dir() and (repo / "pyproject.toml").is_file():
+        try:
+            pyproject = (repo / "pyproject.toml").read_text(encoding="utf-8")
+            if 'name = "agent-workflows"' in pyproject:
+                is_source = True
+        except OSError:
+            pass
+
+    state = "source-root" if is_source else versioning.status(installed, packaged)
+
+    layout = "none"
+    if (repo / ".aw").is_dir():
+        layout = ".aw"
+    elif (repo / ".agents").is_dir():
+        layout = ".agents"
+
+    preset = None
+    backend = None
+    if layout != "none":
+        cfg_file = repo / layout / "config.json"
+        if cfg_file.is_file():
+            try:
+                import json
+
+                cfg_data = json.loads(cfg_file.read_text(encoding="utf-8"))
+                preset = cfg_data.get("preset")
+                backend = cfg_data.get("records_backend")
+            except Exception:
+                pass
+
+    git_info = {
+        "available": False,
+        "branch": "",
+        "upstream": "",
+        "ahead": 0,
+        "behind": 0,
+        "dirty": False,
+        "changes_count": 0,
+    }
+    if engine.git_available(repo):
+        git_info["available"] = True
+        try:
+            import subprocess
+
+            proc = subprocess.run(
+                ["git", "status", "--porcelain=v1", "-b"],
+                cwd=str(repo),
+                capture_output=True,
+                text=True,
+                shell=False,
+            )
+            if proc.returncode == 0:
+                lines = proc.stdout.splitlines()
+                if lines:
+                    header = lines[0]
+                    if header.startswith("## "):
+                        h = header[3:].strip()
+                        if "..." in h:
+                            b, rest = h.split("...", 1)
+                            git_info["branch"] = b.strip()
+                            if "[" in rest and "]" in rest:
+                                u, track = rest.split("[", 1)
+                                git_info["upstream"] = u.strip()
+                                track = track.rstrip("]")
+                                for part in track.split(","):
+                                    part = part.strip()
+                                    if part.startswith("ahead "):
+                                        try:
+                                            git_info["ahead"] = int(part.split()[1])
+                                        except ValueError:
+                                            pass
+                                    elif part.startswith("behind "):
+                                        try:
+                                            git_info["behind"] = int(part.split()[1])
+                                        except ValueError:
+                                            pass
+                            else:
+                                git_info["upstream"] = rest.strip()
+                        else:
+                            git_info["branch"] = h
+                changes = [line for line in lines[1:] if line.strip()]
+                git_info["dirty"] = len(changes) > 0
+                git_info["changes_count"] = len(changes)
+        except Exception:
+            pass
+
+    attention_info = {
+        "total": 0,
+        "by_class": {},
+        "release_blockers": 0,
+    }
+    if layout != "none":
+        try:
+            from agent_workflows import attention as attn_mod
+
+            items, _drift = attn_mod.scan(repo)
+            attention_info["total"] = len(items)
+            for it in items:
+                attention_info["by_class"][it.attention_class] = (
+                    attention_info["by_class"].get(it.attention_class, 0) + 1
+                )
+            attention_info["release_blockers"] = len(
+                attn_mod.release_blockers(items, repo)
+            )
+        except Exception:
+            pass
+
+    return {
+        "path": str(repo),
+        "installed": installed,
+        "is_source": is_source,
+        "state": state,
+        "layout": layout,
+        "preset": preset,
+        "backend": backend,
+        "git": git_info,
+        "attention": attention_info,
+    }
+
+
 def _run_status(args, term: Term) -> int:
     packaged = _packaged_version()
+    cfg = config.load()
+    repos = _repos_for_report(recursive=False)
+    # If no repos configured in search roots, include current working directory if it's a git repo or has layout
+    if not repos:
+        cwd = Path.cwd().resolve()
+        if (
+            (cwd / ".git").is_dir()
+            or (cwd / ".aw").is_dir()
+            or (cwd / ".agents").is_dir()
+        ):
+            repos = [cwd]
+
+    repo_details = [_collect_repo_status_details(r, packaged) for r in repos]
+    excluded_entries = cfg.get("exclude", [])
+
     if getattr(args, "as_json", False):
         import json
 
-        cfg = config.load()
-        repos = _repos_for_report(recursive=False)
         counts: dict = {}
-        for repo in repos:
-            state = versioning.status(engine.read_installed_version(repo), packaged)
+        for rd in repo_details:
+            state = rd["state"]
             counts[state] = counts.get(state, 0) + 1
         sys.stdout.write(
             json.dumps(
@@ -2696,35 +2880,219 @@ def _run_status(args, term: Term) -> int:
                     "search_roots": cfg.get("search_roots", []),
                     "repos_configured": len(cfg.get("repos", [])),
                     "currency": counts,
+                    "repositories": repo_details,
+                    "excluded": excluded_entries,
                 }
             )
             + "\n"
         )
         return 0
+
     term.heading("agent-workflows status")
-    term.kv("Packaged version", packaged)
-    term.kv("Python", sys.version.split()[0])
-    term.kv("git", "present" if engine.git_available(Path.cwd()) else "not found")
+    term.line(term.colorize("Environment:", "bold"))
+    term.kv("  Packaged version", packaged)
+    term.kv("  Python", f"{sys.version.split()[0]} ({sys.executable})")
+    term.kv("  git", "present" if engine.git_available(Path.cwd()) else "not found")
     term.kv(
-        "Config",
+        "  Config",
         str(config.config_path())
         + ("" if config.config_path().is_file() else "  (none yet; run 'aw setup')"),
     )
-    cfg = config.load()
-    term.kv("Search roots", ", ".join(cfg.get("search_roots", [])) or "(none)")
-    term.kv("Repos configured", str(len(cfg.get("repos", []))))
+    term.kv("  Search roots", ", ".join(cfg.get("search_roots", [])) or "(none)")
+    term.kv("  Repos configured", str(len(cfg.get("repos", []))))
+    term.line()
 
-    repos = _repos_for_report(recursive=False)
-    if repos:
-        counts = {}
-        for repo in repos:
-            state = versioning.status(engine.read_installed_version(repo), packaged)
-            counts[state] = counts.get(state, 0) + 1
+    # Repositories Section
+    if repo_details:
+        term.heading(f"Managed Repositories ({len(repo_details)})")
+        for rd in repo_details:
+            rp = Path(rd["path"])
+            disp = config._preserve_home(str(rp))
+            st = rd["state"]
+
+            badge = _status_badge_256(st, term)
+            term.line(f"  - {term.color256(disp, 39, bold=True)} {badge}")
+
+            # Version line
+            if rd["is_source"]:
+                v_desc = f"{packaged or '0.1.0'} (source checkout)"
+            elif rd["installed"]:
+                v_desc = rd["installed"]
+                if st == "stale":
+                    v_desc += f" (stale; packaged is {packaged})"
+            else:
+                v_desc = "not installed"
+            term.line(f"    Version:   {v_desc}")
+
+            # Layout line
+            if rd["layout"] != "none":
+                layout_parts = [rd["layout"]]
+                if rd["preset"] or rd["backend"]:
+                    layout_parts.append(
+                        f"(preset: {rd['preset'] or 'standard'}, backend: {rd['backend'] or 'repo-tracked'})"
+                    )
+                term.line(f"    Layout:    {' '.join(layout_parts)}")
+
+            # Git line
+            git = rd["git"]
+            if git["available"]:
+                git_parts = [term.color256(git["branch"] or "HEAD", 255, bold=True)]
+                if git["upstream"]:
+                    sync_note = f"tracking {git['upstream']}"
+                    if git["ahead"]:
+                        sync_note += f", ahead {git['ahead']}"
+                    if git["behind"]:
+                        sync_note += f", behind {git['behind']}"
+                    if not git["ahead"] and not git["behind"]:
+                        sync_note += ", up to date"
+                    git_parts.append(f"({sync_note})")
+
+                if git["dirty"]:
+                    git_parts.append(
+                        term.color256(
+                            f"{git['changes_count']} change(s)", 214, bold=True
+                        )
+                    )
+                else:
+                    git_parts.append(term.color256("Clean", 46))
+                term.line(f"    Git:       {' '.join(git_parts)}")
+
+            # Attention line
+            attn = rd["attention"]
+            if rd["layout"] != "none" and attn["total"] > 0:
+                cls_str = ", ".join(
+                    f"{cnt} {cls}" for cls, cnt in attn["by_class"].items()
+                )
+                attn_line = f"{attn['total']} items ({cls_str})"
+                if attn["release_blockers"]:
+                    attn_line += " - " + term.color256(
+                        f"{attn['release_blockers']} release blocker(s)", 208, bold=True
+                    )
+                term.line(f"    Attention: {attn_line}")
+            term.line()
+
+    # Excluded Repositories Section
+    if excluded_entries:
+        term.heading(f"Excluded Repositories ({len(excluded_entries)})")
+        for exc in excluded_entries:
+            term.line(
+                f"  - {term.color256(exc, 244)} {term.color256('[excluded]', 244, bold=True)}"
+            )
         term.line()
-        term.heading("Currency")
-        for state in ("current", "stale", "ahead", "dev", "not-installed", "unknown"):
-            if counts.get(state):
-                term.status(state, f"{counts[state]} repo(s)")
+
+    # Currency Summary
+    counts = {}
+    for rd in repo_details:
+        st = rd["state"]
+        counts[st] = counts.get(st, 0) + 1
+
+    term.heading("Currency")
+    for state in (
+        "current",
+        "source-root",
+        "dev",
+        "stale",
+        "ahead",
+        "not-installed",
+        "unknown",
+    ):
+        if counts.get(state):
+            badge = _status_badge_256(state, term)
+            term.line(f"  {badge} {counts[state]} repo(s)")
+
+    return 0
+
+
+def _run_exclude(args: argparse.Namespace, term: Term) -> int:
+    """aw exclude [repo|repos] repodir1 [repodir2 ...]: exclude repos from aw management."""
+    raw_repos = list(getattr(args, "repos", []) or [])
+    if raw_repos and raw_repos[0] in ("repo", "repos"):
+        raw_repos = raw_repos[1:]
+
+    cfg = config.load()
+    current_exclude = list(cfg.get("exclude", []))
+    current_repos = list(cfg.get("repos", []))
+
+    if not raw_repos:
+        if not current_exclude:
+            term.line("No repositories are currently excluded.")
+            return 0
+        term.heading(f"Excluded Repositories ({len(current_exclude)})")
+        for e in current_exclude:
+            term.line(f"  - {term.color256(e, 244)}")
+        return 0
+
+    modified = False
+    for target in raw_repos:
+        target_path = Path(target).expanduser().resolve()
+        entry = config._preserve_home(str(target_path))
+        if entry in current_exclude:
+            term.status("warn", f"Already excluded: {entry}")
+            continue
+
+        current_exclude.append(entry)
+        for r_entry in list(current_repos):
+            r_path = config.expand_path(str(r_entry)).resolve()
+            if r_entry == entry or r_path == target_path:
+                current_repos.remove(r_entry)
+
+        term.status("ok", f"Excluded repository: {term.color256(entry, 39, bold=True)}")
+        modified = True
+
+    if modified:
+        cfg["exclude"] = current_exclude
+        cfg["repos"] = current_repos
+        config.save(cfg)
+    return 0
+
+
+def _run_include(args: argparse.Namespace, term: Term) -> int:
+    """aw include [repo|repos] repodir1 [repodir2 ...]: include repos in aw management."""
+    raw_repos = list(getattr(args, "repos", []) or [])
+    if raw_repos and raw_repos[0] in ("repo", "repos"):
+        raw_repos = raw_repos[1:]
+
+    cfg = config.load()
+    current_exclude = list(cfg.get("exclude", []))
+    current_repos = list(cfg.get("repos", []))
+
+    if not raw_repos:
+        if not current_repos:
+            term.line(
+                "No explicit repositories configured (run 'aw setup' or 'aw include <path>')."
+            )
+            return 0
+        term.heading(f"Configured Repositories ({len(current_repos)})")
+        for e in current_repos:
+            term.line(f"  - {term.color256(e, 39)}")
+        return 0
+
+    modified = False
+    for target in raw_repos:
+        target_path = Path(target).expanduser().resolve()
+        entry = config._preserve_home(str(target_path))
+
+        removed_from_exclude = False
+        for exc_entry in list(current_exclude):
+            exc_path = config.expand_path(str(exc_entry)).resolve()
+            if exc_entry == entry or exc_path == target_path:
+                current_exclude.remove(exc_entry)
+                removed_from_exclude = True
+                modified = True
+
+        if entry not in current_repos:
+            current_repos.append(entry)
+            modified = True
+
+        note = " (un-excluded)" if removed_from_exclude else ""
+        term.status(
+            "ok", f"Included repository: {term.color256(entry, 39, bold=True)}{note}"
+        )
+
+    if modified:
+        cfg["exclude"] = current_exclude
+        cfg["repos"] = current_repos
+        config.save(cfg)
     return 0
 
 
@@ -4631,6 +4999,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return _run_uninstall(args, term)
     if args.command == "list-repos":
         return _run_list(args, term)
+    if args.command == "exclude":
+        return _run_exclude(args, term)
+    if args.command == "include":
+        return _run_include(args, term)
     if args.command == "status":
         return _run_status(args, term)
     if args.command == "normalize-lanes":
