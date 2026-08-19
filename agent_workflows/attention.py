@@ -466,6 +466,34 @@ def _colorize_tree_segment(term: "T.Term", path: str, tree: str) -> str:
     return path[:start] + term.color256(tree, _TREE_COLOR_256, bold=True) + path[end:]
 
 
+def _common_dir_prefix(paths: List[str]) -> str:
+    """The common directory prefix (posix, trailing '/') shared by all paths, or '' if none.
+    awdoctor Order 01: folded into a colored section header so per-item lines can be bare names."""
+    if not paths:
+        return ""
+    import posixpath
+
+    norm = [p.replace("\\", "/") for p in paths]
+    dirs = [p.rsplit("/", 1)[0] if "/" in p else "" for p in norm]
+    common = posixpath.commonpath(dirs) if all(dirs) else ""
+    return (common + "/") if common else ""
+
+
+def _age_marker(last_history_at: Optional[str]) -> str:
+    """awdoctor Order 01: a compact staleness marker from last_history_at. '!' when older than
+    ~30 days, '?' when unknown (None), else '' (recent). Deterministic: compares ISO dates only."""
+    if last_history_at is None:
+        return "?"
+    try:
+        from datetime import date
+
+        y, m, d = (int(x) for x in last_history_at.split("-")[:3])
+        age_days = (date.today() - date(y, m, d)).days
+        return "!" if age_days > 30 else ""
+    except (ValueError, TypeError):
+        return "?"
+
+
 def render_board(
     items: List[Item],
     drift: List[core.Drift],
@@ -516,7 +544,12 @@ def render_board(
         if cls in (A.DONE, A.PARKED) and not show_all:
             lines.append(f"## {cls} ({len(group)}) [hidden; use --all]")
             continue
-        lines.append(f"## {cls} ({len(group)}){header_extra}")
+
+        # awdoctor Order 01 (colored only): fold the group's common directory prefix into the
+        # header so per-item lines can show BARE filenames (narrower, scannable board).
+        group_prefix = _common_dir_prefix([it.path for it in group]) if colored else ""
+        header_prefix = f" {group_prefix}" if group_prefix else ""
+        lines.append(f"## {cls} ({len(group)}){header_extra}{header_prefix}")
 
         for it in group:
             status_word = it.native_status
@@ -525,19 +558,28 @@ def render_board(
                     it.native_status, _CLASS_COLOR_256.get(cls, 244)
                 )
                 status_txt = term.color256(status_word, code, bold=True)
-                # Human view: no [tree] bracket and no trailing tag (keeps the line narrow).
-                # The tree identity is signaled IN PLACE by coloring the tree-name path
-                # segment (e.g. the `backlog` in `.agents/backlog/open/...`) bold blue, so no
-                # width is added. Gate is folded into the header above; if an item's gate
-                # artifact differs from the folded one, still show it inline.
-                path_txt = _colorize_tree_segment(term, it.path, it.tree)
+                # awdoctor Order 01: compact leading markers from EXISTING Item fields:
+                #   age marker ('!' stale >30d / '?' unknown / '' recent) + gate glyph ('#').
+                age = _age_marker(it.last_history_at)
+                gate_glyph = "#" if it.gate else ""
+                blk = (age + gate_glyph).strip()
+                lead = f"{blk} " if blk else ""
+                # Show the bare filename when the group prefix was folded into the header; else
+                # the tree-colored full path.
+                path = it.path.replace("\\", "/")
+                if group_prefix and path.startswith(group_prefix):
+                    path_txt = path[
+                        len(group_prefix) :
+                    ]  # bare filename (prefix in header)
+                else:
+                    path_txt = _colorize_tree_segment(term, it.path, it.tree)
                 inline_gate = ""
                 if it.gate and cls != A.BLOCKED:
                     g = it.gate
                     inline_gate = (
                         f"  [gate {g.get('kind')}: {A.escape_detail(g.get('ref', ''))}]"
                     )
-                lines.append(f"- {path_txt} ({status_txt}){inline_gate}")
+                lines.append(f"- {lead}{path_txt} ({status_txt}){inline_gate}")
             else:
                 suffix = ""
                 if it.gate:
