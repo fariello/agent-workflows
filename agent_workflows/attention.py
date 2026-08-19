@@ -473,6 +473,18 @@ _STATUS_COLOR_256 = {
 }
 _TREE_COLOR_256 = 33  # bold blue for the tree-name path segment
 
+_SINGULAR_TYPE = {
+    "plans": "plan",
+    "specs": "spec",
+    "prompts": "prompt",
+    "research": "research",
+    "backlog": "backlog",
+    "walkthroughs": "walkthrough",
+    "roadmaps": "roadmap",
+    "comms": "comms",
+    "actions": "action",
+}
+
 
 def _colorize_tree_segment(term: "T.Term", path: str, tree: str) -> str:
     """Color the tree-name directory segment WITHIN ``path`` bold blue, in place.
@@ -665,8 +677,12 @@ def render_board(
                 # path.
                 if long:
                     path_txt = _colorize_tree_segment(term, it.path, it.tree)
+                    type_prefix = ""
                 else:
                     path_txt = _identity_stem(it.path)
+                    type_word = _SINGULAR_TYPE.get(it.tree, it.tree)
+                    type_txt = term.color256(type_word, _TREE_COLOR_256, bold=True)
+                    type_prefix = type_txt + (" " * max(0, 10 - len(type_word))) + "  "
                 inline_gate = ""
                 if it.gate and cls != A.BLOCKED:
                     g = it.gate
@@ -680,7 +696,9 @@ def render_board(
                         it.priority, 244
                     )
                     prio = "  " + term.color256(f"[{it.priority}]", pcode, bold=True)
-                lines.append(f"- {lead}{status_padded}  {path_txt}{prio}{inline_gate}")
+                lines.append(
+                    f"- {lead}{status_padded}  {type_prefix}{path_txt}{prio}{inline_gate}"
+                )
             else:
                 suffix = ""
                 if it.gate:

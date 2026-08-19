@@ -239,7 +239,7 @@ class ScanTests(unittest.TestCase):
         # folded prefix / full path); a non-clustered name like `r.md` falls back to `r`. A None
         # last_history_at yields a '?' age marker.
         self.assertNotIn(".agents/docs/research/r.md (active)", stripped)
-        self.assertRegex(stripped, r"- \??\s*active\s+r")
+        self.assertRegex(stripped, r"- \??\s*active\s+research\s+r")
         # Blocked gate folds into the section header, not each line.
         self.assertIn("## blocked (1) in TODO.md", board)
         self.assertNotIn("[gate artifact: TODO.md]", board)
