@@ -140,3 +140,11 @@ Prose style rules whose whole purpose is to keep human-facing text from reading 
 These rules do NOT apply to internal or AI-facing artifacts: IPDs and plans, research findings and prompts, specs, walkthroughs, commit messages, and code comments. Spending effort to strip dashes (or otherwise groom the style) of those artifacts wastes time and tokens for no reader benefit, because no end user consumes them as polished prose. Deterministic tooling MUST reflect this scope: a gate that mechanically enforces a user-facing style rule must not fail an internal artifact for it (see P11; the IPD linter does not check dashes).
 
 When in doubt about whether an artifact is user-facing, ask who reads it as finished prose. If the answer is an end user, apply the style rule; if the answer is a maintainer, an executing agent, or a reviewer of internal process, do not.
+
+## 14. Severity labels: bracketed, fixed-width, bold-colored word
+
+User-facing tool output SHOULD tag severity lines with a bracketed, fixed-width label whose WORD is bold-colored and whose brackets are left uncolored: `[ERROR]` (bold red), `[WARN ]` (bold yellow), `[INFO ]` (bold green). The label words are padded to a common width so the brackets align in a column (`ERROR` is 5 chars; `WARN`/`INFO` get a trailing space). The word is always present so meaning survives monochrome, piped, and `NO_COLOR` output; color is a redundant cue, never the only signal (P-accessibility, and consistent with the honest-in-monochrome rule the `Term` helper already follows).
+
+This is a preference for the SEVERITY class of messages, not a mandate that every line of every tool be tagged: plain informational body text, tables, boards, and prompts stay untagged. Apply it where a line is specifically reporting an error, a warning, or a notable informational status.
+
+Enforced/implemented in `agent_workflows/term.py` (the shared `Term` label helper); all `aw` verbs render severity through it rather than hand-rolling ANSI, so the convention stays consistent and honors the `should_color` policy (TTY / `FORCE_COLOR` / `NO_COLOR`). When updating a tool's output to this convention, route it through the `Term` helper; do not emit raw escape codes.
