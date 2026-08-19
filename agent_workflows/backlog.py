@@ -490,10 +490,21 @@ def run_check(args) -> int:
     if getattr(args, "agent", False):
         sys.stdout.write(core.render_agent_drift(drift))
     else:
+        # awcolor Order 01: color the HUMAN branch only (agent branch byte-for-byte unchanged).
+        from agent_workflows import term as _term
+
+        t = _term.Term(
+            stream=sys.stdout, color=False if getattr(args, "no_color", False) else None
+        )
+        colored = getattr(t, "color", False)
         if drift:
             for d in drift:
-                sys.stdout.write(f"{d.location}: {d.rule}: {d.detail}\n")
+                rule = t.color256(d.rule, 196, bold=True) if colored else d.rule
+                sys.stdout.write(f"{d.location}: {rule}: {d.detail}\n")
             sys.stdout.write(f"aw backlog check: {len(drift)} violation(s).\n")
         else:
-            sys.stdout.write("aw backlog check: all backlog items conform.\n")
+            msg = "aw backlog check: all backlog items conform."
+            sys.stdout.write(
+                (t.color256(msg, 46, bold=True) if colored else msg) + "\n"
+            )
     return core.drift_exit_code(drift)

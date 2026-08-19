@@ -366,14 +366,23 @@ def run_check(args) -> int:
     if getattr(args, "agent", False):
         sys.stdout.write(core.render_agent_drift(drift))
     else:
+        # awcolor Order 01: color the HUMAN branch only (agent branch is byte-for-byte unchanged).
+        from agent_workflows import term as _term
+
+        t = _term.Term(
+            stream=sys.stdout, color=False if getattr(args, "no_color", False) else None
+        )
         if drift:
             for d in drift:
-                sys.stdout.write(f"{d.location}: {d.rule}: {d.detail}\n")
+                rule = t.color256(d.rule, 196, bold=True)  # severity red
+                sys.stdout.write(f"{d.location}: {rule}: {d.detail}\n")
             sys.stdout.write(
                 "Move pipeline metadata/status into a bare-enum `- Status:` bullet and a conformant history; see the specs contract.\n"
             )
         else:
-            sys.stdout.write("aw specs check: all specs conform.\n")
+            sys.stdout.write(
+                t.color256("aw specs check: all specs conform.", 46, bold=True) + "\n"
+            )
     return core.drift_exit_code(drift)
 
 

@@ -821,6 +821,26 @@ def run_lint(args: argparse.Namespace) -> int:
     agent = getattr(args, "agent", False)
     legacy = getattr(args, "legacy", False)
 
+    # awcolor Order 01: color the disposition word in the HUMAN branch only (agent output unchanged).
+    def _disp(word: str) -> str:
+        if agent or getattr(args, "no_color", False):
+            return word
+        try:
+            from agent_workflows import term as _term
+
+            t = _term.Term(color=None)
+            if not getattr(t, "color", False):
+                return word
+            code = {
+                S.DISPOSITION_CONFORMING: 46,  # green
+                S.DISPOSITION_LEGACY: 244,  # grey
+                S.DISPOSITION_QUARANTINED: 214,  # amber
+                S.DISPOSITION_ERROR: 196,  # red
+            }.get(word, 244)
+            return t.color256(word, code, bold=True)
+        except Exception:
+            return word
+
     try:
         if getattr(args, "all", False):
             root = Path(getattr(args, "path", None) or ".")
@@ -845,7 +865,7 @@ def run_lint(args: argparse.Namespace) -> int:
                     if not diags:
                         print("{0}\t{1}\t{2}".format(f, "DISPOSITION", disp))
                 else:
-                    print("{0}: {1}".format(disp, f))
+                    print("{0}: {1}".format(_disp(disp), f))
             if not agent:
                 print(
                     "counts: "
@@ -874,7 +894,7 @@ def run_lint(args: argparse.Namespace) -> int:
             if diags:
                 for d in diags:
                     print(d.render(str(path)))
-            print("disposition: {0}".format(disp))
+            print("disposition: {0}".format(_disp(disp)))
         return 1 if disp == S.DISPOSITION_ERROR else 0
     except (
         Exception

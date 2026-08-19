@@ -140,6 +140,14 @@ def emit_findings(term, drift, *, as_json: bool = False, as_agent: bool = False)
             + "\n"
         )
     else:
+        # awcolor Order 01: color the severity/rule in the human branch (agent/json unchanged).
         for d in drift:
-            term.line(f"- {d.location}: {d.rule} {d.detail}")
+            rule = (
+                term.color256(d.rule, 196, bold=True)
+                if getattr(term, "color", False)
+                else d.rule
+            )
+            term.line(f"- {d.location}: {rule} {d.detail}")
+        if not drift:
+            pass
     return exit_code_for(drift)
