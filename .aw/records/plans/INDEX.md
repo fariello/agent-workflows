@@ -2,12 +2,17 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 98 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 99 Sets; the full manifest is INDEX.json.
 
 ## awdoctorfix
 
 - `hblwtx` [executed] 01 executed/20260819-awdoctorfix-01-hblwtx-attention-board-priority-labeled-blocker-columns-with-legend.ipd.md
 - `2pyjga` [executed] 02 executed/20260819-awdoctorfix-02-2pyjga-attention-board-shows-identity-stem-by-default-long-for-full.ipd.md
+- `qa1k8z` [executed] 03 executed/20260819-awdoctorfix-03-qa1k8z-attention-hides-for-history-less-trees-aw-doctor-source-repo.ipd.md
+
+## awuntrackedfix
+
+- `njfyjt` [pending] 01 pending/20260819-awuntrackedfix-01-njfyjt-actually-rename-local-lanes-to-untracked-on-both-layouts-ret.ipd.md
 
 ## awcheck
 
@@ -260,10 +265,6 @@ Showing the 40 most-recent of 98 Sets; the full manifest is INDEX.json.
 - `kemhdg` [executed] 05 executed/20260723-instsafe-05-kemhdg-external-install-and-skills-delivery-research-spec.ipd.md
 - `mv7hw7` [executed] 06 executed/20260722-instsafe-06-mv7hw7-deepen-interactive-questions-convention.ipd.md
 - `qrokie` [executed] 07 executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md
-
-## assess-and
-
-- `49eeuc` [executed] 00 executed/20260722-assess-and-00-49eeuc-assess-and-producers-closing-artifacts-report.ipd.md
 
 ## (singletons: no Set)
 

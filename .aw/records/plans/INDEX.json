@@ -2170,6 +2170,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-19",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 3,
+    "path": "executed/20260819-awdoctorfix-03-qa1k8z-attention-hides-for-history-less-trees-aw-doctor-source-repo.ipd.md",
+    "plan_id": "qa1k8z",
+    "set_id": "awdoctorfix",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -2198,6 +2208,16 @@
     "plan_id": "pp6y76",
     "set_id": "awretrofit",
     "status": "approved"
+  },
+  {
+    "date": "2026-08-19",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260819-awuntrackedfix-01-njfyjt-actually-rename-local-lanes-to-untracked-on-both-layouts-ret.ipd.md",
+    "plan_id": "njfyjt",
+    "set_id": "awuntrackedfix",
+    "status": "reviewed"
   },
   {
     "date": "2026-08-07",
