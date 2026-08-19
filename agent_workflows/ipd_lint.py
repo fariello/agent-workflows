@@ -812,6 +812,24 @@ def _iter_plan_files(root: Path) -> List[Path]:
     return sorted(p for p in base.rglob("*.md") if p.name not in _NON_IPD_BASENAMES)
 
 
+def _default_pending_files() -> List[Path]:
+    """awlintmulti Order 01: every pending plan across both pending dirs (.aw/records/plans/pending
+    and legacy .agents/plans/pending), excluding README/INDEX/STATUS sentinels."""
+    from pathlib import Path as _P
+
+    roots = [
+        _P(".aw") / "records" / "plans" / "pending",
+        _P(".agents") / "plans" / "pending",
+    ]
+    out: List[Path] = []
+    for r in roots:
+        if r.is_dir():
+            for p in sorted(r.rglob("*.md")):
+                if p.name not in ("README.md", "INDEX.md", "STATUS.md"):
+                    out.append(p)
+    return out
+
+
 def run_lint(args: argparse.Namespace) -> int:
     """Entry point for `aw ipd lint`. Returns the process exit code (0/1/2)."""
     checkpoint = getattr(args, "phase", None) or "author"
@@ -873,29 +891,45 @@ def run_lint(args: argparse.Namespace) -> int:
                 )
             return 1 if counts.get(S.DISPOSITION_ERROR, 0) else 0
 
+        # awlintmulti Order 01: `path` is now a LIST (nargs="*"). Lint the explicit files when given,
+        # else default to every pending plan across both pending dirs.
         target = getattr(args, "path", None)
-        if not target:
-            print("error: a FILE is required (or use --all)")
-            return 2
-        path = Path(target)
-        if not path.is_file():
-            print("error: not a file: {0}".format(target))
-            return 2
-        res = lint_file(path, checkpoint=checkpoint, legacy=legacy)
-        diags, disp = _with_name_check(res, path, legacy)
-        if agent:
-            for d in diags:
-                print(
-                    "{0}\t{1}\t{2}".format(path, d.code, d.message.replace("\t", " "))
-                )
-            if not diags:
-                print("{0}\t{1}\t{2}".format(path, "DISPOSITION", disp))
+        paths: List[Path]
+        if isinstance(target, str):
+            paths = [Path(target)]  # back-compat: a single string
+        elif target:
+            paths = [Path(p) for p in target]
         else:
-            if diags:
+            paths = _default_pending_files()
+        if not paths:
+            print(
+                "error: no IPD files to lint (none given and no pending plans found)."
+            )
+            return 2
+        any_error = False
+        for path in paths:
+            if not path.is_file():
+                print("error: not a file: {0}".format(path))
+                return 2
+            res = lint_file(path, checkpoint=checkpoint, legacy=legacy)
+            diags, disp = _with_name_check(res, path, legacy)
+            if disp == S.DISPOSITION_ERROR:
+                any_error = True
+            if agent:
                 for d in diags:
-                    print(d.render(str(path)))
-            print("disposition: {0}".format(_disp(disp)))
-        return 1 if disp == S.DISPOSITION_ERROR else 0
+                    print(
+                        "{0}\t{1}\t{2}".format(
+                            path, d.code, d.message.replace("\t", " ")
+                        )
+                    )
+                if not diags:
+                    print("{0}\t{1}\t{2}".format(path, "DISPOSITION", disp))
+            else:
+                if diags:
+                    for d in diags:
+                        print(d.render(str(path)))
+                print("disposition: {0} ({1})".format(_disp(disp), path))
+        return 1 if any_error else 0
     except (
         Exception
     ) as exc:  # invocation/internal failure -> exit 2, never a false pass

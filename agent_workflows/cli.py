@@ -599,9 +599,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_ipd_lint.add_argument(
         "path",
-        nargs="?",
+        nargs="*",
         default=None,
-        help="IPD file to lint (or a repo root with --all).",
+        help="Zero or more IPD files to lint (default: every pending plan; or a repo root with --all).",
     )
     p_ipd_lint.add_argument(
         "--phase",
