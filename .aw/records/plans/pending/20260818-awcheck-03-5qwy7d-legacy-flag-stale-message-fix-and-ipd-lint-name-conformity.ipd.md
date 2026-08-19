@@ -17,6 +17,7 @@
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from investigation (stale message normalize_plan_names.py:677; is_conformant expected_type normalize_plan_names.py:205; ipd_lint.run_lint legacy flag ipd_lint.py:767; _NEW_RE legacy grammar already faceted).
 - 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against normalize_plan_names.py:677, ipd_lint.py:761-770, and check_engine.py:check_names; structural lint conforming; no findings; no open questions; GO - PENDING HUMAN APPROVAL.
 - 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE; re-review (opencode): verified stale message:677, run_lint/legacy:761-768; conforming; no findings.
+- 2026-08-18 /plan-review (opencode Opus 4.8, RIGOROUS): APPROVE WITH REVISIONS APPLIED. Ran the live normalizer. PR-001 (MEDIUM): E-02/E-04/F2 used `20260101-1200-01-old-style.md` (HHMM-NN) as the "flagged without legacy" fixture, but that form is ALREADY is_conformant==True (accepted by _NEW_RE), so it is never flagged and the built test would FAIL. The legacy flag's mechanism is correct, but its exemplar was wrong; switched the fixture to a hyphenated-date legacy name `2026-01-01-<slug>.md` (is_conformant False, parse_name non-None), which actually exercises the flag. Stale-message fix (E-01), run_lint --legacy/terminal-short-circuit (E-03) verified accurate. Conforms at review-finalize. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -41,9 +42,9 @@ below at the exact anchors. Return Drift / diagnostics; keep changes minimal.
 
 ### Task group 2: legacy allowance in the engine name check (item 20)
 
-- [ ] E-02 In `agent_workflows/check_engine.py`, make `check_names(repo_root, record_type, legacy=False)` honor `legacy`: when `legacy=True`, a filename that is NOT conformant to the CURRENT grammar but IS a recognized LEGACY name (the normalizer's `parse_name(name)` returns a non-None Parsed whose `conformant` is False but which parses as a legacy shape) is treated as OK (no drift). Concretely: if `is_conformant(name, expected_type=<facet>)` is False, THEN if `legacy` and `parse_name(name) is not None`, skip (no drift); else emit the `check.name-nonconformant` Drift. (parse_name is in the same shipped normalizer module loaded in Order 01.)
+- [ ] E-02 In `agent_workflows/check_engine.py`, make `check_names(repo_root, record_type, legacy=False)` honor `legacy`: when `legacy=True`, a filename that is NOT conformant to the CURRENT grammar but IS a recognized legacy shape (the normalizer's `parse_name(name)` returns a non-None Parsed) is treated as OK (no drift). Concretely: if `is_conformant(name, expected_type=<facet>)` is False, THEN if `legacy` and `parse_name(name) is not None`, skip (no drift); else emit the `check.name-nonconformant` Drift. (parse_name is in the same shipped normalizer module loaded in Order 01.) IMPORTANT (verified empirically against the live normalizer): the classic `YYYYMMDD-HHMM-NN-<slug>.md` form is ALREADY `is_conformant==True` (accepted by `_NEW_RE`), so it is NEVER flagged and the legacy flag has no effect on it. The shape the flag actually governs is one that FAILS `is_conformant` but `parse_name` still recognizes - e.g. the hyphenated-date legacy form `2026-01-01-<slug>.md` (is_conformant False, parse_name non-None). Use THAT as the test fixture, not the HHMM-NN form.
   - Depends on: none
-  - Expected outcome: over a fixture with a legacy-named plan `20260101-1200-01-old-style.md`: `check_names(root,"plans")` (no legacy) flags it; `check_names(root,"plans",legacy=True)` does NOT.
+  - Expected outcome: over a fixture with a hyphenated-date legacy plan `2026-01-01-old-hyphenated.md` (is_conformant False, parse_name non-None): `check_names(root,"plans")` (no legacy) flags it with `check.name-nonconformant`; `check_names(root,"plans",legacy=True)` does NOT. (A `YYYYMMDD-HHMM-NN` name would NOT be flagged even without legacy, since it is already conformant - do not use it as the fixture.)
   - Execution state: pending
 
 ### Task group 3: ipd lint checks the filename (item 6)
@@ -55,7 +56,7 @@ below at the exact anchors. Return Drift / diagnostics; keep changes minimal.
 
 ### Task group 4: tests
 
-- [ ] E-04 Update tests: (a) add to `tests/test_check_engine.py` a `LegacyNamesTests` with `test_legacy_flag_allows_legacy_name` (legacy-named plan flagged without legacy, allowed with legacy) and `test_current_name_ok` (a conformant `.ipd.md` name never flagged). (b) add to the ipd-lint tests (find the existing ipd lint test file, e.g. `tests/test_ipd_lint.py`) a test that a grammar-violating filename yields IPD-N001 and `--legacy` suppresses it. (c) if any existing test asserted the OLD stale message string, update it to the new message. Run the FULL serial suite and paste the tail.
+- [ ] E-04 Update tests: (a) add to `tests/test_check_engine.py` a `LegacyNamesTests` with `test_legacy_flag_allows_legacy_name` (a HYPHENATED-DATE legacy plan `2026-01-01-old-hyphenated.md` - which fails is_conformant but parse_name recognizes - is flagged WITHOUT legacy, allowed WITH legacy; do NOT use a `YYYYMMDD-HHMM-NN` name, which is already conformant and would make the "flagged without legacy" assertion fail) and `test_current_name_ok` (a conformant `.ipd.md` name never flagged). (b) add to the ipd-lint tests (find the existing ipd lint test file, e.g. `tests/test_ipd_lint.py`) a test that a grammar-violating filename (again a hyphenated-date or garbage name, NOT HHMM-NN) yields IPD-N001 and `--legacy` suppresses it for the parse_name-recognized legacy shape. (c) if any existing test asserted the OLD stale message string, update it to the new message. Run the FULL serial suite and paste the tail.
   - Depends on: E-01,E-02,E-03
   - Expected outcome: the new tests pass; any message-asserting test updated; full serial suite green.
   - Execution state: pending
@@ -63,7 +64,7 @@ below at the exact anchors. Return Drift / diagnostics; keep changes minimal.
 ## Project conventions discovered (Step 0)
 
 - Stale message is a single print at normalize_plan_names.py:677 (grammar text is wrong/old).
-- `is_conformant(name, expected_type=...)` (normalize_plan_names.py:205) already validates the current grammar incl. the `.type.md` facet; `parse_name` (normalize_plan_names.py:171) returns a Parsed (with a `conformant` bool) or None; a legacy `YYYYMMDD-HHMM-NN-<slug>` parses (non-None) but is not "conformant" to the clustered grammar.
+- `is_conformant(name, expected_type=...)` (normalize_plan_names.py:205) validates the current grammar incl. the `.type.md` facet AND (verified empirically) already accepts the `YYYYMMDD-HHMM-NN-<slug>` legacy form via `_NEW_RE` (so that form is conformant, NOT flagged, with or without legacy). `parse_name` (normalize_plan_names.py:171) returns a Parsed (whose `conformant` bool is True even for the HHMM-NN form) or None. The names that FAIL is_conformant yet parse_name recognizes (so the legacy flag matters) are the OTHER legacy shapes, e.g. hyphenated-date `2026-01-01-<slug>.md` (is_conformant False, parse_name non-None) and true garbage (both False -> flagged even under legacy).
 - `aw ipd lint` ALREADY has a `--legacy` flag (ipd_lint.py:767) and a terminal-dir short-circuit; the new IPD-N001 diagnostic must respect both.
 - The engine's `check_names` (Order 01) already accepts a `legacy` passthrough; this Order gives it behavior.
 - Facet per type: plans->ipd, specs->spec, backlog->backlog, prompts->prompt, walkthroughs->walkthrough, roadmaps->roadmap (research excepted).
@@ -73,7 +74,7 @@ below at the exact anchors. Return Drift / diagnostics; keep changes minimal.
 | # | Finding | Consequence |
 |---|---|---|
 | F1 | The stale message is one line. | Trivial, high-value fix (item 11). |
-| F2 | parse_name distinguishes legacy from unknown. | `legacy=True` = "parses as a known legacy shape" -> allow; unknown -> still flag. Deterministic. |
+| F2 | parse_name distinguishes legacy from unknown; but the HHMM-NN form is ALREADY is_conformant. | `legacy=True` allows names that FAIL is_conformant yet parse_name recognizes (e.g. hyphenated-date `2026-01-01-...`). The HHMM-NN form is conformant regardless, so it must NOT be the legacy-flag fixture (verified empirically; earlier draft used it wrongly -> a failing test). |
 | F3 | ipd lint already has --legacy + terminal short-circuit. | IPD-N001 slots in respecting both; no behavior regression. |
 
 ## Proposed changes (ordered, validatable)
@@ -116,7 +117,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: paste `check_names` flagging a legacy-named plan without legacy and NOT flagging it with `legacy=True`.
+  - Required evidence: paste `check_names` flagging a HYPHENATED-DATE legacy plan (`2026-01-01-old-hyphenated.md`, which fails is_conformant but parse_name recognizes) WITHOUT legacy, and NOT flagging it WITH `legacy=True`; also show a `YYYYMMDD-HHMM-NN` name is not flagged either way (already conformant), confirming the fixture choice.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
