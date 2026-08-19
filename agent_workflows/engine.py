@@ -3763,6 +3763,19 @@ _PROMPTS_GITIGNORE_TEMPLATE = """\
 # with `git mv`. The tracked buckets (siblings of this file) travel with the repo.
 untracked/
 """
+
+# awgitignore Order 01: the CANONICAL `.aw/` layout ignores every records `untracked/` quarantine
+# lane via ONE framework-owned `.aw/.gitignore` (`.aw/` is exclusively ours, unlike the shared
+# `.agents/`, so this is not a user-root-.gitignore edit). Legacy `.agents/` keeps per-lane files.
+AW_GITIGNORE_PATH = ".aw/.gitignore"
+_AW_GITIGNORE_TEMPLATE = """\
+# agent-workflows: ignore the box-local, ephemeral `untracked/` quarantine lanes under records/.
+# These lanes (e.g. prompts/untracked/, comms/untracked/) hold this machine's raw/WIP/routing
+# content and are never committed; a human promotes a reviewed copy into a tracked bucket with
+# `git mv`. This file lives inside the framework-owned `.aw/` tree; it is NOT the user's root
+# `.gitignore` (that is never touched here).
+records/*/untracked/
+"""
 # Inter-agent comms convention (D81). Scaffolded skeleton for `.agents/comms/`. `local/` is
 # box-local, ephemeral routing and is gitignored via a NESTED `.gitignore` (a created deliverable,
 # NOT a modification of the target root `.gitignore`, so it respects the firm no-touch-root rule).
@@ -4318,10 +4331,17 @@ def create_setup_artifacts(
         files.append((f"{shard}/.gitkeep", ""))
     for sub in PROMPT_LIFECYCLE_SUBDIRS:
         files.append((f"{dirs['prompts']}/{sub}/.gitkeep", ""))
-    files.append((f"{dirs['prompts']}/.gitignore", _PROMPTS_GITIGNORE_TEMPLATE))
+    # awgitignore Order 01: the canonical `.aw/` layout ignores every records untracked/ lane via ONE
+    # framework-owned `.aw/.gitignore`; the legacy (shared) `.agents/` layout keeps per-lane files.
+    _canonical_aw = str(dirs["comms"]).replace("\\", "/").startswith(".aw/")
+    if _canonical_aw:
+        files.append((AW_GITIGNORE_PATH, _AW_GITIGNORE_TEMPLATE))
+    else:
+        files.append((f"{dirs['prompts']}/.gitignore", _PROMPTS_GITIGNORE_TEMPLATE))
     files.append((GITLEAKSIGNORE_FILE, _GITLEAKSIGNORE_TEMPLATE))
     files.append((SECRET_SCAN_CI, _SECRET_SCAN_CI_TEMPLATE))
-    files.append((f"{dirs['comms']}/.gitignore", _COMMS_GITIGNORE_TEMPLATE))
+    if not _canonical_aw:
+        files.append((f"{dirs['comms']}/.gitignore", _COMMS_GITIGNORE_TEMPLATE))
     files.append((f"{dirs['comms']}/README.md", _COMMS_README_TEMPLATE))
     for sub in COMMS_SHARED_SUBDIRS:
         files.append((f"{dirs['comms']}/shared/{sub}/.gitkeep", ""))
@@ -4369,9 +4389,26 @@ def _merge_tree(old: Path, new: Path) -> None:
         pass
 
 
+def _ensure_aw_gitignore(repo_root: Path) -> None:
+    """awgitignore Order 01: ensure the single framework-owned `repo/.aw/.gitignore` exists and
+    ignores every records untracked/ lane (`records/*/untracked/`). Create it (from the template) if
+    absent; append the pattern if a `.aw/.gitignore` exists without it. `.aw/` is framework-owned, so
+    this is safe to write freely (it is NOT the user's root `.gitignore`)."""
+    gi = Path(repo_root) / ".aw" / ".gitignore"
+    if not gi.is_file():
+        gi.parent.mkdir(parents=True, exist_ok=True)
+        gi.write_text(_AW_GITIGNORE_TEMPLATE, encoding="utf-8")
+        return
+    text = gi.read_text(encoding="utf-8")
+    if "records/*/untracked/" in text:
+        return
+    gi.write_text(text.rstrip("\n") + "\nrecords/*/untracked/\n", encoding="utf-8")
+
+
 def _ensure_untracked_gitignore(base: Path) -> None:
-    """awuntrackedfix Order 01: ensure `<base>/.gitignore` ignores `untracked/`. Create it (from the
-    comms/prompts nested template) if absent; rewrite a legacy bare `local/` line to `untracked/`."""
+    """awuntrackedfix Order 01: ensure `<base>/.gitignore` ignores `untracked/` (LEGACY `.agents/`
+    lanes only; canonical `.aw/` uses the single `.aw/.gitignore` via `_ensure_aw_gitignore`). Create
+    it (from the nested template) if absent; rewrite a legacy bare `local/` line to `untracked/`."""
     gi = base / ".gitignore"
     tmpl = (
         _COMMS_GITIGNORE_TEMPLATE
@@ -4423,6 +4460,7 @@ def migrate_local_lanes_to_untracked(repo_root: Path, dirs: dict) -> list[str]:
     `untracked/`. Idempotent. Returns the list of renamed lane paths (repo-relative)."""
     repo_root = Path(repo_root)
     renamed: list[str] = []
+    want_aw_gitignore = False
     for base in _lane_bases(repo_root, dirs or {}):
         old = base / "local"
         new = base / "untracked"
@@ -4432,9 +4470,24 @@ def migrate_local_lanes_to_untracked(repo_root: Path, dirs: dict) -> list[str]:
             else:
                 _merge_tree(old, new)  # recursive, non-clobbering (PR-002)
             renamed.append(str(new.relative_to(repo_root)).replace("\\", "/"))
-        # ensure the gitignore wherever an untracked/ lane now exists
-        if new.is_dir():
+        if not new.is_dir():
+            continue
+        # awgitignore Order 01: a canonical `.aw/` lane is ignored by the ONE framework-owned
+        # `.aw/.gitignore` (records/*/untracked/); drop any stale per-lane file. A legacy shared
+        # `.agents/` lane keeps its nested `.gitignore`.
+        try:
+            rel = base.relative_to(repo_root).as_posix()
+        except ValueError:
+            rel = str(base).replace("\\", "/")
+        if rel.startswith(".aw/records/"):
+            want_aw_gitignore = True
+            stale = base / ".gitignore"
+            if stale.is_file():
+                stale.unlink()
+        else:
             _ensure_untracked_gitignore(base)
+    if want_aw_gitignore:
+        _ensure_aw_gitignore(repo_root)
     return renamed
 
 

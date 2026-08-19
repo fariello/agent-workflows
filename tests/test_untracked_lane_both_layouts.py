@@ -44,8 +44,21 @@ class UntrackedBothLayoutsTests(unittest.TestCase):
                 '{"ack":1}',
                 f"{rel} nested ack must be preserved",
             )
-            gi = (base / ".gitignore").read_text(encoding="utf-8")
-            self.assertIn("untracked/", gi)
+            if rel.startswith(".aw/records/"):
+                # awgitignore Order 01: canonical .aw/ lanes are ignored by the SINGLE .aw/.gitignore,
+                # not a nested per-lane file.
+                self.assertFalse(
+                    (base / ".gitignore").exists(),
+                    f"{rel} should have no nested .gitignore",
+                )
+            else:
+                # legacy shared .agents/ keeps a nested per-lane .gitignore
+                self.assertIn(
+                    "untracked/", (base / ".gitignore").read_text(encoding="utf-8")
+                )
+        # the single framework-owned file ignores every records untracked/ lane
+        aw_gi = (self.root / ".aw" / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn("records/*/untracked/", aw_gi)
 
     def test_pr002_nested_merge_when_untracked_preexists(self):
         # a pre-existing EMPTY untracked/acks/ must not strand local/acks/x.json (the reinstall bug)

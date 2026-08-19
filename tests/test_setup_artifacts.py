@@ -75,13 +75,14 @@ class SetupArtifactTests(unittest.TestCase):
                 (self.repo / ".aw/records/prompts" / sub / "README.md").is_file(),
                 f"missing prompts README {sub}",
             )
-        # Prompts quarantine lane (D94): a nested .gitignore ignores local/, and the local/ dir is
-        # materialized (installer creates all expected dirs) but NOT tracked (empty + gitignored).
-        self.assertTrue((self.repo / ".aw/records/prompts/.gitignore").is_file())
+        # awgitignore Order 01: the canonical .aw/ layout ignores every records untracked/ lane via
+        # ONE framework-owned .aw/.gitignore (records/*/untracked/); no nested per-lane files.
+        self.assertTrue((self.repo / ".aw/.gitignore").is_file())
         self.assertIn(
-            "untracked/",
-            (self.repo / ".aw/records/prompts/.gitignore").read_text(encoding="utf-8"),
+            "records/*/untracked/",
+            (self.repo / ".aw/.gitignore").read_text(encoding="utf-8"),
         )
+        self.assertFalse((self.repo / ".aw/records/prompts/.gitignore").exists())
         self.assertTrue((self.repo / ".aw/records/prompts/untracked").is_dir())
         self.assertFalse(
             (self.repo / ".aw/records/prompts/untracked/.gitkeep").exists()
@@ -94,8 +95,9 @@ class SetupArtifactTests(unittest.TestCase):
         self.assertTrue((self.repo / ".aw/records/walkthroughs/README.md").is_file())
         self.assertTrue((self.repo / ".gitleaksignore").is_file())
         self.assertTrue((self.repo / ".github/workflows/secret-scan.yml").is_file())
-        # Inter-agent comms skeleton (D81): nested .gitignore, README, shared/ gitkeeps.
-        self.assertTrue((self.repo / ".aw/records/comms/.gitignore").is_file())
+        # Inter-agent comms skeleton (D81): README + shared/ gitkeeps. The comms untracked/ lane is
+        # ignored by the single .aw/.gitignore (awgitignore Order 01), NOT a nested comms .gitignore.
+        self.assertFalse((self.repo / ".aw/records/comms/.gitignore").exists())
         self.assertTrue((self.repo / ".aw/records/comms/README.md").is_file())
         for sub in ("inbox", "sent", "archive"):
             self.assertTrue(
@@ -106,10 +108,10 @@ class SetupArtifactTests(unittest.TestCase):
         self.assertFalse(
             (self.repo / ".aw/records/comms/untracked/inbox/.gitkeep").exists()
         )
-        # The nested .gitignore ignores local/ and does NOT touch the target root .gitignore.
+        # The single .aw/.gitignore ignores the lanes and does NOT touch the user's root .gitignore.
         self.assertIn(
-            "untracked/",
-            (self.repo / ".aw/records/comms/.gitignore").read_text(encoding="utf-8"),
+            "records/*/untracked/",
+            (self.repo / ".aw/.gitignore").read_text(encoding="utf-8"),
         )
         # AC-16: guidance to run /setup-repo is emitted.
         self.assertIn("/setup-repo", out)
@@ -146,11 +148,11 @@ class SetupArtifactTests(unittest.TestCase):
         # + 4 docs-dir gitkeeps (research/walkthroughs/specs/prompts)
         # + 2 research shard gitkeeps (research/reference, research/archive) (research-org Order 07)
         # + 5 prompts-dir gitkeeps (pending/executed/superseded/not-executed/reusable) (D91)
-        # + prompts .gitignore (D94 local/ lane; the mkdir'd local/ dirs are side-effect-only,
-        #   NOT counted)
+        # + ONE .aw/.gitignore (awgitignore Order 01: consolidated; the two nested per-lane
+        #   .gitignores are gone; the mkdir'd untracked/ dirs are side-effect-only, NOT counted)
         # + gitleaksignore + secret-scan CI
-        # + comms .gitignore + comms README + 3 comms shared/ gitkeeps + backlog/roadmaps/prompt-library + flat research/specs/walkthroughs (Order 08) = 26.
-        self.assertEqual(len(created), 26)
+        # + comms README + 3 comms shared/ gitkeeps + backlog/roadmaps/prompt-library + flat research/specs/walkthroughs (Order 08) = 25.
+        self.assertEqual(len(created), 25)
 
     def test_install_does_not_touch_target_root_gitignore(self):
         # The comms nested .gitignore is a created deliverable; the ROOT .gitignore must not be
@@ -256,15 +258,15 @@ class PromptsScaffoldTests(unittest.TestCase):
         )
 
     def test_local_quarantine_lane(self):
-        # D94: the nested .gitignore ignores local/, the local/ dir is materialized (installer
-        # creates all expected dirs) but not tracked, and rollback removes the .gitignore.
+        # awgitignore Order 01: the single .aw/.gitignore ignores the untracked/ lanes; the lane dir
+        # is materialized but not tracked, and rollback removes the .gitignore.
         import subprocess
 
-        # Install once (this records the created files incl. the prompts .gitignore for --undo).
+        # Install once (this records the created files incl. the .aw/.gitignore for --undo).
         engine.install_into_repo(self.repo, SOURCE_WORKFLOWS, yes=True, no_color=True)
-        gi = self.repo / ".aw/records/prompts/.gitignore"
+        gi = self.repo / ".aw/.gitignore"
         self.assertTrue(gi.is_file())
-        self.assertIn("untracked/", gi.read_text(encoding="utf-8"))
+        self.assertIn("records/*/untracked/", gi.read_text(encoding="utf-8"))
         self.assertTrue((self.repo / ".aw/records/prompts/untracked").is_dir())
         self.assertFalse(
             (self.repo / ".aw/records/prompts/untracked/.gitkeep").exists()
@@ -284,17 +286,17 @@ class PromptsScaffoldTests(unittest.TestCase):
             capture_output=True,
             text=True,
         )
-        self.assertEqual(r.returncode, 0, "local/ content is not gitignored")
+        self.assertEqual(r.returncode, 0, "untracked/ content is not gitignored")
         # rollback removes the .gitignore file (it is in the created record, D85 F5).
         engine.run_rollback(self.repo, no_color=True)
-        self.assertFalse(gi.exists(), "rollback left the prompts .gitignore behind")
+        self.assertFalse(gi.exists(), "rollback left the .aw/.gitignore behind")
 
-    def test_dry_run_reports_prompts_gitignore(self):
+    def test_dry_run_reports_aw_gitignore(self):
         use_git = engine.git_available(self.repo)
         created = engine.create_setup_artifacts(self.repo, use_git, dry_run=True)
         self.assertTrue(
-            any(c.startswith(".aw/records/prompts/.gitignore") for c in created),
-            f"dry-run did not report the prompts .gitignore: {created}",
+            any(c.startswith(".aw/.gitignore") for c in created),
+            f"dry-run did not report the .aw/.gitignore: {created}",
         )
 
     def test_readmes_no_clobber(self):
@@ -323,7 +325,8 @@ class LocalLeaksBackstopTests(unittest.TestCase):
     def test_default_setup_artifacts_unchanged_count_24(self):
         # G6: the off-by-default backstop MUST NOT leak into the always-on path.
         created = engine.create_setup_artifacts(self.repo, use_git=False)
-        self.assertEqual(len(created), 26)
+        # awgitignore Order 01: 25 (two nested lane .gitignores consolidated into one .aw/.gitignore).
+        self.assertEqual(len(created), 25)
         # And neither backstop file is written by the default path.
         self.assertFalse((self.repo / engine.LOCAL_LEAKS_CI).exists())
         self.assertFalse((self.repo / engine.PRE_COMMIT_CONFIG).exists())

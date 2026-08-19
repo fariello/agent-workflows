@@ -23,17 +23,24 @@ it degrades latency, never correctness. No convention behavior may depend on a b
 ## On-disk layout
 
 ```
-.agents/comms/
-  README.md            # human-facing summary of this convention
-  .gitignore           # nested; ignores local/ (a created deliverable, not a root .gitignore edit)
-  local/               # box-local, gitignored, ephemeral
+.aw/records/comms/       # canonical layout (.aw/ is the framework-owned namespace)
+  README.md              # human-facing summary of this convention
+  untracked/             # box-local, gitignored, ephemeral (was `local/`)
     inbox/  sent/  archive/  scheduled/  acks/
-  shared/              # tracked in git; deliberate, durable, travels with the repo
+  shared/                # tracked in git; deliberate, durable, travels with the repo
     inbox/  sent/  archive/
 ```
 
-The DIRECTORY chosen IS the privilege level: `local/` = ephemeral/untracked, `shared/` =
-durable/tracked. `local/` subdirs carry no `.gitkeep` (the lane is ignored); `shared/` subdirs do.
+Gitignore: in the CANONICAL `.aw/` layout, every records `untracked/` quarantine lane (comms,
+prompts, ...) is ignored by ONE framework-owned file at `repo/.aw/.gitignore` with the pattern
+`records/*/untracked/`. This is a created, wholly-owned deliverable INSIDE the framework's `.aw/`
+tree; it is NOT an edit of the user's root `repo/.gitignore` (that is never touched here). The LEGACY
+`.agents/comms/` layout (a shared namespace not owned by the framework) instead keeps a nested
+per-lane `.agents/comms/.gitignore` ignoring `untracked/`, since a `.agents/.gitignore` would touch
+shared space.
+
+The DIRECTORY chosen IS the privilege level: `untracked/` = ephemeral/untracked, `shared/` =
+durable/tracked. `untracked/` subdirs carry no `.gitkeep` (the lane is ignored); `shared/` subdirs do.
 
 ## Message envelope
 
@@ -112,4 +119,5 @@ the portable, broker-free delivery mechanism and works for any agent (OpenCode o
 - Conditional scheduling (`Depends-On`), Telegram/Signal and other transports, cross-box comms.
 
 ## Workflow history
-- 2026-08-08 migrated (aw specs): normalized status to `implemented` (was: canonical (supersedes and replaces the earlier draft, now removed).)
+
+- 2026-08-19 note (aw specs): awgitignore Order 01: superseded the nested-per-lane .gitignore prescription for the canonical .aw/ layout with a single framework-owned repo/.aw/.gitignore (records/*/untracked/); legacy .agents/ keeps nested. Nothing had shipped since pre-.aw/, so this is a supersede, not a migration.

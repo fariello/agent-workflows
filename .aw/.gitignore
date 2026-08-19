@@ -1,0 +1,6 @@
+# agent-workflows: ignore the box-local, ephemeral `untracked/` quarantine lanes under records/.
+# These lanes (e.g. prompts/untracked/, comms/untracked/) hold this machine's raw/WIP/routing
+# content and are never committed; a human promotes a reviewed copy into a tracked bucket with
+# `git mv`. This file lives inside the framework-owned `.aw/` tree; it is NOT the user's root
+# `.gitignore` (that is never touched here).
+records/*/untracked/
