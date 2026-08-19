@@ -17,6 +17,7 @@
 - 2026-08-18 authored (opencode Opus 4.8): from spec 20260818-1525-01 + cli.py investigation (flat dispatch chain cli.py:4018-4241; backend module map).
 - 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against cli.py:369-1747, cli.py:1600, plans_refs.py:33, and artifact_core.py:255-262; structural lint conforming; no findings; no blocking open questions; GO - PENDING HUMAN APPROVAL.
 - 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE WITH REVISIONS APPLIED; re-review (opencode): PR-001 fixed - Order 01 no longer stands up `archive` (would break `aw archive <id6>` mid-Set); defers archive parser to Order 03; six verbs here. Conforming.
+- 2026-08-18 /plan-review (opencode Opus 4.8, RIGOROUS): APPROVE WITH REVISIONS APPLIED. Empirically confirmed the six new verb names (check/find/search/index/rename/group) are collision-free top-level (all `invalid choice` today; only archive collides, already deferred). PR-001 (this pass, LOW-MEDIUM): `TYPE_BACKENDS` was described as a "pure data map" that "names" functions, ambiguous enough that an executor could store function OBJECTS - forcing eager backend imports and the exact cycles the map avoids; made E-02 explicit that the values are DOTTED-NAME STRINGS resolved lazily by the router, and that importing artifact_types must import no backend. Conforms at review-finalize. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -36,9 +37,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: `normalize_type("plan")=="plans"`, `normalize_type("all")=="all"`, `normalize_type("bogus")` raises ValueError mentioning the valid set; `expand_types("all", supported=("plans","specs"))==["plans","specs"]`.
   - Execution state: pending
-- [ ] E-02 In `artifact_types.py`, add a `TYPE_BACKENDS` mapping from each type to the module + entrypoints that back its cross-cutting operations, grounded in the investigation: plans -> {index: `plans_index.run_index`, find: `plans_index.run_find`, rename: `plans_refs.run_mv`, group: `plans_refs.run_set_assign`, archive: `plans_archive.run_archive`}; research -> {index: `research_index.run_index`, find: `research_index.run_find`, rename: `research_refs.run_mv`, group: `research_refs.run_set_assign`, archive: `research_archive.run_archive`}; specs -> {check: `specs.run_check`}; backlog -> {check: `backlog.run_check`}. Types/verbs with no backend yet resolve to None (the router reports "not supported for <type>" with exit 2). Keep this a pure data map (lazy imports done in the router, not here) to avoid import cycles.
+- [ ] E-02 In `artifact_types.py`, add a `TYPE_BACKENDS` mapping from each type+verb to a DOTTED-NAME STRING (e.g. the literal string `"plans_refs.run_mv"`), NOT a function object - storing the callable would force an eager `import` at module load and reintroduce the import cycles this map exists to avoid. The router resolves a string to a callable lazily at dispatch time (e.g. `mod, attr = value.rsplit(".",1); getattr(importlib.import_module("agent_workflows."+mod), attr)`). Contents, grounded in the investigation: plans -> {index: `"plans_index.run_index"`, find: `"plans_index.run_find"`, rename: `"plans_refs.run_mv"`, group: `"plans_refs.run_set_assign"`, archive: `"plans_archive.run_archive"`}; research -> {index: `"research_index.run_index"`, find: `"research_index.run_find"`, rename: `"research_refs.run_mv"`, group: `"research_refs.run_set_assign"`, archive: `"research_archive.run_archive"`}; specs -> {check: `"specs.run_check"`}; backlog -> {check: `"backlog.run_check"`}. A missing type/verb key resolves to None (the router reports "not supported for <type>" with exit 2). This module must import NONE of those backend modules at load time.
   - Depends on: E-01
-  - Expected outcome: `TYPE_BACKENDS["plans"]["rename"]` names `plans_refs.run_mv`; an unsupported (type, verb) pair yields None.
+  - Expected outcome: `TYPE_BACKENDS["plans"]["rename"] == "plans_refs.run_mv"` (a STRING); an unsupported (type, verb) pair yields None; importing `artifact_types` does NOT import plans_refs/plans_index/etc. (verify e.g. via `sys.modules` before/after).
   - Execution state: pending
 
 ### Task group 2: shared machine-output + exit-code convention
@@ -74,7 +75,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 |---|---|---|
 | F1 | Single-file flat dispatch. | New verbs are added as more `if args.command ==` blocks; low risk, no framework change. |
 | F2 | `archive` already taken (research, `target` positional cli.py:1600). | Order 01 does NOT touch `archive` (that would break `aw archive <id6>` mid-Set); Order 03 owns generalizing it atomically. |
-| F3 | Backends already exist + are lazily imported. | Routers delegate; no backend rewrite. `TYPE_BACKENDS` is a pure data map to avoid cycles. |
+| F3 | Backends already exist + are lazily imported. | Routers delegate; no backend rewrite. `TYPE_BACKENDS` is a pure data map of DOTTED-NAME STRINGS (not function objects), resolved lazily by the router, so importing artifact_types imports no backend and no cycle forms. |
+| F5 | The six new verb names (check/find/search/index/rename/group) are collision-free at the top level. | Verified: all six currently `invalid choice`; only `archive` collides (deferred to Order 03). Safe to add as new subparsers. |
 | F4 | Selector grammar is a separate Set (E). | Order 01 ships a minimal `selector nargs="*"`; awselect replaces it. Keep the parser shape forward-compatible. |
 
 ## Proposed changes (ordered, validatable)
