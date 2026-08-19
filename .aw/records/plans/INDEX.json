@@ -1847,7 +1847,7 @@
     "path": "pending/20260818-awcheck-00-t9a0b3-unified-check-and-validation-engine.ipd.md",
     "plan_id": "t9a0b3",
     "set_id": "awcheck",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",
@@ -1987,7 +1987,7 @@
     "path": "pending/20260818-awdoctor-03-5vvlm3-aw-doctor-deep-repo-inspector.ipd.md",
     "plan_id": "5vvlm3",
     "set_id": "awdoctor",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-18",

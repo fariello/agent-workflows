@@ -4,7 +4,7 @@
 - Kind: orchestrator
 - Concern: Build the ENGINE behind the `aw check` verb from spec 20260818-1525-01 and satisfy the maintainer's validation TODO items (6, 11, 19, 20, 23). Today validation is scattered across per-type tools with inconsistent scope, messages, and flags: specs.run_check (specs.py:296), backlog.run_check (backlog.py:442, which alone does an id6 dup check at backlog.py:447-463), plans_index.check_drift (plans_index.py:235), research_index.check_drift (research_index.py:231), and the shipped normalize_plan_names.is_conformant/parse_name. Cross-tree id6 uniqueness is checked ONLY inside attention.scan (attention.py:153-163), there is NO setid collision check anywhere, `aw ipd lint` does not verify filename conformity, and normalize_plan_names still prints a stale grammar message (normalize_plan_names.py:677) with no --allow-legacy escape. This Set unifies those into one engine, per type, emitting the shared Drift convention (artifact_core.py:247, drift_exit_code:262, render_agent_drift:255; exit 0 clean / 1 findings / 2 cannot-run).
 - Scope: The check/validation engine and its integration points. IN: a unified engine module that, per artifact TYPE, composes name-conformity + front-matter/status conformity + reference-integrity by reusing the existing per-type validators as sub-checks and emitting Drift; a cross-tree id6 AND setid uniqueness verifier generalized from attention's id6 dedup; a --legacy/--allow-legacy flag on every check path; the stale-message fix (normalize_plan_names.py:677); and making `aw ipd lint` call name-conformity. OUT: the `aw check <type>` VERB GRAMMAR + argv routing (Set A / awcmdsurf owns the parser and dispatch; this Set is the engine it dispatches INTO); the selector grammar internals (Set E / awselect); color/pretty output (Set C); help-text quality (Set B). This Set is referenced by Set A (awcmdsurf), whose Order 02 routes `aw check` into this engine.
-- Status: to-review
+- Status: reviewed
 - Set: awcheck
 - Order: 0
 - Highest E allocated: 01
@@ -16,6 +16,7 @@
 - 2026-08-18 draft (opencode Opus 4.8 (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-18 authored (opencode Opus 4.8): high-level orchestrator skeleton from spec 20260818-1525-01 + validation TODO items 6,11,19,20,23; children to be fleshed out.
 - 2026-08-18 to-review (opencode Opus 4.8): authored + lint-conforming; advanced draft->to-review (readiness, not a review).
+- 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE WITH REVISIONS APPLIED; PR-001 (all cited anchors + negative claims verified against source). Fixed a false/unsatisfiable evidence requirement: completion criteria + V-01 demanded `aw check` verb output, but this Set builds the ENGINE only (the verb is Set A's, and does not exist when this Set completes) - rewrote both to require engine-API + real-verb (`aw ipd lint`, normalize_plan_names) evidence; aligned the Order-01 child-table row to the pure-engine reality. Conforms at review-finalize. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -46,18 +47,18 @@ and will be fleshed out to line-level detail later.
 
 | Order | File | What it does | Depends on |
 |---|---|---|---|
-| 01 | (to scaffold) awcheck-engine-core | A unified check engine module that, per TYPE, composes name-conformity + front-matter/status conformity + reference-integrity as sub-checks and emits the shared Drift (artifact_core.py:247). Reuses existing per-type validators (specs.run_check specs.py:296, backlog.run_check backlog.py:442, plans_index.check_drift plans_index.py:235, research_index.check_drift research_index.py:231, normalize_plan_names.is_conformant/parse_name) rather than reimplementing them; `all` fans out over every applicable type. Uniform exit codes via drift_exit_code (artifact_core.py:262) and render_agent_drift (:255). + tests. | none |
+| 01 | 20260818-awcheck-01-iw1wlx (fleshed) | A unified check engine module (`check_engine.py`) that, per TYPE, composes name-conformity + front-matter/status conformity + reference-integrity as sub-checks and RETURNS the shared Drift list (artifact_core.py:247). Reuses existing per-type validators (specs.validate_spec specs.py:128, backlog.validate_item backlog.py:129, plans_index.check_drift plans_index.py:235, research_index.check_drift research_index.py:231, normalize_plan_names.is_conformant/parse_name) rather than reimplementing them; `check_types(["all"])` fans out over every applicable type. The engine is PURE (returns Drift, never prints); `drift_exit_code` (artifact_core.py:262) / `render_agent_drift` (:255) rendering + exit-code mapping live in the CLI verb layer (Set A / awcmdsurf), not the engine. + tests. | none |
 | 02 | (to scaffold) awcheck-collisions | A cross-tree id6 AND setid uniqueness verifier. Generalize attention's id6 dedup (attention.py:153-163) into a reusable collision sub-check the engine can run for a type or for `all`; ADD setid collision detection (none exists today) with a clear duplicate report. Reuse backlog's existing id6 dup logic (backlog.py:447-463) as a pattern. + tests. | 01 |
 | 03 | (to scaffold) awcheck-legacy-and-messages | Add a --legacy/--allow-legacy flag to ALL check paths (item 20) so legacy-named files (YYYYMMDD-HHMM-NN-<slug>.md) pass without findings; fix the stale message at normalize_plan_names.py:677 ("All scanned plan/prompt filenames conform to YYYYMMDD-HHMM-NN-<slug>.md.") to reflect the current grammar and honor the legacy flag (item 11); make `aw ipd lint` call the engine's name-conformity sub-check (item 6). + tests. | 01, 02 |
 
 ## Completion criteria (the whole Set is done only when)
 
 - Orders 01..03 executed.
-- `aw check <type>` runs name + front-matter/status + reference sub-checks; `aw check <type> names` runs ONLY name-conformity; `aw check all` fans out over every applicable type; all emit Drift with exit 0 clean / 1 findings / 2 cannot-run (item 19).
-- A duplicate id6 OR a duplicate setid anywhere in the tracked trees is reported as a finding (item 23); the generalized collision verifier subsumes attention's id6 check.
-- Every check path honors --legacy/--allow-legacy, letting legacy-named files pass cleanly (item 20).
-- The stale normalize_plan_names message is corrected and grammar-accurate (item 11); `aw ipd lint` verifies filename conformity (item 6).
-- Full serial suite green; the engine is consumable by Set A's `aw check` verb routing.
+- The unified engine's PUBLIC API (`check_engine.check_type(repo_root, type, names_only=..., legacy=...)` and `check_types(..., ["all"])`) runs name + front-matter/status + reference sub-checks per type, `names_only=True` runs ONLY name-conformity, and `["all"]` fans out over every applicable type, all RETURNING the shared Drift list (item 19). Exit-code mapping (0 clean / 1 findings / 2 cannot-run via `drift_exit_code`) is asserted at the engine boundary; the `aw check` VERB that renders it belongs to Set A (awcmdsurf) and is verified there, NOT here (this Set is a dependency of that verb, so `aw check` does not yet exist when this Set completes).
+- A duplicate id6 OR a duplicate setid anywhere in the tracked trees is reported as a Drift finding by the collision verifier (item 23); the generalized verifier subsumes attention's id6 check.
+- The engine's name-conformity sub-check honors `legacy=True`, letting legacy-named files pass cleanly (item 20).
+- The stale normalize_plan_names message is corrected and grammar-accurate (item 11, verified via the shipped tool directly); `aw ipd lint` verifies filename conformity (item 6, verified via the real `aw ipd lint` verb this Set touches).
+- Full serial suite green; the engine's public API + Drift shape are stable for Set A's `aw check` verb routing to consume.
 
 ## Cross-IPD validation
 
@@ -99,7 +100,7 @@ flagging a nonconformant filename.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: all three child Orders show `Status: executed` under `.aw/records/plans/executed/`; paste engine smoke output for `aw check plans`, `aw check plans names`, and `aw check all` showing Drift + exit codes (0/1/2); paste a run over a seeded duplicate id6 AND a seeded duplicate setid, each reported as a finding; paste a --legacy run passing a legacy-named fixture that fails without the flag; paste the corrected normalize_plan_names output (no stale "YYYYMMDD-HHMM-NN-<slug>.md" claim); paste `aw ipd lint` flagging a nonconformant filename; and paste the full serial suite tail green.
+  - Required evidence: all three child Orders show `Status: executed` under `.aw/records/plans/executed/`; paste ENGINE-API smoke output (a Python call, not the `aw check` verb, which is Set A's): `check_engine.check_type(root,"plans")`, `check_type(root,"plans",names_only=True)`, and `check_types(root,["all"])` each returning a Drift list, plus `drift_exit_code(...)` mapping to 0/1/2; paste a `check_collisions(root)` run over a seeded duplicate id6 AND a seeded duplicate setid, each reported as a Drift finding; paste an engine name-check with `legacy=True` passing a legacy-named fixture that is flagged without the flag; paste the corrected `normalize_plan_names` message from the shipped tool (no stale "YYYYMMDD-HHMM-NN-<slug>.md" claim); paste `aw ipd lint <nonconformant-filename>` flagging it (real verb this Set touches); and paste the full serial suite tail green. Do NOT require `aw check` verb output here (that verb is created + verified in Set A / awcmdsurf).
   - Observed evidence:
   - Result: pending
 
