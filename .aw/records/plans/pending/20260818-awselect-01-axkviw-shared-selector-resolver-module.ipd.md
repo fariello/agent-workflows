@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: awselect Order 01 (spec 20260818-1525-01; TODO items 17, 18). Build ONE shared, self-contained selector-resolver module that, given a record TYPE and one-or-more selector tokens, resolves each token as an id6, a setid, a partial/full filename, or a status, and returns the matching record file path(s). This is a PURE PRIMITIVE with no CLI wiring: Order 02 and the awcmdsurf verbs consume it. Building it as its own module with its own tests keeps this Order small and unambiguous.
 - Scope: ONE new module `agent_workflows/selectors.py` + ONE new test file `tests/test_selectors.py`. IN: a `resolve_selectors(repo_root, record_type, tokens)` function + small helpers, reusing `artifact_core.ID6_RE` and reading each record's front-matter `- Id:`/`- Status:`/`- Set:` and its filename. OUT: any change to `cli.py`, to `aw show`, to any existing module, or to any verb (all of that is Order 02 / awcmdsurf). This Order adds a NEW file and a NEW test file ONLY.
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-18, human ("Approve ALL 21 IPDs now ... Execute everything one at a time using Gemini ... then do it yourself.") after /plan-review (rigorous, opencode Opus 4.8; APPROVE / APPROVE WITH REVISIONS APPLIED).
 - Set: awselect
 - Order: 1
 - Highest E allocated: 06

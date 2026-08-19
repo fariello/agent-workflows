@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: awcmdsurf Order 05 (spec 20260818-1525-01, D1 hard cutover). With the new grammar fully in place (Orders 01-04), REMOVE the old verbs and the argv shim, then sweep + update EVERY in-repo reference to a removed verb across shipped docs/workflows/tests. This is the terminal, breaking Order; it runs LAST so all prior intermediate states stayed runnable.
 - Scope: cli.py removals + a repo-wide reference sweep. IN: remove parsers + dispatch for `plans`, `plans-mv`, `plans-find`, `plans-index`, `plans-set-assign`, `plans-archive`, `plan-names`, `list`, and the old `todo` action-list behavior superseded by the attention alias; remove the `plans <verb>` argv-rewrite shim (cli.py:4023-4031); update every reference in `.aw/system/workflows/**`, `AGENTS.md`, `RELEASING.md`, `CONTRIBUTING.md`, READMEs, and `tests/**` to the new grammar; advance spec 20260818-1525-01 to implemented (orchestrator does the spec transition). OUT: the behavior of the new verbs (Orders 01-04); the check engine / selector grammar (Sets D/E).
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-18, human ("Approve ALL 21 IPDs now ... Execute everything one at a time using Gemini ... then do it yourself.") after /plan-review (rigorous, opencode Opus 4.8; APPROVE / APPROVE WITH REVISIONS APPLIED).
 - Set: awcmdsurf
 - Order: 5
 - Highest E allocated: 06

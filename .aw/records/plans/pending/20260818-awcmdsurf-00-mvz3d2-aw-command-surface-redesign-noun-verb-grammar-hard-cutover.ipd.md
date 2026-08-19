@@ -4,7 +4,8 @@
 - Kind: orchestrator
 - Concern: Implement spec 20260818-1525-01 (command-surface redesign, RELEASE BLOCKER). Replace the mixed CLI grammar (flat `plans-*`/`plan-names` verbs + a `plans <verb>` argv-rewrite shim, alongside true noun-verb families) with ONE consistent grammar: cross-cutting VERBS (`check`/`find`/`search`/`index`/`rename`/`group`/`archive`) that take a TYPE noun (`all|plans|specs|prompts|research|backlog|walkthroughs|roadmaps|comms`) + selectors; merge `aw plans` into `aw ipd`; `aw list`->`aw list-repos`; `aw todo`->alias of `aw attention`. HARD CUTOVER: old verbs removed, all in-repo references updated. Addresses TODO items 5,9,19,22,24,25,26,27,28,32.
 - Scope: The CLI parser/dispatch (agent_workflows/cli.py) + reference updates across shipped docs/tests. IN: new verb parsers routing into EXISTING backends (plans_index/plans_refs/plans_archive/research_index/research_refs/research_archive/specs/backlog/normalize_plan_names); removal of old verbs + the argv shim; the plans->ipd merge; list-repos + todo alias; --json/exit-code consistency; updating every in-repo reference. OUT: the `check` ENGINE internals (Set D / awcheck), the selector-grammar internals (Set E / awselect), color/pretty (Set C), help-text quality (Set B) - this Set fixes the GRAMMAR + routing and depends on Set D for `check`'s engine and Set E for the selector parser (see dependencies).
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-18, human ("Approve ALL 21 IPDs now ... Execute everything one at a time using Gemini ... then do it yourself.") after /plan-review (rigorous, opencode Opus 4.8; APPROVE / APPROVE WITH REVISIONS APPLIED).
 - Set: awcmdsurf
 - Order: 0
 - Highest E allocated: 01

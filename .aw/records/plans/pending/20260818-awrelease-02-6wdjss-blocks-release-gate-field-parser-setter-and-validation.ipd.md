@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: awrelease Order 02 (spec 20260818-1525-03, RELEASE BLOCKER; TODO item 35). Add the item-side `Blocks-Release:` field so a backlog item / spec / plan can DECLARE it gates a release (distinct from being blocked-BY). Add a setter to write/clear it, teach the item front-matter parsers to read it, and add a validation that the value resolves to an existing release record (from Order 01) or the literal `next`.
 - Scope: `agent_workflows/backlog.py` + `agent_workflows/specs.py` (parse + set `Blocks-Release`), `agent_workflows/cli.py` (the `--blocks-release` option on `backlog set` / `specs set`), `agent_workflows/check_engine.py` or `agent_workflows/releases.py` (dangling-release validation), + tests. IN: read/write the field, a `--blocks-release <release-id6|next|->` CLI option (`-` clears), and a `check.blocks-release-dangling` Drift when the value does not resolve. OUT: the releases CLASS (Order 01, done); AGENTS.md docs (Order 03); attention SURFACING of the blocker set (awdoctor Set).
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-18, human ("Approve ALL 21 IPDs now ... Execute everything one at a time using Gemini ... then do it yourself.") after /plan-review (rigorous, opencode Opus 4.8; APPROVE / APPROVE WITH REVISIONS APPLIED).
 - Set: awrelease
 - Order: 2
 - Highest E allocated: 05

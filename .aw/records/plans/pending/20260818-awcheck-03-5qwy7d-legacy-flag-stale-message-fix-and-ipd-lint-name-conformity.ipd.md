@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: awcheck Order 03 (spec 20260818-1525-01; TODO items 6, 11, 20). Finish the check surface: (11) fix the stale message "All scanned plan/prompt filenames conform to YYYYMMDD-HHMM-NN-<slug>.md." (normalize_plan_names.py:677) which advertises the OLD grammar; (20) give the check engine a `--legacy` behavior so legacy-named files pass without findings; (6) make `aw ipd lint` also verify filename conformity via the engine's name check. Small, targeted edits building on the Order-01 engine.
 - Scope: `.aw/system/workflows/setup-repo/tools/normalize_plan_names.py` (message), `agent_workflows/check_engine.py` (legacy behavior in check_names), `agent_workflows/ipd_lint.py` (call name conformity), + test updates. IN: correct + grammar-accurate message honoring legacy; `check_names(..., legacy=True)` treats a legacy `YYYYMMDD-HHMM-NN-<slug>.md` name as conformant (no drift); `aw ipd lint` emits a name-conformity diagnostic for a nonconformant plan filename. OUT: the engine core (Order 01) + collisions (Order 02); CLI verb wiring for `aw check` (awcmdsurf).
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-18, human ("Approve ALL 21 IPDs now ... Execute everything one at a time using Gemini ... then do it yourself.") after /plan-review (rigorous, opencode Opus 4.8; APPROVE / APPROVE WITH REVISIONS APPLIED).
 - Set: awcheck
 - Order: 3
 - Highest E allocated: 04

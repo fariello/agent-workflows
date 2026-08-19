@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: awdoctor Order 01 (TODO items 37, 36). The human attention board (`aw attention` colored view) repeats the full repo-relative path on every line, so a class of 15 backlog items prints its `.aw/records/backlog/...` prefix 15 times and the board is wide and noisy. Make the board COMPACT: group each attention class's items by their common directory prefix, print that prefix ONCE in the section header, then print BARE filenames underneath. Add a compact per-line urgency/age marker (from `Item.last_history_at`) and a blocking marker (from `Item.gate`). The machine surfaces (`--agent`/plain `[tree] path (status)` and `--format json`) MUST stay byte-identical (full paths, no new fields); only the colored human board is compacted.
 - Scope: ONE edited module `agent_workflows/attention.py` (the `render_board` builder attention.py:436-517, its section-header line attention.py:486, and the two per-item line builders attention.py:507 (colored) + attention.py:515 (plain)) + ONE new test file `tests/test_attention_compact.py`. IN: header-prefix grouping + bare-filename lines + urgency + blocking markers in the COLORED branch of `render_board` only. OUT: any change to `scan`, to `render_json` (attention.py:362), to the plain/`--agent` line (attention.py:515) shape, to `attention_contract.py`, or to the CLI (attention.py:525+). No new Item fields; the markers derive from the EXISTING `Item.last_history_at` and `Item.gate`.
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-18, human ("Approve ALL 21 IPDs now ... Execute everything one at a time using Gemini ... then do it yourself.") after /plan-review (rigorous, opencode Opus 4.8; APPROVE / APPROVE WITH REVISIONS APPLIED).
 - Set: awdoctor
 - Order: 1
 - Highest E allocated: 03

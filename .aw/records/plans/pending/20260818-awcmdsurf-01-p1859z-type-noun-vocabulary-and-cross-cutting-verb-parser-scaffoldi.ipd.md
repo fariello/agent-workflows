@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: awcmdsurf Order 01 (spec 20260818-1525-01). Lay the foundation for the noun-verb grammar: a single shared TYPE-noun vocabulary + a type->backend resolver, and the top-level argparse scaffolding for six cross-cutting verbs (`check`/`find`/`search`/`index`/`rename`/`group`), each dispatching to a thin router (the seventh verb `archive` is stood up by Order 03, which owns it, to avoid breaking the existing `aw archive` signature mid-Set). Added ALONGSIDE the existing verbs (nothing removed here) so every intermediate state stays runnable; removal is Order 05.
 - Scope: agent_workflows/cli.py (new parsers + dispatch) + a new small module for the type vocabulary. IN: the TYPE-noun constant + singular aliases + a resolver mapping each type to its backend module/callable; six new verb subparsers (`check`/`find`/`search`/`index`/`rename`/`group`; `archive` deferred to Order 03) (parsers + thin routers that currently delegate to the existing backends or a not-yet-wired stub for engine-dependent parts); a shared `--json`/`--agent` convention helper; tests. OUT: the actual read-verb behavior (Order 02), mutation-verb behavior (Order 03), the ipd merge (Order 04), removals (Order 05), the check ENGINE (Set D awcheck) and the full selector parser (Set E awselect).
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-18, human ("Approve ALL 21 IPDs now ... Execute everything one at a time using Gemini ... then do it yourself.") after /plan-review (rigorous, opencode Opus 4.8; APPROVE / APPROVE WITH REVISIONS APPLIED).
 - Set: awcmdsurf
 - Order: 1
 - Highest E allocated: 05

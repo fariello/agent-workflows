@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: awrelease Order 01 (spec 20260818-1525-03, RELEASE BLOCKER; TODO item 35). Create the new `.aw/records/releases/` record class + tree so a release is a first-class artifact (a thin ship-gate anchor). This Order adds the CLASS plumbing (enum, subpath, facet, attention mapping, README, installer scaffolding) + a minimal release-record creator/validator. The `Blocks-Release` gate field + setter is Order 02; docs are Order 03.
 - Scope: `agent_workflows/record_producers.py` (RecordClass + subpaths), `agent_workflows/plans_refs.py` + `.aw/system/workflows/setup-repo/tools/normalize_plan_names.py` (add the `release` facet), `agent_workflows/attention_contract.py` (a _RELEASES_MAP + register), `agent_workflows/engine.py` (scaffold the dir), a new `.aw/records/releases/README.md`, and tests. IN: everything needed for `.aw/records/releases/*.release.md` to be a recognized, scaffolded, attention-visible class + a way to create/validate a release record. OUT: the `Blocks-Release:` item field + setter (Order 02); AGENTS.md docs (Order 03); attention SURFACING of release blockers (awdoctor Set).
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-18, human ("Approve ALL 21 IPDs now ... Execute everything one at a time using Gemini ... then do it yourself.") after /plan-review (rigorous, opencode Opus 4.8; APPROVE / APPROVE WITH REVISIONS APPLIED).
 - Set: awrelease
 - Order: 1
 - Highest E allocated: 06

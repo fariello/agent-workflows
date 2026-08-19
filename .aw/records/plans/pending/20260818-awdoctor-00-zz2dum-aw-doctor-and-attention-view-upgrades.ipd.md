@@ -4,7 +4,8 @@
 - Kind: orchestrator
 - Concern: TODO items #1, #33, #36, #37 (tmp/todo.md): the `aw attention` cross-tree view is too verbose (full per-item paths, no urgency/importance/blocking columns) and there is deliberately NO `aw doctor` verb (cli.py:4) even though every deep-inspection signal already exists scattered across the codebase (dangling refs artifact_core.find_dangling_citations:207, malformed names normalize_plan_names/research_contract.parse_name, status-vs-location backlog.py:149 + attention.py:271, git tracked/untracked/dirty engine.classify_git_state:2464/run_git_diagnostics:2516/git_is_tracked:1431, version drift versioning.status:370). Attention also cannot yet warn that `aw setup`/`/setup-repo` still needs running (bare-`aw` configured-state check cli.py:4035-4053 + the actions ledger open/dismissed) nor surface RELEASE BLOCKERS (the Blocks-Release gate from the awrelease Set / spec 20260818-1525-03).
 - Scope: Set F. Ship three child Orders: (01) make the attention board compact (strip the common dir prefix into the section header, bare filenames) and add urgency (from last_history_at attention.py:34-42) + blocking/importance columns (#36, #37); (02) attention highlights setup-needed unless run or dismissed (#1) and surfaces release-blockers from the awrelease Blocks-Release gate (DEPENDS ON awrelease); (03) create the new `aw doctor` verb aggregating every existing check signal into one Drift-based report (#33). OUT: the local->untracked lane rename (#39) is the sibling Set awuntracked; building the Blocks-Release gate itself (owned by awrelease - this Set only CONSUMES its data).
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-18, human ("Approve ALL 21 IPDs now ... Execute everything one at a time using Gemini ... then do it yourself.") after /plan-review (rigorous, opencode Opus 4.8; APPROVE / APPROVE WITH REVISIONS APPLIED).
 - Set: awdoctor
 - Order: 0
 - Highest E allocated: 01

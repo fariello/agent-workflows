@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: awcmdsurf Order 03 (spec 20260818-1525-01). Implement the mutating cross-cutting verbs: `aw rename <type> <selector...>` (re-slug/re-name to the grammar, keeping Id), `aw group <type> <selector...> --set S` (assign into a Set), `aw archive <type> <selector...>` (deep-shelve terminal/aged). All default to UPDATING references across the repo (with `--no-refs` to disable) and preview-by-default with `--apply`, routing into the existing backends.
 - Scope: cli.py routers into plans_refs/plans_archive/research_refs/research_archive. IN: `rename` -> plans_refs.run_mv/research_refs.run_mv; `group` -> plans_refs.run_set_assign/research_refs.run_set_assign; `archive` -> plans_archive.run_archive/research_archive.run_archive; the default-update-references behavior + `--no-refs`; preview/`--apply`; `--json` where meaningful; `all` fan-out where it makes sense. OUT: read verbs (Order 02), merge/renames-of-list/todo (Order 04), removals (Order 05); the full selector grammar (Set E). Reference-updating already exists inside plans_refs (it rewrites citations ALWAYS); this Order EXPOSES it as the default and adds `--no-refs`, which requires a SMALL bounded backend change: an `update_refs: bool = True` kwarg on `apply_renames` (plans_refs.py:304) that gates the `apply_reference_rewrites` call (plans_refs.py:350), threaded from run_mv/run_set_assign. That backend touch is IN scope for this Order (it is the only way to honor --no-refs; the router cannot skip a rewrite buried inside apply_renames).
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-18, human ("Approve ALL 21 IPDs now ... Execute everything one at a time using Gemini ... then do it yourself.") after /plan-review (rigorous, opencode Opus 4.8; APPROVE / APPROVE WITH REVISIONS APPLIED).
 - Set: awcmdsurf
 - Order: 3
 - Highest E allocated: 05

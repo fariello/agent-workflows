@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: awdoctor Order 03, TERMINAL (TODO item 33). There is intentionally NO `aw doctor` verb today (the CLI docstring states it, cli.py:4). Every diagnostic signal already exists but is scattered across verbs: dangling citations, malformed names, status-vs-location mismatches, git tracked/untracked/dirty, version drift, and the attention view's own validity. Create ONE new `aw doctor` verb that AGGREGATES every existing check signal into a single Drift-based report (human + `--agent` tab-separated + exit 0/1). It must COMPOSE existing signals - it does NOT reimplement any check.
 - Scope: ONE new module `agent_workflows/doctor.py` (a `run_doctor(repo_root) -> List[Drift]` composer + a `run(args)` CLI entrypoint) + the `aw doctor` parser/dispatch wiring in `agent_workflows/cli.py` (a new `sub.add_parser("doctor", ...)` near the attention parser at cli.py:1361 + a dispatch branch near cli.py:4196) + ONE new test file `tests/test_doctor.py`. IN: composing `artifact_core.find_dangling_citations`, `attention.scan` drift (malformed names + status-vs-location), `engine.classify_git_state`/`run_git_diagnostics`/`git_is_tracked`, `versioning.status`, and the attention view validity into one `List[Drift]`; the CLI parser + human/`--agent` render + `drift_exit_code`. OUT: any NEW check logic (all checks are REUSED), any change to the composed modules, and any write to disk (doctor is read-only).
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-18, human ("Approve ALL 21 IPDs now ... Execute everything one at a time using Gemini ... then do it yourself.") after /plan-review (rigorous, opencode Opus 4.8; APPROVE / APPROVE WITH REVISIONS APPLIED).
 - Set: awdoctor
 - Order: 3
 - Highest E allocated: 04

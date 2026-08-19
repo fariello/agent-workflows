@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: awcheck Order 02 (spec 20260818-1525-01; TODO item 23). Add a collision verifier so name checks guarantee id6 AND setid UNIQUENESS. Today the only id6 uniqueness check is inside `attention.scan` (attention.py:153-163) and `backlog.run_check` (backlog.py:447-463, backlog-only); there is NO setid collision check anywhere. Add a reusable collision sub-check to the Order-01 check engine that verifies id6 uniqueness across ALL record trees and detects setid inconsistencies.
 - Scope: extend `agent_workflows/check_engine.py` (from Order 01) + its test file. IN: a `check_collisions(repo_root) -> List[Drift]` that scans every record tree for `- Id:` and flags any id6 appearing on more than one file (rule `check.id6-collision`), plus a setid consistency check (rule `check.setid-collision` for the same setid used with conflicting metadata as defined below); wire it into `check_types` when `all` (or a new `collisions` kind). OUT: the engine core (Order 01, done), the `--legacy`/message work (Order 03), CLI wiring (awcmdsurf).
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-18, human ("Approve ALL 21 IPDs now ... Execute everything one at a time using Gemini ... then do it yourself.") after /plan-review (rigorous, opencode Opus 4.8; APPROVE / APPROVE WITH REVISIONS APPLIED).
 - Set: awcheck
 - Order: 2
 - Highest E allocated: 03

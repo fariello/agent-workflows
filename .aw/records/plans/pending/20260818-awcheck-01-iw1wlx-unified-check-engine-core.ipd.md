@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: awcheck Order 01 (spec 20260818-1525-01; TODO item 19). Build ONE check-engine module that, per record TYPE, composes the EXISTING validators into a single result: name-conformity + front-matter/status conformity + reference integrity, all emitted as the shared `artifact_core.Drift` list. This is the engine the `aw check <type>` verb (awcmdsurf Order 02) routes into. Reuse the per-type validators; do NOT reimplement them.
 - Scope: ONE new module `agent_workflows/check_engine.py` + ONE test file `tests/test_check_engine.py`. IN: a `check_type(repo_root, record_type, names_only=False, legacy=False) -> List[Drift]` that dispatches to the right existing validators for the type, and a `check_types(repo_root, types, ...)` fan-out; a `SUPPORTED = {...}` map of which check kinds each type supports. OUT: the id6/setid COLLISION check (awcheck Order 02), the `--legacy` flag plumbing + stale-message fix + ipd-lint integration (awcheck Order 03), the CLI verb wiring (awcmdsurf Order 02). This Order builds the composable ENGINE and its tests only; `legacy` is accepted as a passthrough parameter but its behavior is finished in Order 03.
-- Status: reviewed
+- Status: approved
+- Approval: 2026-08-18, human ("Approve ALL 21 IPDs now ... Execute everything one at a time using Gemini ... then do it yourself.") after /plan-review (rigorous, opencode Opus 4.8; APPROVE / APPROVE WITH REVISIONS APPLIED).
 - Set: awcheck
 - Order: 1
 - Highest E allocated: 05
