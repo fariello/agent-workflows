@@ -17,6 +17,7 @@
 - 2026-08-18 authored (opencode Opus 4.8): Medium-grade from investigation (attention id6 dedup attention.py:153-163; backlog id dup backlog.py:447-463; is_valid_id6 artifact_core.py:45; no setid check exists).
 - 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against attention.py:153-163, backlog.py:447-463, and plans_index.py:66; structural lint conforming; no findings; no blocking open questions; GO - PENDING HUMAN APPROVAL.
 - 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE; re-review (opencode): verified attention id6-dedup:153, backlog dup:447, set_terse_id:66; conforming; no findings.
+- 2026-08-18 /plan-review (opencode Opus 4.8, RIGOROUS): APPROVE WITH REVISIONS APPLIED. Ran the live resolver. PR-001 (HIGH): E-01 iterated SUPPORTED and resolved dirs via `resolve_record_read_paths(type)`, which RAISES for `backlog`/`roadmaps` (not RecordClass members) - a guaranteed crash; fixed to use Order 01's `_type_dirs` helper (cross-referenced; the helper is added in awcheck-01). PR-002 (MEDIUM): the id6 scan could self-collide on a file returned in BOTH `.aw/records/<t>` and legacy `.agents/<t>` (prompts does), producing a false `check.id6-collision`; added file de-dup by resolved path. Conforms at review-finalize. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -34,7 +35,7 @@ created in Order 01, which MUST be executed first). Return Drift; never print.
 
 ### Task group 1: id6 collision scan
 
-- [ ] E-01 Add `check_collisions(repo_root: Path) -> List[Drift]` to `check_engine.py`. Iterate every record type in `SUPPORTED` (plus `research`), resolve each type's dirs via `_rp.resolve_record_read_paths(...)`, walk `*.md` (skip README/INDEX/STATUS), read each file's `- Id:` with the regex `^- Id:\s*([0-9a-z]{6})\s*$` (re.MULTILINE), and build a `seen: Dict[str, str]` mapping id6 -> first path. When an id6 recurs, emit `Drift(str(path), "check.id6-collision", f"id6 {id6} also on {seen[id6]}")`. This mirrors attention.py:153-163 / backlog.py:447-463 but spans ALL trees. Read files in `try/except OSError: continue`.
+- [ ] E-01 Add `check_collisions(repo_root: Path) -> List[Drift]` to `check_engine.py`. Iterate every record type in `SUPPORTED`, resolving each type's dirs via the `_type_dirs(repo_root, type)` helper from Order 01 - NOT a raw `_rp.resolve_record_read_paths(type)`, which RAISES for `backlog`/`roadmaps` (they are not RecordClass members; verified). Walk `*.md` (skip README/INDEX/STATUS), DE-DUPLICATE files by resolved path (a file in both `.aw/records/<t>` and legacy `.agents/<t>` must be counted ONCE, else it self-collides and produces a false `check.id6-collision`), read each file's `- Id:` with `^- Id:\s*([0-9a-z]{6})\s*$` (re.MULTILINE), and build `seen: Dict[str, str]` mapping id6 -> first path. When an id6 recurs (in a DIFFERENT resolved file), emit `Drift(str(path), "check.id6-collision", f"id6 {id6} also on {seen[id6]}")`. Mirrors attention.py:153-163 / backlog.py:447-463 but spans ALL trees. Read files in `try/except OSError: continue`.
   - Depends on: none
   - Expected outcome: over a fixture where a plan and a spec BOTH carry `- Id: dup111`, `check_collisions(root)` returns exactly one `check.id6-collision` Drift naming both files.
   - Execution state: pending
@@ -56,6 +57,7 @@ created in Order 01, which MUST be executed first). Return Drift; never print.
 ## Project conventions discovered (Step 0)
 
 - Existing dedup pattern to generalize: attention.scan `seen_ids` (attention.py:153-163) + backlog.run_check `seen_ids` (backlog.py:447-463). Both key on a valid id6 (`core.is_valid_id6`, artifact_core.py:45).
+- MUST resolve per-type dirs via Order 01's `_type_dirs` helper (backlog/roadmaps are not RecordClass members and RAISE from `resolve_record_read_paths`), and DE-DUP files by resolved path (prompts returns both `.aw/records/prompts` and legacy `.agents/prompts`; without de-dup a file in both self-collides -> false positive).
 - No setid collision check exists anywhere - this Order introduces it.
 - setid parse: first token before `(` in the `- Set:` line (mirror plans_index.set_terse_id, plans_index.py:66).
 - Collisions are CROSS-TREE, so run once over all trees, not once per type; the engine appends it a single time in the `all` fan-out.
@@ -68,6 +70,7 @@ created in Order 01, which MUST be executed first). Return Drift; never print.
 | F1 | id6 dedup already proven twice (attention, backlog). | Generalize the pattern; low risk. |
 | F2 | No setid uniqueness check today. | Genuinely new; define the collision rule crisply (E-02) so Medium implements it deterministically. |
 | F3 | Collisions are cross-tree. | Run once in the `all` fan-out, not per-type, to avoid N passes + duplicate drift. |
+| F4 | `resolve_record_read_paths` RAISES for backlog/roadmaps; prompts returns a legacy dir too. | Resolve dirs via Order 01's `_type_dirs` helper AND de-dup files by resolved path, or the scan crashes on backlog/roadmaps and self-collides on a dual-tree prompt file. Verified empirically. |
 
 ## Proposed changes (ordered, validatable)
 
