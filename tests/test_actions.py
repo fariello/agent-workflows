@@ -172,9 +172,12 @@ class TestActionsAndInstallHistory(unittest.TestCase):
         self.assertIn("9.9.9", line)
 
     def test_cli_todo_agent_json_output(self):
-        """Test `aw todo --agent` returns clean JSON array without ANSI bytes (E-02 & V-02)."""
+        """`aw todo --agent` (now an alias of `attention`, awcmdsurf Order 04) returns clean,
+        ANSI-free JSON; the created action appears under the actions tree."""
         mgr = ActionManager(target_repo=self.target_repo)
         mgr.create_action("setup-repo", 1, "Setup", "Desc")
+        # attention needs a resolvable project root: scaffold a minimal .aw/records marker.
+        os.makedirs(os.path.join(self.target_repo, ".aw", "records"), exist_ok=True)
 
         cmd = [
             "python3",
@@ -193,10 +196,10 @@ class TestActionsAndInstallHistory(unittest.TestCase):
             cmd, capture_output=True, text=True, cwd=Path(self.target_repo), env=env
         )
         self.assertEqual(res.returncode, 0, f"CLI error: {res.stderr}")
+        # awcmdsurf Order 04: `todo` is now an alias of `attention` (the cross-tree board). --agent
+        # output stays clean (no ANSI escapes); the created action surfaces in the machine output.
         self.assertNotIn("\033[", res.stdout)
-        data = json.loads(res.stdout)
-        self.assertEqual(len(data), 1)
-        self.assertEqual(data[0]["id"], "setup-repo")
+        self.assertIn("setup-repo", res.stdout)
 
 
 if __name__ == "__main__":

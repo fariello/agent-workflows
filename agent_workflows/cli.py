@@ -57,6 +57,10 @@ _DESCRIPTIONS = {
         "List the configured and discovered repos and each one's currency (installed, "
         "stale, current, not-installed). Read-only; makes no changes."
     ),
+    "list-repos": (
+        "List the configured and discovered repos and each one's currency (installed, "
+        "stale, current, not-installed). The clearer name for the old 'list'. Read-only."
+    ),
     "status": (
         "Show an environment and currency summary: resolved versions, config location, "
         "and per-repo install currency. Read-only diagnostics."
@@ -548,6 +552,17 @@ def _build_parser() -> argparse.ArgumentParser:
         "--recursive", action="store_true", help="Discover repos recursively."
     )
 
+    # awcmdsurf Order 04: `list-repos` is the clearer name for the repo lister (old `list` stays
+    # until the Order 05 hard cutover).
+    p_list_repos = sub.add_parser(
+        "list-repos",
+        parents=[common],
+        help="List configured/discovered repos and their currency (the renamed 'list').",
+    )
+    p_list_repos.add_argument(
+        "--recursive", action="store_true", help="Discover repos recursively."
+    )
+
     sub.add_parser(
         "status", parents=[common], help="Show environment + currency summary."
     )
@@ -769,6 +784,26 @@ def _build_parser() -> argparse.ArgumentParser:
         "--apply",
         action="store_true",
         help="Write the change (default is preview only).",
+    )
+
+    # awcmdsurf Order 04 (OQ-1: bare `ipd` = board): the IPD board (pending+reusable by default).
+    p_ipd_board = ipd_sub.add_parser(
+        "board",
+        parents=[common],
+        help="Show the IPD board (pending + reusable by default; --status to filter dispositions).",
+        description="Show the IPD board: pending + reusable plans by default, or filter by disposition with --status (executed, superseded, etc.). Bare 'aw ipd' also shows this board.",
+    )
+    p_ipd_board.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_ipd_board.add_argument(
+        "--status",
+        dest="status_filter",
+        default=None,
+        help="Filter by disposition (e.g. executed, pending, reusable).",
+    )
+    p_ipd_board.add_argument(
+        "--agent", action="store_true", help="Machine-readable output."
     )
 
     p_research = sub.add_parser(
@@ -1355,6 +1390,27 @@ def _build_parser() -> argparse.ArgumentParser:
         _p.add_argument(
             "--limit", type=int, default=None, help="Max rows (index/find)."
         )
+        # mutation flags (rename/group)
+        _p.add_argument("--slug", default=None, help="New slug (rename).")
+        _p.add_argument(
+            "--order", type=int, default=None, help="Order NN (rename/group)."
+        )
+        _p.add_argument(
+            "--rename",
+            action="store_true",
+            help="group: also re-cluster the filename to the new Set.",
+        )
+        _p.add_argument(
+            "--apply",
+            action="store_true",
+            help="Apply the change (default is a preview).",
+        )
+        _p.add_argument(
+            "--no-refs",
+            dest="no_refs",
+            action="store_true",
+            help="rename/group: rename the file only; do NOT rewrite citing documents.",
+        )
 
     p_migrate = sub.add_parser(
         "migrate-layout",
@@ -1696,7 +1752,13 @@ def _build_parser() -> argparse.ArgumentParser:
     p_archive = sub.add_parser(
         "archive",
         parents=[common],
-        help="Deliberately deep-shelve research (targeted, or a bare aged-and-uncited sweep with preview).",
+        help="Deliberately deep-shelve artifacts of a TYPE (research or plans); targeted or a bare aged-and-uncited sweep with preview.",
+    )
+    p_archive.add_argument(
+        "type_or_target",
+        nargs="?",
+        default=None,
+        help="An artifact TYPE (research|plans|all) OR, for back-compat, a research <set-id>/<id6> to archive.",
     )
     p_archive.add_argument(
         "target",
@@ -3756,6 +3818,13 @@ def _nv_backend_args(args, artifact_type):
     sub.dir = getattr(args, "dir", None) or os.getcwd()
     sub.agent = bool(getattr(args, "as_agent", False))
     sub.resolved_type = artifact_type
+    # Map a positional selector onto the backend's expected --id (rename/group take an id6 positional).
+    sel = list(getattr(args, "selector", None) or [])
+    if sel and not getattr(sub, "id", None):
+        sub.id = sel[0]
+    # group (run_set_assign) takes a LIST of ids; rename (run_mv) takes one --id.
+    if sel:
+        sub.ids = sel
     return sub
 
 
@@ -3783,6 +3852,51 @@ def _run_noun_verb(args: argparse.Namespace, term: Term) -> int:
         if isinstance(result, int):
             rc = max(rc, result)
     return rc
+
+
+def _run_archive(args: argparse.Namespace, term: Term) -> int:
+    """awcmdsurf Order 03: generalized `archive <type> [target]`. If the first positional is a known
+    TYPE (research|plans|all), route by type; otherwise treat it as a research target (back-compat:
+    `aw archive <id6>` still archives research)."""
+    from agent_workflows import artifact_types as at
+
+    tot = getattr(args, "type_or_target", None)
+    resolved_type = None
+    if tot is not None:
+        try:
+            resolved_type = at.normalize_type(tot)
+        except ValueError:
+            resolved_type = None  # not a type -> it's a research target (back-compat)
+
+    def _archive_one(t):
+        sub = argparse.Namespace(**vars(args))
+        # a type-led invocation shifts target to the second positional; a back-compat invocation
+        # keeps `type_or_target` as the research target.
+        if resolved_type is not None:
+            sub.target = getattr(args, "target", None)
+        else:
+            sub.target = tot
+        if t == "plans":
+            from agent_workflows import plans_archive as pa
+
+            return pa.run_archive(sub)
+        from agent_workflows import research_archive as ra
+
+        return ra.run_archive(sub)
+
+    if resolved_type == "all":
+        rc = 0
+        for t in ("research", "plans"):
+            r = _archive_one(t)
+            if isinstance(r, int):
+                rc = max(rc, r)
+        return rc
+    if resolved_type in ("plans", "research"):
+        r = _archive_one(resolved_type)
+        return r if isinstance(r, int) else 0
+    # back-compat: research target (or bare sweep)
+    r = _archive_one("research")
+    return r if isinstance(r, int) else 0
 
 
 def _run_search(args: argparse.Namespace, term: Term) -> int:
@@ -4373,7 +4487,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         parser.print_help()
         return 2
     if args.command == "todo":
-        return _run_todo(args, term)
+        # awcmdsurf Order 04 (item 32/D5): `todo` is an alias of `attention` (the cross-tree board).
+        from agent_workflows import attention as att
+
+        return att.run(args)
     if args.command == "show":
         return _run_show(args, term)
     if args.command == "complete":
@@ -4394,7 +4511,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return _run_install(args, term)
     if args.command == "uninstall":
         return _run_uninstall(args, term)
-    if args.command == "list":
+    if args.command in ("list", "list-repos"):
         return _run_list(args, term)
     if args.command == "status":
         return _run_status(term)
@@ -4438,6 +4555,9 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import ipd_authoring
 
             return ipd_authoring.run_sync(args)
+        # awcmdsurf Order 04: `ipd board` and bare `aw ipd` both show the IPD board.
+        if ipd_cmd == "board" or ipd_cmd is None:
+            return _run_plans(args, term)
         parser.print_help()
         return 2
     if args.command == "research":
@@ -4522,9 +4642,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         parser.print_help()
         return 2
     if args.command == "archive":
-        from agent_workflows import research_archive as ra
-
-        return ra.run_archive(args)
+        return _run_archive(args, term)
     if args.command in ("check-local-leaks", "sanitize"):
         return _run_check_local_leaks(args, term)
 
