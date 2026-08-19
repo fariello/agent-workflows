@@ -466,6 +466,48 @@ def _colorize_tree_segment(term: "T.Term", path: str, tree: str) -> str:
     return path[:start] + term.color256(tree, _TREE_COLOR_256, bold=True) + path[end:]
 
 
+def setup_needed(repo_root: Path) -> bool:
+    """awdoctor Order 02: True when the repo is NOT yet configured AND a seeded `setup-repo` action
+    is still open (a fresh install that has not run setup). Best-effort + defensive: any error -> False
+    (never blocks the board)."""
+    try:
+        from agent_workflows import config as _config
+
+        if _config.is_configured():
+            return False
+    except Exception:
+        pass
+    try:
+        for base in (repo_root / "aw-state" / "actions" / "open",):
+            if base.is_dir():
+                for p in base.glob("*setup-repo*"):
+                    if p.is_file():
+                        return True
+    except Exception:
+        pass
+    return False
+
+
+def release_blockers(items: List[Item], repo_root: Path) -> List[Item]:
+    """awdoctor Order 02: items carrying a `- Blocks-Release: next|<id6>` field that are NOT done.
+    Reads the field from each item's file (the awrelease Set defines it). Returns the blocking items."""
+    import re as _re
+
+    rx = _re.compile(r"(?m)^- Blocks-Release:\s*(\S+)\s*$")
+    out: List[Item] = []
+    for it in items:
+        if it.attention_class == A.DONE:
+            continue
+        for base in (repo_root / it.path, repo_root / ".aw" / "records" / it.path):
+            try:
+                if base.is_file() and rx.search(base.read_text(encoding="utf-8")):
+                    out.append(it)
+                    break
+            except OSError:
+                continue
+    return out
+
+
 def _common_dir_prefix(paths: List[str]) -> str:
     """The common directory prefix (posix, trailing '/') shared by all paths, or '' if none.
     awdoctor Order 01: folded into a colored section header so per-item lines can be bare names."""
@@ -650,8 +692,19 @@ def run(args) -> int:
         # --no-color forces plain, which also yields the machine-readable [tree] form.
         color = False if getattr(args, "no_color", False) else None
         term = T.Term(stream=sys.stdout, color=color)
-        sys.stdout.write(
-            render_board(items, drift, show_all=getattr(args, "all", False), term=term)
+        # awdoctor Order 02: human-view-only notices (never in JSON/--check).
+        if setup_needed(repo_root):
+            sys.stdout.write(
+                "NOTE: setup not complete - run `aw setup` to configure this repo.\n\n"
+            )
+        board = render_board(
+            items, drift, show_all=getattr(args, "all", False), term=term
         )
+        blockers = release_blockers(items, repo_root)
+        if blockers:
+            board += f"\n## release-blockers ({len(blockers)})\n"
+            for it in blockers:
+                board += f"- {it.path} ({it.native_status})\n"
+        sys.stdout.write(board)
     # a plain view still fails closed if invalid, so consumers cannot treat an invalid view as authoritative
     return core.drift_exit_code(drift)
