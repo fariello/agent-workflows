@@ -240,7 +240,8 @@ class ProducerTests(_RepoBackendCLIFixture):
 
 
 class PlansMvPreservesOrderAndDateTests(_RepoBackendCLIFixture):
-    """Regression for vf03z3: a bare `aw plans mv --slug X` must not clobber Order or Date."""
+    """Regression for vf03z3: a bare `aw rename plans <id6> --slug X` must not clobber Order or Date
+    (awcmdsurf Order 05 renamed the old `plans mv` verb to `rename plans`)."""
 
     def setUp(self) -> None:
         super().setUp()
@@ -274,7 +275,9 @@ class PlansMvPreservesOrderAndDateTests(_RepoBackendCLIFixture):
         )
 
     def test_mv_preserves_order_date_and_adds_facet(self) -> None:
-        r = self._run_cli(["plans", "mv", "zzz111", "--slug", "new-slug", "--apply"])
+        r = self._run_cli(
+            ["rename", "plans", "zzz111", "--slug", "new-slug", "--apply"]
+        )
         self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
         created = list(self.pending.glob("*.md"))
         self.assertEqual(len(created), 1, [p.name for p in created])

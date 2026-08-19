@@ -230,7 +230,40 @@ def _record_for(
         return _research_record(rel, path, text)
     if tree == "backlog":
         return _backlog_record(rel, path, text)
+    if tree == "releases":
+        return _release_record(rel, path, text)
     return None, []
+
+
+def _release_record(
+    rel: str, path: Path, text: str
+) -> Tuple[Optional[Item], List[core.Drift]]:
+    """Attention record for a release record (ship-gate anchor, awrelease). Reads `- Status:` +
+    `- Id:` and maps via the releases CLASS_MAP (planned->ready, blocked->blocked, shipped->done)."""
+    import re as _re
+
+    drift: List[core.Drift] = []
+    ms = _re.search(r"(?m)^- Status:\s*(\S+)\s*$", text)
+    status = ms.group(1) if ms else None
+    if status is None:
+        drift.append(core.Drift(rel, "attention.missing-status", "no release Status"))
+        return None, drift
+    try:
+        cls = A.class_of("releases", status)
+    except A.UnknownNativeStatus:
+        drift.append(
+            core.Drift(
+                rel,
+                "attention.unknown-status",
+                A.escape_detail(f"release status {status!r}"),
+            )
+        )
+        return None, drift
+    mid = _re.search(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$", text)
+    lha = A.last_history_at(_history_section_lines(text))
+    return Item(
+        mid.group(1) if mid else "", rel, "releases", status, cls, None, lha
+    ), drift
 
 
 def _spec_record(

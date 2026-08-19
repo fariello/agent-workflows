@@ -55,7 +55,7 @@ front-matter fields (D82):
   unordered grouping.
 
 These are ADVISORY: they group related plans and make the intended run order queryable and visible
-in the `aw plans` board (a "Sets" section), but they do NOT auto-execute, do NOT gate approval, and do
+in the `aw ipd board` view (a "Sets" section), but they do NOT auto-execute, do NOT gate approval, and do
 NOT change the `Status:` lifecycle. The human still approves and runs each plan. They are ORTHOGONAL
 to the filename convention: the `YYYYMMDD-HHMM-NN-<slug>.md` name and the `NN` same-minute
 disambiguator are unchanged. An agent may GROUP pending plans by adding these fields, but any change to

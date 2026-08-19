@@ -92,8 +92,8 @@ TREE_POLICY: Tuple[TreePolicy, ...] = (
         "plans",
         ".agents/plans",
         True,
-        "aw plans",
-        "IPDs; owner writes via the existing aw plans verbs",
+        "aw ipd",
+        "IPDs; owner writes via the aw ipd + noun-verb plan verbs",
     ),
     TreePolicy(
         "research",
@@ -143,6 +143,13 @@ TREE_POLICY: Tuple[TreePolicy, ...] = (
         False,
         "",
         "the evergreen copy-paste prompt LIBRARY, not a lifecycle-tracked artifact tree",
+    ),
+    TreePolicy(
+        "releases",
+        ".agents/releases",
+        True,
+        "aw releases",
+        "release records (ship-gate anchors); tracked lifecycle planned/blocked/shipped (awrelease)",
     ),
 )
 
@@ -245,6 +252,13 @@ _BACKLOG_MAP: Dict[str, str] = {
     "done": DONE,
 }
 
+# Release records (ship-gate anchors, awrelease): planned -> ready, blocked -> blocked, shipped -> done.
+_RELEASES_MAP: Dict[str, str] = {
+    "planned": READY,
+    "blocked": BLOCKED,
+    "shipped": DONE,
+}
+
 # The registry of mapping fragments, one per tracked tree.
 CLASS_MAPS: Dict[str, Dict[str, str]] = {
     "specs": _SPEC_MAP,
@@ -252,6 +266,7 @@ CLASS_MAPS: Dict[str, Dict[str, str]] = {
     "research": _RESEARCH_MAP,
     "actions": _ACTIONS_MAP,
     "backlog": _BACKLOG_MAP,
+    "releases": _RELEASES_MAP,
 }
 
 

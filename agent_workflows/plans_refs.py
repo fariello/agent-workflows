@@ -38,6 +38,7 @@ ARTIFACT_TYPE_FACETS = (
     "roadmap",
     "backlog",
     "comms",
+    "release",
 )
 _FACET_ALT = "|".join(ARTIFACT_TYPE_FACETS)
 
@@ -309,14 +310,19 @@ def apply_renames(
     *,
     apply: bool,
     descriptive: Optional[str] = None,
+    update_refs: bool = True,
 ) -> None:
-    """Set metadata + (optional) clustering rename + citation rewrite. Preview when not apply."""
+    """Set metadata + (optional) clustering rename + citation rewrite. Preview when not apply.
+    update_refs=False (from `--no-refs`, awcmdsurf Order 03) renames the file only, leaving citing
+    documents untouched."""
 
     name_map = {
         p.old_path.name: p.new_path.name for p in plans if p.old_path != p.new_path
     }
     ref_edits = (
-        plan_reference_rewrites(repo_root, name_map, plans_dir) if name_map else []
+        plan_reference_rewrites(repo_root, name_map, plans_dir)
+        if (name_map and update_refs)
+        else []
     )
     if not apply:
         for i, p in enumerate(plans):
@@ -397,6 +403,7 @@ def run_set_assign(args: argparse.Namespace) -> int:
         plans or [],
         getattr(args, "set", ""),
         apply=getattr(args, "apply", False),
+        update_refs=not getattr(args, "no_refs", False),
     )
     return 0
 
@@ -437,6 +444,11 @@ def run_mv(args: argparse.Namespace) -> int:
     )
     plan = RenamePlan(src, src.parent / new_name, id6, order=order)
     apply_renames(
-        repo_root, plans_dir, [plan], set_id, apply=getattr(args, "apply", False)
+        repo_root,
+        plans_dir,
+        [plan],
+        set_id,
+        apply=getattr(args, "apply", False),
+        update_refs=not getattr(args, "no_refs", False),
     )
     return 0

@@ -20,22 +20,26 @@ def _run(argv):
 
 
 class MergeAndRenamesTests(unittest.TestCase):
-    def test_ipd_board_matches_plans_board(self):
+    def test_ipd_board_shows_board(self):
+        # awcmdsurf Order 05 removed the old `plans` verb; `ipd board` is the board now.
         rc_b, out_b = _run(["ipd", "board"])
+        self.assertEqual(rc_b, 0)
+        self.assertIn("plan", out_b.lower())
+
+    def test_old_plans_verb_removed(self):
         rc_p, out_p = _run(["plans"])
-        self.assertEqual(rc_b, rc_p)
-        self.assertEqual(out_b, out_p)
+        self.assertEqual(rc_p, 2)  # invalid choice after the hard cutover
 
     def test_bare_ipd_routes_to_board(self):
         rc_bare, out_bare = _run(["ipd"])
         rc_board, out_board = _run(["ipd", "board"])
         self.assertEqual(out_bare, out_board)
 
-    def test_list_repos_matches_list(self):
+    def test_list_repos_works_and_list_removed(self):
         rc_lr, out_lr = _run(["list-repos"])
+        self.assertEqual(rc_lr, 0)
         rc_l, out_l = _run(["list"])
-        self.assertEqual(rc_lr, rc_l)
-        self.assertEqual(out_lr, out_l)
+        self.assertEqual(rc_l, 2)  # old `list` removed
 
     def test_todo_matches_attention(self):
         rc_t, out_t = _run(["todo"])

@@ -131,9 +131,12 @@ class BacklogVerbTests(unittest.TestCase):
         self.assertTrue(moved.exists())
         text = moved.read_text(encoding="utf-8")
         self.assertIn("- Status: done", text)
-        # history preserved (created) + transition appended (set ... finished)
-        self.assertIn("created (aw backlog)", text)
+        # awhistory Order 02: inline history is SLIMMED to the latest record (the transition); the full
+        # log (incl. the created record) now lives in the global .aw/records/history.jsonl sidecar.
         self.assertIn("finished", text)
+        after = text.split("## Workflow history", 1)[1]
+        inline = [ln for ln in after.split("\n") if ln.startswith("- ")]
+        self.assertEqual(len(inline), 1)
 
     def test_set_to_blocked_requires_gate(self):
         _new(self.repo)

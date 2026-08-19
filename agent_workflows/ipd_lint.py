@@ -67,6 +67,60 @@ C_CHECKPOINT = "IPD-S404"
 C_EXEC_HISTORY = "IPD-S405"
 C_OQ = "IPD-Q501"
 C_SIZE = "IPD-Z601"
+C_NAME = "IPD-N001"  # filename does not match the plan grammar (awcheck Order 03)
+
+
+def _name_conformant(path: Path, legacy: bool) -> bool:
+    """True if the plan's FILENAME conforms to the clustered `.ipd.md` grammar. Loads the shipped
+    normalizer the portable way (engine.resolve_source_root, like check_engine). When it cannot be
+    located, returns True (do not flag on an unavailable normalizer). With legacy=True, a name that
+    fails is_conformant but is a recognized legacy shape (parse_name non-None) is accepted."""
+    try:
+        # Reuse the portable normalizer loader in check_engine (the `agent_workflows` package is
+        # whitelisted for this stdlib-only module; check_engine owns the layout-agnostic path logic).
+        from agent_workflows import check_engine as _ce
+
+        npn = _ce._load_normalizer()
+        if npn is None:
+            return True
+        if npn.is_conformant(path.name, expected_type="ipd"):
+            return True
+        if legacy and npn.parse_name(path.name) is not None:
+            return True
+        return False
+    except Exception:
+        return True  # never let a name-check failure produce a false structural error
+
+
+def _with_name_check(res, path: Path, legacy: bool):
+    """Return (diagnostics, disposition) augmented with an IPD-N001 filename-conformity diagnostic.
+
+    Additive: keeps all structural diagnostics. Respects the terminal-dir short-circuit - a file that
+    lints as `legacy/not evaluated` (a grandfathered terminal-dir file, not being evaluated) is left
+    alone. A nonconformant name on an EVALUATED plan forces the ERROR disposition (unless --legacy
+    accepts the name)."""
+    diags = list(res.diagnostics)
+    disp = res.disposition
+    if disp == S.DISPOSITION_LEGACY:
+        return diags, disp  # not evaluated; do not add a name finding
+    # Only name-check ACTUAL plan files (under a plans/ tree). A fixture or arbitrary path passed to
+    # `aw ipd lint` is not subject to the plan filename grammar.
+    parts = {p for p in path.parts}
+    if "plans" not in parts:
+        return diags, disp
+    if not _name_conformant(path, legacy):
+        diags.append(
+            Diagnostic(
+                0,
+                0,
+                C_NAME,
+                "filename does not match the plan grammar (YYYYMMDD-<setid>-NN-<id6>-<slug>.ipd.md)",
+            )
+        )
+        disp = S.DISPOSITION_ERROR
+    return diags, disp
+
+
 # IPD-D701 (em/en dash in authored prose) was RETIRED: the no-dash convention is a
 # user-facing prose rule only (see GUIDING_PRINCIPLES P13, AGENTS.md execution contract).
 # IPDs are internal/AI-facing artifacts, so the linter no longer flags dashes in them.
@@ -779,18 +833,19 @@ def run_lint(args: argparse.Namespace) -> int:
             }
             for f in files:
                 res = lint_file(f, checkpoint=checkpoint, legacy=legacy)
-                counts[res.disposition] = counts.get(res.disposition, 0) + 1
+                diags, disp = _with_name_check(res, f, legacy)
+                counts[disp] = counts.get(disp, 0) + 1
                 if agent:
-                    for d in res.diagnostics:
+                    for d in diags:
                         print(
                             "{0}\t{1}\t{2}".format(
                                 f, d.code, d.message.replace("\t", " ")
                             )
                         )
-                    if not res.diagnostics:
-                        print("{0}\t{1}\t{2}".format(f, "DISPOSITION", res.disposition))
+                    if not diags:
+                        print("{0}\t{1}\t{2}".format(f, "DISPOSITION", disp))
                 else:
-                    print("{0}: {1}".format(res.disposition, f))
+                    print("{0}: {1}".format(disp, f))
             if not agent:
                 print(
                     "counts: "
@@ -807,19 +862,20 @@ def run_lint(args: argparse.Namespace) -> int:
             print("error: not a file: {0}".format(target))
             return 2
         res = lint_file(path, checkpoint=checkpoint, legacy=legacy)
+        diags, disp = _with_name_check(res, path, legacy)
         if agent:
-            for d in res.diagnostics:
+            for d in diags:
                 print(
                     "{0}\t{1}\t{2}".format(path, d.code, d.message.replace("\t", " "))
                 )
-            if not res.diagnostics:
-                print("{0}\t{1}\t{2}".format(path, "DISPOSITION", res.disposition))
+            if not diags:
+                print("{0}\t{1}\t{2}".format(path, "DISPOSITION", disp))
         else:
-            if res.diagnostics:
-                for d in res.diagnostics:
+            if diags:
+                for d in diags:
                     print(d.render(str(path)))
-            print("disposition: {0}".format(res.disposition))
-        return 1 if res.disposition == S.DISPOSITION_ERROR else 0
+            print("disposition: {0}".format(disp))
+        return 1 if disp == S.DISPOSITION_ERROR else 0
     except (
         Exception
     ) as exc:  # invocation/internal failure -> exit 2, never a false pass

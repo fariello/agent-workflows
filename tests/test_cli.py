@@ -235,7 +235,7 @@ class ListStatusTests(CliTestBase):
         cfg = CFG.default_config()
         cfg["repos"] = [str(repo)]
         CFG.save(cfg)
-        code, out = _run(["list"])
+        code, out = _run(["list-repos"])
         self.assertEqual(code, 0, out)
         # `list` prints the resolved path (canonicalized; on Windows this expands 8.3
         # short names), so match on the stable basename, not the raw temp path string.
@@ -250,7 +250,7 @@ class ListStatusTests(CliTestBase):
         cfg = CFG.default_config()
         cfg["repos"] = [str(repo)]
         CFG.save(cfg)
-        code, out = _run(["list"])
+        code, out = _run(["list-repos"])
         self.assertIn("NOT-INSTALLED", out)
 
 
@@ -438,7 +438,7 @@ class SetupPathValidationTests(CliTestBase):
 
 
 class PlanNamesVerbTests(CliTestBase):
-    """aw plan-names checks (exit 1 on nonconforming) and --apply renames (Theme C #3)."""
+    """aw check plans names checks (exit 1 on nonconforming); awcmdsurf Order 05 renamed the old plan-names verb."""
 
     def _plans_repo(self, plan_name):
         repo = init_repo(self.base / "pn")
@@ -449,13 +449,13 @@ class PlanNamesVerbTests(CliTestBase):
 
     def test_check_reports_nonconforming(self):
         repo = self._plans_repo("not-a-date.md")
-        code, out = _run(["plan-names", str(repo)])
+        code, out = _run(["check", "plans", "names", "--dir", str(repo)])
         # normalizer returns 1 when work/decision remains; the file is non-numeric.
         self.assertEqual(code, 1)
 
     def test_conformant_repo_exit_0(self):
         repo = self._plans_repo("20260711-2027-01-good-slug.md")
-        code, out = _run(["plan-names", str(repo)])
+        code, out = _run(["check", "plans", "names", "--dir", str(repo)])
         self.assertEqual(code, 0)
 
 

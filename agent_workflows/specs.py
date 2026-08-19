@@ -106,6 +106,56 @@ def _read_gate(lines: List[str]) -> Tuple[Optional[str], Optional[str], Optional
     return kind, ref, summary
 
 
+_BLOCKS_RELEASE_RE = re.compile(r"^- Blocks-Release:\s*(\S+)\s*$")
+_SPEC_ID_RE = re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
+
+
+def _repo_root_of(spec_path: Path) -> Path:
+    """Walk up from a spec file to the repo root (a dir containing `.aw` or `.agents` or `.git`),
+    falling back to cwd. Used to locate the global history sidecar."""
+    p = spec_path.resolve()
+    for anc in [p] + list(p.parents):
+        if (
+            (anc / ".aw").is_dir()
+            or (anc / ".agents").is_dir()
+            or (anc / ".git").exists()
+        ):
+            return anc
+    return Path.cwd()
+
+
+def _sidecar_append(repo_root, text: str, message: str) -> None:
+    """awhistory Order 02: append a transition to the global history sidecar IF the spec carries an
+    id6. Specs are named YYYYMMDD-HHMM-NN (no id6 handle today), so they slim inline but only join the
+    sidecar once they gain an id6; guarded so today it is a no-op for specs and future-safe."""
+    m = _SPEC_ID_RE.search(text)
+    if not m:
+        return
+    try:
+        from agent_workflows import record_history as _rh
+
+        _rh.append(
+            repo_root,
+            id6=m.group(1),
+            tree="specs",
+            workflow="aw specs",
+            actor="aw specs",
+            message=message.strip(),
+        )
+    except Exception:
+        pass
+
+
+def _read_blocks_release(lines: List[str]) -> Optional[str]:
+    """Read a spec's `- Blocks-Release:` value (a release id6 or 'next'), or None. Awrelease Order 02."""
+    end = _metadata_end(lines)
+    for line in lines[:end]:
+        m = _BLOCKS_RELEASE_RE.match(line)
+        if m:
+            return m.group(1)
+    return None
+
+
 def _history_lines(lines: List[str]) -> List[str]:
     out: List[str] = []
     in_hist = False
@@ -222,8 +272,10 @@ def _today() -> str:
 
 
 def _append_history(lines: List[str], record: str) -> List[str]:
+    # awhistory Order 02: the inline `## Workflow history` section keeps only the LATEST record; the
+    # full chronological log lives in the global .aw/records/history.jsonl sidecar (attention
+    # last_history_at reads the retained latest line). Replace the section's records with just `record`.
     out = list(lines)
-    # find the history section; append after its last record (before the next H2 or EOF)
     for i, line in enumerate(out):
         if line.strip() == "## Workflow history":
             j = i + 1
@@ -233,11 +285,9 @@ def _append_history(lines: List[str], record: str) -> List[str]:
                     end = j
                     break
                 j += 1
-            # insert before trailing blank lines within the section
-            insert_at = end
-            while insert_at - 1 > i and out[insert_at - 1].strip() == "":
-                insert_at -= 1
-            out.insert(insert_at, record)
+            # rebuild the section body as a single blank + the new record (drop prior inline records).
+            new_section = ["", record]
+            out[i + 1 : end] = new_section
             return out
     # no history section: create one at EOF
     if out and out[-1].strip() != "":
@@ -399,12 +449,19 @@ def run_set(args) -> int:
     out = _set_status(out, new)
     date = getattr(args, "date", None) or _today()
     msg = args.message
+    _sidecar_append(_repo_root_of(path), "\n".join(out), f"{new}: {msg}")
     actor = (
         "(aw specs, --by-human)" if getattr(args, "by_human", False) else "(aw specs)"
     )
     out = _append_history(out, f"- {date} {new} {actor}: {msg}")
 
     new_text = "\n".join(out)
+    # awrelease Order 02: set/clear the Blocks-Release gate field when requested.
+    br = getattr(args, "blocks_release", None)
+    if br is not None:
+        from agent_workflows import releases as _releases
+
+        new_text = _releases.set_blocks_release_line(new_text, br)
     # validate the complete result in memory; refuse (byte-identical) if it would not conform
     residual = validate_spec(path, new_text)
     if residual:
@@ -556,6 +613,7 @@ def run_note(args) -> int:
         return 2
     lines = _lines(text)
     date = getattr(args, "date", None) or _today()
+    _sidecar_append(_repo_root_of(path), text, f"note: {args.message}")
     out = _append_history(lines, f"- {date} note (aw specs): {args.message}")
     core.atomic_write(path, "\n".join(out))
     sys.stdout.write(f"aw specs note: appended a history record to {path}\n")

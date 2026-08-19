@@ -3436,6 +3436,7 @@ _DEEP_CLEANUP_ROOTS = (
     ".aw/records/specs",
     ".aw/records/walkthroughs",
     ".aw/records/roadmaps",
+    ".aw/records/releases",
     # Legacy `.agents/*` roots (a not-yet-migrated repo). A repo has one layout or the other; the
     # per-root is_dir() check below skips whichever set is absent, so listing both is safe.
     ".agents/plans",
@@ -3728,6 +3729,7 @@ DOCS_SUBDIRS = (
     "walkthroughs",
     "specs",
     "prompts",
+    "releases",
 )
 # Research cold-shard parents (research-org Order 07). Weekly `YYYYMM-Www/` shards are created on
 # demand by `aw archive`; the installer only scaffolds the two parent dirs so the layout is
@@ -3797,6 +3799,7 @@ def _record_scaffold_dirs(target_layout: str) -> dict[str, str]:
             "specs": f"{base}/specs",
             "walkthroughs": f"{base}/walkthroughs",
             "roadmaps": f"{base}/roadmaps",
+            "releases": f"{base}/releases",
         }
     # Legacy nested layout (a not-yet-migrated `.agents/workflows` repo).
     return {

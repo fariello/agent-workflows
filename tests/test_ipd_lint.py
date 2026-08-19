@@ -473,7 +473,8 @@ class ExitCodeTests(unittest.TestCase):
         root = Path(tempfile.mkdtemp())
         pend = root / ".agents" / "plans" / "pending"
         pend.mkdir(parents=True)
-        (pend / "ok.md").write_text(
+        # Use a grammar-conformant filename: aw ipd lint now name-checks plans (IPD-N001, awcheck-03).
+        (pend / "20260803-x-01-aaa111-ok.ipd.md").write_text(
             A.build_skeleton(
                 kind="child",
                 title="ok (Set x, Order 1)",
@@ -522,6 +523,60 @@ class NoDependencyTests(unittest.TestCase):
                 },
                 "unexpected import: " + line,
             )
+
+
+class NameConformityTests(unittest.TestCase):
+    """awcheck Order 03: aw ipd lint flags a nonconformant plan FILENAME (IPD-N001), respecting
+    --legacy and the terminal-dir short-circuit."""
+
+    def _res(self, disposition):
+        # a minimal conforming result stand-in (no structural diagnostics)
+        return L.LintResult(disposition=disposition, diagnostics=[])
+
+    def test_bad_name_flagged(self):
+        diags, disp = L._with_name_check(
+            self._res(S.DISPOSITION_CONFORMING),
+            Path(".aw/records/plans/pending/not-a-grammar.md"),
+            legacy=False,
+        )
+        self.assertTrue(any(d.code == "IPD-N001" for d in diags))
+        self.assertEqual(disp, S.DISPOSITION_ERROR)
+
+    def test_good_name_unaffected(self):
+        diags, disp = L._with_name_check(
+            self._res(S.DISPOSITION_CONFORMING),
+            Path(".aw/records/plans/pending/20260101-demo-01-aaa111-ok.ipd.md"),
+            legacy=False,
+        )
+        self.assertFalse(any(d.code == "IPD-N001" for d in diags))
+        self.assertEqual(disp, S.DISPOSITION_CONFORMING)
+
+    def test_legacy_suppresses_recognized_legacy_name(self):
+        diags, disp = L._with_name_check(
+            self._res(S.DISPOSITION_CONFORMING),
+            Path(".aw/records/plans/pending/2026-01-01-old-hyphenated.md"),
+            legacy=True,
+        )
+        self.assertFalse(any(d.code == "IPD-N001" for d in diags))
+
+    def test_non_plan_path_exempt(self):
+        # a fixture / arbitrary path (no plans/ segment) is not name-checked.
+        diags, disp = L._with_name_check(
+            self._res(S.DISPOSITION_CONFORMING),
+            Path("tests/fixtures/not-a-grammar.md"),
+            legacy=False,
+        )
+        self.assertFalse(any(d.code == "IPD-N001" for d in diags))
+        self.assertEqual(disp, S.DISPOSITION_CONFORMING)
+
+    def test_terminal_shortcircuit_not_flagged(self):
+        diags, disp = L._with_name_check(
+            self._res(S.DISPOSITION_LEGACY),
+            Path(".aw/records/plans/executed/bad-name.md"),
+            legacy=False,
+        )
+        self.assertFalse(any(d.code == "IPD-N001" for d in diags))
+        self.assertEqual(disp, S.DISPOSITION_LEGACY)
 
 
 if __name__ == "__main__":

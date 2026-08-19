@@ -40,7 +40,7 @@ To keep the repository clean and avoid accidental commits or drift, every file b
 | Category | Locations | Git Policy | Managing Tool |
 |---|---|---|---|
 | **Source** | `agent_workflows/`, `tools/`, `.aw/system/workflows/`, `tests/` | Tracked | Developers / git |
-| **Generated** | `.opencode/commands/`, `.claude/commands/`, `.aw/system/VERSION`, `.aw/records/plans/INDEX.*`, `.aw/records/docs/research/INDEX.*` | Tracked | `aw install`, `aw plans index`, `aw research index`, `make version-file` |
+| **Generated** | `.opencode/commands/`, `.claude/commands/`, `.aw/system/VERSION`, `.aw/records/plans/INDEX.*`, `.aw/records/docs/research/INDEX.*` | Tracked | `aw install`, `aw index plans`, `aw index research`, `make version-file` |
 | **Records** | `.aw/records/` (`plans/`, `docs/`, `backlog/`, `comms/`, `prompts/`) | Tracked (or companion-routed) | `aw ipd`, `aw backlog`, `aw research`, `aw comms` |
 | **Config** | `.aw/config/config.json`, `.aw/config/local-leaks-allowlist.toml` | Tracked | `aw config`, `aw sanitize --configure` |
 | **Local Config** | `.aw/config/local.json`, `~/.config/agent-workflows/` | Gitignored | `aw config`, user edits |
@@ -51,7 +51,7 @@ To keep the repository clean and avoid accidental commits or drift, every file b
 Never hand-edit generated files. Use the owning CLI verb:
 
 - **Command Shims (`.opencode/commands/`, `.claude/commands/`)**: `aw install .` or `python3 install-workflows.py`.
-- **Plans Manifest (`.aw/records/plans/INDEX.json`, `INDEX.md`)**: `aw plans index`.
+- **Plans Manifest (`.aw/records/plans/INDEX.json`, `INDEX.md`)**: `aw index plans`.
 - **Research Manifest (`.aw/records/docs/research/INDEX.json`, `INDEX.md`)**: `aw research index`.
 - **IPD Checklists and Verification IDs (`E-*`, `V-*`)**: `aw ipd sync <plan.md>`.
 - **Version Metadata (`.aw/system/VERSION`)**: `make version-file VERSION=<X.Y.Z>`.

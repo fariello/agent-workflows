@@ -46,10 +46,10 @@ config file (under `~/.config/agent-workflows/`, never in your home directory ro
 ```bash
 aw setup                # asks where your repos are, discovers them, installs, teaches
 aw install all          # later: install or update every configured repo
-aw list                 # see each repo's installed version and currency
+aw list-repos           # see each repo's installed version and currency
 aw attention            # on-demand board of what needs attention across records
-aw plans                # board of your plan/IPD readiness Status, grouped by lifecycle
-aw plan-names           # check plan/IPD filenames match convention (--apply to fix)
+aw ipd board            # board of your plan/IPD readiness Status, grouped by lifecycle
+aw check plans names    # check plan/IPD filenames match convention
 ```
 
 Re-run `aw install <dir>` any time to UPDATE an installed repo to the current version; it is

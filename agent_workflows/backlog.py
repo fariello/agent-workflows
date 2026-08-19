@@ -60,6 +60,7 @@ _SET_RE = re.compile(r"^- Set:[ \t]*(?P<value>\S+)[ \t]*$")
 _PRIORITY_RE = re.compile(r"^- Priority:[ \t]*(?P<value>\S+)[ \t]*$")
 _KIND_RE = re.compile(r"^- Kind:[ \t]*(?P<value>\S+)[ \t]*$")
 _SUMMARY_RE = re.compile(r"^- Summary:[ \t]*(?P<value>.+?)[ \t]*$")
+_BLOCKS_RELEASE_RE = re.compile(r"^- Blocks-Release:[ \t]*(?P<value>\S+)[ \t]*$")
 
 
 class BacklogItem:
@@ -74,6 +75,7 @@ class BacklogItem:
         "summary",
         "gate_kind",
         "gate_ref",
+        "blocks_release",
     )
 
     def __init__(self) -> None:
@@ -85,6 +87,7 @@ class BacklogItem:
         self.summary: Optional[str] = None
         self.gate_kind: Optional[str] = None
         self.gate_ref: Optional[str] = None
+        self.blocks_release: Optional[str] = None
 
 
 def parse_item(text: str) -> BacklogItem:
@@ -106,6 +109,7 @@ def parse_item(text: str) -> BacklogItem:
             ("priority", _PRIORITY_RE),
             ("kind", _KIND_RE),
             ("summary", _SUMMARY_RE),
+            ("blocks_release", _BLOCKS_RELEASE_RE),
         ):
             m = rx.match(line)
             if m and getattr(item, attr) is None:
@@ -375,6 +379,36 @@ def run_set(args) -> int:
     rendered = _reattach_history(
         text, rendered, f"{new_status}", getattr(args, "message", "") or ""
     )
+    # awhistory Order 02: append this transition to the GLOBAL sidecar (full log lives there; the
+    # inline block now keeps only the latest record). id6 = item.id.
+    if item.id:
+        try:
+            from agent_workflows import record_history as _rh
+
+            _rh.append(
+                repo_root,
+                id6=item.id,
+                tree="backlog",
+                workflow="aw backlog",
+                actor="aw backlog",
+                message=(
+                    getattr(args, "message", "") or f"status -> {new_status}"
+                ).strip(),
+            )
+        except Exception:
+            pass
+    # awrelease Order 02: set/clear the Blocks-Release gate field when requested (a release id6,
+    # 'next', or '-' to clear). Applied after render so _render_item stays untouched. If the item
+    # already carries one and --blocks-release is not given, preserve it.
+    br = getattr(args, "blocks_release", None)
+    if br is not None:
+        from agent_workflows import releases as _releases
+
+        rendered = _releases.set_blocks_release_line(rendered, br)
+    elif item.blocks_release:
+        from agent_workflows import releases as _releases
+
+        rendered = _releases.set_blocks_release_line(rendered, item.blocks_release)
 
     dest_dir = _resolve_backlog_root(repo_root) / new_status
     dest = dest_dir / src.name
@@ -412,27 +446,19 @@ def _reattach_history(
 ) -> str:
     """Preserve prior `## Workflow history` records and append one transition record."""
 
-    old_hist = []
-    if "\n## Workflow history" in old_text:
-        after = old_text.split("\n## Workflow history", 1)[1]
-        for line in after.split("\n")[1:]:
-            if line.startswith("- "):
-                old_hist.append(line)
-            elif line.strip() == "":
-                continue
-            else:
-                break
     today = datetime.date.today().isoformat()
     msg = message.strip() or f"status -> {new_status}"
     new_record = f"- {today} set (aw backlog): {msg}"
-    # rebuild: metadata block from `rendered` up to its history header, then old_hist + new_record, then body
+    # rebuild: metadata block from `rendered` up to its history header, then ONLY the new record, then body.
+    # awhistory Order 02: the inline block keeps only the LATEST record; the full chronological log lives
+    # in the global .aw/records/history.jsonl sidecar (attention last_history_at reads this latest line).
     head = rendered.split("\n## Workflow history", 1)[0]
     body = ""
     if "\n## Workflow history" in rendered:
         tail = rendered.split("\n## Workflow history", 1)[1]
         body_parts = tail.split("\n\n", 1)
         body = body_parts[1] if len(body_parts) > 1 else ""
-    hist_block = "\n".join(old_hist + [new_record]) if old_hist else new_record
+    hist_block = new_record
     result = head + "\n## Workflow history\n" + hist_block
     if body.strip():
         result += "\n\n" + body.rstrip()

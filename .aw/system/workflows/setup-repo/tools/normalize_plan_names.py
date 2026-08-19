@@ -79,6 +79,7 @@ DOCS_SUBDIRS = (
     "walkthroughs",
     "specs",
     "prompts",
+    "releases",
 )
 # The framework tree is never a rename target regardless of flags.
 NEVER_AREA = "workflows"
@@ -103,14 +104,14 @@ DEFAULT_EXCLUDES = ("*/README.md", "README.md")
 # Canonical form: YYYYMMDD-HHMM-NN-<slug>.md
 _NEW_RE = re.compile(
     r"^(?P<date>\d{8})-(?P<time>\d{4})-(?P<nn>\d{2})-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)"
-    r"(?:\.(?P<type>ipd|prompt|spec|walkthrough|roadmap|backlog|comms))?\.md$"
+    r"(?:\.(?P<type>ipd|prompt|spec|walkthrough|roadmap|backlog|comms|release))?\.md$"
 )
 # The Set-clustering grammar for plans (plans-adopter Order 06, spec 20260808-0004-01):
 # YYYYMMDD-<set-id>-<NN>-<id6>-<slug>[.<type>].md, where <id6> is a 6-char base36 stable handle. This
 # is the current plan-name convention; the older HHMM-NN form above is accepted for compatibility.
 # The optional `.<type>` facet (spec 20260817-2147-01, uniform artifact-naming grammar) is a CLOSED
 # enum so a dotted slug is never mis-parsed as a facet; a bare `.md` remains conformant (dual-read).
-_ARTIFACT_TYPE_FACETS = ("ipd", "prompt", "spec", "walkthrough", "roadmap", "backlog", "comms")
+_ARTIFACT_TYPE_FACETS = ("ipd", "prompt", "spec", "walkthrough", "roadmap", "backlog", "comms", "release")
 _FACET_ALT = "|".join(_ARTIFACT_TYPE_FACETS)
 _CLUSTERED_RE = re.compile(
     r"^(?P<date>\d{8})-(?P<set>[a-z0-9]+(?:-[a-z0-9]+)*)-(?P<nn>\d{2})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)"
@@ -674,7 +675,7 @@ def main(argv=None) -> int:
         reportable = [r for r in items if r.reason != "conformant"]
         if not reportable:
             print(
-                "All scanned plan/prompt filenames conform to YYYYMMDD-HHMM-NN-<slug>.md."
+                "All scanned filenames conform to the naming grammar (YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md; the legacy YYYYMMDD-HHMM-NN-<slug>.md form is also accepted)."
             )
         else:
             print("Filenames that are not canonical (old -> proposed new / status):")

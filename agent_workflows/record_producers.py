@@ -92,6 +92,7 @@ class RecordClass(str, Enum):
     PROMPTS = "prompts"
     COMMS = "comms"
     WALKTHROUGHS = "walkthroughs"
+    RELEASES = "releases"
     # NOTE: run-artifacts (assess/verify/release-review/advise run records) are NOT a records class.
     # They live at the top-level `.aw/workflow-artifacts/<workflow>/<RUN_ID>/` (sibling of records),
     # written by the workflows directly and gitignored - NOT resolved via resolve_record_path. The
@@ -130,6 +131,7 @@ _RECORD_CLASS_SUBPATHS: Dict[str, str] = {
     RecordClass.PROMPTS.value: "prompts",
     RecordClass.COMMS.value: "comms",
     RecordClass.WALKTHROUGHS.value: "walkthroughs",
+    RecordClass.RELEASES.value: "releases",
 }
 
 # LEGACY `.agents/` read-only subpaths (plan-review PR-001): the legacy tree keeps its `docs/` nesting

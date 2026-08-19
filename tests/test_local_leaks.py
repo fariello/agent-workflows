@@ -254,7 +254,15 @@ class SelfDocClarityTests(unittest.TestCase):
     def test_s1_bad_status_teaches_valid_set(self):
         (self.repo / ".agents" / "plans" / "pending").mkdir(parents=True)
         code, text = self._capture(
-            ["plans", str(self.repo), "--status", "pendign", "--no-color"]
+            [
+                "ipd",
+                "board",
+                "--dir",
+                str(self.repo),
+                "--status",
+                "pendign",
+                "--no-color",
+            ]
         )
         self.assertEqual(code, 2)
         # names at least one real status; does not silently succeed
@@ -264,7 +272,15 @@ class SelfDocClarityTests(unittest.TestCase):
     def test_s1_valid_status_still_works(self):
         (self.repo / ".agents" / "plans" / "pending").mkdir(parents=True)
         code, _ = self._capture(
-            ["plans", str(self.repo), "--status", "approved", "--no-color"]
+            [
+                "ipd",
+                "board",
+                "--dir",
+                str(self.repo),
+                "--status",
+                "approved",
+                "--no-color",
+            ]
         )
         self.assertEqual(code, 0)
 

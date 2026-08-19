@@ -53,42 +53,13 @@ _DESCRIPTIONS = {
         "shims, scaffolded dirs), asking for confirmation first unless --yes. Preserves "
         "your own content; only the managed region is removed."
     ),
-    "list": (
-        "List the configured and discovered repos and each one's currency (installed, "
-        "stale, current, not-installed). Read-only; makes no changes."
-    ),
     "list-repos": (
         "List the configured and discovered repos and each one's currency (installed, "
-        "stale, current, not-installed). The clearer name for the old 'list'. Read-only."
+        "stale, current, not-installed). Read-only; makes no changes."
     ),
     "status": (
         "Show an environment and currency summary: resolved versions, config location, "
         "and per-repo install currency. Read-only diagnostics."
-    ),
-    "plans": (
-        "Show a board of plan/IPD readiness Status grouped by lifecycle (pending/reviewed/"
-        "approved/executed/...). Read-only view over .aw/records/plans. Alias of 'plans' verbs."
-    ),
-    "plans-index": (
-        "Regenerate .aw/records/plans/INDEX.json (every plan, all fields) plus a browse-by-Set "
-        "INDEX.md from plan front matter. With --check, fail (nonzero) on drift instead of "
-        "rewriting (CI gate). Alias: 'plans index'."
-    ),
-    "plans-find": (
-        "Query the plans manifest by --id/--set/--status/--disposition without reading the "
-        "corpus (token-cheap). Alias: 'plans find'."
-    ),
-    "plans-set-assign": (
-        "Group plans into a Set (shared Set id + assigned Order metadata); --rename also "
-        "clusters the filenames. Dry-run by default. Alias: 'plans set-assign'."
-    ),
-    "plans-mv": (
-        "Rename/re-slug one plan to the clustering filename grammar, preserving its stable "
-        "Id. Dry-run by default. Alias: 'plans mv'."
-    ),
-    "plans-archive": (
-        "Deep-shelve terminal plans into weekly shards (a targeted move or an aged sweep) "
-        "to keep the active lanes small. Alias: 'plans archive'."
     ),
     "ipd": (
         "IPD (Implementation Plan Document) tooling for structure and state. Subcommands: "
@@ -318,10 +289,6 @@ _DESCRIPTIONS = {
         "Deliberately deep-shelve research docs: a targeted move, or a bare aged-and-uncited "
         "sweep (with a preview) that shelves stale, unreferenced research."
     ),
-    "plan-names": (
-        "Check (or, with --apply, fix) that plan/prompt filenames match the "
-        "YYYYMMDD-HHMM-NN-<slug>.md naming convention. --check-style gate."
-    ),
     "check-local-leaks": (
         "Detect (and, with --fix, rewrite) identifying info that must not appear in a public "
         "artifact: home paths, usernames, hostnames, private repo names, and session ids. "
@@ -543,21 +510,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Also remove files you have edited (drifted) instead of preserving them.",
     )
 
-    p_list = sub.add_parser(
-        "list",
-        parents=[common],
-        help="List configured/discovered repos and their currency.",
-    )
-    p_list.add_argument(
-        "--recursive", action="store_true", help="Discover repos recursively."
-    )
-
-    # awcmdsurf Order 04: `list-repos` is the clearer name for the repo lister (old `list` stays
-    # until the Order 05 hard cutover).
+    # awcmdsurf Order 05 (hard cutover): the old `list` verb was removed; `list-repos` is the name.
     p_list_repos = sub.add_parser(
         "list-repos",
         parents=[common],
-        help="List configured/discovered repos and their currency (the renamed 'list').",
+        help="List configured/discovered repos and their currency.",
     )
     p_list_repos.add_argument(
         "--recursive", action="store_true", help="Discover repos recursively."
@@ -567,140 +524,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "status", parents=[common], help="Show environment + currency summary."
     )
 
-    p_plans = sub.add_parser(
-        "plans",
-        parents=[common],
-        help="Show a board of plan/IPD readiness Status, grouped by lifecycle.",
-    )
-    p_plans.add_argument(
-        "dir",
-        nargs="?",
-        default=None,
-        help="Repo root to read (default: current directory).",
-    )
-    p_plans.add_argument(
-        "--pending",
-        action="store_true",
-        help="Only show plans in the pending/ directory.",
-    )
-    p_plans.add_argument(
-        "--status",
-        dest="status_filter",
-        default=None,
-        help="Only show one readiness status.",
-    )
-    p_plans.add_argument(
-        "--write-index",
-        action="store_true",
-        help="(Re)generate .aw/records/plans/STATUS.md instead of printing.",
-    )
-
-    # The plans manifest verbs are separate top-level parsers (`plans-index`, `plans-find`) to avoid
-    # colliding the `plans <dir>` positional with an argparse subparser; a thin `aw plans index` /
-    # `aw plans find` alias is routed in `_dispatch` before the main parser runs (see below).
-    p_plans_index = sub.add_parser(
-        "plans-index",
-        parents=[common],
-        help="Regenerate .aw/records/plans/INDEX.json + a browse-by-Set INDEX.md; --check fails on drift. Alias: 'plans index'.",
-    )
-    p_plans_index.add_argument(
-        "--dir", default=None, help="Repo root (default: current directory)."
-    )
-    p_plans_index.add_argument(
-        "--check",
-        action="store_true",
-        help="Fail (nonzero) on drift instead of regenerating.",
-    )
-    p_plans_index.add_argument(
-        "--limit",
-        type=int,
-        default=None,
-        help="Browse-by-Set view size (default 40 Sets).",
-    )
-    p_plans_index.add_argument(
-        "--agent",
-        action="store_true",
-        help="Machine output for --check: tab-separated records.",
-    )
-    p_plans_find = sub.add_parser(
-        "plans-find",
-        parents=[common],
-        help="Query the plans manifest by --id/--set/--status/--disposition. Alias: 'plans find'.",
-    )
-    p_plans_find.add_argument(
-        "--dir", default=None, help="Repo root (default: current directory)."
-    )
-    p_plans_find.add_argument("--id", default=None, help="Filter by plan <id6>.")
-    p_plans_find.add_argument(
-        "--set", dest="set", default=None, help="Filter by Set id."
-    )
-    p_plans_find.add_argument(
-        "--status", default=None, help="Filter by readiness status."
-    )
-    p_plans_find.add_argument(
-        "--disposition", default=None, help="Filter by disposition dir."
-    )
-
-    p_plans_setassign = sub.add_parser(
-        "plans-set-assign",
-        parents=[common],
-        help="Group plans into a Set (Set/Order metadata; --rename to cluster). Alias: 'plans set-assign'.",
-    )
-    p_plans_setassign.add_argument(
-        "ids", nargs="+", help="One or more plan <id6> tokens, in order."
-    )
-    p_plans_setassign.add_argument("--set", dest="set", required=True, help="Set id.")
-    p_plans_setassign.add_argument(
-        "--order", type=int, default=None, help="Starting Order (default 0)."
-    )
-    p_plans_setassign.add_argument(
-        "--dir", default=None, help="Repo root (default: current directory)."
-    )
-    p_plans_setassign.add_argument(
-        "--rename", action="store_true", help="Also rename to the clustering grammar."
-    )
-    p_plans_setassign.add_argument(
-        "--apply",
-        action="store_true",
-        help="Perform the changes (default is preview only).",
-    )
-    p_plans_mv = sub.add_parser(
-        "plans-mv",
-        parents=[common],
-        help="Rename/re-slug one plan to the clustering grammar, keeping Id. Alias: 'plans mv'.",
-    )
-    p_plans_mv.add_argument("id", help="The plan <id6>.")
-    p_plans_mv.add_argument("--slug", default=None, help="New slug.")
-    p_plans_mv.add_argument("--set", dest="set", default=None, help="New Set id.")
-    p_plans_mv.add_argument("--order", type=int, default=None, help="New Order.")
-    p_plans_mv.add_argument(
-        "--dir", default=None, help="Repo root (default: current directory)."
-    )
-    p_plans_mv.add_argument(
-        "--apply",
-        action="store_true",
-        help="Perform the rename (default is preview only).",
-    )
-
-    p_plans_archive = sub.add_parser(
-        "plans-archive",
-        parents=[common],
-        help="Deep-shelve terminal plans into weekly shards (targeted or an aged sweep). Alias: 'plans archive'.",
-    )
-    p_plans_archive.add_argument(
-        "target",
-        nargs="?",
-        default=None,
-        help="A plan <id6> or Set id (omit for a sweep).",
-    )
-    p_plans_archive.add_argument(
-        "--dir", default=None, help="Repo root (default: current directory)."
-    )
-    p_plans_archive.add_argument(
-        "--apply",
-        action="store_true",
-        help="Perform the moves (default is preview only).",
-    )
+    # awcmdsurf Order 05 (hard cutover): the old plan-family verbs (plans, plans-index, plans-find,
+    # plans-set-assign, plans-mv, plans-archive) were REMOVED. Their capabilities are now the
+    # noun-verb grammar: `aw ipd board`, `aw index plans`, `aw find plans`, `aw group plans`,
+    # `aw rename plans`, `aw archive plans`.
 
     p_ipd = sub.add_parser(
         "ipd",
@@ -1781,64 +1608,8 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Perform the moves (default is preview only).",
     )
 
-    p_names = sub.add_parser(
-        "plan-names",
-        parents=[common],
-        help="Check (or --apply) that plan/prompt filenames match YYYYMMDD-HHMM-NN-<slug>.md.",
-    )
-    p_names.add_argument(
-        "dir", nargs="?", default=None, help="Repo root (default: current directory)."
-    )
-    p_names.add_argument(
-        "--apply",
-        action="store_true",
-        help="Perform the staged git-mv renames (default: check).",
-    )
-    p_names.add_argument(
-        "--area",
-        action="append",
-        default=None,
-        help="Top-level .agents/ area to scan (repeatable).",
-    )
-    p_names.add_argument(
-        "--all",
-        dest="all_areas",
-        action="store_true",
-        help="Scan every top-level .agents/ area.",
-    )
-    p_names.add_argument(
-        "--exclude",
-        action="append",
-        default=None,
-        help="fnmatch glob to exclude (repeatable).",
-    )
-    p_names.add_argument(
-        "--no-default-excludes",
-        action="store_true",
-        help="Drop the built-in README.md exclude.",
-    )
-    p_names.add_argument(
-        "--include-nested",
-        action="store_true",
-        help="Also rename eligible *.md nested deeper.",
-    )
-    p_names.add_argument(
-        "--rename-non-numeric",
-        action="store_true",
-        help="Also rename files not starting with a date.",
-    )
-    p_names.add_argument(
-        "--assume-dates",
-        action="store_true",
-        help="Accept derived dates for 'imported?' files.",
-    )
-    p_names.add_argument(
-        "--format",
-        dest="fmt",
-        choices=["text", "json"],
-        default="text",
-        help="Output format.",
-    )
+    # awcmdsurf Order 05 (hard cutover): the old `plan-names` verb was REMOVED; name conformance is
+    # now `aw check plans names` (and `aw check <type> names`).
 
     p_leaks = sub.add_parser(
         "check-local-leaks",
@@ -3634,41 +3405,6 @@ def _run_storage_preflight(args: argparse.Namespace, term: Term) -> int:
         return 1
 
 
-def _run_todo(args: argparse.Namespace, term: Term) -> int:
-    import json
-    from agent_workflows.actions import ActionManager, ActionError
-
-    try:
-        mgr = ActionManager()
-        status_filter = None if getattr(args, "all", False) else "open"
-        actions = mgr.list_actions(status_filter=status_filter)
-    except ActionError as exc:
-        term.status("fail", str(exc))
-        return 1
-
-    if getattr(args, "agent", False):
-        out = [
-            {
-                "id": a.id,
-                "generation": a.generation,
-                "status": a.status,
-                "title": a.title,
-            }
-            for a in actions
-        ]
-        print(json.dumps(out, indent=2))
-        return 0
-
-    term.heading("Operational Actions (AW Todo)")
-    if not actions:
-        term.status("ok", "No pending operational actions.")
-        return 0
-
-    for a in actions:
-        term.status(a.status, f"{a.id} (v{a.generation}): {a.title}")
-    return 0
-
-
 def _run_show(args: argparse.Namespace, term: Term) -> int:
     from agent_workflows import selectors
     from agent_workflows.project_context import resolve_verb_repo_root
@@ -4418,17 +4154,8 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
 
 def _dispatch(argv: Optional[Sequence[str]]) -> int:
     parser = _build_parser()
-    # Alias: `aw plans index` / `aw plans find` -> the `plans-index` / `plans-find` parsers, so the
-    # ergonomic `plans <verb>` form works without colliding the `plans <dir>` positional with an
-    # argparse subparser.
-    argv_list = list(sys.argv[1:] if argv is None else argv)
-    if (
-        len(argv_list) >= 2
-        and argv_list[0] == "plans"
-        and argv_list[1] in ("index", "find", "set-assign", "mv", "archive")
-    ):
-        argv_list = ["plans-" + argv_list[1]] + argv_list[2:]
-        argv = argv_list
+    # awcmdsurf Order 05 (hard cutover): the `aw plans <verb>` -> `plans-<verb>` alias shim was
+    # removed with the plan-family verbs; the grammar is now `aw <verb> plans` (index/find/...).
     args = parser.parse_args(argv)
 
     term = Term(color=False if args.no_color else None)
@@ -4511,36 +4238,15 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return _run_install(args, term)
     if args.command == "uninstall":
         return _run_uninstall(args, term)
-    if args.command in ("list", "list-repos"):
+    if args.command == "list-repos":
         return _run_list(args, term)
     if args.command == "status":
         return _run_status(term)
     if args.command == "setup":
         return _run_setup(args, term)
-    if args.command == "plans":
-        return _run_plans(args, term)
-    if args.command == "plans-index":
-        from agent_workflows import plans_index as pidx
-
-        return pidx.run_index(args)
-    if args.command == "plans-find":
-        from agent_workflows import plans_index as pidx
-
-        return pidx.run_find(args)
-    if args.command == "plans-set-assign":
-        from agent_workflows import plans_refs as prefs
-
-        return prefs.run_set_assign(args)
-    if args.command == "plans-mv":
-        from agent_workflows import plans_refs as prefs
-
-        return prefs.run_mv(args)
-    if args.command == "plans-archive":
-        from agent_workflows import plans_archive as parch
-
-        return parch.run_archive(args)
-    if args.command == "plan-names":
-        return _run_plan_names(args, term)
+    # awcmdsurf Order 05 (hard cutover): the plan-family + `list` + `plan-names` command dispatch was
+    # removed. Those capabilities are the noun-verb grammar (ipd board / index|find|group|rename|
+    # archive plans / check <type> names / list-repos). _run_plans is retained: `ipd board` calls it.
     if args.command == "ipd":
         ipd_cmd = getattr(args, "ipd_command", None)
         if ipd_cmd == "lint":
