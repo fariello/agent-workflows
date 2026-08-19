@@ -57,6 +57,11 @@ _DESCRIPTIONS = {
         "List the configured and discovered repos and each one's currency (installed, "
         "stale, current, not-installed). Read-only; makes no changes."
     ),
+    "doctor": (
+        "Read-only deep repo inspection: aggregate every existing check signal (attention view "
+        "validity, git working-tree state, installed-vs-packaged version drift) into one Drift "
+        "report. Exit 0 clean, 1 findings; --agent for machine-readable output."
+    ),
     "status": (
         "Show an environment and currency summary: resolved versions, config location, "
         "and per-repo install currency. Read-only diagnostics."
@@ -522,6 +527,22 @@ def _build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser(
         "status", parents=[common], help="Show environment + currency summary."
+    )
+
+    # awdoctor Order 03: a read-only deep repo inspector aggregating every check signal.
+    p_doctor = sub.add_parser(
+        "doctor",
+        parents=[common],
+        help="Read-only deep repo inspection: aggregate attention/git/version signals into one report.",
+    )
+    p_doctor.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_doctor.add_argument(
+        "--agent",
+        dest="as_agent",
+        action="store_true",
+        help="Machine-readable tab-separated findings.",
     )
 
     # awcmdsurf Order 05 (hard cutover): the old plan-family verbs (plans, plans-index, plans-find,
@@ -4242,6 +4263,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return _run_list(args, term)
     if args.command == "status":
         return _run_status(term)
+    if args.command == "doctor":
+        from agent_workflows import doctor as _doctor
+
+        return _doctor.run(args)
     if args.command == "setup":
         return _run_setup(args, term)
     # awcmdsurf Order 05 (hard cutover): the plan-family + `list` + `plan-names` command dispatch was
