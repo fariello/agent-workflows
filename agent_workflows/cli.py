@@ -58,6 +58,11 @@ _DESCRIPTIONS = {
         "List the configured and discovered repos and each one's currency (installed, "
         "stale, current, not-installed). Read-only; makes no changes."
     ),
+    "normalize-lanes": (
+        "Rename any prompts/comms 'local/' quarantine lane to 'untracked/' across both layouts "
+        "(.aw/records/ and legacy .agents/), preserving contents and ensuring a nested .gitignore "
+        "ignores 'untracked/'. Retroactive + idempotent; needs no reinstall."
+    ),
     "doctor": (
         "Read-only deep repo inspection: aggregate every existing check signal (attention view "
         "validity, git working-tree state, installed-vs-packaged version drift) into one Drift "
@@ -556,6 +561,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_status.add_argument(
         "--json", dest="as_json", action="store_true", help="Emit the status as JSON."
+    )
+
+    # awuntrackedfix Order 01: rename local/ quarantine lanes to untracked/ (retroactive, tools-free).
+    p_norm_lanes = sub.add_parser(
+        "normalize-lanes",
+        parents=[common],
+        help="Rename any prompts/comms 'local/' quarantine lane to 'untracked/' (both layouts), preserving contents + gitignore.",
+    )
+    p_norm_lanes.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
     )
 
     # awdoctor Order 03: a read-only deep repo inspector aggregating every check signal.
@@ -4601,6 +4616,18 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return _run_list(args, term)
     if args.command == "status":
         return _run_status(args, term)
+    if args.command == "normalize-lanes":
+        import os as _os
+        from agent_workflows import engine as _engine
+
+        repo_root = Path(getattr(args, "dir", None) or _os.getcwd())
+        renamed = _engine.migrate_local_lanes_to_untracked(repo_root, {})
+        if renamed:
+            for r in renamed:
+                term.status("ok", f"renamed lane -> {r}")
+        else:
+            term.status("ok", "no 'local/' lane to rename; nothing to do.")
+        return 0
     if args.command == "doctor":
         from agent_workflows import doctor as _doctor
 

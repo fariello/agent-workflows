@@ -4335,6 +4335,10 @@ def create_setup_artifacts(
     for rel, content in files:
         _create_if_absent(repo_root, rel, content, use_git, created)
 
+    # awuntrackedfix Order 01 (PR-002): rename any existing `local/` lane to `untracked/` FIRST, so a
+    # populated lane is cleanly renamed/merged BEFORE we mkdir the empty `untracked/<sub>` dirs (which
+    # would otherwise strand nested files under the old `local/`).
+    migrate_local_lanes_to_untracked(repo_root, dirs)
     # Materialize the gitignored `untracked/` quarantine lanes so they are discoverable (D94): side
     # effect only (uncommittable, not `--undo`-recorded - a user may write into them).
     (repo_root / dirs["prompts"] / PROMPTS_LOCAL_SUBDIR).mkdir(
@@ -4344,38 +4348,93 @@ def create_setup_artifacts(
         (repo_root / dirs["comms"] / "untracked" / sub).mkdir(
             parents=True, exist_ok=True
         )
-    # awuntracked Order 01: upgrade an existing repo's legacy `local/` lanes to `untracked/`.
-    migrate_local_lanes_to_untracked(repo_root, dirs)
     return created
 
 
-def migrate_local_lanes_to_untracked(repo_root: Path, dirs: dict) -> list[str]:
-    """awuntracked Order 01: rename an existing repo's prompts/comms `local/` quarantine lane to
-    `untracked/`, preserving contents. Idempotent (no-op when `local/` is absent or `untracked/`
-    already exists with content). Returns the list of renamed lane paths (repo-relative)."""
+def _merge_tree(old: Path, new: Path) -> None:
+    """awuntrackedfix Order 01 (PR-002): recursively move every file from `old` into `new`, creating
+    missing dirs, WITHOUT clobbering an existing destination file. Removes emptied dirs afterward."""
     import shutil
 
-    renamed: list[str] = []
+    new.mkdir(parents=True, exist_ok=True)
+    for child in list(old.iterdir()):
+        dest = new / child.name
+        if child.is_dir():
+            _merge_tree(child, dest)
+        elif not dest.exists():
+            shutil.move(str(child), str(dest))
+    try:
+        old.rmdir()  # only succeeds when now-empty (a collided file was left behind intentionally)
+    except OSError:
+        pass
+
+
+def _ensure_untracked_gitignore(base: Path) -> None:
+    """awuntrackedfix Order 01: ensure `<base>/.gitignore` ignores `untracked/`. Create it (from the
+    comms/prompts nested template) if absent; rewrite a legacy bare `local/` line to `untracked/`."""
+    gi = base / ".gitignore"
+    tmpl = (
+        _COMMS_GITIGNORE_TEMPLATE
+        if base.name == "comms"
+        else _PROMPTS_GITIGNORE_TEMPLATE
+    )
+    if not gi.is_file():
+        gi.write_text(tmpl, encoding="utf-8")
+        return
+    text = gi.read_text(encoding="utf-8")
+    if "untracked/" in text:
+        return
+    lines = [
+        ("untracked/" if ln.strip() == "local/" else ln) for ln in text.split("\n")
+    ]
+    new_text = "\n".join(lines)
+    if "untracked/" not in new_text:
+        new_text = new_text.rstrip("\n") + "\nuntracked/\n"
+    gi.write_text(new_text, encoding="utf-8")
+
+
+def _lane_bases(repo_root: Path, dirs: dict) -> list[Path]:
+    """Every comms/prompts base across BOTH layouts (canonical .aw/records + legacy .agents), plus any
+    passed `dirs` values, deduped by resolved path."""
+    cands = [
+        repo_root / ".aw" / "records" / "prompts",
+        repo_root / ".aw" / "records" / "comms",
+        repo_root / ".agents" / "prompts",
+        repo_root / ".agents" / "comms",
+    ]
     for key in ("prompts", "comms"):
-        base = repo_root / dirs.get(key, "")
+        v = dirs.get(key)
+        if v:
+            cands.append(repo_root / v)
+    seen: set = set()
+    out: list[Path] = []
+    for c in cands:
+        r = str(c)
+        if r not in seen:
+            seen.add(r)
+            out.append(c)
+    return out
+
+
+def migrate_local_lanes_to_untracked(repo_root: Path, dirs: dict) -> list[str]:
+    """awuntracked Order 01 + awuntrackedfix Order 01/02: rename the prompts/comms `local/` quarantine
+    lane to `untracked/` in EVERY layout present (canonical `.aw/records/` AND legacy `.agents/`),
+    preserving contents (recursive merge, PR-002), and ensure a nested `.gitignore` ignores
+    `untracked/`. Idempotent. Returns the list of renamed lane paths (repo-relative)."""
+    repo_root = Path(repo_root)
+    renamed: list[str] = []
+    for base in _lane_bases(repo_root, dirs or {}):
         old = base / "local"
         new = base / "untracked"
-        if not old.is_dir():
-            continue
-        if not new.exists():
-            old.rename(new)
+        if old.is_dir():
+            if not new.exists():
+                old.rename(new)
+            else:
+                _merge_tree(old, new)  # recursive, non-clobbering (PR-002)
             renamed.append(str(new.relative_to(repo_root)).replace("\\", "/"))
-        else:
-            # merge: move any child of old into new, then drop the emptied old lane.
-            for child in old.iterdir():
-                dest = new / child.name
-                if not dest.exists():
-                    shutil.move(str(child), str(dest))
-            try:
-                old.rmdir()
-            except OSError:
-                pass
-            renamed.append(str(new.relative_to(repo_root)).replace("\\", "/"))
+        # ensure the gitignore wherever an untracked/ lane now exists
+        if new.is_dir():
+            _ensure_untracked_gitignore(base)
     return renamed
 
 
