@@ -96,7 +96,7 @@ Showing the 40 most-recent of 97 Sets; the full manifest is INDEX.json.
 
 ## awuntracked
 
-- `c32roo` [pending] 01 pending/20260818-awuntracked-01-c32roo-rename-local-lanes-to-untracked-with-catch-all-gitignore.ipd.md
+- `c32roo` [executed] 01 executed/20260818-awuntracked-01-c32roo-rename-local-lanes-to-untracked-with-catch-all-gitignore.ipd.md
 
 ## awphysical
 

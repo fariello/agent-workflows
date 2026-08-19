@@ -2140,6 +2140,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-18",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260818-awuntracked-01-c32roo-rename-local-lanes-to-untracked-with-catch-all-gitignore.ipd.md",
+    "plan_id": "c32roo",
+    "set_id": "awuntracked",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -2167,16 +2177,6 @@
     "path": "pending/20260817-awretrofit-00-pp6y76-orchestrator.ipd.md",
     "plan_id": "pp6y76",
     "set_id": "awretrofit",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260818-awuntracked-01-c32roo-rename-local-lanes-to-untracked-with-catch-all-gitignore.ipd.md",
-    "plan_id": "c32roo",
-    "set_id": "awuntracked",
     "status": "approved"
   },
   {
