@@ -1852,6 +1852,16 @@
   {
     "date": "2026-08-18",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260818-awdoctor-00-zz2dum-aw-doctor-and-attention-view-upgrades.ipd.md",
+    "plan_id": "zz2dum",
+    "set_id": "awdoctor",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260818-awdoctor-01-zi9kjl-compact-attention-board-with-urgency-and-blocking-columns.ipd.md",
@@ -1866,6 +1876,16 @@
     "order": 2,
     "path": "executed/20260818-awdoctor-02-jc4fus-attention-highlights-setup-needed-and-release-blockers.ipd.md",
     "plan_id": "jc4fus",
+    "set_id": "awdoctor",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-18",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 3,
+    "path": "executed/20260818-awdoctor-03-5vvlm3-aw-doctor-deep-repo-inspector.ipd.md",
+    "plan_id": "5vvlm3",
     "set_id": "awdoctor",
     "status": "executed"
   },
@@ -2077,26 +2097,6 @@
     "path": "pending/20260818-awcolor-01-u88tb7-256-color-pretty-output-across-all-aw-verbs-by-default-on-tt.ipd.md",
     "plan_id": "u88tb7",
     "set_id": "awcolor",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260818-awdoctor-00-zz2dum-aw-doctor-and-attention-view-upgrades.ipd.md",
-    "plan_id": "zz2dum",
-    "set_id": "awdoctor",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-18",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 3,
-    "path": "pending/20260818-awdoctor-03-5vvlm3-aw-doctor-deep-repo-inspector.ipd.md",
-    "plan_id": "5vvlm3",
-    "set_id": "awdoctor",
     "status": "approved"
   },
   {
