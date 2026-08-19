@@ -4,18 +4,20 @@
 - Kind: child
 - Concern: Two board-UX defects. (1) The attention board shows a `?` unknown-age marker on items that legitimately have no last-activity date (research at intake, seeded actions), which reads as noise. (2) `aw doctor` run in the FRAMEWORK SOURCE checkout falsely reports `doctor.version-not-installed` (a source repo has no baked `.aw/VERSION` by design) and its output has no summary line, so the reader is not told whether the findings are actionable.
 - Scope: `agent_workflows/attention.py` (`_age_marker`) + `agent_workflows/doctor.py` (`_version_drift` + `run` summary); tests. No change to the scan, the contract classes, or machine/JSON output shape.
-- Status: reviewed
+- Status: approved
 - Set: awdoctorfix
 - Order: 3
 - Highest E allocated: 04
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: qa1k8z
+- Approval: maintainer (human), 2026-08-19: approved this specific plan and said go.
 
 ## Workflow history
 
 - 2026-08-19 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created - suppress the `?` age marker for trees with no history lifecycle, and make `aw doctor` source-repo-aware (no false version-not-installed) with an informative summary line.
 - 2026-08-19 reviewed (opencode): self-review - verified _age_marker single call site + tree values, doctor._version_drift source-checkout guard (pyproject contains agent-workflows + no baked VERSION), the summary line does not change --agent/exit codes, and E/V bijection. Awaiting explicit human approval before execution.
 - 2026-08-19 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (tightened the E-02 source-repo predicate to name = "agent-workflows" + agent_workflows/ dir + no VERSION, added a consumer-repo regression guard to E-04). Structural preflight conforming (author + review-finalize). Readiness: GO - PENDING HUMAN APPROVAL.
+- 2026-08-19 approved (maintainer, human): explicitly approved this plan and instructed go.
 
 ## Goal
 
