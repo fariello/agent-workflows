@@ -17,6 +17,7 @@
 - 2026-08-18 authored (opencode Opus 4.8): from spec 20260818-1525-01 + investigation (_run_plans cli.py:2810, ipd subparsers cli.py:686, _run_list cli.py:2579, attention.run).
 - 2026-08-18 /plan-review (Antigravity (Gemini 3.7 Flash High)): APPROVE; verified citations against cli.py:686/2579/2810/4088 and attention.run; structural lint conforming; no findings; no blocking open questions; GO - PENDING HUMAN APPROVAL.
 - 2026-08-18 /plan-review (opencode Opus 4.8): APPROVE; re-review (opencode): verified _run_plans:2810, _run_list:2579, attention.run:525, ipd add_subparsers (clean board add, no shim needed); conforming; no findings.
+- 2026-08-18 /plan-review (opencode Opus 4.8, RIGOROUS): APPROVE WITH REVISIONS APPLIED. Verified attention.run is getattr-safe (todo->attention won't break on missing args). PR-001 (MEDIUM): "default pending+reusable" (item 8) is a NEW filter behavior - reusable/pending are DISPOSITIONS and _run_plans shows ALL by default while --pending is pending-ONLY (cli.py:2851), so the default is NOT achievable with existing options; made E-01 specify the real board-filter change + the status_filter dest requirement + an escape to show all. Conforms at review-finalize. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -31,9 +32,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: plans -> ipd board merge
 
-- [ ] E-01 Add an `ipd board` subcommand (and make bare `aw ipd` route to it, resolving spec OQ-1 to "bare ipd = board") that invokes the existing plans board `_run_plans` (cli.py:2810). Wire the ipd subparser (cli.py:686-717) to accept `board` with the same options the old `plans` had (`dir`, `--status`, `--write-index`), plus default the board to PENDING + REUSABLE only when no `--status`/filter is given (item 8). Keep `ipd lint`/`scaffold`/`sync` untouched.
+- [ ] E-01 Add an `ipd board` subcommand (and make bare `aw ipd` route to it, resolving spec OQ-1 to "bare ipd = board") that invokes the existing plans board `_run_plans` (cli.py:2810). Wire the ipd subparser (cli.py:686-717) to accept `board` with the same options the old `plans` had - IMPORTANT: the `--status` option must use `dest="status_filter"` (that is the attr `_run_plans` reads, cli.py:2828), plus `--pending`, `--write-index`, `dir`. Keep `ipd lint`/`scaffold`/`sync` untouched. ITEM 8 (default pending+reusable) requires a real behavior change to the board filter: `reusable` and `pending` are DISPOSITIONS (directory names), and `_run_plans` today shows ALL dispositions by default while `--pending` filters to pending-ONLY (cli.py:2851-2852). Add the default: when NO `--status`/`--pending`/explicit filter is given, filter `records` to `disposition in ("pending","reusable")`; a `--all-dispositions` (or reuse an explicit `--status`) escape shows the rest. Implement this in `_run_plans` (or a small wrapper) - it is NOT achievable with the existing options alone.
   - Depends on: none
-  - Expected outcome: `aw ipd` and `aw ipd board` show the readiness board (default pending+reusable); `aw ipd board --status executed` shows executed; `aw ipd lint/scaffold/sync` unchanged.
+  - Expected outcome: `aw ipd` and `aw ipd board` show ONLY pending + reusable plans by default; `aw ipd board --status executed` shows executed; a documented escape shows all dispositions; `aw ipd lint/scaffold/sync` unchanged.
   - Execution state: pending
 
 ### Task group 2: list-repos + todo alias
@@ -72,7 +73,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 |---|---|---|
 | F1 | Board logic already exists (`_run_plans`). | The merge is re-exposing it under `ipd board`, not a rewrite. |
 | F2 | `todo` currently lists the action ledger. | Repointing to attention is safe because attention already scans the actions tree; the ledger listing is not lost. |
-| F3 | Item 8 (default pending+reusable). | Implemented as the board's default filter when no status is given. |
+| F3 | Item 8 (default pending+reusable) is a NEW behavior. | `reusable`/`pending` are DISPOSITIONS; `_run_plans` shows ALL by default and `--pending` is pending-ONLY - there is no existing pending+reusable filter. E-01 adds it in the board (a real default-filter change), plus an escape to show all. Verified against cli.py:2851. |
+| F4 | `todo`->attention is safe: attention.run uses getattr for all args. | Verified attention.run reads args via getattr(...,default) (attention.py:535-559), so the todo parser's args (missing format/check) do not break it. |
+| F5 | `--status` maps to dest status_filter. | The new `ipd board` `--status` must use dest="status_filter" (the attr _run_plans reads, cli.py:2828), else the filter is silently ignored. |
 
 ## Proposed changes (ordered, validatable)
 
