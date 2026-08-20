@@ -28,15 +28,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Verify existing behavior and add the regression test
 
-- [ ] E-01 Write and run a throwaway probe against the layout-inventory module (importing it from wherever it lives at execution time: `agent_workflows.layout_inventory` if Order 01 has landed, else `tools.awphysical.aw_layout_inventory`) that creates a temp git repo with a `.gitignore` listing `node_modules/`, populates a `node_modules/` subtree plus a tracked file, and confirms `_ignored_dirs(repo)` returns the ignored dir and that `inventory(...)` does not emit any item whose path is under `node_modules`.
+- [x] E-01 Write and run a throwaway probe against the layout-inventory module (importing it from wherever it lives at execution time: `agent_workflows.layout_inventory` if Order 01 has landed, else `tools.awphysical.aw_layout_inventory`) that creates a temp git repo with a `.gitignore` listing `node_modules/`, populates a `node_modules/` subtree plus a tracked file, and confirms `_ignored_dirs(repo)` returns the ignored dir and that `inventory(...)` does not emit any item whose path is under `node_modules`.
   - Depends on: none
   - Expected outcome: The probe run confirms _ignored_dirs contains "node_modules" and no inventory item path descends into node_modules; the pre-existing pruning behavior is observed to be correct as claimed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add `tests/test_layout_inventory_gitignore.py` codifying the probe as a unittest (temp git repo, .gitignore with node_modules/, tracked and ignored content), asserting both `_ignored_dirs(repo)` includes the ignored subtree and `inventory(...)` yields no item under node_modules, importing the module from wherever it lives at execution time; then run the full serial test suite (canonical `make test-serial` / `python3 -m unittest discover -s tests -t .`) and close backlog item ith2xd.
+- [x] E-02 Add `tests/test_layout_inventory_gitignore.py` codifying the probe as a unittest (temp git repo, .gitignore with node_modules/, tracked and ignored content), asserting both `_ignored_dirs(repo)` includes the ignored subtree and `inventory(...)` yields no item under node_modules, importing the module from wherever it lives at execution time; then run the full serial test suite (canonical `make test-serial` / `python3 -m unittest discover -s tests -t .`) and close backlog item ith2xd.
   - Depends on: E-01
   - Expected outcome: New test file exists and passes; full serial suite passes; backlog item ith2xd is moved to done via `aw backlog set`.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -83,23 +83,23 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ### OQ-01: Which import path is live at execution time?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: executor
-- Resolution or deferral rationale: The executor imports the module from wherever it resolves at execution time: `agent_workflows.layout_inventory` if Order 01 of this Set has landed the relocation, else `tools.awphysical.aw_layout_inventory`. Non-blocking because both expose the same `_ignored_dirs`, `_walk`, `inventory`, and `_default_roots` symbols.
+- Resolution or deferral rationale: Order 01 landed `agent_workflows.layout_inventory` in the shipped package and left a shim at `tools.awphysical.aw_layout_inventory`. The new regression test uses fallback import (`from agent_workflows import layout_inventory as inv_mod` with fallback to `tools.awphysical.aw_layout_inventory`), resolving directly to `agent_workflows.layout_inventory`.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Probe output showing `_ignored_dirs(repo)` contains the seeded ignored directory (node_modules) and that no `inventory(...)` item path is under node_modules against a temp repo whose .gitignore lists node_modules/.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Executed probe creating a temporary git repository with `.gitignore` containing `node_modules/` and `vendor/`, tracked files under `.agents/workflows/` and `workflow-artifacts/`, and gitignored subtrees under repo root, `.agents/node_modules/`, and `workflow-artifacts/node_modules/`. Probe output: `_ignored_dirs(repo)` returned `['.agents/node_modules', '.agents/vendor', 'node_modules', 'workflow-artifacts/node_modules']`, `_walk(repo, ignored_dirs=ignored_dirs, repo=repo)` yielded 0 ignored paths (leaks: `[]`), and `inventory(repo, roots, include_paths=False)` yielded 6 items with 0 items under `node_modules` or `vendor` (leaks: `[]`).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: `tests/test_layout_inventory_gitignore.py` exists; pasted full-serial test-suite output showing the new test and the whole suite passing; confirmation (command output) that backlog item ith2xd is now done.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Created `tests/test_layout_inventory_gitignore.py` containing 4 tests (`test_ignored_dirs_identifies_gitignored_directories`, `test_walk_prunes_ignored_directory_subtrees`, `test_walk_without_ignored_dirs_descends_into_subtrees`, `test_inventory_prunes_ignored_directories_across_roots`). Falsifiability verified by breaking `_ignored_dirs` to return `set()` (produced RED with 3 test failures), then restoring implementation (produced GREEN `Ran 4 tests in 0.110s OK`). Full test suite ran via `make test` / `pytest -p no:xdist -q` with all 1186 tests passing (100%, skipped=1). Backlog item ith2xd transitioned to `done` via `aw backlog set --status done --message "verified and regression-tested layout inventory walk honors gitignore (IPD m7e2g3)" .aw/records/backlog/open/20260815-ith2xd-01-ith2xd-inventory-honor-gitignore.backlog.md` (file moved to `.aw/records/backlog/done/20260815-ith2xd-01-ith2xd-inventory-honor-gitignore.backlog.md`).
+  - Result: pass
 
 ## Approval and execution gate
 
