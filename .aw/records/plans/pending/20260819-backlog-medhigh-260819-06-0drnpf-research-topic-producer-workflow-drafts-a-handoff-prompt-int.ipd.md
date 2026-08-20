@@ -4,12 +4,13 @@
 - Kind: child
 - Concern: There is no in-agent capability that turns a research topic into a house-conformant, upload-ready research handoff PROMPT and stages it. Authors hand-write these prompts, drifting from the AGENTS.md "Writing prompts for another AI" contract and the prompts staging lifecycle.
 - Scope: Add ONE new standalone producer workflow (markdown body plus README) that, given a topic, DRAFTS an upload-ready research handoff prompt into the tracked prompts pending lane; register it in the workflows manifest; regenerate its per-host slash shim; add a test asserting the workflow file, index entry, shim, and prompt-purity rules are present. Not python beyond the manifest-driven shim. OUT: implementing the research itself, an `aw prompts` lint verb, and any change to `aw research`.
-- Status: reviewed
+- Status: approved
 - Set: backlog-medhigh-260819
 - Order: 6
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: 0drnpf
+- Approval: maintainer (human), 2026-08-19: blanket-approved the backlog-medhigh-260819 Set for unattended execution.
 
 ## Workflow history
 
