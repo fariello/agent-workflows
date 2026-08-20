@@ -535,7 +535,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_uninstall.add_argument(
         "--deep",
         action="store_true",
-        help="Also remove durable records scaffolding (plans/docs/prompts/comms under .aw/records/ or legacy .agents/); "
+        help="Also remove durable records scaffolding and legacy stale litter "
+        "(plans/docs/prompts/comms/workflows under .aw/records/ or legacy .agents/); "
         "normally offered interactively.",
     )
     p_uninstall.add_argument(
@@ -4503,7 +4504,11 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
     import io
     from pathlib import Path
     from agent_workflows import layout_inventory as inv_mod
-    from agent_workflows.layout_migration import MigrationManager, MigrationError
+    from agent_workflows.layout_migration import (
+        MigrationManager,
+        MigrationError,
+        is_stale_tool_litter,
+    )
 
     repo_path = Path(os.getcwd())
     action = getattr(args, "action", None)
@@ -4838,10 +4843,27 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
         selected_backend = backend_map.get(b_choice.lower(), selected_backend)
 
         # Step 3: Leftover disposition
+        stale_litter = []
+        workflows_dir = repo_path / ".agents" / "workflows"
+        if workflows_dir.is_dir():
+            for p in sorted(workflows_dir.rglob("*")):
+                rel = str(p.relative_to(repo_path).as_posix())
+                if is_stale_tool_litter(repo_path, rel):
+                    stale_litter.append(rel)
+
         term.line()
         term.line(
             "Post-move leftover disposition (legacy material not moved by migration):"
         )
+        if stale_litter:
+            term.status(
+                "warn",
+                f"Detected {len(stale_litter)} untracked stale-tool litter item(s) under .agents/workflows/ "
+                "(e.g. __pycache__/*.pyc or emptied tools dirs).",
+            )
+            term.line(
+                "  Choosing [3] 'remove' will sweep this litter; [1] 'defer' and [2] 'keep' will leave it intact."
+            )
         term.line(
             "  [1] defer (RECOMMENDED): Record leftover files for later cleanup without deleting now"
         )
@@ -4873,6 +4895,11 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
         term.heading("Migration Plan Preview")
         term.status("info", f"Target Backend:        {selected_backend}")
         term.status("info", f"Leftover Disposition:  {selected_leftovers}")
+        if stale_litter:
+            term.status(
+                "info",
+                f"Stale-Tool Litter:     {len(stale_litter)} item(s) ({'swept' if selected_leftovers == 'remove' else 'preserved'})",
+            )
         term.status("info", f"Total Items to Move:   {total_items}")
         term.status("info", f"Total Bytes:           {total_bytes}")
         term.line()

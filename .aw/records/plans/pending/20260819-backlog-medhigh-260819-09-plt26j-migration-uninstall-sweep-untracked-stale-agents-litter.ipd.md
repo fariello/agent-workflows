@@ -28,36 +28,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: detect and classify untracked stale-tool litter
 
-- [ ] E-01 Add a pure helper in `agent_workflows/layout_migration.py` (near `_is_removable_leftover`, layout_migration.py:424) that classifies a repo-relative path as STALE-TOOL LITTER: a `*.pyc`/`*.pyo` file, any path with `__pycache__` in its parts, or an emptied `*tools*` directory skeleton, restricted to under `.agents/workflows/`. The helper is a predicate only and mutates nothing.
+- [x] E-01 Add a pure helper in `agent_workflows/layout_migration.py` (near `_is_removable_leftover`, layout_migration.py:424) that classifies a repo-relative path as STALE-TOOL LITTER: a `*.pyc`/`*.pyo` file, any path with `__pycache__` in its parts, or an emptied `*tools*` directory skeleton, restricted to under `.agents/workflows/`. The helper is a predicate only and mutates nothing.
   - Depends on: none
   - Expected outcome: A predicate exists that returns True for `.agents/workflows/foo/__pycache__/x.pyc` and for an emptied `.agents/workflows/foo/tools/` dir, and False for any tracked or non-litter path.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: offer litter for consent-gated removal in the leftover step
 
-- [ ] E-02 Extend `_handle_leftovers` (layout_migration.py:452) so under `remove` disposition it also removes paths matched by the E-01 litter predicate (in addition to tracked orphans), recording them in the result; and so under `keep`/`defer` the litter is surfaced in the result (e.g. a `stale_tool_litter` list) without deletion. Preserve every existing guard: never touch `/local/` or `untracked` lanes, never delete a path that is not litter and not a tracked orphan, and keep the `_perform_move` foreign-destination fail-closed behavior untouched.
+- [x] E-02 Extend `_handle_leftovers` (layout_migration.py:452) so under `remove` disposition it also removes paths matched by the E-01 litter predicate (in addition to tracked orphans), recording them in the result; and so under `keep`/`defer` the litter is surfaced in the result (e.g. a `stale_tool_litter` list) without deletion. Preserve every existing guard: never touch `/local/` or `untracked` lanes, never delete a path that is not litter and not a tracked orphan, and keep the `_perform_move` foreign-destination fail-closed behavior untouched.
   - Depends on: none
   - Expected outcome: With `remove`, an untracked `.agents/workflows/foo/__pycache__/x.pyc` fixture is deleted and reported; with `keep`/`defer`, the same fixture is reported as detected litter but left on disk.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Wire the offer through the CLI leftover-disposition prompt in `cli.py` (the interactive block around cli.py:4799-4831 and the deep-cleanup offer `_offer_deep_cleanup` at cli.py:2439) so the detected stale-tool litter is announced to the operator and only removed when the chosen disposition is `remove` (or under `aw uninstall --deep` after the existing consent gate). No new default that deletes without consent.
+- [x] E-03 Wire the offer through the CLI leftover-disposition prompt in `cli.py` (the interactive block around cli.py:4799-4831 and the deep-cleanup offer `_offer_deep_cleanup` at cli.py:2439) so the detected stale-tool litter is announced to the operator and only removed when the chosen disposition is `remove` (or under `aw uninstall --deep` after the existing consent gate). No new default that deletes without consent.
   - Depends on: none
   - Expected outcome: Running `aw migrate-layout` interactively lists the detected litter and only sweeps it when the operator picks `remove`; `--yes`/no-TTY without an explicit remove/deep choice leaves it in place.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: reach the litter root from uninstall --deep
 
-- [ ] E-04 Add `.agents/workflows` to `_DEEP_CLEANUP_ROOTS` in `engine.py` (engine.py:3427) OR filter `plan_deep_cleanup` (engine.py:3474) so the enumerated candidate set includes the stale-tool litter under `.agents/workflows/`, keeping the existing at-risk git-state classification (`_git_file_state`, engine.py:3399) and the file-only, never-`rm -rf`-a-host-dir removal in `run_deep_cleanup` (engine.py:3501). The `is_ignored_source_path` build-cruft skip (engine.py:165) must not cause the litter to be silently dropped from the offer.
+- [x] E-04 Add `.agents/workflows` to `_DEEP_CLEANUP_ROOTS` in `engine.py` (engine.py:3427) OR filter `plan_deep_cleanup` (engine.py:3474) so the enumerated candidate set includes the stale-tool litter under `.agents/workflows/`, keeping the existing at-risk git-state classification (`_git_file_state`, engine.py:3399) and the file-only, never-`rm -rf`-a-host-dir removal in `run_deep_cleanup` (engine.py:3501). The `is_ignored_source_path` build-cruft skip (engine.py:165) must not cause the litter to be silently dropped from the offer.
   - Depends on: none
   - Expected outcome: `aw uninstall --deep` (and its dry-run preview) enumerates and, after consent, removes `.agents/workflows/**/__pycache__/*.pyc` and emptied tool-dir skeletons, with untracked items flagged at-risk in the warning.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: tests and backlog closure
 
-- [ ] E-05 Add tests to `tests/test_layout_migration.py` (and/or `tests/test_installer.py`) that build a stale-litter fixture (`.agents/workflows/foo/__pycache__/x.pyc` plus an emptied `.agents/workflows/foo/tools/` dir) and assert: (a) it is DETECTED and OFFERED under both the migration leftover step and `uninstall --deep`; (b) it is NOT removed without consent (`keep`/`defer`, and non-interactive without `remove`/`--deep`); (c) it IS removed only under `remove`/`--deep`; (d) no litter is flagged when absent; (e) tracked and non-litter content is never removed. Then run the FULL serial suite - canonical `make test-serial` (`python3 -m unittest discover -s tests -t .`); `python3 -m pytest -p no:xdist` is equivalent only with the `.[test]` extra installed - and paste output, and close backlog `wxz7gg` to done with `aw backlog set wxz7gg --status done`.
+- [x] E-05 Add tests to `tests/test_layout_migration.py` (and/or `tests/test_installer.py`) that build a stale-litter fixture (`.agents/workflows/foo/__pycache__/x.pyc` plus an emptied `.agents/workflows/foo/tools/` dir) and assert: (a) it is DETECTED and OFFERED under both the migration leftover step and `uninstall --deep`; (b) it is NOT removed without consent (`keep`/`defer`, and non-interactive without `remove`/`--deep`); (c) it IS removed only under `remove`/`--deep`; (d) no litter is flagged when absent; (e) tracked and non-litter content is never removed. Then run the FULL serial suite - canonical `make test-serial` (`python3 -m unittest discover -s tests -t .`); `python3 -m pytest -p no:xdist` is equivalent only with the `.[test]` extra installed - and paste output, and close backlog `wxz7gg` to done with `aw backlog set wxz7gg --status done`.
   - Depends on: none
   - Expected outcome: New tests pass in the full serial suite; backlog `wxz7gg` moves to done.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -120,30 +120,30 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: A unit test or REPL transcript showing the predicate returns True for `.agents/workflows/foo/__pycache__/x.pyc` and an emptied `.agents/workflows/foo/tools/`, and False for a tracked or non-litter path.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests.test_layout_migration.StaleToolLitterSweepTests.test_is_stale_tool_litter_predicate` executed and passed, confirming `is_stale_tool_litter` returns `True` for `.agents/workflows/foo/__pycache__/x.cpython-314.pyc`, `.agents/workflows/verify/tools/run_checks.pyo`, `.agents/workflows/foo/tools`, `.agents/workflows/bar/custom_tools` (with only pycache), and returns `False` for tracked pyc files, tools dirs with source code, local lanes (`/local/`, `untracked`), and paths outside `.agents/workflows/`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Test output showing `_handle_leftovers` with `remove` deletes and reports the litter fixture, and with `keep`/`defer` reports it as detected while leaving it on disk; existing preserved local/untracked lanes untouched.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests.test_layout_migration.StaleToolLitterSweepTests.test_leftovers_detects_and_preserves_litter_under_defer_and_keep` and `test_leftovers_remove_sweeps_litter_and_preserves_local_lanes` executed and passed. Under `defer` / `keep`, litter items were populated in `stale_tool_litter` and `preserved` while surviving on disk. Under `remove`, litter fixtures were deleted, reported in `removed` and `stale_tool_litter`, while local-lane files (`.agents/prompts/local/notes.md` and `.agents/workflows/local/my_script.py`) were preserved.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Test or transcript showing the CLI lists the detected litter and removes it only on `remove`; `--yes`/no-TTY without an explicit remove/deep choice leaves it in place.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests.test_layout_migration.StaleToolLitterSweepTests.test_cli_migrate_layout_wizard_surfaces_stale_litter_defer`, `test_cli_migrate_layout_wizard_surfaces_stale_litter_remove`, and `test_cli_migrate_layout_noninteractive_yes_leaves_litter` executed and passed. Wizard announces `WARN Detected 3 untracked stale-tool litter item(s) under .agents/workflows/` and previews litter status in Step 4. Defer and `--yes` leave litter intact; `remove` sweeps it.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Test output showing `plan_deep_cleanup`/`run_deep_cleanup` enumerate and (after consent) remove `.agents/workflows/**` litter, with untracked items flagged at-risk and host dirs never `rm -rf`'d.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests.test_installer.DeepCleanupTests.test_deep_cleanup_detects_and_removes_stale_workflows_litter` and `test_uninstall_without_deep_preserves_stale_workflows_litter` executed and passed. `plan_deep_cleanup` enumerated `.agents/workflows/foo/__pycache__/x.pyc`, flagged it as `at_risk`, and `run_deep_cleanup` unlinked the file and pruned empty directories while standard uninstall preserved it.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: Pasted full serial suite output (`make test-serial` / `python3 -m unittest discover -s tests -t .`, or `python3 -m pytest -p no:xdist` with the `.[test]` extra) showing the new tests and full suite pass; `aw backlog set wxz7gg --status done` confirmation and the item moved to `done/`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Executed full test suite `python3 -m unittest discover -s tests -t .` with output: `Ran 1222 tests in 218.030s - OK (skipped=1)`. Backlog item `wxz7gg` transitioned to `done/` via `python3 -m agent_workflows.cli backlog set .aw/records/backlog/open/20260818-awmigrate-cleanup-01-wxz7gg-migration-uninstall-should-sweep-untracked-stale-t.backlog.md --status done`.
+  - Result: pass
 
 ## Approval and execution gate
 

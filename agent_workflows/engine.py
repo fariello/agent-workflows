@@ -3606,6 +3606,7 @@ _DEEP_CLEANUP_ROOTS = (
     ".agents/prompts",
     ".agents/comms",
     ".agents/backlog",
+    ".agents/workflows",
     ".gitleaksignore",
     ".github/workflows/secret-scan.yml",
 )
@@ -3697,6 +3698,12 @@ def run_deep_cleanup(
             base.rmdir()
         except OSError:
             pass
+    try:
+        agents_dir = repo_root / ".agents"
+        if agents_dir.is_dir() and not any(agents_dir.iterdir()):
+            agents_dir.rmdir()
+    except OSError:
+        pass
     actions.append(f"deep cleanup removed {len(plan.files)} file(s)")
     return actions
 

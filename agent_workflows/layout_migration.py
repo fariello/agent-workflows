@@ -15,6 +15,7 @@ Invariants:
 
 from __future__ import annotations
 
+import fnmatch
 import hashlib
 import json
 import os
@@ -183,6 +184,76 @@ def _run_git(repo_path: Path, args: List[str]) -> subprocess.CompletedProcess[st
         capture_output=True,
         text=True,
     )
+
+
+def is_stale_tool_litter(repo_path: Path | str, rel: Path | str) -> bool:
+    """Pure predicate: True iff `rel` is untracked stale-tool litter under `.agents/workflows/` (IPD plt26j).
+
+    Matches:
+    - *.pyc / *.pyo files
+    - any path with '__pycache__' in its parts
+    - an emptied *tools* directory skeleton
+    All strictly restricted to under `.agents/workflows/`.
+
+    Never matches:
+    - any git-tracked path (tracked material is never litter)
+    - paths outside `.agents/workflows/`
+    - local or untracked safety lanes (`/local/`, `untracked`)
+    - non-litter files (e.g. .py source files, .md docs) or non-empty tool dirs holding real files
+    """
+
+    repo = Path(repo_path)
+    rel_str = str(rel).replace("\\", "/").strip("/")
+    if not (rel_str == ".agents/workflows" or rel_str.startswith(".agents/workflows/")):
+        return False
+
+    # Never touch local or untracked safety lanes
+    if (
+        "/local/" in f"/{rel_str}"
+        or rel_str.endswith("/local")
+        or "untracked" in rel_str
+    ):
+        return False
+
+    # PRIMARY signal: only UNTRACKED paths can be litter. Tracked paths are never litter.
+    proc = _run_git(repo, ["ls-files", "--error-unmatch", "--", rel_str])
+    if proc.returncode == 0:
+        return False
+
+    p = Path(rel_str)
+    parts = p.parts
+
+    # File-based litter: __pycache__ in parts or .pyc/.pyo extension
+    if "__pycache__" in parts or rel_str.endswith((".pyc", ".pyo")):
+        return True
+
+    # Emptied *tools* directory skeleton
+    target = repo / rel_str
+    if any(fnmatch.fnmatch(part, "*tools*") for part in parts):
+        if target.is_dir():
+            # Check if directory contains any non-litter files
+            for sub in target.rglob("*"):
+                if sub.is_file() or sub.is_symlink():
+                    sub_rel = sub.relative_to(repo).as_posix()
+                    # If it contains a non-pyc/non-pycache file or a tracked file, not emptied
+                    if not (
+                        sub.suffix in (".pyc", ".pyo") or "__pycache__" in sub.parts
+                    ):
+                        return False
+                    if (
+                        _run_git(
+                            repo, ["ls-files", "--error-unmatch", "--", sub_rel]
+                        ).returncode
+                        == 0
+                    ):
+                        return False
+            return True
+        elif not target.exists() and (
+            rel_str.endswith("tools") or "tools" in parts[-1]
+        ):
+            return True
+
+    return False
 
 
 class MigrationManager:
@@ -449,18 +520,24 @@ class MigrationManager:
         )
         return tracked
 
+    def _is_stale_tool_litter(self, rel: str) -> bool:
+        """Predicate: True iff `rel` is untracked stale-tool litter under `.agents/workflows/` (IPD plt26j)."""
+        return is_stale_tool_litter(self.target_repo, rel)
+
     def _handle_leftovers(
         self, tx_data: Dict[str, Any], leftover_disposition: str = "defer"
     ) -> Dict[str, Any]:
-        """Dispose of legacy material still present after the classified moves (IPD hnzr8v E-04).
+        """Dispose of legacy material still present after the classified moves (IPD hnzr8v E-04, plt26j).
 
         `leftover_disposition` is one of keep | remove | defer (default defer). This is the
         non-interactive contract used by the engine + CLI flag; an interactive front-end
         (Order 16 wizard) supplies the operator's per-group choice here. `remove` deletes ONLY
-        tracked, genuinely-orphaned leftovers and PRESERVES all untracked/ignored/local content
-        (IPD wvlk84); `defer` records leftovers for a later cleanup; `keep` leaves them.
-        Directory pruning removes ONLY now-empty legacy directories - a directory still holding
-        any content (including preserved content) is never removed (never `rmtree` a root wholesale).
+        tracked, genuinely-orphaned leftovers and untracked stale-tool litter under
+        `.agents/workflows/` (__pycache__/*.pyc and emptied *tools* dirs), while PRESERVING all
+        other untracked/ignored/local content (IPD wvlk84); `defer` records leftovers for a
+        later cleanup; `keep` leaves them.
+        Directory pruning removes ONLY now-empty legacy directories on remove - a directory still
+        holding any content (including preserved content) is never removed (never `rmtree` a root wholesale).
         """
 
         repo_path = Path(self.target_repo)
@@ -473,39 +550,60 @@ class MigrationManager:
                 if p.is_file() or p.is_symlink():
                     leftovers.append(str(p.relative_to(repo_path).as_posix()))
 
+        # Detect stale-tool litter under .agents/workflows/ (files and emptied tools dirs)
+        stale_tool_litter: List[str] = []
+        workflows_root = repo_path / ".agents" / "workflows"
+        if workflows_root.is_dir():
+            for p in sorted(workflows_root.rglob("*")):
+                rel = str(p.relative_to(repo_path).as_posix())
+                if self._is_stale_tool_litter(rel):
+                    stale_tool_litter.append(rel)
+
         result: Dict[str, Any] = {
             "disposition": leftover_disposition,
             "leftovers": leftovers,
             "removed": [],
             "preserved": [],
+            "stale_tool_litter": stale_tool_litter,
         }
 
         if leftover_disposition == "remove":
             for rel in leftovers:
                 p = repo_path / rel
-                # Only tracked orphans are removable; untracked/ignored/local lanes are PRESERVED
-                # (the data-loss guard - a bare unlink here would destroy local-only content).
-                if not self._is_removable_leftover(rel):
+                is_litter = self._is_stale_tool_litter(rel)
+                is_removable = self._is_removable_leftover(rel)
+                if not (is_removable or is_litter):
                     result["preserved"].append(rel)
                     continue
-                try:
-                    proc = _run_git(repo_path, ["rm", "-f", "--", rel])
-                    if proc.returncode == 0:
-                        # Cleanly removed via git (staged deletion of a tracked orphan).
-                        result["removed"].append(rel)
-                    elif p.exists() or p.is_symlink():
-                        # git rm failed but the path is still present: force-unlink it, and record
-                        # it as a DEGRADED removal, NOT a clean `removed` (IPD awretrofit Order 04,
-                        # L01/E-05) - the filesystem and the git index may now disagree, which a
-                        # caller/report must be able to see rather than trusting a clean-removed
-                        # label.
-                        p.unlink()
-                        result.setdefault("degraded", []).append(rel)
-                    else:
-                        # git rm nonzero but the path is already gone: treat as removed.
-                        result["removed"].append(rel)
-                except OSError:
-                    result["preserved"].append(rel)
+                if is_removable:
+                    try:
+                        proc = _run_git(repo_path, ["rm", "-f", "--", rel])
+                        if proc.returncode == 0:
+                            # Cleanly removed via git (staged deletion of a tracked orphan).
+                            result["removed"].append(rel)
+                        elif p.exists() or p.is_symlink():
+                            # git rm failed but the path is still present: force-unlink it, and record
+                            # it as a DEGRADED removal, NOT a clean `removed` (IPD awretrofit Order 04,
+                            # L01/E-05) - the filesystem and the git index may now disagree, which a
+                            # caller/report must be able to see rather than trusting a clean-removed
+                            # label.
+                            p.unlink()
+                            result.setdefault("degraded", []).append(rel)
+                        else:
+                            # git rm nonzero but the path is already gone: treat as removed.
+                            result["removed"].append(rel)
+                    except OSError:
+                        result["preserved"].append(rel)
+                elif is_litter:
+                    try:
+                        if p.is_file() or p.is_symlink():
+                            p.unlink()
+                            result["removed"].append(rel)
+                        elif p.is_dir():
+                            p.rmdir()
+                            result["removed"].append(rel)
+                    except OSError:
+                        result["preserved"].append(rel)
         else:
             # keep/defer: nothing is deleted; every leftover is preserved.
             result["preserved"] = list(leftovers)
@@ -522,12 +620,24 @@ class MigrationManager:
                 reverse=True,
             ):
                 try:
+                    rel_d = str(d.relative_to(repo_path).as_posix())
+                    # Under keep/defer, preserve directory skeletons that were classified as stale litter
+                    if leftover_disposition != "remove" and rel_d in stale_tool_litter:
+                        continue
                     if not any(d.iterdir()):
                         d.rmdir()
                 except OSError:
                     pass
             try:
-                if root.is_dir() and not any(root.iterdir()):
+                rel_root = str(root.relative_to(repo_path).as_posix())
+                if (
+                    (
+                        leftover_disposition == "remove"
+                        or rel_root not in stale_tool_litter
+                    )
+                    and root.is_dir()
+                    and not any(root.iterdir())
+                ):
                     root.rmdir()
             except OSError:
                 pass

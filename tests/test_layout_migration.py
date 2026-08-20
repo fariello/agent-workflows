@@ -1040,5 +1040,363 @@ class Order04MigrationSafetyTests(unittest.TestCase):
         self.assertNotIn('open(config_file, "w"', src)
 
 
+class StaleToolLitterSweepTests(unittest.TestCase):
+    """IPD plt26j: sweep untracked stale-tool litter under .agents/workflows/ during migration/uninstall."""
+
+    def setUp(self):
+        self.tmp_dir = tempfile.mkdtemp()
+        self.repo = Path(self.tmp_dir) / "repo"
+        self.repo.mkdir()
+        for a in (
+            ["init", "-q"],
+            ["config", "user.email", "t@example.com"],
+            ["config", "user.name", "T"],
+            ["config", "commit.gpgsign", "false"],
+        ):
+            subprocess.run(
+                ["git", "-C", str(self.repo), *a], check=True, capture_output=True
+            )
+        self._prev_aw_home = os.environ.get("AW_HOME")
+        self.aw_home = os.path.join(self.tmp_dir, "aw_home")
+        os.makedirs(self.aw_home, exist_ok=True)
+        os.environ["AW_HOME"] = self.aw_home
+
+        # Tracked workflow material that will migrate
+        (self.repo / ".agents" / "workflows" / "plan-review").mkdir(parents=True)
+        (
+            self.repo / ".agents" / "workflows" / "plan-review" / "plan-review.md"
+        ).write_text("# plan review\n", encoding="utf-8")
+        (self.repo / ".agents" / "workflows" / "index.md").write_text(
+            "# index\n", encoding="utf-8"
+        )
+
+        # Local lane fixture
+        (self.repo / ".agents" / "prompts" / "local").mkdir(parents=True)
+        self.local_file = self.repo / ".agents" / "prompts" / "local" / "notes.md"
+        self.local_file.write_text("LOCAL HANDOFF\n", encoding="utf-8")
+        (self.repo / ".gitignore").write_text(
+            ".agents/prompts/local/\n.agents/workflows/local/\n__pycache__/\n*.pyc\n*.pyo\n",
+            encoding="utf-8",
+        )
+
+        subprocess.run(
+            ["git", "-C", str(self.repo), "add", ".agents/workflows", ".gitignore"],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(self.repo), "commit", "-q", "-m", "seed"],
+            check=True,
+            capture_output=True,
+        )
+
+    def tearDown(self):
+        if self._prev_aw_home is None:
+            os.environ.pop("AW_HOME", None)
+        else:
+            os.environ["AW_HOME"] = self._prev_aw_home
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def _leftover_result(self):
+        tx = json.loads(
+            (
+                self.repo / ".aw/state/runtime/transactions/migration_transaction.json"
+            ).read_text(encoding="utf-8")
+        )
+        return tx.get("leftover_disposition", {})
+
+    def test_is_stale_tool_litter_predicate(self):
+        """E-01 & V-01: pure helper classifies repo-relative paths as stale-tool litter or non-litter."""
+        from agent_workflows import layout_migration
+
+        # Create litter fixtures
+        pyc_file = (
+            self.repo
+            / ".agents"
+            / "workflows"
+            / "foo"
+            / "__pycache__"
+            / "x.cpython-314.pyc"
+        )
+        pyc_file.parent.mkdir(parents=True, exist_ok=True)
+        pyc_file.write_bytes(b"\x00\x01\x02")
+
+        pyo_file = (
+            self.repo / ".agents" / "workflows" / "verify" / "tools" / "run_checks.pyo"
+        )
+        pyo_file.parent.mkdir(parents=True, exist_ok=True)
+        pyo_file.write_bytes(b"\x00\x01\x02")
+
+        empty_tools = self.repo / ".agents" / "workflows" / "foo" / "tools"
+        empty_tools.mkdir(parents=True, exist_ok=True)
+
+        tools_with_only_pycache = (
+            self.repo / ".agents" / "workflows" / "bar" / "custom_tools"
+        )
+        (tools_with_only_pycache / "__pycache__").mkdir(parents=True, exist_ok=True)
+        (tools_with_only_pycache / "__pycache__" / "c.pyc").write_bytes(b"\x00")
+
+        # Non-litter fixtures
+        tools_with_source = self.repo / ".agents" / "workflows" / "baz" / "tools"
+        tools_with_source.mkdir(parents=True, exist_ok=True)
+        (tools_with_source / "custom.py").write_text("print(1)\n", encoding="utf-8")
+
+        tracked_pyc = (
+            self.repo / ".agents" / "workflows" / "foo" / "__pycache__" / "tracked.pyc"
+        )
+        tracked_pyc.write_bytes(b"\x00")
+        subprocess.run(
+            ["git", "-C", str(self.repo), "add", "-f", str(tracked_pyc)],
+            check=True,
+            capture_output=True,
+        )
+
+        mgr = MigrationManager(target_repo=str(self.repo), aw_home=self.aw_home)
+
+        # Positive cases
+        self.assertTrue(
+            layout_migration.is_stale_tool_litter(
+                self.repo, ".agents/workflows/foo/__pycache__/x.cpython-314.pyc"
+            )
+        )
+        self.assertTrue(
+            layout_migration.is_stale_tool_litter(
+                self.repo, ".agents/workflows/verify/tools/run_checks.pyo"
+            )
+        )
+        self.assertTrue(
+            layout_migration.is_stale_tool_litter(
+                self.repo, ".agents/workflows/foo/tools"
+            )
+        )
+        self.assertTrue(
+            layout_migration.is_stale_tool_litter(
+                self.repo, ".agents/workflows/bar/custom_tools"
+            )
+        )
+        self.assertTrue(
+            mgr._is_stale_tool_litter(
+                ".agents/workflows/foo/__pycache__/x.cpython-314.pyc"
+            )
+        )
+        self.assertTrue(mgr._is_stale_tool_litter(".agents/workflows/foo/tools"))
+
+        # Negative cases
+        self.assertFalse(
+            layout_migration.is_stale_tool_litter(
+                self.repo, ".agents/workflows/baz/tools/custom.py"
+            ),
+            "real source is not litter",
+        )
+        self.assertFalse(
+            layout_migration.is_stale_tool_litter(
+                self.repo, ".agents/workflows/baz/tools"
+            ),
+            "dir holding real source is not emptied",
+        )
+        self.assertFalse(
+            layout_migration.is_stale_tool_litter(
+                self.repo, ".agents/workflows/plan-review/plan-review.md"
+            ),
+            "workflow doc is not litter",
+        )
+        self.assertFalse(
+            layout_migration.is_stale_tool_litter(
+                self.repo, ".agents/prompts/local/notes.md"
+            ),
+            "local lane is not litter",
+        )
+        self.assertFalse(
+            layout_migration.is_stale_tool_litter(
+                self.repo, ".agents/workflows/local/notes.pyc"
+            ),
+            "local lane is protected",
+        )
+        self.assertFalse(
+            layout_migration.is_stale_tool_litter(
+                self.repo, ".agents/workflows/untracked/notes.pyc"
+            ),
+            "untracked lane is protected",
+        )
+        self.assertFalse(
+            layout_migration.is_stale_tool_litter(self.repo, "other/tools"),
+            "outside .agents/workflows is not matched",
+        )
+        self.assertFalse(
+            layout_migration.is_stale_tool_litter(self.repo, "other/__pycache__/x.pyc"),
+            "outside .agents/workflows is not matched",
+        )
+        self.assertFalse(
+            layout_migration.is_stale_tool_litter(
+                self.repo, ".agents/workflows/foo/__pycache__/tracked.pyc"
+            ),
+            "git-tracked file is never litter",
+        )
+
+    def test_leftovers_detects_and_preserves_litter_under_defer_and_keep(self):
+        """E-02 & V-02: under defer/keep, litter is detected in result and left on disk without deletion."""
+        pyc = self.repo / ".agents" / "workflows" / "foo" / "__pycache__" / "x.pyc"
+        pyc.parent.mkdir(parents=True, exist_ok=True)
+        pyc.write_bytes(b"\x00\x01")
+        tools_dir = self.repo / ".agents" / "workflows" / "foo" / "tools"
+        tools_dir.mkdir(parents=True, exist_ok=True)
+
+        mgr = MigrationManager(target_repo=str(self.repo), aw_home=self.aw_home)
+        mgr.execute_migration(target_backend="repository", leftover_disposition="defer")
+
+        # Litter is still on disk
+        self.assertTrue(pyc.is_file(), "defer must NOT delete litter fixture")
+        self.assertTrue(tools_dir.is_dir(), "defer must NOT delete empty tools dir")
+        self.assertTrue(self.local_file.is_file(), "defer must NOT delete local lane")
+
+        ld = self._leftover_result()
+        self.assertEqual(ld.get("disposition"), "defer")
+        self.assertEqual(ld.get("removed", []), [])
+        self.assertIn(
+            ".agents/workflows/foo/__pycache__/x.pyc", ld.get("stale_tool_litter", [])
+        )
+        self.assertIn(".agents/workflows/foo/tools", ld.get("stale_tool_litter", []))
+        self.assertIn(
+            ".agents/workflows/foo/__pycache__/x.pyc", ld.get("preserved", [])
+        )
+
+    def test_leftovers_remove_sweeps_litter_and_preserves_local_lanes(self):
+        """E-02 & V-02: under remove, litter fixture is deleted and reported in removed, while local lanes survive."""
+        pyc = self.repo / ".agents" / "workflows" / "foo" / "__pycache__" / "x.pyc"
+        pyc.parent.mkdir(parents=True, exist_ok=True)
+        pyc.write_bytes(b"\x00\x01")
+        tools_dir = self.repo / ".agents" / "workflows" / "foo" / "tools"
+        tools_dir.mkdir(parents=True, exist_ok=True)
+
+        non_litter = self.repo / ".agents" / "workflows" / "local" / "my_script.py"
+        non_litter.parent.mkdir(parents=True, exist_ok=True)
+        non_litter.write_text("print(42)\n", encoding="utf-8")
+
+        mgr = MigrationManager(target_repo=str(self.repo), aw_home=self.aw_home)
+        mgr.execute_migration(
+            target_backend="repository", leftover_disposition="remove"
+        )
+
+        # Litter is swept
+        self.assertFalse(pyc.exists(), "remove MUST delete untracked stale litter pyc")
+        self.assertFalse(tools_dir.exists(), "remove MUST prune emptied tools dir")
+        self.assertFalse(
+            (self.repo / ".agents" / "workflows" / "foo").exists(),
+            "remove MUST prune emptied foo dir",
+        )
+
+        # Non-litter and local lanes are PRESERVED
+        self.assertTrue(
+            self.local_file.is_file(), "remove MUST preserve local-lane file"
+        )
+        self.assertTrue(
+            non_litter.is_file(),
+            "remove MUST preserve untracked non-litter python file",
+        )
+
+        ld = self._leftover_result()
+        self.assertIn(".agents/workflows/foo/__pycache__/x.pyc", ld.get("removed", []))
+        self.assertIn(
+            ".agents/workflows/foo/__pycache__/x.pyc", ld.get("stale_tool_litter", [])
+        )
+        self.assertIn(".agents/prompts/local/notes.md", ld.get("preserved", []))
+        self.assertIn(".agents/workflows/local/my_script.py", ld.get("preserved", []))
+        self.assertNotIn(".agents/workflows/local/my_script.py", ld.get("removed", []))
+
+    def test_no_stale_litter_flagged_when_absent(self):
+        """E-05: when no stale litter exists, stale_tool_litter list is empty."""
+        mgr = MigrationManager(target_repo=str(self.repo), aw_home=self.aw_home)
+        mgr.execute_migration(target_backend="repository", leftover_disposition="defer")
+        ld = self._leftover_result()
+        self.assertEqual(ld.get("stale_tool_litter", []), [])
+
+    def test_cli_migrate_layout_wizard_surfaces_stale_litter_defer(self):
+        """E-03 & V-03: CLI wizard surfaces detected litter, and choosing defer preserves it."""
+        from unittest import mock
+        from agent_workflows import cli
+        import io
+
+        pyc = self.repo / ".agents" / "workflows" / "foo" / "__pycache__" / "x.pyc"
+        pyc.parent.mkdir(parents=True, exist_ok=True)
+        pyc.write_bytes(b"\x00\x01")
+        tools_dir = self.repo / ".agents" / "workflows" / "foo" / "tools"
+        tools_dir.mkdir(parents=True, exist_ok=True)
+
+        old_cwd = os.getcwd()
+        os.chdir(self.repo)
+        buf = io.StringIO()
+        try:
+            with mock.patch("sys.stdin", io.StringIO("1\n1\ny\n")), mock.patch(
+                "sys.stdout", buf
+            ):
+                code = cli.main(["migrate-layout"])
+        finally:
+            os.chdir(old_cwd)
+
+        self.assertEqual(code, 0)
+        output = buf.getvalue()
+        self.assertIn("Detected 3 untracked stale-tool litter item(s)", output)
+        self.assertTrue(pyc.is_file(), "defer MUST preserve litter on disk")
+        self.assertTrue(tools_dir.is_dir(), "defer MUST preserve tools dir on disk")
+
+    def test_cli_migrate_layout_wizard_surfaces_stale_litter_remove(self):
+        """E-03 & V-03: CLI wizard surfaces detected litter, and choosing remove sweeps it."""
+        from unittest import mock
+        from agent_workflows import cli
+        import io
+
+        pyc = self.repo / ".agents" / "workflows" / "foo" / "__pycache__" / "x.pyc"
+        pyc.parent.mkdir(parents=True, exist_ok=True)
+        pyc.write_bytes(b"\x00\x01")
+        tools_dir = self.repo / ".agents" / "workflows" / "foo" / "tools"
+        tools_dir.mkdir(parents=True, exist_ok=True)
+
+        old_cwd = os.getcwd()
+        os.chdir(self.repo)
+        buf = io.StringIO()
+        try:
+            with mock.patch("sys.stdin", io.StringIO("1\n3\ny\n")), mock.patch(
+                "sys.stdout", buf
+            ):
+                code = cli.main(["migrate-layout"])
+        finally:
+            os.chdir(old_cwd)
+
+        self.assertEqual(code, 0)
+        output = buf.getvalue()
+        self.assertIn("Detected 3 untracked stale-tool litter item(s)", output)
+        self.assertFalse(pyc.exists(), "remove MUST sweep litter from disk")
+        self.assertFalse(tools_dir.exists(), "remove MUST prune emptied tools dir")
+
+    def test_cli_migrate_layout_noninteractive_yes_leaves_litter(self):
+        """E-03 & V-03: non-interactive migration with --yes leaves litter in place under default defer."""
+        from unittest import mock
+        from agent_workflows import cli
+        import io
+
+        pyc = self.repo / ".agents" / "workflows" / "foo" / "__pycache__" / "x.pyc"
+        pyc.parent.mkdir(parents=True, exist_ok=True)
+        pyc.write_bytes(b"\x00\x01")
+        tools_dir = self.repo / ".agents" / "workflows" / "foo" / "tools"
+        tools_dir.mkdir(parents=True, exist_ok=True)
+
+        old_cwd = os.getcwd()
+        os.chdir(self.repo)
+        buf = io.StringIO()
+        try:
+            with mock.patch("sys.stdout", buf):
+                code = cli.main(["migrate-layout", "--yes"])
+        finally:
+            os.chdir(old_cwd)
+
+        self.assertEqual(code, 0)
+        self.assertTrue(
+            pyc.is_file(), "non-interactive --yes MUST leave litter in place"
+        )
+        self.assertTrue(
+            tools_dir.is_dir(), "non-interactive --yes MUST leave tools dir in place"
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

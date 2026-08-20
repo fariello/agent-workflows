@@ -5,3 +5,4 @@
 {"id6": "q19z5t", "date": "20260819", "tree": "backlog", "workflow": "aw backlog", "actor": "aw backlog", "message": "single /aw <verb> dispatcher generated per host; back-compat aliases retained; per-host grammar verified"}
 {"id6": "3srje9", "date": "20260820", "tree": "backlog", "workflow": "aw backlog", "actor": "aw backlog", "message": "installer-pointer complete (E-01/E-02 in cli.py citing D86/D87); human circulation of how-to remains with human"}
 {"id6": "u298fd", "date": "20260820", "tree": "backlog", "workflow": "aw backlog", "actor": "aw backlog", "message": "Implemented install-time split-brain layout guard (0qj4on)"}
+{"id6": "wxz7gg", "date": "20260820", "tree": "backlog", "workflow": "aw backlog", "actor": "aw backlog", "message": "implemented consent-gated sweep of untracked stale-tool litter in migration leftover step and uninstall --deep"}

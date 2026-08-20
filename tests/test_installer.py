@@ -1371,6 +1371,59 @@ class DeepCleanupTests(unittest.TestCase):
         others = [f for f in plan.files if f != one and (repo / f).is_file()]
         self.assertTrue(others, "files outside the single-file plan are untouched")
 
+    def test_deep_cleanup_detects_and_removes_stale_workflows_litter(self):
+        """E-04 & V-04: uninstall --deep reaches .agents/workflows litter, flags untracked at-risk, and removes on consent."""
+        repo = init_repo(self.base / "litter_repo")
+        self._install_commit(repo)
+
+        # Plant untracked stale litter under .agents/workflows/
+        litter_pyc = repo / ".agents" / "workflows" / "foo" / "__pycache__" / "x.pyc"
+        litter_pyc.parent.mkdir(parents=True, exist_ok=True)
+        litter_pyc.write_bytes(b"\x00\x01\x02")
+
+        tools_dir = repo / ".agents" / "workflows" / "foo" / "tools"
+        tools_dir.mkdir(parents=True, exist_ok=True)
+
+        plan = INS.plan_deep_cleanup(repo)
+        self.assertIn(".agents/workflows", plan.counts)
+        self.assertIn(".agents/workflows/foo/__pycache__/x.pyc", plan.files)
+        self.assertIn(
+            ".agents/workflows/foo/__pycache__/x.pyc",
+            plan.at_risk,
+            "untracked litter must be flagged at-risk",
+        )
+        self.assertFalse(plan.all_recoverable)
+
+        # Execute deep cleanup
+        INS.run_deep_cleanup(repo, plan, use_git=True)
+        self.assertFalse(
+            litter_pyc.exists(), "deep cleanup must delete stale litter pyc"
+        )
+        self.assertFalse(tools_dir.exists(), "deep cleanup must prune empty tools dir")
+        self.assertFalse(
+            (repo / ".agents" / "workflows").exists(),
+            "deep cleanup must prune empty workflows root",
+        )
+
+    def test_uninstall_without_deep_preserves_stale_workflows_litter(self):
+        """E-04 & V-04: standard uninstall (without --deep) preserves stale-workflows litter on disk."""
+        repo = init_repo(self.base / "std_uninst")
+        self._install_commit(repo)
+
+        litter_pyc = repo / ".agents" / "workflows" / "foo" / "__pycache__" / "x.pyc"
+        litter_pyc.parent.mkdir(parents=True, exist_ok=True)
+        litter_pyc.write_bytes(b"\x00\x01\x02")
+
+        tools_dir = repo / ".agents" / "workflows" / "foo" / "tools"
+        tools_dir.mkdir(parents=True, exist_ok=True)
+
+        INS.uninstall_repo(repo, use_git=True)
+        self.assertTrue(
+            litter_pyc.is_file(),
+            "normal uninstall must NOT touch .agents/workflows litter",
+        )
+        self.assertTrue(tools_dir.is_dir(), "normal uninstall must NOT prune tools dir")
+
 
 class UninstallApplyTests(unittest.TestCase):
     """CP2: uninstall_repo applies the plan (drift preserve/remove, manifest last, changed set)."""
