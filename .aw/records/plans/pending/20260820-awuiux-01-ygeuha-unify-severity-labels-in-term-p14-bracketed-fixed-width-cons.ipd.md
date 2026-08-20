@@ -4,17 +4,19 @@
 - Concern: ui-ux (CLI output UX): concise + colorful for human TTYs, machine-targeted for non-TTYs. Assessed via /assess ui-ux.
 - Scope: `agent_workflows/term.py` (the shared label/color helper, 195 status call sites) + `agent_workflows/doctor.py` (private duplicate labels) + the machine-output flag surface on read verbs (`cli.py`) + a short output-conventions doc note. Does NOT restyle every line or add features; it unifies the existing severity-label convention and the non-TTY flag surface. Read-only assessment produced this plan; no code changed.
 - Kind: child
-- Status: reviewed
+- Status: approved
 - Set: awuiux
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: maintainer (human), 2026-08-20: approved after /plan-review (APPROVE WITH REVISIONS APPLIED); OQ-01/OQ-02 resolved.
 - Id: ygeuha
 
 ## Workflow history
 
 - 2026-08-20 /assess ui-ux (opencode its_direct/pt3-claude-opus-4.8-1m-us): assessed; proposed 5 changes.
 - 2026-08-20 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 fixed; OQ-01 resolved out-of-scope (release-blocking backlog oijafw filed), OQ-02 resolved (standardize --agent flag name, per-verb format).
+- 2026-08-20 approved (maintainer, human): cleared for execution.
 
 ## Goal
 
