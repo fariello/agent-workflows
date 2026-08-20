@@ -7,7 +7,7 @@
 - Status: approved
 - Set: setupmarker-260819
 - Order: 1
-- Highest E allocated: 07
+- Highest E allocated: 08
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: i80vz1
 - Approval: maintainer (human), 2026-08-19: approved this plan and said go.
@@ -17,6 +17,7 @@
 - 2026-08-19 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created - delete the action ledger (write-on-read + over-built for one reminder), replace with a self-explaining gitignored repo/.aw/setup-repo-needed.md marker, keep install-history, clean up the stamped litter.
 - 2026-08-19 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (E-04 rewrite-not-extend setup_needed, which currently reads the ledger being deleted), PR-002 (concurrency caution added to the gate - a sibling instance is reviewing another Set), PR-003 (E-06 delete-vs-adapt ledger tests clarified). All anchors verified against code (engine .aw/.gitignore writer 3770/4392; install create_action cli.py:2129-2130; attention action-scan 171-210; _ACTIONS_MAP attention_contract:238/267; verbs cli.py:4040-4079/5026-5032; DurableStateClass.ACTIONS record_producers:108/151; setup_needed attention.py:506). Structural preflight conforming (author + review-finalize). Readiness: GO - PENDING HUMAN APPROVAL.
 - 2026-08-19 approved (maintainer, human): explicitly approved this plan and instructed go.
+- 2026-08-19 revised-during-execution (opencode, maintainer-approved): added E-08/V-08 - the /setup-repo workflow cleared the reminder via the now-deleted `aw complete setup-repo`; maintainer chose to have the workflow delete the marker file directly. Small in-scope addition to the approved plan.
 
 ## Goal
 
@@ -55,7 +56,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: no `complete`/`dismiss`/`reopen`/action-`history` verbs; no `state/actions/` scaffolded on install; install-history preserved; `aw --help` clean; `python3 -c "import agent_workflows.cli"` works.
   - Execution state: pending
 
-### Task group 3: tests + cleanup
+### Task group 3: workflow clears the marker
+
+- [ ] E-08 Update the `/setup-repo` workflow terminal step to clear the MARKER instead of the deleted `aw complete setup-repo` verb (execution-discovered gap; maintainer chose file-deletion). In `.aw/system/workflows/setup-repo/setup-repo.md` (the "Action completion" step ~line 231), change "run `python3 -m agent_workflows complete setup-repo`" to "remove the reminder file `.aw/setup-repo-needed.md` (e.g. `rm -f .aw/setup-repo-needed.md`); if the workflow was interrupted/failed, do NOT remove it - leave the reminder in place." This matches the marker's self-documented "delete this file to dismiss" contract and works after E-05 deletes the action verbs.
+  - Depends on: E-01,E-05
+  - Expected outcome: `.aw/system/workflows/setup-repo/setup-repo.md` no longer references `aw complete setup-repo`; its terminal step removes `.aw/setup-repo-needed.md`; `rg "complete setup-repo" .aw/system/` is empty.
+  - Execution state: pending
+
+### Task group 4: tests + cleanup
 
 - [ ] E-06 Update/replace tests: `tests/test_actions.py` - DELETE the ledger-specific tests (ActionManager/ActionDocument/create_action/transition/list are gone); KEEP or move the `record_install_history`/`_redact_details` tests to match wherever E-05 leaves install-history. `tests/test_attention.py`/`test_attention_stem.py`/`test_acceptance_matrix.py` - drop the actions-tree expectations (the `actions` tree/`aw-state/actions` logical paths no longer appear). `tests/__init__.py` - remove any actions seeding. Add `tests/test_setup_marker.py`: `write_setup_marker` creates a self-explaining gitignored marker; `remove_setup_marker` clears it; `setup_needed` derives from the marker (True iff present); `attention.scan` on a fresh dir creates NO `.aw/` (write-on-read regression guard); the install->marker + setup->removal cycle (via the engine helpers or the verbs). Run the FULL serial suite and paste the tail.
   - Depends on: E-01,E-02,E-03,E-04,E-05
@@ -159,6 +167,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-07 validates E-07
   - Required evidence: the removed-litter list pasted; the config-driven enumeration (walk the configured repos, `-maxdepth 2 -type d -name .aw`) shows only agent-workflows + any real installs; `aw status` run TWICE shows no phantom split-brain and no re-stamp between runs.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-08 validates E-08
+  - Required evidence: `rg -n "complete setup-repo" .aw/system/` is empty; setup-repo.md's terminal step removes `.aw/setup-repo-needed.md` (quote the revised line).
   - Observed evidence:
   - Result: pending
 

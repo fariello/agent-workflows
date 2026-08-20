@@ -3775,6 +3775,30 @@ _AW_GITIGNORE_TEMPLATE = """\
 # `git mv`. This file lives inside the framework-owned `.aw/` tree; it is NOT the user's root
 # `.gitignore` (that is never touched here).
 records/*/untracked/
+# The per-machine post-install setup reminder (setupmarker Order 01): never committed.
+setup-repo-needed.md
+"""
+
+# setupmarker Order 01: the per-repo, per-machine, gitignored "run setup here" reminder that replaces
+# the old operational-action ledger. `aw install` writes it; `aw setup` (or the user deleting it)
+# clears it; `attention.setup_needed` DERIVES the pending state from its presence (read-only).
+SETUP_MARKER_PATH = ".aw/setup-repo-needed.md"
+_SETUP_MARKER_TEMPLATE = """\
+# agent-workflows: setup not yet run in this repo
+
+This file is a REMINDER, not configuration. agent-workflows (`aw`) was installed
+here, but the stack-tailored setup / conformance pass (`aw setup`) has not been
+run in this repo yet.
+
+## What to do
+
+- Run `aw setup` in this repo to complete installation, OR
+- Delete this file to dismiss the reminder (`aw` will not recreate it on its own;
+  only a fresh `aw install` would).
+
+Running `aw setup` removes this file automatically. It is per-machine and
+gitignored (via `.aw/.gitignore`), so it is never committed and never travels
+with the repo. It is safe to delete at any time.
 """
 # Inter-agent comms convention (D81). Scaffolded skeleton for `.agents/comms/`. `local/` is
 # box-local, ephemeral routing and is gitignored via a NESTED `.gitignore` (a created deliverable,
@@ -4400,9 +4424,36 @@ def _ensure_aw_gitignore(repo_root: Path) -> None:
         gi.write_text(_AW_GITIGNORE_TEMPLATE, encoding="utf-8")
         return
     text = gi.read_text(encoding="utf-8")
-    if "records/*/untracked/" in text:
-        return
-    gi.write_text(text.rstrip("\n") + "\nrecords/*/untracked/\n", encoding="utf-8")
+    additions = []
+    if "records/*/untracked/" not in text:
+        additions.append("records/*/untracked/")
+    if "setup-repo-needed.md" not in text:
+        additions.append("setup-repo-needed.md")
+    if additions:
+        gi.write_text(
+            text.rstrip("\n") + "\n" + "\n".join(additions) + "\n", encoding="utf-8"
+        )
+
+
+def write_setup_marker(repo_root: Path) -> Path:
+    """setupmarker Order 01: write the self-explaining `.aw/setup-repo-needed.md` reminder + ensure
+    `.aw/.gitignore` ignores it. Idempotent. Returns the marker path."""
+    root = Path(repo_root)
+    marker = root / SETUP_MARKER_PATH
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(_SETUP_MARKER_TEMPLATE, encoding="utf-8")
+    _ensure_aw_gitignore(root)
+    return marker
+
+
+def remove_setup_marker(repo_root: Path) -> bool:
+    """setupmarker Order 01: remove the `.aw/setup-repo-needed.md` reminder if present. Idempotent.
+    Returns True if a file was removed."""
+    marker = Path(repo_root) / SETUP_MARKER_PATH
+    if marker.is_file():
+        marker.unlink()
+        return True
+    return False
 
 
 def _ensure_untracked_gitignore(base: Path) -> None:

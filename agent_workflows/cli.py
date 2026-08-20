@@ -2112,9 +2112,11 @@ def _install_one(
         )
         outcome = "ok"
 
-    # Record install history event & create initial setup-repo action (E-04)
+    # Record install history event & drop the self-explaining setup-repo-needed marker (setupmarker
+    # Order 01: replaces the old operational-action ledger). Install history is a genuine append-only
+    # audit; the marker is the per-machine "run setup here" reminder that `aw setup`/deletion clears.
     try:
-        from agent_workflows.actions import ActionManager, record_install_history
+        from agent_workflows.install_history import record_install_history
 
         record_install_history(
             target_repo=str(repo_root),
@@ -2124,16 +2126,7 @@ def _install_one(
                 "installed_files": len(result.get("installed", [])),
             },
         )
-        mgr = ActionManager(target_repo=str(repo_root))
-        try:
-            mgr.create_action(
-                action_id="setup-repo",
-                generation=1,
-                title="Setup repository stack-tailored conformance",
-                description="Run the LLM '/setup-repo' workflow in this repo for stack-tailored conformance (CI, .gitignore, lifecycle contract).",
-            )
-        except Exception:
-            pass  # Action already exists or already resolved
+        engine.write_setup_marker(repo_root)
     except Exception:
         pass
 
