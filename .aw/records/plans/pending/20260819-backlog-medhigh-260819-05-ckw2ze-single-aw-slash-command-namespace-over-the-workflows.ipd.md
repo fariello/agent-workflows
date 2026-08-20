@@ -32,39 +32,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Dispatcher shim generation
 
-- [ ] E-01 Add an `aw_dispatcher_shim(workflows, tool, target_layout)` helper (or extend `shim_body`) in `agent_workflows/engine.py` that produces the `/aw` dispatcher body: frontmatter valid for the given host (OpenCode `agent: build`; Claude `argument-hint`), a "read the manifest, resolve the first argument as the workflow verb, then read and execute that workflow's body" instruction referencing `.aw/system/workflows/index.md`, and a `$ARGUMENTS` line so the verb plus its remaining args are passed through.
+- [x] E-01 Add an `aw_dispatcher_shim(workflows, tool, target_layout)` helper (or extend `shim_body`) in `agent_workflows/engine.py` that produces the `/aw` dispatcher body: frontmatter valid for the given host (OpenCode `agent: build`; Claude `argument-hint`), a "read the manifest, resolve the first argument as the workflow verb, then read and execute that workflow's body" instruction referencing `.aw/system/workflows/index.md`, and a `$ARGUMENTS` line so the verb plus its remaining args are passed through.
   - Depends on: none
   - Expected outcome: A pure function returns a syntactically valid dispatcher shim string for `tool="opencode"` and `tool="claude"`; the verb is the first token of `$ARGUMENTS`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Wire the dispatcher into `generate_shim_members` so one `aw.md` is written per `COMMAND_SHIM_DIRS` entry (`.opencode/commands/aw.md`, `.claude/commands/aw.md`) IN ADDITION to the existing per-workflow shims.
+- [x] E-02 Wire the dispatcher into `generate_shim_members` so one `aw.md` is written per `COMMAND_SHIM_DIRS` entry (`.opencode/commands/aw.md`, `.claude/commands/aw.md`) IN ADDITION to the existing per-workflow shims.
   - Depends on: E-01
   - Expected outcome: `generate_shim_members(...)` returns keys `.opencode/commands/aw.md` and `.claude/commands/aw.md` alongside every existing per-workflow shim key.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Back-compat aliases and grammar verification
 
-- [ ] E-03 Confirm the existing per-workflow shims remain generated unchanged (they ARE the back-compat aliases), and add a short manifest-prose note in `.aw/system/workflows/index.md` "Running a workflow (by tool)" describing `/aw <verb>` as the primary surface and the per-workflow `/name` commands as retained aliases. Do not change the manifest column schema or any row.
+- [x] E-03 Confirm the existing per-workflow shims remain generated unchanged (they ARE the back-compat aliases), and add a short manifest-prose note in `.aw/system/workflows/index.md` "Running a workflow (by tool)" describing `/aw <verb>` as the primary surface and the per-workflow `/name` commands as retained aliases. Do not change the manifest column schema or any row.
   - Depends on: E-02
   - Expected outcome: Existing shim keys are byte-identical to before (no alias regression); index.md documents the `/aw` surface and the alias relationship.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add a per-host grammar-verification helper the tests will call (a small `validate_shim_grammar(text, tool)` predicate or reuse of the existing `is_stale_shim_customized` / structural checks) that asserts a shim string is well formed for a host: YAML frontmatter fences present, required per-host fields present (`agent:` for opencode, `description:` for both), a body that references a workflow body path, and a `$ARGUMENTS` line when arguments are expected.
+- [x] E-04 Add a per-host grammar-verification helper the tests will call (a small `validate_shim_grammar(text, tool)` predicate or reuse of the existing `is_stale_shim_customized` / structural checks) that asserts a shim string is well formed for a host: YAML frontmatter fences present, required per-host fields present (`agent:` for opencode, `description:` for both), a body that references a workflow body path, and a `$ARGUMENTS` line when arguments are expected.
   - Depends on: E-01
   - Expected outcome: `validate_shim_grammar(dispatcher, "opencode")` and `(..., "claude")` return true for the generated dispatcher and for a sample per-workflow alias; malformed input returns false.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Tests and closeout
 
-- [ ] E-05 Add `tests/test_command_shims.py` with cases asserting: (a) `generate_shim_members` emits `.opencode/commands/aw.md` and `.claude/commands/aw.md`; (b) the existing per-workflow shims (aliases) are still emitted (e.g. `assess.md`, `handoff.md`, `verify.md`) with unchanged content; (c) the dispatcher passes `validate_shim_grammar` for BOTH hosts; (d) the dispatcher body carries a `$ARGUMENTS` passthrough and references the manifest.
+- [x] E-05 Add `tests/test_command_shims.py` with cases asserting: (a) `generate_shim_members` emits `.opencode/commands/aw.md` and `.claude/commands/aw.md`; (b) the existing per-workflow shims (aliases) are still emitted (e.g. `assess.md`, `handoff.md`, `verify.md`) with unchanged content; (c) the dispatcher passes `validate_shim_grammar` for BOTH hosts; (d) the dispatcher body carries a `$ARGUMENTS` passthrough and references the manifest.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: New test module passes and fails if any of the four assertions regress.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Run the full serial test suite (canonical `make test-serial` / `python3 -m unittest discover -s tests -t .`; `python3 -m pytest -p no:xdist` is equivalent only with the `.[test]` extra), capture the runner output, and close backlog item q19z5t to done only if the executed slice satisfies the item (single `/aw` namespace generated per host + back-compat aliases retained + per-host grammar verified); otherwise leave a note that a follow-on Order is needed for alias deprecation/pruning.
+- [x] E-06 Run the full serial test suite (canonical `make test-serial` / `python3 -m unittest discover -s tests -t .`; `python3 -m pytest -p no:xdist` is equivalent only with the `.[test]` extra), capture the runner output, and close backlog item q19z5t to done only if the executed slice satisfies the item (single `/aw` namespace generated per host + back-compat aliases retained + per-host grammar verified); otherwise leave a note that a follow-on Order is needed for alias deprecation/pruning.
   - Depends on: E-05
   - Expected outcome: Full suite green with pasted output; q19z5t moved to done (or annotated with the follow-on note) via `aw backlog set`.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -144,35 +144,35 @@ identical `$ARGUMENTS` mechanism. Nothing in either host grammar blocks it.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: A test or REPL call showing `aw_dispatcher_shim(...)` returns a string with valid frontmatter fences and a `$ARGUMENTS` line for both `tool="opencode"` (contains `agent: build`) and `tool="claude"` (contains `argument-hint`).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_command_shims.py::test_aw_dispatcher_shim_content_opencode` and `test_aw_dispatcher_shim_content_claude` pass, verifying frontmatter fences, `agent: build` for OpenCode, `argument-hint:` for Claude, manifest reference `@.aw/system/workflows/index.md` (and legacy `@.agents/workflows/index.md`), and `$ARGUMENTS` parameter routing.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Assertion output showing `generate_shim_members(parse_manifest(source), source)` contains keys `.opencode/commands/aw.md` and `.claude/commands/aw.md` while still containing the existing per-workflow shim keys.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_command_shims.py::test_generate_shim_members_emits_aw_dispatcher_and_retains_aliases` asserts that `.opencode/commands/aw.md` and `.claude/commands/aw.md` are present in `generate_shim_members` return dict alongside all existing per-workflow command shims (`assess`, `advise`, `handoff`, `verify`, `plan-review`, `setup-repo`, `spec`, `whatnext`).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Diff/assertion showing the per-workflow alias shim contents are unchanged from before this change, and an index.md diff adding the `/aw` surface note.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_command_shims.py::test_generate_shim_members_emits_aw_dispatcher_and_retains_aliases` asserted exact equality between alias entries and `shim_body(...)`. `.aw/system/workflows/index.md` diff added documentation for `/aw <verb> [args...]` as primary surface with aliases retained; no row or column schema modified.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Test output showing `validate_shim_grammar(dispatcher, tool)` is true for both hosts and false for a deliberately malformed shim string.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_command_shims.py::test_validate_shim_grammar_positive_for_dispatcher_and_aliases` and `test_validate_shim_grammar_negative_cases` ran and passed across 10 negative/falsifiable cases (missing fences, missing description, wrong agent headers, missing target paths, invalid `$ARGUMENTS` syntax).
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: Pasted `tests/test_command_shims.py` run output showing all four assertions pass.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: tests/test_command_shims.py passed cleanly (Ran 6 tests in 0.004s, OK).
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: Pasted full serial suite output (green) and the `aw backlog set q19z5t --status done` result (or the follow-on note if only partially satisfiable).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Full serial test suite passed (Ran 1196 tests in 207.246s, OK (skipped=1)). Backlog set executed: aw backlog set: 20260815-aw-namespace-01-q19z5t-aw-command-family-redesign.backlog.md -> done.
+  - Result: pass
 
 ## Approval and execution gate
 

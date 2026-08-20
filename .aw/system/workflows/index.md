@@ -95,10 +95,16 @@ Every workflow is just an instruction file plus (for some tools) a generated sla
 command shim that says "read and execute" it. The **substance works in any agent**; only
 the convenience of a native `/command` is tool-specific.
 
+The primary slash-command surface across hosts is `/aw <verb> [args...]` (e.g.
+`/aw assess security`, `/aw plan-review`, `/aw verify`), generated as `.opencode/commands/aw.md`
+and `.claude/commands/aw.md`. The existing individual per-workflow `/command` shims (e.g.
+`/assess`, `/plan-review`, `/verify`) are retained as backward-compatible aliases so
+existing invocations continue to work without interruption.
+
 | Tool | How to run a workflow |
 |---|---|
-| **OpenCode** | Native `/command`: type e.g. `/release-review`, `/assess security`, `/setup-repo`. Shims live in `.opencode/commands/`. The concern is the first argument; add a scope after it, e.g. `/assess performance src/server`. |
-| **Claude Code** | Native `/command` via `.claude/commands/` (works; the repo also has these). Type e.g. `/assess security`. Arguments supported (`$ARGUMENTS`). |
+| **OpenCode** | Native `/command`: type `/aw <verb> [args...]` (e.g. `/aw release-review`, `/aw assess security`, `/aw setup-repo`) or per-workflow aliases (`/release-review`, `/assess security`). Shims live in `.opencode/commands/`. The concern or parameters follow the verb, e.g. `/aw assess performance src/server` or `/assess performance src/server`. |
+| **Claude Code** | Native `/command` via `.claude/commands/`: type `/aw <verb> [args...]` or per-workflow aliases (e.g. `/aw assess security` or `/assess security`). Arguments supported (`$ARGUMENTS`). |
 | **Cursor, Codex, Antigravity, VS Code Copilot, or any other agent** | **No repo-file slash-command mechanism** - use the universal fallback: tell the agent to *read and execute* the workflow body, e.g. "Read and execute `.aw/system/workflows/assess/assess.md`, applying the lens `.aw/system/workflows/assess/lenses/security.md`" (or for a non-lens workflow, just its body path, e.g. "Read and execute `.aw/system/workflows/setup-repo/setup-repo.md`"). The body paths are listed in the manifest above. |
 
 `AGENTS.md` at the repo root points here, so any tool that reads `AGENTS.md` can discover

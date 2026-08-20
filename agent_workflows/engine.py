@@ -791,6 +791,116 @@ def shim_body(
     )
 
 
+def aw_dispatcher_shim(
+    workflows: list[Workflow],
+    tool: str,
+    target_layout: str = "aw",
+) -> str:
+    """Generate the markdown body for the /aw dispatcher command shim.
+
+    Args:
+        workflows: The parsed workflow list from the manifest.
+        tool: "opencode" or "claude" (controls host frontmatter differences).
+        target_layout: "aw" or "legacy" (controls workflow bundle path resolution).
+
+    Returns:
+        Full file content for the /aw dispatcher shim.
+    """
+    workflows_dir = resolve_workflows_dir(target_layout)
+    manifest_target = f"{workflows_dir}/index.md"
+    description = "Agent Workflows slash-command dispatcher: execute any workflow by verb (`/aw <verb> [args...]`)."
+
+    if tool == "claude":
+        frontmatter = (
+            "---\n"
+            f"description: {description}\n"
+            'argument-hint: "[<verb> [args...]]"\n'
+            "---\n"
+        )
+    else:  # opencode
+        frontmatter = "---\n" f"description: {description}\n" "agent: build\n" "---\n"
+
+    return (
+        f"{frontmatter}\n"
+        f"Read the workflow manifest @{manifest_target}.\n\n"
+        "The first argument names the workflow VERB (e.g. `assess`, `plan-review`, `verify`, "
+        "`handoff`, `spec`, `whatnext`, `setup-repo`); any remaining arguments are passed through "
+        "to the resolved workflow. Resolve the verb to its workflow entry in the manifest, then "
+        "read and execute that workflow's body file. If NO verb was given, consult the manifest "
+        "or run `/list-workflows` to view available workflows and prompt the user.\n\n"
+        "If the user provided arguments, treat the first argument as the workflow verb and "
+        "remaining arguments as its parameters: $ARGUMENTS\n\n"
+        "Treat the referenced file as the controlling instruction and follow it fully.\n"
+    )
+
+
+def validate_shim_grammar(text: str, tool: str) -> bool:
+    """Validate that a generated slash-command shim is well-formed for the given host tool.
+
+    Checks:
+    - Text starts and has closing YAML frontmatter fences ('---')
+    - Frontmatter contains a 'description:' field
+    - If tool == 'opencode': frontmatter contains 'agent:' (e.g. 'agent: build')
+    - If tool == 'claude': frontmatter does NOT contain 'agent:'
+    - Body references a workflow body path or manifest path (@.aw/system/workflows/ or @.agents/workflows/)
+    - If frontmatter contains 'argument-hint:', body contains '$ARGUMENTS'
+    - If body contains '$ARGUMENTS', body contains 'If the user provided arguments'
+    """
+    if not isinstance(text, str) or not text.strip():
+        return False
+    if tool not in ("opencode", "claude"):
+        return False
+
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return False
+
+    closing_fence_idx = -1
+    for idx in range(1, len(lines)):
+        if lines[idx].strip() == "---":
+            closing_fence_idx = idx
+            break
+
+    if closing_fence_idx == -1:
+        return False
+
+    frontmatter_lines = lines[1:closing_fence_idx]
+    body_lines = lines[closing_fence_idx + 1 :]
+    body_text = "\n".join(body_lines)
+
+    has_description = any(
+        line.strip().startswith("description:") for line in frontmatter_lines
+    )
+    if not has_description:
+        return False
+
+    has_agent = any(line.strip().startswith("agent:") for line in frontmatter_lines)
+    if tool == "opencode":
+        if not has_agent:
+            return False
+    elif tool == "claude":
+        if has_agent:
+            return False
+
+    has_target_ref = (
+        "@.aw/system/workflows/" in body_text or "@.agents/workflows/" in body_text
+    )
+    if not has_target_ref:
+        return False
+
+    has_arg_hint = any(
+        line.strip().startswith("argument-hint:") for line in frontmatter_lines
+    )
+    has_arguments_var = "$ARGUMENTS" in body_text
+    if has_arg_hint and not has_arguments_var:
+        return False
+    if has_arguments_var:
+        if "If the user provided arguments" not in body_text:
+            return False
+
+    return True
+
+
 # Manifest rows with these command prefixes are CATALOG entries for a parameterized
 # command, not commands in their own right. `assess-<concern>` rows catalog the assess
 # lenses; `advise-<persona>` rows catalog the advise personas. Each family collapses to a
@@ -825,8 +935,9 @@ def generate_shim_members(
 ) -> dict[str, str]:
     """Build the map of shim repo-relative path -> file content for all tools.
 
-    One shim per command row, EXCEPT `assess-<concern>` catalog rows, which are folded
-    into the single parameterized `/assess` command.
+    One dispatcher shim `aw.md` per host tool, plus one shim per command row,
+    EXCEPT `assess-<concern>` and `advise-<persona>` catalog rows which are folded
+    into their parameterized parent shims.
     """
 
     shims: dict[str, str] = {}
@@ -845,6 +956,9 @@ def generate_shim_members(
 
     for shim_dir in COMMAND_SHIM_DIRS:
         tool = "claude" if shim_dir.startswith(".claude") else "opencode"
+        shims[f"{shim_dir}/aw.md"] = aw_dispatcher_shim(
+            workflows, tool, target_layout=target_layout
+        )
         for workflow in workflows:
             if is_concern_catalog_row(workflow):
                 continue  # catalog entry, not its own command
@@ -2686,10 +2800,12 @@ def is_stale_shim_customized(content: str) -> bool:
     if not lines:
         return False
 
-    # Must have the primary "Read and execute @..." line
+    # Must have the primary "Read and execute @..." line or "Read the workflow manifest @..."
     if not any(
         line.startswith("Read and execute @.agents/workflows/")
         or line.startswith("Read and execute @.aw/system/workflows/")
+        or line.startswith("Read the workflow manifest @.agents/workflows/")
+        or line.startswith("Read the workflow manifest @.aw/system/workflows/")
         for line in lines
     ):
         return True
@@ -2704,6 +2820,8 @@ def is_stale_shim_customized(content: str) -> bool:
         'argument-hint: "[',
         "Read and execute @.agents/workflows/",
         "Read and execute @.aw/system/workflows/",
+        "Read the workflow manifest @.agents/workflows/",
+        "Read the workflow manifest @.aw/system/workflows/",
         # The generated arguments line: the generic default AND any per-workflow arg-hint
         # clause both start with this prefix, so recognize the prefix rather than the exact
         # generic sentence (a workflow with an arg-hint is still a generated, non-customized shim).
@@ -2731,6 +2849,13 @@ def is_stale_shim_customized(content: str) -> bool:
         "ask the user which to use.",
         "Run in planning-only mode: complete the audit and the consolidated implementation plan,",
         "and stop before implementation.",
+        # Dispatcher prefixes:
+        "The first argument names the workflow VERB",
+        "any remaining arguments are passed through to the resolved workflow.",
+        "Resolve the verb to its workflow entry in the manifest,",
+        "then read and execute that workflow's body file.",
+        "If NO verb was given, consult the manifest or run `/list-workflows`",
+        "to view available workflows and prompt the user.",
     )
 
     for line in lines:
@@ -2755,6 +2880,9 @@ def is_stale_shim_customized(content: str) -> bool:
                 "red-teamer",
                 "staff-engineer",
                 "domain-expert",
+                "dispatcher",
+                "manifest",
+                "verb",
             )
         ):
             continue
