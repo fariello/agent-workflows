@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Prepare the AGENT-doable artifacts for coordinated disclosure to the OpenCode maintainers of the previously verified unauthenticated local-server finding: a self-contained disclosure packet assembled from the cited internal finding records, and a tracking record for the disclosure lifecycle. The actual SEND and the 30-45 day coordinated-disclosure clock are HUMAN-OWNED and explicitly out of scope.
 - Scope: Authoring and organizing tracked artifacts under `.aw/records/` only. No code change, no network send, no starting of a disclosure clock, no publication. Backlog item `2p6mgq` is touched only to annotate it; it is NOT closed to done by this plan (see OQ-01).
-- Status: draft
+- Status: reviewed
 - Set: backlog-medhigh-260819
 - Order: 3
 - Highest E allocated: 06
@@ -15,6 +15,7 @@
 
 - 2026-08-19 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-19 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): drafted the body from the cited finding records (advisory `kams1a`, executive summary `98m3pw`, disclosure-package index, maintainer-scoping draft `zmgkwf`, D86/D87). Send + clock kept human-owned and out of scope.
+- 2026-08-19 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; PR-03-1 status->to-review->reviewed. All cited records verified present (kams1a advisory, ocsec-00 98m3pw, disclosure-package/00-README-index.md, ocsec-08 zmgkwf, D86/D87, backlog 2p6mgq). Strong safety posture confirmed (agent never sends/starts the clock; 2p6mgq stays open). OQ-01 is a resolved recommendation (leave 2p6mgq open until the human sends) with owner human/maintainer; non-blocking. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 

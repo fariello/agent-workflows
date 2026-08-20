@@ -4,7 +4,7 @@
 - Concern: The open backlog carries 3 high + 7 medium items. This orchestrator drives the whole set through the IPD lifecycle. During scoping, one item (d3jkws /handoff) was found ALREADY EXECUTED and closed to done outside this Set; the remaining nine are the child Orders below. Two are human/process-owned (Orders 03, 08) and carry a `-human` slug facet on the human part.
 - Scope: Drive child Orders 01..09 (author -> human approval -> execute -> verify -> transition), owning verification + path-scoped commits, never pushing. OUT: the d3jkws item (already done, closed separately); the release itself (Section 9).
 - Kind: orchestrator
-- Status: draft
+- Status: reviewed
 - Set: backlog-medhigh-260819
 - Order: 0
 - Highest E allocated: 01
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-19 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created - one Set addressing all high+medium open backlog items; d3jkws was verified already-executed and closed to done, so it is not a child here.
+- 2026-08-19 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; PR-000-1..3 (status to-review, canonical serial-runner note, Order 02 dependency clarified as soft-after). GO - PENDING HUMAN APPROVAL. Set-level scope accounting (3 high + 7 medium = 10; nine child Orders + d3jkws already done) verified against the open backlog.
 
 ## Goal
 
@@ -37,7 +38,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 | Order | File (id) | Item | What it does | Depends on |
 |---|---|---|---|---|
 | 01 | m2h1z4 | revnjq (high) | ship `tools.awphysical` inside the package (or inline its inventory) so `aw migrate-layout` + install-time migration work when pip-installed | none |
-| 02 | 0qj4on | u298fd (high) | install-time split-brain guard (detect `.aw` bookkeeping beside `.agents/workflows` content, refuse/repair) | 01 (shares migration path) |
+| 02 | 0qj4on | u298fd (high) | install-time split-brain guard (detect `.aw` bookkeeping beside `.agents/workflows` content, refuse/repair) | soft-after 01 (shares migration path; no hard import dependency - see Order 02 gate) |
 | 03 | 38yl4s | 2p6mgq (high) | coordinated-disclosure PACKET + tracking record; the SEND is human-owned (`-human`) | none |
 | 04 | v1rj3p | 7vd36f (med) | `aw ipd scaffold` enforces the clustering filename grammar + requires Set metadata | none |
 | 05 | ckw2ze | q19z5t (med) | single `/aw <verb>` slash namespace over the workflows (+ per-host grammar verify + back-compat aliases) | none |
@@ -50,7 +51,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 - All nine child Orders show `Status: executed` under `.aw/records/plans/executed/`.
 - Each corresponding backlog item is `done`.
-- The full serial suite is green after the final Order; `aw attention --check` / `aw sanitize --agent` clean.
+- The full serial suite is green after the final Order (the canonical serial runner is `make test-serial`, i.e. `python3 -m unittest discover -s tests -t .`; `python3 -m pytest -p no:xdist` is an equivalent serial run only when the `.[test]` extra is installed); `aw attention --check` / `aw sanitize --agent` clean.
 - The pip-installability of migrate-layout (Order 01) is proven in an installed wheel.
 
 ## Cross-IPD validation
@@ -87,7 +88,7 @@ Each child carries its own tests/validation; the Set is validated by the complet
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: `ls .aw/records/plans/executed/*backlog-medhigh-260819-0[1-9]*` shows all nine child Orders with `Status: executed`; `aw backlog check` shows the nine items `done`; the final full serial suite tail + `aw attention --check`/`aw sanitize --agent` clean are pasted.
+  - Required evidence: `ls .aw/records/plans/executed/*backlog-medhigh-260819-0[1-9]*` shows all nine child Orders with `Status: executed`; `aw backlog check` shows the nine items `done`; the final full serial suite tail (`make test-serial` / `python3 -m unittest discover -s tests -t .`) + `aw attention --check`/`aw sanitize --agent` clean are pasted.
   - Observed evidence:
   - Result: pending
 

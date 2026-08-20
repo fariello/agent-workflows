@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Shared-host security exposure of local agent control servers is documented (D86/D87) but the installer says nothing about it; a user installing on an HPC login node or shared dev server gets no pointer to the hardening how-to.
 - Scope: Emit an always-shown, one-line security pointer at install time (shared by all install entry points) that references the shared-host caveat and the hardening how-to, plus a test asserting it is emitted. The human circulation of the how-to to users is out of scope.
-- Status: to-review
+- Status: reviewed
 - Set: backlog-medhigh-260819
 - Order: 8
 - Highest E allocated: 06
@@ -15,6 +15,7 @@
 
 - 2026-08-19 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-19 author (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body researched and drafted; E/V allocated.
+- 2026-08-19 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; PR-08-1 stale bench_env.py path prefix corrected, PR-08-2 gate scope-fence now names DECISIONS.md + cli.py + tests + backlog file, PR-08-3 canonical serial-runner note. Anchors verified (cli.py:1975/2036/2394, engine.print_summary:3201, bench_env.py:401, how-to record present, D86/D87, backlog 3srje9). OQ-01 resolved (always-shown pointer over unreliable auto-detection - sound security posture). GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -48,7 +49,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-02
   - Expected outcome: A new test method exists and, when run, passes because the pointer text appears in installer stdout.
   - Execution state: pending
-- [ ] E-05 Run the FULL serial test suite and paste the actual runner output.
+- [ ] E-05 Run the FULL serial test suite (canonical `make test-serial` / `python3 -m unittest discover -s tests -t .`; `python3 -m pytest -p no:xdist` equivalent only with the `.[test]` extra) and paste the actual runner output.
   - Depends on: E-04
   - Expected outcome: The full suite passes with no failures or errors.
   - Execution state: pending
@@ -76,7 +77,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 | 3 | The hardening how-to already exists as a reference record with a loud "READ THIS FIRST" section, mitigation steps, and an operator reference architecture; it is the artifact the installer pointer should point at. | `.aw/records/research/20260716-opencode-shared-host-hardening-howto-00-tt8ipb-opencode-shared-host-hardening-howto.howto.md:14`,`21` |
 | 4 | The single shared per-repo install shell is `_install_one` (`agent_workflows/cli.py:2036`), documented as the ONE per-repo orchestration all entry points use (D85), so a pointer added there is emitted once per repo by every path. | `agent_workflows/cli.py:2036`-`2052` |
 | 5 | Existing install-time notice patterns: WARN preflight (`agent_workflows/cli.py:1975`) and the post-install `_teach` pointer (`agent_workflows/cli.py:2394`). | `agent_workflows/cli.py:1975`,`2394` |
-| 6 | HPC detection is available but heuristic: `capture_hpc` keys off submit binaries on PATH and scheduler env vars (`agent_workflows/.aw/system/workflows/benchmark/tools/bench_env.py:401`-`437`). This false-positives on single-user workstations that happen to have Slurm client tools installed and false-negatives on shared dev servers and multi-tenant CI (no scheduler at all), so it is not a trustworthy install-time shared-host signal. | `.aw/system/workflows/benchmark/tools/bench_env.py:401` |
+| 6 | HPC detection is available but heuristic: `capture_hpc` keys off submit binaries on PATH and scheduler env vars (`.aw/system/workflows/benchmark/tools/bench_env.py:401`-`437`). This false-positives on single-user workstations that happen to have Slurm client tools installed and false-negatives on shared dev servers and multi-tenant CI (no scheduler at all), so it is not a trustworthy install-time shared-host signal. | `.aw/system/workflows/benchmark/tools/bench_env.py:401` |
 | 7 | The backlog item 3srje9 is two-part: agent-doable installer warning plus human-owned circulation of the how-to. | `.aw/records/backlog/open/20260815-opencode-disclosure-01-3srje9-hpc-shared-host-warning.backlog.md:6` |
 
 ## Proposed changes (ordered, validatable)
@@ -154,4 +155,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execution requires explicit human approval (Status advances to `approved`) before any code is written. On execution, follow the repo execution contract: commit only the files changed, path-scoped (`git commit -m msg -- <path>`), never `git add -A` and never push; paste the actual full-suite runner output as the E-05/V-05 evidence rather than claiming success; write no em or en dashes in user-facing prose. Do not mark this plan executed or move it to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` conforms and every `V-*` item is verified with concrete evidence. If validation fails at any point, STOP and report rather than proceeding.
+Execution requires explicit human approval (Status advances to `approved`) before any code is written. Scope fence - this plan touches only: `agent_workflows/cli.py` (the `_security_pointer` helper + its call in `_install_one`), `DECISIONS.md` (the D87 "Applied" line), `tests/test_installer.py` (the new stdout assertion), and the `3srje9` backlog file; do not expand scope, and if it seems to need more, STOP and report. On execution, follow the repo execution contract: commit only those files, path-scoped (`git commit -m msg -- agent_workflows/cli.py DECISIONS.md tests/test_installer.py <backlog-file>`), never `git add -A` and never push; paste the actual full-suite runner output as the E-05/V-05 evidence rather than claiming success; write no em or en dashes in user-facing prose. Do not mark this plan executed or move it to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` conforms and every `V-*` item is verified with concrete evidence. If validation fails at any point, STOP and report rather than proceeding.

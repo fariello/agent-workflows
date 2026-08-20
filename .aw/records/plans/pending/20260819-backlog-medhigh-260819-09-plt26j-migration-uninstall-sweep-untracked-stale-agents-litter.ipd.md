@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: After the `.agents/` -> `.aw/` migration, UNTRACKED stale-tool litter (compiled `__pycache__/*.pyc` and emptied `*tools*` dir skeletons) lingers under `.agents/workflows/`. The transactional migration only moves TRACKED/inventoried content, and the leftover-disposition step preserves anything untracked, so this litter is never swept. It misleads agents into believing the legacy layout is still live (an agent tripped by reading `.agents/workflows/plan-review/plan-review.md`, which does not exist there). This plan adds CONSENT-GATED detection-and-offer-to-remove of that untracked stale-tool litter to `aw migrate-layout`'s leftover step and to `aw uninstall --deep`, without ever removing tracked or non-litter content.
 - Scope: Extend the leftover-disposition path in `agent_workflows/layout_migration.py` and the deep-cleanup path in `agent_workflows/engine.py` (surfaced via `agent_workflows/cli.py`) to DETECT untracked stale-tool litter under a migrated legacy root and OFFER it for consent-gated removal, reusing the existing keep/remove/defer leftover policy and the deep-cleanup at-risk warning. Tests in `tests/test_layout_migration.py` (and/or `tests/test_installer.py`) covering fixture detection, consent gating, and absence. No change to the tracked-content migration, host adapters, or the command shims.
-- Status: draft
+- Status: reviewed
 - Set: backlog-medhigh-260819
 - Order: 9
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 
 - 2026-08-19 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-19 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): researched real cleanup/leftover code and drafted body.
+- 2026-08-19 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; PR-09-1 status->to-review->reviewed, PR-09-2 canonical serial-runner note (E-05/V-05/required-tests). Anchors verified (layout_migration.py:347/424/452/488; engine.py:165/3399/3427/3474/3501; cli.py:2439/2510/2575). Strong data-loss guards confirmed (tracked-only orphan removal, local/untracked preservation, foreign-destination fail-close, file-only removal). OQ-01 remains non-blocking OPEN (conservative scope: __pycache__ + emptied *tools* only). Verdict per open question: REVIEWED - OPEN QUESTIONS; readiness NO-GO until the maintainer accepts the conservative litter scope at approval. Sequences after Orders 01 and 02.
 
 ## Goal
 
@@ -52,7 +53,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 4: tests and backlog closure
 
-- [ ] E-05 Add tests to `tests/test_layout_migration.py` (and/or `tests/test_installer.py`) that build a stale-litter fixture (`.agents/workflows/foo/__pycache__/x.pyc` plus an emptied `.agents/workflows/foo/tools/` dir) and assert: (a) it is DETECTED and OFFERED under both the migration leftover step and `uninstall --deep`; (b) it is NOT removed without consent (`keep`/`defer`, and non-interactive without `remove`/`--deep`); (c) it IS removed only under `remove`/`--deep`; (d) no litter is flagged when absent; (e) tracked and non-litter content is never removed. Then run the FULL serial suite `python3 -m pytest -p no:xdist` and paste output, and close backlog `wxz7gg` to done with `aw backlog set wxz7gg --status done`.
+- [ ] E-05 Add tests to `tests/test_layout_migration.py` (and/or `tests/test_installer.py`) that build a stale-litter fixture (`.agents/workflows/foo/__pycache__/x.pyc` plus an emptied `.agents/workflows/foo/tools/` dir) and assert: (a) it is DETECTED and OFFERED under both the migration leftover step and `uninstall --deep`; (b) it is NOT removed without consent (`keep`/`defer`, and non-interactive without `remove`/`--deep`); (c) it IS removed only under `remove`/`--deep`; (d) no litter is flagged when absent; (e) tracked and non-litter content is never removed. Then run the FULL serial suite - canonical `make test-serial` (`python3 -m unittest discover -s tests -t .`); `python3 -m pytest -p no:xdist` is equivalent only with the `.[test]` extra installed - and paste output, and close backlog `wxz7gg` to done with `aw backlog set wxz7gg --status done`.
   - Depends on: none
   - Expected outcome: New tests pass in the full serial suite; backlog `wxz7gg` moves to done.
   - Execution state: pending
@@ -99,7 +100,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ## Required tests / validation
 
 - New tests in `tests/test_layout_migration.py` (and/or `tests/test_installer.py`) per E-05: fixture detected and offered; not removed without consent; removed only under `remove`/`--deep`; not flagged when absent; tracked/non-litter never removed.
-- Full serial suite: `python3 -m pytest -p no:xdist` (paste actual runner output as evidence).
+- Full serial suite: canonical `make test-serial` (`python3 -m unittest discover -s tests -t .`); `python3 -m pytest -p no:xdist` equivalent only with the `.[test]` extra (paste actual runner output as evidence).
 
 ## Spec / documentation sync
 
@@ -139,7 +140,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: Pasted `python3 -m pytest -p no:xdist` output showing the new tests and full suite pass; `aw backlog set wxz7gg --status done` confirmation and the item moved to `done/`.
+  - Required evidence: Pasted full serial suite output (`make test-serial` / `python3 -m unittest discover -s tests -t .`, or `python3 -m pytest -p no:xdist` with the `.[test]` extra) showing the new tests and full suite pass; `aw backlog set wxz7gg --status done` confirmation and the item moved to `done/`.
   - Observed evidence:
   - Result: pending
 

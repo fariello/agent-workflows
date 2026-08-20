@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Backlog item ith2xd (medium) asks that the layout-inventory walk honor .gitignore so ignored subtrees such as node_modules are not descended into or hashed. The pruning code already exists in tools/awphysical/aw_layout_inventory.py (_ignored_dirs, _walk, and inventory wiring), but no direct regression test asserts it. Soft ordering dependency: Order 01 of this Set may relocate the module to agent_workflows/layout_inventory.py (leaving a tools/awphysical/aw_layout_inventory.py shim); the executor must import from wherever the module lives at execution time.
 - Scope: Verify the existing gitignore-aware pruning behavior with a written probe, then add the missing regression test (tests/test_layout_inventory_gitignore.py) that asserts inventory / _walk skips an ignored subtree, and run the full serial suite. No re-implementation of pruning logic.
-- Status: to-review
+- Status: reviewed
 - Set: backlog-medhigh-260819
 - Order: 7
 - Highest E allocated: 02
@@ -15,6 +15,7 @@
 
 - 2026-08-19 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-19 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body drafted from investigation of tools/awphysical/aw_layout_inventory.py and tests/.
+- 2026-08-19 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; PR-07-1 E-02 Depends-on corrected none->E-01 (the codified test follows the probe), PR-07-2 canonical serial-runner note. Anchors verified (aw_layout_inventory.py:436/460/484-486/499/527; no existing gitignore inventory test; new test file absent). OQ-01 remains non-blocking OPEN (import path resolves to agent_workflows.layout_inventory after Order 01 lands, else the tools shim; both expose the same symbols). Verdict per open question: REVIEWED - OPEN QUESTIONS; readiness NO-GO until Order 01 sequencing resolves the import path (or the human accepts the dual-path rule).
 
 ## Goal
 
@@ -31,8 +32,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: The probe run confirms _ignored_dirs contains "node_modules" and no inventory item path descends into node_modules; the pre-existing pruning behavior is observed to be correct as claimed.
   - Execution state: pending
 
-- [ ] E-02 Add `tests/test_layout_inventory_gitignore.py` codifying the probe as a unittest (temp git repo, .gitignore with node_modules/, tracked and ignored content), asserting both `_ignored_dirs(repo)` includes the ignored subtree and `inventory(...)` yields no item under node_modules, importing the module from wherever it lives at execution time; then run the full serial test suite and close backlog item ith2xd.
-  - Depends on: none
+- [ ] E-02 Add `tests/test_layout_inventory_gitignore.py` codifying the probe as a unittest (temp git repo, .gitignore with node_modules/, tracked and ignored content), asserting both `_ignored_dirs(repo)` includes the ignored subtree and `inventory(...)` yields no item under node_modules, importing the module from wherever it lives at execution time; then run the full serial test suite (canonical `make test-serial` / `python3 -m unittest discover -s tests -t .`) and close backlog item ith2xd.
+  - Depends on: E-01
   - Expected outcome: New test file exists and passes; full serial suite passes; backlog item ith2xd is moved to done via `aw backlog set`.
   - Execution state: pending
 
@@ -69,7 +70,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ## Required tests / validation
 
 - New test: `tests/test_layout_inventory_gitignore.py` asserts (a) `_ignored_dirs(repo)` includes the seeded ignored directory and (b) `inventory(repo, roots, False)` emits no item whose path is under node_modules.
-- Full serial test suite is run and passes; actual runner output is pasted into the Observed evidence fields.
+- Full serial test suite is run and passes (canonical `make test-serial` / `python3 -m unittest discover -s tests -t .`; `python3 -m pytest -p no:xdist` equivalent only with the `.[test]` extra); actual runner output is pasted into the Observed evidence fields.
 - Backlog item ith2xd is set to done and its closure recorded.
 
 ## Spec / documentation sync

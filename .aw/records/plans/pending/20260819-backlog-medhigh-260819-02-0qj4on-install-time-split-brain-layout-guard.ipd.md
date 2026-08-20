@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: `aw install` into a repo that already carries BOTH `.aw/system` bookkeeping AND live `.agents/workflows` content (a half-migrated / mid-awphysical state) silently proceeds. `resolve_target_layout` (`agent_workflows/engine.py:88`) returns `"aw"` the moment `.aw/system` exists (D134/D136 "`.aw/system` present is authoritative"), so `install_into_repo` (`agent_workflows/engine.py:4511`) installs the `.aw/` bundle and pointer while the stale, still-live `.agents/workflows/` tree is left untouched. The result is a split-brain layout: two workflow bundles, two pointer targets, duplicate records read by `artifact_core.SCAN_ROOTS` (see D135). Add an install-time GUARD that DETECTS this and warns/refuses (never destructive without consent) instead of producing the mixed layout.
 - Scope: add a pure detector for the split-brain condition and wire it into the `_run_install` per-repo pre-flight (`agent_workflows/cli.py:2249`) BEFORE the install confirm. Non-interactive/`--yes` default is fail-safe SKIP (never auto-migrate, never delete). Interactive offers migrate-now (delegating to the existing `MigrationManager`, same path as `_handle_legacy_migration`) or continue-anyway. No change to `resolve_target_layout` semantics. Ship a test asserting the guard fires on a split-brain fixture and does NOT fire on a clean `.aw/` or clean legacy repo. Close backlog u298fd.
-- Status: to-review
+- Status: reviewed
 - Set: backlog-medhigh-260819
 - Order: 2
 - Highest E allocated: 06
@@ -15,6 +15,7 @@
 
 - 2026-08-19 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-19 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body drafted from investigation of `resolve_target_layout`/`install_into_repo`/`_run_install`/`_handle_legacy_migration` and DECISIONS D134/D135/D136; status to-review.
+- 2026-08-19 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; PR-02-1 (HIGH under-scope) guard relocated from `_run_install` to the D85 single shared shell `_install_one` so `aw install all` and `aw setup` (which bypass `_run_install` and call `_install_one` directly at cli.py:2376/3256) are covered - findings/proposed-changes/scope/E-04/V-04 revised; PR-02-2 canonical serial-runner note (E-05/E-06/V-06/required-tests). Anchors verified (engine.py:88/165, cli.py:1898/2036/2155/2163/2257/2260). OQ-01 remains non-blocking OPEN (executor-owned, conservative default). Verdict per open question: REVIEWED - OPEN QUESTIONS; readiness NO-GO until OQ-01 is confirmed or the human accepts the conservative default at approval.
 
 ## Goal
 
@@ -43,19 +44,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `_split_brain_guard` returns `"skip"` under `--yes`/non-interactive on a split-brain repo, `"proceed"` on a clean repo, and consolidates (or defers) interactively without deleting anything.
   - Execution state: pending
 
-- [ ] E-04 Call the guard in `_run_install` inside the per-repo loop (`agent_workflows/cli.py:2249`), placed AFTER `_exclude_guard` (`agent_workflows/cli.py:2257`) and BEFORE `_handle_legacy_migration` (`agent_workflows/cli.py:2260`): `if _split_brain_guard(term, repo_root, args) == "skip": continue`. Rationale for order: the exclude guard already short-circuits blocked repos; the split-brain guard must run before the legacy-migration handler because on a split-brain repo `_handle_legacy_migration` returns False early (its `is_legacy_only` test at `agent_workflows/cli.py:2163` is False when `.aw/system` exists) and would let the split install proceed. Do not duplicate the guard into `_install_all`/`setup`; those funnel through `_run_install`/`_install_one` per repo (confirm during execution).
+- [ ] E-04 Wire the guard so it covers EVERY install entry point, not just `aw install <dir>`. Repository fact verified at review: `_install_one` (`agent_workflows/cli.py:2036`) is the SINGLE shared per-repo shell all entry points use (its docstring cites D85: `aw install <dir>`, `aw install all`, `aw setup`, engine `run()`); `_install_all` (calls `_handle_legacy_migration` then `_install_one` directly at `agent_workflows/cli.py:2376`) and `setup` (likewise at `agent_workflows/cli.py:3256`) do NOT go through `_run_install`'s loop. Therefore placing the guard only in `_run_install` would leave `aw install all` and `aw setup` unguarded. Guard at the ONE choke point instead: call `_split_brain_guard` at the TOP of `_install_one`, BEFORE `engine.install_into_repo(...)` (`agent_workflows/cli.py:2056`), and short-circuit with the "nochange"/skip return when it yields `"skip"` so no write happens. If the interactive migrate-now branch must still run relative to `_handle_legacy_migration`, run the split-brain detection first (it is a pure detector) and consolidate before `install_into_repo`. Confirm during execution that guarding in `_install_one` fires exactly once per repo for all three entry points and that the return value composes with the existing `"ok"/"nochange"/"failed"` tally.
   - Depends on: E-03
-  - Expected outcome: a split-brain repo passed to `aw install` under `--yes` is skipped with the guard message and nothing is written; a clean repo installs unchanged.
+  - Expected outcome: a split-brain repo passed to `aw install <dir>`, `aw install all`, OR `aw setup` under `--yes` is skipped with the guard message and nothing is written; a clean repo installs unchanged through every entry point.
   - Execution state: pending
 
 ### Task group 3: tests + close backlog
 
 - [ ] E-05 Add tests to `tests/test_installer.py`. Unit test on the detector: build three throwaway repos via `tempfile`/`init_repo` (see `tests/support.py`): (a) split-brain = create `.aw/system/workflows/` plus a non-empty `.agents/workflows/index.md` and assert `engine.detect_split_brain_layout` is True and `_split_brain_guard(term, repo, args_with_yes)` returns `"skip"`; (b) clean `.aw/` = only `.aw/system/` present, assert detector False and guard `"proceed"`; (c) clean legacy = only `.agents/workflows/` present (no `.aw/system`), assert detector False and guard `"proceed"`. Add a cruft-only case: `.aw/system/` plus a `.agents/workflows/__pycache__/x.pyc` only, assert detector False. Use a stub/`mock` Term and a simple args namespace (`yes=True`) for the guard-return assertions so no interactive input is needed.
   - Depends on: E-04
-  - Expected outcome: the four assertions above pass in isolation (`python3 -m pytest tests/test_installer.py -p no:xdist -k split_brain`).
+  - Expected outcome: the four assertions above pass in isolation (`python3 -m pytest tests/test_installer.py -p no:xdist -k split_brain`, or under stdlib unittest `python3 -m unittest tests.test_installer -k split_brain` on 3.12+ / a named `-m` method filter).
   - Execution state: pending
 
-- [ ] E-06 Run the FULL serial suite `python3 -m pytest -p no:xdist` and paste the actual tail. Then close backlog u298fd with `aw backlog set 20260815-awphysical-01-u298fd-install-split-brain-guard --status done` (confirm the item path/verb from `aw backlog --help`). Update `DECISIONS.md` only if a NEW cross-cutting decision was made (default: no new decision; this implements the D136 posture, so a short pointer note is optional, not required).
+- [ ] E-06 Run the FULL serial suite - canonical `make test-serial` (`python3 -m unittest discover -s tests -t .`); `python3 -m pytest -p no:xdist` is an equivalent serial run only when the `.[test]` extra is installed - and paste the actual tail. Then close backlog u298fd with `aw backlog set 20260815-awphysical-01-u298fd-install-split-brain-guard --status done` (confirm the item path/verb from `aw backlog --help`). Update `DECISIONS.md` only if a NEW cross-cutting decision was made (default: no new decision; this implements the D136 posture, so a short pointer note is optional, not required).
   - Depends on: E-05
   - Expected outcome: full suite green (pasted output), backlog u298fd shows `Status: done`.
   - Execution state: pending
@@ -76,8 +77,9 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 | --- | --- | --- |
 | `agent_workflows/engine.py:88` `resolve_target_layout` | Returns `"aw"` as soon as `.aw/system` exists, ignoring any `.agents/workflows` tree | This is the exact silent-split cause; guard must intercept before install writes |
 | `agent_workflows/engine.py:4511` `install_into_repo` | Installs the `.aw/` bundle + pointer for `target_layout="aw"`; does not prune or notice a live `.agents/workflows/` | No self-healing today; the mixed layout persists |
-| `agent_workflows/cli.py:2249` `_run_install` loop | Runs `_exclude_guard` then `_handle_legacy_migration` then confirm | Correct insertion point for a new pre-write guard |
-| `agent_workflows/cli.py:2163` `_handle_legacy_migration` `is_legacy_only` | False when `.aw/system` exists, so the split-brain repo skips migration handling | Guard must run BEFORE and cannot rely on this handler |
+| `agent_workflows/cli.py:2036` `_install_one` (D85 single shared shell) | The ONE per-repo orchestration ALL entry points use (`aw install <dir>`, `aw install all`, `aw setup`, engine `run()`); it calls `install_into_repo` first (`agent_workflows/cli.py:2056`) | Correct choke point for a pre-write guard so no entry point is missed |
+| `agent_workflows/cli.py:2376` (`_install_all`) and `:3256` (`setup`) | Call `_handle_legacy_migration` then `_install_one` DIRECTLY, bypassing the `_run_install` loop | A guard placed only in `_run_install` would NOT cover `aw install all` / `aw setup`; guard in `_install_one` instead |
+| `agent_workflows/cli.py:2163` `_handle_legacy_migration` `is_legacy_only` | False when `.aw/system` exists, so the split-brain repo skips migration handling | Guard cannot rely on this handler; it must detect independently before any write |
 | `agent_workflows/cli.py:1924` `_exclude_guard` fail-safe | `--yes`/non-TTY -> skip, never auto-act | Reuse pattern for the guard's non-interactive default |
 | DECISIONS D135 (`DECISIONS.md:2449`) | Migration MOVES via journal; two live copies == duplicate install | Consolidation, if chosen, uses MigrationManager; guard never deletes |
 | DECISIONS D136 (`DECISIONS.md:2455`) | `.aw/system` authoritative; never auto-migrate without consent, never block CI | Guard = detect + warn/refuse, non-interactive default is skip-not-migrate |
@@ -85,7 +87,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ## Proposed changes (ordered, validatable)
 
 1. `agent_workflows/engine.py`: add `detect_split_brain_layout` (E-01) and `describe_split_brain` (E-02), pure, no side effects.
-2. `agent_workflows/cli.py`: add `_split_brain_guard` (E-03) and call it in the `_run_install` per-repo loop before `_handle_legacy_migration` (E-04).
+2. `agent_workflows/cli.py`: add `_split_brain_guard` (E-03) and call it at the top of `_install_one` (the D85 single shared shell) before `install_into_repo`, so all entry points (`aw install <dir>`, `aw install all`, `aw setup`) are covered (E-04).
 3. `tests/test_installer.py`: add detector + guard-return tests over four fixtures (E-05).
 4. Run full suite and close backlog u298fd (E-06).
 
@@ -99,12 +101,12 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ## Scope check
 
 - Over-scope: none. The change is a detect+warn/refuse guard plus a test; no migration engine changes, no `resolve_target_layout` change.
-- Under-scope: if execution finds `aw update`/`aw setup` reach `install_into_repo` without passing through `_run_install`, the guard would not cover them; record that as a new backlog item rather than widening this plan.
+- Under-scope: guarding at `_install_one` (the D85 single shared shell that `aw install <dir>`, `aw install all`, and `aw setup` all funnel through) closes the entry-point-coverage gap that a `_run_install`-only guard would leave. If execution finds a DISTINCT install path that reaches `install_into_repo` without passing through `_install_one` (e.g. a direct engine `run()` caller), record that as a new backlog item rather than widening this plan.
 
 ## Required tests / validation
 
 - New unit + guard tests in `tests/test_installer.py` (E-05): detector True on split-brain fixture; False on clean `.aw/`, clean legacy, and cruft-only `.agents/workflows/`; `_split_brain_guard` returns `"skip"` under `--yes` on split-brain and `"proceed"` on both clean layouts.
-- Full serial suite green: `python3 -m pytest -p no:xdist` with pasted tail (E-06).
+- Full serial suite green: `make test-serial` (`python3 -m unittest discover -s tests -t .`), or `python3 -m pytest -p no:xdist` with the `.[test]` extra, with pasted tail (E-06).
 - Backlog u298fd set to `done` and shown (E-06).
 
 ## Spec / documentation sync
@@ -140,7 +142,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: a subprocess or in-process assertion (pasted) that `aw install --yes` into a split-brain repo makes no new writes (git status / dir listing before == after) and prints the guard skip line; a clean repo still installs.
+  - Required evidence: a subprocess or in-process assertion (pasted) that a split-brain repo is skipped with no new writes (git status / dir listing before == after) and the guard skip line is printed under `aw install <repo> --yes` AND under at least one of `aw install all --yes` / `aw setup ... --yes` (proving the `_install_one` choke point covers the non-`_run_install` entry points); a clean repo still installs through each path.
   - Observed evidence:
   - Result: pending
 
@@ -150,7 +152,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-06 validates E-06
-  - Required evidence: full-suite tail from `python3 -m pytest -p no:xdist` (pasted, showing passed/failed counts) AND the `aw backlog` output (or file read) showing u298fd `Status: done`.
+  - Required evidence: full-suite tail from `make test-serial` (`python3 -m unittest discover -s tests -t .`), or `python3 -m pytest -p no:xdist` with the `.[test]` extra (pasted, showing passed/failed counts) AND the `aw backlog` output (or file read) showing u298fd `Status: done`.
   - Observed evidence:
   - Result: pending
 

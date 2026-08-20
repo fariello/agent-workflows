@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: `aw ipd scaffold` can currently emit a plan that lacks Set/Order metadata and can honor an explicit `--path` that does not follow the clustering filename grammar, so a freshly scaffolded plan is not guaranteed to be groupable by Set or correctly named.
 - Scope: Change `aw ipd scaffold` (CLI parser + `run_scaffold` + `build_skeleton`) so it requires `--set`/`--order` and always writes `- Set:`/`- Order:` metadata, and so an explicit `--path` must match the clustering grammar (`YYYYMMDD-<setid>-NN-<id6>-<slug>.ipd.md`) unless an explicit legacy escape is passed. Add tests. Close backlog 7vd36f.
-- Status: draft
+- Status: reviewed
 - Set: backlog-medhigh-260819
 - Order: 4
 - Highest E allocated: 06
@@ -15,6 +15,7 @@
 
 - 2026-08-19 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-19 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): investigated scaffold code, filled body.
+- 2026-08-19 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; PR-04-1 status->to-review->reviewed, PR-04-2 canonical serial-runner note (E-06/V-06/required-tests). Anchors verified (cli.py:713-721, ipd_authoring.py:123/253, plans_refs._CLUSTERED_RE:48). OQ-01 resolved. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -55,7 +56,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: help text and spec (if applicable) describe the enforced rules; `aw ipd scaffold --help` shows `--set`/`--order` as required and mentions the grammar.
   - Execution state: pending
 
-- [ ] E-06 Close backlog item 7vd36f to done (`aw backlog set .aw/records/backlog/open/20260815-7vd36f-01-7vd36f-ipd-scaffold-clustering-grammar.backlog.md --status done --message "scaffold enforces Set metadata + clustering grammar" --dir .`) and run the full serial suite `python3 -m pytest -p no:xdist`.
+- [ ] E-06 Close backlog item 7vd36f to done (`aw backlog set .aw/records/backlog/open/20260815-7vd36f-01-7vd36f-ipd-scaffold-clustering-grammar.backlog.md --status done --message "scaffold enforces Set metadata + clustering grammar" --dir .`) and run the full serial suite - canonical `make test-serial` (`python3 -m unittest discover -s tests -t .`); `python3 -m pytest -p no:xdist` is equivalent only with the `.[test]` extra installed.
   - Depends on: E-05
   - Expected outcome: backlog 7vd36f moves to `.aw/records/backlog/done/`; the full serial suite passes with no failures.
   - Execution state: pending
@@ -103,7 +104,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 - New/extended assertions in `tests/test_awnaming_grammar_and_producers.py` (E-04).
 - `python3 -m pytest tests/test_awnaming_grammar_and_producers.py tests/test_ipd_templates.py -p no:xdist` for the focused surface.
-- Full serial suite `python3 -m pytest -p no:xdist` at close (E-06).
+- Full serial suite at close (E-06): canonical `make test-serial` (`python3 -m unittest discover -s tests -t .`); `python3 -m pytest -p no:xdist` is equivalent only with the `.[test]` extra installed.
 
 ## Spec / documentation sync
 
@@ -148,7 +149,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-06 validates E-06
-  - Required evidence: `git status` showing 7vd36f moved to `.aw/records/backlog/done/`; pasted tail of `python3 -m pytest -p no:xdist` showing the full serial suite passed (0 failed).
+  - Required evidence: `git status` showing 7vd36f moved to `.aw/records/backlog/done/`; pasted tail of the full serial suite (`make test-serial` / `python3 -m unittest discover -s tests -t .`, or `python3 -m pytest -p no:xdist` with the `.[test]` extra) showing it passed (0 failed).
   - Observed evidence:
   - Result: pending
 

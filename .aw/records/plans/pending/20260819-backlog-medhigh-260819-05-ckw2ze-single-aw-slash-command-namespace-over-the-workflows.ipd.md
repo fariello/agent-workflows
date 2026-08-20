@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Collapse the many per-workflow slash-command shims into a single `/aw <verb>` dispatcher shim per host, keeping the existing per-workflow shims as back-compat aliases and verifying each host's command grammar.
 - Scope: `agent_workflows/engine.py` (shim generator), `.aw/system/workflows/index.md` (manifest prose only, no row schema change), generated shims under `.opencode/commands/` and `.claude/commands/`, `tests/test_installer.py`. First slice only: generate the `/aw` dispatcher and keep per-workflow shims as aliases; deeper migration (deprecating or pruning the aliases) is deferred.
-- Status: to-review
+- Status: reviewed
 - Set: backlog-medhigh-260819
 - Order: 5
 - Highest E allocated: 06
@@ -15,6 +15,7 @@
 
 - 2026-08-19 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-19 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body drafted from investigation of the real shim generator and host command formats.
+- 2026-08-19 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; PR-05-1 size assessment corrected `exception`->`standard` (neither the >18-leaf nor the >5-group threshold is exceeded; 6 leaves / 3 groups), PR-05-2 canonical serial-runner note (E-06). Anchors verified (engine.py:132/573/666/807/821; /assess shim `$ARGUMENTS` dispatch precedent in both hosts). OQ-01/OQ-02 remain non-blocking OPEN (maintainer product decisions on canonical surface + bare `/aw`, deferred to a follow-on). Verdict per open questions: REVIEWED - OPEN QUESTIONS; readiness NO-GO until the maintainer accepts the alias-retention slice at approval.
 
 ## Goal
 
@@ -59,7 +60,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: New test module passes and fails if any of the four assertions regress.
   - Execution state: pending
 
-- [ ] E-06 Run the full serial test suite, capture the runner output, and close backlog item q19z5t to done only if the executed slice satisfies the item (single `/aw` namespace generated per host + back-compat aliases retained + per-host grammar verified); otherwise leave a note that a follow-on Order is needed for alias deprecation/pruning.
+- [ ] E-06 Run the full serial test suite (canonical `make test-serial` / `python3 -m unittest discover -s tests -t .`; `python3 -m pytest -p no:xdist` is equivalent only with the `.[test]` extra), capture the runner output, and close backlog item q19z5t to done only if the executed slice satisfies the item (single `/aw` namespace generated per host + back-compat aliases retained + per-host grammar verified); otherwise leave a note that a follow-on Order is needed for alias deprecation/pruning.
   - Depends on: E-05
   - Expected outcome: Full suite green with pasted output; q19z5t moved to done (or annotated with the follow-on note) via `aw backlog set`.
   - Execution state: pending
@@ -174,8 +175,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 ## Approval and execution gate
 
-- Size assessment: exception
-- Cohesion rationale: The six E items form one indivisible feature slice (generate the `/aw` dispatcher, keep the aliases, verify per-host grammar, test, close out). Splitting them would ship a dispatcher without alias-safety or without grammar verification, which would be an incoherent partial change; the closeout item is the same feature's validation, not separate work.
+- Size assessment: standard
+- Cohesion rationale: not required
 
 This plan is authoring-only and must not be executed until it carries an explicit human
 `approved` status. On execution, the executor commits ONLY the files it changes, path-scoped,

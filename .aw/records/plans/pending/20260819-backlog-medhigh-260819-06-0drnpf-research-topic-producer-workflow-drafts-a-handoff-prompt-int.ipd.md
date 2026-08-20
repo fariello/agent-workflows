@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: There is no in-agent capability that turns a research topic into a house-conformant, upload-ready research handoff PROMPT and stages it. Authors hand-write these prompts, drifting from the AGENTS.md "Writing prompts for another AI" contract and the prompts staging lifecycle.
 - Scope: Add ONE new standalone producer workflow (markdown body plus README) that, given a topic, DRAFTS an upload-ready research handoff prompt into the tracked prompts pending lane; register it in the workflows manifest; regenerate its per-host slash shim; add a test asserting the workflow file, index entry, shim, and prompt-purity rules are present. Not python beyond the manifest-driven shim. OUT: implementing the research itself, an `aw prompts` lint verb, and any change to `aw research`.
-- Status: draft
+- Status: reviewed
 - Set: backlog-medhigh-260819
 - Order: 6
 - Highest E allocated: 06
@@ -15,6 +15,7 @@
 
 - 2026-08-19 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-19 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): drafted body from investigation of the handoff producer, the workflows manifest, the shim generator, and the prompts staging lifecycle.
+- 2026-08-19 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; PR-06-1 status->to-review->reviewed. Uses the canonical `python3 -m unittest discover` serial runner already (no runner fix needed). `.prompt.md` facet target confirmed against the live prompts lane and `ARTIFACT_TYPE_FACETS`. Anchors verified (index.md manifest markers/family prose:213, cli.py:771 `aw research`, handoff producer precedent). OQ-01 remains non-blocking OPEN (maintainer slash-name choice `/research-prompt` vs reserved `/research`, a one-line manifest rename). Verdict per open question: REVIEWED - OPEN QUESTIONS; readiness NO-GO until the maintainer confirms the name at approval.
 
 ## Goal
 

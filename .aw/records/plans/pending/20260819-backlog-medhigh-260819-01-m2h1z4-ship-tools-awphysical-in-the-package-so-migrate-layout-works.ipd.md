@@ -1,10 +1,10 @@
 # IPD: ship tools.awphysical in the package so migrate-layout works when pip-installed
 
 - Date: 2026-08-19
-- Concern: `agent_workflows.layout_migration` (line 30) and `cli.py` `_run_migrate_layout` (line 4461) do `from tools.awphysical import aw_layout_inventory`, but the wheel ships `packages = ["agent_workflows"]` only (pyproject.toml:67) - `tools/` is not packaged and is not even a package (no `__init__.py`). So in a pip-installed repo `import agent_workflows.layout_migration` raises `ModuleNotFoundError: No module named 'tools'`, and `aw migrate-layout` + the install-time migration are DEAD. Proven in a clean installed wheel during the awuntrackedfix review. Backlog: revnjq.
+- Concern: `agent_workflows.layout_migration` (line 30) and `cli.py` `_run_migrate_layout` (import at cli.py:4505 as of review; the plan targets this import by content, not line number) do `from tools.awphysical import aw_layout_inventory`, but the wheel ships `packages = ["agent_workflows"]` only (pyproject.toml:67) - `tools/` is not packaged and is not even a package (no `__init__.py`). So in a pip-installed repo `import agent_workflows.layout_migration` raises `ModuleNotFoundError: No module named 'tools'`, and `aw migrate-layout` + the install-time migration are DEAD. Proven in a clean installed wheel during the awuntrackedfix review. Backlog: revnjq.
 - Scope: move `aw_layout_inventory.py` into the shipped `agent_workflows/` package and repoint the two shipped importers + the tests; keep a thin re-export shim at `tools/awphysical/aw_layout_inventory.py` for any source-side `tools.` caller. No behavior change to the inventory logic. Close backlog revnjq.
 - Kind: child
-- Status: draft
+- Status: reviewed
 - Set: backlog-medhigh-260819
 - Order: 1
 - Highest E allocated: 03
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-19 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created - move the unshipped tools.awphysical.aw_layout_inventory into the package so migrate-layout works when pip-installed (revnjq).
+- 2026-08-19 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; PR-01-1 status->to-review, PR-01-2 stale cli.py:4461 anchor corrected to :4505 / find-by-content, PR-01-3 canonical serial-runner note. Anchors verified against the tree (layout_migration.py:30, cli.py:4505, pyproject.toml:67, tools/ no __init__, 5 symbols present). GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -30,14 +31,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `agent_workflows/layout_inventory.py` exists; `python3 -c "import agent_workflows.layout_inventory"` works; the `tools/awphysical/aw_layout_inventory.py` shim re-exports it.
   - Execution state: pending
 
-- [ ] E-02 Repoint the two SHIPPED importers to the package module: `agent_workflows/layout_migration.py:30` `from agent_workflows import layout_inventory as inv_mod` (was `from tools.awphysical import aw_layout_inventory as inv_mod`), and `agent_workflows/cli.py:4461` likewise. Confirm the five used symbols still resolve (`_default_roots`, `inventory`, `build_migration_map`, `analyze_migration_risks`, `SCHEMA_VERSION`).
+- [ ] E-02 Repoint the two SHIPPED importers to the package module: `agent_workflows/layout_migration.py:30` `from agent_workflows import layout_inventory as inv_mod` (was `from tools.awphysical import aw_layout_inventory as inv_mod`), and the `_run_migrate_layout` import in `agent_workflows/cli.py` (at cli.py:4505 as of review - locate it by matching the `from tools.awphysical import aw_layout_inventory` text rather than trusting the line number) likewise. Confirm the five used symbols still resolve (`_default_roots`, `inventory`, `build_migration_map`, `analyze_migration_risks`, `SCHEMA_VERSION`).
   - Depends on: E-01
   - Expected outcome: neither shipped module imports `tools`; `python3 -c "import agent_workflows.layout_migration, agent_workflows.cli"` works with no `tools` on the path.
   - Execution state: pending
 
 ### Task group 2: prove installed + tests
 
-- [ ] E-03 Update the tests that import from `tools.awphysical.aw_layout_inventory` (`tests/test_awphysical_migration.py:22`, `tests/test_acceptance_matrix.py:382`) to import from `agent_workflows.layout_inventory` (or keep via the shim - prefer the package path). Add an INSTALLED-WHEEL check (subprocess test or a documented manual V step with pasted output): build the wheel, pip install into a throwaway venv+repo, and run `aw migrate-layout` (or import `agent_workflows.layout_migration`) proving NO `ModuleNotFoundError: tools`. Run the FULL serial suite and paste the tail. Close backlog revnjq to done.
+- [ ] E-03 Update the tests that import from `tools.awphysical.aw_layout_inventory` (`tests/test_awphysical_migration.py:22`, `tests/test_acceptance_matrix.py:382`) to import from `agent_workflows.layout_inventory` (or keep via the shim - prefer the package path). Add an INSTALLED-WHEEL check (subprocess test or a documented manual V step with pasted output): build the wheel, pip install into a throwaway venv+repo, and run `aw migrate-layout` (or import `agent_workflows.layout_migration`) proving NO `ModuleNotFoundError: tools`. Run the FULL serial suite (canonical: `make test-serial` / `python3 -m unittest discover -s tests -t .`; `python3 -m pytest -p no:xdist` is equivalent only with the `.[test]` extra installed) and paste the tail. Close backlog revnjq to done.
   - Depends on: E-01,E-02
   - Expected outcome: tests import the package module; installed-wheel proof pasted (no tools error); full serial suite green; revnjq done.
   - Execution state: pending
