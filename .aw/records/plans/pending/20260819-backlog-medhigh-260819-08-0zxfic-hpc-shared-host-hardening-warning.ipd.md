@@ -4,12 +4,13 @@
 - Kind: child
 - Concern: Shared-host security exposure of local agent control servers is documented (D86/D87) but the installer says nothing about it; a user installing on an HPC login node or shared dev server gets no pointer to the hardening how-to.
 - Scope: Emit an always-shown, one-line security pointer at install time (shared by all install entry points) that references the shared-host caveat and the hardening how-to, plus a test asserting it is emitted. The human circulation of the how-to to users is out of scope.
-- Status: reviewed
+- Status: approved
 - Set: backlog-medhigh-260819
 - Order: 8
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: 0zxfic
+- Approval: maintainer (human), 2026-08-19: blanket-approved the backlog-medhigh-260819 Set for unattended execution.
 
 ## Workflow history
 
