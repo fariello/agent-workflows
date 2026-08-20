@@ -50,11 +50,11 @@ class AttentionNoticesTests(unittest.TestCase):
         return out.getvalue()
 
     def _seed_setup_action(self):
-        d = self.root / "aw-state" / "actions" / "open"
-        d.mkdir(parents=True, exist_ok=True)
-        (d / "setup-repo-v1.md").write_text(
-            "- Id: setup-repo\n- Status: open\n", encoding="utf-8"
-        )
+        # setupmarker Order 01: "setup pending" now derives from the .aw/setup-repo-needed.md marker,
+        # not an open setup-repo action in the deleted ledger.
+        from agent_workflows import engine
+
+        engine.write_setup_marker(self.root)
 
     def _seed_blocker(self):
         d = self.root / ".aw" / "records" / "backlog" / "open"

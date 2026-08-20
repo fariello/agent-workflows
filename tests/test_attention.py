@@ -62,27 +62,24 @@ class ScanTests(unittest.TestCase):
                 by_tree["research"].attention_class, "active"
             )  # active -> active (live source)
 
-    def test_scans_external_aw_actions(self):
+    def test_scan_does_not_stamp_aw_and_setup_needed_derives(self):
+        """setupmarker Order 01: the action-ledger scan was removed (it caused write-on-read). A scan
+        must NOT create .aw/, and setup_needed derives read-only from the .aw/setup-repo-needed.md
+        marker."""
         import tempfile
-        from agent_workflows.actions import ActionManager
+        from agent_workflows import engine
 
         with tempfile.TemporaryDirectory() as d:
-            root = Path(d) / "myrepo"
-            root.mkdir(parents=True, exist_ok=True)
-            _mk_repo(root)
-
-            mgr = ActionManager(target_repo=str(root))
-            mgr.create_action("setup-repo", 1, "Setup Repo", "Desc")
-
-            items, drift = att.scan(root)
-            self.assertEqual(drift, [])
-            action_items = [it for it in items if it.tree == "actions"]
-            self.assertEqual(len(action_items), 1)
-            self.assertEqual(action_items[0].id, "setup-repo")
-            self.assertEqual(
-                action_items[0].path, "aw-state/actions/open/setup-repo-v1.md"
+            fresh = Path(d) / "fresh"
+            fresh.mkdir(parents=True, exist_ok=True)
+            items, drift = att.scan(fresh)
+            self.assertFalse(
+                (fresh / ".aw").exists(), "scan must not stamp .aw/ (write-on-read)"
             )
-            self.assertEqual(action_items[0].attention_class, "ready")
+            self.assertFalse(att.setup_needed(fresh))
+            engine.write_setup_marker(fresh)
+            self.assertTrue(att.setup_needed(fresh))
+            self.assertFalse(any(it.tree == "actions" for it in items))
 
     def test_unclassified_and_violations(self):
         import tempfile

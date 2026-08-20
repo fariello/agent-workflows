@@ -1,4 +1,5 @@
-"""Unit tests for AW operational actions, lifecycle transitions, and install history (IPD 20260809-awlayout-06)."""
+"""Unit tests for install-history + the setup-repo marker (setupmarker Order 01: the operational-
+action ledger was deleted; install history is retained, the setup reminder is now a marker file)."""
 
 from __future__ import annotations
 
@@ -10,18 +11,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_workflows.actions import (
-    ActionError,
-    ActionManager,
-    InvalidActionIdError,
-    record_install_history,
-    validate_action_id,
-)
+from agent_workflows.install_history import record_install_history
 from agent_workflows.project_registry import register_or_update_project
 
 
 class TestActionsAndInstallHistory(unittest.TestCase):
-    """Test action lifecycle, ID format validation, single-dir uniqueness, and install history append."""
+    """Test install history append + redaction (the ledger lifecycle tests were removed with the ledger)."""
 
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp()
@@ -50,75 +45,6 @@ class TestActionsAndInstallHistory(unittest.TestCase):
         else:
             os.environ["AW_HOME"] = self._prev_aw_home
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
-
-    def test_action_id_validation_format(self):
-        """Action ID must match pattern [a-z][a-z0-9]*(?:-[a-z0-9]+)* without aw- prefix (E-01)."""
-        validate_action_id("setup-repo")
-        validate_action_id("configure-durability")
-        validate_action_id("check123")
-
-        with self.assertRaises(InvalidActionIdError):
-            validate_action_id("AW-SETUP")  # Uppercase forbidden
-
-        with self.assertRaises(InvalidActionIdError):
-            validate_action_id("setup_repo")  # Underscore forbidden
-
-        with self.assertRaises(InvalidActionIdError):
-            validate_action_id("aw-setup")  # aw- prefix forbidden (spec 12.2)
-
-        with self.assertRaises(InvalidActionIdError):
-            validate_action_id("aw")  # bare 'aw' forbidden
-
-        with self.assertRaises(InvalidActionIdError):
-            validate_action_id("-setup")  # Leading hyphen forbidden
-
-    def test_action_creation_and_lifecycle_transitions(self):
-        """Test action creation, single-dir uniqueness, and lifecycle transitions (E-01 & V-01)."""
-        mgr = ActionManager(target_repo=self.target_repo)
-        doc = mgr.create_action(
-            action_id="setup-repo",
-            generation=1,
-            title="Setup repository",
-            description="Run setup-repo workflow.",
-        )
-
-        self.assertEqual(doc.status, "open")
-
-        # Duplicate creation in any status MUST be refused
-        with self.assertRaises(ActionError):
-            mgr.create_action("setup-repo", 1, "Duplicate", "Desc")
-
-        # Transition open -> completed
-        doc_completed = mgr.transition_action("setup-repo", "completed")
-        self.assertEqual(doc_completed.status, "completed")
-
-        # Verify file moved to completed/ and source in open/ disappeared
-        open_file = mgr.actions_dir / "open" / "setup-repo-v1.md"
-        completed_file = mgr.actions_dir / "completed" / "setup-repo-v1.md"
-        self.assertFalse(open_file.exists())
-        self.assertTrue(completed_file.is_file())
-
-        # Transition completed -> open (reopen)
-        doc_reopened = mgr.transition_action("setup-repo", "open")
-        self.assertEqual(doc_reopened.status, "open")
-        self.assertTrue(open_file.is_file())
-        self.assertFalse(completed_file.exists())
-
-    def test_twelve_sequential_updates_do_not_recreate_action(self):
-        """Twelve sequential updates must not recreate a completed action (E-03 & V-05)."""
-        mgr = ActionManager(target_repo=self.target_repo)
-        mgr.create_action("setup-repo", 1, "Setup", "Desc")
-        mgr.transition_action("setup-repo", "completed")
-
-        # Simulate 12 sequential update checks
-        for _ in range(12):
-            # Attempting to recreate generation 1 must be refused
-            with self.assertRaises(ActionError):
-                mgr.create_action("setup-repo", 1, "Setup", "Desc")
-
-        # Verify action remains completed
-        status, _ = mgr.find_action_file("setup-repo", 1)
-        self.assertEqual(status, "completed")
 
     def test_install_history_atomic_append(self):
         """Install history appends JSONL lines with O_APPEND and fsync (E-04 & V-04)."""
@@ -171,21 +97,12 @@ class TestActionsAndInstallHistory(unittest.TestCase):
         self.assertNotIn(leaky, line)
         self.assertIn("9.9.9", line)
 
-    def test_cli_todo_agent_json_output(self):
-        """`aw todo --agent` (now an alias of `attention`, awcmdsurf Order 04) returns clean,
-        ANSI-free JSON; the created action appears under the actions tree."""
-        mgr = ActionManager(target_repo=self.target_repo)
-        mgr.create_action("setup-repo", 1, "Setup", "Desc")
-        # attention needs a resolvable project root: scaffold a minimal .aw/records marker.
+    def test_cli_todo_agent_output_clean(self):
+        """`aw todo --agent` (an alias of `attention`, awcmdsurf Order 04) returns clean, ANSI-free
+        output. setupmarker Order 01: the action ledger is gone; todo/attention just render the
+        cross-tree board with no ANSI escapes."""
         os.makedirs(os.path.join(self.target_repo, ".aw", "records"), exist_ok=True)
-
-        cmd = [
-            "python3",
-            "-m",
-            "agent_workflows",
-            "todo",
-            "--agent",
-        ]
+        cmd = ["python3", "-m", "agent_workflows", "todo", "--agent"]
         source_root = str(Path(__file__).resolve().parent.parent)
         python_path = os.environ.get("PYTHONPATH")
         env = dict(os.environ)
@@ -196,10 +113,37 @@ class TestActionsAndInstallHistory(unittest.TestCase):
             cmd, capture_output=True, text=True, cwd=Path(self.target_repo), env=env
         )
         self.assertEqual(res.returncode, 0, f"CLI error: {res.stderr}")
-        # awcmdsurf Order 04: `todo` is now an alias of `attention` (the cross-tree board). --agent
-        # output stays clean (no ANSI escapes); the created action surfaces in the machine output.
         self.assertNotIn("\033[", res.stdout)
-        self.assertIn("setup-repo", res.stdout)
+
+    def test_setup_marker_lifecycle(self):
+        """setupmarker Order 01: write/remove the self-explaining marker + setup_needed derives from it."""
+        from agent_workflows import engine, attention
+
+        repo = Path(self.target_repo)
+        m = engine.write_setup_marker(repo)
+        self.assertTrue(m.is_file())
+        self.assertIn("setup not yet run", m.read_text(encoding="utf-8"))
+        self.assertIn(
+            "setup-repo-needed.md",
+            (repo / ".aw" / ".gitignore").read_text(encoding="utf-8"),
+        )
+        self.assertTrue(attention.setup_needed(repo))
+        self.assertTrue(engine.remove_setup_marker(repo))
+        self.assertFalse(m.is_file())
+        self.assertFalse(attention.setup_needed(repo))
+
+    def test_attention_scan_does_not_create_aw(self):
+        """setupmarker Order 01 regression: a read-only attention scan must NOT stamp .aw/ (the
+        write-on-read bug the deleted ledger caused)."""
+        from agent_workflows import attention
+
+        fresh = Path(self.tmp_dir) / "freshrepo"
+        fresh.mkdir()
+        attention.scan(fresh)
+        self.assertFalse(
+            (fresh / ".aw").exists(),
+            "attention.scan must not create .aw/ (write-on-read)",
+        )
 
 
 if __name__ == "__main__":

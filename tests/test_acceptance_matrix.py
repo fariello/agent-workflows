@@ -37,7 +37,6 @@ import subprocess
 import tempfile
 import unittest
 
-from agent_workflows.actions import ActionManager
 from agent_workflows.clean_delta import CleanDeltaManager
 from agent_workflows.install_wizard import ProjectPolicy, resolve_policy_noninteractive
 from agent_workflows.layout_migration import MigrationManager
@@ -115,26 +114,36 @@ class TestAcceptanceMatrixScenarios(unittest.TestCase):
                 explicit_aw_home=self.aw_home,
             )
 
-    def test_19_13_setup_action_all_attention_surfaces(self):
-        """Scenario 19.13: Open setup-repo action listed by ActionManager."""
-        mgr = ActionManager(target_repo=self.target_repo, aw_home=self.aw_home)
-        doc = mgr.create_action("setup-repo", 1, "Run setup repo", "setup")
-        self.assertEqual(doc.id, "setup-repo")
-        self.assertEqual(doc.status, "open")
+    def test_19_13_setup_marker_surfaces(self):
+        """Scenario 19.13 (setupmarker Order 01): the setup reminder is the .aw/setup-repo-needed.md
+        marker, and attention.setup_needed derives from it."""
+        from agent_workflows import engine, attention
 
-    def test_19_14_setup_completion_moves_completed(self):
-        """Scenario 19.14: Action completion moves action to completed."""
-        mgr = ActionManager(target_repo=self.target_repo, aw_home=self.aw_home)
-        mgr.create_action("setup-repo", 1, "Run setup repo", "setup")
-        comp_doc = mgr.transition_action("setup-repo", "completed")
-        self.assertEqual(comp_doc.status, "completed")
+        engine.write_setup_marker(Path(self.target_repo))
+        self.assertTrue(
+            (Path(self.target_repo) / ".aw" / "setup-repo-needed.md").is_file()
+        )
+        self.assertTrue(attention.setup_needed(Path(self.target_repo)))
 
-    def test_19_15_dismissal_history_no_resurrection(self):
-        """Scenario 19.15: Action dismissal preserves history."""
-        mgr = ActionManager(target_repo=self.target_repo, aw_home=self.aw_home)
-        mgr.create_action("setup-repo", 1, "Run setup repo", "setup")
-        dism_doc = mgr.transition_action("setup-repo", "dismissed")
-        self.assertEqual(dism_doc.status, "dismissed")
+    def test_19_14_setup_completion_removes_marker(self):
+        """Scenario 19.14 (setupmarker Order 01): running setup / clearing removes the marker."""
+        from agent_workflows import engine, attention
+
+        engine.write_setup_marker(Path(self.target_repo))
+        engine.remove_setup_marker(Path(self.target_repo))
+        self.assertFalse(attention.setup_needed(Path(self.target_repo)))
+
+    def test_19_15_marker_dismiss_by_deletion(self):
+        """Scenario 19.15 (setupmarker Order 01): deleting the marker dismisses the reminder and it
+        is not resurrected by a read (no write-on-read)."""
+        from agent_workflows import engine, attention
+
+        engine.write_setup_marker(Path(self.target_repo))
+        (Path(self.target_repo) / ".aw" / "setup-repo-needed.md").unlink()
+        attention.setup_needed(Path(self.target_repo))  # a read must not recreate it
+        self.assertFalse(
+            (Path(self.target_repo) / ".aw" / "setup-repo-needed.md").is_file()
+        )
 
     def test_19_19_uninstall_preserves_external_state_records(self):
         """Scenario 19.19: Uninstall preserves external state and records by default."""
@@ -221,14 +230,16 @@ class TestAcceptanceMatrixScenarios(unittest.TestCase):
             RecordsBackend.HOME.value,
         )
 
-    def test_19_10_skipped_version_reconciles_generations(self):
-        """Scenario 19.10: recreating an unresolved open generation is refused (no duplicate open)."""
-        from agent_workflows.actions import ActionError
+    def test_19_10_marker_write_is_idempotent(self):
+        """Scenario 19.10 (setupmarker Order 01): writing the marker twice is a no-op-safe idempotent
+        operation (the ledger's generation/duplicate-open semantics are gone)."""
+        from agent_workflows import engine
 
-        mgr = ActionManager(target_repo=self.target_repo, aw_home=self.aw_home)
-        mgr.create_action("setup-repo", 1, "Setup", "d")
-        with self.assertRaises(ActionError):
-            mgr.create_action("setup-repo", 1, "Setup", "d")
+        engine.write_setup_marker(Path(self.target_repo))
+        engine.write_setup_marker(Path(self.target_repo))  # no error, still one marker
+        self.assertTrue(
+            (Path(self.target_repo) / ".aw" / "setup-repo-needed.md").is_file()
+        )
 
     def test_19_11_move_and_reattach(self):
         """Scenario 19.11: a registered project resolves to its stable identity (reattachment)."""
@@ -246,14 +257,17 @@ class TestAcceptanceMatrixScenarios(unittest.TestCase):
         res = find_project(other, aw_home=self.aw_home)
         self.assertIsNone(res.entry)
 
-    def test_19_16_new_generation_supersedes_old(self):
-        """Scenario 19.16: a superseded generation leaves the open dir; a new generation is creatable."""
-        mgr = ActionManager(target_repo=self.target_repo, aw_home=self.aw_home)
-        mgr.create_action("setup-repo", 1, "Setup", "d")
-        mgr.transition_action("setup-repo", "superseded")
-        doc2 = mgr.create_action("setup-repo", 2, "Setup", "d")
-        self.assertEqual(doc2.generation, 2)
-        self.assertEqual(doc2.status, "open")
+    def test_19_16_reinstall_rewrites_marker(self):
+        """Scenario 19.16 (setupmarker Order 01): a fresh install re-drops the marker after it was
+        cleared (the ledger's generation/supersede semantics are gone; the marker is re-created)."""
+        from agent_workflows import engine
+
+        engine.write_setup_marker(Path(self.target_repo))
+        engine.remove_setup_marker(Path(self.target_repo))
+        engine.write_setup_marker(Path(self.target_repo))
+        self.assertTrue(
+            (Path(self.target_repo) / ".aw" / "setup-repo-needed.md").is_file()
+        )
 
     def test_19_17_record_commit_routed_to_other_repo(self):
         """Scenario 19.17: home backend routes records outside the target and forbids target git-stage."""

@@ -228,6 +228,6 @@ the out-of-repo/advisory items the user must do themselves. Remind them the chan
 staged (not committed) and suggest a single setup commit. Point them at `/release-review`
 and the relevant `/assess-*` workflows for deeper, ongoing checks.
 
-**Action completion (spec Section 18 & E-03):** Upon reaching this successful terminal summary, run `python3 -m agent_workflows complete setup-repo` to mark the `setup-repo` action completed. If the workflow was interrupted, cancelled, or failed validation, do NOT mark it completed; leave the action open.
+**Clear the setup reminder:** Upon reaching this successful terminal summary, remove the per-repo reminder file `.aw/setup-repo-needed.md` (e.g. `rm -f .aw/setup-repo-needed.md`) to mark setup complete. If the workflow was interrupted, cancelled, or failed validation, do NOT remove it; leave the reminder in place so this repo still shows setup as pending. (The old `aw complete setup-repo` action verb was removed; the gitignored marker file, which documents "delete this file to dismiss", is now the clear mechanism.)
 
 Do not push. Do not commit unless the user asks.

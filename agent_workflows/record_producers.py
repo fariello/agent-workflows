@@ -285,10 +285,12 @@ PRODUCER_INVENTORY: List[RecordProducerEntry] = [
         resolver_surface="python_api",
         commit_policy_consumer="prompt_and_run_commit",
     ),
+    # setupmarker Order 01: the `actions_write` producer (ActionManager ledger) was removed; the
+    # install-history writer is now agent_workflows/install_history.py (kept as a distinct artifact).
     RecordProducerEntry(
-        name="actions_write",
-        source_path="agent_workflows/actions.py",
-        anchor="ActionManager",
+        name="install_history_write",
+        source_path="agent_workflows/install_history.py",
+        anchor="record_install_history",
         operation="create",
         category="records",
         resolver_surface="python_api",
@@ -333,7 +335,7 @@ LEGACY_WRITER_CANDIDATES: Set[str] = {
     "agent_workflows/research_index.py",
     "agent_workflows/research_archive.py",
     "agent_workflows/research_refs.py",
-    "agent_workflows/actions.py",
+    "agent_workflows/install_history.py",
 }
 _WRITE_MARKERS = (
     "atomic_write(",

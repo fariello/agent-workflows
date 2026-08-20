@@ -240,10 +240,6 @@ _DESCRIPTIONS = {
         "operational action ledger (an action id, or id@generation) if nothing matches. Use --dir to "
         "point the records lookup at a specific repo."
     ),
-    "complete": "Mark an operational action as completed (a lifecycle transition in the action ledger).",
-    "dismiss": "Mark an operational action as dismissed (a lifecycle transition in the action ledger).",
-    "reopen": "Reopen a completed or dismissed action, returning it to the open lane.",
-    "history": "Show the lifecycle history (state transitions over time) of a single action.",
     "record-history": "Print a record's full chronological workflow history from the global .aw/records/history.jsonl sidecar, looked up by its 6-char id6.",
     "check": "Validate the artifacts of a given TYPE (plans, specs, ...) against their contract; exit 0 clean, 1 findings, 2 cannot-run.",
     "find": "Find artifacts of a given TYPE by selector (id6, status, Set, filename fragment), or across all types when omitted.",
@@ -1271,27 +1267,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Repo root to search for a records artifact (default: current directory).",
     )
 
-    p_complete = sub.add_parser(
-        "complete", parents=[common], help="Mark an action as completed."
-    )
-    p_complete.add_argument("action_ref", help="Action ID or ID@generation.")
-
-    p_dismiss = sub.add_parser(
-        "dismiss", parents=[common], help="Mark an action as dismissed."
-    )
-    p_dismiss.add_argument("action_ref", help="Action ID or ID@generation.")
-
-    p_reopen = sub.add_parser(
-        "reopen", parents=[common], help="Reopen a completed or dismissed action."
-    )
-    p_reopen.add_argument("action_ref", help="Action ID or ID@generation.")
-
-    p_history = sub.add_parser(
-        "history",
-        parents=[common],
-        help="Show lifecycle history of an action.",
-    )
-    p_history.add_argument("action_ref", help="Action ID or ID@generation.")
+    # setupmarker Order 01: the operational-action ledger was removed (redundant with backlog);
+    # the complete/dismiss/reopen/history action verbs are gone. The post-install "run setup"
+    # reminder is now the `.aw/setup-repo-needed.md` marker, cleared by `aw setup` / the /setup-repo
+    # workflow / deleting the file. `aw record-history` (the records sidecar) is unrelated and stays.
 
     p_record_history = sub.add_parser(
         "record-history",
@@ -4017,71 +3996,10 @@ def _run_show(args: argparse.Namespace, term: Term) -> int:
             term.heading(str(p))
             print(p.read_text(encoding="utf-8"))
         return 0
-    # 2. Fallback: the operational action ledger (unchanged behavior).
-    from agent_workflows.actions import ActionManager, ActionError
-
-    try:
-        mgr = ActionManager()
-        _status, path = mgr.find_action_file(ref)
-        print(path.read_text(encoding="utf-8"))
-        return 0
-    except ActionError:
-        term.status("fail", f"No records artifact or action matched '{ref}'.")
-        return 1
-
-
-def _run_complete(args: argparse.Namespace, term: Term) -> int:
-    from agent_workflows.actions import ActionManager, ActionError
-
-    try:
-        mgr = ActionManager()
-        doc = mgr.transition_action(args.action_ref, "completed")
-        term.status("ok", f"Completed action {doc.id} (v{doc.generation}).")
-        return 0
-    except ActionError as exc:
-        term.status("fail", str(exc))
-        return 1
-
-
-def _run_dismiss(args: argparse.Namespace, term: Term) -> int:
-    from agent_workflows.actions import ActionManager, ActionError
-
-    try:
-        mgr = ActionManager()
-        doc = mgr.transition_action(args.action_ref, "dismissed")
-        term.status("ok", f"Dismissed action {doc.id} (v{doc.generation}).")
-        return 0
-    except ActionError as exc:
-        term.status("fail", str(exc))
-        return 1
-
-
-def _run_reopen(args: argparse.Namespace, term: Term) -> int:
-    from agent_workflows.actions import ActionManager, ActionError
-
-    try:
-        mgr = ActionManager()
-        doc = mgr.transition_action(args.action_ref, "open")
-        term.status("ok", f"Reopened action {doc.id} (v{doc.generation}).")
-        return 0
-    except ActionError as exc:
-        term.status("fail", str(exc))
-        return 1
-
-
-def _run_action_history(args: argparse.Namespace, term: Term) -> int:
-    from agent_workflows.actions import ActionManager, ActionError
-
-    try:
-        mgr = ActionManager()
-        status, path = mgr.find_action_file(args.action_ref)
-        term.heading(f"Action History for {args.action_ref}")
-        term.status("info", f"Current Status: {status}")
-        term.status("info", f"File Path:      {path}")
-        return 0
-    except ActionError as exc:
-        term.status("fail", str(exc))
-        return 1
+    # setupmarker Order 01: the action-ledger fallback was removed with the ledger. `aw show`
+    # resolves records artifacts only.
+    term.status("fail", f"No records artifact matched '{ref}'.")
+    return 1
 
 
 def _run_record_history(args: argparse.Namespace, term: Term) -> int:
@@ -5016,14 +4934,6 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return att.run(args)
     if args.command == "show":
         return _run_show(args, term)
-    if args.command == "complete":
-        return _run_complete(args, term)
-    if args.command == "dismiss":
-        return _run_dismiss(args, term)
-    if args.command == "reopen":
-        return _run_reopen(args, term)
-    if args.command == "history":
-        return _run_action_history(args, term)
     if args.command == "record-history":
         return _run_record_history(args, term)
     if args.command in ("check", "find", "search", "index", "rename", "group"):

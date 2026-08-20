@@ -168,50 +168,10 @@ def scan(repo_root: Path) -> Tuple[List[Item], List[core.Drift]]:
                 seen_ids[rec.id] = rel
         items.append(rec)
 
-    # External AW operational actions scan (spec Section 12.7 & E-01)
-    try:
-        from agent_workflows.actions import ActionManager, ActionDocument
-
-        mgr = ActionManager(target_repo=str(repo_root))
-        actions_root = mgr.actions_dir
-        for status in ("open", "completed", "dismissed", "superseded"):
-            status_dir = actions_root / status
-            if not status_dir.is_dir():
-                continue
-            for action_file in status_dir.glob("*-v*.md"):
-                if action_file.name.startswith(".tmp_"):
-                    continue
-                logical_path = f"aw-state/actions/{status}/{action_file.name}"
-                try:
-                    text = action_file.read_text(encoding="utf-8")
-                    doc = ActionDocument.from_markdown(text)
-                    cls_name = A.class_of("actions", doc.status)
-                    item = Item(
-                        id=doc.id,
-                        path=logical_path,
-                        tree="actions",
-                        native_status=doc.status,
-                        attention_class=cls_name,
-                        gate=None,
-                        last_history_at=None,
-                    )
-                    items.append(item)
-                except Exception as exc:
-                    drift.append(
-                        core.Drift(
-                            logical_path,
-                            "attention.external-state-invalid",
-                            A.escape_detail(f"invalid action document: {exc}"),
-                        )
-                    )
-    except Exception as exc:
-        drift.append(
-            core.Drift(
-                "aw-state/actions",
-                "attention.external-state-invalid",
-                A.escape_detail(f"external state root error: {exc}"),
-            )
-        )
+    # setupmarker Order 01: the operational-action ledger was DELETED (it was redundant with backlog
+    # and its eager mkdir made this read path stamp `.aw/state/` into every scanned repo - write-on-
+    # read). "Setup pending" is now DERIVED read-only from the `.aw/setup-repo-needed.md` marker
+    # (see `setup_needed`), not scanned as an action tree here.
 
     items.sort(
         key=lambda it: (
@@ -504,25 +464,14 @@ def _colorize_tree_segment(term: "T.Term", path: str, tree: str) -> str:
 
 
 def setup_needed(repo_root: Path) -> bool:
-    """awdoctor Order 02: True when the repo is NOT yet configured AND a seeded `setup-repo` action
-    is still open (a fresh install that has not run setup). Best-effort + defensive: any error -> False
-    (never blocks the board)."""
+    """setupmarker Order 01 (was awdoctor Order 02): True iff the per-repo reminder marker
+    `.aw/setup-repo-needed.md` is present (written by `aw install`, cleared by `aw setup` / the
+    `/setup-repo` workflow / the user deleting it). DERIVED read-only from the marker; NEVER creates
+    anything. Replaces the old open-`setup-repo`-action check (the ledger was deleted)."""
     try:
-        from agent_workflows import config as _config
-
-        if _config.is_configured():
-            return False
+        return (Path(repo_root) / ".aw" / "setup-repo-needed.md").is_file()
     except Exception:
-        pass
-    try:
-        for base in (repo_root / "aw-state" / "actions" / "open",):
-            if base.is_dir():
-                for p in base.glob("*setup-repo*"):
-                    if p.is_file():
-                        return True
-    except Exception:
-        pass
-    return False
+        return False
 
 
 def release_blockers(items: List[Item], repo_root: Path) -> List[Item]:

@@ -234,13 +234,9 @@ _RESEARCH_MAP: Dict[str, str] = {
     "archive": PARKED,
 }
 
-# Actions (AW operational actions). Map open -> ready, completed -> done, dismissed/superseded -> parked (spec Section 12.7).
-_ACTIONS_MAP: Dict[str, str] = {
-    "open": READY,
-    "completed": DONE,
-    "dismissed": PARKED,
-    "superseded": PARKED,
-}
+# setupmarker Order 01: the AW operational-action ledger (and its _ACTIONS_MAP) was DELETED; it was
+# redundant with the backlog tier and its scan stamped `.aw/state/` on read. The one reminder it held
+# (setup-repo) is now the derived `.aw/setup-repo-needed.md` marker, not an attention tree.
 
 # Backlog (attention-visible backlog tier; spec 20260813-1833-01). open -> ready (committed,
 # actionable), blocked -> blocked (committed but gated; carries a typed Gate-Kind/Gate-Ref),
@@ -264,7 +260,6 @@ CLASS_MAPS: Dict[str, Dict[str, str]] = {
     "specs": _SPEC_MAP,
     "plans": _PLANS_MAP,
     "research": _RESEARCH_MAP,
-    "actions": _ACTIONS_MAP,
     "backlog": _BACKLOG_MAP,
     "releases": _RELEASES_MAP,
 }

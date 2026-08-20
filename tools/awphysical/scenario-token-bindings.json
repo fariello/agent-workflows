@@ -6,7 +6,7 @@
     },
     "action-generations-supersede": {
       "assertion": "a new action generation supersedes the old",
-      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_16_new_generation_supersedes_old"
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_16_reinstall_rewrites_marker"
     },
     "actionable-incomplete-policy-diagnostic": {
       "assertion": "incomplete policy yields an actionable diagnostic",
@@ -26,7 +26,7 @@
     },
     "applicable-actions-only": {
       "assertion": "only applicable actions are surfaced",
-      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_13_setup_action_all_attention_surfaces"
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_13_setup_marker_surfaces"
     },
     "attachment-rejected": {
       "assertion": "ambiguous attachment is rejected",
@@ -110,7 +110,7 @@
     },
     "dismissal-history-no-resurrection": {
       "assertion": "a dismissed action is not resurrected",
-      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_15_dismissal_history_no_resurrection"
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_15_marker_dismiss_by_deletion"
     },
     "do-not-follow": {
       "assertion": "symlinks are not dereferenced",
@@ -494,11 +494,11 @@
     },
     "setup-action-visible-on-status-surfaces": {
       "assertion": "setup action visible on all status surfaces",
-      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_13_setup_action_all_attention_surfaces"
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_13_setup_marker_surfaces"
     },
     "setup-completion-closes-action": {
       "assertion": "completing setup closes the action",
-      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_14_setup_completion_moves_completed"
+      "test": "tests.test_acceptance_matrix.TestAcceptanceMatrixScenarios.test_19_14_setup_completion_removes_marker"
     },
     "single-current-schema": {
       "assertion": "a single current schema version is used",
