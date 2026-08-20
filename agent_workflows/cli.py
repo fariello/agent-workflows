@@ -2925,18 +2925,26 @@ def _run_status(args, term: Term) -> int:
             st = rd["state"]
 
             badge = _status_badge_256(st, term)
-            term.line(f"  - {term.color256(disp, 39, bold=True)} {badge}")
 
-            # Version line
+            # Format version suffix in header
             if rd["is_source"]:
-                v_desc = f"{packaged or '0.1.0'} (source checkout)"
+                v_desc = f"v{packaged or '0.1.0'} (source checkout)"
             elif rd["installed"]:
-                v_desc = rd["installed"]
+                inst = rd["installed"]
+                inst_v = inst if inst.startswith("v") else f"v{inst}"
                 if st == "stale":
-                    v_desc += f" (stale; packaged is {packaged})"
+                    v_desc = f"{inst_v} (current: {packaged})"
+                elif st == "ahead":
+                    v_desc = f"{inst_v} (packaged: {packaged})"
+                else:
+                    v_desc = inst_v
             else:
-                v_desc = "not installed"
-            term.line(f"    Version:   {v_desc}")
+                v_desc = ""
+
+            header_parts = [f"- {term.color256(disp, 39, bold=True)}", badge]
+            if v_desc:
+                header_parts.append(v_desc)
+            term.line(" ".join(header_parts))
 
             # Layout line
             if rd["layout"] != "none":
@@ -2947,10 +2955,10 @@ def _run_status(args, term: Term) -> int:
                     )
                 if rd.get("split_brain"):
                     term.line(
-                        f"    Layout:    {term.color256(' '.join(layout_parts) + ' [dual layout / split-brain - run aw migrate-layout]', 208, bold=True)}"
+                        f"  Layout:    {term.color256(' '.join(layout_parts) + ' [dual layout / split-brain - run aw migrate-layout]', 208, bold=True)}"
                     )
                 else:
-                    term.line(f"    Layout:    {' '.join(layout_parts)}")
+                    term.line(f"  Layout:    {' '.join(layout_parts)}")
 
             # Git line
             git = rd["git"]
@@ -2974,28 +2982,33 @@ def _run_status(args, term: Term) -> int:
                     )
                 else:
                     git_parts.append(term.color256("Clean", 46))
-                term.line(f"    Git:       {' '.join(git_parts)}")
+                term.line(f"  Git:       {' '.join(git_parts)}")
 
             # Attention line
-            attn = rd["attention"]
-            if rd["layout"] != "none" and attn["total"] > 0:
-                cls_str = ", ".join(
-                    f"{cnt} {cls}" for cls, cnt in attn["by_class"].items()
-                )
-                attn_line = f"{attn['total']} items ({cls_str})"
-                if attn["release_blockers"]:
-                    attn_line += " - " + term.color256(
-                        f"{attn['release_blockers']} release blocker(s)", 208, bold=True
+            if rd["layout"] != "none":
+                attn = rd["attention"]
+                if attn["total"] > 0:
+                    cls_str = ", ".join(
+                        f"{cnt} {cls}" for cls, cnt in attn["by_class"].items()
                     )
-                term.line(f"    Attention: {attn_line}")
-            term.line()
+                    attn_line = f"{attn['total']} items ({cls_str})"
+                    if attn["release_blockers"]:
+                        attn_line += " - " + term.color256(
+                            f"{attn['release_blockers']} release blocker(s)",
+                            208,
+                            bold=True,
+                        )
+                else:
+                    attn_line = "0 items"
+                term.line(f"  Attention: {attn_line}")
+        term.line()
 
     # Excluded Repositories Section
     if excluded_entries:
         term.heading(f"Excluded Repositories ({len(excluded_entries)})")
         for exc in excluded_entries:
             term.line(
-                f"  - {term.color256(exc, 244)} {term.color256('[excluded]', 244, bold=True)}"
+                f"- {term.color256(exc, 244)} {term.color256('[excluded]', 244, bold=True)}"
             )
         term.line()
 

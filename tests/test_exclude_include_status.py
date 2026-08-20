@@ -106,9 +106,9 @@ class ExcludeIncludeStatusTests(unittest.TestCase):
         self.assertIn("Repos configured: 1", out)
         self.assertIn("Repos excluded: 1", out)
         self.assertIn("Excluded Repositories", out)
-        self.assertIn("Version:", out)
         self.assertIn("Layout:", out)
         self.assertIn("Git:", out)
+        self.assertIn("Attention:", out)
 
     def test_status_json_per_repo_details(self):
         r1 = self._repo("proj1")
