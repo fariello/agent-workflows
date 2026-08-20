@@ -12,6 +12,12 @@ Held to the terminal-accessibility rubric in
 - Output stays linear `key: value` / `LABEL  text` so it survives screen readers and
   redirection.
 
+Output Conventions (GUIDING_PRINCIPLES P14 / UX-005):
+- Human TTY: concise, fixed-width scannable output styled via `Term` (bold-colored words,
+  bracketed fixed-width severity labels `[ERROR]`, `[WARN ]`, `[INFO ]`).
+- Non-TTY / machine: all read verbs support universal machine flags (`--agent` / `--json`)
+  for unstyled, parseable stream output.
+
 When color is off, `colorize()` returns the text unchanged, so piping or `NO_COLOR=1`
 yields clean plain text with the status words intact.
 """
@@ -48,9 +54,12 @@ _STATUS_STYLE = {
     "dev": ("DEV", "cyan"),
     "fail": ("FAIL", "red"),
     "failed": ("FAILED", "red"),
+    "error": ("ERROR", "red"),
+    "info": ("INFO", "green"),
     "not-installed": ("NOT-INSTALLED", "gray"),
     "unknown": ("UNKNOWN", "gray"),
 }
+_STATUS_WIDTH = max(len(w) for w, _ in _STATUS_STYLE.values())
 
 
 def should_color(stream: Optional[TextIO] = None) -> bool:
@@ -143,16 +152,47 @@ class Term:
             return styled + (" " * (width - len(status)))
         return styled
 
-    def status_label(self, status: str) -> str:
+    def severity_label(self, kind: str) -> str:
+        """Return the P14 bracketed, fixed-width, bold-colored severity label for ``kind``.
+
+        When color is enabled:
+          - 'error' -> '[' + color256('ERROR', 196, bold=True) + ']'
+          - 'warn' / 'warning' -> '[' + color256('WARN ', 226, bold=True) + ']'
+          - 'info' -> '[' + color256('INFO ', 46, bold=True) + ']'
+        When color is disabled (NO_COLOR / non-TTY / TERM=dumb):
+          - 'error' -> '[ERROR]'
+          - 'warn' / 'warning' -> '[WARN ]'
+          - 'info' -> '[INFO ]'
+
+        Brackets are uncolored and the words are padded to width 5 so the brackets align.
+        """
+        k = kind.lower()
+        if k == "error":
+            word, code = "ERROR", 196
+        elif k in ("warn", "warning"):
+            word, code = "WARN ", 226
+        elif k == "info":
+            word, code = "INFO ", 46
+        else:
+            word, code = f"{kind.upper()}", 244
+            if len(word) < 5:
+                word = word.ljust(5)
+
+        styled = self.color256(word, code, bold=True) if self.color else word
+        return f"[{styled}]"
+
+    def status_label(self, status: str, *, width: int = _STATUS_WIDTH) -> str:
         """Return the styled status LABEL (a word, optionally colored) for a status key.
 
+        Padded to a fixed width so message columns align on a TTY.
         The word is always present so meaning survives monochrome / piped output.
         """
 
-        word, colorname = _STATUS_STYLE.get(status, (status.upper(), None))
-        if colorname:
-            return self.colorize(word, colorname, "bold")
-        return word
+        word, colorname = _STATUS_STYLE.get(status.lower(), (status.upper(), None))
+        styled = self.colorize(word, colorname, "bold") if colorname else word
+        if width > len(word):
+            return styled + (" " * (width - len(word)))
+        return styled
 
     def line(self, text: str = "") -> None:
         print(text, file=self.stream)
@@ -169,3 +209,9 @@ class Term:
         """Print a screen-reader-friendly `key: value` line."""
 
         self.line(f"{self.colorize(key, 'bold')}: {value}")
+
+
+def severity_label(kind: str, term: Optional[Term] = None) -> str:
+    """Convenience helper to format a P14 bracketed severity label using ``term`` or a default Term."""
+    t = term or Term()
+    return t.severity_label(kind)

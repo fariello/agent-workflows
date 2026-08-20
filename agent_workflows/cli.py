@@ -56,7 +56,8 @@ _DESCRIPTIONS = {
     ),
     "list-repos": (
         "List the configured and discovered repos and each one's currency (installed, "
-        "stale, current, not-installed). Read-only; makes no changes."
+        "stale, current, not-installed). Read-only; makes no changes. --agent / --json "
+        "emits machine-readable JSON."
     ),
     "normalize-lanes": (
         "Rename any prompts/comms 'local/' quarantine lane to 'untracked/' across both layouts "
@@ -70,7 +71,8 @@ _DESCRIPTIONS = {
     ),
     "status": (
         "Show an environment and currency summary: resolved versions, config location, "
-        "git working-tree status, attention summaries, and per-repo install currency. Read-only diagnostics."
+        "git working-tree status, attention summaries, and per-repo install currency. "
+        "Read-only diagnostics; --agent / --json emits machine-readable JSON."
     ),
     "exclude": (
         "Exclude specified repositories from agent-workflows management. "
@@ -558,7 +560,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "--json",
         dest="as_json",
         action="store_true",
-        help="Emit the repo list as JSON.",
+        help="Emit the repo list as JSON (legacy/alias).",
+    )
+    p_list_repos.add_argument(
+        "--agent",
+        dest="as_json",
+        action="store_true",
+        help="Machine-readable output (emits JSON).",
     )
 
     p_status = sub.add_parser(
@@ -566,6 +574,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_status.add_argument(
         "--json", dest="as_json", action="store_true", help="Emit the status as JSON."
+    )
+    p_status.add_argument(
+        "--agent",
+        dest="as_json",
+        action="store_true",
+        help="Machine-readable output (emits JSON).",
     )
 
     # awuntrackedfix Order 01: rename local/ quarantine lanes to untracked/ (retroactive, tools-free).

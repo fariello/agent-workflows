@@ -128,7 +128,7 @@ class TestInstallWizardPolicy(unittest.TestCase):
             output,
             "Output contained ANSI escape sequences when color was disabled!",
         )
-        self.assertIn("OK  Policy validated.", output)
+        self.assertIn("OK             Policy validated.", output)
 
 
 class PhysicalLayoutWizardTests(unittest.TestCase):

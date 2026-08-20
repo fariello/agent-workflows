@@ -21,21 +21,6 @@ from agent_workflows import term as T
 from agent_workflows import versioning
 
 
-def tag_error(term: T.Term) -> str:
-    """Return `[ERROR]` with ERROR in bold red (xterm 196)."""
-    return "[" + term.color256("ERROR", 196, bold=True) + "]"
-
-
-def tag_warn(term: T.Term) -> str:
-    """Return `[WARN ]` with WARN in bold yellow (xterm 226)."""
-    return "[" + term.color256("WARN ", 226, bold=True) + "]"
-
-
-def tag_info(term: T.Term) -> str:
-    """Return `[INFO ]` with INFO in bold green (xterm 46)."""
-    return "[" + term.color256("INFO ", 46, bold=True) + "]"
-
-
 @dataclass
 class GitProbeResult:
     available: bool = False
@@ -419,35 +404,39 @@ def collect_doctor_report(
     """Run all doctor probes with periodic status updates and assemble the DoctorReport."""
     if verbose_progress and term is not None:
         term.line(
-            f"{tag_info(term)} Checking environment and framework installation..."
+            f"{term.severity_label('info')} Checking environment and framework installation..."
         )
         term.stream.flush()
 
     env_res = probe_environment(repo_root)
 
     if verbose_progress and term is not None:
-        term.line(f"{tag_info(term)} Inspecting git working tree and sync status...")
+        term.line(
+            f"{term.severity_label('info')} Inspecting git working tree and sync status..."
+        )
         term.stream.flush()
 
     git_res = probe_git(repo_root)
 
     if verbose_progress and term is not None:
         term.line(
-            f"{tag_info(term)} Scanning cross-tree attention view and release gates..."
+            f"{term.severity_label('info')} Scanning cross-tree attention view and release gates..."
         )
         term.stream.flush()
 
     attn_res = probe_attention(repo_root)
 
     if verbose_progress and term is not None:
-        term.line(f"{tag_info(term)} Running security and local leak sanitizer...")
+        term.line(
+            f"{term.severity_label('info')} Running security and local leak sanitizer..."
+        )
         term.stream.flush()
 
     san_res = probe_sanitizer(repo_root)
 
     if verbose_progress and term is not None:
         term.line(
-            f"{tag_info(term)} Validating artifact schema contracts and reference integrity..."
+            f"{term.severity_label('info')} Validating artifact schema contracts and reference integrity..."
         )
         term.stream.flush()
 
@@ -533,9 +522,13 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
         else ("WARN" if env.setup_needed else "INFO")
     )
     badge_env = (
-        tag_error(term)
+        term.severity_label("error")
         if env_status == "ERROR"
-        else (tag_warn(term) if env_status == "WARN" else tag_info(term))
+        else (
+            term.severity_label("warn")
+            if env_status == "WARN"
+            else term.severity_label("info")
+        )
     )
 
     lines.append(f"{badge_env} Environment & Framework")
@@ -557,13 +550,13 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
     if "split-brain" in env.layout:
         lines.append(f"  Layout:      {term.color256(layout_info, 196, bold=True)}")
         lines.append(
-            f"  Warning:     {tag_error(term)} Dual layouts detected (.aw/ and .agents/). Run 'aw migrate-layout' to consolidate."
+            f"  Warning:     {term.severity_label('error')} Dual layouts detected (.aw/ and .agents/). Run 'aw migrate-layout' to consolidate."
         )
     else:
         lines.append(f"  Layout:      {layout_info}")
     if env.setup_needed:
         lines.append(
-            f"  Notice:      {tag_warn(term)} Initial setup needed (setup-repo action open)"
+            f"  Notice:      {term.severity_label('warn')} Initial setup needed (setup-repo action open)"
         )
     lines.append("")
 
@@ -576,9 +569,13 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
         git_status = "WARN"
 
     badge_git = (
-        tag_error(term)
+        term.severity_label("error")
         if git_status == "ERROR"
-        else (tag_warn(term) if git_status == "WARN" else tag_info(term))
+        else (
+            term.severity_label("warn")
+            if git_status == "WARN"
+            else term.severity_label("info")
+        )
     )
 
     git_count_info = f" ({len(git.drift)} finding(s))" if git.drift else ""
@@ -635,7 +632,11 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
     # 3. Cross-Tree Attention & Release Gates
     attn = report.attention
     attn_status = "ERROR" if attn.drift else "INFO"
-    badge_attn = tag_error(term) if attn_status == "ERROR" else tag_info(term)
+    badge_attn = (
+        term.severity_label("error")
+        if attn_status == "ERROR"
+        else term.severity_label("info")
+    )
 
     attn_count_info = f" ({len(attn.drift)} violation(s))" if attn.drift else ""
     lines.append(f"{badge_attn} Cross-Tree Attention & Release Gates{attn_count_info}")
@@ -669,7 +670,11 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
     # 4. Security & Local Leak Sanitizer
     san = report.sanitizer
     san_status = "ERROR" if san.findings else "INFO"
-    badge_san = tag_error(term) if san_status == "ERROR" else tag_info(term)
+    badge_san = (
+        term.severity_label("error")
+        if san_status == "ERROR"
+        else term.severity_label("info")
+    )
 
     san_count_info = f" ({len(san.findings)} finding(s))" if san.findings else ""
     lines.append(f"{badge_san} Security & Local Leak Sanitizer{san_count_info}")
@@ -694,9 +699,13 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
         else ("WARN" if (art.executed_warnings or art.untracked_skipped) else "INFO")
     )
     badge_art = (
-        tag_error(term)
+        term.severity_label("error")
         if art_status == "ERROR"
-        else (tag_warn(term) if art_status == "WARN" else tag_info(term))
+        else (
+            term.severity_label("warn")
+            if art_status == "WARN"
+            else term.severity_label("info")
+        )
     )
 
     art_count_info = f" ({len(art.all_drift)} finding(s))" if art.all_drift else ""
@@ -712,11 +721,11 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
 
     if art.executed_warnings:
         lines.append(
-            f"  Warnings:    {tag_warn(term)} {len(art.executed_warnings)} historical non-conformance(s) in executed/ (use --include-executed to check strictly)"
+            f"  Warnings:    {term.severity_label('warn')} {len(art.executed_warnings)} historical non-conformance(s) in executed/ (use --include-executed to check strictly)"
         )
     if art.untracked_skipped:
         lines.append(
-            f"  Notice:      {tag_info(term)} Excluded {art.untracked_skipped} artifact(s) in untracked/ directories (use --include-untracked to include)"
+            f"  Notice:      {term.severity_label('info')} Excluded {art.untracked_skipped} artifact(s) in untracked/ directories (use --include-untracked to include)"
         )
 
     if art.all_drift:

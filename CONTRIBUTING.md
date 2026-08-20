@@ -135,6 +135,10 @@ instruction prose (prose is reviewed by `/assess prose`, not unit-tested).
   passed; review-means-read-only; no in-place edits to a plan already in `executed/`) lives
   in the managed `AGENT-WORKFLOWS` block in `AGENTS.md`. That block is the canonical home;
   this file and the `.aw/records/plans` README point at it (D69).
+- Output conventions (`GUIDING_PRINCIPLES.md` P14): human TTY output is concise, aligned,
+  and scannable via the `Term` helper (bold-colored words, bracketed fixed-width severity
+  labels `[ERROR]`, `[WARN ]`, `[INFO ]`); non-TTY machine output routes through universal
+  machine flags (`--agent` / `--json`) for parseable stream output.
 
 ## Versioning
 
