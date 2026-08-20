@@ -1944,6 +1944,66 @@ def _exclude_remove(cfg, repo_root: Path) -> None:
     config.save(cfg)
 
 
+def _split_brain_guard(term: Term, repo_root: Path, args) -> str:
+    """Guard against split-brain layout (.aw/system + live .agents/workflows).
+
+    Returns:
+      - "proceed": layout is clean, or split-brain was resolved/consented.
+      - "skip": split-brain detected and not resolved (declined or non-interactive/--yes fail-safe).
+    """
+    if getattr(args, "_split_brain_consented", None) is True:
+        return "proceed"
+
+    if not engine.detect_split_brain_layout(repo_root):
+        return "proceed"
+
+    term.status("warn", engine.describe_split_brain(repo_root))
+
+    # Fail-safe: never auto-install or auto-migrate non-interactively / under --yes.
+    if getattr(args, "yes", False) or not sys.stdin.isatty():
+        term.status(
+            "skip",
+            f"{repo_root}: split-brain layout; skipped (run 'aw migrate-layout' or use "
+            "an interactive install to consolidate). Nothing changed.",
+        )
+        return "skip"
+
+    # Interactive branch: offer migrate-now
+    if _prompt_yes_no(
+        "Consolidate now with 'aw migrate-layout' (moves .agents/ content into .aw/)?",
+        default=True,
+    ):
+        from agent_workflows.layout_migration import MigrationManager
+
+        mgr = MigrationManager(target_repo=str(repo_root))
+        mgr.execute_migration(target_backend="repository", leftover_disposition="defer")
+        if not engine.detect_split_brain_layout(repo_root):
+            term.status("ok", f"{repo_root}: consolidated split-brain layout into .aw/")
+            return "proceed"
+        else:
+            term.status(
+                "skip",
+                f"{repo_root}: split-brain condition persists after migration; skipped. Nothing changed.",
+            )
+            return "skip"
+
+    if _prompt_yes_no(
+        "Continue anyway and install into .aw/ beside the stale .agents/ tree?",
+        default=False,
+    ):
+        try:
+            args._split_brain_consented = True
+        except (AttributeError, TypeError):
+            pass
+        return "proceed"
+
+    term.status(
+        "skip",
+        f"{repo_root}: split-brain install declined. Nothing changed.",
+    )
+    return "skip"
+
+
 def _has_uncommitted_changes(repo_root: Path) -> bool:
     """True if the git working tree has staged or unstaged changes (best-effort)."""
 
@@ -2038,6 +2098,9 @@ def _install_one(
 
     Returns one of "ok", "nochange", or "failed" for the caller's tally.
     """
+
+    if _split_brain_guard(term, repo_root, args) == "skip":
+        return "nochange"
 
     import copy
 
@@ -2238,6 +2301,11 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
         # repo warns + asks to continue interactively, and is skipped fail-safe under
         # --yes / non-interactive. This runs BEFORE any policy/interview work.
         if _exclude_guard(term, repo_root, args) == "skip":
+            continue
+
+        # Split-brain layout guard (backlog u298fd / 0qj4on): refuse/warn on mixed layout
+        # (.aw/system + live .agents/workflows) BEFORE any policy/interview work.
+        if _split_brain_guard(term, repo_root, args) == "skip":
             continue
 
         kept_legacy = _handle_legacy_migration(repo_root, args, term)

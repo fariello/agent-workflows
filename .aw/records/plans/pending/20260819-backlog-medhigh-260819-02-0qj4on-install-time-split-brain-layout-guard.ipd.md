@@ -28,39 +28,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: detector (engine)
 
-- [ ] E-01 Add a pure detector `detect_split_brain_layout(repo_root: Path) -> bool` in `agent_workflows/engine.py` near `resolve_target_layout` (`agent_workflows/engine.py:88`). Return True iff BOTH `(repo_root / AW_SYSTEM_DIR)` exists AND `(repo_root / WORKFLOWS_DIR)` holds real content. "Real content" = the `.agents/workflows/` directory exists and contains at least one non-empty regular file that is not filtered by `is_ignored_source_path` (`agent_workflows/engine.py:165`), i.e. ignoring `__pycache__`, `.pyc/.pyo`, and `:Zone.Identifier` streams. An empty or only-cruft `.agents/workflows/` is NOT split-brain (returns False). Do not mutate anything; no git calls.
+- [x] E-01 Add a pure detector `detect_split_brain_layout(repo_root: Path) -> bool` in `agent_workflows/engine.py` near `resolve_target_layout` (`agent_workflows/engine.py:88`). Return True iff BOTH `(repo_root / AW_SYSTEM_DIR)` exists AND `(repo_root / WORKFLOWS_DIR)` holds real content. "Real content" = the `.agents/workflows/` directory exists and contains at least one non-empty regular file that is not filtered by `is_ignored_source_path` (`agent_workflows/engine.py:165`), i.e. ignoring `__pycache__`, `.pyc/.pyo`, and `:Zone.Identifier` streams. An empty or only-cruft `.agents/workflows/` is NOT split-brain (returns False). Do not mutate anything; no git calls.
   - Depends on: none
   - Expected outcome: `engine.detect_split_brain_layout(repo)` returns True for a repo with `.aw/system/` plus a non-empty `.agents/workflows/index.md`, and False when either side is absent or `.agents/workflows/` is empty/cruft-only.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add a companion `describe_split_brain(repo_root: Path) -> str` (or a small helper returning the two conflicting paths) in `agent_workflows/engine.py` that renders a single-line, non-color, agent-parseable message naming both live locations, e.g. `split-brain layout: .aw/system present AND live .agents/workflows content; run 'aw migrate-layout' to consolidate`. Pure string builder, no side effects. This is the text the CLI guard prints.
+- [x] E-02 Add a companion `describe_split_brain(repo_root: Path) -> str` (or a small helper returning the two conflicting paths) in `agent_workflows/engine.py` that renders a single-line, non-color, agent-parseable message naming both live locations, e.g. `split-brain layout: .aw/system present AND live .agents/workflows content; run 'aw migrate-layout' to consolidate`. Pure string builder, no side effects. This is the text the CLI guard prints.
   - Depends on: E-01
   - Expected outcome: `engine.describe_split_brain(repo)` returns a stable, hyphen-only string naming `.aw/system` and `.agents/workflows`; no filesystem writes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: wire the guard into the install pre-flight (CLI)
 
-- [ ] E-03 Add a CLI helper `_split_brain_guard(term, repo_root, args) -> str` in `agent_workflows/cli.py` modeled on `_exclude_guard` (`agent_workflows/cli.py:1898`) and `_handle_legacy_migration` (`agent_workflows/cli.py:2155`). Behavior: if `engine.detect_split_brain_layout(repo_root)` is False, return `"proceed"`. Otherwise print `term.status("warn", engine.describe_split_brain(repo_root))`. Fail-safe branch: when `getattr(args, "yes", False)` OR `not sys.stdin.isatty()`, do NOT install; print a skip line pointing at `aw migrate-layout` and return `"skip"` (mirror the `_exclude_guard` fail-safe at `agent_workflows/cli.py:1924`). Interactive branch: offer migrate-now via `_prompt_yes_no("Consolidate now with 'aw migrate-layout' (moves .agents/ content into .aw/)?", default=True)`; on yes, delegate to `MigrationManager(target_repo=str(repo_root)).execute_migration(target_backend="repository", leftover_disposition="defer")` (same call `_handle_legacy_migration` uses at `agent_workflows/cli.py:2199`), then re-check `detect_split_brain_layout`; if now False return `"proceed"`, else return `"skip"` with a message. On no, offer `_prompt_yes_no("Continue anyway and install into .aw/ beside the stale .agents/ tree?", default=False)`: yes returns `"proceed"`, no returns `"skip"`. Never delete `.agents/` here.
+- [x] E-03 Add a CLI helper `_split_brain_guard(term, repo_root, args) -> str` in `agent_workflows/cli.py` modeled on `_exclude_guard` (`agent_workflows/cli.py:1898`) and `_handle_legacy_migration` (`agent_workflows/cli.py:2155`). Behavior: if `engine.detect_split_brain_layout(repo_root)` is False, return `"proceed"`. Otherwise print `term.status("warn", engine.describe_split_brain(repo_root))`. Fail-safe branch: when `getattr(args, "yes", False)` OR `not sys.stdin.isatty()`, do NOT install; print a skip line pointing at `aw migrate-layout` and return `"skip"` (mirror the `_exclude_guard` fail-safe at `agent_workflows/cli.py:1924`). Interactive branch: offer migrate-now via `_prompt_yes_no("Consolidate now with 'aw migrate-layout' (moves .agents/ content into .aw/)?", default=True)`; on yes, delegate to `MigrationManager(target_repo=str(repo_root)).execute_migration(target_backend="repository", leftover_disposition="defer")` (same call `_handle_legacy_migration` uses at `agent_workflows/cli.py:2199`), then re-check `detect_split_brain_layout`; if now False return `"proceed"`, else return `"skip"` with a message. On no, offer `_prompt_yes_no("Continue anyway and install into .aw/ beside the stale .agents/ tree?", default=False)`: yes returns `"proceed"`, no returns `"skip"`. Never delete `.agents/` here.
   - Depends on: E-02
   - Expected outcome: `_split_brain_guard` returns `"skip"` under `--yes`/non-interactive on a split-brain repo, `"proceed"` on a clean repo, and consolidates (or defers) interactively without deleting anything.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Wire the guard so it covers EVERY install entry point, not just `aw install <dir>`. Repository fact verified at review: `_install_one` (`agent_workflows/cli.py:2036`) is the SINGLE shared per-repo shell all entry points use (its docstring cites D85: `aw install <dir>`, `aw install all`, `aw setup`, engine `run()`); `_install_all` (calls `_handle_legacy_migration` then `_install_one` directly at `agent_workflows/cli.py:2376`) and `setup` (likewise at `agent_workflows/cli.py:3256`) do NOT go through `_run_install`'s loop. Therefore placing the guard only in `_run_install` would leave `aw install all` and `aw setup` unguarded. Guard at the ONE choke point instead: call `_split_brain_guard` at the TOP of `_install_one`, BEFORE `engine.install_into_repo(...)` (`agent_workflows/cli.py:2056`), and short-circuit with the "nochange"/skip return when it yields `"skip"` so no write happens. If the interactive migrate-now branch must still run relative to `_handle_legacy_migration`, run the split-brain detection first (it is a pure detector) and consolidate before `install_into_repo`. Confirm during execution that guarding in `_install_one` fires exactly once per repo for all three entry points and that the return value composes with the existing `"ok"/"nochange"/"failed"` tally.
+- [x] E-04 Wire the guard so it covers EVERY install entry point, not just `aw install <dir>`. Repository fact verified at review: `_install_one` (`agent_workflows/cli.py:2036`) is the SINGLE shared per-repo shell all entry points use (its docstring cites D85: `aw install <dir>`, `aw install all`, `aw setup`, engine `run()`); `_install_all` (calls `_handle_legacy_migration` then `_install_one` directly at `agent_workflows/cli.py:2376`) and `setup` (likewise at `agent_workflows/cli.py:3256`) do NOT go through `_run_install`'s loop. Therefore placing the guard only in `_run_install` would leave `aw install all` and `aw setup` unguarded. Guard at the ONE choke point instead: call `_split_brain_guard` at the TOP of `_install_one`, BEFORE `engine.install_into_repo(...)` (`agent_workflows/cli.py:2056`), and short-circuit with the "nochange"/skip return when it yields `"skip"` so no write happens. If the interactive migrate-now branch must still run relative to `_handle_legacy_migration`, run the split-brain detection first (it is a pure detector) and consolidate before `install_into_repo`. Confirm during execution that guarding in `_install_one` fires exactly once per repo for all three entry points and that the return value composes with the existing `"ok"/"nochange"/"failed"` tally.
   - Depends on: E-03
   - Expected outcome: a split-brain repo passed to `aw install <dir>`, `aw install all`, OR `aw setup` under `--yes` is skipped with the guard message and nothing is written; a clean repo installs unchanged through every entry point.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests + close backlog
 
-- [ ] E-05 Add tests to `tests/test_installer.py`. Unit test on the detector: build three throwaway repos via `tempfile`/`init_repo` (see `tests/support.py`): (a) split-brain = create `.aw/system/workflows/` plus a non-empty `.agents/workflows/index.md` and assert `engine.detect_split_brain_layout` is True and `_split_brain_guard(term, repo, args_with_yes)` returns `"skip"`; (b) clean `.aw/` = only `.aw/system/` present, assert detector False and guard `"proceed"`; (c) clean legacy = only `.agents/workflows/` present (no `.aw/system`), assert detector False and guard `"proceed"`. Add a cruft-only case: `.aw/system/` plus a `.agents/workflows/__pycache__/x.pyc` only, assert detector False. Use a stub/`mock` Term and a simple args namespace (`yes=True`) for the guard-return assertions so no interactive input is needed.
+- [x] E-05 Add tests to `tests/test_installer.py`. Unit test on the detector: build three throwaway repos via `tempfile`/`init_repo` (see `tests/support.py`): (a) split-brain = create `.aw/system/workflows/` plus a non-empty `.agents/workflows/index.md` and assert `engine.detect_split_brain_layout` is True and `_split_brain_guard(term, repo, args_with_yes)` returns `"skip"`; (b) clean `.aw/` = only `.aw/system/` present, assert detector False and guard `"proceed"`; (c) clean legacy = only `.agents/workflows/` present (no `.aw/system`), assert detector False and guard `"proceed"`. Add a cruft-only case: `.aw/system/` plus a `.agents/workflows/__pycache__/x.pyc` only, assert detector False. Use a stub/`mock` Term and a simple args namespace (`yes=True`) for the guard-return assertions so no interactive input is needed.
   - Depends on: E-04
   - Expected outcome: the four assertions above pass in isolation (`python3 -m pytest tests/test_installer.py -p no:xdist -k split_brain`, or under stdlib unittest `python3 -m unittest tests.test_installer -k split_brain` on 3.12+ / a named `-m` method filter).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Run the FULL serial suite - canonical `make test-serial` (`python3 -m unittest discover -s tests -t .`); `python3 -m pytest -p no:xdist` is an equivalent serial run only when the `.[test]` extra is installed - and paste the actual tail. Then close backlog u298fd with `aw backlog set 20260815-awphysical-01-u298fd-install-split-brain-guard --status done` (confirm the item path/verb from `aw backlog --help`). Update `DECISIONS.md` only if a NEW cross-cutting decision was made (default: no new decision; this implements the D136 posture, so a short pointer note is optional, not required).
+- [x] E-06 Run the FULL serial suite - canonical `make test-serial` (`python3 -m unittest discover -s tests -t .`); `python3 -m pytest -p no:xdist` is an equivalent serial run only when the `.[test]` extra is installed - and paste the actual tail. Then close backlog u298fd with `aw backlog set 20260815-awphysical-01-u298fd-install-split-brain-guard --status done` (confirm the item path/verb from `aw backlog --help`). Update `DECISIONS.md` only if a NEW cross-cutting decision was made (default: no new decision; this implements the D136 posture, so a short pointer note is optional, not required).
   - Depends on: E-05
   - Expected outcome: full suite green (pasted output), backlog u298fd shows `Status: done`.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -127,35 +127,35 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: a pytest assertion (pasted) showing `detect_split_brain_layout` True for `.aw/system` + non-empty `.agents/workflows/index.md`, False when `.agents/workflows/` is absent or holds only a `.pyc`/`__pycache__` file.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `SplitBrainLayoutGuardTests.test_detect_split_brain_layout_true_on_split_brain`, `test_detect_split_brain_layout_false_on_clean_aw`, `test_detect_split_brain_layout_false_on_clean_legacy`, `test_detect_split_brain_layout_false_on_cruft_only`, and `test_detect_split_brain_layout_false_on_empty_agents_dir` all passed in `tests/test_installer.py`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted call/assert showing `describe_split_brain(repo)` returns a hyphen-only string naming both `.aw/system` and `.agents/workflows` and pointing at `aw migrate-layout`; no filesystem mutation (repo tree unchanged before/after the call).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `SplitBrainLayoutGuardTests.test_describe_split_brain_contents_and_no_side_effects` passed, asserting `describe_split_brain(repo)` returns `"split-brain layout: .aw/system present AND live .agents/workflows content; run 'aw migrate-layout' to consolidate."` and `tree_before == tree_after`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted test output where `_split_brain_guard` with `args.yes=True` on a split-brain fixture returns `"skip"` and no files were written into `.aw/` or `.agents/`; on a clean repo returns `"proceed"`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `SplitBrainLayoutGuardTests.test_split_brain_guard_returns_skip_on_yes`, `test_split_brain_guard_returns_skip_on_non_interactive`, `test_split_brain_guard_returns_proceed_on_clean_repos`, `test_split_brain_guard_interactive_migrate_now`, `test_split_brain_guard_interactive_continue_anyway`, and `test_split_brain_guard_interactive_decline_all` passed with `tree_before == tree_after`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: a subprocess or in-process assertion (pasted) that a split-brain repo is skipped with no new writes (git status / dir listing before == after) and the guard skip line is printed under `aw install <repo> --yes` AND under at least one of `aw install all --yes` / `aw setup ... --yes` (proving the `_install_one` choke point covers the non-`_run_install` entry points); a clean repo still installs through each path.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `SplitBrainLayoutGuardTests.test_install_one_skips_split_brain_repo_without_writes`, `test_cli_install_split_brain_repo_skips_without_writes`, `test_cli_install_all_skips_split_brain_and_installs_clean`, and `test_cli_setup_skips_split_brain_repo` passed; split-brain repos were skipped with 0 files written while clean repos were installed.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: `python3 -m pytest tests/test_installer.py -p no:xdist -k split_brain` output (pasted) showing all four fixture cases pass.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_installer.py -p no:xdist -k split_brain` returned 16 passed in 3.42s.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: full-suite tail from `make test-serial` (`python3 -m unittest discover -s tests -t .`), or `python3 -m pytest -p no:xdist` with the `.[test]` extra (pasted, showing passed/failed counts) AND the `aw backlog` output (or file read) showing u298fd `Status: done`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m unittest discover -s tests -t .` passed (Ran 1213 tests in 212.961s, OK (skipped=1)), and `aw backlog set ... --status done` moved item to `.aw/records/backlog/done/20260815-awphysical-01-u298fd-install-split-brain-guard.backlog.md` with `Status: done`.
+  - Result: pass
 
 ## Approval and execution gate
 

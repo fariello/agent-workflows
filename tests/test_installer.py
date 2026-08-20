@@ -7,8 +7,11 @@ functions. Stdlib unittest only.
 
 from __future__ import annotations
 
+import io
+import os
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -18,6 +21,8 @@ from tests.support import REPO_ROOT, init_repo, run_installer, SOURCE_WORKFLOWS
 # for the unit tests; the root install-workflows.py is a thin deprecated shim exercised by
 # the subprocess-based end-to-end tests via run_installer().
 from agent_workflows import engine as INS
+from agent_workflows import cli as CLI
+from agent_workflows.term import Term
 
 
 class InstallerUnitTests(unittest.TestCase):
@@ -2508,6 +2513,271 @@ class Order15TargetLayoutTests(unittest.TestCase):
             "4.5.6\n", encoding="utf-8"
         )
         self.assertEqual(INS.read_installed_version(r2), "4.5.6")
+
+
+class SplitBrainLayoutGuardTests(unittest.TestCase):
+    """Backlog u298fd (IPD 20260819-backlog-medhigh-260819-02-0qj4on): Install-time split-brain layout guard."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+        self.term = Term(color=False)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _make_split_brain_repo(self) -> Path:
+        repo = init_repo(self.base / "split_brain_repo")
+        (repo / ".aw" / "system" / "workflows").mkdir(parents=True)
+        (repo / ".aw" / "system" / "VERSION").write_text("1.0.0\n", encoding="utf-8")
+        (repo / ".agents" / "workflows").mkdir(parents=True)
+        (repo / ".agents" / "workflows" / "index.md").write_text(
+            "# Manifest\n", encoding="utf-8"
+        )
+        return repo
+
+    def _make_clean_aw_repo(self) -> Path:
+        repo = init_repo(self.base / "clean_aw_repo")
+        (repo / ".aw" / "system" / "workflows").mkdir(parents=True)
+        (repo / ".aw" / "system" / "VERSION").write_text("1.0.0\n", encoding="utf-8")
+        return repo
+
+    def _make_clean_legacy_repo(self) -> Path:
+        repo = init_repo(self.base / "clean_legacy_repo")
+        (repo / ".agents" / "workflows").mkdir(parents=True)
+        (repo / ".agents" / "workflows" / "index.md").write_text(
+            "# Manifest\n", encoding="utf-8"
+        )
+        return repo
+
+    def _make_cruft_only_repo(self) -> Path:
+        repo = init_repo(self.base / "cruft_only_repo")
+        (repo / ".aw" / "system" / "workflows").mkdir(parents=True)
+        (repo / ".agents" / "workflows" / "__pycache__").mkdir(parents=True)
+        (
+            repo / ".agents" / "workflows" / "__pycache__" / "foo.cpython-312.pyc"
+        ).write_bytes(b"\x00\x01\x02")
+        (repo / ".agents" / "workflows" / "test.py:Zone.Identifier").write_text(
+            "ZoneId=3\n", encoding="utf-8"
+        )
+        (repo / ".agents" / "workflows" / "empty.md").write_text("", encoding="utf-8")
+        return repo
+
+    def _tree_files(self, repo: Path):
+        return sorted(
+            p.relative_to(repo)
+            for p in repo.rglob("*")
+            if not any(part == ".git" for part in p.parts)
+        )
+
+    def test_detect_split_brain_layout_true_on_split_brain(self):
+        repo = self._make_split_brain_repo()
+        self.assertTrue(INS.detect_split_brain_layout(repo))
+
+    def test_detect_split_brain_layout_false_on_clean_aw(self):
+        repo = self._make_clean_aw_repo()
+        self.assertFalse(INS.detect_split_brain_layout(repo))
+
+    def test_detect_split_brain_layout_false_on_clean_legacy(self):
+        repo = self._make_clean_legacy_repo()
+        self.assertFalse(INS.detect_split_brain_layout(repo))
+
+    def test_detect_split_brain_layout_false_on_cruft_only(self):
+        repo = self._make_cruft_only_repo()
+        self.assertFalse(INS.detect_split_brain_layout(repo))
+
+    def test_detect_split_brain_layout_false_on_empty_agents_dir(self):
+        repo = init_repo(self.base / "empty_agents_dir")
+        (repo / ".aw" / "system" / "workflows").mkdir(parents=True)
+        (repo / ".agents" / "workflows").mkdir(parents=True)
+        self.assertFalse(INS.detect_split_brain_layout(repo))
+
+    def test_describe_split_brain_contents_and_no_side_effects(self):
+        repo = self._make_split_brain_repo()
+        tree_before = self._tree_files(repo)
+        desc = INS.describe_split_brain(repo)
+        tree_after = self._tree_files(repo)
+        self.assertEqual(tree_before, tree_after)
+        self.assertIn(".aw/system", desc)
+        self.assertIn(".agents/workflows", desc)
+        self.assertIn("aw migrate-layout", desc)
+        self.assertNotIn("\n", desc.strip())
+
+    def test_split_brain_guard_returns_skip_on_yes(self):
+        repo = self._make_split_brain_repo()
+        tree_before = self._tree_files(repo)
+        args = mock.MagicMock()
+        args.yes = True
+        status_calls = []
+        stub_term = mock.MagicMock()
+        stub_term.status.side_effect = lambda level, msg: status_calls.append(
+            (level, msg)
+        )
+        result = CLI._split_brain_guard(stub_term, repo, args)
+        self.assertEqual(result, "skip")
+        tree_after = self._tree_files(repo)
+        self.assertEqual(tree_before, tree_after)
+        self.assertTrue(
+            any(level == "warn" and "split-brain" in msg for level, msg in status_calls)
+        )
+        self.assertTrue(
+            any(level == "skip" and "split-brain" in msg for level, msg in status_calls)
+        )
+
+    def test_split_brain_guard_returns_skip_on_non_interactive(self):
+        repo = self._make_split_brain_repo()
+        args = mock.MagicMock()
+        args.yes = False
+        stub_term = mock.MagicMock()
+        with mock.patch("sys.stdin.isatty", return_value=False):
+            result = CLI._split_brain_guard(stub_term, repo, args)
+        self.assertEqual(result, "skip")
+
+    def test_split_brain_guard_returns_proceed_on_clean_repos(self):
+        for repo in (
+            self._make_clean_aw_repo(),
+            self._make_clean_legacy_repo(),
+            self._make_cruft_only_repo(),
+        ):
+            args = mock.MagicMock()
+            args.yes = True
+            stub_term = mock.MagicMock()
+            result = CLI._split_brain_guard(stub_term, repo, args)
+            self.assertEqual(result, "proceed")
+            stub_term.status.assert_not_called()
+
+    def test_split_brain_guard_interactive_migrate_now(self):
+        repo = self._make_split_brain_repo()
+        args = mock.MagicMock()
+        args.yes = False
+        stub_term = mock.MagicMock()
+        with mock.patch("sys.stdin.isatty", return_value=True):
+            with mock.patch("agent_workflows.cli._prompt_yes_no", side_effect=[True]):
+                with mock.patch(
+                    "agent_workflows.layout_migration.MigrationManager"
+                ) as MockMgr:
+
+                    def fake_migrate(**kwargs):
+                        # simulate migration moving .agents/workflows into .aw/
+                        for p in list((repo / ".agents" / "workflows").glob("*")):
+                            p.unlink()
+                        (repo / ".agents" / "workflows").rmdir()
+
+                    MockMgr.return_value.execute_migration.side_effect = fake_migrate
+                    result = CLI._split_brain_guard(stub_term, repo, args)
+        self.assertEqual(result, "proceed")
+        MockMgr.return_value.execute_migration.assert_called_once_with(
+            target_backend="repository", leftover_disposition="defer"
+        )
+
+    def test_split_brain_guard_interactive_continue_anyway(self):
+        repo = self._make_split_brain_repo()
+        args = mock.MagicMock()
+        args.yes = False
+        stub_term = mock.MagicMock()
+        with mock.patch("sys.stdin.isatty", return_value=True):
+            with mock.patch(
+                "agent_workflows.cli._prompt_yes_no", side_effect=[False, True]
+            ):
+                result = CLI._split_brain_guard(stub_term, repo, args)
+        self.assertEqual(result, "proceed")
+
+    def test_split_brain_guard_interactive_decline_all(self):
+        repo = self._make_split_brain_repo()
+        args = mock.MagicMock()
+        args.yes = False
+        stub_term = mock.MagicMock()
+        with mock.patch("sys.stdin.isatty", return_value=True):
+            with mock.patch(
+                "agent_workflows.cli._prompt_yes_no", side_effect=[False, False]
+            ):
+                result = CLI._split_brain_guard(stub_term, repo, args)
+        self.assertEqual(result, "skip")
+
+    def test_install_one_skips_split_brain_repo_without_writes(self):
+        repo = self._make_split_brain_repo()
+        tree_before = self._tree_files(repo)
+        args = mock.MagicMock()
+        args.yes = True
+        args.dry_run = False
+        args.no_backup = False
+        args.no_prune = False
+        args.no_color = True
+        stub_term = mock.MagicMock()
+        outcome = CLI._install_one(repo, SOURCE_WORKFLOWS, args, stub_term)
+        self.assertEqual(outcome, "nochange")
+        tree_after = self._tree_files(repo)
+        self.assertEqual(tree_before, tree_after)
+
+    def test_cli_install_split_brain_repo_skips_without_writes(self):
+        repo = self._make_split_brain_repo()
+        tree_before = self._tree_files(repo)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = CLI.main(["install", str(repo), "--yes"])
+        self.assertEqual(code, 0)
+        output = buf.getvalue()
+        self.assertIn("split-brain", output)
+        self.assertIn("skipped", output)
+        tree_after = self._tree_files(repo)
+        self.assertEqual(tree_before, tree_after)
+
+    def test_cli_install_all_skips_split_brain_and_installs_clean(self):
+        old_xdg = os.environ.get("XDG_CONFIG_HOME")
+        cfg_dir = self.base / "cfg"
+        os.environ["XDG_CONFIG_HOME"] = str(cfg_dir)
+        try:
+            split_repo = self._make_split_brain_repo()
+            clean_repo = self._make_clean_aw_repo()
+            from agent_workflows import config as CFG
+
+            cfg = CFG.default_config()
+            cfg["repos"] = [str(split_repo), str(clean_repo)]
+            CFG.save(cfg)
+
+            split_tree_before = self._tree_files(split_repo)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                code = CLI.main(["install", "all", "--yes"])
+            self.assertEqual(code, 0)
+            output = buf.getvalue()
+            self.assertIn("split-brain", output)
+            split_tree_after = self._tree_files(split_repo)
+            self.assertEqual(split_tree_before, split_tree_after)
+            # Assert clean_repo was installed into .aw/
+            self.assertTrue(
+                (clean_repo / ".aw" / "system" / "workflows" / "index.md").is_file()
+            )
+        finally:
+            if old_xdg is None:
+                os.environ.pop("XDG_CONFIG_HOME", None)
+            else:
+                os.environ["XDG_CONFIG_HOME"] = old_xdg
+
+    def test_cli_setup_skips_split_brain_repo(self):
+        old_xdg = os.environ.get("XDG_CONFIG_HOME")
+        cfg_dir = self.base / "cfg"
+        os.environ["XDG_CONFIG_HOME"] = str(cfg_dir)
+        try:
+            split_repo = self._make_split_brain_repo()
+            clean_repo = self._make_clean_aw_repo()
+            split_tree_before = self._tree_files(split_repo)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                code = CLI.main(["setup", "--root", str(self.base), "--yes"])
+            self.assertEqual(code, 0)
+            output = buf.getvalue()
+            self.assertIn("split-brain", output)
+            split_tree_after = self._tree_files(split_repo)
+            self.assertEqual(split_tree_before, split_tree_after)
+            self.assertTrue(
+                (clean_repo / ".aw" / "system" / "workflows" / "index.md").is_file()
+            )
+        finally:
+            if old_xdg is None:
+                os.environ.pop("XDG_CONFIG_HOME", None)
+            else:
+                os.environ["XDG_CONFIG_HOME"] = old_xdg
 
 
 if __name__ == "__main__":

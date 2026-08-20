@@ -100,6 +100,40 @@ def resolve_target_layout(repo_root: Path) -> str:
     return "aw"
 
 
+def detect_split_brain_layout(repo_root: Path) -> bool:
+    """Return True iff both .aw/system exists and .agents/workflows holds real content.
+
+    A repo is in a split-brain state when both the authoritative `.aw/system` directory
+    and live legacy `.agents/workflows` content exist simultaneously. Cruft files
+    (like `__pycache__`, `.pyc`, `:Zone.Identifier`) and empty files/directories do not
+    count as live content.
+    """
+    if not (repo_root / AW_SYSTEM_DIR).exists():
+        return False
+    legacy_dir = repo_root / WORKFLOWS_DIR
+    if not legacy_dir.is_dir():
+        return False
+    for root, _dirs, files in os.walk(legacy_dir):
+        for fname in files:
+            file_path = Path(root) / fname
+            if is_ignored_source_path(file_path):
+                continue
+            try:
+                if file_path.is_file() and file_path.stat().st_size > 0:
+                    return True
+            except OSError:
+                continue
+    return False
+
+
+def describe_split_brain(repo_root: Path) -> str:
+    """Return a single-line, agent-parseable message describing the split-brain condition."""
+    return (
+        f"split-brain layout: {AW_SYSTEM_DIR} present AND live {WORKFLOWS_DIR} content; "
+        "run 'aw migrate-layout' to consolidate."
+    )
+
+
 def resolve_workflows_dir(target_layout: str) -> str:
     """Return the repo-relative workflow bundle directory for the layout."""
     if target_layout == "aw":
