@@ -4,17 +4,19 @@
 - Concern: The `ActionManager` operational-action ledger (`.aw/state/actions/*`) exists to hold ONE hardcoded reminder (the post-install `setup-repo` recommendation), yet it is a full generalized lifecycle system nobody will remember exists. Worse, `ActionManager.__init__` eagerly `mkdir`s `.aw/state/actions/*` + `.aw/state/history`, and a READ-ONLY path (`attention.scan` -> `aw status`/`aw attention`, attention.py:175) constructs one PER SCANNED REPO, so `aw status` silently stamped an empty `.aw/state/` into ~26 configured repos (verified + reproduced). Root cause: write-on-read + an over-built subsystem for a single derivable reminder.
 - Scope: DELETE the action ledger (the `agent_workflows/actions.py` ActionManager + its attention source + the complete/dismiss/reopen/history verbs) and REPLACE the setup reminder with a single self-explaining, gitignored, per-repo marker `repo/.aw/setup-repo-needed.md`: `aw install` writes it, `aw setup` removes it, the user may delete it to dismiss, and `aw attention`/`aw doctor` DERIVE "setup pending" from its presence (read-only, never create). KEEP the install-history audit log (`state/install.json` + `state/history/installs.jsonl`) - that is a genuine append-only artifact with no on-disk-derivable equivalent. Then clean up the ~26 already-stamped `.aw/state/` litter dirs. This REVERSES previously-shipped code (the action ledger, spec 20260809-2211-01) by maintainer decision, because the ledger is over-built for its single use and caused a write-on-read defect.
 - Kind: child
-- Status: reviewed
+- Status: approved
 - Set: setupmarker-260819
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: i80vz1
+- Approval: maintainer (human), 2026-08-19: approved this plan and said go.
 
 ## Workflow history
 
 - 2026-08-19 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created - delete the action ledger (write-on-read + over-built for one reminder), replace with a self-explaining gitignored repo/.aw/setup-repo-needed.md marker, keep install-history, clean up the stamped litter.
 - 2026-08-19 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (E-04 rewrite-not-extend setup_needed, which currently reads the ledger being deleted), PR-002 (concurrency caution added to the gate - a sibling instance is reviewing another Set), PR-003 (E-06 delete-vs-adapt ledger tests clarified). All anchors verified against code (engine .aw/.gitignore writer 3770/4392; install create_action cli.py:2129-2130; attention action-scan 171-210; _ACTIONS_MAP attention_contract:238/267; verbs cli.py:4040-4079/5026-5032; DurableStateClass.ACTIONS record_producers:108/151; setup_needed attention.py:506). Structural preflight conforming (author + review-finalize). Readiness: GO - PENDING HUMAN APPROVAL.
+- 2026-08-19 approved (maintainer, human): explicitly approved this plan and instructed go.
 
 ## Goal
 
