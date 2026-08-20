@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 102 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 103 Sets; the full manifest is INDEX.json.
+
+## awuiux
+
+- `ygeuha` [pending] 01 pending/20260820-awuiux-01-ygeuha-unify-severity-labels-in-term-p14-bracketed-fixed-width-cons.ipd.md
 
 ## awdoctorfix
 
@@ -263,10 +267,6 @@ Showing the 40 most-recent of 102 Sets; the full manifest is INDEX.json.
 - `0pf3pn` [executed] 01 executed/20260727-untrackwf-01-0pf3pn-untrack-policy-code-and-docs.ipd.md
 - `1h8whs` [executed] 02 executed/20260727-untrackwf-02-1h8whs-untrack-policy-runbooks.ipd.md
 - `5zg7tu` [executed] 03 executed/20260727-untrackwf-03-5zg7tu-migration-tool-and-remediation.ipd.md
-
-## conformance-harness
-
-- `hypynh` [executed] 00 executed/20260726-conformance-harness-00-hypynh-conformance-harness-phase0.ipd.md
 
 ## (singletons: no Set)
 
