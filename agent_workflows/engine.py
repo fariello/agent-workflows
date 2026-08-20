@@ -3946,6 +3946,9 @@ _AW_GITIGNORE_TEMPLATE = """\
 records/*/untracked/
 # The per-machine post-install setup reminder (setupmarker Order 01): never committed.
 setup-repo-needed.md
+# The per-repo append-only workflow-history sidecar (record_history): a local activity log
+# appended on every `aw` status write; local-only, never committed (awhistignore).
+records/history.jsonl
 """
 
 # setupmarker Order 01: the per-repo, per-machine, gitignored "run setup here" reminder that replaces

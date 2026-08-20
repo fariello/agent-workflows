@@ -266,7 +266,11 @@ class PromptsScaffoldTests(unittest.TestCase):
         engine.install_into_repo(self.repo, SOURCE_WORKFLOWS, yes=True, no_color=True)
         gi = self.repo / ".aw/.gitignore"
         self.assertTrue(gi.is_file())
-        self.assertIn("records/*/untracked/", gi.read_text(encoding="utf-8"))
+        gi_text = gi.read_text(encoding="utf-8")
+        self.assertIn("records/*/untracked/", gi_text)
+        # awhistignore: the framework-owned template also ignores the per-repo append-only
+        # workflow-history sidecar (record_history) so it stays local-only, never committed.
+        self.assertIn("records/history.jsonl", gi_text)
         self.assertTrue((self.repo / ".aw/records/prompts/untracked").is_dir())
         self.assertFalse(
             (self.repo / ".aw/records/prompts/untracked/.gitkeep").exists()
@@ -287,6 +291,24 @@ class PromptsScaffoldTests(unittest.TestCase):
             text=True,
         )
         self.assertEqual(r.returncode, 0, "untracked/ content is not gitignored")
+        # awhistignore: a fresh install ignores the history.jsonl sidecar too.
+        (self.repo / ".aw/records/history.jsonl").write_text(
+            '{"id6":"aaaaaa"}\n', encoding="utf-8"
+        )
+        r_hist = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(self.repo),
+                "check-ignore",
+                ".aw/records/history.jsonl",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            r_hist.returncode, 0, "records/history.jsonl sidecar is not gitignored"
+        )
         # rollback removes the .gitignore file (it is in the created record, D85 F5).
         engine.run_rollback(self.repo, no_color=True)
         self.assertFalse(gi.exists(), "rollback left the .aw/.gitignore behind")
