@@ -1,0 +1,3 @@
+# research-prompt
+
+Research prompt producer: turn a research topic into a house-conformant, upload-ready research handoff PROMPT for another AI (e.g. an external LLM with web search) and stage it in `.aw/records/prompts/pending/`. It strictly encodes the AGENTS.md prompt-purity contract (contains only the prompt, self-contained, instructs target AI to return a downloadable `.md` file) and NEVER auto-commits. Run `/aw research [topic]`, or from any agent: "read and execute `.aw/system/workflows/research-prompt/research-prompt.md`". See `.aw/system/workflows/index.md` for the workflow catalog and `aw research` (`aw research new`) for the distinct CLI verb that creates durable research documents.

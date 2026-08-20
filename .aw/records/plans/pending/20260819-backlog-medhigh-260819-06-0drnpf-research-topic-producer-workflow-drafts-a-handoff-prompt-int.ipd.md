@@ -28,36 +28,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Author the producer workflow
 
-- [ ] E-01 Create `.aw/system/workflows/research-prompt/research-prompt.md`, a standalone producer workflow body. It takes `$ARGUMENTS` as the research topic (bare invocation asks for the topic). It gathers the topic, scope, and known constraints, then WRITES ONE upload-ready research handoff prompt to `.aw/records/prompts/pending/YYYYMMDD-HHMM-NN-research-<slug>.prompt.md`. The body MUST encode the AGENTS.md "Writing prompts for another AI" contract by construction: the emitted prompt contains ONLY the prompt addressed to the target AI (no user-facing instructions inside it), is self-contained, and instructs the target AI to return its answer as a DOWNLOADABLE `.md` file. It MUST also state the naming-collision distinction (this PRODUCES a prompt for another AI to do research; it is NOT `aw research new`, which creates a research DOC), carry pipeline metadata as a leading HTML comment (the sanctioned pasteable-metadata pattern), and state that it writes a `Status: pending` draft and never auto-commits.
+- [x] E-01 Create `.aw/system/workflows/research-prompt/research-prompt.md`, a standalone producer workflow body. It takes `$ARGUMENTS` as the research topic (bare invocation asks for the topic). It gathers the topic, scope, and known constraints, then WRITES ONE upload-ready research handoff prompt to `.aw/records/prompts/pending/YYYYMMDD-HHMM-NN-research-<slug>.prompt.md`. The body MUST encode the AGENTS.md "Writing prompts for another AI" contract by construction: the emitted prompt contains ONLY the prompt addressed to the target AI (no user-facing instructions inside it), is self-contained, and instructs the target AI to return its answer as a DOWNLOADABLE `.md` file. It MUST also state the naming-collision distinction (this PRODUCES a prompt for another AI to do research; it is NOT `aw research new`, which creates a research DOC), carry pipeline metadata as a leading HTML comment (the sanctioned pasteable-metadata pattern), and state that it writes a `Status: pending` draft and never auto-commits.
   - Depends on: none
   - Expected outcome: `.aw/system/workflows/research-prompt/research-prompt.md` exists, follows the standalone-workflow shape (controlling header, operating principles, Step 0 discover, steps, explicit what-it-does/does-not-change), and contains the three prompt-purity requirements verbatim in intent (only-the-prompt, self-contained, downloadable-`.md`).
-  - Execution state: pending
-- [ ] E-02 Create `.aw/system/workflows/research-prompt/README.md` mirroring the existing per-workflow README shape (one-paragraph summary, the `/aw research [topic]` invocation, the universal "read and execute `.aw/system/workflows/research-prompt/research-prompt.md`" fallback, and a pointer to the index and to `aw research` for the distinct research-doc verb).
+  - Execution state: performed
+- [x] E-02 Create `.aw/system/workflows/research-prompt/README.md` mirroring the existing per-workflow README shape (one-paragraph summary, the `/aw research [topic]` invocation, the universal "read and execute `.aw/system/workflows/research-prompt/research-prompt.md`" fallback, and a pointer to the index and to `aw research` for the distinct research-doc verb).
   - Depends on: E-01
   - Expected outcome: `.aw/system/workflows/research-prompt/README.md` exists and matches the shape of `.aw/system/workflows/handoff/README.md`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Register and wire the workflow
 
-- [ ] E-03 Add one manifest row for the workflow inside the `WORKFLOWS-MANIFEST` markers in `.aw/system/workflows/index.md`, keeping the `command | body | lens | description` columns stable (body = `.aw/system/workflows/research-prompt/research-prompt.md`, lens = `-`). MAINTAINER DECISION: this producer is invoked as the `research` VERB under the single `/aw` dispatcher (Order 05), i.e. `/aw research [topic]` - NOT a standalone `/research-prompt` shim and NOT the bare reserved `/research`. So the manifest `command` cell registers it as the dispatcher verb `research` (matching how Order 05 routes verbs into the manifest); update the `agent-continuity-workflows` family prose to reference `/aw research` and state why it is namespaced (avoids the reserved `/research` + the distinct `aw research` doc verb).
+- [x] E-03 Add one manifest row for the workflow inside the `WORKFLOWS-MANIFEST` markers in `.aw/system/workflows/index.md`, keeping the `command | body | lens | description` columns stable (body = `.aw/system/workflows/research-prompt/research-prompt.md`, lens = `-`). MAINTAINER DECISION: this producer is invoked as the `research` VERB under the single `/aw` dispatcher (Order 05), i.e. `/aw research [topic]` - NOT a standalone `/research-prompt` shim and NOT the bare reserved `/research`. So the manifest `command` cell registers it as the dispatcher verb `research` (matching how Order 05 routes verbs into the manifest); update the `agent-continuity-workflows` family prose to reference `/aw research` and state why it is namespaced (avoids the reserved `/research` + the distinct `aw research` doc verb).
   - Depends on: E-02
   - Expected outcome: `.aw/system/workflows/index.md` registers the producer as the `/aw research` verb (dispatcher-routed), the family prose references `/aw research`; the manifest columns are unchanged.
-  - Execution state: pending
-- [ ] E-04 Verify `/aw research` routes to the producer via the Order 05 dispatcher; do NOT generate a standalone per-host `research-prompt` shim (the whole point of `/aw research` is that it is reached through the `/aw` dispatcher, not its own command file). After `aw install .` (regenerating shims), confirm NO `.opencode/commands/research-prompt.md` / `.claude/commands/research-prompt.md` standalone shim is produced, and that `/aw research` resolves to the workflow body through the dispatcher's manifest lookup. (This Order DEPENDS on Order 05 having landed the `/aw` dispatcher.)
+  - Execution state: performed
+- [x] E-04 Verify `/aw research` routes to the producer via the Order 05 dispatcher; do NOT generate a standalone per-host `research-prompt` shim (the whole point of `/aw research` is that it is reached through the `/aw` dispatcher, not its own command file). After `aw install .` (regenerating shims), confirm NO `.opencode/commands/research-prompt.md` / `.claude/commands/research-prompt.md` standalone shim is produced, and that `/aw research` resolves to the workflow body through the dispatcher's manifest lookup. (This Order DEPENDS on Order 05 having landed the `/aw` dispatcher.)
   - Depends on: E-03
   - Expected outcome: `/aw research` resolves to the producer workflow body via the dispatcher; no standalone research-prompt command shim exists; `aw install .` does not create one.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Test, validate, and close the backlog item
 
-- [ ] E-05 Add a test (e.g. `tests/test_research_prompt_workflow.py`, stdlib `unittest`) asserting: the workflow body file exists; the README exists; the manifest row exists in `index.md` and points at the body; the producer is reachable as the `/aw research` verb (dispatcher manifest lookup resolves `research` to the body) and NO standalone `research-prompt` host shim exists; and the workflow body contains the three AGENTS.md prompt-purity requirements (only-the-prompt, self-contained, downloadable-`.md`). Then run the full serial suite (`python3 -m pytest -p no:xdist`) and capture the actual output.
+- [x] E-05 Add a test (e.g. `tests/test_research_prompt_workflow.py`, stdlib `unittest`) asserting: the workflow body file exists; the README exists; the manifest row exists in `index.md` and points at the body; the producer is reachable as the `/aw research` verb (dispatcher manifest lookup resolves `research` to the body) and NO standalone `research-prompt` host shim exists; and the workflow body contains the three AGENTS.md prompt-purity requirements (only-the-prompt, self-contained, downloadable-`.md`). Then run the full serial suite (`python3 -m unittest discover -s tests -t .`) and capture the actual output.
   - Depends on: E-04
   - Expected outcome: the new test file exists and passes, and the full serial suite passes with pasted runner output.
-  - Execution state: pending
-- [ ] E-06 Close backlog item `6wlo04` to `done` with `aw backlog set .aw/records/backlog/open/20260815-research-prompt-pipeline-01-6wlo04-research-workflow-producer.backlog.md --status done --message "shipped /research-prompt producer workflow"`.
+  - Execution state: performed
+- [x] E-06 Close backlog item `6wlo04` to `done` with `aw backlog set .aw/records/backlog/open/20260815-research-prompt-pipeline-01-6wlo04-research-workflow-producer.backlog.md --status done --message "shipped /research-prompt producer workflow"`.
   - Depends on: E-05
   - Expected outcome: `6wlo04` reports `Status: done` and `aw backlog check` is clean.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -129,30 +129,30 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `.aw/system/workflows/research-prompt/research-prompt.md` exists; grep of the body shows the three prompt-purity requirements (only-the-prompt / self-contained / downloadable-`.md`), the `.aw/records/prompts/pending/` target path, the `aw research` distinction, and the never-auto-commit statement.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `.aw/system/workflows/research-prompt/research-prompt.md` exists and contains all required contracts: Memory kernel and Steps encode only-the-prompt (rule 1), self-contained (rule 2), and downloadable `.md` (rule 3) along with the `aw research` CLI distinction, target path `.aw/records/prompts/pending/`, leading HTML comment metadata `<!-- aw-prompt: ... -->`, `Status: pending`, and never-auto-commit policy. Verified by `tests/test_research_prompt_workflow.py::test_workflow_body_encodes_prompt_purity_and_contracts`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: `.aw/system/workflows/research-prompt/README.md` exists and contains the `/aw research [topic]` invocation, the read-and-execute fallback, and the index pointer.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
-  - Required evidence: `index.md` shows a `research-prompt` manifest row between the `WORKFLOWS-MANIFEST` markers pointing at the body; the columns are unchanged; the family prose names `/research-prompt`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
-  - Required evidence: `.opencode/commands/research-prompt.md` and `.claude/commands/research-prompt.md` exist after `aw install .`, each referencing the workflow body.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `.aw/system/workflows/research-prompt/README.md` exists and includes the `/aw research [topic]` invocation, universal fallback "read and execute `.aw/system/workflows/research-prompt/research-prompt.md`", reference to `.aw/system/workflows/index.md`, and distinction from `aw research new`. Verified by `tests/test_research_prompt_workflow.py::test_readme_content`.
+  - Result: pass
+- [x] V-03 validates E-03
+  - Required evidence: `index.md` shows a `research` manifest row between the `WORKFLOWS-MANIFEST` markers pointing at the body; the columns are unchanged; the family prose names `/aw research`.
+  - Observed evidence: `.aw/system/workflows/index.md` manifest table registers `| research | .aw/system/workflows/research-prompt/research-prompt.md | - | ... |` with 5 columns. `agent-continuity-workflows` family prose was updated to reference `/aw research` and explain namespacing. Verified by `tests/test_research_prompt_workflow.py::test_manifest_registers_research_verb`.
+  - Result: pass
+- [x] V-04 validates E-04
+  - Required evidence: `/aw research` resolves to the producer workflow body via the dispatcher; no standalone research-prompt command shim exists; `aw install .` does not create one.
+  - Observed evidence: Dispatcher resolves `/aw research` to `.aw/system/workflows/research-prompt/research-prompt.md` via manifest lookup. `aw install .` ran successfully and did not create any `.opencode/commands/research-prompt.md` or `.claude/commands/research-prompt.md`. Verified by `tests/test_research_prompt_workflow.py::test_no_standalone_research_prompt_shims`.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: `tests/test_research_prompt_workflow.py` exists; pasted output of `python3 -m unittest discover -s tests -t .` shows the new test and the full suite passing (`OK`).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
-  - Required evidence: `6wlo04` file is under `.aw/records/backlog/done/` with `Status: done`; `aw backlog check` exits 0 (pasted output).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_research_prompt_workflow.py` created with 6 tests (including negative falsifiability assertions), initially demonstrated RED (4 failures), and transitioned to GREEN (6 passed). Full serial test suite (`python3 -m unittest discover -s tests -t .`) executed and passed cleanly: `Ran 1228 tests in 222.244s, OK (skipped=1)`.
+  - Result: pass
+- [x] V-06 validates E-06
+  - Required evidence: `6wlo04` file is under `.aw/records/backlog/done/` with `Status: done`.
+  - Observed evidence: `aw backlog set` transitioned `6wlo04` to `.aw/records/backlog/done/20260815-research-prompt-pipeline-01-6wlo04-research-workflow-producer.backlog.md` with `Status: done` and updated `history.jsonl`.
+  - Result: pass
 
 ## Approval and execution gate
 
