@@ -4,12 +4,13 @@
 - Kind: child
 - Concern: Backlog item ith2xd (medium) asks that the layout-inventory walk honor .gitignore so ignored subtrees such as node_modules are not descended into or hashed. The pruning code already exists in tools/awphysical/aw_layout_inventory.py (_ignored_dirs, _walk, and inventory wiring), but no direct regression test asserts it. Soft ordering dependency: Order 01 of this Set may relocate the module to agent_workflows/layout_inventory.py (leaving a tools/awphysical/aw_layout_inventory.py shim); the executor must import from wherever the module lives at execution time.
 - Scope: Verify the existing gitignore-aware pruning behavior with a written probe, then add the missing regression test (tests/test_layout_inventory_gitignore.py) that asserts inventory / _walk skips an ignored subtree, and run the full serial suite. No re-implementation of pruning logic.
-- Status: reviewed
+- Status: approved
 - Set: backlog-medhigh-260819
 - Order: 7
 - Highest E allocated: 02
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: m7e2g3
+- Approval: maintainer (human), 2026-08-19: blanket-approved the backlog-medhigh-260819 Set for unattended execution.
 
 ## Workflow history
 
