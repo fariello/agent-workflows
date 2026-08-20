@@ -3,3 +3,4 @@
 {"id6": "ith2xd", "date": "20260819", "tree": "backlog", "workflow": "aw backlog", "actor": "aw backlog", "message": "verified and regression-tested layout inventory walk honors gitignore (IPD m7e2g3)"}
 {"id6": "7vd36f", "date": "20260819", "tree": "backlog", "workflow": "aw backlog", "actor": "aw backlog", "message": "scaffold enforces Set metadata + clustering grammar"}
 {"id6": "q19z5t", "date": "20260819", "tree": "backlog", "workflow": "aw backlog", "actor": "aw backlog", "message": "single /aw <verb> dispatcher generated per host; back-compat aliases retained; per-host grammar verified"}
+{"id6": "3srje9", "date": "20260820", "tree": "backlog", "workflow": "aw backlog", "actor": "aw backlog", "message": "installer-pointer complete (E-01/E-02 in cli.py citing D86/D87); human circulation of how-to remains with human"}

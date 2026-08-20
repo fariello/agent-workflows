@@ -28,36 +28,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Emit the install-time security pointer
 
-- [ ] E-01 Add a shared helper (for example `_security_pointer(term)`) in `agent_workflows/cli.py` that prints a single, plain-language security line: on a shared or multi-user host any other local user can drive your agent, and a pointer to the shared-host hardening how-to (`.aw/records/research/20260716-opencode-shared-host-hardening-howto-00-tt8ipb-opencode-shared-host-hardening-howto.howto.md`) plus DECISIONS.md D86/D87.
+- [x] E-01 Add a shared helper (for example `_security_pointer(term)`) in `agent_workflows/cli.py` that prints a single, plain-language security line: on a shared or multi-user host any other local user can drive your agent, and a pointer to the shared-host hardening how-to (`.aw/records/research/20260716-opencode-shared-host-hardening-howto-00-tt8ipb-opencode-shared-host-hardening-howto.howto.md`) plus DECISIONS.md D86/D87.
   - Depends on: none
   - Expected outcome: A new function exists in `agent_workflows/cli.py` that, when called with a `Term`, prints one security-pointer line via `term.status("warn", ...)`.
-  - Execution state: pending
-- [ ] E-02 Call the helper from the single shared per-repo install shell `_install_one` (`agent_workflows/cli.py:2036`) after `engine.print_summary(...)` and the install status line, so EVERY entry point (`aw install <dir>`, `aw install all`, `aw setup`, engine `run()`) emits it exactly once per repo without duplication.
+  - Execution state: performed
+- [x] E-02 Call the helper from the single shared per-repo install shell `_install_one` (`agent_workflows/cli.py:2036`) after `engine.print_summary(...)` and the install status line, so EVERY entry point (`aw install <dir>`, `aw install all`, `aw setup`, engine `run()`) emits it exactly once per repo without duplication.
   - Depends on: E-01
   - Expected outcome: `_install_one` invokes `_security_pointer(term)` after the summary; a single install of one repo prints the pointer exactly once.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Documentation and decision sync
 
-- [ ] E-03 Update DECISIONS.md D87 "Applied" line to record that the framework now ships an always-shown install-time security pointer citing D86/D87 (replacing the prior "No code change yet" note), and cite the code location.
+- [x] E-03 Update DECISIONS.md D87 "Applied" line to record that the framework now ships an always-shown install-time security pointer citing D86/D87 (replacing the prior "No code change yet" note), and cite the code location.
   - Depends on: E-02
   - Expected outcome: D87 "Applied" reflects the implemented installer pointer with a `cli.py` reference.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Test, validate, and close the backlog item
 
-- [ ] E-04 Add an end-to-end test in `tests/test_installer.py` that runs the installer against a throwaway repo (via `run_installer`) and asserts the security-pointer line (the hardening how-to reference) is present in stdout.
+- [x] E-04 Add an end-to-end test in `tests/test_installer.py` that runs the installer against a throwaway repo (via `run_installer`) and asserts the security-pointer line (the hardening how-to reference) is present in stdout.
   - Depends on: E-02
   - Expected outcome: A new test method exists and, when run, passes because the pointer text appears in installer stdout.
-  - Execution state: pending
-- [ ] E-05 Run the FULL serial test suite (canonical `make test-serial` / `python3 -m unittest discover -s tests -t .`; `python3 -m pytest -p no:xdist` equivalent only with the `.[test]` extra) and paste the actual runner output.
+  - Execution state: performed
+- [x] E-05 Run the FULL serial test suite (canonical `make test-serial` / `python3 -m unittest discover -s tests -t .`; `python3 -m pytest -p no:xdist` equivalent only with the `.[test]` extra) and paste the actual runner output.
   - Depends on: E-04
   - Expected outcome: The full suite passes with no failures or errors.
-  - Execution state: pending
-- [ ] E-06 Close backlog item 3srje9 to done via `aw backlog set`, noting in the workflow-history message that the installer-pointer (code) part is complete and the human circulation of the how-to stays with the human.
+  - Execution state: performed
+- [x] E-06 Close backlog item 3srje9 to done via `aw backlog set`, noting in the workflow-history message that the installer-pointer (code) part is complete and the human circulation of the how-to stays with the human.
   - Depends on: E-05
   - Expected outcome: `.aw/records/backlog/.../3srje9` has `Status: done` and a history line recording the code completion and the human-owned residual.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -126,30 +126,30 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: The `_security_pointer` function exists in `agent_workflows/cli.py` and, called with a `Term`, prints one line containing the hardening how-to reference and a D86/D87 mention (shown by reading the function source and a direct call).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `agent_workflows/cli.py` defines `_security_pointer(term)` printing the warning with how-to path and D86/D87 via `term.status("warn", ...)`. Direct call verified.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: `_install_one` calls `_security_pointer(term)` after `engine.print_summary(...)`; a single-repo install emits the pointer exactly once (grep the installer stdout shows one occurrence).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `_install_one` invokes `_security_pointer(term)` after `engine.print_summary(...)` and the install status line; single-repo install emits the pointer exactly once (count = 1).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: DECISIONS.md D87 "Applied" line now records the shipped installer pointer and references `cli.py` (shown by reading the updated line).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `DECISIONS.md` D87 "Applied" line updated to cite the shipped pointer in `agent_workflows/cli.py` (`_security_pointer`, called from `_install_one`).
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: The new test method in `tests/test_installer.py` runs and passes, asserting the pointer text in installer stdout (shown by the runner output for that test).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `tests/test_installer.py` `test_security_pointer_emitted` ran and passed asserting pointer text in installer stdout (falsified RED before implementation, GREEN after).
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: Pasted full-suite runner output showing zero failures and zero errors.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `python3 -m unittest discover -s tests -t .` ran 1197 tests in 211.157s: `OK (skipped=1)`.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: The backlog record for 3srje9 shows `Status: done` and a workflow-history line noting the code completion plus the human-owned circulation residual.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `.aw/records/backlog/done/20260815-opencode-disclosure-01-3srje9-hpc-shared-host-warning.backlog.md` is in `done/` with `Status: done` and history line appended.
+  - Result: pass
 
 ## Approval and execution gate
 
