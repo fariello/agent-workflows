@@ -4,12 +4,13 @@
 - Kind: child
 - Concern: Collapse the many per-workflow slash-command shims into a single `/aw <verb>` dispatcher shim per host, keeping the existing per-workflow shims as back-compat aliases and verifying each host's command grammar.
 - Scope: `agent_workflows/engine.py` (shim generator), `.aw/system/workflows/index.md` (manifest prose only, no row schema change), generated shims under `.opencode/commands/` and `.claude/commands/`, `tests/test_installer.py`. First slice only: generate the `/aw` dispatcher and keep per-workflow shims as aliases; deeper migration (deprecating or pruning the aliases) is deferred.
-- Status: reviewed
+- Status: approved
 - Set: backlog-medhigh-260819
 - Order: 5
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: ckw2ze
+- Approval: maintainer (human), 2026-08-19: blanket-approved the backlog-medhigh-260819 Set for unattended execution.
 
 ## Workflow history
 
