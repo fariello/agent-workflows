@@ -4,12 +4,13 @@
 - Kind: child
 - Concern: After the `.agents/` -> `.aw/` migration, UNTRACKED stale-tool litter (compiled `__pycache__/*.pyc` and emptied `*tools*` dir skeletons) lingers under `.agents/workflows/`. The transactional migration only moves TRACKED/inventoried content, and the leftover-disposition step preserves anything untracked, so this litter is never swept. It misleads agents into believing the legacy layout is still live (an agent tripped by reading `.agents/workflows/plan-review/plan-review.md`, which does not exist there). This plan adds CONSENT-GATED detection-and-offer-to-remove of that untracked stale-tool litter to `aw migrate-layout`'s leftover step and to `aw uninstall --deep`, without ever removing tracked or non-litter content.
 - Scope: Extend the leftover-disposition path in `agent_workflows/layout_migration.py` and the deep-cleanup path in `agent_workflows/engine.py` (surfaced via `agent_workflows/cli.py`) to DETECT untracked stale-tool litter under a migrated legacy root and OFFER it for consent-gated removal, reusing the existing keep/remove/defer leftover policy and the deep-cleanup at-risk warning. Tests in `tests/test_layout_migration.py` (and/or `tests/test_installer.py`) covering fixture detection, consent gating, and absence. No change to the tracked-content migration, host adapters, or the command shims.
-- Status: reviewed
+- Status: approved
 - Set: backlog-medhigh-260819
 - Order: 9
 - Highest E allocated: 05
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: plt26j
+- Approval: maintainer (human), 2026-08-19: blanket-approved the backlog-medhigh-260819 Set for unattended execution.
 
 ## Workflow history
 
