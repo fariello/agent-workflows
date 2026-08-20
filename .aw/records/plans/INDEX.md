@@ -2,11 +2,15 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 103 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 104 Sets; the full manifest is INDEX.json.
+
+## awhistignore
+
+- `pprchd` [not-executed] 01 not-executed/20260820-awhistignore-01-pprchd-untrack-aw-records-history-jsonl-accidental-local-sidecar-an.ipd.md
 
 ## awuiux
 
-- `ygeuha` [pending] 01 pending/20260820-awuiux-01-ygeuha-unify-severity-labels-in-term-p14-bracketed-fixed-width-cons.ipd.md
+- `ygeuha` [executed] 01 executed/20260820-awuiux-01-ygeuha-unify-severity-labels-in-term-p14-bracketed-fixed-width-cons.ipd.md
 
 ## awdoctorfix
 
@@ -260,13 +264,6 @@ Showing the 40 most-recent of 103 Sets; the full manifest is INDEX.json.
 ## untrack-artifacts
 
 - `r2lbj2` [executed] 00 executed/20260727-untrack-artifacts-00-r2lbj2-untrack-artifacts-prose-corrections.ipd.md
-
-## untrackwf
-
-- `wn2jto` [executed] 00 executed/20260727-untrackwf-00-wn2jto-untrack-workflow-artifacts-orchestrator.ipd.md
-- `0pf3pn` [executed] 01 executed/20260727-untrackwf-01-0pf3pn-untrack-policy-code-and-docs.ipd.md
-- `1h8whs` [executed] 02 executed/20260727-untrackwf-02-1h8whs-untrack-policy-runbooks.ipd.md
-- `5zg7tu` [executed] 03 executed/20260727-untrackwf-03-5zg7tu-migration-tool-and-remediation.ipd.md
 
 ## (singletons: no Set)
 

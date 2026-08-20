@@ -1,10 +1,12 @@
+<!-- RETIRED 2026-08-20: superseded by a DIRECT fix (maintainer chose to do this hygiene change directly, not via the IPD lifecycle). The planned work - git rm --cached .aw/records/history.jsonl, add records/history.jsonl to .aw/.gitignore + _AW_GITIGNORE_TEMPLATE, update tests - was implemented directly and verified (full serial suite 1243 passed, 1 skipped). This plan is filed not-executed to keep the record honest; it was never executed AS a plan. -->
+
 # IPD: untrack .aw/records/history.jsonl (accidental local sidecar) and gitignore it
 
 - Date: 2026-08-20
 - Kind: child
 - Concern: repo hygiene / P5 externalize-local-state. `.aw/records/history.jsonl` (the per-repo append-only workflow-history sidecar) is accidentally git-TRACKED, so every `aw` status write dirties the tree and can leak local operational detail into the public repo.
 - Scope: `git rm --cached` the tracked sidecar (keep on disk); add `records/history.jsonl` to the framework-owned `.aw/.gitignore` AND its source template `_AW_GITIGNORE_TEMPLATE` (engine.py) so fresh installs ignore it too; update the installer template tests. Does NOT touch `.aw/config/project.json` (that is a portable, MAY-be-tracked project policy, a different class) or the record_history writer/reader behavior.
-- Status: to-review
+- Status: not-executed
 - Set: awhistignore
 - Order: 1
 - Highest E allocated: 03
@@ -14,6 +16,7 @@
 ## Workflow history
 
 - 2026-08-20 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
+- 2026-08-20 not-executed (maintainer): retired - the change was applied directly (not via the lifecycle) and verified; filed not-executed rather than executed to avoid falsely claiming a plan-driven run.
 
 ## Goal
 
