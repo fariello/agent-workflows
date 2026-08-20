@@ -4,7 +4,7 @@
 - Concern: ui-ux (CLI output UX): concise + colorful for human TTYs, machine-targeted for non-TTYs. Assessed via /assess ui-ux.
 - Scope: `agent_workflows/term.py` (the shared label/color helper, 195 status call sites) + `agent_workflows/doctor.py` (private duplicate labels) + the machine-output flag surface on read verbs (`cli.py`) + a short output-conventions doc note. Does NOT restyle every line or add features; it unifies the existing severity-label convention and the non-TTY flag surface. Read-only assessment produced this plan; no code changed.
 - Kind: child
-- Status: to-review
+- Status: reviewed
 - Set: awuiux
 - Order: 1
 - Highest E allocated: 05
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-20 /assess ui-ux (opencode its_direct/pt3-claude-opus-4.8-1m-us): assessed; proposed 5 changes.
+- 2026-08-20 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 fixed; OQ-01 resolved out-of-scope (release-blocking backlog oijafw filed), OQ-02 resolved (standardize --agent flag name, per-verb format).
 
 ## Goal
 
@@ -30,7 +31,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `Term(color=True).severity_label("error")` yields ANSI-bold-red `ERROR` inside plain `[...]`; `Term(color=False)` yields plain `[ERROR]`; `[WARN ]`/`[INFO ]` align to the same width.
   - Execution state: pending
 
-- [ ] E-02 Make `doctor.py` consume the Term severity labels instead of its PRIVATE `_error`/`_warn`/`_info` helpers (doctor.py:25/30/35), deleting the duplicates (P8 single-source-of-truth). Verify `aw doctor` output is unchanged (still `[INFO ]`/`[WARN ]`/`[ERROR]` bracketed) but now sourced from Term.
+- [ ] E-02 Make `doctor.py` consume the Term severity labels instead of its PRIVATE `tag_error`/`tag_warn`/`tag_info` helpers (doctor.py:24/29/34; each takes a `term` and returns `[ERROR]`/`[WARN ]`/`[INFO ]` via `term.color256`), deleting the duplicates (P8 single-source-of-truth). Repoint every caller of `tag_error`/`tag_warn`/`tag_info` in doctor.py to the new Term helper. Verify `aw doctor` output is unchanged (still `[INFO ]`/`[WARN ]`/`[ERROR]` bracketed) but now sourced from Term.
   - Depends on: E-01
   - Expected outcome: `doctor.py` has no private bracket-label helpers; `aw doctor` still prints the identical bracketed labels, now via Term.
   - Execution state: pending
@@ -44,14 +45,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: uniform non-TTY machine-output flag
 
-- [ ] E-04 Standardize the machine-output flag on read verbs (UX-003): survey `check/find/search/index` (both --json + --agent), `attention`/`doctor` (only --agent), `status`/`list-repos` (only --json), `backlog check` (only --agent). Make `--json` the CANONICAL structured agent flag present on every machine-facing READ verb; add the missing one to the outliers (add `--json` to attention/doctor as an alias/format of their existing machine output; keep `--agent` tab-separated where the output is Drift-shaped). Update each verb's `--help` to state the non-TTY contract. Do NOT change the DEFAULT (human) output or the already-stable `--agent`/`--format json` payloads; this only fills the gaps so agents have one reliable flag.
+- [ ] E-04 Standardize the machine-output FLAG NAME (not the format) on read verbs (UX-003). Survey today: `check/find/search/index` (both --json + --agent), `attention`/`doctor`/`backlog check` (only --agent), `status`/`list-repos` (only --json). Decision (maintainer, OQ-02): `--agent` is the ONE universal machine flag every read verb MUST accept; its FORMAT is documented PER VERB - tab-separated Drift-shaped where the data is flat/line-oriented (attention/doctor/sanitizer-style), JSON where the data is nested/typed. Rationale: for flat uniform rows tab output is cheaper in tokens, robust to truncation, and greppable; forcing JSON onto already-clean tab verbs would add a SECOND representation to keep in sync - the exact P8 divergence UX-001 fixes. Add `--agent` to the outliers that lack it: `status`/`list-repos` (which only have `--json`). Keep `--json` working WHERE IT ALREADY EXISTS (check/find/search/index/status/list-repos) as an accepted alias/format - do NOT remove it and do NOT add it to the tab-shaped verbs. Do NOT redefine or reshape any existing `--agent` or `--json` payload; they stay byte-stable. Update each verb's `--help` to state which machine format `--agent` emits for that verb. Do NOT change the DEFAULT (human) output. Net effect: an agent can always reach for `--agent` on any read verb, and the help says what shape to expect.
   - Depends on: none
   - Expected outcome: every machine-facing read verb accepts `--json` and emits valid JSON; `--agent` still works where present; help documents the contract.
   - Execution state: pending
 
 ### Task group 4: tests + doc
 
-- [ ] E-05 Add `tests/test_term_severity.py` asserting: severity_label bracketed fixed-width alignment (ERROR/WARN/INFO), color-on vs NO_COLOR (word always present, no ANSI when off), and status_label padding (E-03); assert `aw doctor` labels come from Term (no private helpers). Add/extend a machine-flag test asserting each targeted read verb emits valid JSON under `--json` (E-04). Add a short "output conventions" note (TTY concise+colored via Term; non-TTY `--json`/`--agent` machine) to CONTRIBUTING.md or the Term module docstring (UX-005), cross-referencing GUIDING_PRINCIPLES P14. Run the FULL serial suite (`python3 -m pytest -p no:xdist`) and paste the tail.
+- [ ] E-05 Add `tests/test_term_severity.py` asserting: severity_label bracketed fixed-width alignment (ERROR/WARN/INFO), color-on vs NO_COLOR (word always present, no ANSI when off), and status_label padding (E-03); assert `aw doctor` labels come from Term (no private helpers). Add/extend a machine-flag test asserting each targeted read verb accepts `--agent` and emits its documented machine format (parse tab rows for flat verbs / `json.loads` where nested), and that status/list-repos now accept `--agent` (E-04). Add a short "output conventions" note (TTY concise+colored via Term; non-TTY `--json`/`--agent` machine) to CONTRIBUTING.md or the Term module docstring (UX-005), cross-referencing GUIDING_PRINCIPLES P14. Run the FULL serial suite (`python3 -m pytest -p no:xdist`) and paste the tail.
   - Depends on: E-01,E-02,E-03,E-04
   - Expected outcome: new/updated tests pass; the output-conventions note exists; full serial suite green.
   - Execution state: pending
@@ -60,7 +61,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Severity-label convention is GUIDING_PRINCIPLES P14: bracketed, fixed-width, WORD bold-colored ([ERROR] red / [WARN ] yellow / [INFO ] green), word always present for monochrome/NO_COLOR honesty.
 - ALL colored output routes through `agent_workflows/term.py` `Term` (0 hand-rolled ANSI elsewhere) - so one helper change propagates to 195 `status()` call sites.
-- `doctor.py:25/30/35` ALREADY hand-implements the P14 bracket labels privately; `Term.status_label`/`_STATUS_STYLE` (term.py:146) does NOT - it emits bare variable-width words. That divergence is the core finding.
+- `doctor.py:24/29/34` (`tag_error`/`tag_warn`/`tag_info`) ALREADY hand-implements the P14 bracket labels privately; `Term.status_label`/`_STATUS_STYLE` (term.py:146) does NOT - it emits bare variable-width words. That divergence is the core finding.
 - Color policy: `should_color` (term.py:56) honors NO_COLOR/FORCE_COLOR/TTY/--no-color; correct and must be preserved.
 - Plans lifecycle: `.aw/records/plans/{pending,executed,superseded,not-executed,reusable}`; front-matter Status readiness; IPD born `to-review`. Framework dir + workflow-artifacts are out of assessment scope.
 
@@ -70,7 +71,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 |----|----------|------------------|---------|----------|---------|
 | UX-001 | High | C:Low U:Low S:Low F:Low Overall:Low | power-user; UI/UX | term.py:146; doctor.py:25/30/35; GUIDING_PRINCIPLES P14 | P14 bracketed labels are hand-rolled in doctor.py but the canonical Term helper (195 sites) emits bare words - duplicate/divergent impl (P8). |
 | UX-002 | Medium | Low (usability) | UI/UX; novice | live `aw list-repos` (STALE vs NOT-INSTALLED misalign) | Variable-width bare status words make the message column ragged; hurts TTY scannability. |
-| UX-003 | Medium | Low (usability) | power-user; stakeholder | per-verb --help matrix | Non-TTY machine flags inconsistent: check/find/search/index have --json+--agent; attention/doctor only --agent; status/list-repos only --json - no uniform agent flag. |
+| UX-003 | Medium | Low (usability) | power-user; stakeholder | per-verb --help matrix | Non-TTY machine flags inconsistent: check/find/search/index have --json+--agent; attention/doctor/backlog check only --agent; status/list-repos only --json - no uniform agent flag. Resolution (OQ-02): standardize the FLAG NAME `--agent` everywhere, format documented per verb; do not force JSON onto tab-shaped verbs. |
 | UX-004 | Low | Low (usability) | novice | `aw find plans --status nonexistent` -> `no matching plans` | Empty-state feedback is terse; could name the filter + suggest a next step. |
 | UX-005 | Low | Low (complexity) | UI/UX | term.py:56 should_color; scattered color= | The TTY-vs-machine output contract is not documented in one place for contributors adding verbs. |
 
@@ -85,7 +86,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Restyling non-severity body text / tables / boards: not proposed (P14 is severity-class only; would be gold-plating).
-- UX-004 (richer empty-state hints) is folded into E-04/E-05 lightly; a broader empty/loading/error-state pass across every verb is deferred (larger UX product decision - see open question) rather than expanded here.
+- UX-004 (richer empty-state hints) and a broader empty/loading/error-state pass across every verb are OUT OF SCOPE here; per maintainer decision (OQ-01) they are tracked as a SEPARATE release-blocking high-priority backlog item, not expanded into this IPD.
 
 ## Scope check
 
@@ -94,7 +95,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-`tests/test_term_severity.py` + a machine-flag JSON test; full serial suite green; `aw doctor` labels visually unchanged; `aw list-repos` columns aligned under FORCE_COLOR; machine output byte-stable.
+`tests/test_term_severity.py` + a machine-flag test (every read verb accepts `--agent`; status/list-repos newly so); full serial suite green; `aw doctor` labels visually unchanged; `aw list-repos` columns aligned under FORCE_COLOR; all pre-existing machine (`--agent`/`--json`) output byte-stable.
 
 ## Spec / documentation sync
 
@@ -102,12 +103,19 @@ Add an "output conventions" note (CONTRIBUTING.md or Term docstring) cross-refer
 
 ## Open questions
 
-### OQ-01: Should empty/loading/error-state feedback be standardized across ALL verbs (a broader UX pass), or is the light touch here (E-04 help + UX-004 note) enough for now?
+### OQ-01: Should empty/loading/error-state feedback be standardized across ALL verbs (a broader UX pass), or is the light touch here enough for now?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: This IPD does the high-value, low-risk unification (labels + machine flag). A full empty/loading/success/error-state audit across every verb is a larger UX product decision; deferred to the maintainer to scope as a follow-on if wanted, rather than expanded speculatively here.
+- Resolution or deferral rationale: OUT OF SCOPE for this IPD. The broad empty/loading/success/error-state UX pass across every verb is tracked as a SEPARATE release-blocking high-priority backlog item `oijafw` (`.aw/records/backlog/open/20260820-awuiux-01-oijafw-...backlog.md`, priority high, `Blocks-Release: next` -> the planned 2.0.0 release record `f33nrj`), filed 2026-08-20 by maintainer directive. This IPD stays the tight labels + machine-flag unification and does NOT expand into the broad pass.
+
+### OQ-02: What machine-output flag should be standardized across read verbs - force `--json` everywhere, or standardize the flag NAME with a per-verb format?
+
+- Blocking: no
+- Status: resolved
+- Owner: maintainer
+- Resolution or deferral rationale: Standardize the FLAG NAME `--agent` as the one universal machine flag on every read verb; its FORMAT is documented per verb (tab-separated for flat/line-oriented data, JSON where nested). Do NOT force `--json` onto tab-shaped verbs (attention/doctor/backlog check), which would re-introduce a second representation to keep in sync (the P8 divergence UX-001 fixes). Rationale: for flat uniform rows tab output is cheaper in tokens, robust to truncation, and greppable; JSON's self-describing/typed advantage applies to nested data. E-04/V-04 rewritten to this decision.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -119,7 +127,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: `doctor.py` has no private `_error`/`_warn`/`_info` bracket helpers (grep empty); `aw doctor` still prints identical `[INFO ]`/`[WARN ]`/`[ERROR]` labels, now sourced from Term.
+  - Required evidence: `doctor.py` has no private `tag_error`/`tag_warn`/`tag_info` bracket helpers (`grep -n 'def tag_error\|def tag_warn\|def tag_info' agent_workflows/doctor.py` empty); `aw doctor` still prints identical `[INFO ]`/`[WARN ]`/`[ERROR]` labels, now sourced from Term.
   - Observed evidence:
   - Result: pending
 
@@ -129,7 +137,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: every targeted read verb (check/find/search/index/attention/doctor/status/list-repos/backlog check) accepts `--json` and emits valid JSON (`json.loads` succeeds); `--agent` still works where present; `--help` states the contract.
+  - Required evidence: every targeted read verb (check/find/search/index/attention/doctor/status/list-repos/backlog check) accepts `--agent` (the newly added ones being status/list-repos) and emits its documented machine format (tab-separated for flat verbs, JSON where nested); the pre-existing `--agent` and `--json` payloads are byte-unchanged (diff before/after empty on every verb that already had them); `--json` still works where it already existed and was NOT added to the tab-shaped verbs; each verb's `--help` states which machine format `--agent` emits.
   - Observed evidence:
   - Result: pending
 
