@@ -4,12 +4,13 @@
 - Concern: `agent_workflows.layout_migration` (line 30) and `cli.py` `_run_migrate_layout` (import at cli.py:4505 as of review; the plan targets this import by content, not line number) do `from tools.awphysical import aw_layout_inventory`, but the wheel ships `packages = ["agent_workflows"]` only (pyproject.toml:67) - `tools/` is not packaged and is not even a package (no `__init__.py`). So in a pip-installed repo `import agent_workflows.layout_migration` raises `ModuleNotFoundError: No module named 'tools'`, and `aw migrate-layout` + the install-time migration are DEAD. Proven in a clean installed wheel during the awuntrackedfix review. Backlog: revnjq.
 - Scope: move `aw_layout_inventory.py` into the shipped `agent_workflows/` package and repoint the two shipped importers + the tests; keep a thin re-export shim at `tools/awphysical/aw_layout_inventory.py` for any source-side `tools.` caller. No behavior change to the inventory logic. Close backlog revnjq.
 - Kind: child
-- Status: reviewed
+- Status: approved
 - Set: backlog-medhigh-260819
 - Order: 1
 - Highest E allocated: 03
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: m2h1z4
+- Approval: maintainer (human), 2026-08-19: blanket-approved the whole backlog-medhigh-260819 Set for unattended execution.
 
 ## Workflow history
 
