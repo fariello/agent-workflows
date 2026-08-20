@@ -393,7 +393,7 @@ class SourceRepositoryMigrationTests(unittest.TestCase):
 
     def test_e02(self):
         """E-02: Expected source and external canary sets equal inventory sets, distinct dispositions."""
-        from tools.awphysical import aw_layout_inventory as INVENTORY
+        from agent_workflows import layout_inventory as INVENTORY
 
         # Create canary files under target repo
         wf_file = Path(self.target_repo) / ".agents" / "workflows" / "test.md"

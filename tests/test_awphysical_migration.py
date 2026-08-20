@@ -19,7 +19,7 @@ from agent_workflows.layout_migration import (
     TransactionLockError,
     VerificationError,
 )
-from tools.awphysical import aw_layout_inventory as inv_mod
+from agent_workflows import layout_inventory as inv_mod
 
 
 def _run_git(repo: Path, args: list[str]) -> subprocess.CompletedProcess[str]:

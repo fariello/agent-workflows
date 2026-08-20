@@ -107,6 +107,8 @@ class PackagingTests(unittest.TestCase):
         # leak-sanitizer Set Order 2 (IPD 20260721-1851-01): the config wizard module is
         # imported by `aw sanitize --configure`, so it must ship too.
         self.assertIn("agent_workflows/leak_sanitizer_config.py", self.names)
+        # revnjq / IPD m2h1z4: layout_inventory module must ship so migrate-layout works.
+        self.assertIn("agent_workflows/layout_inventory.py", self.names)
 
     def test_wheel_bundles_workflow_tree_under_data(self):
         # AC-2/AC-8: the shipped bundle is mapped under agent_workflows/_data/.aw/system/,
@@ -194,6 +196,72 @@ class PackagingTests(unittest.TestCase):
         self.assertEqual(
             leaked, [], f"personal-path token(s) leaked into the wheel: {leaked}"
         )
+
+    def test_installed_wheel_migrate_layout_without_tools(self):
+        # revnjq / IPD m2h1z4: In an environment where the wheel is extracted/installed
+        # without tools/ on the path, importing layout_migration and running migrate-layout
+        # must succeed and must not raise ModuleNotFoundError: No module named 'tools'.
+        with tempfile.TemporaryDirectory() as extract_dir:
+            with zipfile.ZipFile(self.wheel) as z:
+                z.extractall(extract_dir)
+
+            cmd = [
+                sys.executable,
+                "-c",
+                (
+                    "import sys\n"
+                    "# Ensure development checkout and tools/ are purged from sys.path\n"
+                    "sys.path = [p for p in sys.path if p and 'agent-workflows' not in p and 'tools' not in p]\n"
+                    "sys.path.insert(0, sys.argv[1])\n"
+                    "import agent_workflows.layout_migration as lm\n"
+                    "import agent_workflows.cli as cli\n"
+                    "assert hasattr(lm, 'MigrationManager')\n"
+                    "assert hasattr(lm, 'inv_mod')\n"
+                    "assert hasattr(lm.inv_mod, 'inventory')\n"
+                ),
+                extract_dir,
+            ]
+            res = subprocess.run(
+                cmd,
+                cwd=extract_dir,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(
+                res.returncode,
+                0,
+                f"importing layout_migration from installed wheel failed:\nstdout: {res.stdout}\nstderr: {res.stderr}",
+            )
+            self.assertNotIn("No module named 'tools'", res.stderr)
+            self.assertNotIn("ModuleNotFoundError", res.stderr)
+
+            # Also verify migrate-layout CLI invocation on a dummy repo runs without ModuleNotFoundError
+            with tempfile.TemporaryDirectory() as dummy_repo:
+                cli_cmd = [
+                    sys.executable,
+                    "-c",
+                    (
+                        "import sys\n"
+                        "sys.path = [p for p in sys.path if p and 'agent-workflows' not in p and 'tools' not in p]\n"
+                        "sys.path.insert(0, sys.argv[1])\n"
+                        "from agent_workflows.cli import main\n"
+                        "sys.argv = ['aw', 'migrate-layout', '--help']\n"
+                        "sys.exit(main())\n"
+                    ),
+                    extract_dir,
+                ]
+                cli_res = subprocess.run(
+                    cli_cmd,
+                    cwd=dummy_repo,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(
+                    cli_res.returncode,
+                    0,
+                    f"migrate-layout --help failed:\nstdout: {cli_res.stdout}\nstderr: {cli_res.stderr}",
+                )
+                self.assertNotIn("ModuleNotFoundError", cli_res.stderr)
 
 
 if __name__ == "__main__":

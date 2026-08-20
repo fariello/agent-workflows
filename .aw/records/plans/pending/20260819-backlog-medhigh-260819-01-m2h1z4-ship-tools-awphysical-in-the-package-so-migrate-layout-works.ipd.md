@@ -27,22 +27,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: move + repoint
 
-- [ ] E-01 `git mv tools/awphysical/aw_layout_inventory.py agent_workflows/layout_inventory.py`. It is stdlib-only (imports argparse/hashlib/json/os/re/stat/shutil/subprocess/sys; verified), so it moves cleanly. Leave a thin back-compat shim at `tools/awphysical/aw_layout_inventory.py` whose entire body is `from agent_workflows.layout_inventory import *  # noqa` plus `from agent_workflows.layout_inventory import _default_roots, _walk, _ignored_dirs  # re-export privates used by callers/tests` so any source-side `tools.awphysical` caller still resolves.
+- [x] E-01 `git mv tools/awphysical/aw_layout_inventory.py agent_workflows/layout_inventory.py`. It is stdlib-only (imports argparse/hashlib/json/os/re/stat/shutil/subprocess/sys; verified), so it moves cleanly. Leave a thin back-compat shim at `tools/awphysical/aw_layout_inventory.py` whose entire body is `from agent_workflows.layout_inventory import *  # noqa` plus `from agent_workflows.layout_inventory import _default_roots, _walk, _ignored_dirs  # re-export privates used by callers/tests` so any source-side `tools.awphysical` caller still resolves.
   - Depends on: none
   - Expected outcome: `agent_workflows/layout_inventory.py` exists; `python3 -c "import agent_workflows.layout_inventory"` works; the `tools/awphysical/aw_layout_inventory.py` shim re-exports it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Repoint the two SHIPPED importers to the package module: `agent_workflows/layout_migration.py:30` `from agent_workflows import layout_inventory as inv_mod` (was `from tools.awphysical import aw_layout_inventory as inv_mod`), and the `_run_migrate_layout` import in `agent_workflows/cli.py` (at cli.py:4505 as of review - locate it by matching the `from tools.awphysical import aw_layout_inventory` text rather than trusting the line number) likewise. Confirm the five used symbols still resolve (`_default_roots`, `inventory`, `build_migration_map`, `analyze_migration_risks`, `SCHEMA_VERSION`).
+- [x] E-02 Repoint the two SHIPPED importers to the package module: `agent_workflows/layout_migration.py:30` `from agent_workflows import layout_inventory as inv_mod` (was `from tools.awphysical import aw_layout_inventory as inv_mod`), and the `_run_migrate_layout` import in `agent_workflows/cli.py` (at cli.py:4505 as of review - locate it by matching the `from tools.awphysical import aw_layout_inventory` text rather than trusting the line number) likewise. Confirm the five used symbols still resolve (`_default_roots`, `inventory`, `build_migration_map`, `analyze_migration_risks`, `SCHEMA_VERSION`).
   - Depends on: E-01
   - Expected outcome: neither shipped module imports `tools`; `python3 -c "import agent_workflows.layout_migration, agent_workflows.cli"` works with no `tools` on the path.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prove installed + tests
 
-- [ ] E-03 Update the tests that import from `tools.awphysical.aw_layout_inventory` (`tests/test_awphysical_migration.py:22`, `tests/test_acceptance_matrix.py:382`) to import from `agent_workflows.layout_inventory` (or keep via the shim - prefer the package path). Add an INSTALLED-WHEEL check (subprocess test or a documented manual V step with pasted output): build the wheel, pip install into a throwaway venv+repo, and run `aw migrate-layout` (or import `agent_workflows.layout_migration`) proving NO `ModuleNotFoundError: tools`. Run the FULL serial suite (canonical: `make test-serial` / `python3 -m unittest discover -s tests -t .`; `python3 -m pytest -p no:xdist` is equivalent only with the `.[test]` extra installed) and paste the tail. Close backlog revnjq to done.
+- [x] E-03 Update the tests that import from `tools.awphysical.aw_layout_inventory` (`tests/test_awphysical_migration.py:22`, `tests/test_acceptance_matrix.py:382`) to import from `agent_workflows.layout_inventory` (or keep via the shim - prefer the package path). Add an INSTALLED-WHEEL check (subprocess test or a documented manual V step with pasted output): build the wheel, pip install into a throwaway venv+repo, and run `aw migrate-layout` (or import `agent_workflows.layout_migration`) proving NO `ModuleNotFoundError: tools`. Run the FULL serial suite (canonical: `make test-serial` / `python3 -m unittest discover -s tests -t .`; `python3 -m pytest -p no:xdist` is equivalent only with the `.[test]` extra installed) and paste the tail. Close backlog revnjq to done.
   - Depends on: E-01,E-02
   - Expected outcome: tests import the package module; installed-wheel proof pasted (no tools error); full serial suite green; revnjq done.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -91,20 +91,20 @@ N/A: no spec pins the module location; it is an internal import path.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `agent_workflows/layout_inventory.py` exists; `python3 -c "import agent_workflows.layout_inventory"` succeeds; the tools/ shim re-exports (import via the old path still works in a source checkout).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `agent_workflows/layout_inventory.py` created via `git mv`; `python3 -c "import agent_workflows.layout_inventory; print(dir(agent_workflows.layout_inventory)[:3])"` printed `['Any', 'DEFAULT_ROOTS', 'Dict']`; `python3 -c "import tools.awphysical.aw_layout_inventory as old; print(dir(old)[:3])"` printed `['Any', 'DEFAULT_ROOTS', 'Dict']`; `python3 -m unittest tools.awphysical.test_awphysical_tools` passed 31/31 tests in 0.571s.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: `rg "from tools" agent_workflows/layout_migration.py agent_workflows/cli.py` returns nothing for the inventory import; `python3 -c "import agent_workflows.layout_migration"` succeeds.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `grep` / `rg` for `from tools` across `agent_workflows/layout_migration.py` and `agent_workflows/cli.py` returned 0 matches; all 5 consumed symbols (`_default_roots`, `inventory`, `build_migration_map`, `analyze_migration_risks`, `SCHEMA_VERSION`) resolved directly on `agent_workflows.layout_inventory`; `python3 -c "import agent_workflows.layout_migration, agent_workflows.cli"` succeeded with exit code 0.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: repointed tests pass; INSTALLED-WHEEL proof pasted (build + pip install + `aw migrate-layout`/import with NO `ModuleNotFoundError: tools`); full serial suite tail pasted; `aw backlog check` shows revnjq done.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Repointed tests and packaging tests: `python3 -m unittest tests.test_packaging` passed 7/7 tests (including new `test_installed_wheel_migrate_layout_without_tools` and `assertIn('agent_workflows/layout_inventory.py', self.names)` in `test_wheel_contains_the_package`). Mutation probe verified RED on broken import (`AssertionError: 1 != 0 : importing layout_migration from installed wheel failed: ModuleNotFoundError: No module named 'tools'`) and GREEN when restored (`Ran 1 test in 2.234s OK`). Installed wheel in clean venv (`python3 -m venv` + `pip install`): `Import stdout: layout_migration imported successfully, inv_mod: <module 'agent_workflows.layout_inventory' from '/tmp/aw_test_venv_3ak544zq/lib/python3.14/site-packages/agent_workflows/layout_inventory.py'>`; `aw migrate-layout --help` exited 0 (NO `ModuleNotFoundError: tools`); `aw migrate-layout inventory --target-backend repository --json` exited 0 (`"valid": true`). Full serial suite tail: `Ran 1182 tests in 207.607s OK (skipped=1)`. Backlog revnjq transitioned to done via `aw backlog set --status done`; `aw backlog check` returned `aw backlog check: all backlog items conform.`
+  - Result: pass
 
 ## Approval and execution gate
 

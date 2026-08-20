@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Optional
 
 from agent_workflows.project_context import resolve_project_context
 from agent_workflows.project_schema import LogicalRoot
-from tools.awphysical import aw_layout_inventory as inv_mod
+from agent_workflows import layout_inventory as inv_mod
 
 
 class MigrationError(Exception):

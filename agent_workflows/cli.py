@@ -4413,7 +4413,7 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
     import sys
     import io
     from pathlib import Path
-    from tools.awphysical import aw_layout_inventory as inv_mod
+    from agent_workflows import layout_inventory as inv_mod
     from agent_workflows.layout_migration import MigrationManager, MigrationError
 
     repo_path = Path(os.getcwd())
