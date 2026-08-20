@@ -31,25 +31,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: `.aw/system/workflows/research-prompt/research-prompt.md` exists, follows the standalone-workflow shape (controlling header, operating principles, Step 0 discover, steps, explicit what-it-does/does-not-change), and contains the three prompt-purity requirements verbatim in intent (only-the-prompt, self-contained, downloadable-`.md`).
   - Execution state: pending
-- [ ] E-02 Create `.aw/system/workflows/research-prompt/README.md` mirroring the existing per-workflow README shape (one-paragraph summary, the `/research-prompt [topic]` invocation, the universal "read and execute `.aw/system/workflows/research-prompt/research-prompt.md`" fallback, and a pointer to the index and to `aw research` for the distinct research-doc verb).
+- [ ] E-02 Create `.aw/system/workflows/research-prompt/README.md` mirroring the existing per-workflow README shape (one-paragraph summary, the `/aw research [topic]` invocation, the universal "read and execute `.aw/system/workflows/research-prompt/research-prompt.md`" fallback, and a pointer to the index and to `aw research` for the distinct research-doc verb).
   - Depends on: E-01
   - Expected outcome: `.aw/system/workflows/research-prompt/README.md` exists and matches the shape of `.aw/system/workflows/handoff/README.md`.
   - Execution state: pending
 
 ### Task group 2: Register and wire the workflow
 
-- [ ] E-03 Add one manifest row for `research-prompt` inside the `WORKFLOWS-MANIFEST` markers in `.aw/system/workflows/index.md`, keeping the `command | body | lens | description` columns stable (body = the new workflow file, lens = `-`), and update the human-readable prose so the `agent-continuity-workflows` family paragraph (currently naming a "future `/research`") points at the shipped `/research-prompt` and states why the name differs from `aw research`.
+- [ ] E-03 Add one manifest row for the workflow inside the `WORKFLOWS-MANIFEST` markers in `.aw/system/workflows/index.md`, keeping the `command | body | lens | description` columns stable (body = `.aw/system/workflows/research-prompt/research-prompt.md`, lens = `-`). MAINTAINER DECISION: this producer is invoked as the `research` VERB under the single `/aw` dispatcher (Order 05), i.e. `/aw research [topic]` - NOT a standalone `/research-prompt` shim and NOT the bare reserved `/research`. So the manifest `command` cell registers it as the dispatcher verb `research` (matching how Order 05 routes verbs into the manifest); update the `agent-continuity-workflows` family prose to reference `/aw research` and state why it is namespaced (avoids the reserved `/research` + the distinct `aw research` doc verb).
   - Depends on: E-02
-  - Expected outcome: `.aw/system/workflows/index.md` has a `research-prompt` manifest row and the family prose references it; the manifest columns are unchanged.
+  - Expected outcome: `.aw/system/workflows/index.md` registers the producer as the `/aw research` verb (dispatcher-routed), the family prose references `/aw research`; the manifest columns are unchanged.
   - Execution state: pending
-- [ ] E-04 Regenerate the per-host slash shims from the updated manifest (`aw install .`), producing `.opencode/commands/research-prompt.md` and `.claude/commands/research-prompt.md`. Note in this item that Order 05 of this Set (`single-aw-slash-command-namespace-over-the-workflows`) will later fold these per-command shims under a single `/aw` namespace; this Order does not pre-empt that and only generates the standard per-host shim from the manifest.
+- [ ] E-04 Verify `/aw research` routes to the producer via the Order 05 dispatcher; do NOT generate a standalone per-host `research-prompt` shim (the whole point of `/aw research` is that it is reached through the `/aw` dispatcher, not its own command file). After `aw install .` (regenerating shims), confirm NO `.opencode/commands/research-prompt.md` / `.claude/commands/research-prompt.md` standalone shim is produced, and that `/aw research` resolves to the workflow body through the dispatcher's manifest lookup. (This Order DEPENDS on Order 05 having landed the `/aw` dispatcher.)
   - Depends on: E-03
-  - Expected outcome: `.opencode/commands/research-prompt.md` and `.claude/commands/research-prompt.md` exist and each "read and execute" the workflow body.
+  - Expected outcome: `/aw research` resolves to the producer workflow body via the dispatcher; no standalone research-prompt command shim exists; `aw install .` does not create one.
   - Execution state: pending
 
 ### Task group 3: Test, validate, and close the backlog item
 
-- [ ] E-05 Add a test (e.g. `tests/test_research_prompt_workflow.py`, stdlib `unittest`) asserting: the workflow body file exists; the README exists; the `research-prompt` manifest row exists in `index.md` and points at the body; both host shims exist; and the workflow body contains the three AGENTS.md prompt-purity requirements (only-the-prompt, self-contained, downloadable-`.md`). Then run the full serial suite `python3 -m unittest discover -s tests -t .` and capture the actual output.
+- [ ] E-05 Add a test (e.g. `tests/test_research_prompt_workflow.py`, stdlib `unittest`) asserting: the workflow body file exists; the README exists; the manifest row exists in `index.md` and points at the body; the producer is reachable as the `/aw research` verb (dispatcher manifest lookup resolves `research` to the body) and NO standalone `research-prompt` host shim exists; and the workflow body contains the three AGENTS.md prompt-purity requirements (only-the-prompt, self-contained, downloadable-`.md`). Then run the full serial suite (`python3 -m pytest -p no:xdist`) and capture the actual output.
   - Depends on: E-04
   - Expected outcome: the new test file exists and passes, and the full serial suite passes with pasted runner output.
   - Execution state: pending
@@ -120,9 +120,9 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ### OQ-01: Is `/research-prompt` the right slash name given the reserved `/research` and the `aw research` verb?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: This plan chooses `/research-prompt` (workflow dir `research-prompt/`) precisely to avoid the collision with the reserved `/research` name (`.aw/system/workflows/index.md:213`) and the distinct `aw research` doc verb (`agent_workflows/cli.py:771`). The name reads as "produce a research prompt," which is exactly what it does. If the maintainer prefers to claim the reserved `/research` for this producer, that is a one-line manifest rename at execution time; the plan is written to make the name a single localized choice.
+- Resolution or deferral rationale: This plan chooses `/research-prompt` (workflow dir `research-prompt/`) precisely to avoid the collision with the reserved `/research` name (`.aw/system/workflows/index.md:213`) and the distinct `aw research` doc verb (`agent_workflows/cli.py:771`). The name reads as "produce a research prompt," which is exactly what it does. RESOLVED (maintainer 2026-08-19): invoke it as `/aw research` - the `research` VERB under the Order 05 `/aw` dispatcher. This sidesteps BOTH collisions (it is namespaced under `/aw`, so it is neither the reserved bare `/research` nor the `aw research` CLI doc verb) and needs no standalone shim. Consequence: this Order now DEPENDS on Order 05 (the dispatcher must exist first); execute 05 before 06.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -133,7 +133,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: `.aw/system/workflows/research-prompt/README.md` exists and contains the `/research-prompt [topic]` invocation, the read-and-execute fallback, and the index pointer.
+  - Required evidence: `.aw/system/workflows/research-prompt/README.md` exists and contains the `/aw research [topic]` invocation, the read-and-execute fallback, and the index pointer.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03

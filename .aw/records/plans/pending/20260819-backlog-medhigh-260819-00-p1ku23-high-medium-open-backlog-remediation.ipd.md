@@ -2,7 +2,7 @@
 
 - Date: 2026-08-19
 - Concern: The open backlog carries 3 high + 7 medium items. This orchestrator drives the whole set through the IPD lifecycle. During scoping, one item (d3jkws /handoff) was found ALREADY EXECUTED and closed to done outside this Set; the remaining nine are the child Orders below. Two are human/process-owned (Orders 03, 08) and carry a `-human` slug facet on the human part.
-- Scope: Drive child Orders 01..09 (author -> human approval -> execute -> verify -> transition), owning verification + path-scoped commits, never pushing. OUT: the d3jkws item (already done, closed separately); the release itself (Section 9).
+- Scope: Drive child Orders 01..09 (author -> human approval -> execute -> verify -> transition), owning verification + path-scoped commits, never pushing. OUT: the d3jkws item (already done, closed separately); Order 03/2p6mgq (RETIRED to not-executed by maintainer decision - disclosure is human-owned end to end); the release itself (Section 9).
 - Kind: orchestrator
 - Status: reviewed
 - Set: backlog-medhigh-260819
@@ -13,12 +13,14 @@
 
 ## Workflow history
 
+- 2026-08-19 revised (opencode, maintainer decision): Order 03 (2p6mgq disclosure) RETIRED to not-executed (human-owned end to end); the Set is now eight executable child Orders (01,02,04,05,06,07,08,09). Order 06 renamed to `/aw research` (namespaced under Order 05's dispatcher), so 06 now depends on 05.
+
 - 2026-08-19 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created - one Set addressing all high+medium open backlog items; d3jkws was verified already-executed and closed to done, so it is not a child here.
-- 2026-08-19 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; PR-000-1..3 (status to-review, canonical serial-runner note, Order 02 dependency clarified as soft-after). GO - PENDING HUMAN APPROVAL. Set-level scope accounting (3 high + 7 medium = 10; nine child Orders + d3jkws already done) verified against the open backlog.
+- 2026-08-19 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; PR-000-1..3 (status to-review, canonical serial-runner note, Order 02 dependency clarified as soft-after). GO - PENDING HUMAN APPROVAL. Set-level scope accounting (3 high + 7 medium = 10; eight child Orders + d3jkws already done) verified against the open backlog.
 
 ## Goal
 
-Remediate the actionable high+medium open backlog in one coherent Set: fix the pip-install packaging defect (revnjq), harden install (u298fd), the disclosure + HPC human/process items (2p6mgq, 3srje9), IPD-scaffold grammar enforcement (7vd36f), the single `/aw` slash namespace (q19z5t), the `/research` producer (6wlo04), a regression test for the already-implemented gitignore-honoring inventory walk (ith2xd), and the stale-`.agents/`-litter sweep (wxz7gg). Each child closes its backlog item on execution.
+Remediate the actionable high+medium open backlog in one coherent Set: fix the pip-install packaging defect (revnjq), harden install (u298fd), the HPC pointer (3srje9; the 2p6mgq disclosure Order was retired to not-executed - human-owned), IPD-scaffold grammar enforcement (7vd36f), the single `/aw` slash namespace (q19z5t), the `/research` producer (6wlo04), a regression test for the already-implemented gitignore-honoring inventory walk (ith2xd), and the stale-`.agents/`-litter sweep (wxz7gg). Each child closes its backlog item on execution.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -28,7 +30,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 Drive child Orders 01..09 through the IPD lifecycle in dependency order (author -> `/plan-review` -> human approval -> execute -> verify -> transition to executed/), owning verification and path-scoped commits for each, never pushing; close each item's backlog entry to `done` as its Order executes.
   - Depends on: none
-  - Expected outcome: all nine child Orders reach `executed` and their backlog items are `done`; the completion criteria below hold.
+  - Expected outcome: all eight child Orders reach `executed` and their backlog items are `done`; the completion criteria below hold.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -39,7 +41,6 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 |---|---|---|---|---|
 | 01 | m2h1z4 | revnjq (high) | ship `tools.awphysical` inside the package (or inline its inventory) so `aw migrate-layout` + install-time migration work when pip-installed | none |
 | 02 | 0qj4on | u298fd (high) | install-time split-brain guard (detect `.aw` bookkeeping beside `.agents/workflows` content, refuse/repair) | soft-after 01 (shares migration path; no hard import dependency - see Order 02 gate) |
-| 03 | 38yl4s | 2p6mgq (high) | coordinated-disclosure PACKET + tracking record; the SEND is human-owned (`-human`) | none |
 | 04 | v1rj3p | 7vd36f (med) | `aw ipd scaffold` enforces the clustering filename grammar + requires Set metadata | none |
 | 05 | ckw2ze | q19z5t (med) | single `/aw <verb>` slash namespace over the workflows (+ per-host grammar verify + back-compat aliases) | none |
 | 06 | 0drnpf | 6wlo04 (med) | `/research [topic]` producer workflow drafting a house-conformant handoff prompt into prompts/pending | none |
@@ -49,7 +50,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Completion criteria (the whole Set is done only when)
 
-- All nine child Orders show `Status: executed` under `.aw/records/plans/executed/`.
+- All eight child Orders show `Status: executed` under `.aw/records/plans/executed/`.
 - Each corresponding backlog item is `done`.
 - The full serial suite is green after the final Order (the canonical serial runner is `make test-serial`, i.e. `python3 -m unittest discover -s tests -t .`; `python3 -m pytest -p no:xdist` is an equivalent serial run only when the `.[test]` extra is installed); `aw attention --check` / `aw sanitize --agent` clean.
 - The pip-installability of migrate-layout (Order 01) is proven in an installed wheel.
@@ -88,7 +89,7 @@ Each child carries its own tests/validation; the Set is validated by the complet
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: `ls .aw/records/plans/executed/*backlog-medhigh-260819-0[1-9]*` shows all nine child Orders with `Status: executed`; `aw backlog check` shows the nine items `done`; the final full serial suite tail (`make test-serial` / `python3 -m unittest discover -s tests -t .`) + `aw attention --check`/`aw sanitize --agent` clean are pasted.
+  - Required evidence: `ls .aw/records/plans/executed/*backlog-medhigh-260819-0[124-9]*` (Order 03 retired to not-executed) shows all eight child Orders with `Status: executed`; `aw backlog check` shows the eight items `done`; the final full serial suite tail (`make test-serial` / `python3 -m unittest discover -s tests -t .`) + `aw attention --check`/`aw sanitize --agent` clean are pasted.
   - Observed evidence:
   - Result: pending
 
@@ -97,4 +98,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execution contract: an orchestrator does not itself edit code; it drives the child Orders, each of which carries its own execution contract (path-scoped commits, never push, paste actual runner output, lifecycle move). This orchestrator transitions to executed only after all nine children are executed and their backlog items are done. Do not claim Set completion until V-01 is verified with concrete evidence.
+Execution contract: an orchestrator does not itself edit code; it drives the child Orders, each of which carries its own execution contract (path-scoped commits, never push, paste actual runner output, lifecycle move). This orchestrator transitions to executed only after all eight children are executed and their backlog items are done. Do not claim Set completion until V-01 is verified with concrete evidence.

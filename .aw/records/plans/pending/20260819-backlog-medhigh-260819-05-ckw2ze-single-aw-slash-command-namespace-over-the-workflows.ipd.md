@@ -130,7 +130,7 @@ identical `$ARGUMENTS` mechanism. Nothing in either host grammar blocks it.
 - Blocking: no
 - Status: open
 - Owner: maintainer
-- Resolution or deferral rationale: This slice keeps both the `/aw` dispatcher and the per-workflow aliases so nothing breaks. Whether to eventually deprecate/prune the aliases (and on what timeline) is a maintainer product decision, captured for a follow-on Order. It does not block delivering the dispatcher.
+- Resolution or deferral rationale: This slice keeps both the `/aw` dispatcher and the per-workflow aliases so nothing breaks. Whether to eventually deprecate/prune the aliases (and on what timeline) is a maintainer product decision, captured for a follow-on Order, now filed as backlog awslashdeprecate-01 (21ni81: add a deprecation warning to the per-workflow aliases). It does not block delivering the dispatcher.
 
 ### OQ-02: Should bare `/aw` (no verb) list the available verbs or route to getting-started?
 
