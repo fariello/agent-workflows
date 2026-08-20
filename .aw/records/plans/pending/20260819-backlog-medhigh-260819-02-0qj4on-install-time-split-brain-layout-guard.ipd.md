@@ -4,12 +4,13 @@
 - Kind: child
 - Concern: `aw install` into a repo that already carries BOTH `.aw/system` bookkeeping AND live `.agents/workflows` content (a half-migrated / mid-awphysical state) silently proceeds. `resolve_target_layout` (`agent_workflows/engine.py:88`) returns `"aw"` the moment `.aw/system` exists (D134/D136 "`.aw/system` present is authoritative"), so `install_into_repo` (`agent_workflows/engine.py:4511`) installs the `.aw/` bundle and pointer while the stale, still-live `.agents/workflows/` tree is left untouched. The result is a split-brain layout: two workflow bundles, two pointer targets, duplicate records read by `artifact_core.SCAN_ROOTS` (see D135). Add an install-time GUARD that DETECTS this and warns/refuses (never destructive without consent) instead of producing the mixed layout.
 - Scope: add a pure detector for the split-brain condition and wire it into the `_run_install` per-repo pre-flight (`agent_workflows/cli.py:2249`) BEFORE the install confirm. Non-interactive/`--yes` default is fail-safe SKIP (never auto-migrate, never delete). Interactive offers migrate-now (delegating to the existing `MigrationManager`, same path as `_handle_legacy_migration`) or continue-anyway. No change to `resolve_target_layout` semantics. Ship a test asserting the guard fires on a split-brain fixture and does NOT fire on a clean `.aw/` or clean legacy repo. Close backlog u298fd.
-- Status: reviewed
+- Status: approved
 - Set: backlog-medhigh-260819
 - Order: 2
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: 0qj4on
+- Approval: maintainer (human), 2026-08-19: blanket-approved the backlog-medhigh-260819 Set for unattended execution.
 
 ## Workflow history
 
