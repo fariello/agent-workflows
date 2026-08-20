@@ -2100,6 +2100,8 @@ def _install_one(
         )
         outcome = "ok"
 
+    _security_pointer(term)
+
     # Record install history event & drop the self-explaining setup-repo-needed marker (setupmarker
     # Order 01: replaces the old operational-action ledger). Install history is a genuine append-only
     # audit; the marker is the per-machine "run setup here" reminder that `aw setup`/deletion clears.
@@ -2378,6 +2380,16 @@ def _teach(term: Term) -> None:
         "ok",
         "Next: run the LLM '/setup-repo' workflow in each repo for "
         "stack-tailored conformance (CI, .gitignore, lifecycle contract).",
+    )
+
+
+def _security_pointer(term: Term) -> None:
+    """Print the install-time security pointer for shared/multi-user hosts (D86/D87)."""
+    term.status(
+        "warn",
+        "Shared/multi-user host caveat: unauthenticated local agent control servers can be "
+        "driven by other local users. See .aw/records/research/20260716-opencode-shared-host-hardening-howto-00-tt8ipb-opencode-shared-host-hardening-howto.howto.md "
+        "and DECISIONS.md D86/D87 for hardening guidance.",
     )
 
 

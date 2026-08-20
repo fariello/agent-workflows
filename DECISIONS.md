@@ -2160,7 +2160,7 @@ both execute the (large) set well.
 
 - **Context:** Given D86, the maintainer set a use policy for hosts under our control. We cannot stop other people from running OpenCode unprotected on a shared system, so the lever is loud warning plus the coordinated upstream fix, not enforcement.
 - **Decision:** On SHARED / HPC hosts, OpenCode is forbidden unless `OPENCODE_SERVER_PASSWORD` is set (and `--mdns` is never used on a shared host); with the password set it is tolerated-but-warn. Single-user use is unaffected. This is a policy for hosts we control, plus guidance to circulate; it is NOT a personal decision to stop using OpenCode (the flaw is shared-host-scoped and mitigable). Any installer / how-to that targets shared hosts must WARN LOUDLY that while `opencode` is running, any other local user can make the agent run commands as you with no prompt and no visible sign.
-- **Applied:** recorded here and in the hardening how-to `20260716-0850-02`. No code change yet; if we later add a shared-host install warning to the framework it will cite D86/D87.
+- **Applied:** recorded here and in the hardening how-to `20260716-0850-02` (migrated to `.aw/records/research/20260716-opencode-shared-host-hardening-howto-00-tt8ipb-opencode-shared-host-hardening-howto.howto.md`). Framework ships an always-shown install-time security pointer in `agent_workflows/cli.py` (`_security_pointer`, called from `_install_one`) citing D86/D87.
 
 ### D88. Prefer filesystem-encoded state (location over contents) for surveyed state; extend P5
 
