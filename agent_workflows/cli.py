@@ -2653,7 +2653,7 @@ def _offer_commit_uninstall(
 
 
 def _repos_for_report(recursive: bool) -> List[Path]:
-    """Config repos plus repos discovered under the config search roots (deduped)."""
+    """Config repos plus repos discovered under the config search roots (deduped and sorted)."""
 
     cfg = config.load()
     repos = list(config.expanded_repos(cfg))
@@ -2673,6 +2673,7 @@ def _repos_for_report(recursive: bool) -> List[Path]:
         if rp not in seen:
             seen.add(rp)
             out.append(rp)
+    out.sort(key=lambda p: str(p).lower())
     return out
 
 
@@ -2735,16 +2736,25 @@ def _collect_repo_status_details(repo: Path, packaged: str) -> dict:
 
     state = "source-root" if is_source else versioning.status(installed, packaged)
 
-    layout = "none"
-    if (repo / ".aw").is_dir():
+    has_aw = (repo / ".aw").is_dir()
+    has_agents = (repo / ".agents").is_dir()
+    if has_aw and has_agents:
+        layout = ".aw + .agents"
+        split_brain = True
+    elif has_aw:
         layout = ".aw"
-    elif (repo / ".agents").is_dir():
+        split_brain = False
+    elif has_agents:
         layout = ".agents"
+        split_brain = False
+    else:
+        layout = "none"
+        split_brain = False
 
     preset = None
     backend = None
     if layout != "none":
-        cfg_file = repo / layout / "config.json"
+        cfg_file = repo / (".aw" if has_aw else ".agents") / "config.json"
         if cfg_file.is_file():
             try:
                 import json
@@ -2838,6 +2848,7 @@ def _collect_repo_status_details(repo: Path, packaged: str) -> dict:
         "is_source": is_source,
         "state": state,
         "layout": layout,
+        "split_brain": split_brain,
         "preset": preset,
         "backend": backend,
         "git": git_info,
@@ -2860,7 +2871,8 @@ def _run_status(args, term: Term) -> int:
             repos = [cwd]
 
     repo_details = [_collect_repo_status_details(r, packaged) for r in repos]
-    excluded_entries = cfg.get("exclude", [])
+    repo_details.sort(key=lambda rd: str(rd["path"]).lower())
+    excluded_entries = sorted(cfg.get("exclude", []), key=lambda e: str(e).lower())
 
     if getattr(args, "as_json", False):
         import json
@@ -2933,7 +2945,12 @@ def _run_status(args, term: Term) -> int:
                     layout_parts.append(
                         f"(preset: {rd['preset'] or 'standard'}, backend: {rd['backend'] or 'repo-tracked'})"
                     )
-                term.line(f"    Layout:    {' '.join(layout_parts)}")
+                if rd.get("split_brain"):
+                    term.line(
+                        f"    Layout:    {term.color256(' '.join(layout_parts) + ' [dual layout / split-brain - run aw migrate-layout]', 208, bold=True)}"
+                    )
+                else:
+                    term.line(f"    Layout:    {' '.join(layout_parts)}")
 
             # Git line
             git = rd["git"]
@@ -3012,8 +3029,8 @@ def _run_exclude(args: argparse.Namespace, term: Term) -> int:
         raw_repos = raw_repos[1:]
 
     cfg = config.load()
-    current_exclude = list(cfg.get("exclude", []))
-    current_repos = list(cfg.get("repos", []))
+    current_exclude = sorted(list(cfg.get("exclude", [])), key=lambda s: str(s).lower())
+    current_repos = sorted(list(cfg.get("repos", [])), key=lambda s: str(s).lower())
     cfg_path_str = config._preserve_home(str(config.config_path()))
     term.line(
         f"{term.colorize('Config:', 'bold')} {term.color256(cfg_path_str, 39)} "
@@ -3061,8 +3078,8 @@ def _run_include(args: argparse.Namespace, term: Term) -> int:
         raw_repos = raw_repos[1:]
 
     cfg = config.load()
-    current_exclude = list(cfg.get("exclude", []))
-    current_repos = list(cfg.get("repos", []))
+    current_exclude = sorted(list(cfg.get("exclude", [])), key=lambda s: str(s).lower())
+    current_repos = sorted(list(cfg.get("repos", [])), key=lambda s: str(s).lower())
     cfg_path_str = config._preserve_home(str(config.config_path()))
     term.line(
         f"{term.colorize('Config:', 'bold')} {term.color256(cfg_path_str, 39)} "

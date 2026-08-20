@@ -103,6 +103,15 @@ class DoctorTests(unittest.TestCase):
             any(d.rule == "check.name-nonconformant" for d in report_strict.all_drift)
         )
 
+    def test_split_brain_layout_detected(self) -> None:
+        (self.root / ".agents").mkdir(parents=True, exist_ok=True)
+        (self.root / ".aw").mkdir(parents=True, exist_ok=True)
+        report = doctor.collect_doctor_report(self.root)
+        self.assertIn("split-brain", report.env.layout)
+        self.assertTrue(
+            any(d.rule == "doctor.layout-split-brain" for d in report.env.drift)
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

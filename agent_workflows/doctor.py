@@ -213,9 +213,20 @@ def probe_environment(repo_root: Path) -> EnvironmentProbeResult:
                 pass
 
         # Layout & config
-        if (repo_root / ".aw").is_dir():
+        has_aw = (repo_root / ".aw").is_dir()
+        has_agents = (repo_root / ".agents").is_dir()
+        if has_aw and has_agents:
+            res.layout = ".aw + .agents (dual layout / split-brain)"
+            res.drift.append(
+                core.Drift(
+                    "<layout>",
+                    "doctor.layout-split-brain",
+                    "both .aw/ and .agents/ exist simultaneously; run 'aw migrate-layout' or remove stale directory",
+                )
+            )
+        elif has_aw:
             res.layout = ".aw"
-        elif (repo_root / ".agents").is_dir():
+        elif has_agents:
             res.layout = ".agents"
         else:
             res.layout = "unconfigured"
@@ -515,7 +526,10 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
     env = report.env
     env_status = (
         "ERROR"
-        if any(d.rule.startswith("doctor.version-") for d in env.drift)
+        if any(
+            d.rule.startswith("doctor.version-") or d.rule.startswith("doctor.layout-")
+            for d in env.drift
+        )
         else ("WARN" if env.setup_needed else "INFO")
     )
     badge_env = (
@@ -540,7 +554,13 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
     layout_info = env.layout
     if env.preset or env.backend:
         layout_info += f" (preset: {env.preset or 'standard'}, backend: {env.backend or 'repo-tracked'})"
-    lines.append(f"  Layout:      {layout_info}")
+    if "split-brain" in env.layout:
+        lines.append(f"  Layout:      {term.color256(layout_info, 196, bold=True)}")
+        lines.append(
+            f"  Warning:     {tag_error(term)} Dual layouts detected (.aw/ and .agents/). Run 'aw migrate-layout' to consolidate."
+        )
+    else:
+        lines.append(f"  Layout:      {layout_info}")
     if env.setup_needed:
         lines.append(
             f"  Notice:      {tag_warn(term)} Initial setup needed (setup-repo action open)"
@@ -661,7 +681,7 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
             )
         )
         for f in san.findings:
-            lines.append(f"    - {f.location}: {f.rule} ({f.severity}: {f.matched})")
+            lines.append(f"    - {f.location}: {f.rule} ({f.severity}: {f.snippet})")
     else:
         lines.append("  Sanitizer:   Clean (0 maintainer/local leak findings)")
     lines.append("")

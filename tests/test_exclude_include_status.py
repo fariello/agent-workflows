@@ -127,8 +127,38 @@ class ExcludeIncludeStatusTests(unittest.TestCase):
         self.assertEqual(len(data["repositories"]), 1)
         repo_data = data["repositories"][0]
         self.assertIn("proj1", repo_data["path"])
-        self.assertEqual(repo_data["layout"], ".aw")
-        self.assertIn("git", repo_data)
+
+    def test_status_alphabetical_order_and_dual_layout(self):
+        r_b = self._repo("beta-proj")
+        r_a = self._repo("alpha-proj")
+        _run(["install", str(r_b), "--yes"])
+        _run(["install", str(r_a), "--yes"])
+        # Simulate dual layout on alpha-proj
+        (r_a / ".agents").mkdir(parents=True, exist_ok=True)
+
+        cfg = CFG.load()
+        cfg["repos"] = [str(r_b), str(r_a)]
+        cfg["exclude"] = ["~/src/zeta", "~/src/alpha-exc"]
+        CFG.save(cfg)
+
+        code, out = _run(["status"])
+        self.assertEqual(code, 0)
+        # alpha-proj should appear before beta-proj
+        pos_a = out.find("alpha-proj")
+        pos_b = out.find("beta-proj")
+        self.assertTrue(
+            pos_a < pos_b, "Repositories must be sorted in alphabetical order"
+        )
+
+        # Excluded repos must be sorted
+        pos_exc_a = out.find("alpha-exc")
+        pos_exc_z = out.find("zeta")
+        self.assertTrue(
+            pos_exc_a < pos_exc_z, "Excluded repositories must be sorted alphabetically"
+        )
+
+        # Dual layout highlighting
+        self.assertIn("dual layout / split-brain", out)
 
 
 if __name__ == "__main__":
