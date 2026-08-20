@@ -4,12 +4,13 @@
 - Kind: child
 - Concern: `aw ipd scaffold` can currently emit a plan that lacks Set/Order metadata and can honor an explicit `--path` that does not follow the clustering filename grammar, so a freshly scaffolded plan is not guaranteed to be groupable by Set or correctly named.
 - Scope: Change `aw ipd scaffold` (CLI parser + `run_scaffold` + `build_skeleton`) so it requires `--set`/`--order` and always writes `- Set:`/`- Order:` metadata, and so an explicit `--path` must match the clustering grammar (`YYYYMMDD-<setid>-NN-<id6>-<slug>.ipd.md`) unless an explicit legacy escape is passed. Add tests. Close backlog 7vd36f.
-- Status: reviewed
+- Status: approved
 - Set: backlog-medhigh-260819
 - Order: 4
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: v1rj3p
+- Approval: maintainer (human), 2026-08-19: blanket-approved the backlog-medhigh-260819 Set for unattended execution.
 
 ## Workflow history
 
