@@ -20,16 +20,16 @@ Showing the 40 most-recent of 102 Sets; the full manifest is INDEX.json.
 
 ## backlog-medhigh-260819
 
-- `p1ku23` [pending] 00 pending/20260819-backlog-medhigh-260819-00-p1ku23-high-medium-open-backlog-remediation.ipd.md
-- `m2h1z4` [pending] 01 pending/20260819-backlog-medhigh-260819-01-m2h1z4-ship-tools-awphysical-in-the-package-so-migrate-layout-works.ipd.md
-- `0qj4on` [pending] 02 pending/20260819-backlog-medhigh-260819-02-0qj4on-install-time-split-brain-layout-guard.ipd.md
+- `p1ku23` [executed] 00 executed/20260819-backlog-medhigh-260819-00-p1ku23-high-medium-open-backlog-remediation.ipd.md
+- `m2h1z4` [executed] 01 executed/20260819-backlog-medhigh-260819-01-m2h1z4-ship-tools-awphysical-in-the-package-so-migrate-layout-works.ipd.md
+- `0qj4on` [executed] 02 executed/20260819-backlog-medhigh-260819-02-0qj4on-install-time-split-brain-layout-guard.ipd.md
 - `38yl4s` [not-executed] 03 not-executed/20260819-backlog-medhigh-260819-03-38yl4s-coordinated-disclosure-to-opencode-maintainers-human.ipd.md
-- `v1rj3p` [pending] 04 pending/20260819-backlog-medhigh-260819-04-v1rj3p-aw-ipd-scaffold-enforces-clustering-grammar-and-requires-set.ipd.md
-- `ckw2ze` [pending] 05 pending/20260819-backlog-medhigh-260819-05-ckw2ze-single-aw-slash-command-namespace-over-the-workflows.ipd.md
-- `0drnpf` [pending] 06 pending/20260819-backlog-medhigh-260819-06-0drnpf-research-topic-producer-workflow-drafts-a-handoff-prompt-int.ipd.md
-- `m7e2g3` [pending] 07 pending/20260819-backlog-medhigh-260819-07-m7e2g3-verify-and-regression-test-aw-layout-inventory-walk-honors-g.ipd.md
-- `0zxfic` [pending] 08 pending/20260819-backlog-medhigh-260819-08-0zxfic-hpc-shared-host-hardening-warning.ipd.md
-- `plt26j` [pending] 09 pending/20260819-backlog-medhigh-260819-09-plt26j-migration-uninstall-sweep-untracked-stale-agents-litter.ipd.md
+- `v1rj3p` [executed] 04 executed/20260819-backlog-medhigh-260819-04-v1rj3p-aw-ipd-scaffold-enforces-clustering-grammar-and-requires-set.ipd.md
+- `ckw2ze` [executed] 05 executed/20260819-backlog-medhigh-260819-05-ckw2ze-single-aw-slash-command-namespace-over-the-workflows.ipd.md
+- `0drnpf` [executed] 06 executed/20260819-backlog-medhigh-260819-06-0drnpf-research-topic-producer-workflow-drafts-a-handoff-prompt-int.ipd.md
+- `m7e2g3` [executed] 07 executed/20260819-backlog-medhigh-260819-07-m7e2g3-verify-and-regression-test-aw-layout-inventory-walk-honors-g.ipd.md
+- `0zxfic` [executed] 08 executed/20260819-backlog-medhigh-260819-08-0zxfic-hpc-shared-host-hardening-warning.ipd.md
+- `plt26j` [executed] 09 executed/20260819-backlog-medhigh-260819-09-plt26j-migration-uninstall-sweep-untracked-stale-agents-litter.ipd.md
 
 ## setupmarker-260819
 

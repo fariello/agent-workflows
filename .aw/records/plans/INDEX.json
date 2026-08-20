@@ -2212,6 +2212,96 @@
   {
     "date": "2026-08-19",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260819-backlog-medhigh-260819-00-p1ku23-high-medium-open-backlog-remediation.ipd.md",
+    "plan_id": "p1ku23",
+    "set_id": "backlog-medhigh-260819",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-19",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260819-backlog-medhigh-260819-01-m2h1z4-ship-tools-awphysical-in-the-package-so-migrate-layout-works.ipd.md",
+    "plan_id": "m2h1z4",
+    "set_id": "backlog-medhigh-260819",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-19",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260819-backlog-medhigh-260819-02-0qj4on-install-time-split-brain-layout-guard.ipd.md",
+    "plan_id": "0qj4on",
+    "set_id": "backlog-medhigh-260819",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-19",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 4,
+    "path": "executed/20260819-backlog-medhigh-260819-04-v1rj3p-aw-ipd-scaffold-enforces-clustering-grammar-and-requires-set.ipd.md",
+    "plan_id": "v1rj3p",
+    "set_id": "backlog-medhigh-260819",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-19",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 5,
+    "path": "executed/20260819-backlog-medhigh-260819-05-ckw2ze-single-aw-slash-command-namespace-over-the-workflows.ipd.md",
+    "plan_id": "ckw2ze",
+    "set_id": "backlog-medhigh-260819",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-19",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 6,
+    "path": "executed/20260819-backlog-medhigh-260819-06-0drnpf-research-topic-producer-workflow-drafts-a-handoff-prompt-int.ipd.md",
+    "plan_id": "0drnpf",
+    "set_id": "backlog-medhigh-260819",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-19",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 7,
+    "path": "executed/20260819-backlog-medhigh-260819-07-m7e2g3-verify-and-regression-test-aw-layout-inventory-walk-honors-g.ipd.md",
+    "plan_id": "m7e2g3",
+    "set_id": "backlog-medhigh-260819",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-19",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 8,
+    "path": "executed/20260819-backlog-medhigh-260819-08-0zxfic-hpc-shared-host-hardening-warning.ipd.md",
+    "plan_id": "0zxfic",
+    "set_id": "backlog-medhigh-260819",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-19",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 9,
+    "path": "executed/20260819-backlog-medhigh-260819-09-plt26j-migration-uninstall-sweep-untracked-stale-agents-litter.ipd.md",
+    "plan_id": "plt26j",
+    "set_id": "backlog-medhigh-260819",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-19",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260819-setupmarker-260819-01-i80vz1-replace-the-action-ledger-with-a-self-explaining-setup-repo.ipd.md",
@@ -2248,96 +2338,6 @@
     "plan_id": "38yl4s",
     "set_id": "backlog-medhigh-260819",
     "status": "not-executed"
-  },
-  {
-    "date": "2026-08-19",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260819-backlog-medhigh-260819-00-p1ku23-high-medium-open-backlog-remediation.ipd.md",
-    "plan_id": "p1ku23",
-    "set_id": "backlog-medhigh-260819",
-    "status": "reviewed"
-  },
-  {
-    "date": "2026-08-19",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260819-backlog-medhigh-260819-01-m2h1z4-ship-tools-awphysical-in-the-package-so-migrate-layout-works.ipd.md",
-    "plan_id": "m2h1z4",
-    "set_id": "backlog-medhigh-260819",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-19",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260819-backlog-medhigh-260819-02-0qj4on-install-time-split-brain-layout-guard.ipd.md",
-    "plan_id": "0qj4on",
-    "set_id": "backlog-medhigh-260819",
-    "status": "reviewed"
-  },
-  {
-    "date": "2026-08-19",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 4,
-    "path": "pending/20260819-backlog-medhigh-260819-04-v1rj3p-aw-ipd-scaffold-enforces-clustering-grammar-and-requires-set.ipd.md",
-    "plan_id": "v1rj3p",
-    "set_id": "backlog-medhigh-260819",
-    "status": "reviewed"
-  },
-  {
-    "date": "2026-08-19",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 5,
-    "path": "pending/20260819-backlog-medhigh-260819-05-ckw2ze-single-aw-slash-command-namespace-over-the-workflows.ipd.md",
-    "plan_id": "ckw2ze",
-    "set_id": "backlog-medhigh-260819",
-    "status": "reviewed"
-  },
-  {
-    "date": "2026-08-19",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 6,
-    "path": "pending/20260819-backlog-medhigh-260819-06-0drnpf-research-topic-producer-workflow-drafts-a-handoff-prompt-int.ipd.md",
-    "plan_id": "0drnpf",
-    "set_id": "backlog-medhigh-260819",
-    "status": "reviewed"
-  },
-  {
-    "date": "2026-08-19",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 7,
-    "path": "pending/20260819-backlog-medhigh-260819-07-m7e2g3-verify-and-regression-test-aw-layout-inventory-walk-honors-g.ipd.md",
-    "plan_id": "m7e2g3",
-    "set_id": "backlog-medhigh-260819",
-    "status": "reviewed"
-  },
-  {
-    "date": "2026-08-19",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 8,
-    "path": "pending/20260819-backlog-medhigh-260819-08-0zxfic-hpc-shared-host-hardening-warning.ipd.md",
-    "plan_id": "0zxfic",
-    "set_id": "backlog-medhigh-260819",
-    "status": "reviewed"
-  },
-  {
-    "date": "2026-08-19",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 9,
-    "path": "pending/20260819-backlog-medhigh-260819-09-plt26j-migration-uninstall-sweep-untracked-stale-agents-litter.ipd.md",
-    "plan_id": "plt26j",
-    "set_id": "backlog-medhigh-260819",
-    "status": "reviewed"
   },
   {
     "date": "2026-08-07",
