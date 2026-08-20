@@ -215,8 +215,27 @@ class ProducerTests(_RepoBackendCLIFixture):
         self.assertIsNotNone(m)
         text = created[0].read_text(encoding="utf-8")
         self.assertIn(f"- Id: {m.group('id6')}", text)
+        self.assertIn("- Set: demo", text)
+        self.assertIn("- Order: 1", text)
 
-    def test_ipd_scaffold_honors_explicit_path(self) -> None:
+    def test_ipd_scaffold_without_set_or_order_rejected(self) -> None:
+        r = self._run_cli_no_dir(
+            [
+                "ipd",
+                "scaffold",
+                "--kind",
+                "child",
+                "--title",
+                "Sample thing",
+                "--apply",
+            ]
+        )
+        self.assertNotEqual(r.returncode, 0)
+        self.assertTrue(
+            "the following arguments are required" in r.stderr or "required" in r.stderr
+        )
+
+    def test_ipd_scaffold_explicit_nonconforming_path_rejected(self) -> None:
         rel = ".aw/records/plans/pending/explicit.md"
         r = self._run_cli_no_dir(
             [
@@ -235,8 +254,59 @@ class ProducerTests(_RepoBackendCLIFixture):
                 "--apply",
             ]
         )
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("clustering grammar", r.stdout + r.stderr)
+        self.assertFalse((self.repo / rel).exists())
+
+    def test_ipd_scaffold_honors_explicit_path_with_legacy_name(self) -> None:
+        rel = ".aw/records/plans/pending/explicit.md"
+        r = self._run_cli_no_dir(
+            [
+                "ipd",
+                "scaffold",
+                "--kind",
+                "child",
+                "--set",
+                "demo",
+                "--order",
+                "1",
+                "--title",
+                "X",
+                "--path",
+                rel,
+                "--legacy-name",
+                "--apply",
+            ]
+        )
         self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
         self.assertTrue((self.repo / rel).is_file())
+
+    def test_ipd_scaffold_conforming_explicit_path_reconciles_id6(self) -> None:
+        rel = ".aw/records/plans/pending/20260819-demo-01-v1rj3p-foo.ipd.md"
+        r = self._run_cli_no_dir(
+            [
+                "ipd",
+                "scaffold",
+                "--kind",
+                "child",
+                "--set",
+                "demo",
+                "--order",
+                "1",
+                "--title",
+                "Foo",
+                "--path",
+                rel,
+                "--apply",
+            ]
+        )
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        created = self.repo / rel
+        self.assertTrue(created.is_file())
+        text = created.read_text(encoding="utf-8")
+        self.assertIn("- Id: v1rj3p", text)
+        self.assertIn("- Set: demo", text)
+        self.assertIn("- Order: 1", text)
 
 
 class PlansMvPreservesOrderAndDateTests(_RepoBackendCLIFixture):

@@ -37,8 +37,8 @@ class TemplateParityTests(unittest.TestCase):
             title=CHILD_TITLE,
             author=AUTHOR,
             when=WHEN,
-            set_name=None,
-            order=None,
+            set_name="<set-id>",
+            order=1,
             plan_id=TEMPLATE_ID,
         )
         self.assertEqual(

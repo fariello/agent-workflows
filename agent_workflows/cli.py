@@ -704,16 +704,25 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ipd_scaffold.add_argument(
         "--path",
         default=None,
-        help="Destination file path. Omit to derive the canonical clustered `.ipd.md` name into .aw/records/plans/pending/.",
+        help="Destination file path (must match clustering grammar YYYYMMDD-<setid>-NN-<id6>-<slug>.ipd.md unless --legacy-name is passed). Omit to derive the canonical clustered `.ipd.md` name into .aw/records/plans/pending/.",
     )
     p_ipd_scaffold.add_argument(
-        "--set", dest="set", default=None, help="Ordered-Set id (with --order)."
+        "--set",
+        dest="set",
+        required=True,
+        help="Ordered-Set id (required, with --order).",
     )
     p_ipd_scaffold.add_argument(
         "--order",
         type=int,
-        default=None,
-        help="Order in the Set (0 for orchestrator, >=1 for child).",
+        required=True,
+        help="Order in the Set (required; 0 for orchestrator, >=1 for child).",
+    )
+    p_ipd_scaffold.add_argument(
+        "--legacy-name",
+        action="store_true",
+        default=False,
+        help="Allow explicit --path that does not follow the clustering grammar.",
     )
     p_ipd_scaffold.add_argument(
         "--author", default=None, help="Author (or set AW_IPD_AUTHOR)."

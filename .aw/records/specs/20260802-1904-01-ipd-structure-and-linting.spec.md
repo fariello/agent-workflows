@@ -314,6 +314,7 @@ Authors MAY write action text manually. They SHOULD use `aw ipd sync` rather tha
 `aw ipd scaffold` and `aw ipd sync` are the only `aw ipd` operations that write files (`aw ipd lint` is read-only, Section 10). Both MUST follow this safety contract, defined here rather than in implementation discovery:
 
 - Default behavior is preview/dry-run: the command prints the diff or the file it WOULD write and makes no filesystem change unless `--apply` (or the repository's established apply flag) is passed explicitly. This mirrors the repository's existing write-tool precedent (dry-run by default, explicit `--apply`).
+- `aw ipd scaffold` MUST enforce that every scaffolded plan carries `Set`/`Order` metadata and that the destination path (derived or explicit `--path`) follows the canonical clustering grammar (`YYYYMMDD-<setid>-NN-<id6>-<slug>.ipd.md`) unless `--legacy-name` is passed.
 - `aw ipd scaffold` MUST refuse to overwrite an existing path unless an explicit overwrite flag is passed; the default is refusal with an actionable diagnostic.
 - Writes MUST be atomic or recoverable (for example write-to-temp-then-rename), so an interrupted apply never leaves a partially written IPD.
 - `aw ipd sync` MUST preserve all authored content per Section 6.1 and MUST refuse to write after execution has begun (Section 6.1), directing the author to the amendment/re-review workflow.

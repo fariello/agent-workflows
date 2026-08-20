@@ -32,6 +32,7 @@ def _ns(**kw) -> argparse.Namespace:
         author=None,
         apply=False,
         overwrite=False,
+        legacy_name=True,
     )
     base.update(kw)
     return argparse.Namespace(**base)
@@ -179,6 +180,16 @@ class ScaffoldTests(unittest.TestCase):
             _ns(kind="child", title="t", path=str(target), set="x", author="tester"),
         )
         self.assertEqual(rc, 2)
+        self.assertIn("--order is required", out)
+
+    def test_order_without_set_rejected(self):
+        target = self.tmp / "e2.md"
+        rc, out = _run(
+            A.run_scaffold,
+            _ns(kind="child", title="t", path=str(target), order=1, author="tester"),
+        )
+        self.assertEqual(rc, 2)
+        self.assertIn("--set is required", out)
 
     def test_author_required(self):
         target = self.tmp / "f.md"

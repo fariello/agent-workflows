@@ -120,9 +120,8 @@ def build_skeleton(
     lines.append("- Concern: TODO.")
     lines.append("- Scope: TODO.")
     lines.append("- Status: draft")
-    if set_name is not None:
-        lines.append("- Set: {0}".format(set_name))
-        lines.append("- Order: {0}".format(order))
+    lines.append("- Set: {0}".format(set_name))
+    lines.append("- Order: {0}".format(order))
     lines.append("- Highest E allocated: 01")
     lines.append("- Author: {0}".format(author))
     lines.append("- Id: {0}".format(plan_id))
@@ -219,13 +218,16 @@ def run_scaffold(args: argparse.Namespace) -> int:
         return 2
     set_name = getattr(args, "set", None)
     order = getattr(args, "order", None)
-    if (set_name is None) != (order is None):
-        print("error: --set and --order must be given together")
+    if set_name is None:
+        print("error: --set is required")
         return 2
-    if kind == S.KIND_ORCHESTRATOR and order is not None and order != 0:
+    if order is None:
+        print("error: --order is required")
+        return 2
+    if kind == S.KIND_ORCHESTRATOR and order != 0:
         print("error: orchestrator Order must be 0")
         return 2
-    if kind == S.KIND_CHILD and order is not None and order < 1:
+    if kind == S.KIND_CHILD and order < 1:
         print("error: child Order must be >= 1")
         return 2
     author = getattr(args, "author", None) or os.environ.get("AW_IPD_AUTHOR")
@@ -233,11 +235,27 @@ def run_scaffold(args: argparse.Namespace) -> int:
         print("error: --author is required (or set AW_IPD_AUTHOR)")
         return 2
     when = date.today().strftime("%Y-%m-%d")
-    # BACKWARD COMPAT: an explicit --path is honored exactly as before. Only when --path is omitted do
-    # we DERIVE the canonical clustered `.ipd.md` name (vf03z3), into `.aw/records/plans/pending/`.
+    # An explicit --path is validated against the clustering grammar unless --legacy-name is passed.
+    # When --path is omitted, we DERIVE the canonical clustered `.ipd.md` name into `.aw/records/plans/pending/`.
     if target:
         path = Path(target)
-        plan_id = _core.generate_id6(_existing_plan_ids(path))
+        legacy_name = getattr(args, "legacy_name", False)
+        from agent_workflows import plans_refs as _refs
+
+        m = _refs._CLUSTERED_RE.match(path.name)
+        if not legacy_name:
+            if not m or m.group("type") != "ipd":
+                print(
+                    "error: --path must follow clustering grammar "
+                    "YYYYMMDD-<setid>-NN-<id6>-<slug>.ipd.md (pass --legacy-name to override)"
+                )
+                return 2
+            plan_id = m.group("id6")
+        else:
+            if m and m.group("type") == "ipd":
+                plan_id = m.group("id6")
+            else:
+                plan_id = _core.generate_id6(_existing_plan_ids(path))
     else:
         from agent_workflows import plans_refs as _refs
         from agent_workflows import project_context as _ctx
@@ -250,15 +268,11 @@ def run_scaffold(args: argparse.Namespace) -> int:
             repo_root = Path.cwd()
         pending = repo_root / ".aw" / "records" / "plans" / "pending"
         plan_id = _core.generate_id6(_existing_plan_ids(pending))
-        derived_set = set_name if set_name is not None else plan_id
-        derived_order = (
-            order if order is not None else (0 if kind == S.KIND_ORCHESTRATOR else 1)
-        )
         slug = _refs._core.kebab(title)[:60] or "ipd"
         name = _refs.clustered_name(
             date=date.today().strftime("%Y%m%d"),
-            set_id=derived_set,
-            order=derived_order,
+            set_id=set_name,
+            order=order,
             id6=plan_id,
             slug=slug,
             artifact_type="ipd",
