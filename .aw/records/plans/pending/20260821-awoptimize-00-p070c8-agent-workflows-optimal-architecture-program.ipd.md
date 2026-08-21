@@ -4,7 +4,7 @@
 - Kind: orchestrator
 - Concern: Replace prose-only workflow compliance with a portable, evidence-gated execution architecture that remains usable across models and coding-agent hosts.
 - Scope: Orchestration only for Set `awoptimize`; Orders 01 through 08 own implementation. This Set may change workflow metadata, runtime and conformance tooling, generated host adapters, tests, and documentation, but no child may silently expand beyond its declared files.
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 0
 - Highest E allocated: 10
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-21 draft (Codex GPT-5.6 Sol): created from the pinned repository audit at commit `a2110e96b980fbf778027f1676a73774cb819292`, official host documentation, and the repository-observed false-completion incidents.
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. PR-A size assessment corrected exception->standard (10 leaves/1 group, neither threshold exceeded); PR-B canonical full-suite evidence command pinned to `make test` (parallel `pytest -n auto`, ~0:40 vs ~4:20 serial; D138). Foundational evidence verified against the tree (agy_run.py same-session audit, ipd_lint.py structure-only boundary, awlayout incident record, conformance operator-protocol/host_matrix.json all confirmed). Set scope accounting sound (8 children form a schema->evidence->runtime->verification->hosts->benchmark->migration->cutover DAG). Non-blocking OQ-01/OQ-02 (live budget, agy version) remain open, owner human maintainer; they gate child Orders 05/06 execution, not this orchestrator's review.
 
 ## Goal
 
@@ -149,7 +150,9 @@ The `Depends on` column names earlier child Orders. Each child's internal `Depen
 
 ## Required tests / validation
 
-At final execution, run the exact commands defined by each child plus: full unit suite; `aw ipd lint --all --agent`; local leak scan; generated-artifact drift check; all offline seeded fixtures; complete workflow-disposition coverage; clean-checkout install and compatibility tests; controlled live benchmark report validation; and a residual search for TODO, placeholder evidence, unsupported host claims, and terminal state changes outside the runtime.
+At final execution, run the exact commands defined by each child plus: the full unit suite; `aw ipd lint --all --agent`; local leak scan; generated-artifact drift check; all offline seeded fixtures; complete workflow-disposition coverage; clean-checkout install and compatibility tests; controlled live benchmark report validation; and a residual search for TODO, placeholder evidence, unsupported host claims, and terminal state changes outside the runtime.
+
+The canonical full-suite command for evidence in this Set (and its children) is `make test` (parallel `pytest -n auto` after `pip install '.[test]'`, auto-falling back to serial `unittest`; measured ~4:20 serial -> ~0:40 parallel with identical results, per D138 and CONTRIBUTING). Use `make test-serial` (`python3 -m unittest discover -s tests -t .`) only to reproduce a suspected ordering/isolation failure. Paste the actual runner output as evidence either way.
 
 ## Open questions
 
@@ -215,8 +218,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 ## Approval and execution gate
 
-- Size assessment: exception
-- Cohesion rationale: the children are deliberately separated by ownership boundary, while the orchestrator is required because schema, evidence, runtime, adapters, evaluation, migration, and cutover form a dependency DAG that cannot safely ship in isolation.
+- Size assessment: standard
+- Cohesion rationale: not required
 
 Do not execute any child until this orchestrator, the architecture decision, and that child have passed `/plan-review` and explicit human approval. The coordinator is the sole authority for dependency release and whole-Set status. A child executor may update only its own E-items and implementation evidence; it may not certify its V-items or move any IPD to a terminal directory.
 

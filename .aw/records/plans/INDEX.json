@@ -2380,6 +2380,96 @@
     "status": "not-executed"
   },
   {
+    "date": "2026-08-21",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260821-awoptimize-00-p070c8-agent-workflows-optimal-architecture-program.ipd.md",
+    "plan_id": "p070c8",
+    "set_id": "awoptimize",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260821-awoptimize-01-nmwy3m-canonical-workflow-schema-and-compiler.ipd.md",
+    "plan_id": "nmwy3m",
+    "set_id": "awoptimize",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260821-awoptimize-02-7qs57e-run-ledger-and-evidence-contract.ipd.md",
+    "plan_id": "7qs57e",
+    "set_id": "awoptimize",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260821-awoptimize-03-7cqbel-deterministic-workflow-runtime.ipd.md",
+    "plan_id": "7cqbel",
+    "set_id": "awoptimize",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 4,
+    "path": "pending/20260821-awoptimize-04-mcubhc-independent-verification-and-orchestration.ipd.md",
+    "plan_id": "mcubhc",
+    "set_id": "awoptimize",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 5,
+    "path": "pending/20260821-awoptimize-05-5elu0u-host-adapters-skills-and-capability-registry.ipd.md",
+    "plan_id": "5elu0u",
+    "set_id": "awoptimize",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 6,
+    "path": "pending/20260821-awoptimize-06-ozlus1-behavioral-benchmark-and-regression-harness.ipd.md",
+    "plan_id": "ozlus1",
+    "set_id": "awoptimize",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 7,
+    "path": "pending/20260821-awoptimize-07-01iuql-workflow-family-migration.ipd.md",
+    "plan_id": "01iuql",
+    "set_id": "awoptimize",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 8,
+    "path": "pending/20260821-awoptimize-08-kk41rr-compatibility-documentation-and-cutover.ipd.md",
+    "plan_id": "kk41rr",
+    "set_id": "awoptimize",
+    "status": "reviewed"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",

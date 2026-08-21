@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Migrate every workflow catalog entry to the appropriate canonical, deterministic, skill, or orchestrated form without semantic loss.
 - Scope: Complete manifest disposition, canonical package migration, generated adapters, workflow-specific tests, and deprecation aliases. No compatibility removal or release.
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 7
 - Highest E allocated: 10
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-21 draft (Codex GPT-5.6 Sol): created from the complete 151-file workflow inventory and family analysis.
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Broadest-scope child (migrates all 60 manifest rows + 38 lenses + 7 personas) but appropriately staged (shared families -> complex orchestrated -> compact) with per-family benchmark promotion gates and explicit legacy fallback. PR-A size assessment corrected exception->standard (10 leaves/3 groups, neither threshold exceeded); the per-stage independent-review-checkpoint requirement was moved from the cohesion field into the gate prose so it is preserved as an execution rule. E-01 completeness tooling guarantees zero unassigned rows. OQ-01 (which compact workflows auto-activate as skills) is non-blocking, correctly deferred to activation-precision evidence. This Order sequences after Orders 01-06.
 
 ## Goal
 
@@ -196,9 +197,9 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 ## Approval and execution gate
 
-- Size assessment: exception
-- Cohesion rationale: migration is grouped here for complete ownership, but execution must use the listed family stages with an independent review checkpoint after each stage.
+- Size assessment: standard
+- Cohesion rationale: not required
 
-Requires executed Orders 01 through 06 and approved per-family rollout order. Stop a family migration if benchmark gates fail; do not weaken thresholds or silently fall back.
+Requires executed Orders 01 through 06 and approved per-family rollout order. Execute the family stages in the listed order (shared families, then complex orchestrated, then compact/deterministic) with an independent review checkpoint after each stage rather than migrating all families in one pass. Stop a family migration if benchmark gates fail; do not weaken thresholds or silently fall back.
 
 Execution contract: path-scoped commits per family, no push or broad staging, raw parity and benchmark evidence retained. The coordinator alone advances family stage and terminal status.

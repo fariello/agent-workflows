@@ -2,7 +2,19 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 106 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 107 Sets; the full manifest is INDEX.json.
+
+## awoptimize
+
+- `p070c8` [pending] 00 pending/20260821-awoptimize-00-p070c8-agent-workflows-optimal-architecture-program.ipd.md
+- `nmwy3m` [pending] 01 pending/20260821-awoptimize-01-nmwy3m-canonical-workflow-schema-and-compiler.ipd.md
+- `7qs57e` [pending] 02 pending/20260821-awoptimize-02-7qs57e-run-ledger-and-evidence-contract.ipd.md
+- `7cqbel` [pending] 03 pending/20260821-awoptimize-03-7cqbel-deterministic-workflow-runtime.ipd.md
+- `mcubhc` [pending] 04 pending/20260821-awoptimize-04-mcubhc-independent-verification-and-orchestration.ipd.md
+- `5elu0u` [pending] 05 pending/20260821-awoptimize-05-5elu0u-host-adapters-skills-and-capability-registry.ipd.md
+- `ozlus1` [pending] 06 pending/20260821-awoptimize-06-ozlus1-behavioral-benchmark-and-regression-harness.ipd.md
+- `01iuql` [pending] 07 pending/20260821-awoptimize-07-01iuql-workflow-family-migration.ipd.md
+- `kk41rr` [pending] 08 pending/20260821-awoptimize-08-kk41rr-compatibility-documentation-and-cutover.ipd.md
 
 ## awhistignore
 
@@ -257,13 +269,6 @@ Showing the 40 most-recent of 106 Sets; the full manifest is INDEX.json.
 - `9tdap2` [executed] 05 executed/20260730-researchorg-05-9tdap2-research-archival-and-states.ipd.md
 - `w2u8ws` [executed] 06 executed/20260730-researchorg-06-w2u8ws-migrate-existing-research.ipd.md
 - `bv7oat` [executed] 07 executed/20260730-researchorg-07-bv7oat-scaffold-directives-and-decision-updates.ipd.md
-
-## dualchk
-
-- `3a4wh8` [executed] 00 executed/20260727-dualchk-00-3a4wh8-dual-checklist-convention-orchestrator.ipd.md
-- `r42p0d` [executed] 01 executed/20260727-dualchk-01-r42p0d-ipd-template-dual-checklist.ipd.md
-- `v46x84` [executed] 02 executed/20260727-dualchk-02-v46x84-plan-review-dual-checklist-duties.ipd.md
-- `oz1cj6` [executed] 03 executed/20260727-dualchk-03-oz1cj6-ipd-spec-and-orchestrator-template.ipd.md
 
 ## (singletons: no Set)
 

@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Deliver canonical workflows through native host mechanisms without inventing unsupported commands or duplicating semantics.
 - Scope: Versioned capability evidence registry, probe harness upgrades, adapter generators and thin skill packages for Codex CLI, OpenCode, Kiro CLI, Gemini CLI, Claude Code, and repository `agy` integration; compatibility shims and focused tests. No live benchmark scoring.
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 5
 - Highest E allocated: 08
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-21 draft (Codex GPT-5.6 Sol): created after comparing repository claims with current official host documentation.
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): REVIEWED - OPEN QUESTIONS; NO-GO until OQ-01/OQ-02 resolved. Design is sound and honest: evidence-keyed capability registry replacing boolean claims, fail-closed 'unverified' default, positive-and-negative isolated host probes, thin generated skills with no runtime semantics in SKILL.md, and the agy fresh-verifier correction. Size assessment standard (correct). Two BLOCKING open questions correctly remain and genuinely gate execution: OQ-01 (primary cross-host skill directory) needs live per-host/version probes, and OQ-02 (supported agy version/distribution) needs the actual installed executable - neither is answerable from the repo today. Both are owner: maintainer, with recorded triggers (a passing isolated live probe). This Order also sequences after Orders 01/03/04. Left OPEN deliberately per IPD spec (Blocking:yes is allowed at review, rejected at pre-execution).
 
 ## Goal
 

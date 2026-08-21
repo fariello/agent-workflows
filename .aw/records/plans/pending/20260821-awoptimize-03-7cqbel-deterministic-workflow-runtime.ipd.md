@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Move sequencing, persistence, retries, and terminal gates out of model memory into a deterministic resumable runtime.
 - Scope: Workflow-run state machine, scheduler, step-packet renderer, interaction gates, resume/retry/cancel behavior, CLI, and focused tests using Orders 01 and 02. No host-specific launcher or model benchmark.
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 3
 - Highest E allocated: 09
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-21 draft (Codex GPT-5.6 Sol): created to make compliance a runtime property instead of a prompt-length bet.
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Blocking OQ-01 (runtime index store) RESOLVED with the maintainer to append-only JSONL: the Order 02 ledger stays authoritative, the index is a small rebuildable per-run cache, JSONL matches the repo's inspectable file-records model and needs no dep (D138), and Order 03 already specifies its own single-writer leases (E-02) so SQLite's locking is unneeded. State-ownership table and fail-closed transition design are sound; the portable 'human ferries packets' fallback (gate) keeps it host-neutral. Size assessment standard (correct). No remaining blocking open questions.
 
 ## Goal
 
@@ -132,10 +133,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### OQ-01: SQLite or append-only files as the runtime index?
 
-- Blocking: yes
-- Status: open
+- Blocking: no
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: the ledger remains authoritative; choose the smallest recoverable index after filesystem locking and portability tests.
+- Resolution or deferral rationale: RESOLVED to append-only JSONL files (2026-08-21, /plan-review with the maintainer). The Order 02 ledger remains authoritative; the runtime index is a rebuildable cache over it, per-run and small (dozens of step/event records), so SQLite's query and locking advantages are largely wasted here while its opacity fights the repository's file-based, `cat`/`git diff`-inspectable records model. Order 03 already specifies its own single-writer lease semantics (E-02), so SQLite's built-in locking is not needed either. JSONL needs no dependency, serializes deterministically, and matches the research target layout (`events.jsonl`/`evidence.jsonl`). This is a pragmatic stdlib choice, not a dependency mandate (D138); `sqlite3` (stdlib) could be revisited only if a future need for large cross-run queries emerges, which would belong to the benchmark harness (Order 06), not the runtime. Record the choice in the runtime docs (E-08 spec/doc sync).
 
 ## Validation and cross-check (verify before reporting done)
 

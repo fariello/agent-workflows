@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Make execution state and completion claims durable, attributable, falsifiable, and independently verifiable.
 - Scope: Run/evidence schemas, append-only storage, requirement freeze and revision records, evidence capture/validation utilities, completion predicates, CLI inspection, and focused tests. No orchestration scheduling or host adapter generation.
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 2
 - Highest E allocated: 08
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-21 draft (Codex GPT-5.6 Sol): created to replace narrative self-certification with durable evidence gates.
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. This is the heart of the anti-false-completion design (append-only ledger, evidence envelopes bound to command/cwd/HEAD/exit/hash, completion-as-predicate) and is carefully specified; the evidence-sufficiency matrix and adversarial-fixture list (E-08) directly close the ipd_lint.py structure-only gap. Ledger records specified as JSONL, consistent with the runtime index (Order 03). Size assessment standard (correct). OQ-01 (signed attestations vs hash chain) is non-blocking and correctly deferred to a later hardening IPD. No blocking open questions.
 
 ## Goal
 

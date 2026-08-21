@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Ship the architecture safely with truthful documentation, reversible migration, validated compatibility, and explicit release gates.
 - Scope: Compatibility contract, migration tooling, operator/user docs, security and failure runbooks, deprecation telemetry, clean-install/update/rollback tests, release notes, and cutover. No release, tag, push, or deployment.
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 8
 - Highest E allocated: 09
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-21 draft (Codex GPT-5.6 Sol): created as the final rollout and truthfulness gate for the architecture Set.
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Compatibility contract, idempotent/previewable migration, rollback + interrupted-recovery, opt-in privacy-preserving deprecation telemetry, and an explicit GO/NO-GO release-readiness review that does NOT tag/publish/push are all present and honest. The compatibility-gates table (preserve-until / removal-authority per surface) is a strong safety fence. Canonical full-suite evidence command pinned to `make test`. Size assessment standard (correct). OQ-01 (deprecation window) is non-blocking with a sensible two-release default. This Order sequences last, after Orders 01-07.
 
 ## Goal
 
@@ -120,7 +121,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Fresh, update, partial, customized, interrupt, rollback, and downgrade fixtures.
 - Documentation command/option/link validation and generated-table drift.
 - Security tests for containment, symlink escape, untrusted instructions, permissions, authentication, and redaction.
-- Full suite, leak scan, IPD lint, workflow compiler drift, host probe freshness, benchmark gates, and residual audit.
+- Full suite (canonical `make test`, i.e. parallel `pytest -n auto`; `make test-serial` only for isolation debugging), leak scan, IPD lint, workflow compiler drift, host probe freshness, benchmark gates, and residual audit.
 
 ## Spec / documentation sync
 

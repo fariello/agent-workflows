@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Make workflow semantics typed, reviewable, deterministic, and compilable into bounded execution packets and host adapters.
 - Scope: New canonical workflow schema and loader under `agent_workflows/`, canonical source layout under `.aw/system/workflows/`, compiler and drift-check CLI, schema fixtures, and focused tests. No runtime execution, host launch, or workflow migration beyond compiler fixtures.
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 1
 - Highest E allocated: 07
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-21 draft (Codex GPT-5.6 Sol): created from the architecture research and full workflow inventory.
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Blocking OQ-01 (schema serialization format) RESOLVED with the maintainer to YAML for the canonical source, parsed build/authoring-time only so it is not a runtime dependency (D138); determinism via key-sorting at emit; single-source-of-truth via the compiler + check-generated drift test (E-06/E-07). Added an implementation constraint to keep YAML out of `agent_workflows/*` runtime paths and record the choice in DECISIONS during E-01. Size assessment standard (correct). No remaining open questions.
 
 ## Goal
 
@@ -109,12 +110,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Open questions
 
-### OQ-01: YAML, JSON, or TOML for the typed manifest?
+### OQ-01: YAML, JSON, or TOML for the canonical workflow source?
 
-- Blocking: yes
-- Status: open
+- Blocking: no
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: evaluate parser dependencies, source-location diagnostics, comment support, merge ergonomics, and deterministic serialization; record the choice in an ADR before implementation.
+- Resolution or deferral rationale: RESOLVED to YAML for the CANONICAL SOURCE, parsed only at DEV/BUILD/AUTHORING time (2026-08-21, /plan-review with the maintainer). The compiler (E-04) runs at build/authoring time and emits stdlib-parseable projections (JSON manifest/packets/evidence + Markdown) that are what ship; the installed CLI never parses the YAML source at runtime, so the YAML parser is a BUILD-TIME-ONLY dependency (the same category as `hatchling`), not a runtime dependency. This is consistent with dependency-minimization as a principle, not a prohibition (DECISIONS D138). YAML is chosen over JSON for the source because a human authors and reviews that source and YAML supports comments and friendlier merges; it is chosen over TOML because workflows are deeply nested and stdlib `tomllib` is read-only (no writer). Determinism (E-04's byte-stable requirement) is met by sorting keys and pinning writer options at emit time regardless of source format. The single-source-of-truth guarantee comes from the compiler plus the `check-generated` drift test (E-06/E-07), not from the format. IMPLEMENTATION CONSTRAINT for the executor: keep YAML strictly build-time (never import a YAML parser from `agent_workflows/*` runtime paths; a build/authoring tool or the `[test]`/dev extra may use it), and record the choice + the build-time boundary in a short DECISIONS entry during E-01 before writing the loader.
 
 ## Validation and cross-check (verify before reporting done)
 

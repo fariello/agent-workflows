@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Measure workflow execution quality, evidence honesty, activation, cost, and regressions across exact model-host configurations.
 - Scope: Versioned task corpus, seeded repositories, runner adapters, preregistered scoring, ablations, reports, thresholds, and offline/live test separation. No product workflow migration or unsupported provider spending.
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 6
 - Highest E allocated: 09
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-21 draft (Codex GPT-5.6 Sol): created to replace anecdotal model claims with reproducible task-level evidence.
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): REVIEWED - OPEN QUESTIONS; NO-GO until OQ-01/OQ-02 resolved. Methodology is rigorous: preregistered scoring/stopping rules frozen before live runs, offline-vs-live separation, adversarial false-completion seeds with recall/false-positive scoring, and separation of skill-activation from execution outcome. Canonical full-suite evidence command pinned to `make test`. Size assessment standard (correct). Two BLOCKING open questions correctly remain and gate execution: OQ-01 (live-model budget/credentials/allowed providers) is a spend+authority decision owned by the human maintainer; OQ-02 (minimum sample size for profile promotion) needs a pilot variance run before preregistration. Offline harness implementation is authorized by the plan after approval; live calls require the separate OQ-01 authorization. Left OPEN deliberately.
 
 ## Goal
 
@@ -120,7 +121,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Scorer golden tests with known correct, incomplete, and false-complete transcripts.
 - Runner contract tests for success, timeout, malformed stream, missing result, cost cap, and unavailable host.
 - Statistical report tests and no-small-n overclaim guard.
-- Credential-free offline CI subset plus full suite and leak scan.
+- Credential-free offline CI subset plus the full suite (canonical `make test`, i.e. parallel `pytest -n auto`) and leak scan.
 - Exact live probe commands emitted and marked pending until authorized.
 
 ## Spec / documentation sync
