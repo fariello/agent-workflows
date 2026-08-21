@@ -98,14 +98,28 @@ public repo origin URL. This class of leak is NOT caught by secret scanners (git
 
 ## Self-tests (run before pushing tool changes)
 
-The framework's Python code has automated tests (stdlib `unittest`, zero dependencies,
-consistent with the tools themselves). If you change any of the mechanical parts, the
+The framework's Python code has automated tests written as stdlib `unittest.TestCase`
+(consistent with the tools themselves). If you change any of the mechanical parts, the
 `agent_workflows/` package (installer/CLI engine, config, discovery, versioning, term, comms, plans,
 layout migration, pypi_links) or the workflow tools (`scan_secrets.py`, `run_checks.py`, `bench_env.py`, `setup_tools.py`,
-`normalize_plan_names.py`), run the whole suite:
+`normalize_plan_names.py`), run the whole suite. The canonical command is:
 
 ```bash
-python3 -m unittest discover -s tests -t .
+make test
+```
+
+`make test` runs the suite in parallel via `pytest -n auto` (the tests are subprocess/IO
+bound and independent, so this cuts wall time roughly 5-8x, e.g. ~4:20 serial to ~0:40 on a
+12-core machine) after `pip install '.[test]'`; it falls back automatically to the serial
+stdlib runner when `pytest-xdist` is not installed. pytest/pytest-xdist are TEST-ONLY
+dependencies (the `test` extra), never imported at runtime and never shipped (D138). The
+parallel run returns identical results to the serial one; prefer it as the evidence command.
+
+If you need the guaranteed no-dependency serial runner (for a minimal environment, or to
+debug a test-ordering/isolation issue), use:
+
+```bash
+make test-serial   # i.e. python3 -m unittest discover -s tests -t .
 ```
 
 The suite covers the installer/CLI (fresh install, idempotent re-run, prune of

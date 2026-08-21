@@ -254,7 +254,7 @@ baked into `.aw/system/VERSION` (a generated artifact, not hand-edited). A clean
 semver (e.g. `1.0.0`); an ahead-of-release or dirty tree resolves to a PEP 440
 `1.0.1.devN+g<sha>` local version.
 
-The Python tools and CLI engines have extensive stdlib-`unittest` self-tests under `tests/`, run with `python3 -m unittest discover -s tests -t .`.
+The Python tools and CLI engines have extensive stdlib-`unittest` self-tests under `tests/`, run canonically with `make test` (parallel `pytest -n auto` after `pip install '.[test]'`, with an automatic serial fallback); `make test-serial` (`python3 -m unittest discover -s tests -t .`) is the guaranteed no-dependency serial runner.
 
 ## Invocation, by tool
 

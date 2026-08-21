@@ -6,11 +6,12 @@
 .PHONY: test test-serial version version-file
 
 # Parallel by default: pytest-xdist spreads the suite across all CPUs (the install/
-# uninstall tests are subprocess/IO bound and independent), cutting wall time ~5-8x.
-# Falls back to serial stdlib unittest when pytest/xdist are not installed, so a
-# minimal env (and the runtime zero-dep contract) still works. pytest and pytest-xdist
-# are TEST-ONLY dependencies (see the `test` extra in pyproject.toml); they are not
-# imported at runtime and do not affect the shipped package.
+# uninstall tests are subprocess/IO bound and independent), cutting wall time ~5-8x
+# (measured ~4:20 serial -> ~0:40 on a 12-core machine, identical results). `make test`
+# is the canonical evidence command. Falls back to serial stdlib unittest when
+# pytest/xdist are not installed, so a minimal env still works. pytest and pytest-xdist
+# are TEST-ONLY dependencies (the `test` extra in pyproject.toml; D138): not imported at
+# runtime and not shipped in the wheel.
 test:
 	@if python3 -c "import xdist" >/dev/null 2>&1; then \
 		echo "running: pytest -n auto"; \
