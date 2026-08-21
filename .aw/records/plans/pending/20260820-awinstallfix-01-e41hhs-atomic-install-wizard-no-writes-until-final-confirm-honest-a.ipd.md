@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: install/uninstall correctness + UX. A live `aw install` session on a remote repo exposed 6 spec-conformance defects rooted in (a) the wizard writing to disk MID-interview instead of atomically after one final confirm, and (b) uninstall's installed-detection being too narrow to see a partial footprint. Governing spec: `.aw/records/specs/20260809-2211-01-aw-project-layout-storage-wizard-and-state.spec.md` (L33/334/364 "fail before writes" + single final confirmation; §14 L507-519 companion Git safety; L40 safe uninstall).
 - Scope: `agent_workflows/install_wizard.py` (interview -> pure data-collection; ctrl-c aborts; companion validation via the existing `storage.validate_companion_preflight`/`materialize_companion_storage`; path-in-prompt) + `agent_workflows/cli.py` (`_run_install` ordering so `persist_project_policy` runs only after ONE final Yes-default gate; honest abort message; `_run_uninstall` footprint detection) + the spec + regression tests. Does NOT redesign presets/placements, storage backends, or the companion attach/detach verbs (only wires the wizard into existing helpers).
-- Status: to-review
+- Status: reviewed
 - Set: awinstallfix
 - Order: 1
 - Highest E allocated: 07
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-20 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
+- 2026-08-20 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; verified all anchors against code (IN-001..IN-007 confirmed); PR-001 (distinct PolicyCancelledError handler, not a [FAIL]), PR-002 (E-06 git-init timing decided: validate/record intent in interview, materialize after final Yes), PR-003 (E-04 cross-ref) fixed in place; OQ-01 resolved (no speculative rollback). review-finalize lint conforming.
 
 ## Goal
 
@@ -30,7 +31,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: aborting at any point before the final Yes leaves the target dir byte-identical to before (no `.aw/` created).
   - Execution state: pending
 
-- [ ] E-02 CTRL-C aborts the whole install; nothing written. In `install_wizard.py`, stop coercing `KeyboardInterrupt` into the default answer at EVERY prompt (currently install_wizard.py:635/660/683/699/716/745 do `except (EOFError, KeyboardInterrupt): <default>`). Split the handling: `KeyboardInterrupt` -> raise `PolicyCancelledError` (propagates to a clean "Install cancelled by user; nothing written." + nonzero exit in `_run_install`); `EOFError` (piped/non-interactive) keeps the existing fail-safe default per prompt. Ensure `_run_install` catches `PolicyCancelledError` and prints the honest cancel line (NOT "nothing changed" boilerplate) and continues/returns nonzero.
+- [ ] E-02 CTRL-C aborts the whole install; nothing written. In `install_wizard.py`, stop coercing `KeyboardInterrupt` into the default answer at EVERY prompt (currently install_wizard.py:635/660/683/699/716/745 do `except (EOFError, KeyboardInterrupt): <default>`). Split the handling: `KeyboardInterrupt` -> raise `PolicyCancelledError` (install_wizard.py:67); `EOFError` (piped/non-interactive) keeps the existing fail-safe default per prompt. In `_run_install`, add a DISTINCT `except PolicyCancelledError` handler BEFORE the existing `except PolicyError` (cli.py:2355, which does `term.status("fail", ...)`): a user cancel is NOT a failure - emit a clean `term.status("skip", "<repo>: install cancelled; nothing written.")` and `continue`/return nonzero, so a deliberate CTRL-C never renders as `[FAIL]`. (Order matters: `PolicyCancelledError` subclasses `PolicyError`, so its handler must come first.)
   - Depends on: none
   - Expected outcome: pressing CTRL-C at the preset prompt (or any prompt) prints a single clean cancellation and exits with zero files written.
   - Execution state: pending
@@ -42,7 +43,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: single final Yes-default gate + prompt clarity
 
-- [ ] E-04 Single final confirmation defaulting Yes (defects #3 short-title, #4). Consolidate the two confirmations (the wizard's "Confirm and write policy layout? [Y/n]" at install_wizard.py:744 and the CLI's "Install agent-workflows into <repo>? [y/N]" at cli.py:2386) into ONE final gate after the pre-write plan preview, phrased "Proceed and install into <repo>? [Y/n]" defaulting YES for a completed interactive interview, CTRL-C aborts (E-02). Preserve the non-interactive/`--yes` safety: no TTY without `--yes` still declines (do not auto-proceed). The `--yes` path and `--dry-run` path keep their current behavior.
+- [ ] E-04 Single final confirmation defaulting Yes (defect #4; IN-006). Consolidate the two confirmations (the wizard's "Confirm and write policy layout? [Y/n]" at install_wizard.py:744 and the CLI's "Install agent-workflows into <repo>? [y/N]" at cli.py:2386) into ONE final gate after the pre-write plan preview, phrased "Proceed and install into <repo>? [Y/n]" defaulting YES for a completed interactive interview, CTRL-C aborts (E-02). Preserve the non-interactive/`--yes` safety: no TTY without `--yes` still declines (do not auto-proceed). The `--yes` path and `--dry-run` path keep their current behavior.
   - Depends on: E-01,E-02
   - Expected outcome: after answering the interview a user sees ONE final prompt defaulting Yes; empty-enter installs; `--yes` unattended still works; non-interactive without `--yes` still declines.
   - Execution state: pending
@@ -54,7 +55,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: companion validation (defect #2)
 
-- [ ] E-06 Validate the companion path instead of silently accepting it. In the companion subflow (`install_wizard.py:704-718`), after collecting the path, run the EXISTING `storage.validate_companion_preflight(target_repo, companion_dir, backend="companion")` (storage.py:409; already checks path-traversal, nesting, identity/registry conflict, dirty-state) and inspect existence: if the dir does not exist, offer to create + `git init` it (confirmation-gated per spec §14 L177 "MAY initialize a local Git repository only with confirmation", reusing `storage.materialize_companion_storage`/`create_companion_identity`); if it exists but has no `.git`, warn and offer `git init`; on a hard validation error (traversal/identity conflict) re-prompt or abort - never store an unusable/nonexistent companion silently. Any git-init is itself part of the deferred atomic write (only after final Yes) OR clearly confirmed in-subflow; keep it consistent with E-01 (prefer: record the intent, materialize after final Yes). Print clear guidance (how to clone an existing private companion) when the user opts not to auto-create.
+- [ ] E-06 Validate the companion path instead of silently accepting it. In the companion subflow (`install_wizard.py:704-718`), after collecting the path, run the EXISTING `storage.validate_companion_preflight(target_repo, companion_dir, backend="companion")` (storage.py:409; already checks path-traversal, nesting, identity/registry conflict, dirty-state) and inspect existence: if the dir does not exist, ASK in-subflow whether to create it (record the yes/no intent on the policy; spec §14 L177 "MAY initialize a local Git repository only with confirmation"); if it exists but has no `.git`, warn and ASK whether to `git init` (record intent); on a hard validation error (traversal/identity conflict from `validate_companion_preflight`) re-prompt or raise `PolicyCancelledError` - never store an unusable/nonexistent companion silently. DECISION (keeps E-01 atomicity): the interview only VALIDATES and RECORDS the create/init intent; the actual `git init` + `storage.materialize_companion_storage`/`create_companion_identity` run in the atomic install step AFTER the final Yes, never mid-interview. If the user declines to create/clone, print clear guidance (how to clone an existing private companion) and re-prompt or abort - do not proceed with a companion that cannot hold records.
   - Depends on: none
   - Expected outcome: a nonexistent/non-git companion path is never silently accepted; the user is guided to create/clone/init it or the install aborts with instructions.
   - Execution state: pending
@@ -137,7 +138,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: a test simulating `KeyboardInterrupt` at the preset prompt raises `PolicyCancelledError` (not a coerced default) and `_run_install` returns a clean cancel with zero files written; EOF at a prompt still uses the fail-safe default (distinct path).
+  - Required evidence: a test simulating `KeyboardInterrupt` at the preset prompt raises `PolicyCancelledError` (not a coerced default); `_run_install` renders it via the DISTINCT `except PolicyCancelledError` handler as a `[SKIP]`/cancel line (NOT `[FAIL]`) with zero files written; EOF at a prompt still uses the fail-safe default (distinct path). Assert the handler order (cancelled before PolicyError).
   - Observed evidence:
   - Result: pending
 
@@ -157,7 +158,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-06 validates E-06
-  - Required evidence: with a nonexistent companion path, the wizard invokes `validate_companion_preflight` and offers create/git-init (confirmation-gated) or aborts with guidance - it does NOT silently store the path; test asserts the preflight/guidance path is taken.
+  - Required evidence: with a nonexistent companion path, the wizard invokes `validate_companion_preflight` and offers create/git-init (confirmation-gated) or aborts with guidance - it does NOT silently store the path; the actual create/`git init`/materialize happens only in the post-final-Yes atomic step (assert no companion dir/`.git` created during the interview, before the final confirm); test asserts the preflight/guidance path is taken.
   - Observed evidence:
   - Result: pending
 
