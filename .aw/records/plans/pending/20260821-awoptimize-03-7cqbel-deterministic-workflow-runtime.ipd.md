@@ -4,17 +4,19 @@
 - Kind: child
 - Concern: Move sequencing, persistence, retries, and terminal gates out of model memory into a deterministic resumable runtime.
 - Scope: Workflow-run state machine, scheduler, step-packet renderer, interaction gates, resume/retry/cancel behavior, CLI, and focused tests using Orders 01 and 02. No host-specific launcher or model benchmark.
-- Status: reviewed
+- Status: approved
 - Set: awoptimize
 - Order: 3
 - Highest E allocated: 09
 - Author: Codex GPT-5.6 Sol
+- Approval: approved by Gabriele Fariello 2026-08-21
 - Id: 7cqbel
 
 ## Workflow history
 
 - 2026-08-21 draft (Codex GPT-5.6 Sol): created to make compliance a runtime property instead of a prompt-length bet.
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Blocking OQ-01 (runtime index store) RESOLVED with the maintainer to append-only JSONL: the Order 02 ledger stays authoritative, the index is a small rebuildable per-run cache, JSONL matches the repo's inspectable file-records model and needs no dep (D138), and Order 03 already specifies its own single-writer leases (E-02) so SQLite's locking is unneeded. State-ownership table and fail-closed transition design are sound; the portable 'human ferries packets' fallback (gate) keeps it host-neutral. Size assessment standard (correct). No remaining blocking open questions.
+- 2026-08-21 approved (Gabriele Fariello, --by-human): human sign-off recorded; part of the approved foundational scope (Orders 00-04). Ready to execute via /ipd-lifecycle in dependency order (after Orders 01, 02).
 
 ## Goal
 

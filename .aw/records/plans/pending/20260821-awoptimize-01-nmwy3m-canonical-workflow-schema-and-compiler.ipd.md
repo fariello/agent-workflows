@@ -4,17 +4,19 @@
 - Kind: child
 - Concern: Make workflow semantics typed, reviewable, deterministic, and compilable into bounded execution packets and host adapters.
 - Scope: New canonical workflow schema and loader under `agent_workflows/`, canonical source layout under `.aw/system/workflows/`, compiler and drift-check CLI, schema fixtures, and focused tests. No runtime execution, host launch, or workflow migration beyond compiler fixtures.
-- Status: reviewed
+- Status: approved
 - Set: awoptimize
 - Order: 1
 - Highest E allocated: 07
 - Author: Codex GPT-5.6 Sol
+- Approval: approved by Gabriele Fariello 2026-08-21
 - Id: nmwy3m
 
 ## Workflow history
 
 - 2026-08-21 draft (Codex GPT-5.6 Sol): created from the architecture research and full workflow inventory.
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Blocking OQ-01 (schema serialization format) RESOLVED with the maintainer to YAML for the canonical source, parsed build/authoring-time only so it is not a runtime dependency (D138); determinism via key-sorting at emit; single-source-of-truth via the compiler + check-generated drift test (E-06/E-07). Added an implementation constraint to keep YAML out of `agent_workflows/*` runtime paths and record the choice in DECISIONS during E-01. Size assessment standard (correct). No remaining open questions.
+- 2026-08-21 approved (Gabriele Fariello, --by-human): human sign-off recorded; part of the approved foundational scope (Orders 00-04). Ready to execute via /ipd-lifecycle in dependency order.
 
 ## Goal
 

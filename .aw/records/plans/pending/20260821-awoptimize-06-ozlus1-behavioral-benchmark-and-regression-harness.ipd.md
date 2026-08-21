@@ -2,7 +2,7 @@
 
 - Date: 2026-08-21
 - Kind: child
-- Concern: Measure workflow execution quality, evidence honesty, activation, cost, and regressions across exact model-host configurations.
+- Concern: Measure workflow execution quality, evidence honesty, activation, efficiency (wall-time and, where reported, tokens), and regressions across exact model-host configurations. Dollar cost is out of scope (no host reports it reliably); the harness enforces time/trial (and token-where-reported) ceilings, never a dollar or credit-pool budget.
 - Scope: Versioned task corpus, seeded repositories, runner adapters, preregistered scoring, ablations, reports, thresholds, and offline/live test separation. No product workflow migration or unsupported provider spending.
 - Status: reviewed
 - Set: awoptimize
@@ -14,7 +14,7 @@
 ## Workflow history
 
 - 2026-08-21 draft (Codex GPT-5.6 Sol): created to replace anecdotal model claims with reproducible task-level evidence.
-- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): REVIEWED - OPEN QUESTIONS; NO-GO until OQ-01/OQ-02 resolved. Methodology is rigorous: preregistered scoring/stopping rules frozen before live runs, offline-vs-live separation, adversarial false-completion seeds with recall/false-positive scoring, and separation of skill-activation from execution outcome. Canonical full-suite evidence command pinned to `make test`. Size assessment standard (correct). Two BLOCKING open questions correctly remain and gate execution: OQ-01 (live-model budget/credentials/allowed providers) is a spend+authority decision owned by the human maintainer; OQ-02 (minimum sample size for profile promotion) needs a pilot variance run before preregistration. Offline harness implementation is authorized by the plan after approval; live calls require the separate OQ-01 authorization. Left OPEN deliberately.
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED for the OFFLINE scope; GO - PENDING HUMAN APPROVAL (offline v1). Methodology is rigorous (preregistered scoring frozen before live runs, offline-vs-live separation, adversarial false-completion seeds, activation-vs-outcome separation). Resolved with the maintainer: OQ-01 -> offline-only v1 (full harness + usage-capture plumbing validated with fixtures; LIVE multi-model runs are a manual, operator-run step, never an executor agent); OQ-02 -> deferred with trigger (set N after a human live pilot reports variance; governs only the later live-promotion step). Corrected the usage/cost model per maintainer ground truth: `wall_time` always captured; `tokens` best-effort-per-host with honest `unavailable`; `credits_or_quota` opaque host-tagged (e.g. Gemini's pool); dollar `cost` removed as capturable/enforceable (E-01/E-07/Concern/OQ-01). Added a hard human/agent boundary to the gate (agent builds+offline-validates; operator runs live models). Live multi-model execution remains a human-run follow-on and is NOT part of this approval.
 
 ## Goal
 
@@ -26,9 +26,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Corpus and protocol
 
-- [ ] E-01 Define a versioned benchmark manifest with exact model ID, reasoning/effort configuration, host and version, adapter digest, workflow digest, tool/permission policy, task seed, trial, timeout, token/cost limits, and environment fingerprint.
+- [ ] E-01 Define a versioned benchmark manifest with exact model ID, reasoning/effort configuration, host and version, adapter digest, workflow digest, tool/permission policy, task seed, trial, timeout, per-trial wall-time and trial-count ceilings (plus an optional token ceiling ONLY where the host reports tokens), and environment fingerprint. Enforcement ceilings are time/trial (and token-where-reported), never a dollar or credit-pool figure the harness cannot measure. Usage capture is a set of OPTIONAL, host-tagged fields, each independently present or `unavailable` (never inferred, never zero-filled): `wall_time` (always captured by the harness wrapping the invocation), `tokens` (a `{prompt, completion, thinking, cached, ...}` record only where the host emits it in machine-readable output), and `credits_or_quota` (an opaque, host-specific consumption signal, e.g. Gemini's remaining-pool value, captured verbatim where a host exposes it and explicitly NOT comparable across models). Dollar `cost` is NOT a captured or enforced field (no host reports it reliably; any estimate is an out-of-band `tokens x stale-price-table` derivation, never a gate).
   - Depends on: none
-  - Expected outcome: results from different configurations cannot be accidentally pooled or compared without declared factors.
+  - Expected outcome: results from different configurations cannot be accidentally pooled or compared without declared factors; usage fields are honestly present-or-`unavailable` and cost is absent.
   - Execution state: pending
 - [ ] E-02 Build small seeded repositories and tasks representing simple commands, interactive planning, complex review, multi-step implementation, migration, failure recovery, and orchestration, each with hidden ground truth and deterministic reset.
   - Depends on: E-01
@@ -47,15 +47,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-05 Implement offline runner-contract tests and live runner adapters for GPT-5.6 Sol, Gemini 3.7 Flash at medium thinking, Claude Opus 5, and GLM-5.3 at declared reasoning, on each authorized host combination.
   - Depends on: E-04
-  - Expected outcome: missing executable, credentials, model access, or budget yields a structured pending result and an exact rerun command, not guessed data.
+  - Expected outcome: missing executable, credentials, model access, or an exceeded time/trial ceiling yields a structured pending result and an exact rerun command, not guessed data.
   - Execution state: pending
 - [ ] E-06 Implement ablations comparing monolithic prompt, modular skill, deterministic runtime, runtime plus same-session audit, runtime plus fresh verifier, and runtime plus cross-model verifier while holding task and configuration constant.
   - Depends on: E-05
   - Expected outcome: architecture benefits and costs are attributable rather than confounded with task differences.
   - Execution state: pending
-- [ ] E-07 Capture metrics for requirement recall, task correctness, evidence validity, false-completion detection, defect escape, regression rate, scope violations, test integrity, skill activation precision/recall, retries, human interventions, latency, tokens, and cost.
+- [ ] E-07 Capture metrics for requirement recall, task correctness, evidence validity, false-completion detection, defect escape, regression rate, scope violations, test integrity, skill activation precision/recall, retries, human interventions, wall-time (always available), and tokens (where the host reports them; `unavailable` otherwise). Do NOT report a dollar cost metric; where present, record `credits_or_quota` as an opaque host-tagged value, not a cross-model-comparable number.
   - Depends on: E-06
-  - Expected outcome: quality, honesty, efficiency, and operator burden are reported separately with confidence intervals where sample size permits.
+  - Expected outcome: quality, honesty, efficiency, and operator burden are reported separately with confidence intervals where sample size permits; efficiency is time-and-token based, never dollar-based.
   - Execution state: pending
 - [ ] E-08 Define release thresholds by workflow risk class and model-host profile; require zero critical seeded escapes, 100 percent required-evidence validity for terminal success, and explicit human review of any threshold change.
   - Depends on: E-07
@@ -131,19 +131,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Open questions
 
-### OQ-01: Live-run budget, credentials, and allowed provider/host combinations?
+### OQ-01: Live-run scope, credentials, and allowed provider/host combinations?
 
-- Blocking: yes
-- Status: open
+- Blocking: no
+- Status: resolved
 - Owner: human maintainer
-- Resolution or deferral rationale: implement and validate the offline harness first; require explicit budget and credential authorization before any provider call.
+- Resolution or deferral rationale: RESOLVED to OFFLINE-ONLY for v1 (2026-08-21, /plan-review with the maintainer). v1 builds the full multi-model runner adapters, the seeded repo/scorer, and the usage-capture plumbing, validated ENTIRELY OFFLINE with runner doubles/fixtures that supply fake usage fields (no provider credentials, no network, no paid calls). LIVE multi-model runs are a MANUAL, HUMAN-RUN step performed by the operator, NOT by any executor agent; the executor may build and offline-validate the harness but MUST NOT invoke paid or live models (see the execution gate). There is no dollar "budget" knob because the harness cannot measure cost; enforcement is time/trial (and token-where-reported) ceilings only, and per-run spend/quota is governed by the operator's own provider account (e.g. Gemini's credit pool is external to the harness). This unblocks the offline scope now; the live run is a separately authorized, human-executed follow-on.
 
 ### OQ-02: Minimum sample size for profile promotion?
 
-- Blocking: yes
-- Status: open
-- Owner: benchmark owner and maintainer
-- Resolution or deferral rationale: run a pilot for variance, then preregister power or precision criteria before main trials.
+- Blocking: no
+- Status: deferred
+- Owner: human maintainer
+- Resolution or deferral rationale: DEFERRED with an explicit trigger (not blocking, because it only governs the LATER live-promotion step, which is human-run and out of the offline v1 scope). Trigger: after the operator runs a live pilot and reports per-metric variance, preregister a power/precision-based minimum N before any comparative promotion claim. The offline harness and its scorer do not need N to be built or validated.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -192,6 +192,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: corpus, protocol, scoring, runners, and thresholds must version together to prevent biased comparisons.
 
-Requires executed Orders 01 through 05. Offline implementation is authorized by this IPD after approval; live provider calls require separate explicit budget and credential approval. Never fill unavailable cells with inference.
+Requires executed Orders 01 through 05. Offline implementation is authorized by this IPD after approval. HUMAN/AGENT BOUNDARY (hard): an executor agent may build and OFFLINE-validate the harness (runner adapters, scorer, seeded repos, usage-capture plumbing exercised with fixtures) but MUST NOT invoke paid or live models, spend credentials, or run a live provider call. LIVE multi-model trials are run MANUALLY BY THE OPERATOR, who feeds the raw results back; the agent then consumes those results. This mirrors the Set's own anti-false-completion posture (do not let the executing agent produce the very measurements that would grade it). Never fill unavailable cells with inference.
 
-Execution contract: path-scoped commits, no push or broad staging, raw trial data retained and redacted. The executor cannot modify scoring after seeing outcomes without a versioned protocol revision.
+Execution contract: path-scoped commits, no push or broad staging, raw trial data retained and redacted. The executor cannot modify scoring after seeing outcomes without a versioned protocol revision, and cannot make live model calls (operator-only, above).

@@ -14,7 +14,7 @@
 ## Workflow history
 
 - 2026-08-21 draft (Codex GPT-5.6 Sol): created after comparing repository claims with current official host documentation.
-- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): REVIEWED - OPEN QUESTIONS; NO-GO until OQ-01/OQ-02 resolved. Design is sound and honest: evidence-keyed capability registry replacing boolean claims, fail-closed 'unverified' default, positive-and-negative isolated host probes, thin generated skills with no runtime semantics in SKILL.md, and the agy fresh-verifier correction. Size assessment standard (correct). Two BLOCKING open questions correctly remain and genuinely gate execution: OQ-01 (primary cross-host skill directory) needs live per-host/version probes, and OQ-02 (supported agy version/distribution) needs the actual installed executable - neither is answerable from the repo today. Both are owner: maintainer, with recorded triggers (a passing isolated live probe). This Order also sequences after Orders 01/03/04. Left OPEN deliberately per IPD spec (Blocking:yes is allowed at review, rejected at pre-execution).
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Design is sound and honest: evidence-keyed capability registry replacing boolean claims, fail-closed 'unverified' default, positive-and-negative isolated host probes, thin generated skills with no runtime semantics in SKILL.md, and the agy fresh-verifier correction. Size assessment standard (correct). Both BLOCKING open questions resolved with the maintainer as SCOPING decisions that preserve the fail-closed probe gate: OQ-01 -> target OpenCode + Codex first via shared `.agents/skills/`, others deferred, nothing marked 'supported' without a live probe; OQ-02 -> installed `agy --version` is 1.1.17, recorded as the TENTATIVE target, still `unverified` until an isolated live probe on that exact version. The live host/agy probes are operator-run (maintainer pastes evidence); the executor generates adapters/skills for the scoped hosts and leaves probe cells unverified/pending. This Order sequences after Orders 01/03/04.
 
 ## Goal
 
@@ -129,17 +129,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### OQ-01: Which cross-host skill directory is the primary generated target?
 
-- Blocking: yes
-- Status: open
+- Blocking: no
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: `.agents/skills/` has broad current support, but Codex and Kiro packaging details and clean-delta policy must be reproduced on exact versions before selection.
+- Resolution or deferral rationale: RESOLVED (2026-08-21, /plan-review with the maintainer): scope v1 to OPENCODE and CODEX FIRST (the maintainer's daily-driver hosts), generating to the shared `.agents/skills/` convention as the PRIMARY target where each host discovers it, with per-host directories only where a host requires its own. Gemini CLI, Claude Code, and Kiro CLI are secondary targets deferred until probed. This is a SCOPING decision only; it does NOT mark any host capability "supported" - every generated adapter/skill stays `unverified` in the capability registry (E-01) until the maintainer runs the isolated live probe (E-02/E-03) on the exact host version and pastes the result. The executor generates for OpenCode + Codex, records the target directories, and leaves the live-probe cells `unverified`/pending for the operator to fill.
 
 ### OQ-02: What is the exact supported `agy` version and vendor documentation?
 
-- Blocking: yes
-- Status: open
+- Blocking: no
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: retain current runner as unverified compatibility integration until exact version and isolated probe results are recorded.
+- Resolution or deferral rationale: RESOLVED (2026-08-21, /plan-review with the maintainer): the maintainer's installed `agy --version` is `1.1.17`, recorded as the TENTATIVE supported target. Per the fail-closed capability discipline (E-01), `1.1.17` is NOT marked "supported" on documentation or version alone; it stays `unverified` until an isolated live probe (E-02/E-03) reproduces the positive contract AND the expected fail-closed behavior on that exact version and the maintainer pastes the evidence. The existing agy runner remains an unverified compatibility integration until then. Vendor documentation for that exact version is to be cited by the operator with the probe.
 
 ## Validation and cross-check (verify before reporting done)
 

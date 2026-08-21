@@ -2387,7 +2387,7 @@
     "path": "pending/20260821-awoptimize-00-p070c8-agent-workflows-optimal-architecture-program.ipd.md",
     "plan_id": "p070c8",
     "set_id": "awoptimize",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-21",
@@ -2397,7 +2397,7 @@
     "path": "pending/20260821-awoptimize-01-nmwy3m-canonical-workflow-schema-and-compiler.ipd.md",
     "plan_id": "nmwy3m",
     "set_id": "awoptimize",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-21",
@@ -2407,7 +2407,7 @@
     "path": "pending/20260821-awoptimize-02-7qs57e-run-ledger-and-evidence-contract.ipd.md",
     "plan_id": "7qs57e",
     "set_id": "awoptimize",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-21",
@@ -2417,7 +2417,7 @@
     "path": "pending/20260821-awoptimize-03-7cqbel-deterministic-workflow-runtime.ipd.md",
     "plan_id": "7cqbel",
     "set_id": "awoptimize",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-21",
@@ -2427,7 +2427,7 @@
     "path": "pending/20260821-awoptimize-04-mcubhc-independent-verification-and-orchestration.ipd.md",
     "plan_id": "mcubhc",
     "set_id": "awoptimize",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-21",

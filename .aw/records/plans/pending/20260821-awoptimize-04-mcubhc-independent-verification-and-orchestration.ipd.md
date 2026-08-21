@@ -4,17 +4,19 @@
 - Kind: child
 - Concern: Separate coordination, execution, and verification so completion claims are checked in an isolated context against actual state.
 - Scope: Role contracts, verifier packet, subagent/session/worktree policy, correction loop, portable fallback, and focused orchestration tests. No host-specific adapter files or live benchmark execution.
-- Status: reviewed
+- Status: approved
 - Set: awoptimize
 - Order: 4
 - Highest E allocated: 08
 - Author: Codex GPT-5.6 Sol
+- Approval: approved by Gabriele Fariello 2026-08-21
 - Id: mcubhc
 
 ## Workflow history
 
 - 2026-08-21 draft (Codex GPT-5.6 Sol): created in response to repeated same-session self-audit false positives recorded in the repository.
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Role separation (coordinator/executor/verifier), the clean verifier packet that excludes executor conclusion prose, the fork-rejected-for-verifier rule, and the worktree/ownership/merge-revalidate concurrency gates are well-reasoned and directly answer the awlayout same-session-audit failure. Portable two-process fallback keeps it host-neutral. Size assessment standard (correct). OQ-01 (cross-model verifier) is non-blocking and correctly deferred to the Order 06 benchmark. No blocking open questions.
+- 2026-08-21 approved (Gabriele Fariello, --by-human): human sign-off recorded; part of the approved foundational scope (Orders 00-04). Ready to execute via /ipd-lifecycle in dependency order (after Orders 01-03).
 
 ## Goal
 

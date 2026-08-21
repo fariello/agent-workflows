@@ -4,17 +4,19 @@
 - Kind: orchestrator
 - Concern: Replace prose-only workflow compliance with a portable, evidence-gated execution architecture that remains usable across models and coding-agent hosts.
 - Scope: Orchestration only for Set `awoptimize`; Orders 01 through 08 own implementation. This Set may change workflow metadata, runtime and conformance tooling, generated host adapters, tests, and documentation, but no child may silently expand beyond its declared files.
-- Status: reviewed
+- Status: approved
 - Set: awoptimize
 - Order: 0
 - Highest E allocated: 10
 - Author: Codex GPT-5.6 Sol
+- Approval: approved by Gabriele Fariello 2026-08-21
 - Id: p070c8
 
 ## Workflow history
 
 - 2026-08-21 draft (Codex GPT-5.6 Sol): created from the pinned repository audit at commit `a2110e96b980fbf778027f1676a73774cb819292`, official host documentation, and the repository-observed false-completion incidents.
-- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. PR-A size assessment corrected exception->standard (10 leaves/1 group, neither threshold exceeded); PR-B canonical full-suite evidence command pinned to `make test` (parallel `pytest -n auto`, ~0:40 vs ~4:20 serial; D138). Foundational evidence verified against the tree (agy_run.py same-session audit, ipd_lint.py structure-only boundary, awlayout incident record, conformance operator-protocol/host_matrix.json all confirmed). Set scope accounting sound (8 children form a schema->evidence->runtime->verification->hosts->benchmark->migration->cutover DAG). Non-blocking OQ-01/OQ-02 (live budget, agy version) remain open, owner human maintainer; they gate child Orders 05/06 execution, not this orchestrator's review.
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. PR-A size assessment corrected exception->standard (10 leaves/1 group, neither threshold exceeded); PR-B canonical full-suite evidence command pinned to `make test` (parallel `pytest -n auto`, ~0:40 vs ~4:20 serial; D138). Foundational evidence verified against the tree (agy_run.py same-session audit, ipd_lint.py structure-only boundary, awlayout incident record, conformance operator-protocol/host_matrix.json all confirmed). Set scope accounting sound (8 children form a schema->evidence->runtime->verification->hosts->benchmark->migration->cutover DAG).
+- 2026-08-21 approved (Gabriele Fariello, --by-human): human sign-off recorded for the FOUNDATIONAL scope of the Set (this orchestrator + Orders 01-04, the deterministic offline model-free critical path). Orders 05-08 remain `reviewed` (GO - pending human approval), to be approved once their live host/model probes and benchmark evidence are in hand. Execution proceeds in dependency order via /ipd-lifecycle; live model/host calls are operator-run, never executor-run.
 
 ## Goal
 
