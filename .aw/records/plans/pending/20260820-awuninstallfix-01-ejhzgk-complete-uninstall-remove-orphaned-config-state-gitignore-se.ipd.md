@@ -4,17 +4,19 @@
 - Kind: child
 - Concern: uninstall completeness + honesty. On a fresh install then `aw uninstall .` (+ deep cleanup), several AW-owned file classes survive because they are removed by NEITHER the manifest-driven base uninstall NOR the deep cleanup: `.aw/config/{project,local}.json`, `.aw/state/**` (`install.json`, `durable/install.json`, `durable/history/installs.jsonl`, `history/installs.jsonl`), `.aw/.gitignore`, `.aw/setup-repo-needed.md`. So `.aw/` can never be fully removed. Separately, the deep-cleanup announcement mislabels FILE roots as directories.
 - Scope: `agent_workflows/engine.py` (`uninstall_repo` to also remove the deterministic framework lifecycle files config+state+.gitignore + call `remove_setup_marker`; keep `_DEEP_CLEANUP_ROOTS` owning records/; partition the deep-cleanup plan into a records class vs non-records scaffolding) + `agent_workflows/cli.py` (a DEDICATED records keep/remove prompt distinct from the non-records scaffolding prompt; deep-cleanup announcement label: file vs directory) + regression tests. Does NOT change the manifest format or the drift-preservation behavior. Sibling to awinstallfix-01 (install side); this is the uninstall side.
-- Status: reviewed
+- Status: approved
 - Set: awuninstallfix
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: maintainer (human), 2026-08-20: approved after /plan-review (APPROVE WITH REVISIONS APPLIED); the uninstall-completeness + records keep/remove fix, cleared for execution.
 - Id: ejhzgk
 
 ## Workflow history
 
 - 2026-08-20 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-20 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; anchors verified (UN-001..UN-004 confirmed); PR-001 (records-keep data-safety: run_deep_cleanup must not receive records files when kept), PR-002 (setup marker handled once) fixed in place; OQ-01 resolved. review-finalize lint conforming.
+- 2026-08-20 approved (maintainer, human): cleared for execution.
 
 ## Goal
 
