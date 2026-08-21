@@ -2,15 +2,23 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 104 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 106 Sets; the full manifest is INDEX.json.
 
 ## awhistignore
 
 - `pprchd` [not-executed] 01 not-executed/20260820-awhistignore-01-pprchd-untrack-aw-records-history-jsonl-accidental-local-sidecar-an.ipd.md
 
+## awinstallfix
+
+- `e41hhs` [executed] 01 executed/20260820-awinstallfix-01-e41hhs-atomic-install-wizard-no-writes-until-final-confirm-honest-a.ipd.md
+
 ## awuiux
 
 - `ygeuha` [executed] 01 executed/20260820-awuiux-01-ygeuha-unify-severity-labels-in-term-p14-bracketed-fixed-width-cons.ipd.md
+
+## awuninstallfix
+
+- `ejhzgk` [pending] 01 pending/20260820-awuninstallfix-01-ejhzgk-complete-uninstall-remove-orphaned-config-state-gitignore-se.ipd.md
 
 ## awdoctorfix
 
@@ -256,14 +264,6 @@ Showing the 40 most-recent of 104 Sets; the full manifest is INDEX.json.
 - `r42p0d` [executed] 01 executed/20260727-dualchk-01-r42p0d-ipd-template-dual-checklist.ipd.md
 - `v46x84` [executed] 02 executed/20260727-dualchk-02-v46x84-plan-review-dual-checklist-duties.ipd.md
 - `oz1cj6` [executed] 03 executed/20260727-dualchk-03-oz1cj6-ipd-spec-and-orchestrator-template.ipd.md
-
-## two-sets
-
-- `ykdobx` [executed] 00 executed/20260727-two-sets-00-ykdobx-two-sets-prose-quality-fixes.ipd.md
-
-## untrack-artifacts
-
-- `r2lbj2` [executed] 00 executed/20260727-untrack-artifacts-00-r2lbj2-untrack-artifacts-prose-corrections.ipd.md
 
 ## (singletons: no Set)
 

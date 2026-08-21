@@ -2314,6 +2314,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260820-awinstallfix-01-e41hhs-atomic-install-wizard-no-writes-until-final-confirm-honest-a.ipd.md",
+    "plan_id": "e41hhs",
+    "set_id": "awinstallfix",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-20",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260820-awuiux-01-ygeuha-unify-severity-labels-in-term-p14-bracketed-fixed-width-cons.ipd.md",
     "plan_id": "ygeuha",
     "set_id": "awuiux",
@@ -2358,6 +2368,16 @@
     "plan_id": "pprchd",
     "set_id": "awhistignore",
     "status": "not-executed"
+  },
+  {
+    "date": "2026-08-20",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260820-awuninstallfix-01-ejhzgk-complete-uninstall-remove-orphaned-config-state-gitignore-se.ipd.md",
+    "plan_id": "ejhzgk",
+    "set_id": "awuninstallfix",
+    "status": "reviewed"
   },
   {
     "date": "2026-08-07",
