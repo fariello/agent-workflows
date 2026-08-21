@@ -1015,8 +1015,9 @@ both execute the (large) set well.
   findings and no cross-concern prioritization; a rollup gives a single prioritized view.
 - **Scope (open Q1, resolved):** build both parts now (dependencies - parameterized assess
   D31, verify D33 - are done).
-- **Test framework (open Q3, resolved):** stdlib `unittest`, zero dependencies, consistent
-  with the tools (the framework eats its own zero-dependency dog food); not pytest.
+- **Test framework (open Q3, resolved):** stdlib `unittest`, no test dependency required,
+  consistent with the tools (a pragmatic stdlib default, not a mandate; see D138); not pytest by
+  default, though the optional `[test]` extra allows pytest/pytest-xdist as a parallel runner.
 - **Part A coverage:** installer (fresh install, idempotent re-run, prune of stale/legacy
   `assess-<concern>` shims, `--no-prune`, legacy-layout migration, dry-run makes no
   changes, catalog-row collapse + the `assess-all` exception, `--version`, installer not
@@ -1798,10 +1799,12 @@ both execute the (large) set well.
   `[tool.hatch.metadata.hooks.custom]`) sets the dynamic `readme` long-description to the rewritten
   text at build time; the source `README.md` on disk is NEVER modified (its relative links stay
   correct for GitHub browsing). Owner/repo come from `[project.urls]`; a non-GitHub URL -> no rewrite.
-- **Why a custom hook, not `hatch-fancy-pypi-readme`:** that third-party plugin does this but is a
-  BUILD DEPENDENCY, which violates the zero-dependency rule (D46). Our hook is stdlib-only and lives
-  in the same `hatch_build.py` that already provides the version `code` source (verified they coexist;
-  the hook adds the repo root to `sys.path` because `load_plugin_from_script` does not).
+- **Why a custom hook, not `hatch-fancy-pypi-readme`:** that third-party plugin does this but would add
+  another build dependency for a job the standard library does trivially, so the stdlib hook was the
+  easier, lower-friction choice here (a dependency-minimization preference, not a prohibition; see D138).
+  Our hook is stdlib-only and lives in the same `hatch_build.py` that already provides the version
+  `code` source (verified they coexist; the hook adds the repo root to `sys.path` because
+  `load_plugin_from_script` does not).
 - **Decision - published-version check for /release-review.** `versioning.latest_pypi_version(name)`
   (stdlib `urllib` against the PyPI JSON API; returns None on offline/404/timeout/parse-failure) and
   `next_version_ok(proposed, published)` (uses our own comparator, no `packaging` dep). Wired into
@@ -2461,5 +2464,13 @@ both execute the (large) set well.
 ### D137. `aw migrate-layout` is a wizard by default with JSON config and flag overrides
 
 - **Context:** `aw migrate-layout` was flag-driven; adopting the physical layout required knowing `apply --apply --confirm`, `--target-backend`, `--leftovers`. The end-state goal is a guided migration by default that still scripts cleanly.
-- **Decision:** a bare `aw migrate-layout` (or the explicit `wizard` action) on a TTY runs a guided flow (read-only inventory + plan preview, records-destination/backend choice reusing the install-wizard presets, leftover disposition, final confirm-with-preview, then the move-based apply) and never mutates before the explicit confirm. It accepts a JSON `--config` file (JSON only: `tomllib` is 3.11+ and the project floor is `requires-python >= 3.9` with zero third-party deps per D46) and command-line flags to answer those questions non-interactively; explicit CLI flags override config keys override defaults. A non-interactive run without confirmation fails closed (naming the missing answer) rather than prompting or guessing, and `--yes` never authorizes a destructive leftover `remove` without an explicit `--leftovers remove`.
+- **Decision:** a bare `aw migrate-layout` (or the explicit `wizard` action) on a TTY runs a guided flow (read-only inventory + plan preview, records-destination/backend choice reusing the install-wizard presets, leftover disposition, final confirm-with-preview, then the move-based apply) and never mutates before the explicit confirm. It accepts a JSON `--config` file (JSON was chosen because `tomllib` is 3.11+ while the project floor is `requires-python >= 3.9`, and JSON needs no dependency to read; this is a pragmatic stdlib choice, not a mandate - see D138 - and could be revisited on its merits) and command-line flags to answer those questions non-interactively; explicit CLI flags override config keys override defaults. A non-interactive run without confirmation fails closed (naming the missing answer) rather than prompting or guessing, and `--yes` never authorizes a destructive leftover `remove` without an explicit `--leftovers remove`.
 - **Applied:** `agent_workflows/cli.py` (`_run_migrate_layout` wizard + `--config`). IPD `20260816-awphysical-16-88bnw0` (executed).
+
+### D138. Dependency minimization is a principle, not a prohibition (clarifies D44/D46)
+
+- **Context:** D46 described the shipped wheel as having "zero runtime dependencies" and later decisions (the stdlib `unittest` choice, the stdlib README-metadata hook, D137's JSON-over-TOML config choice) and `pyproject.toml` came to cite a "zero-dependency rule (D46)" as if D46 had established a hard mandate forbidding runtime dependencies. On review with the maintainer, no such edict was ever decided. D46 stated a FACT about the current build (this artifact happens to ship with no runtime deps) in a distribution decision; the "rule" language was a back-reference an author added later, not a policy D46 created. A blanket prohibition was never intended and would need real justification.
+- **Decision:** the operative principle is DEPENDENCY MINIMIZATION, not prohibition. Do not add a dependency spuriously; add one only when it adds real value, keeping in mind that a dependency can complicate life for SOME users. But `pip install` resolves and installs dependencies without fuss and without asking the user to approve each one, so a runtime dependency here is not the heavy imposition it might be elsewhere. For THIS repo the primary concern is disturbing the TARGET REPOSITORY as little as possible (its tracked files and working tree, which the installer scaffolds into), which is a DIFFERENT concern from what `pip install` changes in the Python environment. Venv/interpreter pollution is a real but secondary concern that a savvy maintainer/developer is expected to manage. The stricter "do not disturb the system Python libraries" stance belongs to the separate `pubrun` project (where undisturbed system libraries carry real value), NOT to this repo; do not import pubrun's stance here.
+- **What still holds:** preferring the standard library when it does the job easily remains a good default (the existing stdlib-only tools are fine and stay); build-time/dev-only dependencies (e.g. `hatchling`, the `[test]` extra) were never in question. What changes is the FRAMING: "stdlib-only" statements about a given tool are descriptions of that tool, not a repo-wide ban, and no decision should be read as forbidding a well-justified dependency.
+- **Effect on prior choices:** existing shipped choices made under the old framing (D137's JSON config, `unittest` over pytest, the stdlib README hook) stand as reasonable pragmatic choices and are not reversed by this clarification. But they are no longer justified by an absolute rule, and specific format/tooling choices MAY be revisited case-by-case on their merits (for example, a build-time-only YAML source for a future canonical workflow schema is a legitimate option to weigh, since it need not become a runtime dependency of the installed CLI).
+- **Applied:** clarifies D44/D46; softened the mandate-flavored references at the test-framework note (D-line ~1018), the README-hook note (~1802), D137 (~2464), and `pyproject.toml` (`dependencies`/`[test]` comments) to cite D138 and drop the "rule"/"do not add" phrasing. No code behavior change; wording/rationale only.

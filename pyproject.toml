@@ -23,12 +23,13 @@ classifiers = [
     "Topic :: Software Development :: Quality Assurance",
     "Topic :: Utilities",
 ]
-# Zero runtime dependencies (DECISIONS D44/D46; the whole distribution story rests on
-# stdlib-only). Do not add runtime deps without an explicit decision.
+# No runtime dependencies today (DECISIONS D44/D46). This is dependency MINIMIZATION,
+# not a prohibition (D138): add a runtime dep when it adds real value, weighing the cost
+# to users; prefer the stdlib when it does the job easily. Currently the stdlib suffices.
 dependencies = []
 
-# TEST-ONLY dependencies. These are NOT runtime deps (the shipped package remains
-# stdlib-only, D46) and are never imported by agent_workflows/*. Install with
+# TEST-ONLY dependencies. These are NOT runtime deps (the shipped package currently needs
+# none; D138) and are never imported by agent_workflows/*. Install with
 # `pip install '.[test]'` to run the suite in parallel via `make test` / `pytest -n auto`.
 # The tests themselves are plain stdlib `unittest.TestCase`; pytest is only the runner,
 # and `make test-serial` (python -m unittest) always works without these.
