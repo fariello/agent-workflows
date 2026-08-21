@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: uninstall completeness + honesty. On a fresh install then `aw uninstall .` (+ deep cleanup), several AW-owned file classes survive because they are removed by NEITHER the manifest-driven base uninstall NOR the deep cleanup: `.aw/config/{project,local}.json`, `.aw/state/**` (`install.json`, `durable/install.json`, `durable/history/installs.jsonl`, `history/installs.jsonl`), `.aw/.gitignore`, `.aw/setup-repo-needed.md`. So `.aw/` can never be fully removed. Separately, the deep-cleanup announcement mislabels FILE roots as directories.
 - Scope: `agent_workflows/engine.py` (`uninstall_repo` to also remove the deterministic framework lifecycle files config+state+.gitignore + call `remove_setup_marker`; keep `_DEEP_CLEANUP_ROOTS` owning records/; partition the deep-cleanup plan into a records class vs non-records scaffolding) + `agent_workflows/cli.py` (a DEDICATED records keep/remove prompt distinct from the non-records scaffolding prompt; deep-cleanup announcement label: file vs directory) + regression tests. Does NOT change the manifest format or the drift-preservation behavior. Sibling to awinstallfix-01 (install side); this is the uninstall side.
-- Status: to-review
+- Status: reviewed
 - Set: awuninstallfix
 - Order: 1
 - Highest E allocated: 06
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-20 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
+- 2026-08-20 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; anchors verified (UN-001..UN-004 confirmed); PR-001 (records-keep data-safety: run_deep_cleanup must not receive records files when kept), PR-002 (setup marker handled once) fixed in place; OQ-01 resolved. review-finalize lint conforming.
 
 ## Goal
 
@@ -30,14 +31,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: after `aw uninstall`, `.aw/config/`, `.aw/state/`, and `.aw/.gitignore` are gone; only `.aw/records/` (+ any user content) may remain for the deep-cleanup offer.
   - Execution state: pending
 
-- [ ] E-02 In `engine.uninstall_repo`, call `remove_setup_marker(repo_root)` (engine.py:4621) as part of the uninstall so `.aw/setup-repo-needed.md` never survives an uninstall (defect C: otherwise a later state read believes setup is still pending on an uninstalled repo). Record it in `changed_out`/actions when the marker existed.
+- [ ] E-02 In `engine.uninstall_repo`, call `remove_setup_marker(repo_root)` (engine.py:4621; idempotent, returns True when it removed the file) as part of the uninstall so `.aw/setup-repo-needed.md` never survives an uninstall (defect C: otherwise a later state read believes setup is still pending on an uninstalled repo). Record it in `changed_out`/actions when the marker existed. The marker is handled ONCE here (via `remove_setup_marker`); do not also enumerate it in the E-01 config/state sweep, to avoid double-handling.
   - Depends on: none
   - Expected outcome: `.aw/setup-repo-needed.md` is absent after uninstall.
   - Execution state: pending
 
 ### Task group 2: dedicated records keep/remove prompt + empty-.aw prune + label bug
 
-- [ ] E-03 Partition the deep cleanup into a RECORDS class and a NON-RECORDS scaffolding class, and ask about them SEPARATELY (maintainer request: "deep clean should ask about keeping records"). In `engine.plan_deep_cleanup`/`DeepCleanupPlan` (engine.py:3616-3661), tag each root/file as `records` (the `.aw/records/*` and legacy `.agents/*` record roots) vs `other` (`.gitleaksignore`, `.github/workflows/secret-scan.yml`), exposing the split (e.g. `records_files`/`other_files` or a per-file kind) without changing the existing `files`/`counts`/`at_risk` contract. In the CLI deep-cleanup handler (cli.py:2520-2583), replace the single "Remove this scaffolding too?" prompt with: first handle/announce the non-records scaffolding as today, then a DEDICATED prompt for records, e.g. "Keep your authored records under .aw/records/ (plans, specs, walkthroughs, etc.)? [Y/n]" - Yes leaves ALL of `.aw/records/` in place, No removes it. Keep the `--deep` (remove everything) and non-interactive/`--yes`/`--force` semantics (do NOT silently delete records; default keep). `run_deep_cleanup` must accept which classes to remove so records can be kept while other scaffolding is removed.
+- [ ] E-03 Partition the deep cleanup into a RECORDS class and a NON-RECORDS scaffolding class, and ask about them SEPARATELY (maintainer request: "deep clean should ask about keeping records"). In `engine.plan_deep_cleanup`/`DeepCleanupPlan` (engine.py:3616-3661), tag each root/file as `records` (the `.aw/records/*` and legacy `.agents/*` record roots) vs `other` (`.gitleaksignore`, `.github/workflows/secret-scan.yml`), exposing the split (e.g. `records_files`/`other_files` or a per-file kind) without changing the existing `files`/`counts`/`at_risk` contract. In the CLI deep-cleanup handler (cli.py:2520-2583), replace the single "Remove this scaffolding too?" prompt with: first handle/announce the non-records scaffolding as today, then a DEDICATED prompt for records, e.g. "Keep your authored records under .aw/records/ (plans, specs, walkthroughs, etc.)? [Y/n]" - Yes leaves ALL of `.aw/records/` in place, No removes it. Keep the `--deep` (remove everything) and non-interactive/`--yes`/`--force` semantics (do NOT silently delete records; default keep). CRITICAL data-safety contract: `run_deep_cleanup` currently deletes EVERY path in `plan.files`, so keeping records MUST be enforced by NOT giving those files to it - either pass a filtered plan whose `files` excludes the records class, or add an explicit `remove_records: bool` / class-selector parameter that `run_deep_cleanup` honors. The executor MUST verify (test) that a kept-records run leaves every `.aw/records/*` file untouched; a naive "pass the full plan" that deletes records is a REGRESSION and unacceptable.
   - Depends on: none
   - Expected outcome: the user is asked specifically whether to keep `.aw/records/`; choosing keep preserves all records while other scaffolding is removed; choosing remove deletes records too.
   - Execution state: pending
@@ -131,7 +132,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: the deep cleanup asks a DEDICATED records question (assert the "Keep your authored records under .aw/records/" prompt text appears, distinct from the non-records scaffolding prompt); answering keep leaves all of `.aw/records/`, answering remove deletes it; `run_deep_cleanup` removes the non-records scaffolding independent of the records choice. `DeepCleanupPlan` exposes the records/non-records split.
+  - Required evidence: the deep cleanup asks a DEDICATED records question (assert the "Keep your authored records under .aw/records/" prompt text appears, distinct from the non-records scaffolding prompt); answering keep leaves EVERY `.aw/records/*` file untouched (test asserts the files still exist and were not passed to removal), answering remove deletes them; `run_deep_cleanup` removes the non-records scaffolding independent of the records choice. `DeepCleanupPlan` exposes the records/non-records split and `run_deep_cleanup` honors the selector (never deletes records when kept).
   - Observed evidence:
   - Result: pending
 
