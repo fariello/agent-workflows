@@ -562,7 +562,7 @@ The path change is major-version material. For a bounded compatibility period, A
 
 ### 15.4 Uninstall
 
-Uninstall removes only manifest-owned system files and selected adapters. By default it preserves `config`, `state`, and `records`, reporting their locations. Deep removal of records requires a separate, explicit, high-warning choice and must explain recoverability. External Git remotes are never deleted by uninstall.
+Uninstall removes manifest-owned system files, framework lifecycle files (`config`, `state`, `.aw/.gitignore`, and the setup marker), and selected adapters. By default it preserves `records`, reporting their location. Deep removal of records requires a separate, explicit, high-warning choice and must explain recoverability. External Git remotes are never deleted by uninstall.
 
 ## 16. Privacy and threat boundaries
 

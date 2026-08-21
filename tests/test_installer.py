@@ -2900,9 +2900,18 @@ class UninstallCompletenessTests(unittest.TestCase):
         INS.install_into_repo(repo, self.source, yes=True, no_color=True)
         INS.write_setup_marker(repo)
 
+        # Plant untracked user record to test unlink + directory pruning
+        untracked = (
+            repo / ".aw" / "records" / "plans" / "pending" / "untracked.untracked.md"
+        )
+        untracked.write_text("# Untracked\n", encoding="utf-8")
+
         INS.uninstall_repo(repo, use_git=True, force=True)
         plan = INS.plan_deep_cleanup(repo)
         self.assertFalse(plan.is_empty)
+        self.assertIn(
+            ".aw/records/plans/pending/untracked.untracked.md", plan.records_files
+        )
         INS.run_deep_cleanup(repo, plan, use_git=True, remove_records=True)
 
         self.assertFalse(
