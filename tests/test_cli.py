@@ -824,6 +824,72 @@ class InstallAtomicWizardTests(CliTestBase):
         self.assertFalse((repo / ".aw" / "state").exists())
         self.assertFalse((repo / ".aw").exists())
 
+    def test_interactive_deep_cleanup_separate_records_prompt_keep_records(self):
+        """E-03, E-05, V-03, V-05: separate records prompt offered; keep records preserves records and cleans scaffolding."""
+        from unittest.mock import patch
+
+        repo = self._repo("interact_keep")
+        _run(["install", str(repo), "--yes"])
+        self.assertTrue((repo / ".aw/records/plans").exists())
+        self.assertTrue((repo / ".gitleaksignore").is_file())
+
+        # Inputs:
+        # 1. "y" for uninstall
+        # 2. "y" for remove scaffolding
+        # 3. "y" (keep) for records
+        # 4. "n" for commit
+        with patch("sys.stdin", io.StringIO("y\ny\ny\nn\n")), patch(
+            "sys.stdout.isatty", return_value=True
+        ), patch("sys.stdin.isatty", return_value=True):
+            code, out = _run(["uninstall", str(repo)])
+
+        self.assertEqual(code, 0, out)
+        self.assertIn("Keep your authored records under .aw/records/", out)
+        self.assertIn("Remove this scaffolding too?", out)
+        self.assertNotIn(".gitleaksignore/", out)
+        self.assertIn(".gitleaksignore (1 file)", out)
+        self.assertTrue(
+            (repo / ".aw/records/plans").exists(), "Records preserved on keep"
+        )
+        self.assertFalse((repo / ".gitleaksignore").exists(), "Scaffolding removed")
+        self.assertFalse((repo / ".aw/config").exists())
+        self.assertFalse((repo / ".aw/state").exists())
+
+    def test_interactive_deep_cleanup_records_remove_fully_cleans_aw(self):
+        """E-03, E-04, V-03, V-04: interactive remove records deletes .aw/ tree completely."""
+        from unittest.mock import patch
+
+        repo = self._repo("interact_remove")
+        _run(["install", str(repo), "--yes"])
+        self.assertTrue((repo / ".aw/records/plans").exists())
+
+        # Inputs:
+        # 1. "y" for uninstall
+        # 2. "y" for remove scaffolding
+        # 3. "n" (no keep -> remove records)
+        # 4. "n" for commit
+        with patch("sys.stdin", io.StringIO("y\ny\nn\nn\n")), patch(
+            "sys.stdout.isatty", return_value=True
+        ), patch("sys.stdin.isatty", return_value=True):
+            code, out = _run(["uninstall", str(repo)])
+
+        self.assertEqual(code, 0, out)
+        self.assertIn("Keep your authored records under .aw/records/", out)
+        self.assertFalse(
+            (repo / ".aw").exists(), "No .aw/ directory remains after records removal"
+        )
+        self.assertFalse((repo / ".gitleaksignore").exists())
+
+    def test_deep_cleanup_announcement_file_vs_dir_label(self):
+        """E-05, V-05: file roots do not have trailing slash; dir roots do."""
+        repo = self._repo("label_check")
+        _run(["install", str(repo), "--yes"])
+        code, out = _run(["uninstall", str(repo), "--dry-run"])
+        self.assertEqual(code, 0, out)
+        self.assertNotIn(".gitleaksignore/", out)
+        self.assertIn(".gitleaksignore (1 file)", out)
+        self.assertIn(".aw/records/plans/", out)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -28,39 +28,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: base uninstall removes the orphaned framework lifecycle files
 
-- [ ] E-01 In `engine.uninstall_repo` (engine.py:3769), after the manifest-driven removals, ALSO remove the deterministic framework-created lifecycle files that are not in the manifest: `.aw/config/project.json`, `.aw/config/local.json`, `.aw/state/` (recursively: `install.json`, `durable/`, `history/`), and `.aw/.gitignore`. Use the existing `_uninstall_remove(repo_root, rel, use_git)` (git rm when tracked, unlink otherwise) so tracked ones (project.json, .gitignore) are staged for removal and local/ignored ones (local.json, state/**) are unlinked. Record each in `changed_out` and append a human action line. Guard each with an existence check (skip silently if absent). Do NOT remove `.aw/records/` here (that is the opt-in deep cleanup - it may hold user content).
+- [x] E-01 In `engine.uninstall_repo` (engine.py:3769), after the manifest-driven removals, ALSO remove the deterministic framework-created lifecycle files that are not in the manifest: `.aw/config/project.json`, `.aw/config/local.json`, `.aw/state/` (recursively: `install.json`, `durable/`, `history/`), and `.aw/.gitignore`. Use the existing `_uninstall_remove(repo_root, rel, use_git)` (git rm when tracked, unlink otherwise) so tracked ones (project.json, .gitignore) are staged for removal and local/ignored ones (local.json, state/**) are unlinked. Record each in `changed_out` and append a human action line. Guard each with an existence check (skip silently if absent). Do NOT remove `.aw/records/` here (that is the opt-in deep cleanup - it may hold user content).
   - Depends on: none
   - Expected outcome: after `aw uninstall`, `.aw/config/`, `.aw/state/`, and `.aw/.gitignore` are gone; only `.aw/records/` (+ any user content) may remain for the deep-cleanup offer.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `engine.uninstall_repo`, call `remove_setup_marker(repo_root)` (engine.py:4621; idempotent, returns True when it removed the file) as part of the uninstall so `.aw/setup-repo-needed.md` never survives an uninstall (defect C: otherwise a later state read believes setup is still pending on an uninstalled repo). Record it in `changed_out`/actions when the marker existed. The marker is handled ONCE here (via `remove_setup_marker`); do not also enumerate it in the E-01 config/state sweep, to avoid double-handling.
+- [x] E-02 In `engine.uninstall_repo`, call `remove_setup_marker(repo_root)` (engine.py:4621; idempotent, returns True when it removed the file) as part of the uninstall so `.aw/setup-repo-needed.md` never survives an uninstall (defect C: otherwise a later state read believes setup is still pending on an uninstalled repo). Record it in `changed_out`/actions when the marker existed. The marker is handled ONCE here (via `remove_setup_marker`); do not also enumerate it in the E-01 config/state sweep, to avoid double-handling.
   - Depends on: none
   - Expected outcome: `.aw/setup-repo-needed.md` is absent after uninstall.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: dedicated records keep/remove prompt + empty-.aw prune + label bug
 
-- [ ] E-03 Partition the deep cleanup into a RECORDS class and a NON-RECORDS scaffolding class, and ask about them SEPARATELY (maintainer request: "deep clean should ask about keeping records"). In `engine.plan_deep_cleanup`/`DeepCleanupPlan` (engine.py:3616-3661), tag each root/file as `records` (the `.aw/records/*` and legacy `.agents/*` record roots) vs `other` (`.gitleaksignore`, `.github/workflows/secret-scan.yml`), exposing the split (e.g. `records_files`/`other_files` or a per-file kind) without changing the existing `files`/`counts`/`at_risk` contract. In the CLI deep-cleanup handler (cli.py:2520-2583), replace the single "Remove this scaffolding too?" prompt with: first handle/announce the non-records scaffolding as today, then a DEDICATED prompt for records, e.g. "Keep your authored records under .aw/records/ (plans, specs, walkthroughs, etc.)? [Y/n]" - Yes leaves ALL of `.aw/records/` in place, No removes it. Keep the `--deep` (remove everything) and non-interactive/`--yes`/`--force` semantics (do NOT silently delete records; default keep). CRITICAL data-safety contract: `run_deep_cleanup` currently deletes EVERY path in `plan.files`, so keeping records MUST be enforced by NOT giving those files to it - either pass a filtered plan whose `files` excludes the records class, or add an explicit `remove_records: bool` / class-selector parameter that `run_deep_cleanup` honors. The executor MUST verify (test) that a kept-records run leaves every `.aw/records/*` file untouched; a naive "pass the full plan" that deletes records is a REGRESSION and unacceptable.
+- [x] E-03 Partition the deep cleanup into a RECORDS class and a NON-RECORDS scaffolding class, and ask about them SEPARATELY (maintainer request: "deep clean should ask about keeping records"). In `engine.plan_deep_cleanup`/`DeepCleanupPlan` (engine.py:3616-3661), tag each root/file as `records` (the `.aw/records/*` and legacy `.agents/*` record roots) vs `other` (`.gitleaksignore`, `.github/workflows/secret-scan.yml`), exposing the split (e.g. `records_files`/`other_files` or a per-file kind) without changing the existing `files`/`counts`/`at_risk` contract. In the CLI deep-cleanup handler (cli.py:2520-2583), replace the single "Remove this scaffolding too?" prompt with: first handle/announce the non-records scaffolding as today, then a DEDICATED prompt for records, e.g. "Keep your authored records under .aw/records/ (plans, specs, walkthroughs, etc.)? [Y/n]" - Yes leaves ALL of `.aw/records/` in place, No removes it. Keep the `--deep` (remove everything) and non-interactive/`--yes`/`--force` semantics (do NOT silently delete records; default keep). CRITICAL data-safety contract: `run_deep_cleanup` currently deletes EVERY path in `plan.files`, so keeping records MUST be enforced by NOT giving those files to it - either pass a filtered plan whose `files` excludes the records class, or add an explicit `remove_records: bool` / class-selector parameter that `run_deep_cleanup` honors. The executor MUST verify (test) that a kept-records run leaves every `.aw/records/*` file untouched; a naive "pass the full plan" that deletes records is a REGRESSION and unacceptable.
   - Depends on: none
   - Expected outcome: the user is asked specifically whether to keep `.aw/records/`; choosing keep preserves all records while other scaffolding is removed; choosing remove deletes records too.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Ensure the emptied `.aw/` tree is pruned according to the records choice. After the base-uninstall removals (E-01/E-02) plus the deep-cleanup outcome (E-03), prune empty dirs deepest-first (only-if-empty `rmdir`, never `rm -rf`, never prune a dir holding non-AW content), reusing the prune approach in `run_deep_cleanup` (engine.py:3682-3700) and extending the base uninstall to prune the `.aw/config`/`.aw/state` dirs it emptied. If the user KEEPS records, `.aw/records/` and the `.aw/` parent remain (the ONLY reason `.aw/` survives is the user's explicit keep). If the user REMOVES records, `.aw/` prunes to nothing.
+- [x] E-04 Ensure the emptied `.aw/` tree is pruned according to the records choice. After the base-uninstall removals (E-01/E-02) plus the deep-cleanup outcome (E-03), prune empty dirs deepest-first (only-if-empty `rmdir`, never `rm -rf`, never prune a dir holding non-AW content), reusing the prune approach in `run_deep_cleanup` (engine.py:3682-3700) and extending the base uninstall to prune the `.aw/config`/`.aw/state` dirs it emptied. If the user KEEPS records, `.aw/records/` and the `.aw/` parent remain (the ONLY reason `.aw/` survives is the user's explicit keep). If the user REMOVES records, `.aw/` prunes to nothing.
   - Depends on: E-01,E-02,E-03
   - Expected outcome: keep-records -> `.aw/records/` + `.aw/` remain, nothing else; remove-records -> no `.aw/` at all.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Fix the file-vs-directory label in the deep-cleanup announcement (defect B). In `cli.py` (the announcement at cli.py:2529 `print(f"  - {n} file(s) under {root}/")` and the dry-run variant at cli.py:2506), the hardcoded trailing `/` mislabels FILE roots (`.gitleaksignore`, `.github/workflows/secret-scan.yml`) as directories. Render a directory root as `<root>/` but a file root as just `<root>` (detect via `(repo_root / root).is_dir()` or by tracking the root kind in the plan), and phrase file roots naturally (e.g. `- .gitleaksignore (1 file)` vs `- .aw/records/plans/ (11 files)`). Also make `file(s)` agree in number where trivial.
+- [x] E-05 Fix the file-vs-directory label in the deep-cleanup announcement (defect B). In `cli.py` (the announcement at cli.py:2529 `print(f"  - {n} file(s) under {root}/")` and the dry-run variant at cli.py:2506), the hardcoded trailing `/` mislabels FILE roots (`.gitleaksignore`, `.github/workflows/secret-scan.yml`) as directories. Render a directory root as `<root>/` but a file root as just `<root>` (detect via `(repo_root / root).is_dir()` or by tracking the root kind in the plan), and phrase file roots naturally (e.g. `- .gitleaksignore (1 file)` vs `- .aw/records/plans/ (11 files)`). Also make `file(s)` agree in number where trivial.
   - Depends on: none
   - Expected outcome: the deep-cleanup list shows file roots without a spurious trailing slash and with sensible wording; directory roots keep the trailing slash.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests
 
-- [ ] E-06 Add regression tests in `tests/test_installer.py` / `tests/test_cli.py`: (a) install into a temp repo, then `uninstall` (force, non-interactive) and assert `.aw/config/`, `.aw/state/`, `.aw/.gitignore`, and `.aw/setup-repo-needed.md` are ALL gone; (b) install -> uninstall -> deep cleanup with records REMOVE -> assert NO `.aw/` directory remains at all (fully clean); (c) install -> uninstall -> deep cleanup with records KEEP -> assert `.aw/records/` (user content) is preserved AND config/state/marker/.gitignore are gone AND the non-records scaffolding (`.gitleaksignore`) is removed; (d) the records keep/remove prompt is asked SEPARATELY from the non-records scaffolding (assert the dedicated records question text appears); (e) the deep-cleanup announcement for a FILE root (`.gitleaksignore`) does not contain the mislabeled `.gitleaksignore/`. Run the FULL serial suite (`python3 -m pytest -p no:xdist`) and paste the tail.
+- [x] E-06 Add regression tests in `tests/test_installer.py` / `tests/test_cli.py`: (a) install into a temp repo, then `uninstall` (force, non-interactive) and assert `.aw/config/`, `.aw/state/`, `.aw/.gitignore`, and `.aw/setup-repo-needed.md` are ALL gone; (b) install -> uninstall -> deep cleanup with records REMOVE -> assert NO `.aw/` directory remains at all (fully clean); (c) install -> uninstall -> deep cleanup with records KEEP -> assert `.aw/records/` (user content) is preserved AND config/state/marker/.gitignore are gone AND the non-records scaffolding (`.gitleaksignore`) is removed; (d) the records keep/remove prompt is asked SEPARATELY from the non-records scaffolding (assert the dedicated records question text appears); (e) the deep-cleanup announcement for a FILE root (`.gitleaksignore`) does not contain the mislabeled `.gitleaksignore/`. Run the FULL serial suite (`python3 -m pytest -p no:xdist`) and paste the tail.
   - Depends on: E-01,E-02,E-03,E-04,E-05
   - Expected outcome: all new tests pass; full serial suite green.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -123,35 +123,35 @@ The uninstall/rollback behavior is covered by spec `20260809-2211-01` (L40 "safe
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: a test installs then uninstalls (force) and asserts `.aw/config/project.json`, `.aw/config/local.json`, `.aw/state/install.json`, `.aw/state/durable/`, and `.aw/.gitignore` are all absent afterward; `uninstall_repo` records them in the changed list (git rm for tracked, unlink for ignored).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `UninstallCompletenessTests.test_uninstall_removes_config_state_gitignore_and_setup_marker` asserts `.aw/config/project.json`, `.aw/config/local.json`, `.aw/config/`, `.aw/state/install.json`, `.aw/state/`, and `.aw/.gitignore` are absent post-uninstall and tracked files are present in `changed` (`.aw/config/project.json`, `.aw/.gitignore`).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: after uninstall, `.aw/setup-repo-needed.md` does not exist; `remove_setup_marker` is invoked from the uninstall path (test asserts marker gone after install-then-uninstall).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `UninstallCompletenessTests.test_uninstall_removes_config_state_gitignore_and_setup_marker` asserts `.aw/setup-repo-needed.md` is absent and recorded in `changed`; `remove_setup_marker` is called in `engine.uninstall_repo`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the deep cleanup asks a DEDICATED records question (assert the "Keep your authored records under .aw/records/" prompt text appears, distinct from the non-records scaffolding prompt); answering keep leaves EVERY `.aw/records/*` file untouched (test asserts the files still exist and were not passed to removal), answering remove deletes them; `run_deep_cleanup` removes the non-records scaffolding independent of the records choice. `DeepCleanupPlan` exposes the records/non-records split and `run_deep_cleanup` honors the selector (never deletes records when kept).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `UninstallCompletenessTests.test_deep_cleanup_plan_partitions_records_and_other` validates `records_files` vs `other_files` partition and `filtered()` method; `test_deep_cleanup_records_keep_preserves_records_and_removes_other` verifies `run_deep_cleanup(remove_records=False)` leaves records untouched while removing non-records scaffolding; `InstallAtomicWizardTests.test_interactive_deep_cleanup_separate_records_prompt_keep_records` asserts distinct "Remove this scaffolding too?" and "Keep your authored records under .aw/records/ (plans, specs, walkthroughs, etc.)?" prompts in CLI.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: install -> uninstall -> deep cleanup records REMOVE leaves NO `.aw/` directory (assert `not (repo/'.aw').exists()`); install -> uninstall -> deep cleanup records KEEP leaves `.aw/records/` present but `.aw/config`/`.aw/state`/`.aw/.gitignore`/marker gone and non-records scaffolding removed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `UninstallCompletenessTests.test_deep_cleanup_records_remove_leaves_no_aw_directory` and `test_interactive_deep_cleanup_records_remove_fully_cleans_aw` assert `not (repo / ".aw").exists()`; `test_deep_cleanup_records_keep_preserves_records_and_removes_other` asserts `.aw/records/` and `.aw/` remain while `.aw/config`, `.aw/state`, `.aw/.gitignore`, setup marker, and `.gitleaksignore` are removed.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the deep-cleanup announcement text for the `.gitleaksignore` file root contains no `.gitleaksignore/` (no spurious trailing slash); a directory root like `.aw/records/plans/` still shows the trailing slash. Asserted by capturing the announcement output in a test.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `InstallAtomicWizardTests.test_deep_cleanup_announcement_file_vs_dir_label` asserts dry-run output contains `.gitleaksignore (1 file)` without `.gitleaksignore/` and contains `.aw/records/plans/`; `test_interactive_deep_cleanup_separate_records_prompt_keep_records` also asserts `.gitleaksignore (1 file)`.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: `python3 -m pytest tests/test_installer.py tests/test_cli.py -p no:xdist -q` green for the new cases (records keep + records remove + separate-prompt + label); FULL serial suite `python3 -m pytest -p no:xdist` tail pasted, green.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_installer.py tests/test_cli.py -p no:xdist -q` passed (198/198 passed); `python3 -m unittest discover -s tests -t .` passed (1261 tests, OK); `python3 -m pytest -p no:xdist -q` passed (1261 passed, 1 skipped, 100% green).
+  - Result: pass
 
 ## Approval and execution gate
 

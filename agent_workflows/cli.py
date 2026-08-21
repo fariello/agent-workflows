@@ -2550,6 +2550,14 @@ def _security_pointer(term: Term) -> None:
 # --------------------------------------------------------------------------------------
 
 
+def _format_cleanup_root(repo_root: Path, root: str, n: int) -> str:
+    plural = "file" if n == 1 else "files"
+    target = repo_root / root
+    if target.is_file() or not root.startswith((".aw/records", ".agents")):
+        return f"{root} ({n} {plural})"
+    return f"{n} {plural} under {root}/"
+
+
 def _uninstall_dry_run_report(term: Term, repo_root: Path) -> int:
     """Report what a normal + deep uninstall WOULD do, changing nothing."""
 
@@ -2572,7 +2580,7 @@ def _uninstall_dry_run_report(term: Term, repo_root: Path) -> int:
     if not deep.is_empty:
         print("  deeper cleanup (offered separately) WOULD remove:")
         for root, n in sorted(deep.counts.items()):
-            print(f"    - {n} file(s) under {root}/")
+            print(f"    - {_format_cleanup_root(repo_root, root, n)}")
         if deep.at_risk:
             print(
                 f"    ! {len(deep.at_risk)} of these are NOT recoverable from git "
@@ -2584,44 +2592,48 @@ def _uninstall_dry_run_report(term: Term, repo_root: Path) -> int:
 def _offer_deep_cleanup(
     term: Term, repo_root: Path, use_git: bool, args, changed: list[str]
 ) -> None:
-    """Offer (or, under --deep, perform) the deeper .agents/ cleanup with a graduated warning."""
+    """Offer (or, under --deep, perform) the deeper scaffolding and records cleanup."""
 
     plan = engine.plan_deep_cleanup(repo_root)
     if plan.is_empty:
         return
 
-    print()
-    print(
-        "A deeper cleanup can also remove the agent-workflows scaffolding it left behind:"
-    )
-    for root, n in sorted(plan.counts.items()):
-        print(f"  - {n} file(s) under {root}/")
-    if plan.all_recoverable:
-        print(
-            "  All of these are tracked and committed, so they can be restored with "
-            "`git checkout` if you change your mind."
-        )
-    else:
-        print(
-            term.colorize(
-                f"  WARNING: {len(plan.at_risk)} of these are NOT recoverable from git "
-                "(untracked, uncommitted, or ignored). Deleting them is permanent:",
-                "yellow",
-            )
-        )
-        for rel in plan.at_risk:
-            print(f"    ! {rel}")
+    if args.deep:
+        for a in engine.run_deep_cleanup(
+            repo_root, plan, use_git, changed_out=changed, remove_records=True
+        ):
+            term.status("ok", a)
+        return
 
-    do_it = args.deep
-    if not do_it:
-        if args.yes or args.force or not sys.stdin.isatty():
-            # Non-interactive (--yes/--force/no TTY) without --deep: do NOT silently delete the
-            # scaffolding; it holds user content. Skip the deeper cleanup unless --deep is set.
-            term.status(
-                "warn",
-                "scaffolding left in place (pass --deep to remove it non-interactively).",
+    if args.yes or args.force or not sys.stdin.isatty():
+        # Non-interactive (--yes/--force/no TTY) without --deep: do NOT silently delete the
+        # scaffolding; it holds user content. Skip the deeper cleanup unless --deep is set.
+        term.status(
+            "warn",
+            "scaffolding left in place (pass --deep to remove it non-interactively).",
+        )
+        return
+
+    # Interactive flow: prompt for non-records scaffolding and records separately (E-03).
+    remove_other = False
+    if plan.other_files:
+        print()
+        print("A deeper cleanup can also remove other agent-workflows scaffolding:")
+        for root, n in sorted(plan.counts.items()):
+            if not root.startswith((".aw/records", ".agents")):
+                print(f"  - {_format_cleanup_root(repo_root, root, n)}")
+        other_at_risk = [f for f in plan.at_risk if f in plan.other_files]
+        if other_at_risk:
+            print(
+                term.colorize(
+                    f"  WARNING: {len(other_at_risk)} of these are NOT recoverable from git "
+                    "(untracked, uncommitted, or ignored). Deleting them is permanent:",
+                    "yellow",
+                )
             )
-            return
+            for rel in other_at_risk:
+                print(f"    ! {rel}")
+
         choice = engine.prompt_choice(
             "Remove this scaffolding too? [y/N/list/help]: ",
             [
@@ -2641,12 +2653,61 @@ def _offer_deep_cleanup(
                 "help": "help",
                 "?": "help",
             },
-            on_diff=lambda: [print(f"    - {f}") for f in plan.files],
+            on_diff=lambda: [print(f"    - {f}") for f in plan.other_files],
         )
-        do_it = choice == "yes"
+        remove_other = choice == "yes"
 
-    if do_it:
-        for a in engine.run_deep_cleanup(repo_root, plan, use_git, changed_out=changed):
+    remove_records = False
+    if plan.records_files:
+        print()
+        print("Authoring records found under .aw/records/ (or .agents/):")
+        for root, n in sorted(plan.counts.items()):
+            if root.startswith((".aw/records", ".agents")):
+                print(f"  - {_format_cleanup_root(repo_root, root, n)}")
+        records_at_risk = [f for f in plan.at_risk if f in plan.records_files]
+        if records_at_risk:
+            print(
+                term.colorize(
+                    f"  WARNING: {len(records_at_risk)} of these are NOT recoverable from git "
+                    "(untracked, uncommitted, or ignored). Deleting them is permanent:",
+                    "yellow",
+                )
+            )
+            for rel in records_at_risk:
+                print(f"    ! {rel}")
+
+        choice_rec = engine.prompt_choice(
+            "Keep your authored records under .aw/records/ (plans, specs, walkthroughs, etc.)? [Y/n/list/help]: ",
+            [
+                "  Y    = Yes, keep authored records [default]",
+                "  N    = No, remove records too",
+                "  list = show every record file, then ask again",
+                "  help = show this help",
+            ],
+            default="yes",
+            accept={
+                "y": "yes",
+                "yes": "yes",
+                "n": "no",
+                "no": "no",
+                "list": "list",
+                "l": "list",
+                "help": "help",
+                "?": "help",
+            },
+            on_diff=lambda: [print(f"    - {f}") for f in plan.records_files],
+        )
+        remove_records = choice_rec == "no"
+
+    if remove_other or remove_records:
+        filtered_plan = plan.filtered(records=remove_records, other=remove_other)
+        for a in engine.run_deep_cleanup(
+            repo_root,
+            filtered_plan,
+            use_git,
+            changed_out=changed,
+            remove_records=remove_records,
+        ):
             term.status("ok", a)
     else:
         term.status("skip", "deeper cleanup skipped; scaffolding left in place.")
@@ -2770,7 +2831,20 @@ def _offer_commit_uninstall(
                 "warn", "Deletions are STAGED, not committed. Review and commit."
             )
         return
-    paths = sorted(set(changed))
+
+    staged_proc = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+    )
+    staged_paths = (
+        set(staged_proc.stdout.splitlines()) if staged_proc.returncode == 0 else set()
+    )
+    paths = sorted(p for p in set(changed) if p in staged_paths)
+    if not paths:
+        return
+
     quoted = " ".join(f'"{p}"' if " " in p else p for p in paths)
     if not assume_yes and sys.stdin.isatty():
         if not _confirm(

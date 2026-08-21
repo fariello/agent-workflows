@@ -2833,5 +2833,131 @@ class SplitBrainLayoutGuardTests(unittest.TestCase):
                 os.environ["XDG_CONFIG_HOME"] = old_xdg
 
 
+class UninstallCompletenessTests(unittest.TestCase):
+    """Regression tests for complete uninstall, orphaned lifecycle removal, and records keep/remove."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+        self.source = SOURCE_WORKFLOWS
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_uninstall_removes_config_state_gitignore_and_setup_marker(self):
+        """E-01, E-02, V-01, V-02: base uninstall removes config/state/.gitignore/setup-marker."""
+        from tests.support import git
+
+        repo = init_repo(self.base / "uninstall_complete")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        # Add config/project.json (tracked), config/local.json (untracked), state files, and marker
+        cfg_dir = repo / ".aw" / "config"
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        cfg_proj = cfg_dir / "project.json"
+        cfg_proj.write_text('{"preset": "private-target"}\n', encoding="utf-8")
+        git(repo, "add", ".aw/config/project.json")
+        git(repo, "commit", "-m", "add project config")
+
+        cfg_local = cfg_dir / "local.json"
+        cfg_local.write_text('{"target": "local"}\n', encoding="utf-8")
+
+        state_dir = repo / ".aw" / "state" / "durable"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        state_install = state_dir / "install.json"
+        state_install.write_text('{"installed": true}\n', encoding="utf-8")
+
+        INS.write_setup_marker(repo)
+
+        self.assertTrue(cfg_proj.is_file())
+        self.assertTrue(cfg_local.is_file())
+        self.assertTrue(state_install.is_file())
+        self.assertTrue((repo / ".aw" / ".gitignore").is_file())
+        self.assertTrue((repo / ".aw" / "setup-repo-needed.md").is_file())
+
+        changed: list[str] = []
+        actions = INS.uninstall_repo(
+            repo, use_git=True, force=True, changed_out=changed
+        )
+        self.assertTrue(len(actions) > 0)
+        self.assertIn("removed .aw/config/project.json", actions)
+
+        self.assertFalse(cfg_proj.exists())
+        self.assertFalse(cfg_local.exists())
+        self.assertFalse(cfg_dir.exists())
+        self.assertFalse(state_install.exists())
+        self.assertFalse((repo / ".aw" / "state").exists())
+        self.assertFalse((repo / ".aw" / ".gitignore").exists())
+        self.assertFalse((repo / ".aw" / "setup-repo-needed.md").exists())
+        self.assertIn(".aw/config/project.json", changed)
+        self.assertIn(".aw/.gitignore", changed)
+        self.assertIn(".aw/setup-repo-needed.md", changed)
+        # Records must still be preserved here (base uninstall does not remove records)
+        self.assertTrue((repo / ".aw" / "records").exists())
+
+    def test_deep_cleanup_records_remove_leaves_no_aw_directory(self):
+        """E-04, V-04: install -> uninstall -> deep cleanup with records REMOVE leaves NO .aw/ directory."""
+        repo = init_repo(self.base / "deep_clean_remove")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        INS.write_setup_marker(repo)
+
+        INS.uninstall_repo(repo, use_git=True, force=True)
+        plan = INS.plan_deep_cleanup(repo)
+        self.assertFalse(plan.is_empty)
+        INS.run_deep_cleanup(repo, plan, use_git=True, remove_records=True)
+
+        self.assertFalse(
+            (repo / ".aw").exists(),
+            "NO .aw/ directory must remain after deep cleanup removing records",
+        )
+
+    def test_deep_cleanup_records_keep_preserves_records_and_removes_other(self):
+        """E-03, E-04, V-03, V-04: deep cleanup with records KEEP preserves .aw/records/ while removing other scaffolding."""
+        repo = init_repo(self.base / "deep_clean_keep")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+        INS.write_setup_marker(repo)
+
+        # Plant a user record
+        user_plan = repo / ".aw" / "records" / "plans" / "pending" / "my-plan.ipd.md"
+        user_plan.write_text("# My Plan\n", encoding="utf-8")
+
+        INS.uninstall_repo(repo, use_git=True, force=True)
+        plan = INS.plan_deep_cleanup(repo)
+        self.assertIn(".aw/records/plans/pending/my-plan.ipd.md", plan.records_files)
+
+        # Run deep cleanup with remove_records=False
+        INS.run_deep_cleanup(repo, plan, use_git=True, remove_records=False)
+
+        self.assertTrue(
+            user_plan.is_file(), "User record must be preserved when records are kept"
+        )
+        self.assertTrue((repo / ".aw" / "records").is_dir(), ".aw/records/ must remain")
+        self.assertTrue((repo / ".aw").is_dir(), ".aw/ parent must remain for records")
+        self.assertFalse((repo / ".aw" / "config").exists())
+        self.assertFalse((repo / ".aw" / "state").exists())
+        self.assertFalse((repo / ".aw" / ".gitignore").exists())
+        self.assertFalse((repo / ".aw" / "setup-repo-needed.md").exists())
+        self.assertFalse(
+            (repo / ".gitleaksignore").exists(),
+            "Non-records scaffolding must be removed",
+        )
+
+    def test_deep_cleanup_plan_partitions_records_and_other(self):
+        """E-03, V-03: DeepCleanupPlan partitions records_files and other_files."""
+        repo = init_repo(self.base / "plan_partition")
+        INS.install_into_repo(repo, self.source, yes=True, no_color=True)
+
+        plan = INS.plan_deep_cleanup(repo)
+        self.assertTrue(len(plan.records_files) > 0)
+        self.assertTrue(len(plan.other_files) > 0)
+        self.assertEqual(
+            sorted(plan.files), sorted(plan.records_files + plan.other_files)
+        )
+        for f in plan.records_files:
+            self.assertTrue(f.startswith((".aw/records/", ".agents/")))
+        for f in plan.other_files:
+            self.assertFalse(f.startswith((".aw/records/", ".agents/")))
+        self.assertIn(".gitleaksignore", plan.other_files)
+
+
 if __name__ == "__main__":
     unittest.main()

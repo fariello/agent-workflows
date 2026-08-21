@@ -3589,6 +3589,7 @@ def _git_file_state(repo_root: Path, rel: str) -> str:
 _DEEP_CLEANUP_ROOTS = (
     # Migrated FLAT `.aw/records/*` roots (IPD awretrofit Order 08, B03: `aw uninstall --deep` must
     # reach these to honor the cli.py:523 help promise). No `docs/` level (Order 07 flatten).
+    ".aw/records/README.md",
     ".aw/records/plans",
     ".aw/records/prompts",
     ".aw/records/prompt-library",
@@ -3619,11 +3620,15 @@ class DeepCleanupPlan:
     `files` is every repo-relative file path under the scaffolding roots that still exists;
     `counts` is per-root file counts for the announcement; `at_risk` is the subset that is
     NOT recoverable from git (untracked/uncommitted/ignored) and drives the LOUD warning.
+    `records_files` is the subset under records roots (.aw/records/* and legacy .agents/*);
+    `other_files` is the subset under other scaffolding (.gitleaksignore, secret-scan.yml).
     """
 
     files: list[str] = field(default_factory=list)
     counts: dict[str, int] = field(default_factory=dict)
     at_risk: list[str] = field(default_factory=list)
+    records_files: list[str] = field(default_factory=list)
+    other_files: list[str] = field(default_factory=list)
 
     @property
     def is_empty(self) -> bool:
@@ -3632,6 +3637,26 @@ class DeepCleanupPlan:
     @property
     def all_recoverable(self) -> bool:
         return not self.at_risk
+
+    def filtered(
+        self, *, records: bool = True, other: bool = True
+    ) -> "DeepCleanupPlan":
+        sub = DeepCleanupPlan()
+        for root, count in self.counts.items():
+            is_rec = root.startswith((".aw/records", ".agents"))
+            if (is_rec and records) or (not is_rec and other):
+                sub.counts[root] = count
+        for f in self.files:
+            is_rec = f in self.records_files
+            if (is_rec and records) or (not is_rec and other):
+                sub.files.append(f)
+                if is_rec:
+                    sub.records_files.append(f)
+                else:
+                    sub.other_files.append(f)
+                if f in self.at_risk:
+                    sub.at_risk.append(f)
+        return sub
 
 
 def plan_deep_cleanup(repo_root: Path) -> DeepCleanupPlan:
@@ -3647,16 +3672,23 @@ def plan_deep_cleanup(repo_root: Path) -> DeepCleanupPlan:
             candidates = [p for p in base.rglob("*") if p.is_file()]
         else:
             continue
+        is_records = root.startswith((".aw/records", ".agents"))
         n = 0
         for p in candidates:
             rel = p.relative_to(repo_root).as_posix()
             plan.files.append(rel)
+            if is_records:
+                plan.records_files.append(rel)
+            else:
+                plan.other_files.append(rel)
             if _git_file_state(repo_root, rel) == "at_risk":
                 plan.at_risk.append(rel)
             n += 1
         if n:
             plan.counts[root] = n
     plan.files.sort()
+    plan.records_files.sort()
+    plan.other_files.sort()
     plan.at_risk.sort()
     return plan
 
@@ -3666,13 +3698,21 @@ def run_deep_cleanup(
     plan: DeepCleanupPlan,
     use_git: bool,
     changed_out: "Optional[list[str]]" = None,
+    *,
+    remove_records: bool = True,
 ) -> list[str]:
     """Remove exactly the files in `plan` (git rm when tracked, else unlink), then prune any
     now-empty scaffolding directories. Never rm -rf a host dir; never touch a path outside
-    `plan.files`. Returns human-readable actions; appends changed paths to `changed_out`."""
+    `plan.files`. When `remove_records` is False, records files are excluded from removal.
+    Returns human-readable actions; appends changed paths to `changed_out`."""
 
     actions: list[str] = []
-    for rel in plan.files:
+    files_to_remove = [
+        rel
+        for rel in plan.files
+        if remove_records or rel not in set(plan.records_files)
+    ]
+    for rel in files_to_remove:
         target = repo_root / rel
         if not target.is_file():
             continue
@@ -3682,6 +3722,8 @@ def run_deep_cleanup(
     # Prune now-empty dirs under the scaffolding roots (deepest first); never remove the repo
     # root or a host dir that still has content.
     for root in _DEEP_CLEANUP_ROOTS:
+        if not remove_records and root.startswith((".aw/records", ".agents")):
+            continue
         base = repo_root / root
         if not base.is_dir():
             continue
@@ -3704,7 +3746,23 @@ def run_deep_cleanup(
             agents_dir.rmdir()
     except OSError:
         pass
-    actions.append(f"deep cleanup removed {len(plan.files)} file(s)")
+    # Prune empty dirs under .aw (deepest first)
+    aw_base = repo_root / ".aw"
+    if aw_base.is_dir():
+        for d in sorted(
+            (p for p in aw_base.rglob("*") if p.is_dir()),
+            key=lambda p: len(p.parts),
+            reverse=True,
+        ):
+            try:
+                d.rmdir()
+            except OSError:
+                pass
+        try:
+            aw_base.rmdir()
+        except OSError:
+            pass
+    actions.append(f"deep cleanup removed {len(files_to_remove)} file(s)")
     return actions
 
 
@@ -3839,11 +3897,6 @@ def uninstall_repo(
                 _uninstall_remove(repo_root, rel, use_git)
                 _record_changed(rel)
                 actions.append(f"removed {rel}")
-        for aw_owned in (".aw/config", ".aw/state"):
-            if (repo_root / aw_owned).is_dir():
-                _uninstall_remove(repo_root, aw_owned, use_git)
-                _record_changed(aw_owned + "/")
-                actions.append(f"removed {aw_owned}/")
 
     # 2. The managed AGENTS pointer block (leaves the user's own AGENTS prose intact).
     for line in remove_agents_pointer(repo_root, use_git):
@@ -3868,7 +3921,38 @@ def uninstall_repo(
             _record_changed(".gitignore")
             actions.append("removed untracked-safety block from .gitignore")
 
-    # 4. Finally, remove the manifest itself (its job is done once its files are gone). LAST,
+    # 4. Deterministic framework-created lifecycle files (config, state, .aw/.gitignore)
+    # not in the manifest (E-01).
+    cfg_dir = repo_root / ".aw" / "config"
+    if cfg_dir.is_dir():
+        for p in sorted(cfg_dir.rglob("*")):
+            if p.is_file():
+                rel = p.relative_to(repo_root).as_posix()
+                _uninstall_remove(repo_root, rel, use_git)
+                _record_changed(rel)
+                actions.append(f"removed {rel}")
+
+    state_dir = repo_root / ".aw" / "state"
+    if state_dir.is_dir():
+        for p in sorted(state_dir.rglob("*")):
+            if p.is_file():
+                rel = p.relative_to(repo_root).as_posix()
+                _uninstall_remove(repo_root, rel, use_git)
+                _record_changed(rel)
+                actions.append(f"removed {rel}")
+
+    aw_gi = ".aw/.gitignore"
+    if (repo_root / aw_gi).is_file():
+        _uninstall_remove(repo_root, aw_gi, use_git)
+        _record_changed(aw_gi)
+        actions.append(f"removed {aw_gi}")
+
+    # 5. Setup marker (.aw/setup-repo-needed.md) (E-02).
+    if remove_setup_marker(repo_root):
+        _record_changed(SETUP_MARKER_PATH)
+        actions.append(f"removed {SETUP_MARKER_PATH}")
+
+    # 6. Finally, remove the manifest itself (its job is done once its files are gone). LAST,
     #    so a mid-uninstall failure still leaves the ownership record intact for a retry (U3).
     manifest_path = manifest_mod.resolve_manifest_path(repo_root)
     if manifest_path.is_file():
@@ -3877,12 +3961,22 @@ def uninstall_repo(
         _record_changed(manifest_rel)
         actions.append(f"removed {manifest_rel}")
 
-    try:
-        aw_dir = repo_root / ".aw"
-        if aw_dir.is_dir() and not any(aw_dir.iterdir()):
-            aw_dir.rmdir()
-    except OSError:
-        pass
+    # 7. Prune now-empty directories under .aw (deepest first). (E-04)
+    aw_base = repo_root / ".aw"
+    if aw_base.is_dir():
+        for d in sorted(
+            (p for p in aw_base.rglob("*") if p.is_dir()),
+            key=lambda p: len(p.parts),
+            reverse=True,
+        ):
+            try:
+                d.rmdir()
+            except OSError:
+                pass
+        try:
+            aw_base.rmdir()
+        except OSError:
+            pass
 
     return actions
 
