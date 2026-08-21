@@ -2330,6 +2330,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-20",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260820-awuninstallfix-01-ejhzgk-complete-uninstall-remove-orphaned-config-state-gitignore-se.ipd.md",
+    "plan_id": "ejhzgk",
+    "set_id": "awuninstallfix",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -2368,16 +2378,6 @@
     "plan_id": "pprchd",
     "set_id": "awhistignore",
     "status": "not-executed"
-  },
-  {
-    "date": "2026-08-20",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260820-awuninstallfix-01-ejhzgk-complete-uninstall-remove-orphaned-config-state-gitignore-se.ipd.md",
-    "plan_id": "ejhzgk",
-    "set_id": "awuninstallfix",
-    "status": "reviewed"
   },
   {
     "date": "2026-08-07",

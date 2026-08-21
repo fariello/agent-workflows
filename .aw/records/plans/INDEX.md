@@ -18,7 +18,7 @@ Showing the 40 most-recent of 106 Sets; the full manifest is INDEX.json.
 
 ## awuninstallfix
 
-- `ejhzgk` [pending] 01 pending/20260820-awuninstallfix-01-ejhzgk-complete-uninstall-remove-orphaned-config-state-gitignore-se.ipd.md
+- `ejhzgk` [executed] 01 executed/20260820-awuninstallfix-01-ejhzgk-complete-uninstall-remove-orphaned-config-state-gitignore-se.ipd.md
 
 ## awdoctorfix
 
