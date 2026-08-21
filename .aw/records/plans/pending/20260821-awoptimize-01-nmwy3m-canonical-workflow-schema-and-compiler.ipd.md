@@ -46,10 +46,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Compiler and parity
 
-- [ ] E-04 Implement deterministic compilation into: a portable prompt bundle, just-in-time step packets, machine-readable manifest, evidence requirements, human catalog row, and adapter-neutral command descriptor.
+- [x] E-04 Implement deterministic compilation into: a portable prompt bundle, just-in-time step packets, machine-readable manifest, evidence requirements, human catalog row, and adapter-neutral command descriptor.
   - Depends on: E-03
   - Expected outcome: identical source yields byte-identical normalized outputs across two clean runs and ordering is explicit rather than filesystem-dependent.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: implemented `agent_workflows/workflow_compiler.py`: `compile_workflow(ir)` emits all six `PROJECTION_KEYS` (prompt_bundle, step_packets, manifest, evidence, catalog_row, command_descriptor) and `render_generated_files()` renders them to a deterministic `_generated/`-relative filename->text map. Determinism via stdlib `json.dumps(sort_keys, fixed separators)` + explicit list ordering (steps/requirements by id, resources by declared order), never FS order (D139 needs no dep). Pure transform (no FS/model/network). Verified against the fixture: 6 projections present, manifest binds the source digest, step packets carry only per-step action/satisfies/depends_on/evidence/body, and TWO independent load+compile+render runs are BYTE-IDENTICAL. Formal V-04 evidence in the validation pass.
 - [ ] E-05 Add compiler invariants that reject any output where a profile removes a MUST requirement, validation predicate, stop condition, or scope fence; permit only transport, formatting, packet-size, and evidence-backed reasoning-profile knobs.
   - Depends on: E-04
   - Expected outcome: all host and model variants share the same semantic digest and acceptance predicates.
