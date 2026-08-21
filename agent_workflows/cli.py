@@ -782,6 +782,56 @@ def _build_parser() -> argparse.ArgumentParser:
         "--agent", action="store_true", help="Machine-readable output."
     )
 
+    # awoptimize Order 01 E-06: canonical workflow schema/compiler CLI (validate/compile/
+    # check-generated). The heavy lifting is in workflow_schema/source/loader/compiler; this only
+    # registers the parser. compile is dry-run by default (--apply writes); validate + check-generated
+    # never write. --agent/--json emit machine output with no ANSI.
+    p_workflow = sub.add_parser(
+        "workflow",
+        parents=[common],
+        help="Canonical workflow schema/compiler tooling (validate/compile/check-generated).",
+        formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw workflow validate PKG          # schema-validate a canonical workflow package\n"
+            "  aw workflow compile PKG           # preview generated projections (dry-run)\n"
+            "  aw workflow compile PKG --apply   # write the generated projections\n"
+            "  aw workflow check-generated PKG   # fail if generated output drifts from source\n"
+        ),
+    )
+    workflow_sub = p_workflow.add_subparsers(dest="workflow_command")
+    for _wf_sub, _wf_help in (
+        ("validate", "Load + schema-validate a canonical package (read-only)."),
+        (
+            "compile",
+            "Compile to generated projections (dry-run; --apply writes atomically).",
+        ),
+        (
+            "check-generated",
+            "Fail if any _generated/ file drifts from a fresh compile (read-only).",
+        ),
+    ):
+        _p = workflow_sub.add_parser(_wf_sub, parents=[common], help=_wf_help)
+        _p.add_argument(
+            "path", nargs="*", default=None, help="One or more workflow package roots."
+        )
+        _p.add_argument(
+            "--agent",
+            action="store_true",
+            help="Machine output: one JSON record per line; no ANSI.",
+        )
+        _p.add_argument(
+            "--json",
+            action="store_true",
+            help="Machine output: a single JSON array; no ANSI.",
+        )
+        if _wf_sub == "compile":
+            _p.add_argument(
+                "--apply",
+                action="store_true",
+                help="Write generated files (default: preview only).",
+            )
+
     p_research = sub.add_parser(
         "research",
         parents=[common],
@@ -5252,6 +5302,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     # awcmdsurf Order 05 (hard cutover): the plan-family + `list` + `plan-names` command dispatch was
     # removed. Those capabilities are the noun-verb grammar (ipd board / index|find|group|rename|
     # archive plans / check <type> names / list-repos). _run_plans is retained: `ipd board` calls it.
+    if args.command == "workflow":
+        from agent_workflows import workflow_cli
+
+        return workflow_cli.run_workflow(args)
     if args.command == "ipd":
         ipd_cmd = getattr(args, "ipd_command", None)
         if ipd_cmd == "lint":
