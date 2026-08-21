@@ -4,17 +4,19 @@
 - Kind: child
 - Concern: install/uninstall correctness + UX. A live `aw install` session on a remote repo exposed 6 spec-conformance defects rooted in (a) the wizard writing to disk MID-interview instead of atomically after one final confirm, and (b) uninstall's installed-detection being too narrow to see a partial footprint. Governing spec: `.aw/records/specs/20260809-2211-01-aw-project-layout-storage-wizard-and-state.spec.md` (L33/334/364 "fail before writes" + single final confirmation; §14 L507-519 companion Git safety; L40 safe uninstall).
 - Scope: `agent_workflows/install_wizard.py` (interview -> pure data-collection; ctrl-c aborts; companion validation via the existing `storage.validate_companion_preflight`/`materialize_companion_storage`; path-in-prompt) + `agent_workflows/cli.py` (`_run_install` ordering so `persist_project_policy` runs only after ONE final Yes-default gate; honest abort message; `_run_uninstall` footprint detection) + the spec + regression tests. Does NOT redesign presets/placements, storage backends, or the companion attach/detach verbs (only wires the wizard into existing helpers).
-- Status: reviewed
+- Status: approved
 - Set: awinstallfix
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Approval: maintainer (human), 2026-08-20: approved after /plan-review (APPROVE WITH REVISIONS APPLIED); the 6-defect install-side fix, cleared for execution.
 - Id: e41hhs
 
 ## Workflow history
 
 - 2026-08-20 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-20 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; verified all anchors against code (IN-001..IN-007 confirmed); PR-001 (distinct PolicyCancelledError handler, not a [FAIL]), PR-002 (E-06 git-init timing decided: validate/record intent in interview, materialize after final Yes), PR-003 (E-04 cross-ref) fixed in place; OQ-01 resolved (no speculative rollback). review-finalize lint conforming.
+- 2026-08-20 approved (maintainer, human): cleared for execution.
 
 ## Goal
 
