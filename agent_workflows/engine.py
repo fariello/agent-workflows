@@ -3839,6 +3839,11 @@ def uninstall_repo(
                 _uninstall_remove(repo_root, rel, use_git)
                 _record_changed(rel)
                 actions.append(f"removed {rel}")
+        for aw_owned in (".aw/config", ".aw/state"):
+            if (repo_root / aw_owned).is_dir():
+                _uninstall_remove(repo_root, aw_owned, use_git)
+                _record_changed(aw_owned + "/")
+                actions.append(f"removed {aw_owned}/")
 
     # 2. The managed AGENTS pointer block (leaves the user's own AGENTS prose intact).
     for line in remove_agents_pointer(repo_root, use_git):
@@ -3871,6 +3876,13 @@ def uninstall_repo(
         _uninstall_remove(repo_root, manifest_rel, use_git)
         _record_changed(manifest_rel)
         actions.append(f"removed {manifest_rel}")
+
+    try:
+        aw_dir = repo_root / ".aw"
+        if aw_dir.is_dir() and not any(aw_dir.iterdir()):
+            aw_dir.rmdir()
+    except OSError:
+        pass
 
     return actions
 

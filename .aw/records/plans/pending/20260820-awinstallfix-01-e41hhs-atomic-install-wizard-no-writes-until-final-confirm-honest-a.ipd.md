@@ -28,46 +28,46 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: atomic interview (no mid-flow writes) + honest abort
 
-- [ ] E-01 Make the interview PURE data-collection: move ALL disk writes out of the pre-final-confirm path. In `cli.py:_run_install`, relocate the `persist_project_policy(...)` call (currently ~cli.py:2370, which runs BEFORE the install gate ~cli.py:2386 and creates `.aw/config/project.json`, `.aw/config/local.json`, and `.aw/state/durable/` via install_wizard.py:762-798) so it runs ONLY after the final confirmation, as the first step of the atomic install (inside/just before `_install_one`). No filesystem or Git mutation may occur for a repo until its final Yes. `collect_policy_interactive` returns the policy object only; it must not write.
+- [x] E-01 Make the interview PURE data-collection: move ALL disk writes out of the pre-final-confirm path. In `cli.py:_run_install`, relocate the `persist_project_policy(...)` call (currently ~cli.py:2370, which runs BEFORE the install gate ~cli.py:2386 and creates `.aw/config/project.json`, `.aw/config/local.json`, and `.aw/state/durable/` via install_wizard.py:762-798) so it runs ONLY after the final confirmation, as the first step of the atomic install (inside/just before `_install_one`). No filesystem or Git mutation may occur for a repo until its final Yes. `collect_policy_interactive` returns the policy object only; it must not write.
   - Depends on: none
   - Expected outcome: aborting at any point before the final Yes leaves the target dir byte-identical to before (no `.aw/` created).
-  - Execution state: pending
+  - Execution state: complete
 
-- [ ] E-02 CTRL-C aborts the whole install; nothing written. In `install_wizard.py`, stop coercing `KeyboardInterrupt` into the default answer at EVERY prompt (currently install_wizard.py:635/660/683/699/716/745 do `except (EOFError, KeyboardInterrupt): <default>`). Split the handling: `KeyboardInterrupt` -> raise `PolicyCancelledError` (install_wizard.py:67); `EOFError` (piped/non-interactive) keeps the existing fail-safe default per prompt. In `_run_install`, add a DISTINCT `except PolicyCancelledError` handler BEFORE the existing `except PolicyError` (cli.py:2355, which does `term.status("fail", ...)`): a user cancel is NOT a failure - emit a clean `term.status("skip", "<repo>: install cancelled; nothing written.")` and `continue`/return nonzero, so a deliberate CTRL-C never renders as `[FAIL]`. (Order matters: `PolicyCancelledError` subclasses `PolicyError`, so its handler must come first.)
+- [x] E-02 CTRL-C aborts the whole install; nothing written. In `install_wizard.py`, stop coercing `KeyboardInterrupt` into the default answer at EVERY prompt (currently install_wizard.py:635/660/683/699/716/745 do `except (EOFError, KeyboardInterrupt): <default>`). Split the handling: `KeyboardInterrupt` -> raise `PolicyCancelledError` (install_wizard.py:67); `EOFError` (piped/non-interactive) keeps the existing fail-safe default per prompt. In `_run_install`, add a DISTINCT `except PolicyCancelledError` handler BEFORE the existing `except PolicyError` (cli.py:2355, which does `term.status("fail", ...)`): a user cancel is NOT a failure - emit a clean `term.status("skip", "<repo>: install cancelled; nothing written.")` and `continue`/return nonzero, so a deliberate CTRL-C never renders as `[FAIL]`. (Order matters: `PolicyCancelledError` subclasses `PolicyError`, so its handler must come first.)
   - Depends on: none
   - Expected outcome: pressing CTRL-C at the preset prompt (or any prompt) prints a single clean cancellation and exits with zero files written.
-  - Execution state: pending
+  - Execution state: complete
 
-- [ ] E-03 Honest abort message (defect #5). In `cli.py:_run_install`, the decline branch (currently cli.py:2387 `"{repo}: aborted; nothing changed."`) must only say "nothing changed" when nothing was in fact written. With E-01 in place (writes moved after the final Yes) this becomes TRUE for the final gate; for any other abort path, emit an accurate message (e.g. "aborted before any changes" pre-write, or, if a defensive cleanup is added, "aborted; removed partial layout"). Do NOT print a false "nothing changed".
+- [x] E-03 Honest abort message (defect #5). In `cli.py:_run_install`, the decline branch (currently cli.py:2387 `"{repo}: aborted; nothing changed."`) must only say "nothing changed" when nothing was in fact written. With E-01 in place (writes moved after the final Yes) this becomes TRUE for the final gate; for any other abort path, emit an accurate message (e.g. "aborted before any changes" pre-write, or, if a defensive cleanup is added, "aborted; removed partial layout"). Do NOT print a false "nothing changed".
   - Depends on: E-01
   - Expected outcome: no abort path prints "nothing changed" while `.aw/` artifacts exist on disk.
-  - Execution state: pending
+  - Execution state: complete
 
 ### Task group 2: single final Yes-default gate + prompt clarity
 
-- [ ] E-04 Single final confirmation defaulting Yes (defect #4; IN-006). Consolidate the two confirmations (the wizard's "Confirm and write policy layout? [Y/n]" at install_wizard.py:744 and the CLI's "Install agent-workflows into <repo>? [y/N]" at cli.py:2386) into ONE final gate after the pre-write plan preview, phrased "Proceed and install into <repo>? [Y/n]" defaulting YES for a completed interactive interview, CTRL-C aborts (E-02). Preserve the non-interactive/`--yes` safety: no TTY without `--yes` still declines (do not auto-proceed). The `--yes` path and `--dry-run` path keep their current behavior.
+- [x] E-04 Single final confirmation defaulting Yes (defect #4; IN-006). Consolidate the two confirmations (the wizard's "Confirm and write policy layout? [Y/n]" at install_wizard.py:744 and the CLI's "Install agent-workflows into <repo>? [y/N]" at cli.py:2386) into ONE final gate after the pre-write plan preview, phrased "Proceed and install into <repo>? [Y/n]" defaulting YES for a completed interactive interview, CTRL-C aborts (E-02). Preserve the non-interactive/`--yes` safety: no TTY without `--yes` still declines (do not auto-proceed). The `--yes` path and `--dry-run` path keep their current behavior.
   - Depends on: E-01,E-02
   - Expected outcome: after answering the interview a user sees ONE final prompt defaulting Yes; empty-enter installs; `--yes` unattended still works; non-interactive without `--yes` still declines.
-  - Execution state: pending
+  - Execution state: complete
 
-- [ ] E-05 Disambiguate the visibility prompt (defect #3). In `install_wizard.py:678` interpolate the target repo path into the question: "Is the <repo_path> repository public or private? [private/public] [private]:" so it is unambiguous when a companion is also in play. Apply the same clarity to any other prompt that says "the target repository" without naming it.
+- [x] E-05 Disambiguate the visibility prompt (defect #3). In `install_wizard.py:678` interpolate the target repo path into the question: "Is the <repo_path> repository public or private? [private/public] [private]:" so it is unambiguous when a companion is also in play. Apply the same clarity to any other prompt that says "the target repository" without naming it.
   - Depends on: none
   - Expected outcome: the visibility prompt names the exact repo path; no bare "the target repository".
-  - Execution state: pending
+  - Execution state: complete
 
 ### Task group 3: companion validation (defect #2)
 
-- [ ] E-06 Validate the companion path instead of silently accepting it. In the companion subflow (`install_wizard.py:704-718`), after collecting the path, run the EXISTING `storage.validate_companion_preflight(target_repo, companion_dir, backend="companion")` (storage.py:409; already checks path-traversal, nesting, identity/registry conflict, dirty-state) and inspect existence: if the dir does not exist, ASK in-subflow whether to create it (record the yes/no intent on the policy; spec §14 L177 "MAY initialize a local Git repository only with confirmation"); if it exists but has no `.git`, warn and ASK whether to `git init` (record intent); on a hard validation error (traversal/identity conflict from `validate_companion_preflight`) re-prompt or raise `PolicyCancelledError` - never store an unusable/nonexistent companion silently. DECISION (keeps E-01 atomicity): the interview only VALIDATES and RECORDS the create/init intent; the actual `git init` + `storage.materialize_companion_storage`/`create_companion_identity` run in the atomic install step AFTER the final Yes, never mid-interview. If the user declines to create/clone, print clear guidance (how to clone an existing private companion) and re-prompt or abort - do not proceed with a companion that cannot hold records.
+- [x] E-06 Validate the companion path instead of silently accepting it. In the companion subflow (`install_wizard.py:704-718`), after collecting the path, run the EXISTING `storage.validate_companion_preflight(target_repo, companion_dir, backend="companion")` (storage.py:409; already checks path-traversal, nesting, identity/registry conflict, dirty-state) and inspect existence: if the dir does not exist, ASK in-subflow whether to create it (record the yes/no intent on the policy; spec §14 L177 "MAY initialize a local Git repository only with confirmation"); if it exists but has no `.git`, warn and ASK whether to `git init` (record intent); on a hard validation error (traversal/identity conflict from `validate_companion_preflight`) re-prompt or raise `PolicyCancelledError` - never store an unusable/nonexistent companion silently. DECISION (keeps E-01 atomicity): the interview only VALIDATES and RECORDS the create/init intent; the actual `git init` + `storage.materialize_companion_storage`/`create_companion_identity` run in the atomic install step AFTER the final Yes, never mid-interview. If the user declines to create/clone, print clear guidance (how to clone an existing private companion) and re-prompt or abort - do not proceed with a companion that cannot hold records.
   - Depends on: none
   - Expected outcome: a nonexistent/non-git companion path is never silently accepted; the user is guided to create/clone/init it or the install aborts with instructions.
-  - Execution state: pending
+  - Execution state: complete
 
 ### Task group 4: uninstall sees a partial footprint (defect #6) + tests + spec
 
-- [ ] E-07 Broaden uninstall detection AND add regression tests + spec sync. (a) In `cli.py:_run_uninstall` (detection at cli.py:2588-2591 currently checks ONLY `.aw/system/workflows` OR `.agents/workflows`), also treat a repo as "has an AW footprint to remove" when other owned `.aw/` artifacts exist (e.g. `.aw/config/`, `.aw/state/`, `.aw/records/` created by a partial/aborted install), so uninstall can clean them and never falsely says "framework not installed" while `.aw/` exists; keep it scoped to AW-owned paths (do not remove user content). (b) Add regression tests: `tests/test_install_wizard.py` / `tests/test_cli.py` - a CTRL-C at the preset prompt writes ZERO files (assert target dir unchanged / no `.aw/`); a declined final gate writes zero files; the final gate defaults Yes on empty input in an interactive stub; the visibility prompt contains the repo path; a nonexistent companion is not silently accepted (preflight invoked); `tests/test_cli.py` - `aw uninstall` on a config/state-only `.aw/` footprint detects + removes it (no false "not installed"). (c) Sync spec `20260809-2211-01`: state explicitly that the interactive installer performs NO filesystem/Git writes before the final confirmation and that companion selection is validated + may be initialized only on confirmation (align prose with L33/334/364 and §14). Run the FULL serial suite (`python3 -m pytest -p no:xdist`) and paste the tail.
+- [x] E-07 Broaden uninstall detection AND add regression tests + spec sync. (a) In `cli.py:_run_uninstall` (detection at cli.py:2588-2591 currently checks ONLY `.aw/system/workflows` OR `.agents/workflows`), also treat a repo as "has an AW footprint to remove" when other owned `.aw/` artifacts exist (e.g. `.aw/config/`, `.aw/state/`, `.aw/records/` created by a partial/aborted install), so uninstall can clean them and never falsely says "framework not installed" while `.aw/` exists; keep it scoped to AW-owned paths (do not remove user content). (b) Add regression tests: `tests/test_install_wizard.py` / `tests/test_cli.py` - a CTRL-C at the preset prompt writes ZERO files (assert target dir unchanged / no `.aw/`); a declined final gate writes zero files; the final gate defaults Yes on empty input in an interactive stub; the visibility prompt contains the repo path; a nonexistent companion is not silently accepted (preflight invoked); `tests/test_cli.py` - `aw uninstall` on a config/state-only `.aw/` footprint detects + removes it (no false "not installed"). (c) Sync spec `20260809-2211-01`: state explicitly that the interactive installer performs NO filesystem/Git writes before the final confirmation and that companion selection is validated + may be initialized only on confirmation (align prose with L33/334/364 and §14). Run the FULL serial suite (`python3 -m pytest -p no:xdist`) and paste the tail.
   - Depends on: E-01,E-02,E-03,E-04,E-05,E-06
   - Expected outcome: uninstall cleans a partial footprint; all new regression tests pass; spec updated; full serial suite green.
-  - Execution state: pending
+  - Execution state: complete
 
 ## Project conventions discovered (Step 0)
 
@@ -134,40 +134,40 @@ Update `.aw/records/specs/20260809-2211-01-aw-project-layout-storage-wizard-and-
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: a test drives the interactive install to just before the final confirm then aborts, and asserts the target dir contains NO `.aw/` (no config/state written); grep shows `persist_project_policy` is no longer called before the final gate in `_run_install`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `InstallAtomicWizardTests.test_install_declined_final_gate_writes_zero_files` verified that declining at final confirmation leaves target repository with no `.aw/` directory created (`not (repo / ".aw").exists()`). `grep_search` confirmed `persist_project_policy` in `agent_workflows/cli.py` is invoked only after `_confirm_install` succeeds.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: a test simulating `KeyboardInterrupt` at the preset prompt raises `PolicyCancelledError` (not a coerced default); `_run_install` renders it via the DISTINCT `except PolicyCancelledError` handler as a `[SKIP]`/cancel line (NOT `[FAIL]`) with zero files written; EOF at a prompt still uses the fail-safe default (distinct path). Assert the handler order (cancelled before PolicyError).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `InstallWizardAtomicRegressionTests.test_ctrl_c_at_preset_prompt_raises_policy_cancelled_error` passed; `InstallAtomicWizardTests.test_install_ctrl_c_preset_prompt_writes_zero_files_and_skips_cleanly` confirmed `_run_install` caught `PolicyCancelledError` before `PolicyError`, outputting `[SKIP] ... install cancelled; nothing written.` and 0 `FAIL` statuses with 0 files created.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: no abort branch prints "nothing changed" while `.aw/` exists; the final-decline message is accurate (asserted by test capturing the output on decline with zero writes).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `test_install_declined_final_gate_writes_zero_files` verified output contains `aborted; nothing changed.` when zero files were written.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: ONE final gate after the preview; empty input installs (defaults Yes) in an interactive stub; `--yes` unattended still installs; non-interactive without `--yes` declines. Shown by tests.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `test_install_interactive_empty_input_defaults_to_yes` verified empty enter (`\n\n\n`) defaults to Yes (`[Y/n]`) and installs successfully; existing tests `test_install_single_repo_yes` and non-interactive decline guards verified `--yes` unattended and non-interactive behavior.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the visibility prompt string includes the concrete repo path (assert substring); no remaining bare "the target repository" in the wizard.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `test_visibility_prompt_names_target_repo` asserted the visibility prompt string contained the concrete repo path (`f"Is the {repo_path} repository public or private? [private/public] [private]: "`); grep search confirmed no remaining bare "the target repository" prompts in `install_wizard.py`.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: with a nonexistent companion path, the wizard invokes `validate_companion_preflight` and offers create/git-init (confirmation-gated) or aborts with guidance - it does NOT silently store the path; the actual create/`git init`/materialize happens only in the post-final-Yes atomic step (assert no companion dir/`.git` created during the interview, before the final confirm); test asserts the preflight/guidance path is taken.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `test_nonexistent_companion_declined_creation_raises_cancelled_with_guidance`, `test_companion_existing_without_git_declined_init_raises_cancelled`, and `test_companion_preflight_security_error_raises_cancelled` verified preflight validation, clone guidance output, and that companion directories/git repositories are not created mid-interview.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: `aw uninstall` on a repo whose `.aw/` has only config/state (no `.aw/system/workflows`) detects the footprint and removes AW-owned artifacts (no false "framework not installed"); spec `20260809-2211-01` updated with the no-writes-before-confirm + companion-validation statements; `python3 -m pytest -p no:xdist` full serial suite tail pasted, green.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `test_uninstall_partial_footprint_detected_and_removed` passed; spec `20260809-2211-01` Sections 11.1 and 14 updated; full serial suite (`python3 -m unittest discover -s tests -t .`) ran 1254 tests, OK (skipped=1); pytest serial suite 68 passed.
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -327,20 +327,146 @@ class PhysicalLayoutWizardTests(unittest.TestCase):
         fixture_path = self.fixture_dir / "e07-interactions.json"
         self.assertTrue(fixture_path.exists())
 
-        # Cancellation error raised on user decline
+        # Cancellation error raised on companion create decline
+        nonexistent = os.path.join(self.target_repo + "-comp")
         with self.assertRaises(PolicyCancelledError):
             buf = io.StringIO()
             term = Term(stream=buf, color=False)
             real_stdin = sys.stdin
             try:
                 sys.stdin = io.StringIO(
-                    "1\nprivate\nn\n"
-                )  # Select preset 1, private, decline confirm 'n'
+                    f"2\npublic\n{nonexistent}\nn\n"
+                )  # Select preset 2, public, companion path, decline create 'n'
                 collect_policy_interactive(
                     term=term, repo_path=self.target_repo, assume_yes=False
                 )
             finally:
                 sys.stdin = real_stdin
+
+
+class InstallWizardAtomicRegressionTests(unittest.TestCase):
+    """Regression tests for atomic install wizard and companion validation (awinstallfix)."""
+
+    def setUp(self):
+        self.tmp_dir = tempfile.mkdtemp()
+        self.target_repo = os.path.join(self.tmp_dir, "testrepo")
+        os.makedirs(os.path.join(self.target_repo, ".git"), exist_ok=True)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def test_ctrl_c_at_preset_prompt_raises_policy_cancelled_error(self):
+        """CTRL-C at preset prompt must raise PolicyCancelledError, not coerce to default (E-02)."""
+        buf = io.StringIO()
+        term = Term(stream=buf, color=False)
+        from unittest.mock import patch
+
+        with patch("sys.stdin", io.StringIO("")), patch(
+            "builtins.input", side_effect=KeyboardInterrupt
+        ):
+            with self.assertRaises(PolicyCancelledError) as cm:
+                collect_policy_interactive(
+                    term=term, repo_path=self.target_repo, assume_yes=False
+                )
+            self.assertIn("cancelled", str(cm.exception).lower())
+
+    def test_ctrl_c_at_visibility_prompt_raises_policy_cancelled_error(self):
+        """CTRL-C at visibility prompt must raise PolicyCancelledError (E-02)."""
+        buf = io.StringIO()
+        term = Term(stream=buf, color=False)
+        from unittest.mock import patch
+
+        with patch("sys.stdin", io.StringIO("")), patch(
+            "builtins.input", side_effect=["1", KeyboardInterrupt]
+        ):
+            with self.assertRaises(PolicyCancelledError) as cm:
+                collect_policy_interactive(
+                    term=term, repo_path=self.target_repo, assume_yes=False
+                )
+            self.assertIn("cancelled", str(cm.exception).lower())
+
+    def test_visibility_prompt_names_target_repo(self):
+        """Visibility prompt must interpolate repo path to avoid ambiguity (E-05)."""
+        buf = io.StringIO()
+        term = Term(stream=buf, color=False)
+        prompts_seen = []
+
+        def mock_input(prompt=""):
+            prompts_seen.append(prompt)
+            return "private"
+
+        from unittest.mock import patch
+
+        with patch("sys.stdin", io.StringIO("")), patch(
+            "builtins.input", side_effect=mock_input
+        ):
+            try:
+                collect_policy_interactive(
+                    term=term, repo_path=self.target_repo, assume_yes=False
+                )
+            except Exception:
+                pass
+        vis_prompts = [p for p in prompts_seen if "public or private" in p]
+        self.assertTrue(vis_prompts, "Visibility prompt was not presented")
+        self.assertIn(self.target_repo, vis_prompts[0])
+
+    def test_nonexistent_companion_declined_creation_raises_cancelled_with_guidance(
+        self,
+    ):
+        """Nonexistent companion path is validated; declining creation raises PolicyCancelledError with clone guidance (E-06)."""
+        buf = io.StringIO()
+        term = Term(stream=buf, color=False)
+        nonexistent_companion = os.path.join(self.tmp_dir, "nonexistent-companion.aw")
+        from unittest.mock import patch
+
+        # Preset 2 (public companion), public visibility, enter nonexistent path, decline creation ("n")
+        with patch("sys.stdin", io.StringIO("")), patch(
+            "builtins.input", side_effect=["2", "public", nonexistent_companion, "n"]
+        ):
+            with self.assertRaises(PolicyCancelledError) as cm:
+                collect_policy_interactive(
+                    term=term, repo_path=self.target_repo, assume_yes=False
+                )
+            self.assertIn("creation was declined", str(cm.exception))
+        output = buf.getvalue()
+        self.assertIn("git clone", output)
+        self.assertFalse(
+            os.path.exists(nonexistent_companion),
+            "Companion directory must not be created mid-interview",
+        )
+
+    def test_companion_existing_without_git_declined_init_raises_cancelled(self):
+        """Existing directory without .git prompts for git init; declining raises PolicyCancelledError (E-06)."""
+        buf = io.StringIO()
+        term = Term(stream=buf, color=False)
+        non_git_companion = os.path.join(self.tmp_dir, "non-git-companion.aw")
+        os.makedirs(non_git_companion, exist_ok=True)
+        from unittest.mock import patch
+
+        with patch("sys.stdin", io.StringIO("")), patch(
+            "builtins.input", side_effect=["2", "public", non_git_companion, "n"]
+        ):
+            with self.assertRaises(PolicyCancelledError) as cm:
+                collect_policy_interactive(
+                    term=term, repo_path=self.target_repo, assume_yes=False
+                )
+            self.assertIn("git init was declined", str(cm.exception))
+
+    def test_companion_preflight_security_error_raises_cancelled(self):
+        """Path traversal or nested companion fails preflight and raises PolicyCancelledError (E-06)."""
+        buf = io.StringIO()
+        term = Term(stream=buf, color=False)
+        nested_companion = os.path.join(self.target_repo, "nested.aw")
+        from unittest.mock import patch
+
+        with patch("sys.stdin", io.StringIO("")), patch(
+            "builtins.input", side_effect=["2", "public", nested_companion]
+        ):
+            with self.assertRaises(PolicyCancelledError) as cm:
+                collect_policy_interactive(
+                    term=term, repo_path=self.target_repo, assume_yes=False
+                )
+            self.assertIn("Companion validation failed", str(cm.exception))
 
 
 if __name__ == "__main__":

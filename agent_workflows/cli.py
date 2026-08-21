@@ -15,11 +15,12 @@ All output goes through `term.Term` for accessible, degrade-when-piped styling (
 from __future__ import annotations
 
 import argparse
+import io
 import os
 import re
 import sys
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import List, Optional, Sequence, Union
 
 from . import __version__, config, discovery, engine, versioning
 from .project_schema import DeliveryMode, Preset, RecordsBackend
@@ -1898,6 +1899,37 @@ def _prompt_yes_no(prompt: str, default: bool) -> bool:
     return answer in ("y", "yes")
 
 
+def _confirm_install(
+    term: Term, repo_root: Union[str, Path], assume_yes: bool, default: bool = True
+) -> bool:
+    """Single final install confirmation gate (E-04). Defaults YES for interactive."""
+    if assume_yes:
+        return True
+    is_interactive = (
+        hasattr(sys.stdin, "isatty") and sys.stdin.isatty()
+    ) or isinstance(sys.stdin, io.StringIO)
+    if not is_interactive:
+        term.status(
+            "warn",
+            f"Proceed and install into {repo_root}? (declining: non-interactive; pass --yes to proceed)",
+        )
+        return False
+    suffix = "[Y/n]" if default else "[y/N]"
+    try:
+        answer = (
+            input(f"Proceed and install into {repo_root}? {suffix} ").strip().lower()
+        )
+    except EOFError:
+        return default
+    except KeyboardInterrupt:
+        from agent_workflows.install_wizard import PolicyCancelledError
+
+        raise PolicyCancelledError(f"{repo_root}: install cancelled; nothing written.")
+    if not answer:
+        return default
+    return answer in ("y", "yes")
+
+
 def _exclude_guard(term: Term, repo_root: Path, args) -> str:
     """Guard an explicitly targeted repo against the never-install exclude blocklist.
 
@@ -2325,12 +2357,14 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
 
         kept_legacy = _handle_legacy_migration(repo_root, args, term)
 
+        policy = None
         if not kept_legacy:
             # Resolve policy via install_wizard (E-01..E-05) for .aw/ layout
             from agent_workflows.install_wizard import (
                 collect_policy_interactive,
                 render_pre_write_plan,
                 persist_project_policy,
+                PolicyCancelledError,
                 PolicyError,
             )
 
@@ -2352,6 +2386,10 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                     explicit_backend=getattr(args, "records_backend", None),
                     explicit_companion=getattr(args, "companion_dir", None),
                 )
+            except PolicyCancelledError:
+                term.status("skip", f"{repo_root}: install cancelled; nothing written.")
+                returncode = 1
+                continue
             except PolicyError as exc:
                 term.status("fail", str(exc))
                 return 1
@@ -2366,13 +2404,6 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                 )
                 continue
 
-            # Persist confirmed policy to .aw/config/project.json and local.json
-            persist_project_policy(
-                repo_path=str(repo_root),
-                policy=policy,
-                dry_run=False,
-            )
-
         for w in _preflight_warnings(repo_root, packaged):
             term.status("warn", w)
         # Git diagnostics pre-flight FIRST (dirty/behind handling, shared with the engine);
@@ -2383,9 +2414,47 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
             )
             returncode = 1
             continue
-        if not _confirm(term, f"Install agent-workflows into {repo_root}?", args.yes):
-            term.status("skip", f"{repo_root}: aborted; nothing changed.")
+
+        try:
+            if not _confirm_install(term, repo_root, getattr(args, "yes", False)):
+                term.status("skip", f"{repo_root}: aborted; nothing changed.")
+                continue
+        except PolicyCancelledError:
+            term.status("skip", f"{repo_root}: install cancelled; nothing written.")
+            returncode = 1
             continue
+
+        if not kept_legacy and policy is not None:
+            # Atomic installation step: Materialize companion + Persist policy + Install bundle
+            if getattr(policy, "companion_dir", None):
+                from agent_workflows import storage
+
+                comp_p = Path(policy.companion_dir).expanduser().resolve()
+                if getattr(policy, "create_companion", False) or not comp_p.exists():
+                    comp_p.mkdir(parents=True, exist_ok=True)
+                if (
+                    getattr(policy, "init_companion_git", False)
+                    or not (comp_p / ".git").exists()
+                ):
+                    import subprocess
+
+                    subprocess.run(
+                        ["git", "-C", str(comp_p), "init"],
+                        check=False,
+                        capture_output=True,
+                    )
+                storage.attach_companion(
+                    target_repo=str(repo_root),
+                    companion_dir=str(comp_p),
+                    dry_run=False,
+                )
+
+            # Persist confirmed policy to .aw/config/project.json and local.json
+            persist_project_policy(
+                repo_path=str(repo_root),
+                policy=policy,
+                dry_run=False,
+            )
 
         # Shared per-repo shell (install + summary + commit-offer, SystemExit-isolated).
         if _install_one(repo_root, source_root, args, term) == "failed":
@@ -2585,10 +2654,16 @@ def _offer_deep_cleanup(
 
 def _run_uninstall(args: argparse.Namespace, term: Term) -> int:
     repo_root = Path(args.target).expanduser().resolve()
-    if (
-        not (repo_root / engine.AW_SYSTEM_WORKFLOWS_DIR).is_dir()
-        and not (repo_root / engine.WORKFLOWS_DIR).is_dir()
-    ):
+    has_footprint = (
+        (repo_root / engine.AW_SYSTEM_WORKFLOWS_DIR).is_dir()
+        or (repo_root / engine.WORKFLOWS_DIR).is_dir()
+        or (repo_root / ".aw" / "config").is_dir()
+        or (repo_root / ".aw" / "state").is_dir()
+        or (repo_root / ".aw" / "records").is_dir()
+        or (repo_root / ".aw" / "system").is_dir()
+        or (repo_root / ".aw").is_dir()
+    )
+    if not has_footprint:
         term.status(
             "warn", f"{repo_root}: framework not installed (nothing to remove)."
         )

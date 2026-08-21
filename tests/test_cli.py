@@ -760,5 +760,70 @@ class Order16MigrateLayoutCliTests(CliTestBase):
             os.chdir(orig_cwd)
 
 
+class InstallAtomicWizardTests(CliTestBase):
+    """Regression tests for atomic install wizard, final confirmation gate, and partial uninstall (awinstallfix)."""
+
+    def test_install_declined_final_gate_writes_zero_files(self):
+        """Declining the final confirmation gate writes zero files and reports honest abort (E-01, E-03, E-04)."""
+        repo = self._repo("decline_repo")
+        from unittest.mock import patch
+
+        # Preset 1, private visibility, decline final confirmation ("n")
+        with patch("sys.stdin", io.StringIO("1\nprivate\nn\n")):
+            code, out = _run(["install", str(repo)])
+        self.assertIn("aborted; nothing changed.", out)
+        self.assertFalse(
+            (repo / ".aw").exists(),
+            "Zero files/dirs may be created before or after final decline",
+        )
+
+    def test_install_ctrl_c_preset_prompt_writes_zero_files_and_skips_cleanly(self):
+        """CTRL-C at preset prompt emits a clean skip/cancel (no FAIL) and writes zero files (E-01, E-02)."""
+        repo = self._repo("ctrlc_repo")
+        from unittest.mock import patch
+
+        with patch("sys.stdin", io.StringIO("")), patch(
+            "builtins.input", side_effect=KeyboardInterrupt
+        ):
+            code, out = _run(["install", str(repo)])
+        self.assertIn("install cancelled; nothing written.", out)
+        self.assertNotIn("FAIL", out)
+        self.assertFalse(
+            (repo / ".aw").exists(), "Zero files/dirs may be created when cancelled"
+        )
+
+    def test_install_interactive_empty_input_defaults_to_yes(self):
+        """Interactive empty input defaults to Yes and installs successfully (E-04)."""
+        repo = self._repo("empty_input_repo")
+        from unittest.mock import patch
+
+        with patch("sys.stdin", io.StringIO("\n\n\n")):
+            code, out = _run(["install", str(repo)])
+        self.assertEqual(code, 0, out)
+        self.assertTrue((repo / ".aw/system/VERSION").is_file())
+        self.assertTrue((repo / ".aw/config/project.json").is_file())
+
+    def test_uninstall_partial_footprint_detected_and_removed(self):
+        """Uninstall detects and removes partial/aborted .aw footprint without false 'not installed' warning (E-07)."""
+        repo = self._repo("partial_repo")
+        cfg_dir = repo / ".aw" / "config"
+        state_dir = repo / ".aw" / "state" / "durable"
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        state_dir.mkdir(parents=True, exist_ok=True)
+        (cfg_dir / "project.json").write_text(
+            '{"preset": "private-target"}\n', encoding="utf-8"
+        )
+        (state_dir / "install.json").write_text(
+            '{"installed": false}\n', encoding="utf-8"
+        )
+
+        code, out = _run(["uninstall", str(repo), "--yes"])
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("framework not installed", out)
+        self.assertFalse((repo / ".aw" / "config").exists())
+        self.assertFalse((repo / ".aw" / "state").exists())
+        self.assertFalse((repo / ".aw").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

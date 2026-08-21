@@ -331,7 +331,9 @@ An adapter MUST:
 6. host integrations to install;
 7. exact target and external paths that will be created or changed;
 8. tracking, commit, migration, and uninstall implications;
-9. a final review and confirmation.
+9. a single final review and confirmation.
+
+The interactive interview MUST perform zero filesystem or Git writes before the single final confirmation. Cancellation at any prompt (including `CTRL-C`) MUST abort the entire installation immediately with nothing written to disk or Git state. All mutations (companion initialization, policy persistence, and workflow materialization) occur atomically only after the final confirmation.
 
 The recommended choice MUST be labeled in words. Default selection MUST be safe and reversible. The wizard MUST never infer repository ownership or remote privacy.
 
@@ -517,7 +519,12 @@ Before enabling Git-backed external records, AW MUST:
 - keep machine-local registry paths out of tracked record history;
 - write a human-readable project identity file that allows safe reattachment;
 - prevent a target project from attaching to a companion whose identity conflicts;
-- provide a privacy/status doctor that verifies observable configuration without claiming secrecy.
+- provide a privacy/status doctor that verifies observable configuration without claiming secrecy;
+- validate companion directory paths via preflight security and identity checks before confirmation;
+- prompt for explicit confirmation before creating a nonexistent companion directory or initializing Git;
+- defer companion creation, `git init`, identity creation, and attachment until the post-confirmation atomic install step.
+
+Declining companion directory creation or Git initialization MUST abort with clear instructions for cloning or initializing an existing private companion repository.
 
 An optional ignored symlink or Windows-appropriate link may improve navigation after platform and sandbox checks. The resolver remains authoritative and functionality MUST NOT depend on the link.
 

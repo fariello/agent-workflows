@@ -247,6 +247,8 @@ class ProjectPolicy:
     non_secret_consent: Dict[str, bool] = field(default_factory=dict)
     target_visibility: str = "private"
     migration_required: bool = False
+    create_companion: bool = False
+    init_companion_git: bool = False
 
     def __post_init__(self):
         # Fill defaults if placements or git_policies are empty
@@ -632,8 +634,10 @@ def collect_policy_interactive(
             choice = (
                 input("Keep current policy and proceed? [Y/n/review] ").strip().lower()
             )
-        except (EOFError, KeyboardInterrupt):
+        except EOFError:
             choice = "y"
+        except KeyboardInterrupt:
+            raise PolicyCancelledError("Policy update cancelled by user.")
 
         if choice in ("", "y", "yes"):
             return existing_policy
@@ -657,8 +661,10 @@ def collect_policy_interactive(
 
     try:
         preset_choice = input("Select preset [1]: ").strip()
-    except (EOFError, KeyboardInterrupt):
+    except EOFError:
         preset_choice = "1"
+    except KeyboardInterrupt:
+        raise PolicyCancelledError("Policy selection cancelled by user.")
 
     preset_map = {
         "1": Preset.PRIVATE_TARGET.value,
@@ -669,26 +675,28 @@ def collect_policy_interactive(
     }
     selected_preset = preset_map.get(preset_choice, Preset.PRIVATE_TARGET.value)
 
-    # Target Visibility Acknowledgement Subflow (E-03)
+    # Target Visibility Acknowledgement Subflow (E-03, E-05)
     term.line()
     term.line("Target Repository Visibility:")
     try:
         vis_choice = (
             input(
-                "Is the target repository public or private? [private/public] [private]: "
+                f"Is the {repo_path} repository public or private? [private/public] [private]: "
             )
             .strip()
             .lower()
         )
-    except (EOFError, KeyboardInterrupt):
+    except EOFError:
         vis_choice = "private"
+    except KeyboardInterrupt:
+        raise PolicyCancelledError("Repository visibility selection cancelled by user.")
 
     target_vis = "public" if vis_choice == "public" else "private"
     if target_vis == "public" and selected_preset == Preset.PRIVATE_TARGET.value:
         term.line()
         term.status(
             "warn",
-            "Target repository is PUBLIC. Storing AW records in target repository may expose internal notes!",
+            f"Repository '{repo_path}' is PUBLIC. Storing AW records in the target repository may expose internal notes!",
         )
         try:
             switch_comp = (
@@ -696,12 +704,16 @@ def collect_policy_interactive(
                 .strip()
                 .lower()
             )
-        except (EOFError, KeyboardInterrupt):
+        except EOFError:
             switch_comp = "y"
+        except KeyboardInterrupt:
+            raise PolicyCancelledError("Companion switch cancelled by user.")
         if switch_comp in ("", "y", "yes"):
             selected_preset = Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
 
-    # Companion Subflow (E-03)
+    # Companion Subflow (E-03, E-06)
+    create_companion = False
+    init_companion_git = False
     companion_dir = explicit_companion
     if (
         selected_preset == Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
@@ -713,9 +725,103 @@ def collect_policy_interactive(
             comp_input = input(
                 f"Enter companion directory path [{default_comp}]: "
             ).strip()
-        except (EOFError, KeyboardInterrupt):
+        except EOFError:
             comp_input = ""
+        except KeyboardInterrupt:
+            raise PolicyCancelledError("Companion selection cancelled by user.")
         companion_dir = comp_input if comp_input else default_comp
+
+    if (
+        selected_preset == Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
+        and companion_dir
+    ):
+        from agent_workflows.storage import (
+            StorageSecurityError,
+            IdentityConflictError,
+            validate_companion_preflight,
+        )
+
+        try:
+            preflight = validate_companion_preflight(
+                target_repo=repo_path,
+                companion_dir=companion_dir,
+                backend="companion",
+                aw_home=explicit_aw_home,
+            )
+            for w in preflight.get("warnings", []):
+                term.status("warn", w)
+        except (StorageSecurityError, IdentityConflictError) as exc:
+            term.status("warn", f"Invalid companion path: {exc}")
+            raise PolicyCancelledError(f"Companion validation failed: {exc}")
+
+        comp_p = Path(companion_dir).expanduser().resolve()
+        if not comp_p.exists():
+            term.line()
+            term.status(
+                "warn",
+                f"Companion directory '{companion_dir}' does not exist.",
+            )
+            try:
+                create_choice = (
+                    input(
+                        f"Create companion directory and initialize Git repository at '{companion_dir}'? [Y/n]: "
+                    )
+                    .strip()
+                    .lower()
+                )
+            except EOFError:
+                create_choice = "y"
+            except KeyboardInterrupt:
+                raise PolicyCancelledError("Companion creation cancelled by user.")
+
+            if create_choice not in ("", "y", "yes"):
+                term.line()
+                term.line("To use an existing private companion repository:")
+                term.line(
+                    f"  git clone <your-private-companion-remote-url> '{companion_dir}'"
+                )
+                term.line("Then re-run 'aw install'.")
+                raise PolicyCancelledError(
+                    "Companion directory does not exist and creation was declined."
+                )
+            create_companion = True
+            init_companion_git = True
+        else:
+            git_dir = comp_p / ".git"
+            if not git_dir.exists():
+                term.line()
+                term.status(
+                    "warn",
+                    f"Companion directory '{companion_dir}' exists but is not a Git repository.",
+                )
+                try:
+                    init_choice = (
+                        input(
+                            f"Initialize a Git repository at '{companion_dir}'? [Y/n]: "
+                        )
+                        .strip()
+                        .lower()
+                    )
+                except EOFError:
+                    init_choice = "y"
+                except KeyboardInterrupt:
+                    raise PolicyCancelledError(
+                        "Companion Git initialization cancelled by user."
+                    )
+
+                if init_choice not in ("", "y", "yes"):
+                    term.line()
+                    term.line(
+                        "To track AW records in this companion, initialize Git manually:"
+                    )
+                    term.line(f"  git -C '{companion_dir}' init")
+                    term.line(
+                        "Or clone an existing private companion before installing."
+                    )
+                    raise PolicyCancelledError(
+                        "Companion directory is not a Git repository and git init was declined."
+                    )
+                init_companion_git = True
 
     pls, gps, dm, rb, ds = get_preset_defaults(selected_preset)
     policy = ProjectPolicy(
@@ -731,6 +837,8 @@ def collect_policy_interactive(
         placements=pls,
         git_policies=gps,
         target_visibility=target_vis,
+        create_companion=create_companion,
+        init_companion_git=init_companion_git,
     )
     policy.validate()
 
@@ -738,15 +846,6 @@ def collect_policy_interactive(
     term.line()
     term.line(render_pre_write_plan(policy, repo_path, term=term))
     term.line()
-
-    # Single Confirmation Boundary (E-04 / E-05)
-    try:
-        confirm = input("Confirm and write policy layout? [Y/n]: ").strip().lower()
-    except (EOFError, KeyboardInterrupt):
-        confirm = "y"
-
-    if confirm not in ("", "y", "yes"):
-        raise PolicyCancelledError("Policy layout configuration cancelled by user.")
 
     return policy
 
