@@ -202,6 +202,10 @@ _OPTIONAL_FIELDS: Tuple[Tuple[str, type], ...] = (
     ("rollback", str),
     ("resumable", bool),
     ("orchestration", dict),
+    # `resources` is the progressive-disclosure resource list (package-relative paths) owned by the
+    # source-layout contract (workflow_source, E-02). The schema accepts it as an optional list of
+    # strings; the loader (E-03) proves closure (each path exists inside the package).
+    ("resources", list),
 )
 
 _ALL_FIELD_NAMES: FrozenSet[str] = frozenset(
@@ -346,6 +350,19 @@ def validate_workflow(data: Any) -> ValidationResult:
                         "WF-E026",
                         "aliases[{0}]".format(i),
                         "alias duplicates the workflow id",
+                    )
+                )
+
+    # 6b) resources (optional): each a package-relative string path (closure checked by the loader)
+    resources = data.get("resources")
+    if isinstance(resources, list):
+        for i, r in enumerate(resources):
+            if not isinstance(r, str) or not r.strip():
+                findings.append(
+                    Finding(
+                        "WF-E028",
+                        "resources[{0}]".format(i),
+                        "resource must be a nonempty string path",
                     )
                 )
 

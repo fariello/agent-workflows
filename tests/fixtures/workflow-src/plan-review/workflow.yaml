@@ -1,0 +1,65 @@
+# Canonical workflow source (E-02 example package). AUTHORITATIVE entry file, typed per E-01.
+# YAML is authored + reviewed by humans; the compiler (E-04) turns it into generated projections.
+schema_version: 1
+id: plan-review
+aliases:
+  - plan-review-long
+intent: review
+risk: low
+interaction: interactive
+mutation_boundary: planning-only
+summary: Review a proposed plan before execution and improve it in place.
+
+# Progressive-disclosure resources, enumerated so the loader can prove closure.
+resources:
+  - protocol.md
+  - steps/01-scope.md
+  - steps/02-review.md
+
+host_capabilities:
+  - noninteractive_exec
+
+permissions:
+  forbidden_paths:
+    - "**/local/**"
+
+requirements:
+  - id: R-01
+    text: Every material claim in the plan is verified against repository evidence.
+    evidence:
+      - diff
+      - inspection
+  - id: R-02
+    text: Findings are fixed by default; deferrals meet the Fix Bar.
+    evidence:
+      - inspection
+
+steps:
+  - id: S-01
+    action: Build the review-scope ledger and read controlling instructions.
+    satisfies:
+      - R-01
+    depends_on: []
+    evidence:
+      - inspection
+  - id: S-02
+    action: Apply the rubric and revise the plan in place.
+    satisfies:
+      - R-01
+      - R-02
+    depends_on:
+      - S-01
+    evidence:
+      - diff
+      - inspection
+
+validations:
+  - verifies: R-01
+    evidence:
+      - diff
+  - verifies: R-02
+    evidence:
+      - inspection
+
+rollback: "Revert the plan-file edits; no product code is touched."
+resumable: true
