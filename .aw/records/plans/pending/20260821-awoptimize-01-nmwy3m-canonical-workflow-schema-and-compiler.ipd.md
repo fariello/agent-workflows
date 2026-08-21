@@ -28,10 +28,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Schema and canonical source
 
-- [ ] E-01 Define versioned types for workflow identity, aliases, intent, risk, interaction mode, permissions, inputs, outputs, requirement IDs, preconditions, ordered steps, dependencies, stop conditions, evidence predicates, validation checks, rollback, resumability, orchestration policy, and host capability requirements.
+- [x] E-01 Define versioned types for workflow identity, aliases, intent, risk, interaction mode, permissions, inputs, outputs, requirement IDs, preconditions, ordered steps, dependencies, stop conditions, evidence predicates, validation checks, rollback, resumability, orchestration policy, and host capability requirements.
   - Depends on: none
   - Expected outcome: invalid IDs, cycles, missing evidence bindings, contradictory permissions, unknown capabilities, and terminal actions owned by a model fail schema validation.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: implemented `agent_workflows/workflow_schema.py` (pure, stdlib-only, no YAML/FS/model/network side effects, per D139). Defines SCHEMA_VERSION, closed vocabularies (intents/risks/interaction/mutation-boundary/host-capabilities/evidence-kinds/forbidden-terminal-actions), id grammars (workflow/`R-NN`/`S-NN`), and `validate_workflow()` returning typed Findings. A smoke run confirmed a conforming workflow passes and an adversarial one is rejected on every named invariant (bad id, unknown enum, unknown capability, read-only vs allowed-path contradiction, duplicate requirement id, unknown requirement reference, forbidden terminal action `push`, dependency cycle S-01->S-02->S-01, missing validation). Formal V-01 evidence is captured in the validation pass, not here.
 - [ ] E-02 Define the canonical source layout with a concise entry file and progressive-disclosure resources for protocol, steps, rubrics, templates, examples, and deterministic scripts; document which files are authoritative and which are generated.
   - Depends on: E-01
   - Expected outcome: each workflow can be read incrementally while a semantic digest still covers the entire package.
