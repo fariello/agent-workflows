@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Migrate the compact workflows without needless orchestration and gate every family on benchmark evidence.
 - Scope: Migrate getting-started/list-workflows/whatnext/handoff/research/verify/spec/release-notes/scaffold + generate all legacy command shims and selected skills from canonical packages + run per-family benchmark promotion gates (failing families stay legacy with a corrective backlog item).
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 16
 - Highest E allocated: 04
@@ -14,6 +14,8 @@
 ## Workflow history
 
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
+- 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-07 E-08..E-10 into 4 right-sized E-items (compact-workflow migration, generated shims/skills with parity, per-family benchmark promotion gates, tests); carries the auto-activate OQ.
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Deps on 14 (inventory), 15 (complex), 13 (benchmark for promotion gates) all justified. Sound: shims reuse the Order-11/engine.py generator (no duplicate path), aliases bound to canonical digest + parity, per-family promotion gate keeps failing families on legacy with a corrective item (never advertised as migrated). PR-001 (LOW): E-01 listed `research` (whose body dir is `research-prompt/`) which could mislead an executor - FIXED by noting the command->body-dir mapping and directing to Order 14's inventory for exact resolution. V-01..V-04 map 1:1 with falsifiable evidence. OQ-01 (auto-activate skills) non-blocking, deferred to benchmark activation-precision evidence.
 
 ## Goal
 
@@ -29,7 +31,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: compact workflows
 
-- [ ] E-01 Migrate `getting-started`, `list-workflows`, `whatnext`, `handoff`, `research`, `verify`, `spec`, `release-notes`, and `scaffold` as compact single-context or deterministic-first packages with typed contracts, explicit write gates, and reusable scripts where fragility warrants - WITHOUT unnecessary subagent or orchestration overhead.
+- [ ] E-01 Migrate the compact manifest commands `getting-started`, `list-workflows`, `whatnext`, `handoff`, `research` (whose body dir is `research-prompt/`; resolve each command to its body via Order 14's disposition inventory rather than assuming the dir equals the command name), `verify`, `spec`, `release-notes`, and `scaffold` as compact single-context or deterministic-first packages with typed contracts, explicit write gates, and reusable scripts where fragility warrants - WITHOUT unnecessary subagent or orchestration overhead.
   - Depends on: none
   - Expected outcome: each compact workflow passes typed input/output, read/write-boundary, interaction, deterministic-script, and negative tests without invoking a subagent it does not need.
   - Execution state: pending
