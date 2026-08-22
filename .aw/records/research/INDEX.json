@@ -459,6 +459,24 @@
     "topic": []
   },
   {
+    "created": "20260821",
+    "date": "20260821",
+    "id6": "effzzi",
+    "kind": "roadmap",
+    "model": "",
+    "order": "03",
+    "outcome": "none-yet",
+    "path": "20260821-awoptimize-03-effzzi-agent-workflows-optimal-architecture-ipd-index.roadmap.md",
+    "set_id": "awoptimize",
+    "status": "intake",
+    "summary": "Dependency-ordered IPD index, critical path, execution guidance, and human gates for the awoptimize plan Set",
+    "topic": [
+      "roadmap",
+      "plan-index",
+      "traceability"
+    ]
+  },
+  {
     "created": "20260802",
     "date": "20260726",
     "id6": "en5c8i",
@@ -471,6 +489,24 @@
     "status": "reference",
     "summary": "Migrated from 20260726-skills-02-en5c8i-suggested-future-skill-usage.gpt56.research-report.md.",
     "topic": []
+  },
+  {
+    "created": "20260821",
+    "date": "20260821",
+    "id6": "f6i3z2",
+    "kind": "reference-research",
+    "model": "",
+    "order": "02",
+    "outcome": "none-yet",
+    "path": "20260821-awoptimize-02-f6i3z2-agent-workflows-optimal-architecture-evidence.reference-research.md",
+    "set_id": "awoptimize",
+    "status": "intake",
+    "summary": "Evidence and source appendix: source ledger, repository evidence, experiment ledger, unverified claims, and probes",
+    "topic": [
+      "evidence",
+      "provenance",
+      "experiments"
+    ]
   },
   {
     "created": "20260808",
@@ -1135,6 +1171,26 @@
     "topic": []
   },
   {
+    "created": "20260821",
+    "date": "20260821",
+    "id6": "y1eb0q",
+    "kind": "research-report",
+    "model": "",
+    "order": "01",
+    "outcome": "none-yet",
+    "path": "20260821-awoptimize-01-y1eb0q-agent-workflows-optimal-architecture.research-report.md",
+    "set_id": "awoptimize",
+    "status": "intake",
+    "summary": "Optimal architecture research, workflow inventory, false-completion threat model, matrices, and recommendation",
+    "topic": [
+      "workflow-reliability",
+      "anti-false-completion",
+      "portability",
+      "orchestration",
+      "verification"
+    ]
+  },
+  {
     "created": "20260726",
     "date": "20260726",
     "id6": "ypmm6z",
@@ -1147,6 +1203,26 @@
     "status": "reference",
     "summary": "Migrated from 20260726-awdeliv-01-ypmm6z-aw-delivery-and-clean-delta.gemini36flash.research-report.md.",
     "topic": []
+  },
+  {
+    "created": "20260821",
+    "date": "20260821",
+    "id6": "yq6aub",
+    "kind": "research-prompt",
+    "model": "",
+    "order": "00",
+    "outcome": "none-yet",
+    "path": "20260821-awoptimize-00-yq6aub-agent-workflows-optimal-architecture-research-and-ipd.research-prompt.md",
+    "set_id": "awoptimize",
+    "status": "intake",
+    "summary": "Originating prompt: optimal-architecture research + conformant IPD Set for the reusable coding-agent workflows (run on GPT 5.6 Sol Extra High)",
+    "topic": [
+      "workflow-reliability",
+      "anti-false-completion",
+      "portability",
+      "orchestration",
+      "verification"
+    ]
   },
   {
     "created": "20260726",

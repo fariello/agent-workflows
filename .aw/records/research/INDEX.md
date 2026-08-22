@@ -2,14 +2,22 @@
 
 # Research index
 
-Showing the most-recent 40 of 73 hot docs (archive excluded).
+Showing the most-recent 40 of 77 hot docs (archive excluded).
 
 ## Needs addressing (intake)
 
+- `yq6aub` 20260821-awoptimize-00-yq6aub-agent-workflows-optimal-architecture-research-and-ipd.research-prompt.md - Originating prompt: optimal-architecture research + conformant IPD Set for the reusable coding-agent workflows (run on GPT 5.6 Sol Extra High)
+- `y1eb0q` 20260821-awoptimize-01-y1eb0q-agent-workflows-optimal-architecture.research-report.md - Optimal architecture research, workflow inventory, false-completion threat model, matrices, and recommendation
+- `f6i3z2` 20260821-awoptimize-02-f6i3z2-agent-workflows-optimal-architecture-evidence.reference-research.md - Evidence and source appendix: source ledger, repository evidence, experiment ledger, unverified claims, and probes
+- `effzzi` 20260821-awoptimize-03-effzzi-agent-workflows-optimal-architecture-ipd-index.roadmap.md - Dependency-ordered IPD index, critical path, execution guidance, and human gates for the awoptimize plan Set
 - `6zf5av` 20260810-gemini-actually-validate-playbook-00-6zf5av-gemini-actually-validate-playbook.gpt56medium.research-report.md - Gemini/agy-specific controls to make headless Gemini actually run validation and stop green-washing
 
 ## Most recent
 
+- `effzzi` [intake] 20260821-awoptimize-03-effzzi-agent-workflows-optimal-architecture-ipd-index.roadmap.md - Dependency-ordered IPD index, critical path, execution guidance, and human gates for the awoptimize plan Set
+- `f6i3z2` [intake] 20260821-awoptimize-02-f6i3z2-agent-workflows-optimal-architecture-evidence.reference-research.md - Evidence and source appendix: source ledger, repository evidence, experiment ledger, unverified claims, and probes
+- `y1eb0q` [intake] 20260821-awoptimize-01-y1eb0q-agent-workflows-optimal-architecture.research-report.md - Optimal architecture research, workflow inventory, false-completion threat model, matrices, and recommendation
+- `yq6aub` [intake] 20260821-awoptimize-00-yq6aub-agent-workflows-optimal-architecture-research-and-ipd.research-prompt.md - Originating prompt: optimal-architecture research + conformant IPD Set for the reusable coding-agent workflows (run on GPT 5.6 Sol Extra High)
 - `032jgo` [reference] reference/202608-W33/20260813-awnamespace-00-032jgo-aw-slash-command-namespace.research-prompt.md - Originating prompt for the comparison set.
 - `2bodwq` [active] 20260813-awnamespace-04-2bodwq-aw-slash-command-namespace.reconciliation.reconciliation-report.md - Deciding doc. Adopt a single /aw dispatcher fed by one host-neutral verb registry (public syntax /aw <verb> [args...]); do not install /aw-<verb> flat commands by default, offer them only per selected compatibility-risk host.
 - `jc105r` [reference] reference/202608-W33/20260813-awnamespace-03-jc105r-aw-slash-command-namespace.gemini31pro.research-report.md - gemini31pro report.
@@ -46,7 +54,3 @@ Showing the most-recent 40 of 73 hot docs (archive excluded).
 - `ibl5kt` [reference] 20260726-hostprobe-00-ibl5kt-external-delivery-host-probe.gpt56.research-report.md - Migrated from 20260726-hostprobe-00-ibl5kt-external-delivery-host-probe.gpt56.research-report.md.
 - `za72ko` [reference] 20260726-hostprobe-03-za72ko-external-delivery-host-probe.sonnet5.research-report.md - Migrated from 20260726-hostprobe-03-za72ko-external-delivery-host-probe.sonnet5.research-report.md.
 - `x41kw0` [reference] 20260722-agent-coding-system-file-discovery-and-write-safety-00-x41kw0-agent-coding-system-file-discovery-and-write-safety.findings.md - Migrated from 20260722-agent-coding-system-file-discovery-and-write-safety-00-x41kw0-agent-coding-system-file-discovery-and-write-safety.findings.md.
-- `0jl8pv` [reference] 20260722-token-efficient-managed-sections-in-agent-instruction-files-00-0jl8pv-token-efficient-managed-sections-in-agent-instruction-files.gpt56.findings.md - Migrated from 20260722-token-efficient-managed-sections-in-agent-instruction-files-00-0jl8pv-token-efficient-managed-sections-in-agent-instruction-files.gpt56.findings.md.
-- `xawbsa` [reference] 20260716-broker-feasibility-confirmation-00-xawbsa-broker-feasibility-confirmation.research-report.md - Migrated from 20260716-broker-feasibility-confirmation-00-xawbsa-broker-feasibility-confirmation.research-report.md.
-- `98m3pw` [reference] 20260716-ocsec-00-98m3pw-executive-summary-and-report.executive-summary.md - Migrated from 20260716-ocsec-00-98m3pw-executive-summary-and-report.executive-summary.md.
-- `ac1bqv` [reference] 20260716-ocsec-07-ac1bqv-prod-host-mitigation-verified.research-report.md - Migrated from 20260716-ocsec-07-ac1bqv-prod-host-mitigation-verified.research-report.md.
