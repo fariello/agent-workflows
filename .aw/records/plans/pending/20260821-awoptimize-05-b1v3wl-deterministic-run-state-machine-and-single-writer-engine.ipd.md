@@ -33,24 +33,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: transition contract
 
-- [ ] E-01 Define the legal run/phase/step/attempt/evidence/verification/correction/cancellation/terminal states and a complete transition table with explicit transition AUTHORITY per edge (per the State ownership table below), in a pure module `agent_workflows/run_state.py`.
+- [x] E-01 Define the legal run/phase/step/attempt/evidence/verification/correction/cancellation/terminal states and a complete transition table with explicit transition AUTHORITY per edge (per the State ownership table below), in a pure module `agent_workflows/run_state.py`.
   - Depends on: none
   - Expected outcome: an illegal skip, a backward transition, an executor-authored terminal transition, or a transition whose prerequisite events are absent is rejected; every legal edge names its authorized actor and required predicate.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: single-writer engine
 
-- [ ] E-02 Implement a single-writer state engine `agent_workflows/run_engine.py` that consumes a compiled workflow (Order 01) and the append-only ledger events (Orders 02/03), checks the dependency DAG, and releases only currently-runnable steps; a single-writer lease (reusing the Order-03 lock discipline) serializes state changes and lock loss fails closed.
+- [x] E-02 Implement a single-writer state engine `agent_workflows/run_engine.py` that consumes a compiled workflow (Order 01) and the append-only ledger events (Orders 02/03), checks the dependency DAG, and releases only currently-runnable steps; a single-writer lease (reusing the Order-03 lock discipline) serializes state changes and lock loss fails closed.
   - Depends on: E-01
   - Expected outcome: only steps whose dependencies + approvals are satisfied become runnable; two concurrent coordinators cannot both release or transition the same run; lock loss stops progress rather than interleaving; a partial/torn ledger state cannot produce a runnable step.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests
 
-- [ ] E-03 Add `tests/test_run_state_engine.py` (stdlib unittest, model-free): enumerate every state/actor pair and prove all unlisted transitions, executor completion, and missing-prerequisite transitions fail closed; DAG scheduling releases only satisfied steps; concurrent-coordinator/lease collision and lock loss stop progress; a partial ledger cannot yield a packet-eligible step. Then run the full serial suite and paste the tail.
+- [x] E-03 Add `tests/test_run_state_engine.py` (stdlib unittest, model-free): enumerate every state/actor pair and prove all unlisted transitions, executor completion, and missing-prerequisite transitions fail closed; DAG scheduling releases only satisfied steps; concurrent-coordinator/lease collision and lock loss stop progress; a partial ledger cannot yield a packet-eligible step. Then run the full serial suite and paste the tail.
   - Depends on: E-02
   - Expected outcome: the transition-table + scheduling + concurrency tests pass; the full serial suite is green (pasted).
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
