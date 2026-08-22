@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Make the cutover truthful, safe, and reversible, and produce a GO/NO-GO without publishing.
 - Scope: Operator/author/security docs (generated from evidence registries) + threat-model hardening + clean-install/update/rollback lifecycle fixtures + a final release-readiness review that never tags/publishes/pushes.
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 18
 - Highest E allocated: 05
@@ -14,6 +14,8 @@
 ## Workflow history
 
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
+- 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-08 E-05..E-09 into 5 right-sized E-items (docs rendered from registries, model-profile docs, security hardening, lifecycle matrix fixtures, GO/NO-GO release-readiness); the final Order.
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Deps on 17 + all prior justified; the never-tag/publish/push + GO/NO-GO-only invariant is airtight (9 hits) and cites RELEASING.md / release-review Section 9; docs render from registries (no prose exceeding claims). PR-002 (MEDIUM, rubric C): E-03/E-05 said generic "leak scan" without naming the repo's canonical security tools - FIXED by naming `aw sanitize`/`check-local-leaks` (leak sanitizer) + `scan_secrets.py` (secret scanner) in E-03, and `aw sanitize --agent` + `aw ipd lint --all --agent` in E-05 and the required-tests, so the release gate reuses existing tooling not a fork. V-01..V-05 map 1:1 with falsifiable evidence. OQ-01 resolved.
 
 ## Goal
 
@@ -41,9 +43,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: security hardening
 
-- [ ] E-03 Harden the security boundaries of the new execution + host integration: local servers loopback/authenticated, external files consented + contained, skills least-privilege, evidence redacted, real HOME excluded from probes, untrusted repository text isolated as data, and destructive tools human-gated.
+- [ ] E-03 Harden the security boundaries of the new execution + host integration: local servers loopback/authenticated, external files consented + contained, skills least-privilege, evidence redacted, real HOME excluded from probes, untrusted repository text isolated as data, and destructive tools human-gated. REUSE the repo's existing security tooling rather than inventing new scanners: `aw sanitize` / `aw check-local-leaks` (the leak sanitizer) and `.aw/system/workflows/assess/tools/scan_secrets.py` (the secret scanner) for the leak/secret checks (rubric C, no duplicate path).
   - Depends on: E-02
-  - Expected outcome: threat-model tests + runbooks prove loopback/auth, containment, consent, least privilege, redaction, real-HOME refusal, untrusted-text isolation, and human destructive gates across the new attack surface.
+  - Expected outcome: threat-model tests + runbooks prove loopback/auth, containment, consent, least privilege, redaction, real-HOME refusal, untrusted-text isolation, and human destructive gates across the new attack surface, invoking the existing `aw sanitize`/`scan_secrets.py` tools (not new ones).
   - Execution state: pending
 
 ### Task group 3: lifecycle fixtures and release gate
@@ -52,7 +54,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-03
   - Expected outcome: every named lifecycle fixture passes from a clean isolated environment; unsupported/no-credential cases fail BEFORE mutation; reruns show no unmanaged drift.
   - Execution state: pending
-- [ ] E-05 Perform the final release-readiness review and add `tests/test_release_readiness.py` (stdlib unittest for the checkable parts): full suite, leak scan, all IPD lint phases, generated/compiler drift, docs checks, complete workflow disposition, capability-evidence freshness, benchmark thresholds, changelog + versioning, artifact manifest, and residual-risk sign-off - producing a GO/NO-GO report that does NOT tag, publish, deploy, or push. Then run the full serial suite and paste the tail.
+- [ ] E-05 Perform the final release-readiness review and add `tests/test_release_readiness.py` (stdlib unittest for the checkable parts): full suite (`make test`), the canonical leak scan `aw sanitize --agent` (exit 0), all IPD lint phases (`aw ipd lint --all --agent`), generated/compiler drift, docs checks, complete workflow disposition, capability-evidence freshness, benchmark thresholds, changelog + versioning, artifact manifest, and residual-risk sign-off - producing a GO/NO-GO report that does NOT tag, publish, deploy, or push. Then run the full serial suite and paste the tail.
   - Depends on: E-04
   - Expected outcome: retained outputs show the full suite, leak scan, IPD lint phases, drift, docs, disposition, claim freshness, benchmark, and residual-risk gates pass; a GO/NO-GO report is produced; git evidence shows NO tag/release/deploy/push; the full serial suite is green (pasted).
   - Execution state: pending
@@ -100,7 +102,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 - Documentation command/option/link validation + generated-table drift (tables render from registries).
 - Security threat-model tests: containment, symlink escape, untrusted-instruction isolation, permissions, authentication, redaction, real-HOME refusal, human destructive gates.
 - Lifecycle fixtures: fresh, update, partial, customized, interrupt, rollback, downgrade-warning, no-network, no-credential, multi-host-discovery, unsupported-host - each from a clean isolated environment, failing before mutation where required, no unmanaged drift on rerun.
-- `tests/test_release_readiness.py` for the checkable gates; full serial suite green (canonical `make test` / `python3 -m unittest discover -s tests -t .`) with pasted tail; leak scan + IPD lint + compiler/generated drift + benchmark gates clean; git evidence shows no tag/release/deploy/push.
+- `tests/test_release_readiness.py` for the checkable gates; full serial suite green (canonical `make test` / `python3 -m unittest discover -s tests -t .`) with pasted tail; `aw sanitize --agent` (leak scan) exit 0 + `aw ipd lint --all --agent` + compiler/generated drift + benchmark gates clean; git evidence shows no tag/release/deploy/push.
 
 ## Spec / documentation sync
 

@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Ship the architecture without breaking existing invocations or losing recoverability.
 - Scope: Compatibility contract for existing commands/shims/pointers/IPD locations + idempotent previewable migration/update + rollback + interrupted-recovery + opt-in privacy-preserving deprecation diagnostics. No docs/security/release-readiness (Order 18).
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 17
 - Highest E allocated: 05
@@ -14,6 +14,8 @@
 ## Workflow history
 
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
+- 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-08 E-01..E-04 into 5 right-sized E-items (compatibility contract, previewable idempotent migration, rollback+interrupted-recovery, opt-in deprecation diagnostics, tests); carries the compatibility-gates table + deprecation-window OQ.
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Deps on 14-16 + 01-13 justified; never-remove-a-surface + never-push invariants airtight; migration MOVES/backs-up (D135). PR-001 (LOW, rubric C): the gate said "reuse the installer/engine.py migration primitives" but the migration/rollback engine is MigrationManager in layout_migration.py (engine.py holds install/layout resolution) - FIXED by naming layout_migration.py:MigrationManager (execute_migration/rollback_migration) for migration/rollback and engine.py for install, in both the conventions note and the scope fence. V-01..V-05 map 1:1 with falsifiable evidence. OQ-01 (deprecation window) non-blocking, two-release default.
 
 ## Goal
 
@@ -80,7 +82,7 @@ This Order OWNS the compatibility contract + migration/rollback/deprecation MECH
 - Setup is designed to be idempotent, drift-aware, and ask before changes; existing host shims + user instruction pointers are part of the public repository interface.
 - Migration MOVES/backs-up, never silently overwrites human-owned content (consistent with the repo's D135 move-not-copy migration posture).
 - New runtime records (Orders 02/03/07 JSONL) may not be backward-readable by an older version; rollback must distinguish adapter rollback from data-schema downgrade and warn rather than corrupt.
-- Pure/generation + install-engine module shape (stdlib-only, D138); reuse the existing installer/`engine.py` migration primitives rather than a fork.
+- Pure/generation + install-engine module shape (stdlib-only, D138); reuse the existing migration/rollback primitives in `agent_workflows/layout_migration.py` (`MigrationManager.execute_migration`/`rollback_migration`, the journaled move-not-copy engine) and the install/layout resolution in `agent_workflows/engine.py` (`install_into_repo`/`resolve_target_layout`), rather than forking a new migration engine.
 
 ## Findings
 
@@ -158,4 +160,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Requires executed Orders 14-16 (the migration this compatibility layer preserves/rolls back) plus Orders 01-13 upstream. Scope fence: touch only the compatibility-contract + migration/update + rollback + deprecation-diagnostic modules (reuse the installer/`engine.py` migration primitives) and `tests/test_compat_migration_rollback.py`; do NOT write the operator/security docs or run the release-readiness review (Order 18), REMOVE any compatibility surface, or tag/publish/push - if it seems to need more, STOP and report. Never silently overwrite human-owned content; rollback must not lose records; a surface is removed only via its documented removal authority (a separate approved release action). Execution contract: path-scoped commits only, never `git add -A`/`-a`, never push; paste the ACTUAL runner output; the executor may not certify its own V-items or perform a terminal transition. After every V-item is verified with concrete evidence and `aw ipd lint --phase pre-transition` conforms, perform the post-gate lifecycle transaction (workflow-history line, terminal Status, git mv to executed/, post-transition lint), dropping the `Approval:` field on the executed status. This plan requires explicit human approval before execution.
+Requires executed Orders 14-16 (the migration this compatibility layer preserves/rolls back) plus Orders 01-13 upstream. Scope fence: touch only the compatibility-contract + migration/update + rollback + deprecation-diagnostic modules (reuse `agent_workflows/layout_migration.py`'s `MigrationManager` for migration/rollback and `agent_workflows/engine.py` for install/layout resolution; do not fork a new engine) and `tests/test_compat_migration_rollback.py`; do NOT write the operator/security docs or run the release-readiness review (Order 18), REMOVE any compatibility surface, or tag/publish/push - if it seems to need more, STOP and report. Never silently overwrite human-owned content; rollback must not lose records; a surface is removed only via its documented removal authority (a separate approved release action). Execution contract: path-scoped commits only, never `git add -A`/`-a`, never push; paste the ACTUAL runner output; the executor may not certify its own V-items or perform a terminal transition. After every V-item is verified with concrete evidence and `aw ipd lint --phase pre-transition` conforms, perform the post-gate lifecycle transaction (workflow-history line, terminal Status, git mv to executed/, post-transition lint), dropping the `Approval:` field on the executed status. This plan requires explicit human approval before execution.
