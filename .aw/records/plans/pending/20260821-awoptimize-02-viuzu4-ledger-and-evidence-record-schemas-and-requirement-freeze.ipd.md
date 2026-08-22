@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Define the typed ledger/evidence RECORD schemas and the requirement-freeze mechanism so what was required, attempted, observed, and verified are separate durable facts.
 - Scope: Ledger/evidence record schemas (folds in the already-committed agent_workflows/run_ledger_schema.py) + requirement freezing (bind MUST/scope/validation/output to stable ids + digest; a semantic change makes a new revision and invalidates affected evidence). No storage engine, no evidence capture.
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 2
 - Highest E allocated: 06
@@ -14,6 +14,8 @@
 ## Workflow history
 
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
+- 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-02 E-01/E-02 into 6 right-sized E-items (record vocab, per-kind validation, anti-false-completion state rules, requirement freeze, semantic-vs-cosmetic revision, tests).
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE; GO - PENDING HUMAN APPROVAL. Verified `run_ledger_schema.py` exists with the RL-E032/E035/E040/E041 rules and the requirement_set/requirement_revision record kinds; the freeze BEHAVIOR (run_freeze.py, E-04/E-05) is genuinely new (module absent), so E-01..E-03 are honestly formalize-plus-capture-evidence and correctly marked pending. E-items are one-concern; V-01..V-06 map 1:1 with falsifiable evidence; scope fence + execution contract present. No findings. OQ-01 resolved.
 
 ## Goal
 

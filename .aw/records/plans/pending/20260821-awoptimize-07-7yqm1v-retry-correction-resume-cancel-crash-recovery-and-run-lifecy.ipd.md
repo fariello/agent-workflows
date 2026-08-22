@@ -43,9 +43,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: run lifecycle CLI
 
-- [ ] E-03 Implement `aw run start|next|record|resume|cancel|status|finalize` (a `run_cli`-style module wired into `agent_workflows/cli.py`) with human + JSON/agent modes; the runtime INDEX over the ledger is append-only JSONL (per OQ-01); `finalize` calls the Order-04 completion predicate and requires coordinator authority.
+- [ ] E-03 EXTEND the existing `aw run` command group (created by Order 04, which owns the parser-group registration) with the mutating `start|next|record|resume|cancel|status|finalize` subcommands; ADD to the group, do NOT re-register it. Wire via the `run_cli`-style module `agent_workflows/cli.py` uses; human + JSON/agent modes; the runtime INDEX over the ledger is append-only JSONL (per OQ-01); `finalize` calls the Order-04 completion predicate and requires coordinator authority.
   - Depends on: E-02
-  - Expected outcome: each subcommand has stable behavior and machine output with no ANSI; exit codes distinguish complete / incomplete / blocked / invalid-evidence / corrupted-ledger / operational-failure; `finalize` refuses an incomplete/invalid/unauthorized run and succeeds only after the Order-04 predicates pass.
+  - Expected outcome: the seven lifecycle subcommands are added to the Order-04-created `aw run` group with no duplicate-group registration; each has stable behavior and ANSI-free machine output; exit codes distinguish complete / incomplete / blocked / invalid-evidence / corrupted-ledger / operational-failure; `finalize` refuses an incomplete/invalid/unauthorized run and succeeds only after the Order-04 predicates pass.
   - Execution state: pending
 
 ### Task group 4: full state-space simulations

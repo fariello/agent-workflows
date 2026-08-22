@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Turn captured evidence into a deterministic completion predicate so completion is COMPUTED, not claimed by a model.
 - Scope: Evidence capture (provenance envelopes bound to command/cwd/HEAD/exit/hash/worktree/actor), evidence validators (one per false-completion class), completion predicates, read-only aw run show|evidence|verify-ledger CLI, and the evidence-layer adversarial fixtures.
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 4
 - Highest E allocated: 05
@@ -14,6 +14,8 @@
 ## Workflow history
 
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
+- 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-02 E-04..E-08 into 5 right-sized E-items (evidence capture, per-class validators, completion predicate, aw run inspection CLI, adversarial suite) + the evidence-sufficiency matrix.
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. This is the completion-as-predicate core; E-03 correctly requires an INDEPENDENT verifier-authored decision (Order-02 RL-E032). PR-001 (MEDIUM, cross-plan): both this Order (E-04) and Order 07 (E-03) create the `aw run` command group + wire run_cli.py, an ownership ambiguity that could collide at execution. FIXED in place: E-04 now OWNS the `aw run` parser-group registration; Order 07's E-03 was cross-referenced to EXTEND (not re-register) the group (disjoint read-only vs lifecycle subcommand sets). V-01..V-05 map 1:1 with falsifiable evidence; adversarial suite mandated before completion. OQ-01 resolved.
 
 ## Goal
 
@@ -47,9 +49,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: inspection CLI
 
-- [ ] E-04 Add read-only `aw run show`, `aw run evidence`, and `aw run verify-ledger` subcommands (wired into `agent_workflows/cli.py` via a thin `run_cli.py`) with human + `--agent`/`--json` machine output, stable error codes, redaction of sensitive values, and NO writes by default; `verify-ledger` surfaces Order-03 chain/corruption status and Order-04 evidence validity.
+- [ ] E-04 CREATE the `aw run` command group and add its read-only `show`, `evidence`, and `verify-ledger` subcommands (a thin `agent_workflows/run_cli.py` wired into `agent_workflows/cli.py`, mirroring how `workflow_cli.py` registered the `workflow` group in Order 01) with human + `--agent`/`--json` machine output, stable error codes, redaction of sensitive values, and NO writes by default; `verify-ledger` surfaces Order-03 chain/corruption status and Order-04 evidence validity. OWNERSHIP: this Order OWNS the `aw run` parser-group registration; Order 07 (retry/recovery/lifecycle) EXTENDS the same group with its mutating `start|next|record|resume|cancel|status|finalize` subcommands and MUST NOT re-register the group. The two subcommand sets are disjoint (read-only inspection here; lifecycle there).
   - Depends on: E-03
-  - Expected outcome: the three subcommands expose why a run is incomplete and which precise evidence is missing/invalid; machine modes are ANSI-free; no invocation writes to disk; exit codes distinguish clean / invalid-evidence / corruption / invocation error.
+  - Expected outcome: the `aw run` group exists with the three read-only subcommands; they expose why a run is incomplete and which precise evidence is missing/invalid; machine modes are ANSI-free; no invocation writes to disk; exit codes distinguish clean / invalid-evidence / corruption / invocation error; the group is registered so Order 07 can add subcommands without collision.
   - Execution state: pending
 
 ### Task group 4: adversarial suite
