@@ -7,7 +7,7 @@
 - Status: draft
 - Set: awoptimize
 - Order: 17
-- Highest E allocated: 01
+- Highest E allocated: 05
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: gnfkh8
 
@@ -17,65 +17,139 @@
 
 ## Goal
 
-TODO: one or two sentences on what this plan achieves and why.
+Move users from the manually maintained prose workflows to the canonical compiled packages WITHOUT
+breaking existing invocations, and make every transition observable and reversible: freeze the public
+compatibility contract, implement previewable idempotent migration/update, implement rollback +
+interrupted-recovery, and add opt-in privacy-preserving deprecation diagnostics. Docs, security, and
+the GO/NO-GO release-readiness gate are Order 18; this Order does not tag, publish, or remove any
+compatibility surface.
 
 ## Detailed Implementation Checklist (TODO)
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.
 
-### Task group 1: TODO
+### Task group 1: compatibility contract
 
-- [ ] E-01 TODO one observable action.
+- [ ] E-01 Define the compatibility contract for existing manifest commands, arguments, `.opencode/commands/`, `.claude/commands/`, AGENTS/CLAUDE/GEMINI pointers, IPD locations, `agy_run.py` entry points, exit codes, and machine output, as a machine-readable table (one row per surface) with owner, version boundary, migration, and test per entry.
   - Depends on: none
-  - Expected outcome: TODO observable result.
+  - Expected outcome: the compatibility table has one row + a passing golden test for every named surface, with NO unspecified breaking change; each preserved/changed/deprecated/unsupported behavior is explicit.
+  - Execution state: pending
+
+### Task group 2: migration and rollback
+
+- [ ] E-02 Implement idempotent, previewable migration/update logic that detects legacy, partial, current, drifted, and locally-customized states; previews changes, preserves user files, backs up replaced generated files, and records the exact compiler/adapter version.
+  - Depends on: E-01
+  - Expected outcome: legacy/current/partial/drift/customized fixtures preview exact changes, preserve human files, back up generated replacements, record versions, and rerun idempotently (a no-op when current); human-owned content is never silently overwritten.
+  - Execution state: pending
+- [ ] E-03 Implement rollback to the last compatible generated set + runtime state, including interrupted-migration recovery and an explicit warning when new-run data cannot be read by an older version (distinguish adapter rollback from data-schema downgrade).
+  - Depends on: E-02
+  - Expected outcome: rollback + interrupted-migration fixtures restore prior command discovery and runtime adapters without record loss, and warn rather than corrupt on unreadable future data.
+  - Execution state: pending
+
+### Task group 3: deprecation diagnostics
+
+- [ ] E-04 Add deprecation diagnostics and LOCAL, privacy-preserving usage counters ONLY if approved; keep aliases until parity + adoption gates are met; telemetry is never required for operation and can be disabled/avoided completely.
+  - Depends on: E-03
+  - Expected outcome: diagnostics are local, opt-in if they count usage, disable cleanly, and CANNOT remove an alias before its parity/adoption/version gate; operation never depends on telemetry.
+  - Execution state: pending
+
+### Task group 4: tests
+
+- [ ] E-05 Add `tests/test_compat_migration_rollback.py` (stdlib unittest): the compatibility-contract golden tests (one per surface, no unspecified break); the migration fixtures (legacy/current/partial/drift/customized: preview, preserve, backup, version-record, idempotent rerun); the rollback + interrupted-recovery + downgrade-warning fixtures; the deprecation-diagnostic opt-in/disable + no-early-alias-removal fixtures. Then run the full serial suite and paste the tail.
+  - Depends on: E-04
+  - Expected outcome: contract + migration + rollback + deprecation fixtures pass; the full serial suite is green (pasted).
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
+## Compatibility gates
+
+| Surface | Preserve until | Removal authority |
+|---|---|---|
+| OpenCode command shims | generated parity plus two release cycles | separately approved release IPD |
+| Claude command shims | skill/command parity plus two release cycles | separately approved release IPD |
+| plan-review-long name | canonical alias usage and benchmark parity | maintainer approval |
+| same-session agy audit | fresh verifier available and documented | may remain diagnostic indefinitely |
+| static host matrix reader | all consumers migrated to evidence registry | schema migration review |
+| legacy workflow bodies | canonical package parity and rollback bundle | per-family cutover gate |
+
+This Order OWNS the compatibility contract + migration/rollback/deprecation MECHANICS; it never REMOVES a surface (removal is a separately approved release action, per the "Removal authority" column).
+
 ## Project conventions discovered (Step 0)
 
-- TODO: relevant conventions discovered during Step 0.
+- Setup is designed to be idempotent, drift-aware, and ask before changes; existing host shims + user instruction pointers are part of the public repository interface.
+- Migration MOVES/backs-up, never silently overwrites human-owned content (consistent with the repo's D135 move-not-copy migration posture).
+- New runtime records (Orders 02/03/07 JSONL) may not be backward-readable by an older version; rollback must distinguish adapter rollback from data-schema downgrade and warn rather than corrupt.
+- Pure/generation + install-engine module shape (stdlib-only, D138); reuse the existing installer/`engine.py` migration primitives rather than a fork.
 
 ## Findings
 
-TODO: findings table or notes.
+| Finding | Consequence |
+|---|---|
+| Generated files may contain local edits despite ownership conventions. | Migration must detect drift and preserve/back-up or explicitly resolve it, never overwrite silently. |
+| New runtime records may not be backward readable. | Rollback distinguishes adapter rollback from data-schema downgrade and warns on unreadable future data. |
+| A compatibility surface could be removed prematurely. | Removal is gated by the compatibility-gates table's authority column; this Order never removes a surface. |
 
 ## Proposed changes (ordered, validatable)
 
-TODO: ordered, validatable proposed changes.
+1. Freeze the public compatibility contract (E-01).
+2. Implement previewable idempotent migration/update (E-02).
+3. Implement rollback + interrupted-state recovery + downgrade warning (E-03).
+4. Add opt-in, privacy-preserving deprecation diagnostics (E-04).
+5. Contract + migration + rollback + deprecation tests + full suite (E-05).
 
 ## Deferred / out of scope (with reason)
 
-TODO: deferred / out of scope, with reason (or 'none').
+- Operator/author/security DOCUMENTATION, security hardening, lifecycle matrix fixtures, and the GO/NO-GO release-readiness review: Order 18.
+- Actual tag/release/publish/deploy/push: a separately approved release action (never here).
+- REMOVING any compatibility surface: deferred to the named adoption boundary + its removal authority.
+- Central telemetry collection: out unless separately specified + privacy-reviewed.
 
 ## Scope check
 
-- Over-scope: none.
-- Under-scope: TODO.
+- Over-scope: no release mutation, external publishing, forced deletion, docs/security/release-readiness (Order 18).
+- Under-scope: none - the compatibility contract, previewable idempotent migration, rollback + recovery, and opt-in deprecation diagnostics are covered; Order 18 owns docs + validation + the release gate.
 
 ## Required tests / validation
 
-TODO: how the executed plan is verified.
+- `tests/test_compat_migration_rollback.py`: compatibility-contract golden tests (one per surface, no unspecified break); migration fixtures (legacy/current/partial/drift/customized -> preview, preserve, backup, version-record, idempotent rerun); rollback + interrupted-recovery + downgrade-warning; deprecation opt-in/disable + no-early-alias-removal.
+- Full serial suite green (canonical `make test` / `python3 -m unittest discover -s tests -t .`) with pasted tail; leak scan clean.
 
 ## Spec / documentation sync
 
-TODO: specs/docs to update, or 'N/A with reason'.
+- Publish the compatibility contract table + the migration/rollback/deprecation behavior. (The full operator/architecture/security docs are Order 18.)
 
 ## Open questions
 
-### OQ-01: TODO a question
+### OQ-01: Deprecation duration and supported version window?
 
 - Blocking: no
 - Status: open
-- Owner: none
-- Resolution or deferral rationale: TODO.
+- Owner: maintainer
+- Resolution or deferral rationale: Adopt a MINIMUM two-release compatibility window (matching the compatibility-gates table's "plus two release cycles") unless release cadence or usage evidence justifies longer; record the decision before publishing any deprecation dates. Non-blocking: this Order builds the deprecation-diagnostic mechanism and keeps aliases; the exact window is a maintainer policy set before deprecation dates are published, and does not change this Order's interfaces.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: pasted golden-test output showing the machine-readable compatibility table has one row + passing test for every named surface, with no unspecified breaking change.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-02 validates E-02
+  - Required evidence: pasted fixtures for legacy/current/partial/drift/customized states previewing exact changes, preserving human files, backing up generated replacements, recording versions, and rerunning idempotently (no-op when current).
+  - Observed evidence:
+  - Result: pending
+- [ ] V-03 validates E-03
+  - Required evidence: pasted rollback + interrupted-migration fixtures restoring prior command discovery + runtime adapters without record loss, and warning (not corrupting) on unreadable future data.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-04 validates E-04
+  - Required evidence: pasted test output showing deprecation diagnostics are local + opt-in + cleanly disable-able, operation never requires telemetry, and an alias cannot be removed before its parity/adoption/version gate.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-05 validates E-05
+  - Required evidence: `tests/test_compat_migration_rollback.py` exists and passes; pasted full serial-suite tail (`make test` / `python3 -m unittest discover -s tests -t .`) showing green counts.
   - Observed evidence:
   - Result: pending
 
@@ -84,4 +158,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-TODO: approval + execution gate prose (execution contract, post-gate lifecycle move).
+Requires executed Orders 14-16 (the migration this compatibility layer preserves/rolls back) plus Orders 01-13 upstream. Scope fence: touch only the compatibility-contract + migration/update + rollback + deprecation-diagnostic modules (reuse the installer/`engine.py` migration primitives) and `tests/test_compat_migration_rollback.py`; do NOT write the operator/security docs or run the release-readiness review (Order 18), REMOVE any compatibility surface, or tag/publish/push - if it seems to need more, STOP and report. Never silently overwrite human-owned content; rollback must not lose records; a surface is removed only via its documented removal authority (a separate approved release action). Execution contract: path-scoped commits only, never `git add -A`/`-a`, never push; paste the ACTUAL runner output; the executor may not certify its own V-items or perform a terminal transition. After every V-item is verified with concrete evidence and `aw ipd lint --phase pre-transition` conforms, perform the post-gate lifecycle transaction (workflow-history line, terminal Status, git mv to executed/, post-transition lint), dropping the `Approval:` field on the executed status. This plan requires explicit human approval before execution.
