@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Centralize output selection and prevent command-specific format drift.
 - Scope: Mode detection, typed results, renderer interface, streams, exits, and overrides.
-- Status: draft
+- Status: reviewed
 - Set: awcliux
 - Order: 1
 - Highest E allocated: 03
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-22 draft (OpenAI): created after parser/output audit.
+- 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (blocking OQ-01 resolved: hard cutover), PR-002 (Drift/spec-1525-01 reconciliation in E-03 + sync), PR-003 (execution contract added), PR-004 (V-02/V-03 concrete evidence), PR-005 (E-02 scope clarified vs Order 04), PR-006 (Status draft->reviewed).
 
 ## Goal
 
@@ -32,16 +33,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Material change 2: Typed result boundary
 
-- [ ] E-02 Define stdlib result types (`CommandResult`, `Diagnostic`, `Change`, `Evidence`, `NextAction`) and make handlers return them instead of presentation strings.
+- [ ] E-02 Define stdlib result types (`CommandResult`, `Diagnostic`, `Change`, `Evidence`, `NextAction`) and the renderer interface that consumes them; migrate ONE reference handler (`doctor`, the agreed reference view) to return a typed result so both renderers are exercised end to end. Full per-command migration is Order 04, not here.
   - Depends on: E-01
-  - Expected outcome: both renderers consume identical facts and exit classification.
+  - Expected outcome: both renderers consume identical facts and exit classification from one typed result on at least the reference handler; the boundary exists for Order 04 to adopt.
   - Execution state: pending
 
 ### Material change 3: Streams and compatibility
 
-- [ ] E-03 Freeze stdout/stderr, schema versioning, broken-pipe behavior, explicit-format compatibility, and the automatic non-TTY migration policy.
+- [ ] E-03 Freeze stdout/stderr, schema versioning, broken-pipe behavior, explicit-format compatibility, and the automatic non-TTY migration policy (hard cutover, per OQ-01). Record the decision on how the new `CommandResult`/`aw.agent/v1` machine convention relates to the existing `Drift`/`render_agent_drift`/`drift_exit_code` convention (`agent_workflows/artifact_core.py:247-266`): whether it subsumes, wraps, or replaces it, and confirm the `0`/`1`/`2` exit semantics carry over unchanged. Two live machine conventions are not allowed.
   - Depends on: E-01
-  - Expected outcome: deterministic documented bytes and exits.
+  - Expected outcome: deterministic documented bytes and exits, and exactly one machine-output convention with a recorded `Drift`-relationship decision.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -82,16 +83,16 @@ Truth-table stdout/stdin TTY, agent/JSON flags, `--no-color`, `NO_COLOR`, `FORCE
 
 ## Spec / documentation sync
 
-Add one normative CLI output contract and link help to it.
+Add one normative CLI output contract and link help to it. This contract SUPERSEDES the machine-output requirement in the implemented, release-blocking spec `20260818-1525-01-command-surface-redesign.spec.md` G6 (which mandates reusing `Drift`/`drift_exit_code`); Order 05 updates or supersedes that spec via `aw specs` so the repository does not carry two conflicting machine conventions. Record the `Drift`-relationship decision (E-03) in the new contract.
 
 ## Open questions
 
 ### OQ-01: Which non-TTY encoding is default?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: prefer compact JSONL; use a deprecation window if byte compatibility requires it.
+- Resolution or deferral rationale: HARD CUTOVER to compact `aw.agent/v1` JSONL now, no deprecation window (maintainer decision 2026-08-22 via /plan-review on orchestrator awcliux-00 OQ-01; consistent with the pre-release hard cutover already accepted in spec `20260818-1525-01`). Non-TTY/piped stdout selects `aw.agent/v1` immediately. Consequence: any consumer parsing the current piped bytes (`status` JSON, `render_agent_drift` TSV, `find`/`search` path lines) breaks at the release; Order 05 documents this loudly in release notes and the migration guide, and the `Drift`-relationship decision (E-03) governs how the TSV wire form is retired or retained.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -102,11 +103,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: the result types (`CommandResult`, `Diagnostic`, `Change`, `Evidence`, `NextAction`) and renderer interface exist; a test drives the reference handler (`doctor`) through BOTH renderers from one typed result and asserts identical outcome facts (status, counts, paths, evidence, exit classification). Paste the passing test output and name the module/line of the type definitions.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: the normative CLI output contract documents frozen stdout/stderr split, schema version, broken-pipe behavior, explicit-format compatibility, hard-cutover non-TTY policy, and the `Drift`-relationship decision; a test asserts the documented exit codes (`0` clean, `1` findings, `2` cannot-run) and that no second machine convention remains (either `Drift` callers migrated or `render_agent_drift` explicitly retained as the wire form). Paste the passing test output and cite the contract section.
   - Observed evidence:
   - Result: pending
 
@@ -116,4 +117,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: exactly three changes establish one output boundary.
 
-Review and explicit approval required; do not change public default bytes until OQ-01 is resolved.
+Review and explicit approval required. OQ-01 is resolved (hard cutover), so the public default-byte change is authorized under this contract; still do not ship it without the Order 05 migration guide and release notes.
+
+### Execution contract
+
+1. Open questions RESOLVED: OQ-01 above is resolved (hard cutover); no blocking question remains.
+2. Scope fence: touch only `agent_workflows/cli.py` (root `OutputContext`/`select_output` wiring, near the existing `_build_parser()` at `cli.py:423` and the shared `--no-color` parent at `cli.py:424-427`), a NEW result-types module and a NEW renderer module (stdlib only, no new dependency), the reference-handler wiring in `agent_workflows/doctor.py`, and their tests under `tests/`. Do NOT migrate other command handlers here (that is Order 04) and do NOT change any command's domain behavior. If the boundary seems to require touching another handler or a domain module, STOP and report.
+3. Honesty rule (hard MUST): when you report the precedence/parity/exit tests passed, paste the ACTUAL runner output; never claim a pass you did not run.
+4. Commit ONLY this plan's own changed files, path-scoped (`git commit -- <path>`); never `git add -A`/bare/`-a`; never push.
+5. Lifecycle move: on completion, after every E item is performed and every V item is verified with pasted evidence, append the `## Workflow history` line, set `Status: executed`, `git mv` this file from `pending/` to `executed/`, and make the path-scoped lifecycle commit. Requires nothing from siblings (Order 01 has `Depends on: none`); Orders 02/03 may start only after this plan is executed.
