@@ -977,6 +977,51 @@ def _build_parser() -> argparse.ArgumentParser:
             "Verify SHA-256 hash chaining, sequence continuity, schema conformance, and evidence "
             "validity across a run ledger. Exit 0 clean, 1 invalid evidence, 2 corrupted chain.",
         ),
+        # awoptimize Order 07 E-03: mutating subcommands appended to the same parser group.
+        (
+            "start",
+            "Release + start a runnable step (pending -> runnable -> running).",
+            "Acquire the single-writer lease and transition a runnable step to running. Exit 0 "
+            "success, 2 bad invocation/missing ledger, 3 not runnable, 5 corrupted, 6 operational.",
+        ),
+        (
+            "next",
+            "List the currently runnable steps per the DAG and gate approvals.",
+            "Reconstruct run state and list steps whose dependencies + gates are satisfied. Exit 0 "
+            "when runnable steps exist or the run is terminal, 3 when nothing is runnable.",
+        ),
+        (
+            "record",
+            "Record a step attempt outcome (performed | blocked | failed) in the ledger.",
+            "Append a step_attempt record to the append-only ledger. Exit 0 on performed, 3 on "
+            "blocked/failed, 2 bad invocation, 5 corrupted, 6 operational.",
+        ),
+        (
+            "resume",
+            "Reconstruct state and report resumable steps; refuse on interrupted side effects.",
+            "Reconstruct run state purely from the ledger and report resumable steps. Refuses "
+            "(exit 3) when a side effect was interrupted mid-flight (unknown_outcome) pending "
+            "explicit reconciliation.",
+        ),
+        (
+            "cancel",
+            "Cancel an active run (records a terminal cancellation transaction).",
+            "Record a terminal cancellation through the engine. Exit 0 success, 6 on illegal or "
+            "unauthorized cancellation, 5 corrupted.",
+        ),
+        (
+            "status",
+            "Report reconstructed run + step state from the ledger.",
+            "Reconstruct and print run + per-step state. Exit 0 complete, 1 incomplete, 3 cancelled, "
+            "5 corrupted.",
+        ),
+        (
+            "finalize",
+            "Compute the completion predicate and record terminal completion (coordinator only).",
+            "Run the Order-04 completion predicate over the ledger and, if satisfied, record the "
+            "terminal completion. Requires coordinator authority. Exit 0 complete, 1 incomplete, "
+            "4 invalid evidence, 6 unauthorized/operational.",
+        ),
     ):
         _pr = run_sub.add_parser(
             _r_sub, parents=[common], help=_r_help, description=_r_desc
@@ -1001,6 +1046,42 @@ def _build_parser() -> argparse.ArgumentParser:
             action="store_true",
             help="Machine output: formatted JSON; no ANSI.",
         )
+        if _r_sub in (
+            "start",
+            "next",
+            "record",
+            "resume",
+            "cancel",
+            "status",
+            "finalize",
+        ):
+            _pr.add_argument(
+                "--workflow",
+                default=None,
+                help="Optional workflow JSON (id/steps/requirements); else derived from the ledger.",
+            )
+        if _r_sub in ("start", "record", "cancel", "finalize"):
+            _pr.add_argument(
+                "--actor",
+                default=None,
+                help="Authoring role (runtime/coordinator/executor/verifier/corrector/human).",
+            )
+        if _r_sub in ("start", "record"):
+            _pr.add_argument(
+                "--step", default=None, help="Step id (S-NN) to start or record."
+            )
+        if _r_sub == "record":
+            _pr.add_argument(
+                "--state",
+                default=None,
+                help="Attempt outcome: performed | blocked | failed.",
+            )
+        if _r_sub == "cancel":
+            _pr.add_argument(
+                "--reason",
+                default=None,
+                help="Cancellation reason (recorded in the ledger).",
+            )
 
     p_research = sub.add_parser(
         "research",

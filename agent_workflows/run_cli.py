@@ -24,8 +24,24 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from agent_workflows import run_engine
 from agent_workflows import run_evidence as evidence
 from agent_workflows import run_ledger_store as store
+from agent_workflows import run_recovery, run_state
+
+# ---- exit-code table (awoptimize Order 07 E-03) --------------------------------------------------
+# Distinct nonzero codes let a caller/CI distinguish outcome classes. Kept small and consistent:
+EXIT_OK: int = 0  # complete / success
+EXIT_INCOMPLETE: int = 1  # run incomplete / unsatisfied predicates
+EXIT_BLOCKED: int = (
+    3  # blocked: unknown-outcome / retry budget exhausted / not runnable
+)
+EXIT_INVALID_EVIDENCE: int = 4  # captured evidence invalid / false-completion class
+EXIT_CORRUPTED_LEDGER: int = 5  # hash chain / schema / torn-line corruption
+EXIT_OPERATIONAL: int = (
+    6  # operational failure (lock contention, illegal transition, unauthorized)
+)
+EXIT_INVALID_INVOCATION: int = 2  # bad invocation / missing ledger
 
 
 def run_cli(args: argparse.Namespace) -> int:
@@ -37,10 +53,25 @@ def run_cli(args: argparse.Namespace) -> int:
         return _run_evidence(args)
     if sub == "verify-ledger":
         return _run_verify_ledger(args)
+    if sub == "start":
+        return _run_start(args)
+    if sub == "next":
+        return _run_next(args)
+    if sub == "record":
+        return _run_record(args)
+    if sub == "resume":
+        return _run_resume(args)
+    if sub == "cancel":
+        return _run_cancel(args)
+    if sub == "status":
+        return _run_status(args)
+    if sub == "finalize":
+        return _run_finalize(args)
     print(
-        "usage: aw run {show|evidence|verify-ledger} <run-id-or-path> [--agent|--json] [--dir <dir>]"
+        "usage: aw run {show|evidence|verify-ledger|start|next|record|resume|cancel|status|finalize}"
+        " <run-id-or-path> [--agent|--json] [--dir <dir>]"
     )
-    return 2
+    return EXIT_INVALID_INVOCATION
 
 
 def _machine(args: argparse.Namespace) -> bool:
@@ -447,3 +478,613 @@ def _run_verify_ledger(args: argparse.Namespace) -> int:
     if not evidence_val.ok or not evaluation.is_complete:
         return 1
     return 0
+
+
+# ==================================================================================================
+# awoptimize Order 07 E-03: mutating subcommands (start | next | record | resume | cancel | status
+# | finalize). Human + JSON/agent machine modes; ANSI-free machine output; the exit-code table above.
+# ==================================================================================================
+
+
+def _emit_error(args: argparse.Namespace, message: str, exit_code: int) -> int:
+    """Emit an error in human or machine mode and return the exit code."""
+    if _machine(args):
+        _emit_machine(args, {"ok": False, "error": message, "exit_code": exit_code})
+    else:
+        print(f"error: {message}")
+    return exit_code
+
+
+def _resolve_or_error(args: argparse.Namespace) -> "tuple[Optional[Path], int]":
+    """Resolve the ledger path or return an invalid-invocation error tuple."""
+    target = getattr(args, "target", None)
+    if not target:
+        return None, _emit_error(
+            args, "no run id or ledger path given", EXIT_INVALID_INVOCATION
+        )
+    ledger_file = resolve_ledger_path(target, getattr(args, "dir", None))
+    if not ledger_file:
+        return None, _emit_error(
+            args,
+            f"ledger file not found for target '{target}'",
+            EXIT_INVALID_INVOCATION,
+        )
+    return ledger_file, EXIT_OK
+
+
+def _load_workflow_arg(args: argparse.Namespace) -> Optional[Dict[str, Any]]:
+    """Load a workflow definition from --workflow JSON path, or None if not supplied."""
+    wf_path = getattr(args, "workflow", None)
+    if not wf_path:
+        return None
+    p = Path(wf_path)
+    if not p.is_file():
+        raise FileNotFoundError(f"workflow file not found: {wf_path}")
+    data = json.loads(p.read_text(encoding="utf-8"))
+    if (
+        isinstance(data, dict)
+        and "workflow" in data
+        and isinstance(data["workflow"], dict)
+    ):
+        return data
+    return data if isinstance(data, dict) else None
+
+
+def _reconstruct_workflow_from_ledger(records: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Build a minimal workflow skeleton (id/steps/requirements) from ledger records.
+
+    Used when no --workflow file is supplied: the ledger is authoritative, and step ids + requirement
+    ids can be recovered from step_attempt and requirement_set records. Dependency edges are unknown
+    from the ledger alone, so the skeleton has no depends_on/gates (ledger-driven commands like status
+    /resume/cancel/finalize do not need the DAG).
+    """
+    wf_id = "reconstructed"
+    step_ids: List[str] = []
+    seen_steps: set[str] = set()
+    requirements: List[Dict[str, Any]] = []
+    seen_reqs: set[str] = set()
+    for rec in records:
+        kind = rec.get("kind")
+        if kind == "run":
+            wf_id = (
+                str(rec.get("workflow_digest", "reconstructed"))[:16] or "reconstructed"
+            )
+        elif kind == "step_attempt":
+            sid = str(rec.get("step", ""))
+            if sid and sid not in seen_steps:
+                seen_steps.add(sid)
+                step_ids.append(sid)
+        elif kind == "requirement_set":
+            for req in rec.get("requirements", []):
+                if isinstance(req, dict):
+                    rid = req.get("id")
+                    if rid and rid not in seen_reqs:
+                        seen_reqs.add(rid)
+                        requirements.append({"id": rid})
+    steps = [
+        {"id": sid, "action": "", "depends_on": [], "satisfies": []} for sid in step_ids
+    ]
+    return {"id": wf_id, "steps": steps, "requirements": requirements}
+
+
+def _build_engine(
+    args: argparse.Namespace, ledger_file: Path
+) -> "tuple[Optional[run_engine.RunEngine], List[Dict[str, Any]], int]":
+    """Construct a RunEngine over a ledger. Returns (engine, records, exit_code)."""
+    ledger_store = store.RunLedgerStore(ledger_file)
+    try:
+        records = ledger_store.read_records(verify=True)
+    except store.LedgerCorruption as exc:
+        return (
+            None,
+            [],
+            _emit_error(
+                args, f"ledger corruption detected: {exc}", EXIT_CORRUPTED_LEDGER
+            ),
+        )
+    except Exception as exc:  # noqa: BLE001 - fail closed on any read failure
+        return (
+            None,
+            [],
+            _emit_error(args, f"failed to read ledger: {exc}", EXIT_INVALID_INVOCATION),
+        )
+
+    if not records:
+        return None, [], _emit_error(args, "ledger is empty", EXIT_INVALID_INVOCATION)
+
+    try:
+        workflow = _load_workflow_arg(args)
+    except (OSError, ValueError) as exc:
+        return (
+            None,
+            records,
+            _emit_error(
+                args, f"failed to load workflow: {exc}", EXIT_INVALID_INVOCATION
+            ),
+        )
+    if workflow is None:
+        workflow = _reconstruct_workflow_from_ledger(records)
+
+    run_rec = records[0] if records[0].get("kind") == "run" else {}
+    run_id = str(run_rec.get("run_id") or "run-00000001")
+    engine = run_engine.RunEngine(workflow, ledger_store, run_id=run_id)
+    return engine, records, EXIT_OK
+
+
+def rebuild_index(ledger_file: Union[str, Path]) -> List[Dict[str, Any]]:
+    """Rebuild a per-run runtime INDEX (append-only JSONL) purely from the authoritative ledger.
+
+    The ledger stays the source of truth; the index is a rebuildable projection (never SQLite). Each
+    index row summarizes one ledger record so a caller can page state without replaying the chain.
+    """
+    ledger_store = store.RunLedgerStore(ledger_file)
+    records = ledger_store.read_records(verify=True)
+    index_rows: List[Dict[str, Any]] = []
+    for rec in records:
+        row: Dict[str, Any] = {
+            "seq": rec.get("seq"),
+            "kind": rec.get("kind"),
+            "actor": rec.get("actor"),
+        }
+        kind = rec.get("kind")
+        if kind == "step_attempt":
+            row["step"] = rec.get("step")
+            row["state"] = rec.get("state")
+            row["attempt"] = rec.get("attempt")
+        elif kind == "retry":
+            row["retries_step"] = rec.get("retries_step")
+            row["failure_class"] = rec.get("failure_class")
+            row["idempotency_key"] = rec.get("idempotency_key")
+        elif kind == "verifier_decision":
+            row["requirement"] = rec.get("requirement")
+            row["result"] = rec.get("result")
+        elif kind == "terminal_transaction":
+            row["terminal_status"] = rec.get("terminal_status")
+        index_rows.append(row)
+    return index_rows
+
+
+def write_index(ledger_file: Union[str, Path], index_path: Union[str, Path]) -> Path:
+    """Materialize the rebuilt index to an append-only JSONL file and return its path."""
+    rows = rebuild_index(ledger_file)
+    out = Path(index_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        json.dumps(r, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        for r in rows
+    ]
+    out.write_text(("\n".join(lines) + ("\n" if lines else "")), encoding="utf-8")
+    return out
+
+
+def _snapshot_payload(snapshot: run_engine.RunStateSnapshot) -> Dict[str, Any]:
+    """Build an ANSI-free machine payload from a run state snapshot."""
+    return {
+        "run_id": snapshot.run_id,
+        "run_state": snapshot.state,
+        "workflow_id": snapshot.workflow_id,
+        "record_count": snapshot.record_count,
+        "steps": {
+            sid: {
+                "state": st.state,
+                "attempts": st.attempts,
+                "last_attempt_state": st.last_attempt_state,
+            }
+            for sid, st in sorted(snapshot.steps.items())
+        },
+        "approvals": dict(snapshot.approvals),
+        "verifier_decisions": dict(snapshot.verifier_decisions),
+        "cancellation_reason": snapshot.cancellation_reason,
+    }
+
+
+# ---- start ---------------------------------------------------------------------------------------
+
+
+def _run_start(args: argparse.Namespace) -> int:
+    """Release + start a runnable step (pending -> runnable -> running) through the engine."""
+    ledger_file, code = _resolve_or_error(args)
+    if ledger_file is None:
+        return code
+    engine, _records, code = _build_engine(args, ledger_file)
+    if engine is None:
+        return code
+
+    step_id = getattr(args, "step", None)
+    if not step_id:
+        return _emit_error(
+            args, "start requires --step <step-id>", EXIT_INVALID_INVOCATION
+        )
+    actor = getattr(args, "actor", None) or "runtime"
+
+    try:
+        with engine.lease():
+            runnable_ids = {s.step_id for s in engine.get_runnable_steps()}
+            step = engine.reconstruct_state().steps.get(step_id)
+            if step is None:
+                return _emit_error(
+                    args, f"unknown step '{step_id}'", EXIT_INVALID_INVOCATION
+                )
+            if step.state == run_state.STATE_PENDING and step_id not in runnable_ids:
+                return _emit_error(
+                    args,
+                    f"step '{step_id}' is not runnable (unsatisfied dependencies or gates)",
+                    EXIT_BLOCKED,
+                )
+            if step.state == run_state.STATE_PENDING:
+                engine.release_step(step_id, actor=actor)
+            engine.start_step(step_id, actor=actor)
+    except store.LedgerLockError as exc:
+        return _emit_error(args, f"lock contention: {exc}", EXIT_OPERATIONAL)
+    except run_state.RunStateError as exc:
+        return _emit_error(
+            args, f"illegal/unauthorized transition: {exc}", EXIT_OPERATIONAL
+        )
+    except store.LedgerCorruption as exc:
+        return _emit_error(args, f"ledger corruption: {exc}", EXIT_CORRUPTED_LEDGER)
+
+    snapshot = engine.reconstruct_state()
+    if _machine(args):
+        payload = _snapshot_payload(snapshot)
+        payload["started_step"] = step_id
+        _emit_machine(args, payload)
+    else:
+        print(f"Started step {step_id} (state: {snapshot.steps[step_id].state})")
+    return EXIT_OK
+
+
+# ---- next ----------------------------------------------------------------------------------------
+
+
+def _run_next(args: argparse.Namespace) -> int:
+    """List the currently runnable steps according to the DAG and gate approvals."""
+    ledger_file, code = _resolve_or_error(args)
+    if ledger_file is None:
+        return code
+    engine, _records, code = _build_engine(args, ledger_file)
+    if engine is None:
+        return code
+
+    try:
+        snapshot = engine.reconstruct_state()
+        runnable = engine.get_runnable_steps()
+    except store.LedgerCorruption as exc:
+        return _emit_error(args, f"ledger corruption: {exc}", EXIT_CORRUPTED_LEDGER)
+
+    runnable_ids = [s.step_id for s in runnable]
+    terminal = snapshot.state in run_state.TERMINAL_STATES
+
+    if _machine(args):
+        _emit_machine(
+            args,
+            {
+                "run_id": snapshot.run_id,
+                "run_state": snapshot.state,
+                "runnable_steps": runnable_ids,
+                "terminal": terminal,
+            },
+        )
+    else:
+        if terminal:
+            print(
+                f"Run {snapshot.run_id} is terminal ({snapshot.state}); no runnable steps."
+            )
+        elif runnable_ids:
+            print("Runnable steps:")
+            for sid in runnable_ids:
+                print(f"  - {sid}")
+        else:
+            print(
+                "No runnable steps (waiting on dependencies, gates, or verification)."
+            )
+    if terminal:
+        return EXIT_OK
+    return EXIT_OK if runnable_ids else EXIT_BLOCKED
+
+
+# ---- record --------------------------------------------------------------------------------------
+
+
+def _run_record(args: argparse.Namespace) -> int:
+    """Record a step attempt outcome (performed | blocked | failed) in the append-only ledger."""
+    ledger_file, code = _resolve_or_error(args)
+    if ledger_file is None:
+        return code
+    engine, _records, code = _build_engine(args, ledger_file)
+    if engine is None:
+        return code
+
+    step_id = getattr(args, "step", None)
+    outcome = getattr(args, "state", None)
+    if not step_id or not outcome:
+        return _emit_error(
+            args,
+            "record requires --step <step-id> --state <performed|blocked|failed>",
+            EXIT_INVALID_INVOCATION,
+        )
+    from agent_workflows import run_ledger_schema as _schema
+
+    if outcome not in _schema.ATTEMPT_STATES:
+        return _emit_error(
+            args,
+            f"invalid --state '{outcome}'; must be one of {sorted(_schema.ATTEMPT_STATES)}",
+            EXIT_INVALID_INVOCATION,
+        )
+    actor = getattr(args, "actor", None) or "executor"
+
+    try:
+        # Advance a runnable step through pending -> runnable -> running before recording the
+        # outcome, so a single CLI invocation records a durable step_attempt. Running is ephemeral
+        # (not persisted), so it must be re-derived within this same process before the append.
+        step = engine.reconstruct_state().steps.get(step_id)
+        if step is None:
+            return _emit_error(
+                args, f"unknown step '{step_id}'", EXIT_INVALID_INVOCATION
+            )
+        if step.state == run_state.STATE_PENDING:
+            runnable_ids = {s.step_id for s in engine.get_runnable_steps()}
+            if step_id not in runnable_ids:
+                return _emit_error(
+                    args,
+                    f"step '{step_id}' is not runnable (unsatisfied dependencies or gates)",
+                    EXIT_BLOCKED,
+                )
+            engine.release_step(step_id, actor="runtime")
+            engine.start_step(step_id, actor="runtime")
+        # The engine's record_step_attempt takes the store's single-writer lock internally.
+        engine.record_step_attempt(step_id, state=outcome, actor=actor)
+    except KeyError:
+        return _emit_error(args, f"unknown step '{step_id}'", EXIT_INVALID_INVOCATION)
+    except store.LedgerLockError as exc:
+        return _emit_error(args, f"lock contention: {exc}", EXIT_OPERATIONAL)
+    except run_state.RunStateError as exc:
+        return _emit_error(
+            args, f"illegal/unauthorized transition: {exc}", EXIT_OPERATIONAL
+        )
+    except store.LedgerCorruption as exc:
+        return _emit_error(args, f"ledger corruption: {exc}", EXIT_CORRUPTED_LEDGER)
+
+    snapshot = engine.reconstruct_state()
+    if _machine(args):
+        payload = _snapshot_payload(snapshot)
+        payload["recorded"] = {"step": step_id, "state": outcome}
+        _emit_machine(args, payload)
+    else:
+        print(f"Recorded attempt: {step_id} -> {outcome}")
+    # A recorded failure/blocked outcome is not a success; surface it as blocked.
+    if outcome in (run_state.STATE_FAILED, run_state.STATE_BLOCKED):
+        return EXIT_BLOCKED
+    return EXIT_OK
+
+
+# ---- resume --------------------------------------------------------------------------------------
+
+
+def _run_resume(args: argparse.Namespace) -> int:
+    """Reconstruct run state from the ledger and report what may safely proceed.
+
+    Refuses to advance when a side effect was interrupted mid-flight (unknown_outcome).
+    """
+    ledger_file, code = _resolve_or_error(args)
+    if ledger_file is None:
+        return code
+    engine, _records, code = _build_engine(args, ledger_file)
+    if engine is None:
+        return code
+
+    try:
+        report = run_recovery.resume(engine)
+    except run_recovery.UnknownOutcomeError as exc:
+        unknown = run_recovery.detect_unknown_outcomes(engine)
+        if _machine(args):
+            _emit_machine(
+                args,
+                {
+                    "ok": False,
+                    "error": str(exc),
+                    "condition": run_recovery.UNKNOWN_OUTCOME,
+                    "unknown_outcome_steps": list(unknown),
+                    "exit_code": EXIT_BLOCKED,
+                },
+            )
+        else:
+            print(f"error: {exc}")
+            print(f"  reconcile these steps before resuming: {list(unknown)}")
+        return EXIT_BLOCKED
+    except store.LedgerCorruption as exc:
+        return _emit_error(args, f"ledger corruption: {exc}", EXIT_CORRUPTED_LEDGER)
+
+    if _machine(args):
+        _emit_machine(
+            args,
+            {
+                "run_id": report.run_id,
+                "run_state": report.run_state,
+                "resumable_steps": list(report.resumable_steps),
+                "unknown_outcome_steps": list(report.unknown_outcome_steps),
+                "terminal": report.terminal,
+            },
+        )
+    else:
+        print(f"Run {report.run_id} state: {report.run_state}")
+        if report.terminal:
+            print("Run is terminal; nothing to resume.")
+        elif report.resumable_steps:
+            print("Resumable steps:")
+            for sid in report.resumable_steps:
+                print(f"  - {sid}")
+        else:
+            print(
+                "No resumable steps (waiting on dependencies, gates, or verification)."
+            )
+    return EXIT_OK
+
+
+# ---- cancel --------------------------------------------------------------------------------------
+
+
+def _run_cancel(args: argparse.Namespace) -> int:
+    """Cancel an active run (records a terminal cancellation transaction)."""
+    ledger_file, code = _resolve_or_error(args)
+    if ledger_file is None:
+        return code
+    engine, _records, code = _build_engine(args, ledger_file)
+    if engine is None:
+        return code
+
+    actor = getattr(args, "actor", None) or "coordinator"
+    reason = getattr(args, "reason", None) or "cancelled"
+
+    try:
+        # cancel_run takes the store's single-writer lock internally.
+        snapshot = run_recovery.cancel(engine, reason=reason, actor=actor)
+    except store.LedgerLockError as exc:
+        return _emit_error(args, f"lock contention: {exc}", EXIT_OPERATIONAL)
+    except run_state.RunStateError as exc:
+        return _emit_error(
+            args, f"illegal/unauthorized cancellation: {exc}", EXIT_OPERATIONAL
+        )
+    except store.LedgerCorruption as exc:
+        return _emit_error(args, f"ledger corruption: {exc}", EXIT_CORRUPTED_LEDGER)
+
+    if _machine(args):
+        payload = _snapshot_payload(snapshot)
+        payload["cancelled"] = True
+        _emit_machine(args, payload)
+    else:
+        print(f"Cancelled run {snapshot.run_id} (reason: {reason})")
+    return EXIT_OK
+
+
+# ---- status --------------------------------------------------------------------------------------
+
+
+def _run_status(args: argparse.Namespace) -> int:
+    """Report reconstructed run + step state from the ledger (mutating-family status view)."""
+    ledger_file, code = _resolve_or_error(args)
+    if ledger_file is None:
+        return code
+    engine, _records, code = _build_engine(args, ledger_file)
+    if engine is None:
+        return code
+
+    try:
+        snapshot = engine.reconstruct_state()
+    except store.LedgerCorruption as exc:
+        return _emit_error(args, f"ledger corruption: {exc}", EXIT_CORRUPTED_LEDGER)
+
+    if _machine(args):
+        _emit_machine(args, _snapshot_payload(snapshot))
+    else:
+        print(f"Run: {snapshot.run_id}")
+        print(f"State: {snapshot.state}")
+        print(f"Records: {snapshot.record_count}")
+        print("Steps:")
+        for sid, st in sorted(snapshot.steps.items()):
+            print(f"  {sid}: {st.state} (attempts={st.attempts})")
+        if snapshot.cancellation_reason:
+            print(f"Cancellation: {snapshot.cancellation_reason}")
+
+    if snapshot.state == run_state.STATE_COMPLETE:
+        return EXIT_OK
+    if snapshot.state == run_state.STATE_CANCELLED:
+        return EXIT_BLOCKED
+    return EXIT_INCOMPLETE
+
+
+# ---- finalize ------------------------------------------------------------------------------------
+
+
+def _run_finalize(args: argparse.Namespace) -> int:
+    """Compute the Order-04 completion predicate and, if satisfied, record terminal completion.
+
+    Requires COORDINATOR authority. Refuses an incomplete/invalid/unauthorized run. Succeeds (exit 0)
+    only after the predicates pass and the terminal transaction is recorded.
+    """
+    ledger_file, code = _resolve_or_error(args)
+    if ledger_file is None:
+        return code
+    engine, records, code = _build_engine(args, ledger_file)
+    if engine is None:
+        return code
+
+    actor = getattr(args, "actor", None) or "coordinator"
+    if actor != "coordinator":
+        return _emit_error(
+            args,
+            f"finalize requires coordinator authority, got actor '{actor}'",
+            EXIT_OPERATIONAL,
+        )
+
+    # 1. Evidence validity gate (distinct invalid-evidence class).
+    evidence_val = evidence.validate_ledger_evidence(records)
+    if not evidence_val.ok:
+        if _machine(args):
+            _emit_machine(
+                args,
+                {
+                    "ok": False,
+                    "error": "captured evidence is invalid",
+                    "findings": [
+                        {"code": f.code, "where": f.where, "message": f.message}
+                        for f in evidence_val.findings
+                    ],
+                    "exit_code": EXIT_INVALID_EVIDENCE,
+                },
+            )
+        else:
+            print("error: captured evidence is invalid; refusing to finalize")
+            for f in evidence_val.findings:
+                print(f"  - {f.code} ({f.where}): {f.message}")
+        return EXIT_INVALID_EVIDENCE
+
+    # 2. Completion predicate gate (Order-04 predicate over the ledger).
+    evaluation = evidence.evaluate_completion(records, coordinator_authority=True)
+    if not evaluation.is_complete:
+        if _machine(args):
+            _emit_machine(
+                args,
+                {
+                    "ok": False,
+                    "error": "run is incomplete; completion predicates not satisfied",
+                    "reasons": list(evaluation.reasons),
+                    "predicates": {
+                        name: {"satisfied": p.satisfied, "details": p.details}
+                        for name, p in evaluation.predicates.items()
+                    },
+                    "exit_code": EXIT_INCOMPLETE,
+                },
+            )
+        else:
+            print("error: run is incomplete; refusing to finalize")
+            for r in evaluation.reasons:
+                print(f"  - {r}")
+        return EXIT_INCOMPLETE
+
+    # 3. Record the terminal transaction through the engine (enforces verified -> complete + authority).
+    #    complete_run takes the store's single-writer lock internally.
+    try:
+        snapshot = engine.complete_run(actor=actor)
+    except run_state.UnauthorizedActorError as exc:
+        return _emit_error(args, f"unauthorized completion: {exc}", EXIT_OPERATIONAL)
+    except run_state.PredicateUnsatisfiedError as exc:
+        return _emit_error(
+            args, f"completion predicates failed: {exc}", EXIT_INCOMPLETE
+        )
+    except run_state.RunStateError as exc:
+        return _emit_error(
+            args, f"illegal completion transition: {exc}", EXIT_OPERATIONAL
+        )
+    except store.LedgerLockError as exc:
+        return _emit_error(args, f"lock contention: {exc}", EXIT_OPERATIONAL)
+    except store.LedgerCorruption as exc:
+        return _emit_error(args, f"ledger corruption: {exc}", EXIT_CORRUPTED_LEDGER)
+
+    if _machine(args):
+        payload = _snapshot_payload(snapshot)
+        payload["finalized"] = True
+        payload["is_complete"] = True
+        _emit_machine(args, payload)
+    else:
+        print(f"Finalized run {snapshot.run_id}: COMPLETE")
+    return EXIT_OK
