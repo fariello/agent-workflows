@@ -540,14 +540,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--depth",
         type=nonnegative_int,
-        default=4,
-        help="descendant levels shown below each root (default: 4)",
+        default=6,
+        help="descendant levels shown below each root (default: 6)",
     )
     parser.add_argument(
         "--interval",
         type=positive_float,
-        default=1.0,
-        help="seconds between snapshots (default: 1)",
+        default=2.5,
+        help="seconds between snapshots (default: 2.5)",
     )
     parser.add_argument(
         "--width",
