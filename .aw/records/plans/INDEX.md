@@ -7,7 +7,7 @@ Showing the 40 most-recent of 107 Sets; the full manifest is INDEX.json.
 ## awoptimize
 
 - `p070c8` [pending] 00 pending/20260821-awoptimize-00-p070c8-agent-workflows-optimal-architecture-program.ipd.md
-- `nmwy3m` [pending] 01 pending/20260821-awoptimize-01-nmwy3m-canonical-workflow-schema-and-compiler.ipd.md
+- `nmwy3m` [executed] 01 executed/20260821-awoptimize-01-nmwy3m-canonical-workflow-schema-and-compiler.ipd.md
 - `7qs57e` [pending] 02 pending/20260821-awoptimize-02-7qs57e-run-ledger-and-evidence-contract.ipd.md
 - `7cqbel` [pending] 03 pending/20260821-awoptimize-03-7cqbel-deterministic-workflow-runtime.ipd.md
 - `mcubhc` [pending] 04 pending/20260821-awoptimize-04-mcubhc-independent-verification-and-orchestration.ipd.md

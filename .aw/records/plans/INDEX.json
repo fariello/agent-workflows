@@ -2340,6 +2340,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-21",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260821-awoptimize-01-nmwy3m-canonical-workflow-schema-and-compiler.ipd.md",
+    "plan_id": "nmwy3m",
+    "set_id": "awoptimize",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -2386,16 +2396,6 @@
     "order": 0,
     "path": "pending/20260821-awoptimize-00-p070c8-agent-workflows-optimal-architecture-program.ipd.md",
     "plan_id": "p070c8",
-    "set_id": "awoptimize",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-21",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260821-awoptimize-01-nmwy3m-canonical-workflow-schema-and-compiler.ipd.md",
-    "plan_id": "nmwy3m",
     "set_id": "awoptimize",
     "status": "approved"
   },
