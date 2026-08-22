@@ -4,7 +4,7 @@
 - Kind: orchestrator
 - Concern: Replace prose-only workflow compliance with a portable, evidence-gated execution architecture that remains usable across models and coding-agent hosts.
 - Scope: Orchestration only for Set `awoptimize`; Orders 01 through 08 own implementation. This Set may change workflow metadata, runtime and conformance tooling, generated host adapters, tests, and documentation, but no child may silently expand beyond its declared files.
-- Status: to-review
+- Status: reviewed
 - Set: awoptimize
 - Order: 0
 - Highest E allocated: 10
@@ -17,6 +17,7 @@
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. PR-A size assessment corrected exception->standard (10 leaves/1 group, neither threshold exceeded); PR-B canonical full-suite evidence command pinned to `make test` (parallel `pytest -n auto`, ~0:40 vs ~4:20 serial; D138). Foundational evidence verified against the tree (agy_run.py same-session audit, ipd_lint.py structure-only boundary, awlayout incident record, conformance operator-protocol/host_matrix.json all confirmed). Set scope accounting sound (8 children form a schema->evidence->runtime->verification->hosts->benchmark->migration->cutover DAG).
 - 2026-08-21 approved (Gabriele Fariello, --by-human): human sign-off recorded for the FOUNDATIONAL scope of the Set (this orchestrator + Orders 01-04, the deterministic offline model-free critical path). Orders 05-08 remain `reviewed` (GO - pending human approval), to be approved once their live host/model probes and benchmark evidence are in hand. Execution proceeds in dependency order via /ipd-lifecycle; live model/host calls are operator-run, never executor-run.
 - 2026-08-21 amended + re-scoped (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): the tail was re-scoped from 7 coarse Orders (old 02-08, retired to superseded/) into 17 right-sized children (new Orders 02-18) per the maintainer-approved re-scope proposal and backlog `8iy2dk`. The orchestrator's gates were rewritten to coordinate by architectural LAYER (A-G) rather than one leaf per child; the child table, completion criteria, and cross-IPD validation now describe the 19-Order Set. Because the orchestrator's content changed materially, its prior human approval is withdrawn and Status reverts to `to-review` pending re-review (/plan-review) + fresh human approval. Order 01 (executed) is unaffected.
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Reviewed the re-scoped orchestrator after all 17 children were individually reviewed; cross-checked the child-table DAG against every child's own gate. PR-001 (MEDIUM): child table listed Order 05's dep as `04`, but Order 05's gate requires 01-03 and its fence explicitly excludes Order 04 (05 can run parallel with 04) - FIXED to `01-03`. PR-002 (MEDIUM): completion criteria implied the executor runs the live benchmark and listed dollar `cost` as a threshold, contradicting the Order 12/13 offline-only/operator-run-live/no-cost resolution - FIXED (operator-run live, time/token efficiency). PR-003 (LOW): the final-execution command set said 'controlled live benchmark report validation' - FIXED to consume operator-run reports + pinned `make test`/`aw sanitize --agent`. PR-004 (LOW): orchestrator OQ-01/OQ-02 were stale `open` - reconciled to `resolved`, pointing at the Order 12/13 (offline/live) and Order 10/11 (agy 1.1.17 tentative) resolutions. E/V bijection 9:9; layer gates enumerate the right children; the watermark (10) correctly exceeds the present max (E-09). No blocking open questions remain. This completes /plan-review of the entire awoptimize Set (00 + all 17 children).
 
 ## Goal
 
@@ -70,7 +71,7 @@ approval -> execute -> independent verification -> transition) in the child-tabl
   - Execution state: pending
 - [ ] E-06 Drive Layer E (evaluation): Orders 12 (benchmark corpus + preregistered scoring), 13 (offline runners + ablations + metrics + reports), each through the full lifecycle.
   - Depends on: E-05
-  - Expected outcome: the offline benchmark quantifies completion, evidence truth, drift, and cost by exact configuration; live model runs remain operator-run; both reach executed.
+  - Expected outcome: the offline benchmark quantifies completion, evidence truth, drift, and time/token efficiency (no dollar cost - Order 13) by exact configuration; live model runs remain operator-run; both reach executed.
   - Execution state: pending
 - [ ] E-07 Drive Layer F (migration): Orders 14 (disposition inventory + shared family migration), 15 (complex orchestrated migration), 16 (compact migration + shims + promotion gates), each through the full lifecycle.
   - Depends on: E-06
@@ -99,7 +100,7 @@ The old coarse Orders 02-08 are retired in `superseded/` (see their RETIRED head
 | 02 | A | `...-02-viuzu4-ledger-and-evidence-record-schemas-and-requirement-freeze.ipd.md` | Ledger/evidence record schemas + requirement freeze | 01 |
 | 03 | A | `...-03-6psux0-append-only-tamper-evident-run-ledger-store.ipd.md` | Append-only tamper-evident ledger store | 02 |
 | 04 | A | `...-04-yndh7k-evidence-capture-validators-completion-predicates-and-run-in.ipd.md` | Evidence capture + validators + completion predicates + inspection CLI | 03 |
-| 05 | B | `...-05-b1v3wl-deterministic-run-state-machine-and-single-writer-engine.ipd.md` | Run state machine + single-writer engine | 04 |
+| 05 | B | `...-05-b1v3wl-deterministic-run-state-machine-and-single-writer-engine.ipd.md` | Run state machine + single-writer engine | 01-03 |
 | 06 | B | `...-06-ptsfjn-bounded-step-packets-outcome-envelopes-and-human-decision-ga.ipd.md` | Bounded packets + outcome envelopes + human gates | 05 |
 | 07 | B | `...-07-7yqm1v-retry-correction-resume-cancel-crash-recovery-and-run-lifecy.ipd.md` | Retry + resume + crash recovery + run lifecycle CLI | 06 |
 | 08 | C | `...-08-5hu6bd-verifier-roles-clean-packet-procedures-and-corrective-routin.ipd.md` | Verifier roles + clean packet + procedures + corrective routing | 05 |
@@ -122,8 +123,8 @@ The old coarse Orders 02-08 are retired in `superseded/` (see their RETIRED head
 - Every workflow manifest row has a reviewed disposition: deterministic command, single-context workflow, skill, orchestrated workflow, shared harness plus module, or deprecation alias.
 - No executor or same-session self-auditor can set `verified`, `complete`, `executed`, or an equivalent terminal state.
 - Independent verification detects all seeded false-completion fixtures and rejects stale, fabricated, mismatched-commit, incomplete, or self-authored evidence.
-- The four named model configurations run a preregistered benchmark on the supported hosts available to the operator; unavailable combinations are explicitly `pending`, never imputed.
-- Release thresholds include requirement recall, evidence validity, defect escape, false-completion detection, regression rate, context/token use, latency, and cost.
+- The preregistered benchmark's OFFLINE harness (Orders 12/13) is built and validated; any LIVE run of the four named model configurations is OPERATOR-RUN (never executor-run) with unavailable combinations explicitly `pending`, never imputed (per the Order 12/13 resolution).
+- Release thresholds include requirement recall, evidence validity, defect escape, false-completion detection, regression rate, context/token load, and wall-time; dollar cost is out of scope (no host reports it reliably - Order 13), so efficiency is time/token-based, not dollar-based.
 - Live host/version conformance evidence exists for every advertised native path, command, skill, agent, fork, or background capability.
 - Legacy `.opencode/commands/` and `.claude/commands/` behavior remains until parity, migration, and rollback tests pass.
 - The full repository suite, leak scan, IPD lint, generated-artifact drift check, and Markdown policy checks pass with retained raw output.
@@ -173,25 +174,25 @@ The old coarse Orders 02-08 are retired in `superseded/` (see their RETIRED head
 
 ## Required tests / validation
 
-At final execution, run the exact commands defined by each child plus: the full unit suite; `aw ipd lint --all --agent`; local leak scan; generated-artifact drift check; all offline seeded fixtures; complete workflow-disposition coverage; clean-checkout install and compatibility tests; controlled live benchmark report validation; and a residual search for TODO, placeholder evidence, unsupported host claims, and terminal state changes outside the runtime.
+At final execution, run the exact commands defined by each child plus: the full unit suite (`make test`); `aw ipd lint --all --agent`; the canonical leak scan `aw sanitize --agent`; generated-artifact drift check; all offline seeded fixtures; complete workflow-disposition coverage; clean-checkout install and compatibility tests; consume the OPERATOR-RUN live benchmark reports where available (offline fixtures otherwise; the executor never runs live models); and a residual search for TODO, placeholder evidence, unsupported host claims, and terminal state changes outside the runtime.
 
 The canonical full-suite command for evidence in this Set (and its children) is `make test` (parallel `pytest -n auto` after `pip install '.[test]'`, auto-falling back to serial `unittest`; measured ~4:20 serial -> ~0:40 parallel with identical results, per D138 and CONTRIBUTING). Use `make test-serial` (`python3 -m unittest discover -s tests -t .`) only to reproduce a suspected ordering/isolation failure. Paste the actual runner output as evidence either way.
 
 ## Open questions
 
-### OQ-01: What live-model budget and provider credentials may the benchmark consume?
+### OQ-01: What live-model scope and provider credentials may the benchmark consume?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: human maintainer
-- Resolution or deferral rationale: Order 06 must run deterministic offline tests without credentials and emit exact pending commands until budget and credentials are authorized.
+- Resolution or deferral rationale: RESOLVED downstream in Orders 12/13 (2026-08-21, /plan-review with the maintainer): the benchmark is OFFLINE-ONLY for v1 (executor builds + offline-validates with runner doubles); any LIVE multi-model run is operator-run, never executor-run. There is no dollar "budget" knob (the harness cannot measure cost); enforcement is time/trial (+ token-where-reported) ceilings, and per-run spend/quota is the operator's provider account. The offline scope needs no credentials; live authorization remains a maintainer decision but does not block this Set's offline work.
 
 ### OQ-02: Which exact `agy` or Antigravity distribution and version are supported?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: human maintainer
-- Resolution or deferral rationale: the repository runner exists, but no executable is installed in the research environment and public host semantics must not be inferred from the wrapper.
+- Resolution or deferral rationale: RESOLVED downstream in Orders 10/11 (2026-08-21): the maintainer's installed `agy --version` is `1.1.17`, recorded as the TENTATIVE target in the Order-10 capability registry; per the fail-closed discipline it stays `unverified` until an operator-run isolated live probe on that exact version. The repository runner exists but public host semantics must not be inferred from the wrapper; no capability is advertised as supported without the probe. Not blocking this Set's offline work.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
