@@ -4,8 +4,7 @@
 - Kind: child
 - Concern: Provide the append-only, tamper-evident run-ledger STORE that no executor can rewrite - the safety-critical persistence substrate for all completion evidence.
 - Scope: Append-only ledger store alone: atomic writes, sequence numbers, hash chaining, crash-safe recovery, redaction hooks, explicit corruption refusal, plus crash/replay/chain-break adversarial tests. No evidence semantics (Order 04), no runtime (Order 05).
-- Status: approved
-- Approval: Gabriele Fariello (human), 2026-08-22
+- Status: executed
 - Set: awoptimize
 - Order: 3
 - Highest E allocated: 06
@@ -18,6 +17,7 @@
 - 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-02 E-03 into 6 right-sized E-items (append-only single-writer store, atomic+recover, hash chaining, typed corruption refusal, redaction, tests).
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE; GO - PENDING HUMAN APPROVAL. The safety-critical persistence substrate; each E-item is one concern with strong invariants (append-only, atomic crash-safe, tamper-evident hash chain, fail-closed corruption refusal, pre-append redaction). `run_ledger_store.py` is absent (genuinely new work). V-01..V-06 map 1:1 with falsifiable evidence; the gate stresses absolute append-only semantics + fail-closed. OQ-01 (hash chain vs signing) is non-blocking with a sound deferral (hash chaining is v1; signing is additive, does not change interfaces) - permitted to remain open per the Fix Bar. No findings.
 - 2026-08-22 approved (Gabriele Fariello, human): explicit human approval of the awoptimize Set after /plan-review; reviewed -> approved.
+- 2026-08-22 executed (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): E-01..E-06 executed via agy/Gemini (committed 1e9f9dd: run_ledger_store.py + tests, scope-clean); independently verified by opencode - all invariants present (LedgerCorruption hierarchy, recover, verify_chain, hash chain, single-writer lock, redaction), 20 module tests pass, full suite 1345 passed 1 skipped (pytest rc=0). V-01..V-06 evidence real (not greenwashed). OQ-01 (signing) non-blocking, deferred. Terminal transition to executed/.
 
 ## Goal
 
