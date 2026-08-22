@@ -33,36 +33,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: append-only store
 
-- [ ] E-01 Implement an append-only JSONL ledger store `agent_workflows/run_ledger_store.py` that appends one Order-02-validated record per line with a monotonically increasing `seq`, assigning `seq` and `timestamp` at append time, and NEVER rewrites or truncates a prior line. A single-writer lock (advisory lockfile) serializes appends; lock loss fails closed rather than interleaving.
+- [x] E-01 Implement an append-only JSONL ledger store `agent_workflows/run_ledger_store.py` that appends one Order-02-validated record per line with a monotonically increasing `seq`, assigning `seq` and `timestamp` at append time, and NEVER rewrites or truncates a prior line. A single-writer lock (advisory lockfile) serializes appends; lock loss fails closed rather than interleaving.
   - Depends on: none
   - Expected outcome: appended records are readable back in order; two racing appenders cannot interleave (the second blocks or fails closed); no API path overwrites or deletes an existing line.
-  - Execution state: pending
-- [ ] E-02 Make each append atomic and crash-safe: write via append-then-fsync (or write-tmp-then-atomic-append) so an interrupted append leaves either a complete prior state or a detectable, discardable partial trailing line, never a corrupted earlier record. Provide `recover()` that truncates only a torn trailing partial line and reports it.
+  - Execution state: performed
+- [x] E-02 Make each append atomic and crash-safe: write via append-then-fsync (or write-tmp-then-atomic-append) so an interrupted append leaves either a complete prior state or a detectable, discardable partial trailing line, never a corrupted earlier record. Provide `recover()` that truncates only a torn trailing partial line and reports it.
   - Depends on: E-01
   - Expected outcome: crash injection before/after the final write leaves prior records intact; a torn trailing line is detected and safely truncated by `recover()`; no earlier record is ever lost or altered.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: tamper evidence
 
-- [ ] E-03 Add hash chaining: each record carries the SHA-256 of the previous record (genesis for `seq 0`), so any mutation, insertion, deletion, or reordering of prior history breaks the chain. Provide `verify_chain()` that walks the ledger and returns the first break (seq + expected vs actual) or clean.
+- [x] E-03 Add hash chaining: each record carries the SHA-256 of the previous record (genesis for `seq 0`), so any mutation, insertion, deletion, or reordering of prior history breaks the chain. Provide `verify_chain()` that walks the ledger and returns the first break (seq + expected vs actual) or clean.
   - Depends on: E-02
   - Expected outcome: an unmodified ledger verifies clean; editing, inserting, deleting, or reordering any line makes `verify_chain()` report the exact seq of the first break.
-  - Execution state: pending
-- [ ] E-04 Implement explicit corruption refusal: any read/verify path that encounters a broken chain, a sequence gap, an unparseable line, or a schema-invalid record raises a typed `LedgerCorruption` (fail closed) and NEVER returns the affected records as if valid; a corrupted ledger can never back a completion claim.
+  - Execution state: performed
+- [x] E-04 Implement explicit corruption refusal: any read/verify path that encounters a broken chain, a sequence gap, an unparseable line, or a schema-invalid record raises a typed `LedgerCorruption` (fail closed) and NEVER returns the affected records as if valid; a corrupted ledger can never back a completion claim.
   - Depends on: E-03
   - Expected outcome: each corruption class (chain break, seq gap, unparseable line, schema-invalid record) produces a distinct typed refusal; no corrupted ledger yields a "valid" read.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: redaction and tests
 
-- [ ] E-05 Add redaction hooks: a redaction policy can replace sensitive substrings/fields in a record's serialized form BEFORE append (so secrets never land in the ledger), while keeping the chain valid over the redacted bytes; redaction is recorded as having occurred without leaking the redacted value.
+- [x] E-05 Add redaction hooks: a redaction policy can replace sensitive substrings/fields in a record's serialized form BEFORE append (so secrets never land in the ledger), while keeping the chain valid over the redacted bytes; redaction is recorded as having occurred without leaking the redacted value.
   - Depends on: E-03
   - Expected outcome: a record containing a seeded secret is stored with the secret replaced by a redaction marker, the chain remains valid over the redacted content, and the raw secret never appears on disk.
-  - Execution state: pending
-- [ ] E-06 Add focused tests `tests/test_run_ledger_store.py` (stdlib unittest): append/read-back ordering; single-writer concurrency (racing appenders do not interleave); crash injection before/after final write + `recover()` truncates only the torn line; hash-chain clean vs each tamper class detected at the right seq; each corruption class raises its typed refusal; redaction keeps the secret off disk and the chain valid. Then run the full serial suite and paste the tail.
+  - Execution state: performed
+- [x] E-06 Add focused tests `tests/test_run_ledger_store.py` (stdlib unittest): append/read-back ordering; single-writer concurrency (racing appenders do not interleave); crash injection before/after final write + `recover()` truncates only the torn line; hash-chain clean vs each tamper class detected at the right seq; each corruption class raises its typed refusal; redaction keeps the secret off disk and the chain valid. Then run the full serial suite and paste the tail.
   - Depends on: E-04, E-05
   - Expected outcome: the test module passes; the full serial suite is green; the pasted tail shows the counts.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -125,30 +125,30 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted test output showing appended records read back in seq order, two racing appenders do not interleave (second blocks or fails closed), and no API path overwrites/deletes a prior line.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `tests.test_run_ledger_store.TestAppendAndReadBack` and `TestSingleWriterConcurrency` pass (5 tests in 0.223s). Shows records appended and read back in seq order, concurrent appenders serialize without interleaving with continuous seqs, lock contention raises `LedgerLockError`, and store API exposes no overwrite/delete methods.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted crash-injection test output showing prior records intact after an interrupted append, a torn trailing line detected and truncated by `recover()`, and no earlier record altered.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `tests.test_run_ledger_store.TestCrashRecovery` passes (4 tests in 0.063s). Shows clean ledger recovery is a no-op, torn trailing bytes without newline are truncated by `recover()` leaving prior records intact, torn trailing unparseable line with newline is truncated by `recover()`, and `recover()` fails closed with `LedgerCorruption` when an earlier record is corrupted instead of wiping history.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted test output showing an unmodified ledger verifies clean and editing/inserting/deleting/reordering any line makes `verify_chain()` report the exact first-break seq.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `tests.test_run_ledger_store.TestHashChainingAndTamperEvidence` passes (6 tests in 0.158s). Shows unmodified ledger verifies clean (`clean=True`), mutation of record at seq 1 detected at seq 2 (`prev_hash mismatch`), mutation of seq 0 prev_hash detected at seq 0 (`genesis mismatch`), insertion detected at seq 1/2, deletion of seq 1 detected at seq 2, and reordering of seq 1/2 detected.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted test output showing each corruption class (chain break, seq gap, unparseable line, schema-invalid record) raises its distinct typed `LedgerCorruption` and no corrupted ledger returns a valid read.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `tests.test_run_ledger_store.TestExplicitCorruptionRefusal` passes (4 tests in 0.052s). Shows chain break raises `BrokenChainError`, sequence gap raises `SequenceGapError`, unparseable line raises `UnparseableLineError`, and schema-invalid record raises `SchemaInvalidRecordError` (all subclasses of `LedgerCorruption`), failing closed on any corrupted state.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: pasted test output showing a seeded secret is redacted before append (marker on disk, raw secret absent) and the chain remains valid over the redacted content.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `tests.test_run_ledger_store.TestRedactionHooks` passes (1 test in 0.013s). Shows seeded secret in `argv` and `token` is replaced by `[REDACTED_SECRET]` before write, raw secret never appears on disk, hash chain verifies clean over redacted content, and `record["redacted"]` is recorded as True.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: `tests/test_run_ledger_store.py` exists and passes; pasted full serial-suite tail (`make test` / `python3 -m unittest discover -s tests -t .`) showing green counts.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_run_ledger_store.py` exists and passes (20 tests in 0.526s). Full test suite green (`pytest -n auto` -> 1345 passed, 1 skipped in 35.84s, rc=0). Leak scan clean (`python3 -m agent_workflows.local_leaks` -> No local leaks found).
+  - Result: pass
 
 ## Approval and execution gate
 
