@@ -7,7 +7,7 @@
 - Status: draft
 - Set: awoptimize
 - Order: 4
-- Highest E allocated: 01
+- Highest E allocated: 05
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: yndh7k
 
@@ -17,65 +17,137 @@
 
 ## Goal
 
-TODO: one or two sentences on what this plan achieves and why.
+Make completion a deterministic PREDICATE over frozen requirements, valid captured evidence,
+repository identity, and independent verifier decisions - not a word an executor emits. This Order
+captures evidence at tool/artifact boundaries, mechanically rejects every known false-completion
+class, computes completion, exposes read-only inspection through `aw run`, and proves the whole thing
+against an adversarial suite. It builds on the Order-02 records + Order-03 store.
 
 ## Detailed Implementation Checklist (TODO)
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.
 
-### Task group 1: TODO
+### Task group 1: evidence capture
 
-- [ ] E-01 TODO one observable action.
+- [ ] E-01 Implement evidence capture in `agent_workflows/run_evidence.py`: build an `evidence_envelope`/`tool_event` for a command or artifact recording command argv, cwd, start/end time, exit code, stdout/stderr reference + SHA-256, truncation state, an environment allowlist (no raw secrets), repository HEAD, dirty-state digest, worktree path, actor, and linked E/V/requirement ids; append it via the Order-03 store.
   - Depends on: none
-  - Expected outcome: TODO observable result.
+  - Expected outcome: a captured command/artifact envelope contains every required provenance field bound to the correct HEAD/dirty-digest/worktree/actor/ids, with output referenced by hash and no secret leaked into the record.
+  - Execution state: pending
+
+### Task group 2: validators and completion
+
+- [ ] E-02 Implement evidence validators (`validate_evidence`) that reject, each with a distinct stable reason, every known false-completion class: missing output, fabricated manual text (no captured tool event), stale HEAD, wrong cwd, wrong worktree, mismatched command, expired host probe, truncated required output, failed exit, absent artifact, hash mismatch, and an executor-authored verifier decision.
+  - Depends on: E-01
+  - Expected outcome: one fixture per listed class is rejected with its stable reason; valid fresh evidence is accepted; a required-truncation/redaction conflict fails closed.
+  - Execution state: pending
+- [ ] E-03 Implement completion predicates (`is_complete`) that return true only when: every frozen requirement (Order 02) is covered, every required E-item is `performed`, every V-item has a `pass` decision authored by an authorized INDEPENDENT verifier (not the executor), all required commands are valid and green, no unresolved blocker/correction remains, and terminal authority is held by the coordinator.
+  - Depends on: E-02
+  - Expected outcome: a truth-table test shows completion only when all predicates hold and coordinator authority is present; toggling any single input false independently prevents completion; model prose or a direct edit cannot flip a run to complete.
+  - Execution state: pending
+
+### Task group 3: inspection CLI
+
+- [ ] E-04 Add read-only `aw run show`, `aw run evidence`, and `aw run verify-ledger` subcommands (wired into `agent_workflows/cli.py` via a thin `run_cli.py`) with human + `--agent`/`--json` machine output, stable error codes, redaction of sensitive values, and NO writes by default; `verify-ledger` surfaces Order-03 chain/corruption status and Order-04 evidence validity.
+  - Depends on: E-03
+  - Expected outcome: the three subcommands expose why a run is incomplete and which precise evidence is missing/invalid; machine modes are ANSI-free; no invocation writes to disk; exit codes distinguish clean / invalid-evidence / corruption / invocation error.
+  - Execution state: pending
+
+### Task group 4: adversarial suite
+
+- [ ] E-05 Add the adversarial test suite `tests/test_run_evidence_completion.py` (stdlib unittest) covering fabricated success text, checked boxes without captured events, green targeted tests plus a red full suite, stale evidence, test deletion, test weakening, mismatched commit/worktree, replay, ledger corruption, interrupted append, and executor/verifier identity collision; each must produce an incomplete or correction-required outcome and the original failed attempt must remain in ledger history. Then run the full serial suite and paste the tail.
+  - Depends on: E-04
+  - Expected outcome: every seeded deception + accidental-false-completion fixture fails closed with a named reason; the scorer confirms zero seeded critical escapes; the full serial suite is green (pasted).
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
+## Evidence sufficiency matrix
+
+| Claim | Minimum evidence | Additional independent action |
+|---|---|---|
+| File changed as required | content/diff hash at bound HEAD | verifier inspects symbol and scope |
+| Command passed | captured invocation, cwd, exit 0, complete output hash | verifier reruns when risk requires |
+| Test proves requirement | test maps to requirement and fails under a seeded break | verifier reviews falsifiability |
+| No regression | approved full-suite command at bound HEAD | compare baseline and investigate skips |
+| Host capability supported | exact host/version/config probe and nonce side effect | independent or repeated probe before expiry |
+| Workflow complete | all deterministic predicates pass | coordinator performs terminal transaction |
+
 ## Project conventions discovered (Step 0)
 
-- TODO: relevant conventions discovered during Step 0.
+- `aw ipd lint` explicitly does not prove evidence truth; that gap is exactly what this Order's validators + completion predicate close.
+- Existing verification workflows already require actual-diff inspection and rerunning repo checks; this Order turns those rules into mechanical ledger predicates rather than prose asks.
+- Machine CLI output in this repo is ANSI-free with stable exit codes (0/1/2), mirroring `aw ipd lint` and the Order-01 `aw workflow` CLI; `run_cli.py` follows that shape and wires into `cli.py` like `workflow_cli.py` did.
+- Evidence records must never carry raw secrets (an environment allowlist + redaction, reusing the Order-03 redaction hook).
 
 ## Findings
 
-TODO: findings table or notes.
+| Finding | Consequence |
+|---|---|
+| Non-empty evidence prose can satisfy structural formatting without proving origin. | Capture evidence at tool/artifact boundaries and validate it mechanically; model-pasted prose is not evidence. |
+| Test success may be scoped, stale, or achieved by weakening tests. | Bind evidence to command + HEAD + worktree; the adversarial suite includes green-targeted/red-full, test deletion, and test weakening. |
+| Same identity can execute and self-verify. | The completion predicate requires the V-decision to be authored by an INDEPENDENT verifier role; an executor-authored verifier decision is rejected (Order-02 RL-E032) and cannot satisfy completion. |
+| A corrupted or replayed ledger could back a false completion. | Completion consumes only Order-03-verified history; corruption/replay fixtures must fail closed. |
 
 ## Proposed changes (ordered, validatable)
 
-TODO: ordered, validatable proposed changes.
+1. Capture provenance at command/artifact boundaries (E-01).
+2. Reject every invalid/stale/fabricated evidence class (E-02).
+3. Compute completion rather than accept a claim (E-03).
+4. Expose read-only inspection commands (E-04).
+5. Prove it with an adversarial suite + full suite (E-05).
 
 ## Deferred / out of scope (with reason)
 
-TODO: deferred / out of scope, with reason (or 'none').
+- Record SHAPES + requirement freeze: Order 02. The append-only STORE + tamper evidence: Order 03. This Order consumes both.
+- The run STATE MACHINE / scheduling / terminal-transition execution: Order 05 (this Order computes the completion predicate; the runtime enforces it at the gate).
+- The independent VERIFIER role/packet/isolation: Orders 08/09 (this Order requires a verifier-authored decision but does not implement the verifier's context isolation).
+- Provider-specific telemetry / live model calls: Orders 12/13.
 
 ## Scope check
 
-- Over-scope: none.
-- Under-scope: TODO.
+- Over-scope: no record-schema definition, no ledger-store internals, no runtime scheduling, no verifier isolation, no model/host calls, no terminal moves.
+- Under-scope: none - capture, validation, completion, inspection CLI, and the adversarial suite are all covered.
 
 ## Required tests / validation
 
-TODO: how the executed plan is verified.
+- `tests/test_run_evidence_completion.py`: capture provenance fixtures; one rejection fixture per false-completion class (E-02); the completion truth-table (E-03); CLI golden tests (human + agent, no ANSI, no writes, exit codes) (E-04); the full adversarial suite (E-05).
+- Full serial suite green (canonical `make test` / `python3 -m unittest discover -s tests -t .`) with pasted tail; leak scan clean; machine-output ANSI checks.
 
 ## Spec / documentation sync
 
-TODO: specs/docs to update, or 'N/A with reason'.
+- Document the evidence-envelope fields, the evidence-sufficiency matrix, the completion predicate, the `aw run` inspection commands + exit codes, and what the layer does NOT prove (semantic correctness remains the reviewer's job). Add examples for incomplete, blocked, corrected, corrupted, and terminal runs.
 
 ## Open questions
 
-### OQ-01: TODO a question
+### OQ-01: none
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: none
-- Resolution or deferral rationale: TODO.
+- Resolution or deferral rationale: The capture fields, validator classes, and completion predicate are enumerated from the old-02 evidence-sufficiency matrix and adversarial list; no open decision. Verifier-context isolation is Orders 08/09; this Order only requires that a V-decision be verifier-authored.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: pasted test output showing a captured command/artifact envelope contains every required provenance field bound to the correct HEAD/dirty-digest/worktree/actor/E-V-requirement ids, output referenced by hash, and no secret in the record.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-02 validates E-02
+  - Required evidence: pasted test output showing one fixture per listed false-completion class rejected with its distinct stable reason, valid fresh evidence accepted, and a truncation/redaction conflict failing closed.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-03 validates E-03
+  - Required evidence: pasted truth-table test output showing completion only when every predicate holds + coordinator authority present, each input toggled false independently prevents completion, and model prose / a direct edit cannot flip a run complete.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-04 validates E-04
+  - Required evidence: pasted CLI golden output showing `aw run show|evidence|verify-ledger` expose missing/invalid evidence + corruption with stable codes, redact sensitive values, make no writes by default, and emit ANSI-free machine output.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-05 validates E-05
+  - Required evidence: `tests/test_run_evidence_completion.py` exists and passes; every adversarial fixture yields incomplete/correction-required with a named reason and the original failed attempt remains in ledger history; pasted full serial-suite tail showing green counts and zero seeded critical escapes.
   - Observed evidence:
   - Result: pending
 
@@ -84,4 +156,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-TODO: approval + execution gate prose (execution contract, post-gate lifecycle move).
+Requires executed Orders 02 (records + freeze) and 03 (append-only store). Scope fence: touch only `agent_workflows/run_evidence.py`, the completion-predicate module, `agent_workflows/run_cli.py` + its wiring in `agent_workflows/cli.py`, and `tests/test_run_evidence_completion.py`; do NOT implement the runtime state machine (Order 05) or the verifier's context isolation (Orders 08/09) - if it seems to need more, STOP and report. Do not accept prose pasted by a model as captured evidence; do not expose secrets or unrestricted environment state in evidence records; if a required redaction would make a completion predicate unverifiable, STOP and revise the evidence design explicitly. Execution contract: path-scoped commits only, never `git add -A`/`-a`, never push; paste the ACTUAL runner output; the executor may not certify its own V-items or perform a terminal transition, and the adversarial suite MUST run before any lifecycle completion. After every V-item is verified with concrete evidence and `aw ipd lint --phase pre-transition` conforms, perform the post-gate lifecycle transaction (workflow-history line, terminal Status, git mv to executed/, post-transition lint), dropping the `Approval:` field on the executed status. This plan requires explicit human approval before execution.
