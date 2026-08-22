@@ -13,6 +13,7 @@ import argparse
 import os
 import re
 import shlex
+import shutil
 import signal
 import sys
 import time
@@ -54,6 +55,7 @@ C_ARG_TEXT = "\033[38;5;252m"  # Off-white for general arguments
 ENTER_ALT_SCREEN = "\033[?1049h\033[?25l"
 LEAVE_ALT_SCREEN = "\033[?1049l\033[?25h"
 CURSOR_HOME = "\033[H"
+CLEAR_LINE = "\033[K"
 CLEAR_TO_EOS = "\033[J"
 
 ANSI_PATTERN = re.compile(r"\033\[[0-9;]*[a-zA-Z]")
@@ -589,6 +591,13 @@ def main() -> int:
             sys.stdout.flush()
 
         while True:
+            # Dynamically clamp to actual terminal width to prevent line wrapping distortion
+            if is_interactive:
+                term_cols = shutil.get_terminal_size((args.width, 24)).columns
+                effective_width = min(args.width, max(20, term_cols - 1))
+            else:
+                effective_width = args.width
+
             now_str = time.strftime("%Y-%m-%d %H:%M:%S")
             if color_enabled:
                 header = (
@@ -600,11 +609,14 @@ def main() -> int:
                 header = f"{args.process} process trees (every {args.interval}s) -- {now_str}\n\n"
 
             snapshot = render_snapshot(
-                args.process, args.depth, args.width, color_enabled=color_enabled
+                args.process, args.depth, effective_width, color_enabled=color_enabled
             )
 
             if is_interactive:
-                sys.stdout.write(f"{CURSOR_HOME}{header}{snapshot}\n{CLEAR_TO_EOS}")
+                # Append CLEAR_LINE (\033[K) to every line to erase trailing characters from previous frame
+                frame_lines = f"{header}{snapshot}".split("\n")
+                frame = "".join(f"{line}{CLEAR_LINE}\n" for line in frame_lines)
+                sys.stdout.write(f"{CURSOR_HOME}{frame}{CLEAR_TO_EOS}")
                 sys.stdout.flush()
             else:
                 sys.stdout.write(f"{header}{snapshot}\n")
