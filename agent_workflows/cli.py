@@ -75,6 +75,23 @@ _DESCRIPTIONS = {
         "git working-tree status, attention summaries, and per-repo install currency. "
         "Read-only diagnostics; --agent / --json emits machine-readable JSON."
     ),
+    "run": (
+        "Run ledger inspection and verification tooling: 'show' (inspect run state and completion "
+        "predicates), 'evidence' (inspect captured provenance envelopes and tool events), 'verify-ledger' "
+        "(verify hash chain integrity and evidence validity). Read-only; makes no writes."
+    ),
+    "run show": (
+        "Inspect a workflow run's ledger, steps, verifier decisions, and completion predicate status. "
+        "Read-only; makes no writes. Exit 0 complete, 1 incomplete, 2 corrupted or missing."
+    ),
+    "run evidence": (
+        "List and validate all captured evidence envelopes, tool events, and artifact refs in a run ledger. "
+        "Exit 0 all valid, 1 invalid/missing evidence, 2 corrupted or missing."
+    ),
+    "run verify-ledger": (
+        "Verify SHA-256 hash chaining, sequence continuity, schema conformance, and evidence validity "
+        "across a run ledger. Exit 0 clean, 1 invalid evidence, 2 corrupted chain."
+    ),
     "exclude": (
         "Exclude specified repositories from agent-workflows management. "
         "Syntax: 'aw exclude [repo|repos] repodir1 [repodir2 ...]' (or bare 'aw exclude' to list)."
@@ -782,6 +799,39 @@ def _build_parser() -> argparse.ArgumentParser:
         "--agent", action="store_true", help="Machine-readable output."
     )
 
+    p_ipd_set = ipd_sub.add_parser(
+        "set",
+        parents=[common],
+        help="Transition plan status (e.g. 'aw ipd set approved <id6|setid|fname>...').",
+        description=(
+            "Transition the lifecycle status of one or more plan/IPD artifacts or plan sets. "
+            "Enforces type consistency (rejects non-plan targets) and moves files across "
+            "disposition directories as required."
+        ),
+    )
+    p_ipd_set.add_argument("args", nargs="+", help="<status> <selector...>")
+    p_ipd_set.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_ipd_set.add_argument(
+        "--message", "-m", default=None, help="History record message."
+    )
+    p_ipd_set.add_argument(
+        "--by-human", action="store_true", help="Attest human approval."
+    )
+    p_ipd_set.add_argument(
+        "--dry-run", action="store_true", help="Preview without writing."
+    )
+    p_ipd_set.add_argument(
+        "--json", dest="as_json", action="store_true", help="Emit output as JSON."
+    )
+    p_ipd_set.add_argument(
+        "--agent",
+        dest="as_agent",
+        action="store_true",
+        help="Emit output as tab-separated machine output.",
+    )
+
     # awoptimize Order 01 E-06: canonical workflow schema/compiler CLI (validate/compile/
     # check-generated). The heavy lifting is in workflow_schema/source/loader/compiler; this only
     # registers the parser. compile is dry-run by default (--apply writes); validate + check-generated
@@ -850,6 +900,72 @@ def _build_parser() -> argparse.ArgumentParser:
                 action="store_true",
                 help="Write generated files (default: preview only).",
             )
+
+    # awoptimize Order 04 E-04: run ledger inspection CLI (show/evidence/verify-ledger).
+    # Thin CLI layer over run_evidence and run_ledger_store. Read-only: makes no writes.
+    # OWNERSHIP: Order 04 owns the `aw run` parser-group registration; Order 07 extends it.
+    p_run = sub.add_parser(
+        "run",
+        parents=[common],
+        help="Run ledger inspection and verification tooling (show/evidence/verify-ledger).",
+        description=(
+            "Run ledger inspection and verification tooling. Read-only inspection commands: "
+            "'show' (inspect run state and completion predicates), 'evidence' (inspect captured "
+            "provenance envelopes and tool events), 'verify-ledger' (verify hash chain integrity "
+            "and evidence validity). Read-only; makes no writes by default."
+        ),
+        formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw run show <target>             # inspect run state and completion predicates\n"
+            "  aw run evidence <target>         # inspect captured evidence envelopes\n"
+            "  aw run verify-ledger <target>    # verify ledger hash chain and evidence validity\n"
+        ),
+    )
+    run_sub = p_run.add_subparsers(dest="run_command")
+    for _r_sub, _r_help, _r_desc in (
+        (
+            "show",
+            "Inspect run state, steps, verifier decisions, and completion predicates (read-only).",
+            "Inspect a workflow run's ledger, steps, verifier decisions, and completion predicate "
+            "status. Read-only; makes no writes. Exit 0 complete, 1 incomplete, 2 corrupted or missing.",
+        ),
+        (
+            "evidence",
+            "List and validate captured evidence envelopes and tool events (read-only).",
+            "List and validate all captured evidence envelopes, tool events, and artifact refs in a "
+            "run ledger. Exit 0 all valid, 1 invalid/missing evidence, 2 corrupted or missing.",
+        ),
+        (
+            "verify-ledger",
+            "Verify hash chain integrity and evidence validity of a run ledger (read-only).",
+            "Verify SHA-256 hash chaining, sequence continuity, schema conformance, and evidence "
+            "validity across a run ledger. Exit 0 clean, 1 invalid evidence, 2 corrupted chain.",
+        ),
+    ):
+        _pr = run_sub.add_parser(
+            _r_sub, parents=[common], help=_r_help, description=_r_desc
+        )
+        _pr.add_argument(
+            "target", help="Run ID (run-<hex>) or path to events.jsonl ledger file."
+        )
+        _pr.add_argument(
+            "--dir",
+            default=None,
+            help="Repo root directory (default: current directory).",
+        )
+        _pr.add_argument(
+            "--agent",
+            dest="as_agent",
+            action="store_true",
+            help="Machine output: one JSON record per line; no ANSI.",
+        )
+        _pr.add_argument(
+            "--json",
+            dest="as_json",
+            action="store_true",
+            help="Machine output: formatted JSON; no ANSI.",
+        )
 
     p_research = sub.add_parser(
         "research",
@@ -1477,6 +1593,56 @@ def _build_parser() -> argparse.ArgumentParser:
             help="rename/group: rename the file only; do NOT rewrite citing documents.",
         )
 
+    p_set = sub.add_parser(
+        "set",
+        parents=[common],
+        help="Transition status for one or more artifacts or sets across types (e.g. 'aw set approved <id6|setid|fname>...').",
+        description=(
+            "Transition lifecycle status for one or more plan, spec, prompt, or backlog artifacts, "
+            "or an entire set by set-id. Atomically validates that all targets exist, type constraints "
+            "match, and statuses are valid before applying changes."
+        ),
+    )
+    p_set.add_argument("args", nargs="+", help="[type] <status> <selector...>")
+    p_set.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_set.add_argument("--message", "-m", default=None, help="History record message.")
+    p_set.add_argument("--by-human", action="store_true", help="Attest human approval.")
+    p_set.add_argument(
+        "--gate-kind",
+        dest="gate_kind",
+        default=None,
+        help="Gate kind (for deferred/blocked).",
+    )
+    p_set.add_argument(
+        "--gate-ref",
+        dest="gate_ref",
+        default=None,
+        help="Gate ref (for deferred/blocked).",
+    )
+    p_set.add_argument(
+        "--gate-summary", dest="gate_summary", default=None, help="Gate summary."
+    )
+    p_set.add_argument(
+        "--blocks-release",
+        dest="blocks_release",
+        default=None,
+        help="Blocks-Release flag.",
+    )
+    p_set.add_argument(
+        "--dry-run", action="store_true", help="Preview without writing."
+    )
+    p_set.add_argument(
+        "--json", dest="as_json", action="store_true", help="Emit output as JSON."
+    )
+    p_set.add_argument(
+        "--agent",
+        dest="as_agent",
+        action="store_true",
+        help="Emit output as tab-separated machine output.",
+    )
+
     p_migrate = sub.add_parser(
         "migrate-layout",
         parents=[common],
@@ -1662,14 +1828,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "set",
         parents=[common],
         description="Transition a backlog item's status (moving it between open/blocked/parked/done) and append history.",
-        help="Transition a backlog item's status + append history.",
+        help="Transition a backlog item's status + append history (e.g. 'aw backlog set done <id6|setid|fname>...').",
     )
-    p_backlog_set.add_argument("path", help="Backlog item file to transition.")
+    p_backlog_set.add_argument(
+        "args", nargs="+", help="<status> <selector...> (or <path> with --status)."
+    )
     p_backlog_set.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
     )
     p_backlog_set.add_argument(
-        "--status", required=True, help="Target status: open | blocked | parked | done."
+        "--status", default=None, help="Target status: open | blocked | parked | done."
     )
     p_backlog_set.add_argument("--message", default="", help="History record message.")
     p_backlog_set.add_argument(
@@ -1690,6 +1858,18 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Declare this item gates a release: a release id6, 'next', or '-' to clear.",
     )
+    p_backlog_set.add_argument(
+        "--dry-run", action="store_true", help="Preview without writing."
+    )
+    p_backlog_set.add_argument(
+        "--json", dest="as_json", action="store_true", help="Emit output as JSON."
+    )
+    p_backlog_set.add_argument(
+        "--agent",
+        dest="as_agent",
+        action="store_true",
+        help="Emit output as tab-separated machine output.",
+    )
 
     p_backlog_check = backlog_sub.add_parser(
         "check",
@@ -1708,6 +1888,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_specs = sub.add_parser(
         "specs",
+        aliases=["spec"],
         parents=[common],
         help="Owner verbs for the specs tree. 'specs set'/'note' write status+history; 'specs check' validates.",
     )
@@ -1715,13 +1896,22 @@ def _build_parser() -> argparse.ArgumentParser:
     p_specs_set = specs_sub.add_parser(
         "set",
         parents=[common],
-        help="Transition a spec's status (+ typed gates) and append history.",
+        help="Transition a spec's status (+ typed gates) and append history (e.g. 'aw spec set to-review <id6|setid|fname>...').",
+        description=(
+            "Transition a specification document's lifecycle status, update or clear typed gate fields, "
+            "and append workflow history. Enforces transition authority and validation rules."
+        ),
     )
-    p_specs_set.add_argument("path", help="Spec file to update.")
     p_specs_set.add_argument(
-        "--status", required=True, help="Target spec status (the closed enum)."
+        "args", nargs="+", help="<status> <selector...> (or <path> with --status)."
     )
-    p_specs_set.add_argument("--message", required=True, help="History record message.")
+    p_specs_set.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_specs_set.add_argument(
+        "--status", default=None, help="Target spec status (the closed enum)."
+    )
+    p_specs_set.add_argument("--message", default="", help="History record message.")
     p_specs_set.add_argument(
         "--gate-kind",
         dest="gate_kind",
@@ -1759,6 +1949,18 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_specs_set.add_argument(
         "--date", default=None, help="Override the history date (YYYY-MM-DD)."
+    )
+    p_specs_set.add_argument(
+        "--dry-run", action="store_true", help="Preview without writing."
+    )
+    p_specs_set.add_argument(
+        "--json", dest="as_json", action="store_true", help="Emit output as JSON."
+    )
+    p_specs_set.add_argument(
+        "--agent",
+        dest="as_agent",
+        action="store_true",
+        help="Emit output as tab-separated machine output.",
     )
     p_specs_note = specs_sub.add_parser(
         "note",
@@ -5325,8 +5527,34 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         from agent_workflows import workflow_cli
 
         return workflow_cli.run_workflow(args)
-    if args.command == "ipd":
-        ipd_cmd = getattr(args, "ipd_command", None)
+    if args.command == "run":
+        from agent_workflows import run_cli
+
+        return run_cli.run_cli(args)
+    if args.command == "set":
+        from agent_workflows import status_set
+
+        return status_set.run_set_command(
+            args.args,
+            scoped_type=None,
+            args=args,
+            term=term,
+        )
+    if args.command in ("ipd", "plan", "plans"):
+        ipd_cmd = (
+            getattr(args, "ipd_command", None)
+            or getattr(args, "plans_command", None)
+            or getattr(args, "plan_command", None)
+        )
+        if ipd_cmd == "set":
+            from agent_workflows import status_set
+
+            return status_set.run_set_command(
+                args.args,
+                scoped_type="plans",
+                args=args,
+                term=term,
+            )
         if ipd_cmd == "lint":
             from agent_workflows import ipd_lint
 
@@ -5342,6 +5570,21 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         # awcmdsurf Order 04: `ipd board` and bare `aw ipd` both show the IPD board.
         if ipd_cmd == "board" or ipd_cmd is None:
             return _run_plans(args, term)
+        parser.print_help()
+        return 2
+    if args.command in ("prompt", "prompts"):
+        prompt_cmd = getattr(args, "prompts_command", None) or getattr(
+            args, "prompt_command", None
+        )
+        if prompt_cmd == "set":
+            from agent_workflows import status_set
+
+            return status_set.run_set_command(
+                args.args,
+                scoped_type="prompts",
+                args=args,
+                term=term,
+            )
         parser.print_help()
         return 2
     if args.command == "research":
@@ -5400,17 +5643,49 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         if backlog_cmd == "new":
             return backlog_mod.run_new(args)
         if backlog_cmd == "set":
-            return backlog_mod.run_set(args)
+            if getattr(args, "status", None) is None:
+                from agent_workflows import status_set
+
+                return status_set.run_set_command(
+                    args.args,
+                    scoped_type="backlog",
+                    args=args,
+                    term=term,
+                )
+            else:
+                args.path = (
+                    args.args[0]
+                    if getattr(args, "args", None)
+                    else getattr(args, "path", None)
+                )
+                return backlog_mod.run_set(args)
         if backlog_cmd == "check":
             return backlog_mod.run_check(args)
         print("usage: aw backlog {new|set|check}", file=sys.stderr)
         return 2
-    if args.command == "specs":
-        specs_cmd = getattr(args, "specs_command", None)
+    if args.command in ("specs", "spec"):
+        specs_cmd = getattr(args, "specs_command", None) or getattr(
+            args, "spec_command", None
+        )
         if specs_cmd == "set":
-            from agent_workflows import specs as sp
+            if getattr(args, "status", None) is None:
+                from agent_workflows import status_set
 
-            return sp.run_set(args)
+                return status_set.run_set_command(
+                    args.args,
+                    scoped_type="specs",
+                    args=args,
+                    term=term,
+                )
+            else:
+                from agent_workflows import specs as sp
+
+                args.path = (
+                    args.args[0]
+                    if getattr(args, "args", None)
+                    else getattr(args, "path", None)
+                )
+                return sp.run_set(args)
         if specs_cmd == "note":
             from agent_workflows import specs as sp
 

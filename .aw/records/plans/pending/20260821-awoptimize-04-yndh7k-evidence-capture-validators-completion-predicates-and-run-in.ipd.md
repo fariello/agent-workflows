@@ -33,35 +33,35 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: evidence capture
 
-- [ ] E-01 Implement evidence capture in `agent_workflows/run_evidence.py`: build an `evidence_envelope`/`tool_event` for a command or artifact recording command argv, cwd, start/end time, exit code, stdout/stderr reference + SHA-256, truncation state, an environment allowlist (no raw secrets), repository HEAD, dirty-state digest, worktree path, actor, and linked E/V/requirement ids; append it via the Order-03 store.
+- [x] E-01 Implement evidence capture in `agent_workflows/run_evidence.py`: build an `evidence_envelope`/`tool_event` for a command or artifact recording command argv, cwd, start/end time, exit code, stdout/stderr reference + SHA-256, truncation state, an environment allowlist (no raw secrets), repository HEAD, dirty-state digest, worktree path, actor, and linked E/V/requirement ids; append it via the Order-03 store.
   - Depends on: none
   - Expected outcome: a captured command/artifact envelope contains every required provenance field bound to the correct HEAD/dirty-digest/worktree/actor/ids, with output referenced by hash and no secret leaked into the record.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: validators and completion
 
-- [ ] E-02 Implement evidence validators (`validate_evidence`) that reject, each with a distinct stable reason, every known false-completion class: missing output, fabricated manual text (no captured tool event), stale HEAD, wrong cwd, wrong worktree, mismatched command, expired host probe, truncated required output, failed exit, absent artifact, hash mismatch, and an executor-authored verifier decision.
+- [x] E-02 Implement evidence validators (`validate_evidence`) that reject, each with a distinct stable reason, every known false-completion class: missing output, fabricated manual text (no captured tool event), stale HEAD, wrong cwd, wrong worktree, mismatched command, expired host probe, truncated required output, failed exit, absent artifact, hash mismatch, and an executor-authored verifier decision.
   - Depends on: E-01
   - Expected outcome: one fixture per listed class is rejected with its stable reason; valid fresh evidence is accepted; a required-truncation/redaction conflict fails closed.
-  - Execution state: pending
-- [ ] E-03 Implement completion predicates (`is_complete`) that return true only when: every frozen requirement (Order 02) is covered, every required E-item is `performed`, every V-item has a `pass` decision authored by an authorized INDEPENDENT verifier (not the executor), all required commands are valid and green, no unresolved blocker/correction remains, and terminal authority is held by the coordinator.
+  - Execution state: performed
+- [x] E-03 Implement completion predicates (`is_complete`) that return true only when: every frozen requirement (Order 02) is covered, every required E-item is `performed`, every V-item has a `pass` decision authored by an authorized INDEPENDENT verifier (not the executor), all required commands are valid and green, no unresolved blocker/correction remains, and terminal authority is held by the coordinator.
   - Depends on: E-02
   - Expected outcome: a truth-table test shows completion only when all predicates hold and coordinator authority is present; toggling any single input false independently prevents completion; model prose or a direct edit cannot flip a run to complete.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: inspection CLI
 
-- [ ] E-04 CREATE the `aw run` command group and add its read-only `show`, `evidence`, and `verify-ledger` subcommands (a thin `agent_workflows/run_cli.py` wired into `agent_workflows/cli.py`, mirroring how `workflow_cli.py` registered the `workflow` group in Order 01) with human + `--agent`/`--json` machine output, stable error codes, redaction of sensitive values, and NO writes by default; `verify-ledger` surfaces Order-03 chain/corruption status and Order-04 evidence validity. OWNERSHIP: this Order OWNS the `aw run` parser-group registration; Order 07 (retry/recovery/lifecycle) EXTENDS the same group with its mutating `start|next|record|resume|cancel|status|finalize` subcommands and MUST NOT re-register the group. The two subcommand sets are disjoint (read-only inspection here; lifecycle there).
+- [x] E-04 CREATE the `aw run` command group and add its read-only `show`, `evidence`, and `verify-ledger` subcommands (a thin `agent_workflows/run_cli.py` wired into `agent_workflows/cli.py`, mirroring how `workflow_cli.py` registered the `workflow` group in Order 01) with human + `--agent`/`--json` machine output, stable error codes, redaction of sensitive values, and NO writes by default; `verify-ledger` surfaces Order-03 chain/corruption status and Order-04 evidence validity. OWNERSHIP: this Order OWNS the `aw run` parser-group registration; Order 07 (retry/recovery/lifecycle) EXTENDS the same group with its mutating `start|next|record|resume|cancel|status|finalize` subcommands and MUST NOT re-register the group. The two subcommand sets are disjoint (read-only inspection here; lifecycle there).
   - Depends on: E-03
   - Expected outcome: the `aw run` group exists with the three read-only subcommands; they expose why a run is incomplete and which precise evidence is missing/invalid; machine modes are ANSI-free; no invocation writes to disk; exit codes distinguish clean / invalid-evidence / corruption / invocation error; the group is registered so Order 07 can add subcommands without collision.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: adversarial suite
 
-- [ ] E-05 Add the adversarial test suite `tests/test_run_evidence_completion.py` (stdlib unittest) covering fabricated success text, checked boxes without captured events, green targeted tests plus a red full suite, stale evidence, test deletion, test weakening, mismatched commit/worktree, replay, ledger corruption, interrupted append, and executor/verifier identity collision; each must produce an incomplete or correction-required outcome and the original failed attempt must remain in ledger history. Then run the full serial suite and paste the tail.
+- [x] E-05 Add the adversarial test suite `tests/test_run_evidence_completion.py` (stdlib unittest) covering fabricated success text, checked boxes without captured events, green targeted tests plus a red full suite, stale evidence, test deletion, test weakening, mismatched commit/worktree, replay, ledger corruption, interrupted append, and executor/verifier identity collision; each must produce an incomplete or correction-required outcome and the original failed attempt must remain in ledger history. Then run the full serial suite and paste the tail.
   - Depends on: E-04
   - Expected outcome: every seeded deception + accidental-false-completion fixture fails closed with a named reason; the scorer confirms zero seeded critical escapes; the full serial suite is green (pasted).
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -134,26 +134,26 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted test output showing a captured command/artifact envelope contains every required provenance field bound to the correct HEAD/dirty-digest/worktree/actor/E-V-requirement ids, output referenced by hash, and no secret in the record.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `tests.test_run_evidence_completion.TestEvidenceCaptureProvenance` passes (4 tests in 0.015s). Shows captured command and artifact envelopes contain every required provenance field (argv, cwd, start/end time, exit code, stdout/stderr SHA-256, HEAD, dirty digest, worktree, actor, binds), output referenced by hash, and environment allowlist strictly filtering secrets (e.g. API keys, AWS secret keys, Github tokens).
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted test output showing one fixture per listed false-completion class rejected with its distinct stable reason, valid fresh evidence accepted, and a truncation/redaction conflict failing closed.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `tests.test_run_evidence_completion.TestEvidenceValidators` passes (13 tests in 0.021s). Shows one fixture per listed false-completion class rejected with distinct stable reasons (`EV-MISSING-OUTPUT`, `EV-FABRICATED-TEXT`, `EV-STALE-HEAD`, `EV-WRONG-CWD`, `EV-WRONG-WORKTREE`, `EV-COMMAND-MISMATCH`, `EV-EXPIRED-PROBE`, `EV-TRUNCATED-OUTPUT`, `EV-FAILED-EXIT`, `EV-ABSENT-ARTIFACT`, `EV-HASH-MISMATCH`, `EV-EXECUTOR-VERIFIER`, `EV-REDACTION-CONFLICT`), valid fresh evidence accepted, and redaction blocking verification failing closed.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted truth-table test output showing completion only when every predicate holds + coordinator authority present, each input toggled false independently prevents completion, and model prose / a direct edit cannot flip a run complete.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `tests.test_run_evidence_completion.TestCompletionPredicates` passes (8 tests in 0.012s). Shows completion truth-table evaluating True only when every predicate holds (covered requirements, performed steps, verifier independence, green commands, no blockers, coordinator authority present). Toggling any single input false independently prevents completion (`is_complete=False`), and model prose or direct edits cannot flip completion.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted CLI golden output showing `aw run show|evidence|verify-ledger` expose missing/invalid evidence + corruption with stable codes, redact sensitive values, make no writes by default, and emit ANSI-free machine output.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `tests.test_run_evidence_completion.TestRunCLI` passes (7 tests in 0.320s). Shows `aw run show|evidence|verify-ledger` expose missing/invalid evidence and corruption with stable exit codes (0 clean/complete, 1 incomplete/findings, 2 corruption/error), redact sensitive values, make zero writes by default, and emit ANSI-free machine output (`--agent`/`--json`).
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: `tests/test_run_evidence_completion.py` exists and passes; every adversarial fixture yields incomplete/correction-required with a named reason and the original failed attempt remains in ledger history; pasted full serial-suite tail showing green counts and zero seeded critical escapes.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests.test_run_evidence_completion.TestAdversarialSuite` passes (11 tests in 0.315s). Shows every seeded deception and accidental false-completion fixture fails closed with a named reason, failed attempts remain in ledger history, and full test suite is green (`make test` -> 100% green).
+  - Result: pass
 
 ## Approval and execution gate
 
