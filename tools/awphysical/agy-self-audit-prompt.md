@@ -13,7 +13,7 @@ Procedure:
 4. Construct an evidence table containing every `E-*` and every `V-*` item: state the exact requirement, files and symbols inspected, relevant tests, commands run, result (`satisfied`, `partially satisfied`, `not satisfied`, or `not independently verifiable`), and concrete reasoning.
 5. For EVERY test that backs a requirement, confirm falsifiability: verify that breaking the implementation causes the test to fail (RED) and restoring it passes (GREEN). Paste the actual red-then-green proof.
 6. Verify symbol wiring: confirm that all new or updated classes, enums, flags, and policies are actively consumed and enforced in the production code path.
-7. Run every required validation command and the FULL test suite with the canonical command `make test` (parallel `pytest -n auto`; fall back to `python3 -m unittest discover -s tests -t .` only if `make test` is unavailable). Paste actual command outputs and exit codes.
+7. Run every required validation command and the FULL test suite using EXACTLY the canonical command `make test` (this is `pytest -n auto`, ~40s). Do NOT use `python3 -m unittest discover` or any serial full-suite variant; only if `make test` itself errors should you report that and stop. Paste actual `make test` output and exit codes.
 8. Check for common pitfalls: shallow tests, circular assertions, missing negative cases, side effects in read-only operations, or regressions in existing tests.
 9. Fix every safely correctable in-scope gap immediately. Commit path-scoped (`git commit -m msg -- <paths>`). Do NOT move the plan to `executed/` or declare completion—the orchestrator verifies and completes the lifecycle transition.
 10. If any gap exceeds scope or requires a human decision, stop and report the exact blocker.

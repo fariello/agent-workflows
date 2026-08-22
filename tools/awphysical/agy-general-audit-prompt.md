@@ -3,7 +3,7 @@ Perform a skeptical verification of the task you just completed in this session:
 
 1. Inspect git diff: verify all changes made in this turn. Confirm every file touched is in-scope and intentional.
 2. Verify completeness: check that every element of the initial prompt/brief was completely fulfilled without missing edge cases or skipped steps.
-3. Verify test coverage: run relevant tests and the full test suite with the canonical command `make test` (parallel `pytest -n auto`; fall back to `python3 -m unittest discover -s tests -t .` only if `make test` is unavailable). Paste the actual output.
+3. Verify test coverage: run relevant tests and the full test suite using EXACTLY the canonical command `make test` (this is `pytest -n auto`, ~40s; do NOT use a serial `unittest discover` full-suite run). Paste the actual `make test` output.
 4. Correct any gaps or defects discovered during this inspection immediately before producing your final report.
 
 Report back with:
