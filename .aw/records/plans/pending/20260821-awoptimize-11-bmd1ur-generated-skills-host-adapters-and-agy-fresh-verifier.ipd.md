@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Generate the thinnest native host wrappers from the canonical source without duplicating semantics.
 - Scope: Generated Agent Skills + per-host adapter metadata + the agy fresh-session verifier mode + generated-parity/discovery/permission/security tests. Consumes Order 10's registry; marks nothing supported without evidence.
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 11
 - Highest E allocated: 05
@@ -14,6 +14,8 @@
 ## Workflow history
 
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
+- 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-05 E-04..E-08 into 5 right-sized E-items (generated skills, guarded per-host adapters, skill-authority restriction, agy fresh-verifier, security/parity tests); carries the host-mapping table.
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE; GO - PENDING HUMAN APPROVAL. Deps on Order 10 (registry) + Order 08 (verifier packet) are justified (it consumes both). Sound discipline: advertises nothing the Order-10 registry has not marked non-unverified; authoritative behavior never lives only in SKILL.md; agy fresh-verifier replaces same-session audit. V-01..V-05 map 1:1 with falsifiable evidence incl. security (loopback/auth, external-path, redaction). No findings. OQ-01 resolved.
 
 ## Goal
 

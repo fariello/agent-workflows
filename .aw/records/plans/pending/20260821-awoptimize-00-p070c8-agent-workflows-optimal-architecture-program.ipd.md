@@ -102,9 +102,9 @@ The old coarse Orders 02-08 are retired in `superseded/` (see their RETIRED head
 | 05 | B | `...-05-b1v3wl-deterministic-run-state-machine-and-single-writer-engine.ipd.md` | Run state machine + single-writer engine | 04 |
 | 06 | B | `...-06-ptsfjn-bounded-step-packets-outcome-envelopes-and-human-decision-ga.ipd.md` | Bounded packets + outcome envelopes + human gates | 05 |
 | 07 | B | `...-07-7yqm1v-retry-correction-resume-cancel-crash-recovery-and-run-lifecy.ipd.md` | Retry + resume + crash recovery + run lifecycle CLI | 06 |
-| 08 | C | `...-08-5hu6bd-verifier-roles-clean-packet-procedures-and-corrective-routin.ipd.md` | Verifier roles + clean packet + procedures + corrective routing | 05, 07 |
+| 08 | C | `...-08-5hu6bd-verifier-roles-clean-packet-procedures-and-corrective-routin.ipd.md` | Verifier roles + clean packet + procedures + corrective routing | 05 |
 | 09 | C | `...-09-1m5ob8-isolation-hierarchy-concurrency-eligibility-and-merge-revali.ipd.md` | Isolation hierarchy + concurrency eligibility + merge-revalidate | 08 |
-| 10 | D | `...-10-4fttzq-host-capability-evidence-registry-and-isolated-probes.ipd.md` | Capability-evidence registry + isolated probes | 05, 08 |
+| 10 | D | `...-10-4fttzq-host-capability-evidence-registry-and-isolated-probes.ipd.md` | Capability-evidence registry + isolated probes | 01, 03 |
 | 11 | D | `...-11-bmd1ur-generated-skills-host-adapters-and-agy-fresh-verifier.ipd.md` | Generated skills + host adapters + agy fresh verifier | 10 |
 | 12 | E | `...-12-1jfxvo-benchmark-corpus-seeded-tasks-and-preregistered-scoring.ipd.md` | Benchmark corpus + seeded tasks + preregistered scoring | 04, 09 |
 | 13 | E | `...-13-9ihhzr-benchmark-runners-ablations-metrics-and-reports-offline.ipd.md` | Offline runners + ablations + metrics + reports | 12 |

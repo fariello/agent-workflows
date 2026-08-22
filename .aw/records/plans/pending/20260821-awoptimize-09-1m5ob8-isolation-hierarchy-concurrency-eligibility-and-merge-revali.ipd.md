@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Use parallelism only for independent read-only work and integrate isolated mutators safely.
 - Scope: Portable isolation hierarchy (fresh/subagent/fork/same-session) + concurrency eligibility analyzer + merge-and-revalidate gates (stale-base, ownership, combined revalidation) + seeded orchestration adversarial tests (identity collision, leaked summary, worktree conflict).
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 9
 - Highest E allocated: 04
@@ -14,6 +14,8 @@
 ## Workflow history
 
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
+- 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-04 E-05..E-08 into 4 right-sized E-items (isolation hierarchy, concurrency eligibility, merge-and-revalidate, adversarial suite); carries the orchestration decision table.
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE; GO - PENDING HUMAN APPROVAL. orchestrate_isolation.py genuinely absent; deps on Order 08 (roles/packet) + Order 05 (engine) are justified. Key invariants sound: context isolation != filesystem isolation, per-lane green != integrated green, a timed-out/missing lane is a failure not a pass, fork rejected for the verifier. V-01..V-04 map 1:1 with falsifiable evidence. No findings. OQ-01 resolved.
 
 ## Goal
 

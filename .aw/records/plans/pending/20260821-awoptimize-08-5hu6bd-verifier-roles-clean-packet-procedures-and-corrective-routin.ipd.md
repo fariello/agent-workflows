@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Make independent verification an architectural role with least privilege and fresh evidence, not a second prompt in the executor's conversation.
 - Scope: Coordinator/executor/investigator/verifier/corrector/human role contracts + the clean verifier packet (frozen requirements + actual diff + raw evidence, no executor conclusion) + verification procedures + corrective-IPD routing. No concurrency/isolation machinery (Order 09).
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 8
 - Highest E allocated: 05
@@ -14,6 +14,8 @@
 ## Workflow history
 
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
+- 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-04 E-01..E-04 into 5 right-sized E-items (roles, clean verifier packet, verification procedures, corrective routing, tests); carries the cross-model-verifier OQ.
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. verify_roles.py genuinely absent; role policy is the semantic layer over Order-02 RL-E032. PR-001 (MEDIUM, architecture): the gate declared a dependency on Order 07 (recovery/CLI) that this Order consumes nothing from, needlessly serializing Layer C behind all of Layer B. FIXED: dependency corrected to Order 05 + Orders 01-04 (07 dropped) in the gate, and the orchestrator child-table cell reconciled to `05`. V-01..V-05 map 1:1 with falsifiable evidence. OQ-01 (cross-model verifier) non-blocking, deferred to the benchmark.
 
 ## Goal
 
@@ -142,4 +144,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Requires executed Orders 05 (state machine) and 07 (recovery/CLI), plus Orders 01-04 upstream. Scope fence: touch only `agent_workflows/verify_roles.py`, the verifier-packet + procedures modules it defines, and `tests/test_verify_roles_packet.py`; do NOT implement context/worktree isolation or concurrency (Order 09), host launchers (Order 11), or live model behavior - if it seems to need more, STOP and report. Product mutation by the verifier is a hard failure; a same-session audit is never authoritative V evidence. Execution contract: path-scoped commits only, never `git add -A`/`-a`, never push; paste the ACTUAL runner output; the executor may not certify its own V-items or perform a terminal transition. After every V-item is verified with concrete evidence and `aw ipd lint --phase pre-transition` conforms, perform the post-gate lifecycle transaction (workflow-history line, terminal Status, git mv to executed/, post-transition lint), dropping the `Approval:` field on the executed status. This plan requires explicit human approval before execution.
+Requires executed Order 05 (the state machine whose `verified -> complete` edge this Order's roles gate) plus Orders 01-04 upstream (the completion predicate is Order 04). It does NOT depend on Order 07 (recovery/CLI): defining verifier roles/packet/procedures consumes no Order-07 content, so Order 08 may execute once Order 05 lands, in parallel with Orders 06/07. Scope fence: touch only `agent_workflows/verify_roles.py`, the verifier-packet + procedures modules it defines, and `tests/test_verify_roles_packet.py`; do NOT implement context/worktree isolation or concurrency (Order 09), host launchers (Order 11), or live model behavior - if it seems to need more, STOP and report. Product mutation by the verifier is a hard failure; a same-session audit is never authoritative V evidence. Execution contract: path-scoped commits only, never `git add -A`/`-a`, never push; paste the ACTUAL runner output; the executor may not certify its own V-items or perform a terminal transition. After every V-item is verified with concrete evidence and `aw ipd lint --phase pre-transition` conforms, perform the post-gate lifecycle transaction (workflow-history line, terminal Status, git mv to executed/, post-transition lint), dropping the `Approval:` field on the executed status. This plan requires explicit human approval before execution.

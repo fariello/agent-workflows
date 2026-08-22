@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Replace boolean host support claims with versioned evidence that defaults to unverified.
 - Scope: The capability-evidence registry (keyed by host/version/mode/feature; unverified default) + isolated positive/negative host probes. Scoped OpenCode + Codex first; agy 1.1.17 tentative. Nothing marked supported without an operator-run live probe. No skills/adapters (Order 11).
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 10
 - Highest E allocated: 04
@@ -14,6 +14,8 @@
 ## Workflow history
 
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
+- 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-05 E-01..E-03 into 4 right-sized E-items (evidence registry with unverified-default+expiry, isolated positive probe harness, negative probes, tests); carries both resolved OQs (skill dir; agy 1.1.17).
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. host_capability_registry.py genuinely absent; the fail-closed unverified-default + positive-AND-negative-probe gate is the honest support discipline. PR-002 (MEDIUM, architecture): the gate declared deps on Order 05 (engine) + Order 08 (verifier) that this registry/probe layer consumes nothing from; its real deps are Order 01 (compiler command_descriptor/adapters it probes) + Order 03 (redaction hook it reuses). FIXED: dependency corrected to 01 + 03 in the gate, orchestrator child-table cell reconciled to `01, 03`. V-01..V-04 map 1:1 with falsifiable evidence. OQ-01/OQ-02 resolved.
 
 ## Goal
 
@@ -139,4 +141,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Requires executed Order 05 (engine) and Order 08 (roles/verifier), plus Orders 01-04 upstream. Scope fence: touch only `agent_workflows/host_capability_registry.py`, the probe-harness module it defines/upgrades, and `tests/test_host_capability_registry.py`; do NOT generate skills/adapters (Order 11), migrate workflows (Orders 14-16), or set up provider credentials - if it seems to need more, STOP and report. No host status may be promoted from documentation alone; a positive isolated live probe is required; never access the real user HOME or credentials in tests. Execution contract: path-scoped commits only, never `git add -A`/`-a`, never push; paste the ACTUAL runner output; the executor may not certify its own V-items or perform a terminal transition. After every V-item is verified with concrete evidence and `aw ipd lint --phase pre-transition` conforms, perform the post-gate lifecycle transaction (workflow-history line, terminal Status, git mv to executed/, post-transition lint), dropping the `Approval:` field on the executed status. This plan requires explicit human approval before execution.
+Requires executed Order 01 (the compiler `command_descriptor` / adapters the probes source command templates from) and Order 03 (whose redaction hook the probe evidence reuses). It does NOT depend on the runtime engine (Order 05) or the verifier roles (Order 08): a capability-evidence registry and its host probes consume neither, so Order 10 may execute once Orders 01 and 03 land, in parallel with Layers B/C. Scope fence: touch only `agent_workflows/host_capability_registry.py`, the probe-harness module it defines/upgrades, and `tests/test_host_capability_registry.py`; do NOT generate skills/adapters (Order 11), migrate workflows (Orders 14-16), or set up provider credentials - if it seems to need more, STOP and report. No host status may be promoted from documentation alone; a positive isolated live probe is required; never access the real user HOME or credentials in tests. Execution contract: path-scoped commits only, never `git add -A`/`-a`, never push; paste the ACTUAL runner output; the executor may not certify its own V-items or perform a terminal transition. After every V-item is verified with concrete evidence and `aw ipd lint --phase pre-transition` conforms, perform the post-gate lifecycle transaction (workflow-history line, terminal Status, git mv to executed/, post-transition lint), dropping the `Approval:` field on the executed status. This plan requires explicit human approval before execution.
