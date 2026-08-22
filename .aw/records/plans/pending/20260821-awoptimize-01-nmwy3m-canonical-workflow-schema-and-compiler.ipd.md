@@ -130,34 +130,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: schema fixtures cover every declared type and mutation fixtures prove each invalid invariant fails with a stable diagnostic and nonzero exit.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `tests/test_workflow_schema_compiler.py::SchemaTests` = 12 passed in 0.08s. Covers the conforming case plus each invalid invariant with its stable code: bad id, unknown intent (WF-E021), unknown field (WF-E013), duplicate requirement id (WF-E042), unknown requirement ref (WF-E055), self-dependency (WF-E057), dependency cycle (WF-E05C), forbidden terminal action (WF-E05B), read-only/allowed-path contradiction (WF-E033), missing validation (WF-E064), unknown evidence kind (WF-E045). `validate_workflow` returns typed `Finding`s; the CLI maps a non-clean result to a nonzero exit (V-06).
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: package fixtures prove concise entry files resolve protocol, steps, rubrics, templates, scripts, and examples lazily while a closure digest changes when any authoritative resource changes.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `tests/test_workflow_schema_compiler.py::SourceLayoutTests` = 5 passed in 0.10s. The example package (`tests/fixtures/workflow-src/plan-review/`: entry + protocol.md + steps/*.md) parses + validates; `semantic_digest` is stable across calls, ignores `_generated/` and `__pycache__`/`.pyc` cruft, and CHANGES on an authoritative edit; a symlink in the package is refused (SourceError). The build-time YAML import is proven not to be a runtime import (checked at Phase-A close: `yaml in sys.modules` is False after importing the modules).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: positive closure fixture loads with source locations; traversal, symlink escape, cycle, missing resource, duplicate ID, and partial parse fixtures each fail before IR emission.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `tests/test_workflow_schema_compiler.py::LoaderTests` = 5 passed in 0.12s. The fixture loads to a full IR (resources resolved with per-file sha256, digest bound to source). Fail-closed (ir is None) proven for: deleting a referenced resource (WF-L013), a traversal resource path (WF-L010), a schema-invalid entry (finding carries `plan-review:workflow.yaml` provenance), and a missing entry file (WF-L001). Cycle/duplicate-id are covered at the schema layer (SchemaTests) which the loader surfaces.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: two clean compiles are byte-identical and golden outputs contain every schema field in prompt bundle, packet, manifest, evidence, catalog, and descriptor forms.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `tests/test_workflow_schema_compiler.py::CompilerTests` = 5 passed in 0.13s. All six projections present; manifest binds the source digest; every schema field reachable across manifest/evidence/packets; TWO independent load+compile+render runs are byte-identical (`test_byte_identical_across_two_clean_runs`); generated JSON is sorted + compact (`test_generated_json_is_sorted_and_compact`).
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: profile ablations that remove or alter a MUST, scope fence, stop condition, or validation predicate fail; permitted transport/format/packet knobs preserve the semantic digest.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `tests/test_workflow_schema_compiler.py::ProfileParityTests` = 6 passed in 0.11s. A transport-only variant (prompt annotation + packet-body truncation) preserves the semantic digest (parity ok); dropping a validation, widening the scope fence (planning-only->product), and changing a step's dependency shape are each REJECTED with a precise reason; an invalid profile key is rejected; a valid transport profile is accepted.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: captured CLI fixtures show stable human/JSON/agent output, no ANSI in machine modes, exit 0 only on success, distinct nonzero invalid/drift failures, and no writes from validate/check-generated.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: `tests/test_workflow_schema_compiler.py::CliDriftTests` = 7 passed in 0.17s. Through the CLI entry point: validate clean = exit 0; bad path = exit 2 (distinct invocation error); compile dry-run creates no `_generated/`; compile --apply then check-generated = exit 0; a hand-edited generated file = exit 1 with `changed`; an unexpected generated file = exit 1 with `unexpected`; `--agent` output is valid JSONL with no ANSI escapes. Manually confirmed the same via `python3 -m agent_workflows workflow ...` during E-06.
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: focused, property, golden, path-safety, source-map, round-trip, and generated-drift tests pass; deleting one required resource and hand-editing one generated adapter make the named tests fail.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the whole new module `tests/test_workflow_schema_compiler.py` = 40 passed in 0.28s, and it is part of the FULL serial suite which is green: `python3 -m pytest tests/ -n auto` -> `1300 passed, 1 skipped in 47.12s` (canonical `make test`). The two named acceptance behaviors are dedicated tests: `LoaderTests::test_deleting_required_resource_fails_closed` and `CliDriftTests::test_check_generated_detects_hand_edit` (a hand-edited generated adapter drives exit 1). No product regression: the full suite passed after fixing the one regression I introduced (workflow subparser descriptions).
+  - Result: pass
 
 
 ## Approval and execution gate
