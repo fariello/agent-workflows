@@ -1,9 +1,10 @@
 """Run-ledger + evidence-contract schemas: the typed record vocabulary for durable execution facts.
 
-awoptimize Order 02 (`7qs57e`) E-01. Defines versioned, typed schemas for every state-changing record
+awoptimize Order 02 (`viuzu4`) E-01. Defines versioned, typed schemas for every state-changing record
 in a workflow run, so what was REQUIRED, ATTEMPTED, OBSERVED, and independently VERIFIED are separate
-durable facts rather than a model's prose. This is the type layer; the append-only store (E-03),
-evidence capture (E-04), validators (E-05), and completion predicates (E-06) build on it.
+durable facts rather than a model's prose. This is the type layer; the append-only store (Order 03),
+evidence capture + validators + completion predicates (Order 04) build on it, and requirement freezing
+lives beside it in run_freeze.py (Order 02 E-04/E-05).
 
 Record kinds (each carries actor role, timestamps, exact repo/worktree identity, causal parent, and
 schema version, so a record is attributable and reproducible):
