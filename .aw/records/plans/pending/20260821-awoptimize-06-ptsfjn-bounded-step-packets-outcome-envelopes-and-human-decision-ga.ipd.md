@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Release only bounded just-in-time work and never synthesize human consent.
 - Scope: Bounded JIT step packets + structured outcome envelopes + human decision gates (headless needs_input, no synthesized consent). No retry/recovery (Order 07).
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 6
 - Highest E allocated: 04
@@ -14,6 +14,8 @@
 ## Workflow history
 
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
+- 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-03 E-03/E-04/E-05 into 4 right-sized E-items (bounded JIT packet rendering, evidence-linked outcome envelopes, human decision gates, tests).
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. run_packet.py genuinely absent; envelope correctly rejects unsupported prose; gates enforce needs_input + no synthesized consent. PR-001 (LOW): the human-gate module was unnamed in E-03 and the scope fence; FIXED by naming it `agent_workflows/run_gates.py` in both. V-01..V-04 map 1:1 with falsifiable evidence. OQ-01 resolved.
 
 ## Goal
 
@@ -42,7 +44,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: human gates
 
-- [ ] E-03 Implement human decision gates: explicit options, a declared default, a timeout policy, non-interactive refusal, and recorded authorization; consent is NEVER synthesized. A headless run reaching a gate stops with a stable `needs_input` result before any gated side effect.
+- [ ] E-03 Implement human decision gates in `agent_workflows/run_gates.py`: explicit options, a declared default, a timeout policy, non-interactive refusal, and recorded authorization; consent is NEVER synthesized. A headless run reaching a gate stops with a stable `needs_input` result before any gated side effect.
   - Depends on: E-02
   - Expected outcome: interactive fixtures record each choice; a headless/non-interactive run stops at `needs_input` with no gated side effect performed; timeout follows the declared policy; no default consent is invented.
   - Execution state: pending
@@ -134,4 +136,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Requires executed Order 05 (the engine that releases the step this Order renders), and Orders 01-04 upstream. Scope fence: touch only `agent_workflows/run_packet.py`, the human-gate module, and `tests/test_run_packet_gates.py`; do NOT implement scheduling/state transitions (Order 05), recovery/CLI (Order 07), or evidence capture (Order 04) - if it seems to need more, STOP and report. Never synthesize human consent; a headless gated run must stop at `needs_input`. Execution contract: path-scoped commits only, never `git add -A`/`-a`, never push; paste the ACTUAL runner output; the executor may not certify its own V-items or perform a terminal transition. After every V-item is verified with concrete evidence and `aw ipd lint --phase pre-transition` conforms, perform the post-gate lifecycle transaction (workflow-history line, terminal Status, git mv to executed/, post-transition lint), dropping the `Approval:` field on the executed status. This plan requires explicit human approval before execution.
+Requires executed Order 05 (the engine that releases the step this Order renders), and Orders 01-04 upstream. Scope fence: touch only `agent_workflows/run_packet.py`, `agent_workflows/run_gates.py`, and `tests/test_run_packet_gates.py`; do NOT implement scheduling/state transitions (Order 05), recovery/CLI (Order 07), or evidence capture (Order 04) - if it seems to need more, STOP and report. Never synthesize human consent; a headless gated run must stop at `needs_input`. Execution contract: path-scoped commits only, never `git add -A`/`-a`, never push; paste the ACTUAL runner output; the executor may not certify its own V-items or perform a terminal transition. After every V-item is verified with concrete evidence and `aw ipd lint --phase pre-transition` conforms, perform the post-gate lifecycle transaction (workflow-history line, terminal Status, git mv to executed/, post-transition lint), dropping the `Approval:` field on the executed status. This plan requires explicit human approval before execution.

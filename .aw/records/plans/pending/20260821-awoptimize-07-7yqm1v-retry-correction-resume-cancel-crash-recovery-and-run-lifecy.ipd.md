@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Make a run resumable, retry-bounded, and crash-safe, and expose the run lifecycle through the CLI.
 - Scope: Bounded retry/correction states + resume/cancel/crash recovery from the ledger (idempotency keys, unknown_outcome) + aw run start|next|record|resume|cancel|status|finalize + model-free simulations of the whole state space.
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 7
 - Highest E allocated: 04
@@ -14,6 +14,8 @@
 ## Workflow history
 
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
+- 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-03 E-06..E-09 into 4 right-sized E-items (bounded retry/correction, resume/cancel/crash recovery, aw run lifecycle CLI, model-free full-state-space simulations); carries the resolved JSONL runtime-index OQ. E-03 records the `aw run` group ownership (EXTENDS Order 04's group) per the Layer-A PR-001 resolution.
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. run_recovery.py genuinely absent; the aw run group-ownership resolution (EXTEND Order 04's group, do not re-register) is coherent and confirmed. PR-002 (LOW): the `aw run` CLI module was unnamed in E-03 and the scope fence; FIXED by naming `agent_workflows/run_cli.py` (the Order-04-owned module) in both. Recovery invariants sound (idempotency + unknown_outcome, no silent rerun; predicate-gated coordinator-only finalize). V-01..V-04 map 1:1 with falsifiable evidence. OQ-01 (runtime index = JSONL) resolved.
 
 ## Goal
 
@@ -43,7 +45,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: run lifecycle CLI
 
-- [ ] E-03 EXTEND the existing `aw run` command group (created by Order 04, which owns the parser-group registration) with the mutating `start|next|record|resume|cancel|status|finalize` subcommands; ADD to the group, do NOT re-register it. Wire via the `run_cli`-style module `agent_workflows/cli.py` uses; human + JSON/agent modes; the runtime INDEX over the ledger is append-only JSONL (per OQ-01); `finalize` calls the Order-04 completion predicate and requires coordinator authority.
+- [ ] E-03 EXTEND the existing `aw run` command group (created by Order 04, which owns the parser-group registration) with the mutating `start|next|record|resume|cancel|status|finalize` subcommands; ADD to the group, do NOT re-register it. Wire via `agent_workflows/run_cli.py` (the module Order 04 created and `agent_workflows/cli.py` registers); human + JSON/agent modes; the runtime INDEX over the ledger is append-only JSONL (per OQ-01); `finalize` calls the Order-04 completion predicate and requires coordinator authority.
   - Depends on: E-02
   - Expected outcome: the seven lifecycle subcommands are added to the Order-04-created `aw run` group with no duplicate-group registration; each has stable behavior and ANSI-free machine output; exit codes distinguish complete / incomplete / blocked / invalid-evidence / corrupted-ledger / operational-failure; `finalize` refuses an incomplete/invalid/unauthorized run and succeeds only after the Order-04 predicates pass.
   - Execution state: pending
@@ -136,4 +138,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Requires executed Orders 05 (engine) and 06 (packets/gates), plus Orders 01-04 upstream. Scope fence: touch only `agent_workflows/run_recovery.py`, the `aw run` CLI module + its wiring in `agent_workflows/cli.py`, and `tests/test_run_recovery_cli.py`; do NOT define the state machine (Order 05), render packets (Order 06), or define the completion predicate (Order 04) - if it seems to need more, STOP and report. Never silently rerun a potentially-completed destructive action (use `unknown_outcome` + reconciliation); `finalize` is coordinator-authority-only and predicate-gated. Execution contract: path-scoped commits only, never `git add -A`/`-a`, never push; paste the ACTUAL runner output; the executor may not certify its own V-items or perform a terminal transition. After every V-item is verified with concrete evidence and `aw ipd lint --phase pre-transition` conforms, perform the post-gate lifecycle transaction (workflow-history line, terminal Status, git mv to executed/, post-transition lint), dropping the `Approval:` field on the executed status. This plan requires explicit human approval before execution.
+Requires executed Orders 05 (engine) and 06 (packets/gates), plus Orders 01-04 upstream. Scope fence: touch only `agent_workflows/run_recovery.py`, `agent_workflows/run_cli.py` (the Order-04-owned `aw run` CLI module, EXTENDED here - add subcommands, do not re-register the group) + its wiring in `agent_workflows/cli.py`, and `tests/test_run_recovery_cli.py`; do NOT define the state machine (Order 05), render packets (Order 06), or define the completion predicate (Order 04) - if it seems to need more, STOP and report. Never silently rerun a potentially-completed destructive action (use `unknown_outcome` + reconciliation); `finalize` is coordinator-authority-only and predicate-gated. Execution contract: path-scoped commits only, never `git add -A`/`-a`, never push; paste the ACTUAL runner output; the executor may not certify its own V-items or perform a terminal transition. After every V-item is verified with concrete evidence and `aw ipd lint --phase pre-transition` conforms, perform the post-gate lifecycle transaction (workflow-history line, terminal Status, git mv to executed/, post-transition lint), dropping the `Approval:` field on the executed status. This plan requires explicit human approval before execution.
