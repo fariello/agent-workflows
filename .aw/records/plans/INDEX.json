@@ -2397,77 +2397,177 @@
     "path": "pending/20260821-awoptimize-00-p070c8-agent-workflows-optimal-architecture-program.ipd.md",
     "plan_id": "p070c8",
     "set_id": "awoptimize",
-    "status": "approved"
+    "status": "to-review"
   },
   {
     "date": "2026-08-21",
     "disposition": "pending",
     "kind": "child",
     "order": 2,
-    "path": "pending/20260821-awoptimize-02-7qs57e-run-ledger-and-evidence-contract.ipd.md",
-    "plan_id": "7qs57e",
+    "path": "pending/20260821-awoptimize-02-viuzu4-ledger-and-evidence-record-schemas-and-requirement-freeze.ipd.md",
+    "plan_id": "viuzu4",
     "set_id": "awoptimize",
-    "status": "approved"
+    "status": "draft"
   },
   {
     "date": "2026-08-21",
     "disposition": "pending",
     "kind": "child",
     "order": 3,
-    "path": "pending/20260821-awoptimize-03-7cqbel-deterministic-workflow-runtime.ipd.md",
-    "plan_id": "7cqbel",
+    "path": "pending/20260821-awoptimize-03-6psux0-append-only-tamper-evident-run-ledger-store.ipd.md",
+    "plan_id": "6psux0",
     "set_id": "awoptimize",
-    "status": "approved"
+    "status": "draft"
   },
   {
     "date": "2026-08-21",
     "disposition": "pending",
     "kind": "child",
     "order": 4,
-    "path": "pending/20260821-awoptimize-04-mcubhc-independent-verification-and-orchestration.ipd.md",
-    "plan_id": "mcubhc",
+    "path": "pending/20260821-awoptimize-04-yndh7k-evidence-capture-validators-completion-predicates-and-run-in.ipd.md",
+    "plan_id": "yndh7k",
     "set_id": "awoptimize",
-    "status": "approved"
+    "status": "draft"
   },
   {
     "date": "2026-08-21",
     "disposition": "pending",
     "kind": "child",
     "order": 5,
-    "path": "pending/20260821-awoptimize-05-5elu0u-host-adapters-skills-and-capability-registry.ipd.md",
-    "plan_id": "5elu0u",
+    "path": "pending/20260821-awoptimize-05-b1v3wl-deterministic-run-state-machine-and-single-writer-engine.ipd.md",
+    "plan_id": "b1v3wl",
     "set_id": "awoptimize",
-    "status": "reviewed"
+    "status": "draft"
   },
   {
     "date": "2026-08-21",
     "disposition": "pending",
     "kind": "child",
     "order": 6,
-    "path": "pending/20260821-awoptimize-06-ozlus1-behavioral-benchmark-and-regression-harness.ipd.md",
-    "plan_id": "ozlus1",
+    "path": "pending/20260821-awoptimize-06-ptsfjn-bounded-step-packets-outcome-envelopes-and-human-decision-ga.ipd.md",
+    "plan_id": "ptsfjn",
     "set_id": "awoptimize",
-    "status": "reviewed"
+    "status": "draft"
   },
   {
     "date": "2026-08-21",
     "disposition": "pending",
     "kind": "child",
     "order": 7,
-    "path": "pending/20260821-awoptimize-07-01iuql-workflow-family-migration.ipd.md",
-    "plan_id": "01iuql",
+    "path": "pending/20260821-awoptimize-07-7yqm1v-retry-correction-resume-cancel-crash-recovery-and-run-lifecy.ipd.md",
+    "plan_id": "7yqm1v",
     "set_id": "awoptimize",
-    "status": "reviewed"
+    "status": "draft"
   },
   {
     "date": "2026-08-21",
     "disposition": "pending",
     "kind": "child",
     "order": 8,
-    "path": "pending/20260821-awoptimize-08-kk41rr-compatibility-documentation-and-cutover.ipd.md",
-    "plan_id": "kk41rr",
+    "path": "pending/20260821-awoptimize-08-5hu6bd-verifier-roles-clean-packet-procedures-and-corrective-routin.ipd.md",
+    "plan_id": "5hu6bd",
     "set_id": "awoptimize",
-    "status": "reviewed"
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 9,
+    "path": "pending/20260821-awoptimize-09-1m5ob8-isolation-hierarchy-concurrency-eligibility-and-merge-revali.ipd.md",
+    "plan_id": "1m5ob8",
+    "set_id": "awoptimize",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 10,
+    "path": "pending/20260821-awoptimize-10-4fttzq-host-capability-evidence-registry-and-isolated-probes.ipd.md",
+    "plan_id": "4fttzq",
+    "set_id": "awoptimize",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 11,
+    "path": "pending/20260821-awoptimize-11-bmd1ur-generated-skills-host-adapters-and-agy-fresh-verifier.ipd.md",
+    "plan_id": "bmd1ur",
+    "set_id": "awoptimize",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 12,
+    "path": "pending/20260821-awoptimize-12-1jfxvo-benchmark-corpus-seeded-tasks-and-preregistered-scoring.ipd.md",
+    "plan_id": "1jfxvo",
+    "set_id": "awoptimize",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 13,
+    "path": "pending/20260821-awoptimize-13-9ihhzr-benchmark-runners-ablations-metrics-and-reports-offline.ipd.md",
+    "plan_id": "9ihhzr",
+    "set_id": "awoptimize",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 14,
+    "path": "pending/20260821-awoptimize-14-h1d5aa-migration-disposition-inventory-and-shared-family-migration.ipd.md",
+    "plan_id": "h1d5aa",
+    "set_id": "awoptimize",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 15,
+    "path": "pending/20260821-awoptimize-15-kh91or-complex-orchestrated-workflow-migration.ipd.md",
+    "plan_id": "kh91or",
+    "set_id": "awoptimize",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 16,
+    "path": "pending/20260821-awoptimize-16-g6zjao-compact-workflow-migration-generated-shims-and-promotion-gat.ipd.md",
+    "plan_id": "g6zjao",
+    "set_id": "awoptimize",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 17,
+    "path": "pending/20260821-awoptimize-17-gnfkh8-compatibility-contract-migration-rollback-and-deprecation.ipd.md",
+    "plan_id": "gnfkh8",
+    "set_id": "awoptimize",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 18,
+    "path": "pending/20260821-awoptimize-18-0zst62-documentation-security-hardening-lifecycle-fixtures-and-rele.ipd.md",
+    "plan_id": "0zst62",
+    "set_id": "awoptimize",
+    "status": "draft"
   },
   {
     "date": "2026-08-07",
@@ -2477,6 +2577,76 @@
     "path": "superseded/20260807-ipd-history-01-wrt0wq-ipd-lifecycle-history-tracking.ipd.md",
     "plan_id": "wrt0wq",
     "set_id": "ipd-history",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 2,
+    "path": "superseded/20260821-awoptimize-02-7qs57e-run-ledger-and-evidence-contract.ipd.md",
+    "plan_id": "7qs57e",
+    "set_id": "awoptimize",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 3,
+    "path": "superseded/20260821-awoptimize-03-7cqbel-deterministic-workflow-runtime.ipd.md",
+    "plan_id": "7cqbel",
+    "set_id": "awoptimize",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 4,
+    "path": "superseded/20260821-awoptimize-04-mcubhc-independent-verification-and-orchestration.ipd.md",
+    "plan_id": "mcubhc",
+    "set_id": "awoptimize",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 5,
+    "path": "superseded/20260821-awoptimize-05-5elu0u-host-adapters-skills-and-capability-registry.ipd.md",
+    "plan_id": "5elu0u",
+    "set_id": "awoptimize",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 6,
+    "path": "superseded/20260821-awoptimize-06-ozlus1-behavioral-benchmark-and-regression-harness.ipd.md",
+    "plan_id": "ozlus1",
+    "set_id": "awoptimize",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 7,
+    "path": "superseded/20260821-awoptimize-07-01iuql-workflow-family-migration.ipd.md",
+    "plan_id": "01iuql",
+    "set_id": "awoptimize",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 8,
+    "path": "superseded/20260821-awoptimize-08-kk41rr-compatibility-documentation-and-cutover.ipd.md",
+    "plan_id": "kk41rr",
+    "set_id": "awoptimize",
     "status": "superseded"
   }
 ]

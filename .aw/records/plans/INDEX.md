@@ -8,13 +8,30 @@ Showing the 40 most-recent of 107 Sets; the full manifest is INDEX.json.
 
 - `p070c8` [pending] 00 pending/20260821-awoptimize-00-p070c8-agent-workflows-optimal-architecture-program.ipd.md
 - `nmwy3m` [executed] 01 executed/20260821-awoptimize-01-nmwy3m-canonical-workflow-schema-and-compiler.ipd.md
-- `7qs57e` [pending] 02 pending/20260821-awoptimize-02-7qs57e-run-ledger-and-evidence-contract.ipd.md
-- `7cqbel` [pending] 03 pending/20260821-awoptimize-03-7cqbel-deterministic-workflow-runtime.ipd.md
-- `mcubhc` [pending] 04 pending/20260821-awoptimize-04-mcubhc-independent-verification-and-orchestration.ipd.md
-- `5elu0u` [pending] 05 pending/20260821-awoptimize-05-5elu0u-host-adapters-skills-and-capability-registry.ipd.md
-- `ozlus1` [pending] 06 pending/20260821-awoptimize-06-ozlus1-behavioral-benchmark-and-regression-harness.ipd.md
-- `01iuql` [pending] 07 pending/20260821-awoptimize-07-01iuql-workflow-family-migration.ipd.md
-- `kk41rr` [pending] 08 pending/20260821-awoptimize-08-kk41rr-compatibility-documentation-and-cutover.ipd.md
+- `viuzu4` [pending] 02 pending/20260821-awoptimize-02-viuzu4-ledger-and-evidence-record-schemas-and-requirement-freeze.ipd.md
+- `7qs57e` [superseded] 02 superseded/20260821-awoptimize-02-7qs57e-run-ledger-and-evidence-contract.ipd.md
+- `6psux0` [pending] 03 pending/20260821-awoptimize-03-6psux0-append-only-tamper-evident-run-ledger-store.ipd.md
+- `7cqbel` [superseded] 03 superseded/20260821-awoptimize-03-7cqbel-deterministic-workflow-runtime.ipd.md
+- `yndh7k` [pending] 04 pending/20260821-awoptimize-04-yndh7k-evidence-capture-validators-completion-predicates-and-run-in.ipd.md
+- `mcubhc` [superseded] 04 superseded/20260821-awoptimize-04-mcubhc-independent-verification-and-orchestration.ipd.md
+- `b1v3wl` [pending] 05 pending/20260821-awoptimize-05-b1v3wl-deterministic-run-state-machine-and-single-writer-engine.ipd.md
+- `5elu0u` [superseded] 05 superseded/20260821-awoptimize-05-5elu0u-host-adapters-skills-and-capability-registry.ipd.md
+- `ptsfjn` [pending] 06 pending/20260821-awoptimize-06-ptsfjn-bounded-step-packets-outcome-envelopes-and-human-decision-ga.ipd.md
+- `ozlus1` [superseded] 06 superseded/20260821-awoptimize-06-ozlus1-behavioral-benchmark-and-regression-harness.ipd.md
+- `7yqm1v` [pending] 07 pending/20260821-awoptimize-07-7yqm1v-retry-correction-resume-cancel-crash-recovery-and-run-lifecy.ipd.md
+- `01iuql` [superseded] 07 superseded/20260821-awoptimize-07-01iuql-workflow-family-migration.ipd.md
+- `5hu6bd` [pending] 08 pending/20260821-awoptimize-08-5hu6bd-verifier-roles-clean-packet-procedures-and-corrective-routin.ipd.md
+- `kk41rr` [superseded] 08 superseded/20260821-awoptimize-08-kk41rr-compatibility-documentation-and-cutover.ipd.md
+- `1m5ob8` [pending] 09 pending/20260821-awoptimize-09-1m5ob8-isolation-hierarchy-concurrency-eligibility-and-merge-revali.ipd.md
+- `4fttzq` [pending] 10 pending/20260821-awoptimize-10-4fttzq-host-capability-evidence-registry-and-isolated-probes.ipd.md
+- `bmd1ur` [pending] 11 pending/20260821-awoptimize-11-bmd1ur-generated-skills-host-adapters-and-agy-fresh-verifier.ipd.md
+- `1jfxvo` [pending] 12 pending/20260821-awoptimize-12-1jfxvo-benchmark-corpus-seeded-tasks-and-preregistered-scoring.ipd.md
+- `9ihhzr` [pending] 13 pending/20260821-awoptimize-13-9ihhzr-benchmark-runners-ablations-metrics-and-reports-offline.ipd.md
+- `h1d5aa` [pending] 14 pending/20260821-awoptimize-14-h1d5aa-migration-disposition-inventory-and-shared-family-migration.ipd.md
+- `kh91or` [pending] 15 pending/20260821-awoptimize-15-kh91or-complex-orchestrated-workflow-migration.ipd.md
+- `g6zjao` [pending] 16 pending/20260821-awoptimize-16-g6zjao-compact-workflow-migration-generated-shims-and-promotion-gat.ipd.md
+- `gnfkh8` [pending] 17 pending/20260821-awoptimize-17-gnfkh8-compatibility-contract-migration-rollback-and-deprecation.ipd.md
+- `0zst62` [pending] 18 pending/20260821-awoptimize-18-0zst62-documentation-security-hardening-lifecycle-fixtures-and-rele.ipd.md
 
 ## awhistignore
 

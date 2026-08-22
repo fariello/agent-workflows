@@ -4,12 +4,11 @@
 - Kind: orchestrator
 - Concern: Replace prose-only workflow compliance with a portable, evidence-gated execution architecture that remains usable across models and coding-agent hosts.
 - Scope: Orchestration only for Set `awoptimize`; Orders 01 through 08 own implementation. This Set may change workflow metadata, runtime and conformance tooling, generated host adapters, tests, and documentation, but no child may silently expand beyond its declared files.
-- Status: approved
+- Status: to-review
 - Set: awoptimize
 - Order: 0
 - Highest E allocated: 10
 - Author: Codex GPT-5.6 Sol
-- Approval: approved by Gabriele Fariello 2026-08-21
 - Id: p070c8
 
 ## Workflow history
@@ -17,6 +16,7 @@
 - 2026-08-21 draft (Codex GPT-5.6 Sol): created from the pinned repository audit at commit `a2110e96b980fbf778027f1676a73774cb819292`, official host documentation, and the repository-observed false-completion incidents.
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. PR-A size assessment corrected exception->standard (10 leaves/1 group, neither threshold exceeded); PR-B canonical full-suite evidence command pinned to `make test` (parallel `pytest -n auto`, ~0:40 vs ~4:20 serial; D138). Foundational evidence verified against the tree (agy_run.py same-session audit, ipd_lint.py structure-only boundary, awlayout incident record, conformance operator-protocol/host_matrix.json all confirmed). Set scope accounting sound (8 children form a schema->evidence->runtime->verification->hosts->benchmark->migration->cutover DAG).
 - 2026-08-21 approved (Gabriele Fariello, --by-human): human sign-off recorded for the FOUNDATIONAL scope of the Set (this orchestrator + Orders 01-04, the deterministic offline model-free critical path). Orders 05-08 remain `reviewed` (GO - pending human approval), to be approved once their live host/model probes and benchmark evidence are in hand. Execution proceeds in dependency order via /ipd-lifecycle; live model/host calls are operator-run, never executor-run.
+- 2026-08-21 amended + re-scoped (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): the tail was re-scoped from 7 coarse Orders (old 02-08, retired to superseded/) into 17 right-sized children (new Orders 02-18) per the maintainer-approved re-scope proposal and backlog `8iy2dk`. The orchestrator's gates were rewritten to coordinate by architectural LAYER (A-G) rather than one leaf per child; the child table, completion criteria, and cross-IPD validation now describe the 19-Order Set. Because the orchestrator's content changed materially, its prior human approval is withdrawn and Status reverts to `to-review` pending re-review (/plan-review) + fresh human approval. Order 01 (executed) is unaffected.
 
 ## Goal
 
@@ -39,68 +39,85 @@ Architectural invariants:
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.
 
-### Program gates
+### Program gates (one per architectural LAYER; the fine-grained per-Order DAG is in the child table below)
 
-- [ ] E-01 Establish and freeze the baseline inventory, current failure taxonomy, architecture decision record, stable requirement catalog, and acceptance-scenario ownership map before Order 01 begins.
+Note (2026-08-21 re-scope): the tail was re-scoped from 7 coarse Orders (old 02-08, now in
+`superseded/`) into 17 right-sized children (new Orders 02-18), each authored to the one-observable-
+action-per-E-item bar (backlog `8iy2dk`). Order 01 (schema+compiler) is already `executed`. To keep
+THIS orchestrator itself right-sized, its gates coordinate by LAYER (A-G), not one leaf per child;
+each layer gate drives its member Orders through the full lifecycle (author -> /plan-review -> human
+approval -> execute -> independent verification -> transition) in the child-table dependency order.
+
+- [ ] E-01 Establish and freeze the baseline: architecture decision record (D139), the re-scope map (superseded old 02-08 -> new 02-18), and the layer dependency graph, before Layer A begins.
   - Depends on: none
-  - Expected outcome: every later child consumes one reviewed baseline and cannot redefine the program's goals or evidence standard.
+  - Expected outcome: every child consumes one reviewed baseline + numbering plan; no child can redefine the program's goals or evidence standard, and Order 01's executed artifacts are the fixed foundation.
   - Execution state: pending
-- [ ] E-02 Execute and independently validate Order 01, then freeze the canonical schema, compiler contract, and generated-artifact drift policy.
+- [ ] E-02 Drive Layer A (evidence substrate): Orders 02 (record schemas + requirement freeze), 03 (append-only tamper-evident ledger store), 04 (evidence capture + validators + completion predicates + inspection CLI), each through the full lifecycle in dependency order.
   - Depends on: E-01
-  - Expected outcome: subsequent children import a versioned schema and compiled intermediate representation instead of parsing prose ad hoc.
+  - Expected outcome: a completion claim is a deterministic predicate over frozen requirements + valid append-only evidence, not a model's word; all three Orders reach executed.
   - Execution state: pending
-- [ ] E-03 Execute and independently validate Order 02 after Order 01.
+- [ ] E-03 Drive Layer B (runtime): Orders 05 (state machine + single-writer engine), 06 (bounded packets + outcome envelopes + human gates), 07 (retry + resume + crash recovery + run lifecycle CLI), each through the full lifecycle.
   - Depends on: E-02
-  - Expected outcome: an append-only run ledger and evidence contract exist before any runtime claims completion.
+  - Expected outcome: sequencing, resumability, transition guards, and fail-closed behavior live in deterministic code over the Layer A ledger, not in model memory; all three reach executed.
   - Execution state: pending
-- [ ] E-04 Execute and independently validate Order 03 after Orders 01 and 02.
+- [ ] E-04 Drive Layer C (verification + isolation): Orders 08 (verifier roles + clean packet + procedures + corrective routing), 09 (isolation hierarchy + concurrency eligibility + merge-revalidate), each through the full lifecycle.
   - Depends on: E-03
-  - Expected outcome: deterministic orchestration, resumability, transition guards, and fail-closed exit behavior consume the canonical schema and ledger.
+  - Expected outcome: execution, review, and correction authorities are separated; independent verification runs on frozen requirements + actual diff + raw evidence; both reach executed.
   - Execution state: pending
-- [ ] E-05 Execute and independently validate Order 04 after Orders 01 through 03.
+- [ ] E-05 Drive Layer D (hosts): Orders 10 (capability-evidence registry + isolated probes), 11 (generated skills + host adapters + agy fresh verifier), each through the full lifecycle.
   - Depends on: E-04
-  - Expected outcome: execution, review, correction, and terminal-transition authorities are separated with portable fallback behavior.
+  - Expected outcome: native adapters/skills are generated only for evidence-backed capabilities (unverified by default); both reach executed with no unproven support claim.
   - Execution state: pending
-- [ ] E-06 Execute and independently validate Order 05 after Orders 01, 03, and 04.
+- [ ] E-06 Drive Layer E (evaluation): Orders 12 (benchmark corpus + preregistered scoring), 13 (offline runners + ablations + metrics + reports), each through the full lifecycle.
   - Depends on: E-05
-  - Expected outcome: native host adapters and skills are generated only for evidence-backed capabilities and preserve canonical semantics.
+  - Expected outcome: the offline benchmark quantifies completion, evidence truth, drift, and cost by exact configuration; live model runs remain operator-run; both reach executed.
   - Execution state: pending
-- [ ] E-07 Execute and independently validate Order 06 after Orders 01 through 05.
+- [ ] E-07 Drive Layer F (migration): Orders 14 (disposition inventory + shared family migration), 15 (complex orchestrated migration), 16 (compact migration + shims + promotion gates), each through the full lifecycle.
   - Depends on: E-06
-  - Expected outcome: offline smoke fixtures and controlled live-model evaluations quantify completion, evidence truth, drift, and cost by exact configuration.
+  - Expected outcome: every catalog workflow has an explicit disposition and migrated families pass their per-family benchmark promotion gates without semantic loss; all three reach executed.
   - Execution state: pending
-- [ ] E-08 Execute and independently validate Order 07 after Orders 01 through 06.
+- [ ] E-08 Drive Layer G (cutover): Orders 17 (compatibility + migration + rollback + deprecation), 18 (docs + security + lifecycle fixtures + release-readiness), each through the full lifecycle.
   - Depends on: E-07
-  - Expected outcome: every catalog workflow has an explicit disposition and the selected families run through the new architecture without semantic loss.
+  - Expected outcome: compatibility, rollback, documentation, security, and a GO/NO-GO release-readiness review are complete without any publish/tag/push; both reach executed.
   - Execution state: pending
-- [ ] E-09 Execute and independently validate Order 08 after Orders 01 through 07.
+- [ ] E-09 Perform the final whole-Set residual audit from a clean checkout: full suite, `aw ipd lint --all`, leak scan, compiler drift check, host-adapter fixtures, benchmark thresholds, complete workflow-disposition coverage, and archive-quality evidence retention.
   - Depends on: E-08
-  - Expected outcome: compatibility, documentation, migration, rollback, release boundary, and cutover gates are complete.
-  - Execution state: pending
-- [ ] E-10 Perform the final whole-Set residual audit from a clean checkout, including full suite, IPD lint, leak scan, compiler drift check, host adapter fixtures, benchmark thresholds, complete workflow disposition coverage, and archive-quality evidence retention.
-  - Depends on: E-09
-  - Expected outcome: no open critical requirement, unsupported capability claim, generated drift, red required check, or unassigned workflow remains.
+  - Expected outcome: no open critical requirement, unsupported capability claim, generated drift, red required check, or unassigned workflow remains across all 17 children.
   - Execution state: pending
 
 ## Child IPDs, sequence, and dependencies
 
 The `Depends on` column names earlier child Orders. Each child's internal `Depends on` metadata names E-item prerequisites inside that child.
 
-| Order | File | Bounded responsibility | Depends on |
-|---:|---|---|---|
-| 01 | `20260821-awoptimize-01-nmwy3m-canonical-workflow-schema-and-compiler.ipd.md` | Typed workflow schema, canonical source layout, compiler, generated-artifact parity | none |
-| 02 | `20260821-awoptimize-02-7qs57e-run-ledger-and-evidence-contract.ipd.md` | Requirement freeze, run ledger, evidence envelopes, completion predicates | 01 |
-| 03 | `20260821-awoptimize-03-7cqbel-deterministic-workflow-runtime.ipd.md` | State machine, step packets, resume/retry, interaction and terminal gates | 01, 02 |
-| 04 | `20260821-awoptimize-04-mcubhc-independent-verification-and-orchestration.ipd.md` | Role separation, isolated verifier, subagent and worktree policy, corrective loop | 01, 02, 03 |
-| 05 | `20260821-awoptimize-05-5elu0u-host-adapters-skills-and-capability-registry.ipd.md` | Skills, slash commands, agents, host/version capability evidence | 01, 03, 04 |
-| 06 | `20260821-awoptimize-06-ozlus1-behavioral-benchmark-and-regression-harness.ipd.md` | Seeded tasks, ablations, live-model matrix, metrics, release thresholds | 01 through 05 |
-| 07 | `20260821-awoptimize-07-01iuql-workflow-family-migration.ipd.md` | Per-workflow disposition and migration of complex, shared-harness, and simple families | 01 through 06 |
-| 08 | `20260821-awoptimize-08-kk41rr-compatibility-documentation-and-cutover.ipd.md` | Compatibility, operator docs, migration, rollback, release and cutover | 01 through 07 |
+Layers: A evidence-substrate (02-04), B runtime (05-07), C verification+isolation (08-09),
+D hosts (10-11), E evaluation (12-13), F migration (14-16), G cutover (17-18). Order 01 is executed.
+The old coarse Orders 02-08 are retired in `superseded/` (see their RETIRED headers).
+
+| Order | Layer | File | Bounded responsibility | Depends on |
+|---:|:--:|---|---|---|
+| 01 | - | `...-01-nmwy3m-canonical-workflow-schema-and-compiler.ipd.md` (EXECUTED) | Typed workflow schema, source layout, compiler, drift check | none |
+| 02 | A | `...-02-viuzu4-ledger-and-evidence-record-schemas-and-requirement-freeze.ipd.md` | Ledger/evidence record schemas + requirement freeze | 01 |
+| 03 | A | `...-03-6psux0-append-only-tamper-evident-run-ledger-store.ipd.md` | Append-only tamper-evident ledger store | 02 |
+| 04 | A | `...-04-yndh7k-evidence-capture-validators-completion-predicates-and-run-in.ipd.md` | Evidence capture + validators + completion predicates + inspection CLI | 03 |
+| 05 | B | `...-05-b1v3wl-deterministic-run-state-machine-and-single-writer-engine.ipd.md` | Run state machine + single-writer engine | 04 |
+| 06 | B | `...-06-ptsfjn-bounded-step-packets-outcome-envelopes-and-human-decision-ga.ipd.md` | Bounded packets + outcome envelopes + human gates | 05 |
+| 07 | B | `...-07-7yqm1v-retry-correction-resume-cancel-crash-recovery-and-run-lifecy.ipd.md` | Retry + resume + crash recovery + run lifecycle CLI | 06 |
+| 08 | C | `...-08-5hu6bd-verifier-roles-clean-packet-procedures-and-corrective-routin.ipd.md` | Verifier roles + clean packet + procedures + corrective routing | 05, 07 |
+| 09 | C | `...-09-1m5ob8-isolation-hierarchy-concurrency-eligibility-and-merge-revali.ipd.md` | Isolation hierarchy + concurrency eligibility + merge-revalidate | 08 |
+| 10 | D | `...-10-4fttzq-host-capability-evidence-registry-and-isolated-probes.ipd.md` | Capability-evidence registry + isolated probes | 05, 08 |
+| 11 | D | `...-11-bmd1ur-generated-skills-host-adapters-and-agy-fresh-verifier.ipd.md` | Generated skills + host adapters + agy fresh verifier | 10 |
+| 12 | E | `...-12-1jfxvo-benchmark-corpus-seeded-tasks-and-preregistered-scoring.ipd.md` | Benchmark corpus + seeded tasks + preregistered scoring | 04, 09 |
+| 13 | E | `...-13-9ihhzr-benchmark-runners-ablations-metrics-and-reports-offline.ipd.md` | Offline runners + ablations + metrics + reports | 12 |
+| 14 | F | `...-14-h1d5aa-migration-disposition-inventory-and-shared-family-migration.ipd.md` | Disposition inventory + shared family migration | 05, 11 |
+| 15 | F | `...-15-kh91or-complex-orchestrated-workflow-migration.ipd.md` | Complex orchestrated workflow migration | 14 |
+| 16 | F | `...-16-g6zjao-compact-workflow-migration-generated-shims-and-promotion-gat.ipd.md` | Compact migration + shims + promotion gates | 13, 15 |
+| 17 | G | `...-17-gnfkh8-compatibility-contract-migration-rollback-and-deprecation.ipd.md` | Compatibility + migration + rollback + deprecation | 16 |
+| 18 | G | `...-18-0zst62-documentation-security-hardening-lifecycle-fixtures-and-rele.ipd.md` | Docs + security + lifecycle fixtures + release-readiness | 17 |
 
 ## Completion criteria (the whole Set is done only when)
 
 - The architecture decision and approved requirements are frozen and traceable to implementation and validation IDs.
-- Orders 01 through 08 each pass author, review-finalize, pre-execution, pre-transition, and post-transition lifecycle gates in dependency order.
+- Orders 01 through 18 each pass author, review-finalize, pre-execution, pre-transition, and post-transition lifecycle gates in dependency order (Order 01 already executed; the rest per the layer sequence A->G).
 - The canonical compiler produces byte-stable outputs and a drift check rejects hand-edited generated adapters.
 - Every workflow manifest row has a reviewed disposition: deterministic command, single-context workflow, skill, orchestrated workflow, shared harness plus module, or deprecation alias.
 - No executor or same-session self-auditor can set `verified`, `complete`, `executed`, or an equivalent terminal state.
@@ -113,12 +130,16 @@ The `Depends on` column names earlier child Orders. Each child's internal `Depen
 
 ## Cross-IPD validation
 
-- Schema ownership: Order 01 alone owns canonical workflow types and compiler IR; later Orders import them.
-- Evidence ownership: Order 02 alone owns evidence-envelope validation and completion predicates; runtime and verifier call it.
-- Transition ownership: Order 03 alone changes durable run state; no generated prompt contains a terminal mutation command.
-- Verification independence: Order 04 verifies the actual working tree and raw ledger and cannot rely on the executor's final prose.
-- Host honesty: Order 05 cannot mark a capability supported without exact versioned probe evidence; Order 06 measures behavior without editing the registry.
-- Benchmark integrity: fixtures, expected outcomes, scoring, randomization, and retry policy are versioned before a live run.
+- Schema ownership: Order 01 (executed) alone owns canonical workflow types and compiler IR; later Orders import them.
+- Record + freeze ownership: Order 02 alone owns the ledger/evidence record schemas and requirement freeze; the ledger store (03) and evidence layer (04) build on it.
+- Ledger ownership: Order 03 alone owns the append-only tamper-evident store; nothing else writes durable ledger bytes.
+- Completion ownership: Order 04 alone owns evidence validators + the completion predicate; completion is computed there, never claimed by a model.
+- Transition ownership: Order 05 alone changes durable run state; no generated prompt contains a terminal mutation command.
+- Verification independence: Order 08 verifies the actual working tree and raw ledger and cannot rely on the executor's final prose; Order 09 owns isolation/concurrency.
+- Host honesty: Order 10 cannot mark a capability supported without exact versioned probe evidence; Order 11 generates adapters/skills only for evidence-backed capabilities.
+- Benchmark integrity: Order 12 versions fixtures/scoring/stopping rules before any run; Order 13 measures offline without editing the registry, live runs operator-only.
+- Migration completeness: Order 14 accounts for every workflow before Orders 15/16 migrate any; Order 16's per-family promotion gates block advertising an unmigrated family.
+- Cutover safety: Orders 17/18 remove or redirect legacy surfaces only after all earlier layers pass, and produce a GO/NO-GO without publishing.
 - Migration parity: Order 07 maps every manifest row and proves generated adapters resolve to the same semantic digest.
 - Cutover safety: Order 08 removes or redirects legacy surfaces only after all earlier gates pass and documents rollback.
 
@@ -177,43 +198,41 @@ The canonical full-suite command for evidence in this Set (and its children) is 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: signed-off baseline artifact with pinned commit, complete workflow inventory, failure taxonomy, requirement IDs, acceptance ownership, and zero unresolved critical ambiguity.
+  - Required evidence: the frozen baseline (D139 ADR present + approved; the re-scope map showing old 02-08 in `superseded/` with RETIRED headers and new 02-18 scaffolded; the layer dependency graph) is recorded, and Order 01 is `executed` as the fixed foundation.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: Order 01 is in `executed/`, passes post-transition lint, compiler source/IR versions are frozen, and two clean compilations plus semantic-profile mutation tests pass.
+  - Required evidence: Orders 02, 03, 04 are all in `executed/` and pass post-transition lint; the append-only ledger + evidence validators + completion predicate reject fabricated/stale/mismatched evidence and a completion is computed only from valid evidence (their V-suites are green).
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: Order 02 is executed; ledger corruption, stale evidence, fabricated success, and identity-collision fixtures fail closed while valid evidence round-trips.
+  - Required evidence: Orders 05, 06, 07 are executed; transition/single-writer/crash-recovery/human-gate simulations pass and no executor-owned terminal path exists; the runtime consumes the Layer A ledger.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: Order 03 is executed; exhaustive transition tests prove no illegal or executor-owned terminal path and crash/retry/headless simulations pass.
+  - Required evidence: Orders 08, 09 are executed; every seeded false completion is detected by an isolated verifier, and unsafe parallel mutation is refused or worktree-isolated and revalidated.
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: Order 04 is executed; every seeded false completion is detected by an isolated verifier and unsafe parallel mutation is refused or worktree-isolated and revalidated.
+  - Required evidence: Orders 10, 11 are executed; each advertised host capability has exact nonexpired probe evidence, every generated adapter shares the canonical semantic digest, and unsupported claims default to unverified.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06
-  - Required evidence: Order 05 is executed; each advertised host capability has exact nonexpired probe evidence, every generated adapter shares the canonical digest, and unsupported claims are rejected.
+  - Required evidence: Orders 12, 13 are executed; offline corpus/scorer integrity passes, metrics are time/token-based (no dollar cost), and any live cell is operator-run and marked pending until authorized.
   - Observed evidence:
   - Result: pending
 - [ ] V-07 validates E-07
-  - Required evidence: Order 06 is executed; offline corpus/scorer integrity passes and every authorized live result links exact configuration and raw trials, with unavailable cells marked pending.
+  - Required evidence: Orders 14, 15, 16 are executed; completeness tooling accounts for every workflow/lens/persona/conformance file, migrated families pass parity + per-family risk gates, and failed families retain explicit legacy fallback.
   - Observed evidence:
   - Result: pending
 - [ ] V-08 validates E-08
-  - Required evidence: Order 07 is executed; completeness tooling accounts for every workflow/lens/persona/conformance file, migrated families pass parity and risk gates, and failed families retain explicit fallback.
+  - Required evidence: Orders 17, 18 are executed; clean install/update/customized-drift/interruption/rollback, security, documentation, and a GO/NO-GO release-readiness review pass with NO tag/publish/deploy/push.
   - Observed evidence:
   - Result: pending
 - [ ] V-09 validates E-09
-  - Required evidence: Order 08 is executed; clean install, update, customized drift, interruption, rollback, security, documentation, and release-readiness checks pass without a release side effect.
+  - Required evidence: from a clean checkout, retain exact commands, cwd, commit, exit codes, output hashes, and summaries for the full suite, all IPD phases, leak scan, compiler drift, host claims, benchmark gates, disposition completeness, and residual search; zero critical residuals and no unauthorized tag/push/release.
   - Observed evidence:
   - Result: pending
-- [ ] V-10 validates E-10
-  - Required evidence: from a clean checkout, retain exact commands, cwd, commit, exit codes, output hashes, and summaries for the full suite, all IPD phases, leak scan, compiler drift, host claims, benchmark gates, disposition completeness, and residual search; zero critical residuals and no unauthorized tag/push/release.
   - Observed evidence:
   - Result: pending
 
