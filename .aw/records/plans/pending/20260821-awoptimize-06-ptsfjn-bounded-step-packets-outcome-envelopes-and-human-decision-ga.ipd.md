@@ -35,28 +35,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - [x] E-01 Implement bounded just-in-time step-packet rendering `agent_workflows/run_packet.py`: a packet carries immutable run metadata, the CURRENT requirements + scope, allowed tools/files, the exact action, the expected artifact, the evidence contract, stop conditions, dependencies, and a short exit checklist - and nothing else (a size/token budget bounds it), with a source-to-requirement trace.
   - Depends on: none
   - Expected outcome: golden packets contain every contract field, map all current requirements, omit unrelated bulk context, respect the size budget, and the packet digest changes when a bound requirement changes; the executor need not retain the monolithic workflow.
-  - Execution state: complete
+  - Execution state: performed
 
 ### Task group 2: outcome envelopes
 
 - [x] E-02 Implement packet acknowledgements + outcome envelopes: a returned outcome must carry a structured `performed|blocked|failed` status, artifact references, and captured tool-event ids (Order 04); an unsupported claim (e.g. `all tests pass` with no evidence id) is ignored and cannot mutate durable state.
   - Depends on: E-01
   - Expected outcome: a structured envelope updates only legal states; free-form model prose may explain an outcome but cannot change durable state; missing evidence ids, a wrong attempt number, or a foreign actor are rejected.
-  - Execution state: complete
+  - Execution state: performed
 
 ### Task group 3: human gates
 
 - [x] E-03 Implement human decision gates in `agent_workflows/run_gates.py`: explicit options, a declared default, a timeout policy, non-interactive refusal, and recorded authorization; consent is NEVER synthesized. A headless run reaching a gate stops with a stable `needs_input` result before any gated side effect.
   - Depends on: E-02
   - Expected outcome: interactive fixtures record each choice; a headless/non-interactive run stops at `needs_input` with no gated side effect performed; timeout follows the declared policy; no default consent is invented.
-  - Execution state: complete
+  - Execution state: performed
 
 ### Task group 4: tests
 
 - [x] E-04 Add `tests/test_run_packet_gates.py` (stdlib unittest, model-free): golden packet field/requirement/budget/digest tests; outcome-envelope legality (structured accepted, unsupported prose / missing-evidence / wrong-attempt / foreign-actor rejected); interactive + headless gate fixtures (choice recorded, `needs_input` stop, no synthesized consent, timeout policy). Then run the full serial suite and paste the tail.
   - Depends on: E-03
   - Expected outcome: packet, envelope, and gate tests pass; the full serial suite is green (pasted).
-  - Execution state: complete
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
