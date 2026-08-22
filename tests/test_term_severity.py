@@ -6,6 +6,7 @@ import io
 import json
 import re
 import tempfile
+import types
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -140,9 +141,14 @@ class DoctorSeveritySourceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / ".aw" / "records").mkdir(parents=True)
-            report = doctor.collect_doctor_report(root)
-            term_color = T.Term(color=True)
-            text_color = doctor.render_human_report(report, term_color)
+            out_color = io.StringIO()
+            with redirect_stdout(out_color), redirect_stderr(io.StringIO()):
+                term_color = T.Term(color=True)
+                doctor.run(
+                    types.SimpleNamespace(dir=str(root), as_agent=False),
+                    term=term_color,
+                )
+            text_color = out_color.getvalue()
             # Contains bold color escape sequences inside bracketed labels
             self.assertTrue(
                 "[ERROR]" in _ANSI.sub("", text_color)
@@ -150,8 +156,14 @@ class DoctorSeveritySourceTests(unittest.TestCase):
                 or "[INFO ]" in _ANSI.sub("", text_color)
             )
 
-            term_plain = T.Term(color=False)
-            text_plain = doctor.render_human_report(report, term_plain)
+            out_plain = io.StringIO()
+            with redirect_stdout(out_plain), redirect_stderr(io.StringIO()):
+                term_plain = T.Term(color=False)
+                doctor.run(
+                    types.SimpleNamespace(dir=str(root), as_agent=False),
+                    term=term_plain,
+                )
+            text_plain = out_plain.getvalue()
             self.assertIsNone(_ANSI.search(text_plain))
             self.assertTrue(
                 "[ERROR]" in text_plain
