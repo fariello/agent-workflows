@@ -9,7 +9,6 @@
 - Order: 1
 - Highest E allocated: 07
 - Author: Codex GPT-5.6 Sol
-- Approval: approved by Gabriele Fariello 2026-08-21
 - Id: nmwy3m
 
 ## Workflow history
