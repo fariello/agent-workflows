@@ -368,6 +368,12 @@ def positive_int(value: str) -> int:
     return result
 
 
+ENTER_ALT_SCREEN = "\033[?1049h\033[?25l"
+LEAVE_ALT_SCREEN = "\033[?1049l\033[?25h"
+CURSOR_HOME = "\033[H"
+CLEAR_TO_EOS = "\033[J"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -408,37 +414,45 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    is_interactive = not args.once and sys.stdout.isatty()
 
     def stop_cleanly(_signum: int, _frame: object) -> None:
-        # Keep Ctrl-C quiet and leave the next shell prompt on a fresh line.
-        print()
         raise SystemExit(0)
 
     signal.signal(signal.SIGINT, stop_cleanly)
+    signal.signal(signal.SIGTERM, stop_cleanly)
 
     try:
-        while True:
-            if not args.once and sys.stdout.isatty():
-                # Clear the screen and place the cursor in the upper-left corner.
-                print("\033[2J\033[H", end="")
-
-            print(
-                f"{args.process} process trees -- "
-                f"{time.strftime('%Y-%m-%d %H:%M:%S')}\n"
-            )
-            print(render_snapshot(args.process, args.depth, args.width))
+        if is_interactive:
+            sys.stdout.write(ENTER_ALT_SCREEN)
             sys.stdout.flush()
+
+        while True:
+            header = (
+                f"{args.process} process trees (every {args.interval}s) -- "
+                f"{time.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            )
+            snapshot = render_snapshot(args.process, args.depth, args.width)
+
+            if is_interactive:
+                sys.stdout.write(f"{CURSOR_HOME}{header}{snapshot}\n{CLEAR_TO_EOS}")
+                sys.stdout.flush()
+            else:
+                sys.stdout.write(f"{header}{snapshot}\n")
+                sys.stdout.flush()
 
             if args.once:
                 return 0
             time.sleep(args.interval)
-    except KeyboardInterrupt:
-        # Fallback for environments that translate SIGINT into this exception.
-        print()
+    except (KeyboardInterrupt, SystemExit):
         return 0
     except RuntimeError as error:
         print(f"watch-agy: {error}", file=sys.stderr)
         return 1
+    finally:
+        if is_interactive:
+            sys.stdout.write(LEAVE_ALT_SCREEN)
+            sys.stdout.flush()
 
 
 if __name__ == "__main__":
