@@ -28,10 +28,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Requirements and ledger
 
-- [ ] E-01 Define versioned schemas for run identity, workflow digest, approved requirement set, requirement revision, step attempt, tool event, evidence envelope, artifact reference, verifier decision, correction, retry, human approval, and terminal transaction.
+- [x] E-01 Define versioned schemas for run identity, workflow digest, approved requirement set, requirement revision, step attempt, tool event, evidence envelope, artifact reference, verifier decision, correction, retry, human approval, and terminal transaction.
   - Depends on: none
   - Expected outcome: every state-changing record carries actor role, timestamps, exact repository/worktree identity, causal parent, and schema version.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: implemented `agent_workflows/run_ledger_schema.py` (pure, stdlib-only): LEDGER_SCHEMA_VERSION, closed ROLES/RECORD_KINDS/ATTEMPT_STATES/VERIFIER_RESULTS/EVIDENCE_KINDS vocabularies, id/timestamp/sha256 grammars, a common envelope (schema_version/kind/seq/run_id/actor/timestamp/parent) + per-kind required fields for all 12 record kinds, and `validate_record()`/`validate_records()`. Key anti-false-completion state rules enforced: a `verifier_decision` MUST be authored by the `verifier` role (RL-E032, blocks executor self-verification), a `terminal_transaction` may not be executor-authored (RL-E035), seq must strictly increase (RL-E040), and the first record must be a `run` (RL-E041). Smoke-verified all of these. Formal V-01 evidence in the validation pass.
 - [ ] E-02 Implement requirement freezing so an approved run binds each MUST, scope fence, validation predicate, and output to stable IDs and a digest; semantic changes create a new revision and invalidate affected evidence.
   - Depends on: E-01
   - Expected outcome: an executor cannot redefine success after seeing failures or silently omit a requirement.
