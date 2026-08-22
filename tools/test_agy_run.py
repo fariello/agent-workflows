@@ -95,7 +95,26 @@ class AgyRunArgParseTests(unittest.TestCase):
         )
         self.assertEqual(args.model, "gemini-1.5-pro")
         self.assertEqual(args.timeout, "60m")
-        self.assertTrue(args.dangerously_skip_permissions)
+        self.assertTrue(args.dangerous)
+
+    def test_dangerous_and_add_dirs_flags(self):
+        # Test --dangerous alias
+        args_d1 = agy_run.parse_args(["--dangerous", "-p", "test"])
+        self.assertTrue(args_d1.dangerous)
+
+        # Test -d alias
+        args_d2 = agy_run.parse_args(["-d", "-p", "test"])
+        self.assertTrue(args_d2.dangerous)
+
+        # Test --danger alias
+        args_d3 = agy_run.parse_args(["--danger", "-p", "test"])
+        self.assertTrue(args_d3.dangerous)
+
+        # Test --add-dir repeatable
+        args_dirs = agy_run.parse_args(
+            ["--add-dir", "/tmp/extra1", "--add-dir", "/opt/extra2", "-p", "test"]
+        )
+        self.assertEqual(args_dirs.add_dirs, ["/tmp/extra1", "/opt/extra2"])
 
     def test_validation_turn_controls(self):
         args_no_audit = agy_run.parse_args(["--no-audit", "-p", "test"])
@@ -334,6 +353,76 @@ class AgyRunExecutionEngineTests(unittest.TestCase):
                     ):
                         with self.assertRaises(agy_run.ScriptError):
                             agy_run.run(["-p", "bad prompt"])
+
+    def test_dangerous_and_add_dirs_passed_to_run_agy(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = init_repo(Path(tmp_dir) / "repo")
+            mock_res = agy_run.AgyResult(
+                conversation_id="conv-99", response="Done", status="SUCCESS"
+            )
+            with mock.patch.object(
+                agy_run, "run_agy", return_value=mock_res
+            ) as mock_run:
+                with mock.patch.object(agy_run, "resolve_agy", return_value="/bin/agy"):
+                    with mock.patch.object(
+                        agy_run, "repository_root", return_value=root
+                    ):
+                        rc = agy_run.run(
+                            ["--dangerous", "--add-dir", "/tmp/extra", "-p", "hello"]
+                        )
+                        self.assertEqual(rc, 0)
+                        self.assertEqual(mock_run.call_count, 2)
+                        for call_kwargs in (
+                            mock_run.call_args_list[0].kwargs,
+                            mock_run.call_args_list[1].kwargs,
+                        ):
+                            self.assertTrue(call_kwargs["skip_permissions"])
+                            self.assertEqual(call_kwargs["add_dirs"], ["/tmp/extra"])
+
+    def test_run_agy_command_construction(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            with mock.patch("subprocess.Popen") as mock_popen:
+                mock_proc = mock.MagicMock()
+                mock_proc.stdout = iter(
+                    [
+                        json.dumps({"event": "init"}) + "\n",
+                        json.dumps(
+                            {
+                                "event": "result",
+                                "result": {
+                                    "status": "SUCCESS",
+                                    "conversation_id": "c-123",
+                                    "response": "ok",
+                                },
+                            }
+                        )
+                        + "\n",
+                    ]
+                )
+                mock_proc.wait.return_value = 0
+                mock_popen.return_value = mock_proc
+
+                res = agy_run.run_agy(
+                    executable="/bin/agy",
+                    root=root,
+                    prompt="test prompt",
+                    phase="execution",
+                    session_id=None,
+                    use_continue=False,
+                    timeout="30m",
+                    skip_permissions=True,
+                    add_dirs=["/tmp/dir1", "/opt/dir2"],
+                    model="gemini-3.7-flash-high",
+                )
+                self.assertEqual(res.conversation_id, "c-123")
+                called_cmd = mock_popen.call_args[0][0]
+                self.assertIn("--dangerously-skip-permissions", called_cmd)
+                self.assertIn("--add-dir", called_cmd)
+                self.assertIn("/tmp/dir1", called_cmd)
+                self.assertIn("/opt/dir2", called_cmd)
+                self.assertIn("--model", called_cmd)
+                self.assertIn("gemini-3.7-flash-high", called_cmd)
 
 
 class AntigravityExecuteIpdCompatibilityTests(unittest.TestCase):

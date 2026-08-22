@@ -210,9 +210,24 @@ STREAMING LOGS AND MONITORING:
         help="Path to the agy executable (default: find agy on PATH).",
     )
     runtime_group.add_argument(
+        "--dangerous",
         "--dangerously-skip-permissions",
+        "--danger",
+        "-d",
+        dest="dangerous",
         action="store_true",
-        help="Allow Antigravity to execute requested tools without interactive confirmation.",
+        help=(
+            "Run agy with --dangerously-skip-permissions for all calls "
+            "(auto-approves tool execution without interactive confirmation)."
+        ),
+    )
+    runtime_group.add_argument(
+        "--add-dir",
+        dest="add_dirs",
+        action="append",
+        default=[],
+        metavar="DIR",
+        help="Add an external directory to the workspace (passed to agy --add-dir; repeatable).",
     )
 
     # Workflow controls
@@ -475,6 +490,7 @@ def run_agy(
     use_continue: bool,
     timeout: str,
     skip_permissions: bool,
+    add_dirs: list[str] | None = None,
     model: str | None = None,
 ) -> AgyResult:
     """Run one headless Antigravity turn, persist its stream, and validate output."""
@@ -495,6 +511,9 @@ def run_agy(
         command.append("--continue")
     if skip_permissions:
         command.append("--dangerously-skip-permissions")
+    if add_dirs:
+        for d in add_dirs:
+            command.extend(("--add-dir", str(d)))
 
     log_directory = root / "tmp" / "antigravity"
     log_directory.mkdir(parents=True, exist_ok=True)
@@ -706,7 +725,8 @@ def run(argv: Iterable[str] | None = None) -> int:
             session_id=initial_session,
             use_continue=use_continue,
             timeout=args.timeout,
-            skip_permissions=args.dangerously_skip_permissions,
+            skip_permissions=args.dangerous,
+            add_dirs=args.add_dirs,
             model=args.model,
         )
         print("\n=== Antigravity Execution Report ===\n")
@@ -742,7 +762,8 @@ def run(argv: Iterable[str] | None = None) -> int:
         session_id=execution_session_id,
         use_continue=False,  # Always use exact conversation ID for turn 2
         timeout=args.timeout,
-        skip_permissions=args.dangerously_skip_permissions,
+        skip_permissions=args.dangerous,
+        add_dirs=args.add_dirs,
         model=args.model,
     )
     print("\n=== Antigravity Skeptical Audit Report ===\n")
