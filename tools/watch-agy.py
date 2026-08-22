@@ -3,6 +3,7 @@
 
 Monitors processes launched by other agents (OpenCode, Claude Code, etc.) or interactive shells
 by inspecting kernel comm, executable paths, script runners, and shell subcommands from /proc.
+Renders with Unicode box-drawing line art and rich 256-color syntax styling.
 Linux only: process and thread information is read directly from /proc.
 """
 
@@ -10,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shlex
 import signal
 import sys
@@ -17,6 +19,79 @@ import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
+
+# --- 256-Color & ANSI Palette ---
+C_RESET = "\033[0m"
+C_BOLD = "\033[1m"
+C_DIM = "\033[2m"
+
+# Tree box-drawing guides
+C_TREE = "\033[38;5;241m"  # Slate gray for branch connectors
+
+# Process names by role
+C_AGY = "\033[1;38;5;48m"  # Bold emerald green for agy / antigravity
+C_AGENT = "\033[1;38;5;177m"  # Bold orchid/purple for opencode / claude / codex
+C_PYTHON = "\033[1;38;5;75m"  # Bold sky blue for python3 / python / node
+C_SHELL = "\033[1;38;5;208m"  # Bold warm amber for bash / sh / zsh
+C_TOOL = "\033[1;38;5;221m"  # Bold gold/yellow for make / pytest / git / hound / tail
+C_PROC_DEFAULT = "\033[1;38;5;255m"  # Bold crisp white
+
+# Accents and details
+C_PID = "\033[38;5;245m"  # Cool gray for PID
+C_COUNT = "\033[1;38;5;220m"  # Bright yellow for count (e.g. 3x)
+C_PARENT = "\033[38;5;141m"  # Soft lavender for [parent: ...]
+C_THREAD = "\033[38;5;139m"  # Soft purple for thread counts
+C_THREAD_TAG = "\033[38;5;242m"  # Muted gray for [threads] tag
+C_BANNER = "\033[1;38;5;39m"  # Electric cyan for title banner
+C_TIMESTAMP = "\033[38;5;244m"  # Medium gray for timestamp
+
+# Command line argument styling
+C_ARG_FLAG = "\033[38;5;117m"  # Ice cyan for flags (-c, --foo)
+C_ARG_PATH = "\033[38;5;186m"  # Muted cream/khaki for file paths & scripts
+C_ARG_TEXT = "\033[38;5;252m"  # Off-white for general arguments
+
+# Terminal control escapes
+ENTER_ALT_SCREEN = "\033[?1049h\033[?25l"
+LEAVE_ALT_SCREEN = "\033[?1049l\033[?25h"
+CURSOR_HOME = "\033[H"
+CLEAR_TO_EOS = "\033[J"
+
+ANSI_PATTERN = re.compile(r"\033\[[0-9;]*[a-zA-Z]")
+
+
+def strip_ansi(text: str) -> str:
+    """Remove ANSI escape codes to compute visible string length."""
+    return ANSI_PATTERN.sub("", text)
+
+
+def ansi_truncate(text: str, max_width: int, color_enabled: bool) -> str:
+    """Truncate text to max_width visible characters, preserving ANSI codes."""
+    if not color_enabled:
+        clean = strip_ansi(text)
+        if len(clean) <= max_width:
+            return clean
+        return clean[: max(1, max_width - 3)].rstrip() + "..."
+
+    visible_len = len(strip_ansi(text))
+    if visible_len <= max_width:
+        return text
+
+    target_len = max(1, max_width - 3)
+    accumulated = 0
+    out: list[str] = []
+    i = 0
+    while i < len(text) and accumulated < target_len:
+        match = ANSI_PATTERN.match(text, i)
+        if match:
+            out.append(match.group(0))
+            i = match.end()
+        else:
+            out.append(text[i])
+            accumulated += 1
+            i += 1
+
+    out.append(f"{C_DIM}...{C_RESET}")
+    return "".join(out)
 
 
 @dataclass
@@ -111,14 +186,49 @@ def read_processes() -> dict[int, Process]:
     return processes
 
 
-def format_arguments(arguments: tuple[str, ...]) -> str:
-    return " ".join(shlex.quote(argument) for argument in arguments)
+def get_process_color(name: str) -> str:
+    """Return appropriate 256-color code based on process role."""
+    n = name.lower()
+    if n in ("agy", "antigravity", "antigravity-cli", "gemini"):
+        return C_AGY
+    if n in ("opencode", "claude", "codex", "hermes"):
+        return C_AGENT
+    if n in ("python", "python3", "node", "bun", "deno"):
+        return C_PYTHON
+    if n in ("bash", "sh", "zsh", "fish", "dash"):
+        return C_SHELL
+    if n in (
+        "make",
+        "pytest",
+        "git",
+        "hound",
+        "tail",
+        "grep",
+        "pyright",
+        "cargo",
+        "go",
+    ):
+        return C_TOOL
+    return C_PROC_DEFAULT
 
 
-def truncate(text: str, width: int) -> str:
-    if len(text) <= width:
-        return text
-    return text[: max(1, width - 3)].rstrip() + "..."
+def format_colored_argument(arg: str, color_enabled: bool) -> str:
+    """Format an argument with shell quoting and syntax highlighting."""
+    quoted = shlex.quote(arg)
+    if not color_enabled:
+        return quoted
+
+    if arg.startswith("-"):
+        return f"{C_ARG_FLAG}{quoted}{C_RESET}"
+    if "/" in arg or arg.endswith((".py", ".md", ".json", ".sh", ".txt", ".rs", ".go")):
+        return f"{C_ARG_PATH}{quoted}{C_RESET}"
+    return f"{C_ARG_TEXT}{quoted}{C_RESET}"
+
+
+def format_arguments(arguments: tuple[str, ...], color_enabled: bool) -> str:
+    if not color_enabled:
+        return " ".join(shlex.quote(arg) for arg in arguments)
+    return " ".join(format_colored_argument(arg, color_enabled) for arg in arguments)
 
 
 def process_label(
@@ -127,25 +237,42 @@ def process_label(
     *,
     is_root: bool = False,
     processes: dict[int, Process] | None = None,
+    color_enabled: bool = True,
 ) -> str:
     representative = members[0]
-    arguments = format_arguments(representative.arguments)
+    arguments = format_arguments(representative.arguments, color_enabled)
 
+    # Parent suffix for root processes
     parent_suffix = ""
     if is_root and processes and representative.ppid in processes:
         parent = processes[representative.ppid]
         if parent.pid > 1:
-            parent_suffix = f" [parent: {parent.name},{parent.pid}]"
+            if color_enabled:
+                parent_suffix = (
+                    f" {C_PARENT}[parent: {parent.name},{parent.pid}]{C_RESET}"
+                )
+            else:
+                parent_suffix = f" [parent: {parent.name},{parent.pid}]"
+
+    # Head (count + process name + PID)
+    proc_color = get_process_color(representative.name) if color_enabled else ""
+    reset = C_RESET if color_enabled else ""
 
     if len(members) == 1:
-        head = f"{representative.name},{representative.pid}"
+        if color_enabled:
+            head = f"{proc_color}{representative.name}{reset}{C_PID},{representative.pid}{reset}"
+        else:
+            head = f"{representative.name},{representative.pid}"
     else:
-        head = f"{len(members)}x {representative.name}"
+        if color_enabled:
+            head = f"{C_COUNT}{len(members)}x{reset} {proc_color}{representative.name}{reset}"
+        else:
+            head = f"{len(members)}x {representative.name}"
 
     label = f"{head} {arguments}".rstrip()
     if parent_suffix:
         label = f"{label}{parent_suffix}"
-    return truncate(label, width)
+    return ansi_truncate(label, width, color_enabled)
 
 
 def group_processes(processes: list[Process]) -> list[list[Process]]:
@@ -166,19 +293,35 @@ def render_group(
     max_depth: int,
     width: int,
     processes: dict[int, Process] | None = None,
+    color_enabled: bool = True,
     prefix: str = "",
     is_last: bool = True,
     is_root: bool = False,
 ) -> list[str]:
-    connector = "" if is_root else ("`-" if is_last else "|-")
+    # Use Unicode box line art characters
+    tree_c = C_TREE if color_enabled else ""
+    reset = C_RESET if color_enabled else ""
+
+    if is_root:
+        connector = ""
+    elif is_last:
+        connector = f"{tree_c}└── {reset}"
+    else:
+        connector = f"{tree_c}├── {reset}"
+
     lines = [
-        f"{prefix}{connector}{process_label(members, width, is_root=is_root, processes=processes)}"
+        f"{prefix}{connector}{process_label(members, width, is_root=is_root, processes=processes, color_enabled=color_enabled)}"
     ]
 
     if level >= max_depth:
         return lines
 
-    child_prefix = prefix if is_root else prefix + ("  " if is_last else "| ")
+    if is_root:
+        child_prefix = prefix
+    elif is_last:
+        child_prefix = prefix + "    "
+    else:
+        child_prefix = prefix + f"{tree_c}│   {reset}"
 
     thread_counts: Counter[str] = Counter()
     child_processes: list[Process] = []
@@ -197,13 +340,21 @@ def render_group(
 
     for index, (entry_type, value) in enumerate(entries):
         entry_is_last = index == len(entries) - 1
-        entry_connector = "`-" if entry_is_last else "|-"
+        if entry_is_last:
+            entry_connector = f"{tree_c}└── {reset}"
+        else:
+            entry_connector = f"{tree_c}├── {reset}"
 
         if entry_type == "thread":
             thread_name, count = value  # type: ignore[misc]
-            lines.append(
-                f"{child_prefix}{entry_connector}{count}x {{{thread_name}}} [threads]"
-            )
+            if color_enabled:
+                lines.append(
+                    f"{child_prefix}{entry_connector}{C_THREAD}{count}x {{{thread_name}}}{C_RESET} {C_THREAD_TAG}[threads]{C_RESET}"
+                )
+            else:
+                lines.append(
+                    f"{child_prefix}{entry_connector}{count}x {{{thread_name}}} [threads]"
+                )
         else:
             lines.extend(
                 render_group(
@@ -212,6 +363,7 @@ def render_group(
                     max_depth=max_depth,
                     width=width,
                     processes=processes,
+                    color_enabled=color_enabled,
                     prefix=child_prefix,
                     is_last=entry_is_last,
                 )
@@ -323,11 +475,15 @@ def matching_roots(processes: dict[int, Process], targets: set[str]) -> list[Pro
     return roots
 
 
-def render_snapshot(process_spec: str, max_depth: int, width: int) -> str:
+def render_snapshot(
+    process_spec: str, max_depth: int, width: int, color_enabled: bool = True
+) -> str:
     processes = read_processes()
     targets = {t.strip() for t in process_spec.split(",") if t.strip()}
     roots = matching_roots(processes, targets)
     if not roots:
+        if color_enabled:
+            return f"{C_DIM}No processes matching {process_spec!r} found.{C_RESET}"
         return f"No processes matching {process_spec!r} found."
 
     sections = []
@@ -340,6 +496,7 @@ def render_snapshot(process_spec: str, max_depth: int, width: int) -> str:
                     max_depth=max_depth,
                     width=width,
                     processes=processes,
+                    color_enabled=color_enabled,
                     is_root=True,
                 )
             )
@@ -368,17 +525,11 @@ def positive_int(value: str) -> int:
     return result
 
 
-ENTER_ALT_SCREEN = "\033[?1049h\033[?25l"
-LEAVE_ALT_SCREEN = "\033[?1049l\033[?25h"
-CURSOR_HOME = "\033[H"
-CLEAR_TO_EOS = "\033[J"
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Continuously show process trees for agy and other agent-launched processes, "
-            "collapsing identical sibling processes and same-name threads."
+            "collapsing identical sibling processes and same-name threads with box line art."
         )
     )
     parser.add_argument(
@@ -405,6 +556,11 @@ def parse_args() -> argparse.Namespace:
         help="maximum width of each process label (default: 120)",
     )
     parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="disable 256-color output and ANSI styling",
+    )
+    parser.add_argument(
         "--once",
         action="store_true",
         help="print one snapshot and exit",
@@ -415,6 +571,11 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     is_interactive = not args.once and sys.stdout.isatty()
+
+    # Determine color enablement
+    color_enabled = (
+        not args.no_color and os.environ.get("NO_COLOR") is None and sys.stdout.isatty()
+    )
 
     def stop_cleanly(_signum: int, _frame: object) -> None:
         raise SystemExit(0)
@@ -428,11 +589,19 @@ def main() -> int:
             sys.stdout.flush()
 
         while True:
-            header = (
-                f"{args.process} process trees (every {args.interval}s) -- "
-                f"{time.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+            if color_enabled:
+                header = (
+                    f"{C_BANNER}{args.process} process trees{C_RESET} "
+                    f"{C_DIM}(every {args.interval}s){C_RESET} {C_TREE}──{C_RESET} "
+                    f"{C_TIMESTAMP}{now_str}{C_RESET}\n\n"
+                )
+            else:
+                header = f"{args.process} process trees (every {args.interval}s) -- {now_str}\n\n"
+
+            snapshot = render_snapshot(
+                args.process, args.depth, args.width, color_enabled=color_enabled
             )
-            snapshot = render_snapshot(args.process, args.depth, args.width)
 
             if is_interactive:
                 sys.stdout.write(f"{CURSOR_HOME}{header}{snapshot}\n{CLEAR_TO_EOS}")
