@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Quantify workflow quality, evidence honesty, and cost per exact configuration without rewarding verbosity.
 - Scope: Offline runner adapters + architecture ablations + metrics (wall-time always; tokens best-effort-per-host; credits opaque; no dollar cost) + release thresholds + reports. OFFLINE v1; live multi-model runs are operator-run, never executor-run.
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 13
 - Highest E allocated: 05
@@ -14,6 +14,8 @@
 ## Workflow history
 
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
+- 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-06 E-05..E-09 into 5 right-sized E-items (offline runners, ablations, metrics, risk-class thresholds, reports); carries the resolved OQ-01 (offline-only v1; live = operator-run), OQ-02 (sample-size deferred), the hard human/agent boundary, the corrected usage model (no dollar cost), and the minimum-experiment matrix.
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE; GO - PENDING HUMAN APPROVAL. Dep on Order 12 (corpus + protocol) justified. Sound: offline-only v1 with runner doubles, live trials operator-run (hard human/agent boundary present), no-inference on unavailable cells, thresholds require signed human revision, efficiency time/token-based (no dollar cost), CI-safe credential-free subset. V-01..V-05 map 1:1 with falsifiable evidence. No findings. OQ-01 resolved, OQ-02 deferred with trigger (both non-blocking).
 
 ## Goal
 

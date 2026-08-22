@@ -106,7 +106,7 @@ The old coarse Orders 02-08 are retired in `superseded/` (see their RETIRED head
 | 09 | C | `...-09-1m5ob8-isolation-hierarchy-concurrency-eligibility-and-merge-revali.ipd.md` | Isolation hierarchy + concurrency eligibility + merge-revalidate | 08 |
 | 10 | D | `...-10-4fttzq-host-capability-evidence-registry-and-isolated-probes.ipd.md` | Capability-evidence registry + isolated probes | 01, 03 |
 | 11 | D | `...-11-bmd1ur-generated-skills-host-adapters-and-agy-fresh-verifier.ipd.md` | Generated skills + host adapters + agy fresh verifier | 10 |
-| 12 | E | `...-12-1jfxvo-benchmark-corpus-seeded-tasks-and-preregistered-scoring.ipd.md` | Benchmark corpus + seeded tasks + preregistered scoring | 04, 09 |
+| 12 | E | `...-12-1jfxvo-benchmark-corpus-seeded-tasks-and-preregistered-scoring.ipd.md` | Benchmark corpus + seeded tasks + preregistered scoring | 01-04 |
 | 13 | E | `...-13-9ihhzr-benchmark-runners-ablations-metrics-and-reports-offline.ipd.md` | Offline runners + ablations + metrics + reports | 12 |
 | 14 | F | `...-14-h1d5aa-migration-disposition-inventory-and-shared-family-migration.ipd.md` | Disposition inventory + shared family migration | 05, 11 |
 | 15 | F | `...-15-kh91or-complex-orchestrated-workflow-migration.ipd.md` | Complex orchestrated workflow migration | 14 |

@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Account for every workflow before migrating any, and migrate the shared families first.
 - Scope: Machine-validated disposition inventory for every manifest command/lens/persona/conformance file + migration of the shared assess+lenses and advise+personas harness families. No complex/compact migration (Orders 15/16).
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 14
 - Highest E allocated: 04
@@ -14,6 +14,8 @@
 ## Workflow history
 
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
+- 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-07 E-01..E-03 into 4 right-sized E-items (complete disposition inventory, shared assess/advise harness migration, plan-review collapse to one source, tests); carries the disposition-by-family table.
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE; GO - PENDING HUMAN APPROVAL. Deps on Order 05 (runtime) + Order 11 (skill/adapter generator it reuses via engine.py) are justified. Sound: completeness tool guarantees zero unassigned rows; shared harness cannot fork lifecycle/evidence; plan-review collapses to one canonical source with digest parity; clean boundary vs Order 15 (release-review deferred there). V-01..V-04 map 1:1 with falsifiable evidence. No findings. OQ-01 resolved.
 
 ## Goal
 

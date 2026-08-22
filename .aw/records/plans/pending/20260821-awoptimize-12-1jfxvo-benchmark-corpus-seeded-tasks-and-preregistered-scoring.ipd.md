@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Build a benchmark that can tell skill discovery from correct execution and apparent from evidence-backed completion.
 - Scope: Versioned benchmark manifest + seeded task repos + adversarial false-completion cases + preregistered scoring/stopping rules (frozen before any live run). No runners/metrics (Order 13).
-- Status: draft
+- Status: reviewed
 - Set: awoptimize
 - Order: 12
 - Highest E allocated: 05
@@ -14,6 +14,8 @@
 ## Workflow history
 
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
+- 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-06 E-01..E-04 into 5 right-sized E-items (result-identity manifest, seeded task repos with hidden ground truth, adversarial false-completion cases, preregistered frozen scoring, tests); carries the honest usage model (no dollar cost).
+- 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Benchmark corpus + protocol foundations; scorer/fixtures genuinely new. Sound discipline: frozen protocol digest before any run, one adversarial golden per class, deterministic reset + inaccessible hidden truth, no dollar cost. PR-001 (MEDIUM, architecture): the gate declared a dep on Order 09 (isolation) that the corpus consumes nothing from - the 'orchestration' task shape is a black-box seeded fixture scored against ground truth. FIXED: dependency corrected to Orders 01-04 (09 dropped) in the gate; orchestrator child-table cell reconciled to `01-04`. V-01..V-05 map 1:1 with falsifiable evidence. OQ-01 resolved.
 
 ## Goal
 
@@ -142,4 +144,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Requires executed Orders 01-04 (schema/ledger/evidence the scorer references) and 09 (isolation, for the orchestration task class). Scope fence: touch only the benchmark corpus/manifest/scorer/protocol modules and `tests/test_benchmark_corpus.py` (plus seeded-repo fixtures under `tests/`); do NOT implement runner adapters/ablations/metrics/reports (Order 13), run any model, or migrate workflows (Orders 14-16) - if it seems to need more, STOP and report. No live/paid model call in this Order. Execution contract: path-scoped commits only, never `git add -A`/`-a`, never push; paste the ACTUAL runner output; the executor may not certify its own V-items or perform a terminal transition. After every V-item is verified with concrete evidence and `aw ipd lint --phase pre-transition` conforms, perform the post-gate lifecycle transaction (workflow-history line, terminal Status, git mv to executed/, post-transition lint), dropping the `Approval:` field on the executed status. This plan requires explicit human approval before execution.
+Requires executed Orders 01-04 (the schema/ledger/evidence contract the scorer references). It does NOT depend on Order 09 (isolation): the "orchestration" task shape (E-02) is a black-box seeded fixture scored against hidden ground truth, so the corpus consumes no Order-09 implementation and may be built once Layer A lands, in parallel with Layers B-D. Scope fence: touch only the benchmark corpus/manifest/scorer/protocol modules and `tests/test_benchmark_corpus.py` (plus seeded-repo fixtures under `tests/`); do NOT implement runner adapters/ablations/metrics/reports (Order 13), run any model, or migrate workflows (Orders 14-16) - if it seems to need more, STOP and report. No live/paid model call in this Order. Execution contract: path-scoped commits only, never `git add -A`/`-a`, never push; paste the ACTUAL runner output; the executor may not certify its own V-items or perform a terminal transition. After every V-item is verified with concrete evidence and `aw ipd lint --phase pre-transition` conforms, perform the post-gate lifecycle transaction (workflow-history line, terminal Status, git mv to executed/, post-transition lint), dropping the `Approval:` field on the executed status. This plan requires explicit human approval before execution.
