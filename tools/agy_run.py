@@ -212,6 +212,7 @@ STREAMING LOGS AND MONITORING:
     runtime_group.add_argument(
         "--dangerous",
         "--dangerously-skip-permissions",
+        "--dangerously-skip-permission",
         "--danger",
         "-d",
         dest="dangerous",

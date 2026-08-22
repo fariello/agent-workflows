@@ -102,6 +102,12 @@ class AgyRunArgParseTests(unittest.TestCase):
         args_d1 = agy_run.parse_args(["--dangerous", "-p", "test"])
         self.assertTrue(args_d1.dangerous)
 
+        # Test --dangerously-skip-permission (singular) alias
+        args_d_sing = agy_run.parse_args(
+            ["--dangerously-skip-permission", "-p", "test"]
+        )
+        self.assertTrue(args_d_sing.dangerous)
+
         # Test -d alias
         args_d2 = agy_run.parse_args(["-d", "-p", "test"])
         self.assertTrue(args_d2.dangerous)
