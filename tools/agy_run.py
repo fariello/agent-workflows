@@ -140,8 +140,10 @@ SESSION CONTINUITY AND ISOLATION:
   - Turn 2 always runs in the exact conversation session returned by Turn 1.
 
 TURN CONTROLS:
-  --no-audit: Runs Turn 1 (execution) only without executing the Turn-2 skeptical audit.
-  --audit-only: Runs Turn 2 (skeptical audit) only on an existing conversation session.
+  --no-verify, --skip-verify, --no-audit:
+     Runs Turn 1 (execution) only without executing the Turn-2 skeptical self-verification audit.
+  --verify-only, --audit-only:
+     Runs Turn 2 (skeptical verification audit) only on an existing conversation session.
 
 STREAMING LOGS AND MONITORING:
   All raw stream-json events are logged to tmp/antigravity/agy-<pid>-<timestamp>.jsonl.
@@ -271,14 +273,23 @@ STREAMING LOGS AND MONITORING:
     # Workflow controls
     flow_group = parser.add_argument_group("Validation and Turn Controls")
     flow_group.add_argument(
+        "--no-verify",
+        "--skip-verify",
         "--no-audit",
+        "--skip-audit",
+        dest="no_audit",
         action="store_true",
-        help="Execute Turn 1 only without running the Turn-2 skeptical validation audit.",
+        help=(
+            "Execute Turn 1 (task execution) only, skipping the Turn-2 skeptical self-verification audit. "
+            "Useful for quick exploratory tasks, single-turn prompts, or when verification is handled independently."
+        ),
     )
     flow_group.add_argument(
+        "--verify-only",
         "--audit-only",
+        dest="audit_only",
         action="store_true",
-        help="Execute Turn-2 skeptical audit only on an existing conversation session.",
+        help="Execute Turn-2 skeptical audit/verification only on an existing conversation session.",
     )
 
     return parser.parse_args(argv)

@@ -121,8 +121,23 @@ class AgyRunArgParseTests(unittest.TestCase):
         self.assertEqual(args_dirs.add_dirs, ["/tmp/extra1", "/opt/extra2"])
 
     def test_validation_turn_controls(self):
+        args_no_verify = agy_run.parse_args(["--no-verify", "-p", "test"])
+        self.assertTrue(args_no_verify.no_audit)
+
+        args_skip_verify = agy_run.parse_args(["--skip-verify", "-p", "test"])
+        self.assertTrue(args_skip_verify.no_audit)
+
         args_no_audit = agy_run.parse_args(["--no-audit", "-p", "test"])
         self.assertTrue(args_no_audit.no_audit)
+
+        args_skip_audit = agy_run.parse_args(["--skip-audit", "-p", "test"])
+        self.assertTrue(args_skip_audit.no_audit)
+
+        args_verify_only = agy_run.parse_args(
+            ["--verify-only", "--session-id", "conv-1", "--ipd", "7cvh9t"]
+        )
+        self.assertTrue(args_verify_only.audit_only)
+
         args_audit_only = agy_run.parse_args(
             ["--audit-only", "--session-id", "conv-1", "--ipd", "7cvh9t"]
         )
