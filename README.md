@@ -49,6 +49,7 @@ aw install all          # later: install or update every configured repo
 aw list-repos           # see each repo's installed version and currency
 aw attention            # on-demand board of what needs attention across records
 aw ipd board            # board of your plan/IPD readiness Status, grouped by lifecycle
+aw ipd set approved <id> # transition plan status (or aw set approved <id>)
 aw check plans names    # check plan/IPD filenames match convention
 ```
 

@@ -300,9 +300,10 @@ _DESCRIPTIONS = {
         "--agent emits tab-separated drift records."
     ),
     "specs": (
-        "Owner verbs for the specs tree: 'set' (transition status + typed gates, append "
-        "history), 'note' (append history without a status change), 'check' (validate "
-        "against the contract), 'migrate' (first-normalize a legacy status)."
+        "Owner verbs for the design specifications and RFC documents in .aw/records/specs/: "
+        "'set' transitions status (draft -> to-review -> reviewed -> approved -> implementing -> implemented, "
+        "or deferred/parked/superseded), 'note' records workflow annotations, 'check' validates the contract "
+        "fail-closed, and 'migrate' first-normalizes legacy status bullets."
     ),
     "specs set": (
         "Transition a spec's status (enforcing the legal transition table, the "
@@ -321,6 +322,40 @@ _DESCRIPTIONS = {
     "specs migrate": (
         "One-time first-normalization of a legacy/free-form spec status to the bare enum "
         "and canonical shape. Use only on pre-contract specs."
+    ),
+    "spec": (
+        "Owner verbs for the design specifications and RFC documents in .aw/records/specs/: "
+        "'set' transitions status (draft -> to-review -> reviewed -> approved -> implementing -> implemented, "
+        "or deferred/parked/superseded), 'note' records workflow annotations, 'check' validates the contract "
+        "fail-closed, and 'migrate' first-normalizes legacy status bullets."
+    ),
+    "spec set": (
+        "Transition a spec's status (enforcing the legal transition table, the anti-self-approval "
+        "floor, and typed deferral gates) and append a workflow-history record. Syntax: "
+        "'aw spec set <status> <id6|setid|fname>...'."
+    ),
+    "spec note": (
+        "Append a workflow-history record to a spec WITHOUT changing its status. Use to log "
+        "a decision, review, or correction."
+    ),
+    "spec check": (
+        "Validate one spec (or all specs) against the spec contract (status enum, required "
+        "sections, gate typing) and fail closed on a violation. CI-friendly."
+    ),
+    "spec migrate": (
+        "One-time first-normalization of a legacy/free-form spec status to the bare enum "
+        "and canonical shape. Use only on pre-contract specs."
+    ),
+    "set": (
+        "Transition lifecycle status for one or more plan, spec, prompt, or backlog artifacts, "
+        "or an entire set by set-id. Atomically validates that all targets exist, type constraints "
+        "match, and statuses are valid before applying changes. Syntax: "
+        "'aw set [type] <status> <id6|setid|fname>...'."
+    ),
+    "ipd set": (
+        "Transition the lifecycle status of one or more plan/IPD artifacts or plan sets. "
+        "Enforces type consistency (rejects non-plan targets) and moves files across "
+        "disposition directories as required. Syntax: 'aw ipd set <status> <id6|setid|fname>...'."
     ),
     "archive": (
         "Deliberately deep-shelve research docs: a targeted move, or a bare aged-and-uncited "
@@ -1891,6 +1926,12 @@ def _build_parser() -> argparse.ArgumentParser:
         aliases=["spec"],
         parents=[common],
         help="Owner verbs for the specs tree. 'specs set'/'note' write status+history; 'specs check' validates.",
+        description=(
+            "Owner verbs for the design specifications and RFC documents in .aw/records/specs/: "
+            "'set' transitions status (draft -> to-review -> reviewed -> approved -> implementing -> implemented, "
+            "or deferred/parked/superseded), 'note' records workflow annotations, 'check' validates the contract "
+            "fail-closed, and 'migrate' first-normalizes legacy status bullets."
+        ),
     )
     specs_sub = p_specs.add_subparsers(dest="specs_command")
     p_specs_set = specs_sub.add_parser(

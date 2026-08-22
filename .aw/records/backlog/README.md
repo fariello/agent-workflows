@@ -48,7 +48,7 @@ Status is encoded BOTH by directory and by the `- Status:` bullet, and the two M
 
 - `aw backlog new --summary ... [--status --priority --kind --set --slug --gate-kind --gate-ref --body] [--apply]`
   create a conformant item (dry-run by default; owns the clustering filename + metadata).
-- `aw backlog set <path> --status <open|blocked|parked|done> [--message ... --gate-kind ... --gate-ref ...]`
+- `aw backlog set <status> <id6|setid|fname>...` (or `aw backlog set <path> --status <status>`)
   transition status (moves the file between the disposition dirs), append a history record; moving to
   `blocked` requires a typed gate.
 - `aw backlog check [--agent]` validate the tree fail-closed (valid enums, status-mirrors-directory,

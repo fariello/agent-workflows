@@ -45,6 +45,10 @@ Each plan also keeps a `## Workflow history` section: an appended, dated line pe
 that touched it (assess, plan-review, ...), so you can see the path a plan took. The
 plan-mutating workflows commit (never push) as they go, so `git log` shows the progression.
 
+To transition a plan's status and move it between disposition directories, use `aw ipd set` or `aw set`:
+- `aw ipd set <status> <id6|setid|fname>...` (e.g. `aw ipd set approved pl0001`, `aw ipd set to-review my-set`)
+- `aw set approved <id6|setid|fname>...` (untyped, transitions plans, specs, prompts, backlog, or entire sets)
+
 ## Identity, sets, and the clustering filename grammar
 
 Every plan carries a stable `- Id:` (a 6-char base36 citation handle that never changes across

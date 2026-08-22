@@ -8,9 +8,9 @@ Showing the 40 most-recent of 107 Sets; the full manifest is INDEX.json.
 
 - `p070c8` [pending] 00 pending/20260821-awoptimize-00-p070c8-agent-workflows-optimal-architecture-program.ipd.md
 - `nmwy3m` [executed] 01 executed/20260821-awoptimize-01-nmwy3m-canonical-workflow-schema-and-compiler.ipd.md
-- `viuzu4` [pending] 02 pending/20260821-awoptimize-02-viuzu4-ledger-and-evidence-record-schemas-and-requirement-freeze.ipd.md
+- `viuzu4` [executed] 02 executed/20260821-awoptimize-02-viuzu4-ledger-and-evidence-record-schemas-and-requirement-freeze.ipd.md
 - `7qs57e` [superseded] 02 superseded/20260821-awoptimize-02-7qs57e-run-ledger-and-evidence-contract.ipd.md
-- `6psux0` [pending] 03 pending/20260821-awoptimize-03-6psux0-append-only-tamper-evident-run-ledger-store.ipd.md
+- `6psux0` [executed] 03 executed/20260821-awoptimize-03-6psux0-append-only-tamper-evident-run-ledger-store.ipd.md
 - `7cqbel` [superseded] 03 superseded/20260821-awoptimize-03-7cqbel-deterministic-workflow-runtime.ipd.md
 - `yndh7k` [pending] 04 pending/20260821-awoptimize-04-yndh7k-evidence-capture-validators-completion-predicates-and-run-in.ipd.md
 - `mcubhc` [superseded] 04 superseded/20260821-awoptimize-04-mcubhc-independent-verification-and-orchestration.ipd.md

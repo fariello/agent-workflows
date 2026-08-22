@@ -21,9 +21,9 @@ optional `- Canonical: true` (a spec can be authoritative and unimplemented); `c
 status.
 
 Do NOT hand-edit the status or history. Use the owner verbs (they validate the transition, the
-anti-self-approval floor, and typed gates, then write atomically): `aw specs set <path> --status
-<enum> --message <text>` (an agent records human approval with `--by-human` as an explicit attested
-speed bump, and may not set `implemented` without a resolvable evidence citation), `aw specs note
-<path> --message <text>` (history only), and `aw specs check [path]` (validate; fail closed). `aw
-attention` surfaces every spec's attention class across the repo. See `aw specs --help` and `aw
-attention --help`.
+anti-self-approval floor, and typed gates, then write atomically): `aw spec set <status> <id6|setid|fname>...`
+(or `aw specs set <path> --status <enum> [--message <text>]`; an agent records human approval with
+`--by-human` as an explicit attested speed bump, and may not set `implemented` without a resolvable
+evidence citation), `aw specs note <path> --message <text>` (history only), and `aw specs check [path]`
+(validate; fail closed). `aw attention` surfaces every spec's attention class across the repo.
+See `aw specs --help` and `aw attention --help`.
