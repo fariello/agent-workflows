@@ -66,8 +66,13 @@ def strip_ansi(text: str) -> str:
     return ANSI_PATTERN.sub("", text)
 
 
-def ansi_truncate(text: str, max_width: int, color_enabled: bool) -> str:
+def ansi_truncate(
+    text: str, max_width: int, color_enabled: bool, show_long: bool = False
+) -> str:
     """Truncate text to max_width visible characters, preserving ANSI codes."""
+    if show_long:
+        return text
+
     if not color_enabled:
         clean = strip_ansi(text)
         if len(clean) <= max_width:
@@ -240,6 +245,7 @@ def process_label(
     is_root: bool = False,
     processes: dict[int, Process] | None = None,
     color_enabled: bool = True,
+    show_long: bool = False,
 ) -> str:
     representative = members[0]
     arguments = format_arguments(representative.arguments, color_enabled)
@@ -274,7 +280,7 @@ def process_label(
     label = f"{head} {arguments}".rstrip()
     if parent_suffix:
         label = f"{label}{parent_suffix}"
-    return ansi_truncate(label, width, color_enabled)
+    return ansi_truncate(label, width, color_enabled, show_long=show_long)
 
 
 def group_processes(processes: list[Process]) -> list[list[Process]]:
@@ -296,6 +302,7 @@ def render_group(
     width: int,
     processes: dict[int, Process] | None = None,
     color_enabled: bool = True,
+    show_long: bool = False,
     prefix: str = "",
     is_last: bool = True,
     is_root: bool = False,
@@ -312,7 +319,7 @@ def render_group(
         connector = f"{tree_c}├── {reset}"
 
     lines = [
-        f"{prefix}{connector}{process_label(members, width, is_root=is_root, processes=processes, color_enabled=color_enabled)}"
+        f"{prefix}{connector}{process_label(members, width, is_root=is_root, processes=processes, color_enabled=color_enabled, show_long=show_long)}"
     ]
 
     if level >= max_depth:
@@ -366,6 +373,7 @@ def render_group(
                     width=width,
                     processes=processes,
                     color_enabled=color_enabled,
+                    show_long=show_long,
                     prefix=child_prefix,
                     is_last=entry_is_last,
                 )
@@ -478,7 +486,11 @@ def matching_roots(processes: dict[int, Process], targets: set[str]) -> list[Pro
 
 
 def render_snapshot(
-    process_spec: str, max_depth: int, width: int, color_enabled: bool = True
+    process_spec: str,
+    max_depth: int,
+    width: int,
+    color_enabled: bool = True,
+    show_long: bool = False,
 ) -> str:
     processes = read_processes()
     targets = {t.strip() for t in process_spec.split(",") if t.strip()}
@@ -499,6 +511,7 @@ def render_snapshot(
                     width=width,
                     processes=processes,
                     color_enabled=color_enabled,
+                    show_long=show_long,
                     is_root=True,
                 )
             )
@@ -558,6 +571,12 @@ def parse_args() -> argparse.Namespace:
         help="maximum width of each process label (default: 120)",
     )
     parser.add_argument(
+        "-l",
+        "--long",
+        action="store_true",
+        help="show full untruncated command-line arguments regardless of terminal width",
+    )
+    parser.add_argument(
         "--no-color",
         action="store_true",
         help="disable 256-color output and ANSI styling",
@@ -591,8 +610,8 @@ def main() -> int:
             sys.stdout.flush()
 
         while True:
-            # Dynamically clamp to actual terminal width to prevent line wrapping distortion
-            if is_interactive:
+            # Dynamically clamp to actual terminal width to prevent line wrapping distortion unless --long
+            if is_interactive and not args.long:
                 term_cols = shutil.get_terminal_size((args.width, 24)).columns
                 effective_width = min(args.width, max(20, term_cols - 1))
             else:
@@ -609,7 +628,11 @@ def main() -> int:
                 header = f"{args.process} process trees (every {args.interval}s) -- {now_str}\n\n"
 
             snapshot = render_snapshot(
-                args.process, args.depth, effective_width, color_enabled=color_enabled
+                args.process,
+                args.depth,
+                effective_width,
+                color_enabled=color_enabled,
+                show_long=args.long,
             )
 
             if is_interactive:
