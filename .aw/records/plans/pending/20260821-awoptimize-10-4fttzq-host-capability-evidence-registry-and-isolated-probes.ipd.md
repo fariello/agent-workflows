@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Replace boolean host support claims with versioned evidence that defaults to unverified.
 - Scope: The capability-evidence registry (keyed by host/version/mode/feature; unverified default) + isolated positive/negative host probes. Scoped OpenCode + Codex first; agy 1.1.17 tentative. Nothing marked supported without an operator-run live probe. No skills/adapters (Order 11).
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-22
 - Set: awoptimize
 - Order: 10
 - Highest E allocated: 04
@@ -16,6 +17,7 @@
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-05 E-01..E-03 into 4 right-sized E-items (evidence registry with unverified-default+expiry, isolated positive probe harness, negative probes, tests); carries both resolved OQs (skill dir; agy 1.1.17).
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. host_capability_registry.py genuinely absent; the fail-closed unverified-default + positive-AND-negative-probe gate is the honest support discipline. PR-002 (MEDIUM, architecture): the gate declared deps on Order 05 (engine) + Order 08 (verifier) that this registry/probe layer consumes nothing from; its real deps are Order 01 (compiler command_descriptor/adapters it probes) + Order 03 (redaction hook it reuses). FIXED: dependency corrected to 01 + 03 in the gate, orchestrator child-table cell reconciled to `01, 03`. V-01..V-04 map 1:1 with falsifiable evidence. OQ-01/OQ-02 resolved.
+- 2026-08-22 approved (Gabriele Fariello, human): explicit human approval of the awoptimize Set after /plan-review; reviewed -> approved.
 
 ## Goal
 

@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Ship the architecture without breaking existing invocations or losing recoverability.
 - Scope: Compatibility contract for existing commands/shims/pointers/IPD locations + idempotent previewable migration/update + rollback + interrupted-recovery + opt-in privacy-preserving deprecation diagnostics. No docs/security/release-readiness (Order 18).
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-22
 - Set: awoptimize
 - Order: 17
 - Highest E allocated: 05
@@ -16,6 +17,7 @@
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-08 E-01..E-04 into 5 right-sized E-items (compatibility contract, previewable idempotent migration, rollback+interrupted-recovery, opt-in deprecation diagnostics, tests); carries the compatibility-gates table + deprecation-window OQ.
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Deps on 14-16 + 01-13 justified; never-remove-a-surface + never-push invariants airtight; migration MOVES/backs-up (D135). PR-001 (LOW, rubric C): the gate said "reuse the installer/engine.py migration primitives" but the migration/rollback engine is MigrationManager in layout_migration.py (engine.py holds install/layout resolution) - FIXED by naming layout_migration.py:MigrationManager (execute_migration/rollback_migration) for migration/rollback and engine.py for install, in both the conventions note and the scope fence. V-01..V-05 map 1:1 with falsifiable evidence. OQ-01 (deprecation window) non-blocking, two-release default.
+- 2026-08-22 approved (Gabriele Fariello, human): explicit human approval of the awoptimize Set after /plan-review; reviewed -> approved.
 
 ## Goal
 

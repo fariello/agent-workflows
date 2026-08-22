@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Make a run resumable, retry-bounded, and crash-safe, and expose the run lifecycle through the CLI.
 - Scope: Bounded retry/correction states + resume/cancel/crash recovery from the ledger (idempotency keys, unknown_outcome) + aw run start|next|record|resume|cancel|status|finalize + model-free simulations of the whole state space.
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-22
 - Set: awoptimize
 - Order: 7
 - Highest E allocated: 04
@@ -16,6 +17,7 @@
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-03 E-06..E-09 into 4 right-sized E-items (bounded retry/correction, resume/cancel/crash recovery, aw run lifecycle CLI, model-free full-state-space simulations); carries the resolved JSONL runtime-index OQ. E-03 records the `aw run` group ownership (EXTENDS Order 04's group) per the Layer-A PR-001 resolution.
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. run_recovery.py genuinely absent; the aw run group-ownership resolution (EXTEND Order 04's group, do not re-register) is coherent and confirmed. PR-002 (LOW): the `aw run` CLI module was unnamed in E-03 and the scope fence; FIXED by naming `agent_workflows/run_cli.py` (the Order-04-owned module) in both. Recovery invariants sound (idempotency + unknown_outcome, no silent rerun; predicate-gated coordinator-only finalize). V-01..V-04 map 1:1 with falsifiable evidence. OQ-01 (runtime index = JSONL) resolved.
+- 2026-08-22 approved (Gabriele Fariello, human): explicit human approval of the awoptimize Set after /plan-review; reviewed -> approved.
 
 ## Goal
 

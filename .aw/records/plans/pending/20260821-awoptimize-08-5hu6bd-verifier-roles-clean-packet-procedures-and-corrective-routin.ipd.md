@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Make independent verification an architectural role with least privilege and fresh evidence, not a second prompt in the executor's conversation.
 - Scope: Coordinator/executor/investigator/verifier/corrector/human role contracts + the clean verifier packet (frozen requirements + actual diff + raw evidence, no executor conclusion) + verification procedures + corrective-IPD routing. No concurrency/isolation machinery (Order 09).
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-22
 - Set: awoptimize
 - Order: 8
 - Highest E allocated: 05
@@ -16,6 +17,7 @@
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-04 E-01..E-04 into 5 right-sized E-items (roles, clean verifier packet, verification procedures, corrective routing, tests); carries the cross-model-verifier OQ.
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. verify_roles.py genuinely absent; role policy is the semantic layer over Order-02 RL-E032. PR-001 (MEDIUM, architecture): the gate declared a dependency on Order 07 (recovery/CLI) that this Order consumes nothing from, needlessly serializing Layer C behind all of Layer B. FIXED: dependency corrected to Order 05 + Orders 01-04 (07 dropped) in the gate, and the orchestrator child-table cell reconciled to `05`. V-01..V-05 map 1:1 with falsifiable evidence. OQ-01 (cross-model verifier) non-blocking, deferred to the benchmark.
+- 2026-08-22 approved (Gabriele Fariello, human): explicit human approval of the awoptimize Set after /plan-review; reviewed -> approved.
 
 ## Goal
 

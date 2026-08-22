@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Migrate the compact workflows without needless orchestration and gate every family on benchmark evidence.
 - Scope: Migrate getting-started/list-workflows/whatnext/handoff/research/verify/spec/release-notes/scaffold + generate all legacy command shims and selected skills from canonical packages + run per-family benchmark promotion gates (failing families stay legacy with a corrective backlog item).
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-22
 - Set: awoptimize
 - Order: 16
 - Highest E allocated: 04
@@ -16,6 +17,7 @@
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-07 E-08..E-10 into 4 right-sized E-items (compact-workflow migration, generated shims/skills with parity, per-family benchmark promotion gates, tests); carries the auto-activate OQ.
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Deps on 14 (inventory), 15 (complex), 13 (benchmark for promotion gates) all justified. Sound: shims reuse the Order-11/engine.py generator (no duplicate path), aliases bound to canonical digest + parity, per-family promotion gate keeps failing families on legacy with a corrective item (never advertised as migrated). PR-001 (LOW): E-01 listed `research` (whose body dir is `research-prompt/`) which could mislead an executor - FIXED by noting the command->body-dir mapping and directing to Order 14's inventory for exact resolution. V-01..V-04 map 1:1 with falsifiable evidence. OQ-01 (auto-activate skills) non-blocking, deferred to benchmark activation-precision evidence.
+- 2026-08-22 approved (Gabriele Fariello, human): explicit human approval of the awoptimize Set after /plan-review; reviewed -> approved.
 
 ## Goal
 

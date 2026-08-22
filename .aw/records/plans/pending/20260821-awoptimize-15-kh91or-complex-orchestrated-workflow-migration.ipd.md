@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Migrate the complex, stateful workflows onto the runtime/ledger/verifier architecture without semantic loss.
 - Scope: Migrate release-review(+plan), verify-execution, ipd-lifecycle, assess-all, setup-repo, and incident/migrate/benchmark to deterministic orchestration with frozen modes, serialized mutation, and independent verification.
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-22
 - Set: awoptimize
 - Order: 15
 - Highest E allocated: 05
@@ -16,6 +17,7 @@
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-07 E-04..E-07 into 5 right-sized E-items (release-review, verify-execution+ipd-lifecycle, assess-all+setup-repo, incident/migrate/benchmark, tests).
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE; GO - PENDING HUMAN APPROVAL. Deps on the runtime/ledger/verifier layers (05-09) + 01-04 are all justified (each migrated complex workflow genuinely consumes packets/ledger/verifier/isolation). Verified every named workflow exists under .aw/system/workflows/. Sound: 52KB release-review protocol delivered just-in-time, terminal transitions executor-unreachable, planning/release boundary holds, incident/migrate/benchmark keep honest operator-data limits, clean boundary vs Order 14 (shared families) and Order 16 (compact). V-01..V-05 map 1:1 with falsifiable evidence. No findings. OQ-01 resolved.
+- 2026-08-22 approved (Gabriele Fariello, human): explicit human approval of the awoptimize Set after /plan-review; reviewed -> approved.
 
 ## Goal
 

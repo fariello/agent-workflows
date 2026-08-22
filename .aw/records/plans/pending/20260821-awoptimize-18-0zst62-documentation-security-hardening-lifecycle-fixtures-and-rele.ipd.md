@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Make the cutover truthful, safe, and reversible, and produce a GO/NO-GO without publishing.
 - Scope: Operator/author/security docs (generated from evidence registries) + threat-model hardening + clean-install/update/rollback lifecycle fixtures + a final release-readiness review that never tags/publishes/pushes.
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-22
 - Set: awoptimize
 - Order: 18
 - Highest E allocated: 05
@@ -16,6 +17,7 @@
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-08 E-05..E-09 into 5 right-sized E-items (docs rendered from registries, model-profile docs, security hardening, lifecycle matrix fixtures, GO/NO-GO release-readiness); the final Order.
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Deps on 17 + all prior justified; the never-tag/publish/push + GO/NO-GO-only invariant is airtight (9 hits) and cites RELEASING.md / release-review Section 9; docs render from registries (no prose exceeding claims). PR-002 (MEDIUM, rubric C): E-03/E-05 said generic "leak scan" without naming the repo's canonical security tools - FIXED by naming `aw sanitize`/`check-local-leaks` (leak sanitizer) + `scan_secrets.py` (secret scanner) in E-03, and `aw sanitize --agent` + `aw ipd lint --all --agent` in E-05 and the required-tests, so the release gate reuses existing tooling not a fork. V-01..V-05 map 1:1 with falsifiable evidence. OQ-01 resolved.
+- 2026-08-22 approved (Gabriele Fariello, human): explicit human approval of the awoptimize Set after /plan-review; reviewed -> approved.
 
 ## Goal
 

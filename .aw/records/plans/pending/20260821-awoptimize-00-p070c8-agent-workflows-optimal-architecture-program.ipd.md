@@ -4,7 +4,8 @@
 - Kind: orchestrator
 - Concern: Replace prose-only workflow compliance with a portable, evidence-gated execution architecture that remains usable across models and coding-agent hosts.
 - Scope: Orchestration only for Set `awoptimize`; Orders 01 through 08 own implementation. This Set may change workflow metadata, runtime and conformance tooling, generated host adapters, tests, and documentation, but no child may silently expand beyond its declared files.
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-22
 - Set: awoptimize
 - Order: 0
 - Highest E allocated: 10
@@ -18,6 +19,7 @@
 - 2026-08-21 approved (Gabriele Fariello, --by-human): human sign-off recorded for the FOUNDATIONAL scope of the Set (this orchestrator + Orders 01-04, the deterministic offline model-free critical path). Orders 05-08 remain `reviewed` (GO - pending human approval), to be approved once their live host/model probes and benchmark evidence are in hand. Execution proceeds in dependency order via /ipd-lifecycle; live model/host calls are operator-run, never executor-run.
 - 2026-08-21 amended + re-scoped (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): the tail was re-scoped from 7 coarse Orders (old 02-08, retired to superseded/) into 17 right-sized children (new Orders 02-18) per the maintainer-approved re-scope proposal and backlog `8iy2dk`. The orchestrator's gates were rewritten to coordinate by architectural LAYER (A-G) rather than one leaf per child; the child table, completion criteria, and cross-IPD validation now describe the 19-Order Set. Because the orchestrator's content changed materially, its prior human approval is withdrawn and Status reverts to `to-review` pending re-review (/plan-review) + fresh human approval. Order 01 (executed) is unaffected.
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Reviewed the re-scoped orchestrator after all 17 children were individually reviewed; cross-checked the child-table DAG against every child's own gate. PR-001 (MEDIUM): child table listed Order 05's dep as `04`, but Order 05's gate requires 01-03 and its fence explicitly excludes Order 04 (05 can run parallel with 04) - FIXED to `01-03`. PR-002 (MEDIUM): completion criteria implied the executor runs the live benchmark and listed dollar `cost` as a threshold, contradicting the Order 12/13 offline-only/operator-run-live/no-cost resolution - FIXED (operator-run live, time/token efficiency). PR-003 (LOW): the final-execution command set said 'controlled live benchmark report validation' - FIXED to consume operator-run reports + pinned `make test`/`aw sanitize --agent`. PR-004 (LOW): orchestrator OQ-01/OQ-02 were stale `open` - reconciled to `resolved`, pointing at the Order 12/13 (offline/live) and Order 10/11 (agy 1.1.17 tentative) resolutions. E/V bijection 9:9; layer gates enumerate the right children; the watermark (10) correctly exceeds the present max (E-09). No blocking open questions remain. This completes /plan-review of the entire awoptimize Set (00 + all 17 children).
+- 2026-08-22 approved (Gabriele Fariello, human): explicit human approval of the awoptimize Set after /plan-review; reviewed -> approved.
 
 ## Goal
 

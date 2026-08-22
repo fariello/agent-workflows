@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Release only bounded just-in-time work and never synthesize human consent.
 - Scope: Bounded JIT step packets + structured outcome envelopes + human decision gates (headless needs_input, no synthesized consent). No retry/recovery (Order 07).
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-22
 - Set: awoptimize
 - Order: 6
 - Highest E allocated: 04
@@ -16,6 +17,7 @@
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-03 E-03/E-04/E-05 into 4 right-sized E-items (bounded JIT packet rendering, evidence-linked outcome envelopes, human decision gates, tests).
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. run_packet.py genuinely absent; envelope correctly rejects unsupported prose; gates enforce needs_input + no synthesized consent. PR-001 (LOW): the human-gate module was unnamed in E-03 and the scope fence; FIXED by naming it `agent_workflows/run_gates.py` in both. V-01..V-04 map 1:1 with falsifiable evidence. OQ-01 resolved.
+- 2026-08-22 approved (Gabriele Fariello, human): explicit human approval of the awoptimize Set after /plan-review; reviewed -> approved.
 
 ## Goal
 

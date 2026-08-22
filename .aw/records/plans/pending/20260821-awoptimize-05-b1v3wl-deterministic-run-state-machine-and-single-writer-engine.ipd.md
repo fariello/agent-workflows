@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Move sequencing and durable state out of model memory into a deterministic single-writer state machine.
 - Scope: The run state machine + single-writer engine (legal transition table + authority; two concurrent coordinators cannot both act; lock loss fails closed). No packets/gates (Order 06), no recovery/CLI (Order 07).
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-22
 - Set: awoptimize
 - Order: 5
 - Highest E allocated: 03
@@ -16,6 +17,7 @@
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-03 E-01/E-02 into 3 right-sized E-items (transition table + authority, single-writer DAG engine, model-free tests); carries the State ownership table.
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE; GO - PENDING HUMAN APPROVAL. run_state.py/run_engine.py genuinely absent (new work); dependency chain coherent (needs 01/02/03); transition table forbids executor-authored completion (Order-02 RL-E035); reuses the Order-03 single-writer lease rather than a second lock; scope fence fully file-specific; V-01..V-03 map 1:1 with falsifiable evidence. No findings. OQ-01 resolved.
+- 2026-08-22 approved (Gabriele Fariello, human): explicit human approval of the awoptimize Set after /plan-review; reviewed -> approved.
 
 ## Goal
 

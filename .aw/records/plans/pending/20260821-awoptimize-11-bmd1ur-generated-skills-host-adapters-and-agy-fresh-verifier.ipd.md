@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Generate the thinnest native host wrappers from the canonical source without duplicating semantics.
 - Scope: Generated Agent Skills + per-host adapter metadata + the agy fresh-session verifier mode + generated-parity/discovery/permission/security tests. Consumes Order 10's registry; marks nothing supported without evidence.
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-22
 - Set: awoptimize
 - Order: 11
 - Highest E allocated: 05
@@ -17,6 +18,7 @@
 - 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-05 E-04..E-08 into 5 right-sized E-items (generated skills, guarded per-host adapters, skill-authority restriction, agy fresh-verifier, security/parity tests); carries the host-mapping table.
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE; GO - PENDING HUMAN APPROVAL. Deps on Order 10 (registry) + Order 08 (verifier packet) are justified (it consumes both). Sound discipline: advertises nothing the Order-10 registry has not marked non-unverified; authoritative behavior never lives only in SKILL.md; agy fresh-verifier replaces same-session audit. V-01..V-05 map 1:1 with falsifiable evidence incl. security (loopback/auth, external-path, redaction). No findings. OQ-01 resolved.
 - 2026-08-21 /plan-review re-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Deeper pass found two the first missed: PR-001 (LOW) the generator module was unnamed - FIXED by naming `agent_workflows/host_adapters.py` in E-02 + the scope fence; PR-002 (MEDIUM, rubric C) the repo ALREADY has a host-shim generator (`engine.py` generate_shim_members/shim_body/COMMAND_SHIM_DIRS) and this Order must EXTEND it, not fork a parallel adapter path - FIXED by mandating reuse in E-02, the Findings, and the scope fence (which now names `engine.py`). Re-lint conforming.
+- 2026-08-22 approved (Gabriele Fariello, human): explicit human approval of the awoptimize Set after /plan-review; reviewed -> approved.
 
 ## Goal
 

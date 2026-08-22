@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Turn captured evidence into a deterministic completion predicate so completion is COMPUTED, not claimed by a model.
 - Scope: Evidence capture (provenance envelopes bound to command/cwd/HEAD/exit/hash/worktree/actor), evidence validators (one per false-completion class), completion predicates, read-only aw run show|evidence|verify-ledger CLI, and the evidence-layer adversarial fixtures.
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-22
 - Set: awoptimize
 - Order: 4
 - Highest E allocated: 05
@@ -16,6 +17,7 @@
 - 2026-08-21 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created.
 - 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-02 E-04..E-08 into 5 right-sized E-items (evidence capture, per-class validators, completion predicate, aw run inspection CLI, adversarial suite) + the evidence-sufficiency matrix.
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. This is the completion-as-predicate core; E-03 correctly requires an INDEPENDENT verifier-authored decision (Order-02 RL-E032). PR-001 (MEDIUM, cross-plan): both this Order (E-04) and Order 07 (E-03) create the `aw run` command group + wire run_cli.py, an ownership ambiguity that could collide at execution. FIXED in place: E-04 now OWNS the `aw run` parser-group registration; Order 07's E-03 was cross-referenced to EXTEND (not re-register) the group (disjoint read-only vs lifecycle subcommand sets). V-01..V-05 map 1:1 with falsifiable evidence; adversarial suite mandated before completion. OQ-01 resolved.
+- 2026-08-22 approved (Gabriele Fariello, human): explicit human approval of the awoptimize Set after /plan-review; reviewed -> approved.
 
 ## Goal
 
