@@ -790,6 +790,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "workflow",
         parents=[common],
         help="Canonical workflow schema/compiler tooling (validate/compile/check-generated).",
+        description=(
+            "Canonical workflow schema and compiler tooling. Validate a typed workflow source "
+            "package, compile it into deterministic generated projections, or check that the "
+            "generated output has not drifted from source. Read-only except 'compile --apply'."
+        ),
         formatter_class=_AlphaHelpFormatter,
         epilog=(
             "EXAMPLES\n"
@@ -800,18 +805,32 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     workflow_sub = p_workflow.add_subparsers(dest="workflow_command")
-    for _wf_sub, _wf_help in (
-        ("validate", "Load + schema-validate a canonical package (read-only)."),
+    for _wf_sub, _wf_help, _wf_desc in (
+        (
+            "validate",
+            "Load + schema-validate a canonical package (read-only).",
+            "Load a canonical workflow source package and validate it against the typed schema "
+            "(ids, enums, evidence bindings, permissions, dependency graph). Read-only; makes no "
+            "writes. Exit 0 clean, 1 conformance failure, 2 bad path or invocation error.",
+        ),
         (
             "compile",
             "Compile to generated projections (dry-run; --apply writes atomically).",
+            "Compile a validated package into the six deterministic generated projections (prompt "
+            "bundle, step packets, manifest, evidence, catalog row, command descriptor). Dry-run "
+            "by default (previews the file list); --apply writes them atomically under _generated/.",
         ),
         (
             "check-generated",
             "Fail if any _generated/ file drifts from a fresh compile (read-only).",
+            "Recompile from source and compare against the on-disk _generated/ files, failing if "
+            "any is missing, changed (hand-edited), or unexpected. Read-only; makes no writes. "
+            "Exit 0 clean, 1 on drift, 2 on a bad path.",
         ),
     ):
-        _p = workflow_sub.add_parser(_wf_sub, parents=[common], help=_wf_help)
+        _p = workflow_sub.add_parser(
+            _wf_sub, parents=[common], help=_wf_help, description=_wf_desc
+        )
         _p.add_argument(
             "path", nargs="*", default=None, help="One or more workflow package roots."
         )
