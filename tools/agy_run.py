@@ -81,36 +81,71 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
         prog="agy_run.py",
         description=(
             "Unified multi-mode runner and skeptical validator for Antigravity (Gemini 3.7 Flash High).\n"
-            "Runs a primary task turn with calibrated diligence framing, followed automatically by\n"
-            "an evidence-backed skeptical validation turn in the same conversation session."
+            "Executes Implementation Plan Documents (IPDs), specification authoring, prompt files, or\n"
+            "inline prompts using the Antigravity CLI. Automatically enforces a two-turn verification\n"
+            "protocol: Turn 1 executes the task with calibrated engineering diligence, and Turn 2 resumes\n"
+            "the exact conversation session to conduct an evidence-backed skeptical audit to eliminate\n"
+            "greenwashing, shallow tests, unwired symbols, and unverified completion claims."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""EXAMPLES AND USAGE:
+        epilog="""EXECUTION PROTOCOL AND WORKFLOW MODES:
 
-  1. Execute a pending IPD by 6-character ID or path (with 2-turn skeptical audit):
-     python3 tools/agy_run.py 7cvh9t
-     python3 tools/agy_run.py .agents/plans/pending/20260816-awphysical-15-7cvh9t-fresh-install-aw-target.md
-     python3 tools/agy_run.py --ipd 7cvh9t
+  Turn 1 (Execution):
+    Runs the primary task with calibrated diligence preambles (requiring real behavior,
+    falsifiable tests with red-then-green proof, path-scoped commits, and zero shallow assertions).
 
-  2. Generate an IPD from a specification document:
-     python3 tools/agy_run.py --spec .agents/docs/specs/20260810-1447-01-physical-aw-hierarchy.spec.md
+  Turn 2 (Skeptical Audit):
+    Resumes the exact conversation session from Turn 1 to conduct an independent-minded audit.
+    Requires an explicit evidence table mapping every E-* and V-* item to real test runs,
+    falsifiability checks, diff inspections, and honest pass/fail verdicts.
 
-  3. Execute an external prompt brief file:
-     python3 tools/agy_run.py --file .agents/prompts/local/task-brief.md
-     python3 tools/agy_run.py -f .agents/prompts/local/task-brief.md
+SUPPORTED MODES:
+  1. IPD Mode (--ipd <target> | positional ID6 or path):
+     Executes a pending Implementation Plan Document (.aw/records/plans/pending/*.ipd.md),
+     then performs a skeptical post-execution audit in the same conversation session.
+     Example: python3 tools/agy_run.py 7cvh9t
+     Example: python3 tools/agy_run.py --ipd .aw/records/plans/pending/20260821-awoptimize-01-nmwy3m.ipd.md
 
-  4. Run an inline prompt string (matching agy -c -p ergonomics):
-     python3 tools/agy_run.py -p "refactor installer error handling in engine.py"
-     python3 tools/agy_run.py --prompt "add unit tests for resolve_target_layout"
+  2. Spec Mode (--spec <target> | positional *.spec.md):
+     Authors a conformant IPD from a specification document using repository scaffolding tools,
+     then performs a completeness and conformance audit in Turn 2.
+     Example: python3 tools/agy_run.py --spec .aw/records/specs/20260809-2211-01-aw-project-layout.spec.md
 
-  5. Session continuity and isolation controls:
-     python3 tools/agy_run.py -s 12345-67890 -p "fix the remaining edge cases"
-     python3 tools/agy_run.py --new-session 7cvh9t
-     python3 tools/agy_run.py --no-audit -p "quick exploratory lookup"
+  3. File Mode (--file / -f <path>):
+     Executes an external prompt brief file (e.g. under .aw/records/prompts/),
+     then verifies task execution in Turn 2.
+     Example: python3 tools/agy_run.py --file .aw/records/prompts/untracked/task-brief.md
+     Example: python3 tools/agy_run.py -f .aw/records/prompts/pending/my-prompt.prompt.md
+
+  4. Prompt Mode (--prompt / -p "<text>" | positional string):
+     Executes an inline prompt string matching `agy -c -p` ergonomics,
+     then runs the Turn-2 skeptical verification audit.
+     Example: python3 tools/agy_run.py -p "refactor installer error handling in engine.py"
+     Example: python3 tools/agy_run.py "add unit tests for resolve_target_layout"
+
+AUTONOMOUS EXECUTION AND SANDBOX BOUNDARIES:
+  --dangerous, --dangerously-skip-permissions:
+     Pass to auto-approve all tool, command, and subagent permission requests without prompting.
+     Essential for non-interactive scripting, subagents, and automated orchestration loops.
+
+  --add-dir <DIR>:
+     By default, Antigravity restricts file access and command working directories to the repository root.
+     Pass --add-dir <DIR> (repeatable) to authorize external directories (e.g. /tmp, sibling repos, caches)
+     into the active Antigravity workspace, allowing tools to read, edit, and run commands in those paths.
+
+SESSION CONTINUITY AND ISOLATION:
+  - Default: Turn 1 resumes the project's most recent conversation session (--continue).
+  - --session-id / -s / -c <ID>: Attaches Turn 1 to a specific conversation ID.
+  - --new-session / -n: Forces a fresh, clean-slate session without inheriting prior conversation history.
+  - Turn 2 always runs in the exact conversation session returned by Turn 1.
+
+TURN CONTROLS:
+  --no-audit: Runs Turn 1 (execution) only without executing the Turn-2 skeptical audit.
+  --audit-only: Runs Turn 2 (skeptical audit) only on an existing conversation session.
 
 STREAMING LOGS AND MONITORING:
-  Each turn flushes all stream-json events to tmp/antigravity/agy-<pid>-<timestamp>.jsonl.
-  Monitor execution in another terminal using:
+  All raw stream-json events are logged to tmp/antigravity/agy-<pid>-<timestamp>.jsonl.
+  Monitor execution in real time from another terminal:
      tail -f tmp/antigravity/agy-<pid>-<timestamp>.jsonl
 """,
     )
@@ -213,13 +248,11 @@ STREAMING LOGS AND MONITORING:
         "--dangerous",
         "--dangerously-skip-permissions",
         "--dangerously-skip-permission",
-        "--danger",
-        "-d",
         dest="dangerous",
         action="store_true",
         help=(
             "Run agy with --dangerously-skip-permissions for all calls "
-            "(auto-approves tool execution without interactive confirmation)."
+            "(auto-approves tool and subagent execution without interactive confirmation prompts)."
         ),
     )
     runtime_group.add_argument(
@@ -228,7 +261,11 @@ STREAMING LOGS AND MONITORING:
         action="append",
         default=[],
         metavar="DIR",
-        help="Add an external directory to the workspace (passed to agy --add-dir; repeatable).",
+        help=(
+            "Add an external directory outside the repository root into the active Antigravity workspace "
+            "(passed to agy --add-dir; repeatable for multiple directories). Extends filesystem and sandbox "
+            "boundaries so tools can read, edit, and execute in specified external paths."
+        ),
     )
 
     # Workflow controls

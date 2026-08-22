@@ -98,23 +98,21 @@ class AgyRunArgParseTests(unittest.TestCase):
         self.assertTrue(args.dangerous)
 
     def test_dangerous_and_add_dirs_flags(self):
-        # Test --dangerous alias
+        # Test --dangerous flag
         args_d1 = agy_run.parse_args(["--dangerous", "-p", "test"])
         self.assertTrue(args_d1.dangerous)
 
-        # Test --dangerously-skip-permission (singular) alias
+        # Test --dangerously-skip-permissions (plural) flag
+        args_d_plur = agy_run.parse_args(
+            ["--dangerously-skip-permissions", "-p", "test"]
+        )
+        self.assertTrue(args_d_plur.dangerous)
+
+        # Test --dangerously-skip-permission (singular) flag
         args_d_sing = agy_run.parse_args(
             ["--dangerously-skip-permission", "-p", "test"]
         )
         self.assertTrue(args_d_sing.dangerous)
-
-        # Test -d alias
-        args_d2 = agy_run.parse_args(["-d", "-p", "test"])
-        self.assertTrue(args_d2.dangerous)
-
-        # Test --danger alias
-        args_d3 = agy_run.parse_args(["--danger", "-p", "test"])
-        self.assertTrue(args_d3.dangerous)
 
         # Test --add-dir repeatable
         args_dirs = agy_run.parse_args(
