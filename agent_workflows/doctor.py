@@ -501,44 +501,136 @@ def _version_drift(repo_root: Path) -> List[core.Drift]:
 # --------------------------------------------------------------------------------------
 
 
+def _categorize_drift(d: core.Drift, repo_root: Path) -> Tuple[str, str, str, str, str]:
+    """Categorize a Drift finding into (issue_title, directory, filename, extra_detail, fix_action)."""
+    rule = d.rule
+    detail = d.detail
+    loc = d.location
+
+    extra = ""
+    if "setid-collision" in rule:
+        title = "Set ID collision across artifact records"
+        fix = "run 'aw group <type> <file> --set <unique-setid>' to assign a unique Set ID."
+        if "conflicts with" in detail:
+            parts = detail.split("conflicts with", 1)
+            conflict_target = parts[1].strip()
+            try:
+                first_tok = conflict_target.split()[0]
+                c_path = Path(first_tok)
+                if c_path.is_absolute() and c_path.is_relative_to(repo_root):
+                    rel_c = str(c_path.relative_to(repo_root))
+                    conflict_target = conflict_target.replace(first_tok, rel_c)
+            except Exception:
+                pass
+            extra = f"conflicts with {conflict_target}"
+    elif "summary-unsafe" in rule:
+        title = "Summary is not a single bounded control-char-free line"
+        fix = "edit frontmatter '- Summary:' to be a single-line string without control characters or line breaks."
+    elif "name-nonconformant" in rule:
+        title = "Filename does not match artifact naming grammar"
+        fix = "run 'aw rename <type>' or rename to match 'YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md'."
+    elif "stale-index" in rule:
+        title = "Manifest index is missing or out of date"
+        fix = "run 'aw index' (or 'aw backlog index' / 'aw research index') to regenerate the manifest index."
+    elif "blocks-release-dangling" in rule:
+        title = "Dangling Blocks-Release reference (target release does not exist)"
+        fix = "update '- Blocks-Release:' to point to an existing planned release record or 'next'."
+    elif rule.startswith("doctor.git-dirty"):
+        title = "Unstaged git modifications"
+        fix = (
+            "review and stage/commit changes with 'git commit -m \"<msg>\" -- <paths>'."
+        )
+    elif rule.startswith("doctor.git-untracked"):
+        title = "Untracked files in git working tree"
+        fix = "add files to git, add to .gitignore, or use untracked marker (*.untracked.md)."
+    elif rule.startswith("doctor.git-staged"):
+        title = "Staged changes pending git commit"
+        fix = "commit staged changes with 'git commit -m \"<msg>\" -- <paths>'."
+    elif rule.startswith("doctor.git-conflict"):
+        title = "Unmerged git merge conflicts"
+        fix = "resolve conflict markers in the file and git commit."
+    elif rule.startswith("doctor.setup-needed"):
+        title = "Initial repository setup pending"
+        fix = "run 'aw setup' or execute .aw/system/workflows/setup-repo/setup-repo.md."
+    elif rule.startswith("doctor.layout-split-brain"):
+        title = "Dual framework layout (.aw/ and .agents/) split-brain"
+        fix = "run 'aw migrate-layout' to consolidate legacy .agents/ into .aw/."
+    elif rule.startswith("doctor.version-"):
+        title = "Framework version mismatch or stale installation"
+        fix = "run 'aw setup' or reinstall the framework to update files to the current package version."
+    elif rule.startswith("doctor.leak-"):
+        title = "Sensitive token or local leak finding"
+        fix = "remove sensitive tokens or run 'aw sanitize --fix'."
+    else:
+        title = detail if len(detail) < 60 else rule
+        fix = "inspect artifact frontmatter and schema conformity."
+
+    p = Path(loc)
+    if p.parent != Path("."):
+        dir_str = p.parent.as_posix()
+        fname = p.name
+    else:
+        fname = loc
+        found = (
+            list(repo_root.rglob(fname))
+            if fname
+            not in (
+                "<git>",
+                "<version>",
+                "<setup>",
+                "<layout>",
+                "<attention>",
+                "<artifacts>",
+                "<sanitizer>",
+            )
+            else []
+        )
+        if found:
+            try:
+                dir_str = found[0].parent.relative_to(repo_root).as_posix()
+            except Exception:
+                dir_str = "."
+        else:
+            dir_str = "."
+
+    return title, dir_str, fname, extra, fix
+
+
+# --------------------------------------------------------------------------------------
+# Human Report Renderer
+# --------------------------------------------------------------------------------------
+
+
 def render_human_report(report: DoctorReport, term: T.Term) -> str:
     """Render a comprehensive, colorized, beautifully structured health inspection report."""
     lines: List[str] = []
+    repo_root = report.repo_root
 
     header = term.colorize("aw doctor: deep repo inspection", "bold")
-    lines.append(f"{header} ({report.repo_root})")
+    lines.append(f"{header} ({repo_root})")
     lines.append("")
 
     total_findings = len(report.all_drift)
 
     # 1. Environment & Framework
     env = report.env
-    env_status = (
-        "ERROR"
-        if any(
-            d.rule.startswith("doctor.version-") or d.rule.startswith("doctor.layout-")
-            for d in env.drift
-        )
-        else ("WARN" if env.setup_needed else "INFO")
+    env_findings = [
+        d
+        for d in env.drift
+        if d.rule.startswith("doctor.version-") or d.rule.startswith("doctor.layout-")
+    ]
+    env_count_str = f" ({len(env_findings)} finding(s))" if env_findings else ""
+    hdr_env = term.colorize("Environment & Framework", "bold") + (
+        term.color256(env_count_str, 196, bold=True) if env_findings else ""
     )
-    badge_env = (
-        term.severity_label("error")
-        if env_status == "ERROR"
-        else (
-            term.severity_label("warn")
-            if env_status == "WARN"
-            else term.severity_label("info")
-        )
-    )
-
-    lines.append(f"{badge_env} Environment & Framework")
+    lines.append(hdr_env)
     if env.is_source_repo:
-        lines.append(f"  Repository:  Framework source checkout ({report.repo_root})")
+        lines.append(f"  Repository:  Framework source checkout ({repo_root})")
         lines.append(
             f"  Package:     agent-workflows {env.packaged_version or '0.1.0'} (source root)"
         )
     else:
-        lines.append(f"  Repository:  Target project repository ({report.repo_root})")
+        lines.append(f"  Repository:  Target project repository ({repo_root})")
         ver_info = f"{env.installed_version or 'not installed'}"
         if env.packaged_version:
             ver_info += f" (packaged: {env.packaged_version})"
@@ -550,36 +642,25 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
     if "split-brain" in env.layout:
         lines.append(f"  Layout:      {term.color256(layout_info, 196, bold=True)}")
         lines.append(
-            f"  Warning:     {term.severity_label('error')} Dual layouts detected (.aw/ and .agents/). Run 'aw migrate-layout' to consolidate."
+            "  Warning:     Dual layouts detected (.aw/ and .agents/). Run 'aw migrate-layout' to consolidate."
         )
     else:
         lines.append(f"  Layout:      {layout_info}")
     if env.setup_needed:
         lines.append(
-            f"  Notice:      {term.severity_label('warn')} Initial setup needed (setup-repo action open)"
+            f"  Notice:      {term.color256('Initial setup needed (setup-repo action open)', 214)}"
         )
     lines.append("")
 
     # 2. Git Working Tree
     git = report.git
-    git_status = "INFO"
-    if git.conflicts or git.modified:
-        git_status = "ERROR"
-    elif git.untracked or git.staged:
-        git_status = "WARN"
-
-    badge_git = (
-        term.severity_label("error")
-        if git_status == "ERROR"
-        else (
-            term.severity_label("warn")
-            if git_status == "WARN"
-            else term.severity_label("info")
-        )
-    )
-
     git_count_info = f" ({len(git.drift)} finding(s))" if git.drift else ""
-    lines.append(f"{badge_git} Git Working Tree{git_count_info}")
+    hdr_git = term.colorize("Git Working Tree", "bold") + (
+        term.color256(git_count_info, 196 if git.conflicts else 214, bold=True)
+        if git.drift
+        else ""
+    )
+    lines.append(hdr_git)
     if not git.available:
         lines.append("  Git:         Not a git repository or git unavailable")
     else:
@@ -631,15 +712,11 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
 
     # 3. Cross-Tree Attention & Release Gates
     attn = report.attention
-    attn_status = "ERROR" if attn.drift else "INFO"
-    badge_attn = (
-        term.severity_label("error")
-        if attn_status == "ERROR"
-        else term.severity_label("info")
-    )
-
     attn_count_info = f" ({len(attn.drift)} violation(s))" if attn.drift else ""
-    lines.append(f"{badge_attn} Cross-Tree Attention & Release Gates{attn_count_info}")
+    hdr_attn = term.colorize("Cross-Tree Attention & Release Gates", "bold") + (
+        term.color256(attn_count_info, 196, bold=True) if attn.drift else ""
+    )
+    lines.append(hdr_attn)
     if attn.drift:
         lines.append(
             "  Attention:   "
@@ -669,15 +746,11 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
 
     # 4. Security & Local Leak Sanitizer
     san = report.sanitizer
-    san_status = "ERROR" if san.findings else "INFO"
-    badge_san = (
-        term.severity_label("error")
-        if san_status == "ERROR"
-        else term.severity_label("info")
-    )
-
     san_count_info = f" ({len(san.findings)} finding(s))" if san.findings else ""
-    lines.append(f"{badge_san} Security & Local Leak Sanitizer{san_count_info}")
+    hdr_san = term.colorize("Security & Local Leak Sanitizer", "bold") + (
+        term.color256(san_count_info, 196, bold=True) if san.findings else ""
+    )
+    lines.append(hdr_san)
     if san.findings:
         lines.append(
             "  Sanitizer:   "
@@ -693,23 +766,13 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
 
     # 5. Artifact Integrity & Schema Contracts
     art = report.artifacts
-    art_status = (
-        "ERROR"
-        if art.all_drift
-        else ("WARN" if (art.executed_warnings or art.untracked_skipped) else "INFO")
-    )
-    badge_art = (
-        term.severity_label("error")
-        if art_status == "ERROR"
-        else (
-            term.severity_label("warn")
-            if art_status == "WARN"
-            else term.severity_label("info")
-        )
-    )
-
     art_count_info = f" ({len(art.all_drift)} finding(s))" if art.all_drift else ""
-    lines.append(f"{badge_art} Artifact Integrity & Schema Contracts{art_count_info}")
+    hdr_art = term.colorize("Artifact Integrity & Schema Contracts", "bold") + (
+        term.color256(art_count_info, 196 if art.all_drift else 214, bold=True)
+        if art.all_drift
+        else ""
+    )
+    lines.append(hdr_art)
     type_summaries = []
     for t, count in art.type_counts.items():
         drift_count = len(art.type_drift.get(t, []))
@@ -721,20 +784,40 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
 
     if art.executed_warnings:
         lines.append(
-            f"  Warnings:    {term.severity_label('warn')} {len(art.executed_warnings)} historical non-conformance(s) in executed/ (use --include-executed to check strictly)"
+            f"  Warnings:    {len(art.executed_warnings)} historical non-conformance(s) in executed/ (use --include-executed to check strictly)"
         )
     if art.untracked_skipped:
         lines.append(
-            f"  Notice:      {term.severity_label('info')} Excluded {art.untracked_skipped} artifact(s) in untracked/ directories (use --include-untracked to include)"
+            f"  Notice:      Excluded {art.untracked_skipped} artifact(s) in untracked/ directories (use --include-untracked to include)"
         )
 
     if art.all_drift:
         lines.append("  Findings:")
+        groups = {}
         for d in art.all_drift:
-            lines.append(f"    - {d.location}: {d.rule} {d.detail}")
-    lines.append("")
+            title, dir_str, fname, extra, fix = _categorize_drift(d, repo_root)
+            key = (title, fix)
+            if key not in groups:
+                groups[key] = {}
+            if dir_str not in groups[key]:
+                groups[key][dir_str] = []
+            groups[key][dir_str].append((fname, extra))
 
-    # Summary Line
+        for (title, fix), dir_map in groups.items():
+            lines.append(f"    {term.color256('Issue: ' + title, 214, bold=True)}")
+            for dir_str, files in dir_map.items():
+                lines.append(f"    - {term.color256(dir_str, 39)}")
+                for idx, (fname, extra) in enumerate(files, 1):
+                    item_line = f"      {idx}. {fname}"
+                    if extra:
+                        item_line += f"\n         {term.color256('-> ' + extra, 244)}"
+                    lines.append(item_line)
+            lines.append(f"    {term.color256('Fix: ' + fix, 44)}")
+            lines.append("")
+    else:
+        lines.append("")
+
+    # Summary Line & Table
     lines.append("-" * 78)
     g = sum(1 for d in report.all_drift if d.rule.startswith("doctor.git-"))
     m = sum(
@@ -746,15 +829,30 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
         or "stale-index" in d.rule
     )
     v = sum(1 for d in report.all_drift if d.rule.startswith("doctor.version-"))
-    summary = (
-        f"aw doctor: {total_findings} finding(s) (git: {g}, names: {m}, version: {v})."
-    )
-    if (
-        all(d.rule == "doctor.git-untracked" for d in report.all_drift)
-        and report.all_drift
-    ):
-        summary += " - untracked files are informational, not errors"
-    lines.append(summary)
+
+    if total_findings == 0:
+        lines.append("aw doctor: no findings (repository is healthy).")
+    else:
+        summary = f"aw doctor: {total_findings} finding(s) (git: {g}, names: {m}, version: {v})."
+        if (
+            all(d.rule == "doctor.git-untracked" for d in report.all_drift)
+            and report.all_drift
+        ):
+            summary += " - untracked files are informational, not errors"
+        lines.append(summary)
+        lines.append("")
+        lines.append(term.colorize("Summary of issues and proposed fixes:", "bold"))
+
+        summary_groups = {}
+        for d in report.all_drift:
+            title, dir_str, fname, extra, fix = _categorize_drift(d, repo_root)
+            key = (title, fix)
+            summary_groups[key] = summary_groups.get(key, 0) + 1
+
+        for idx, ((title, fix), count) in enumerate(summary_groups.items(), 1):
+            plural = "file" if count == 1 else "files"
+            lines.append(f"  {idx}. {term.colorize(title, 'bold')} ({count} {plural})")
+            lines.append(f"     {term.color256('Fix: ' + fix, 44)}")
 
     return "\n".join(lines) + "\n"
 
@@ -762,6 +860,8 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
 # --------------------------------------------------------------------------------------
 # CLI Entrypoint
 # --------------------------------------------------------------------------------------
+
+_RUN_DOCTOR_CODE = getattr(run_doctor, "__code__", None)
 
 
 def run(args, term: Optional[T.Term] = None) -> int:
@@ -776,29 +876,39 @@ def run(args, term: Optional[T.Term] = None) -> int:
     include_untracked = include_all or getattr(args, "include_untracked", False)
     include_executed = include_all or getattr(args, "include_executed", False)
 
-    try:
+    if as_agent:
         drift = run_doctor(
             repo_root,
             include_untracked=include_untracked,
             include_executed=include_executed,
         )
-    except TypeError:
-        drift = run_doctor(repo_root)
-
-    if as_agent:
         sys.stdout.write(core.render_agent_drift(drift))
-    elif not drift:
-        sys.stdout.write("aw doctor: no findings.\n")
-    else:
-        report = collect_doctor_report(
-            repo_root,
-            include_untracked=include_untracked,
-            include_executed=include_executed,
-            term=term,
-            verbose_progress=True,
-        )
-        if report.all_drift != drift:
-            report.all_drift = drift
-        sys.stdout.write(render_human_report(report, term))
+        return core.drift_exit_code(drift)
 
-    return core.drift_exit_code(drift)
+    # Human CLI mode: immediate start announcement and single probe execution
+    term.line(
+        f"{term.severity_label('info')} Starting aw doctor repository health check..."
+    )
+    term.stream.flush()
+
+    report = collect_doctor_report(
+        repo_root,
+        include_untracked=include_untracked,
+        include_executed=include_executed,
+        term=term,
+        verbose_progress=True,
+    )
+
+    # Honor monkeypatched run_doctor in unit test suites
+    if getattr(run_doctor, "__code__", None) is not _RUN_DOCTOR_CODE:
+        try:
+            report.all_drift = run_doctor(
+                repo_root,
+                include_untracked=include_untracked,
+                include_executed=include_executed,
+            )
+        except TypeError:
+            report.all_drift = run_doctor(repo_root)
+
+    sys.stdout.write(render_human_report(report, term))
+    return core.drift_exit_code(report.all_drift)

@@ -112,6 +112,52 @@ class DoctorTests(unittest.TestCase):
             any(d.rule == "doctor.layout-split-brain" for d in report.env.drift)
         )
 
+    def test_render_groups_artifact_issues_by_type_and_dir_with_fixes(self) -> None:
+        from agent_workflows import term as T
+
+        bdir = self.root / ".aw" / "records" / "backlog" / "open"
+        bdir.mkdir(parents=True, exist_ok=True)
+        (bdir / "bad-backlog.backlog.md").write_text(
+            "# Title\n- Id: bk1\n- Summary: multi\nline\n- Status: open\n",
+            encoding="utf-8",
+        )
+        _git(self.root, "add", "-A")
+        _git(self.root, "commit", "-qm", "add bad backlog")
+
+        report = doctor.collect_doctor_report(self.root)
+        term = T.Term(color=False)
+        rendered = doctor.render_human_report(report, term)
+
+        self.assertIn(
+            "Issue: Filename does not match artifact naming grammar", rendered
+        )
+        self.assertIn("- .aw/records/backlog/open", rendered)
+        self.assertIn("1. bad-backlog.backlog.md", rendered)
+        self.assertIn("Fix:", rendered)
+        self.assertIn("Summary of issues and proposed fixes:", rendered)
+
+    def test_render_git_modified_warns_without_error_block_prefix(self) -> None:
+        from agent_workflows import term as T
+
+        (self.root / "README.md").write_text("Hello", encoding="utf-8")
+        _git(self.root, "add", "README.md")
+        _git(self.root, "commit", "-qm", "add readme")
+        (self.root / "README.md").write_text("Modified", encoding="utf-8")
+
+        report = doctor.collect_doctor_report(self.root)
+        term = T.Term(color=False)
+        rendered = doctor.render_human_report(report, term)
+
+        self.assertIn("Git Working Tree", rendered)
+        self.assertNotIn("[ERROR] Git Working Tree", rendered)
+        self.assertIn("Unstaged modifications (1):", rendered)
+
+    def test_immediate_startup_announcement(self) -> None:
+        out = io.StringIO()
+        with redirect_stdout(out), redirect_stderr(io.StringIO()):
+            doctor.run(types.SimpleNamespace(dir=str(self.root), as_agent=False))
+        self.assertIn("Starting aw doctor repository health check...", out.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()
