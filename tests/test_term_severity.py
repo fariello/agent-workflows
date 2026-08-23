@@ -207,13 +207,15 @@ class MachineOutputFlagsTests(unittest.TestCase):
         self.assertEqual(rc_json, 0, err_json)
         self.assertEqual(json.loads(out_json), data_agent)
 
-    def test_doctor_agent_emits_tab_separated(self):
+    def test_doctor_agent_emits_agent_v1(self):
         rc, out, err = self._run_cli(["doctor", "--agent"])
         self.assertIn(rc, (0, 1))
-        # When findings exist or empty, output is tab-separated or empty
-        for line in out.splitlines():
-            if line:
-                self.assertIn("\t", line)
+        lines = [line for line in out.splitlines() if line.strip()]
+        if lines:
+            data = json.loads(lines[0])
+            self.assertEqual(data.get("schema"), "aw.agent/v1")
+            self.assertEqual(data.get("cmd"), "doctor")
+            self.assertIn("exit", data)
 
     def test_doctor_rejects_json_flag(self):
         rc, out, err = self._run_cli(["doctor", "--json"])
@@ -241,7 +243,6 @@ class MachineOutputFlagsTests(unittest.TestCase):
         rc_d, out_d, _ = self._run_cli(["doctor", "--help"])
         self.assertEqual(rc_d, 0)
         self.assertIn("--agent", out_d)
-        self.assertIn("tab-separated", out_d)
 
 
 if __name__ == "__main__":

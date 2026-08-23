@@ -24,6 +24,7 @@ bars) so the documented prose can never claim more than the recorded evidence. S
 - [Security](security.md): the hardened boundaries and their runbooks.
 - [Troubleshooting](troubleshooting.md): diagnosing an incomplete or failed run.
 - [Recovery and rollback](recovery.md): resuming, recovering, and rolling back safely.
+- [CLI Output Mode Contract](cli-output-contract.md): dual-audience output modes, stream boundaries, and exit codes.
 
 ## Operator walkthroughs
 

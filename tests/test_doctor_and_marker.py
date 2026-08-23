@@ -76,9 +76,14 @@ class DoctorSummaryTests(unittest.TestCase):
         orig = doctor.run_doctor
         doctor.run_doctor = lambda root: drift
         try:
+            from agent_workflows import term as T
+
             out = io.StringIO()
+            term = T.Term(stream=out, color=False)
             with redirect_stdout(out), redirect_stderr(io.StringIO()):
-                rc = doctor.run(types.SimpleNamespace(dir=".", as_agent=False))
+                rc = doctor.run(
+                    types.SimpleNamespace(dir=".", as_agent=False), term=term
+                )
             text = out.getvalue()
         finally:
             doctor.run_doctor = orig

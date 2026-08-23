@@ -24,6 +24,7 @@ from typing import List, Optional, Sequence, Union
 
 from . import __version__, config, discovery, engine, versioning
 from .project_schema import DeliveryMode, Preset, RecordsBackend
+from .result_types import select_output
 from .term import Term
 
 
@@ -449,6 +450,14 @@ def _build_parser() -> argparse.ArgumentParser:
             "  aw find plans --status approved   # list approved plans\n"
             "  aw rename plans <id6> --slug new-name --apply   # rename a plan + rewrite refs\n"
             "  aw install <dir>             # install/update the framework in a repo\n"
+            "\n"
+            "OUTPUT CONTRACT\n"
+            "  aw commands follow a dual-audience output contract:\n"
+            "  - Interactive TTY: human-formatted, 256-color status views.\n"
+            "  - Non-TTY / Piped / --agent: deterministic machine-readable aw.agent/v1 JSONL.\n"
+            "  - Explicit --json: full structured JSON representation.\n"
+            "  - Styling: --no-color and NO_COLOR change color styling only.\n"
+            "  See docs/cli-output-contract.md for normative contract specifications.\n"
         ),
     )
     parser.add_argument(
@@ -5544,7 +5553,8 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     argv = _rewrite_help_token(argv_list)
     args = parser.parse_args(argv)
 
-    term = Term(color=False if args.no_color else None)
+    context = select_output(args)
+    term = Term(color=context.color)
 
     if args.command is None:
         # Smart default (D7): setup if unconfigured, else status + hints.
@@ -5639,7 +5649,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     if args.command == "doctor":
         from agent_workflows import doctor as _doctor
 
-        return _doctor.run(args, term)
+        return _doctor.run(args, term, context=context)
     if args.command == "setup":
         return _run_setup(args, term)
     # awcmdsurf Order 05 (hard cutover): the plan-family + `list` + `plan-names` command dispatch was

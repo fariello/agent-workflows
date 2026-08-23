@@ -10,7 +10,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from agent_workflows import artifact_core as core
 from agent_workflows import attention as attention_mod
@@ -19,6 +19,16 @@ from agent_workflows import engine
 from agent_workflows import leak_sanitizer
 from agent_workflows import term as T
 from agent_workflows import versioning
+from agent_workflows.renderers import get_renderer
+from agent_workflows.result_types import (
+    CommandResult,
+    Diagnostic,
+    Evidence,
+    NextAction,
+    OutputContext,
+    OutputMode,
+    select_output,
+)
 
 
 @dataclass
@@ -864,39 +874,20 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
 _RUN_DOCTOR_CODE = getattr(run_doctor, "__code__", None)
 
 
-def run(args, term: Optional[T.Term] = None) -> int:
-    """`aw doctor` entrypoint: run every probe, print findings (or `no findings`), return the
-    standard 0/1 exit code. `--agent` emits tab-separated `location\\trule\\tdetail`."""
-    repo_root = Path(getattr(args, "dir", None) or os.getcwd())
-    if term is None:
-        term = T.Term(color=not getattr(args, "no_color", False))
-
-    as_agent = getattr(args, "agent", False) or getattr(args, "as_agent", False)
-    include_all = getattr(args, "include_all", False)
-    include_untracked = include_all or getattr(args, "include_untracked", False)
-    include_executed = include_all or getattr(args, "include_executed", False)
-
-    if as_agent:
-        drift = run_doctor(
-            repo_root,
-            include_untracked=include_untracked,
-            include_executed=include_executed,
-        )
-        sys.stdout.write(core.render_agent_drift(drift))
-        return core.drift_exit_code(drift)
-
-    # Human CLI mode: immediate start announcement and single probe execution
-    term.line(
-        f"{term.severity_label('info')} Starting aw doctor repository health check..."
-    )
-    term.stream.flush()
-
+def inspect_repo(
+    repo_root: Path,
+    include_untracked: bool = False,
+    include_executed: bool = False,
+    term: Optional[T.Term] = None,
+    verbose_progress: bool = False,
+) -> CommandResult:
+    """Run all doctor probes and assemble a typed CommandResult with fact parity across renderers."""
     report = collect_doctor_report(
         repo_root,
         include_untracked=include_untracked,
         include_executed=include_executed,
         term=term,
-        verbose_progress=True,
+        verbose_progress=verbose_progress,
     )
 
     # Honor monkeypatched run_doctor in unit test suites
@@ -910,5 +901,148 @@ def run(args, term: Optional[T.Term] = None) -> int:
         except TypeError:
             report.all_drift = run_doctor(repo_root)
 
-    sys.stdout.write(render_human_report(report, term))
-    return core.drift_exit_code(report.all_drift)
+    exit_code = core.drift_exit_code(report.all_drift)
+    status = "clean" if exit_code == 0 else "findings"
+    total_findings = len(report.all_drift)
+
+    g = sum(1 for d in report.all_drift if d.rule.startswith("doctor.git-"))
+    m = sum(
+        1
+        for d in report.all_drift
+        if d.rule.startswith("doctor.name")
+        or d.rule.startswith("check.")
+        or d.rule.startswith("attention.")
+        or "stale-index" in d.rule
+    )
+    v = sum(1 for d in report.all_drift if d.rule.startswith("doctor.version-"))
+
+    if total_findings == 0:
+        summary = "no findings (repository is healthy)."
+    else:
+        summary = f"{total_findings} finding(s) (git: {g}, names: {m}, version: {v})."
+
+    diagnostics: List[Diagnostic] = []
+    for d in report.all_drift:
+        title, dir_str, fname, extra, fix = _categorize_drift(d, repo_root)
+        diagnostics.append(
+            Diagnostic(
+                location=d.location,
+                rule=d.rule,
+                detail=d.detail,
+                severity="error",
+                fix=fix or None,
+            )
+        )
+
+    evidence: List[Evidence] = [
+        Evidence(
+            key="git",
+            value={
+                "available": report.git.available,
+                "branch": report.git.branch,
+                "staged": len(report.git.staged),
+                "modified": len(report.git.modified),
+                "untracked": len(report.git.untracked),
+            },
+            status="clean" if not report.git.drift else "findings",
+        ),
+        Evidence(
+            key="env",
+            value={
+                "is_source_repo": report.env.is_source_repo,
+                "layout": report.env.layout,
+                "version_status": report.env.version_status,
+            },
+            status="clean" if not report.env.drift else "findings",
+        ),
+        Evidence(
+            key="attention",
+            value={
+                "total_items": report.attention.total_items,
+                "by_class": dict(report.attention.by_class),
+            },
+            status="clean" if not report.attention.drift else "findings",
+        ),
+        Evidence(
+            key="sanitizer",
+            value={
+                "scanned_files": report.sanitizer.scanned_files,
+                "findings": len(report.sanitizer.findings),
+            },
+            status="clean" if not report.sanitizer.findings else "findings",
+        ),
+        Evidence(
+            key="artifacts",
+            value={
+                "type_counts": dict(report.artifacts.type_counts),
+                "untracked_skipped": report.artifacts.untracked_skipped,
+                "executed_warnings": len(report.artifacts.executed_warnings),
+            },
+            status="clean" if not report.artifacts.all_drift else "findings",
+        ),
+    ]
+
+    next_actions: List[NextAction] = []
+    seen_fixes = set()
+    for diag in diagnostics:
+        if diag.fix and diag.fix not in seen_fixes:
+            seen_fixes.add(diag.fix)
+            next_actions.append(NextAction(command=diag.fix))
+
+    return CommandResult(
+        command="doctor",
+        status=status,
+        exit_code=exit_code,
+        summary=summary,
+        diagnostics=diagnostics,
+        evidence=evidence,
+        next_actions=next_actions,
+        data={"report": report, "counts": {"git": g, "names": m, "version": v}},
+        verified=True,
+        complete=True,
+    )
+
+
+def run(
+    args: Any,
+    term: Optional[T.Term] = None,
+    context: Optional[OutputContext] = None,
+) -> int:
+    """`aw doctor` entrypoint: run every probe, emit structured output via the renderer boundary,
+    and return the standard 0/1 exit code."""
+    repo_root = Path(getattr(args, "dir", None) or os.getcwd())
+    if context is None:
+        if term is not None and not (
+            getattr(args, "agent", False) or getattr(args, "as_agent", False)
+        ):
+            context = OutputContext(
+                mode=OutputMode.HUMAN,
+                color=term.color,
+                stdout=term.stream or sys.stdout,
+            )
+        else:
+            context = select_output(args)
+    if term is None:
+        term = T.Term(stream=context.stdout, color=context.color)
+
+    include_all = getattr(args, "include_all", False)
+    include_untracked = include_all or getattr(args, "include_untracked", False)
+    include_executed = include_all or getattr(args, "include_executed", False)
+
+    if context.is_human:
+        # Human CLI mode: immediate start announcement and single probe execution
+        term.line(
+            f"{term.severity_label('info')} Starting aw doctor repository health check..."
+        )
+        term.stream.flush()
+
+    result = inspect_repo(
+        repo_root,
+        include_untracked=include_untracked,
+        include_executed=include_executed,
+        term=term,
+        verbose_progress=context.is_human,
+    )
+
+    renderer = get_renderer(context)
+    return renderer.emit(result, context)

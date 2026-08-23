@@ -53,13 +53,19 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("no findings", out.getvalue())
 
-    def test_run_agent_tab_separated(self) -> None:
+    def test_run_agent_output(self) -> None:
+        import json
+
         (self.root / "x.txt").write_text("x", encoding="utf-8")
         out = io.StringIO()
         with redirect_stdout(out), redirect_stderr(io.StringIO()):
             rc = doctor.run(types.SimpleNamespace(dir=str(self.root), as_agent=True))
         self.assertEqual(rc, 1)
-        self.assertIn("\t", out.getvalue())
+        data = json.loads(out.getvalue().strip())
+        self.assertEqual(data.get("schema"), "aw.agent/v1")
+        self.assertEqual(data.get("cmd"), "doctor")
+        self.assertEqual(data.get("outcome"), "findings")
+        self.assertEqual(data.get("exit"), 1)
 
     def test_untracked_dir_excluded_by_default(self) -> None:
         pdir = self.root / ".aw" / "records" / "prompts" / "untracked"
@@ -153,9 +159,14 @@ class DoctorTests(unittest.TestCase):
         self.assertIn("Unstaged modifications (1):", rendered)
 
     def test_immediate_startup_announcement(self) -> None:
+        from agent_workflows import term as T
+
         out = io.StringIO()
+        term = T.Term(stream=out, color=False)
         with redirect_stdout(out), redirect_stderr(io.StringIO()):
-            doctor.run(types.SimpleNamespace(dir=str(self.root), as_agent=False))
+            doctor.run(
+                types.SimpleNamespace(dir=str(self.root), as_agent=False), term=term
+            )
         self.assertIn("Starting aw doctor repository health check...", out.getvalue())
 
 

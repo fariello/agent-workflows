@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Centralize output selection and prevent command-specific format drift.
 - Scope: Mode detection, typed results, renderer interface, streams, exits, and overrides.
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello 2026-08-23 (aw set)
 - Set: awcliux
 - Order: 1
 - Highest E allocated: 03
@@ -12,6 +13,7 @@
 - Id: hd3kln
 
 ## Workflow history
+- 2026-08-23 approved (aw set): status set to approved
 
 - 2026-08-22 draft (OpenAI): created after parser/output audit.
 - 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (blocking OQ-01 resolved: hard cutover), PR-002 (Drift/spec-1525-01 reconciliation in E-03 + sync), PR-003 (execution contract added), PR-004 (V-02/V-03 concrete evidence), PR-005 (E-02 scope clarified vs Order 04), PR-006 (Status draft->reviewed).
@@ -26,24 +28,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Material change 1: Mode precedence
 
-- [ ] E-01 Add a root `OutputContext`: explicit `--json`/`--format` > `--agent` > non-TTY stdout => agent > TTY stdout => human; `--no-color` changes styling only.
+- [x] E-01 Add a root `OutputContext`: explicit `--json`/`--format` > `--agent` > non-TTY stdout => agent > TTY stdout => human; `--no-color` changes styling only.
   - Depends on: none
   - Expected outcome: piping any command selects agent output without a flag.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Material change 2: Typed result boundary
 
-- [ ] E-02 Define stdlib result types (`CommandResult`, `Diagnostic`, `Change`, `Evidence`, `NextAction`) and the renderer interface that consumes them; migrate ONE reference handler (`doctor`, the agreed reference view) to return a typed result so both renderers are exercised end to end. Full per-command migration is Order 04, not here.
+- [x] E-02 Define stdlib result types (`CommandResult`, `Diagnostic`, `Change`, `Evidence`, `NextAction`) and the renderer interface that consumes them; migrate ONE reference handler (`doctor`, the agreed reference view) to return a typed result so both renderers are exercised end to end. Full per-command migration is Order 04, not here.
   - Depends on: E-01
   - Expected outcome: both renderers consume identical facts and exit classification from one typed result on at least the reference handler; the boundary exists for Order 04 to adopt.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Material change 3: Streams and compatibility
 
-- [ ] E-03 Freeze stdout/stderr, schema versioning, broken-pipe behavior, explicit-format compatibility, and the automatic non-TTY migration policy (hard cutover, per OQ-01). Record the decision on how the new `CommandResult`/`aw.agent/v1` machine convention relates to the existing `Drift`/`render_agent_drift`/`drift_exit_code` convention (`agent_workflows/artifact_core.py:247-266`): whether it subsumes, wraps, or replaces it, and confirm the `0`/`1`/`2` exit semantics carry over unchanged. Two live machine conventions are not allowed.
+- [x] E-03 Freeze stdout/stderr, schema versioning, broken-pipe behavior, explicit-format compatibility, and the automatic non-TTY migration policy (hard cutover, per OQ-01). Record the decision on how the new `CommandResult`/`aw.agent/v1` machine convention relates to the existing `Drift`/`render_agent_drift`/`drift_exit_code` convention (`agent_workflows/artifact_core.py:247-266`): whether it subsumes, wraps, or replaces it, and confirm the `0`/`1`/`2` exit semantics carry over unchanged. Two live machine conventions are not allowed.
   - Depends on: E-01
   - Expected outcome: deterministic documented bytes and exits, and exactly one machine-output convention with a recorded `Drift`-relationship decision.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -98,18 +100,18 @@ Add one normative CLI output contract and link help to it. This contract SUPERSE
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: passing precedence tests including piped writes and explicit overrides.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `tests/test_output_mode.py` (11 passed): truth-table tests verify explicit format > agent flag > non-TTY stdout (automatic agent mode) > TTY stdout (human mode), with --no-color, NO_COLOR, FORCE_COLOR, stdin TTY independence, and broken pipe handling.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: the result types (`CommandResult`, `Diagnostic`, `Change`, `Evidence`, `NextAction`) and renderer interface exist; a test drives the reference handler (`doctor`) through BOTH renderers from one typed result and asserts identical outcome facts (status, counts, paths, evidence, exit classification). Paste the passing test output and name the module/line of the type definitions.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `CommandResult`, `Diagnostic`, `Change`, `Evidence`, `NextAction` defined in `agent_workflows/result_types.py:141-267` and renderers in `agent_workflows/renderers.py:27-135`. `tests/test_renderer_boundary.py` (4 passed) drives `doctor.inspect_repo` through `HumanRenderer` and `AgentRenderer` asserting identical outcome facts (status, counts, paths, evidence, exit classification).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: the normative CLI output contract documents frozen stdout/stderr split, schema version, broken-pipe behavior, explicit-format compatibility, hard-cutover non-TTY policy, and the `Drift`-relationship decision; a test asserts the documented exit codes (`0` clean, `1` findings, `2` cannot-run) and that no second machine convention remains (either `Drift` callers migrated or `render_agent_drift` explicitly retained as the wire form). Paste the passing test output and cite the contract section.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `docs/cli-output-contract.md` documents frozen stdout/stderr split (Section 4), schema version `aw.agent/v1` (Section 5), broken pipe handling (Section 4), explicit-format compatibility (Section 1), hard-cutover non-TTY policy (Section 6), and Drift-relationship decision (Section 7, CommandResult/aw.agent/v1 subsumes and replaces legacy Drift TSV). `tests/test_output_contract.py` (5 passed) asserts 0/1/2 exit codes and single machine convention.
+  - Result: pass
 
 
 ## Approval and execution gate
