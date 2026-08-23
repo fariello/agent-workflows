@@ -268,20 +268,6 @@
     "topic": []
   },
   {
-    "created": "20260716",
-    "date": "20260716",
-    "id6": "98m3pw",
-    "kind": "executive-summary",
-    "model": "",
-    "order": "00",
-    "outcome": "adopted",
-    "path": "20260716-ocsec-00-98m3pw-executive-summary-and-report.executive-summary.md",
-    "set_id": "ocsec",
-    "status": "reference",
-    "summary": "Migrated from 20260716-ocsec-00-98m3pw-executive-summary-and-report.executive-summary.md.",
-    "topic": []
-  },
-  {
     "created": "20260712",
     "date": "20260712",
     "id6": "9fohzo",
@@ -293,20 +279,6 @@
     "set_id": "planrev",
     "status": "archive",
     "summary": "Migrated from 20260712-planrev-10-9fohzo-chatgpt-modular-step-02-review-and-revise.gpt56.research-report.md.",
-    "topic": []
-  },
-  {
-    "created": "20260716",
-    "date": "20260716",
-    "id6": "ac1bqv",
-    "kind": "research-report",
-    "model": "",
-    "order": "07",
-    "outcome": "adopted",
-    "path": "20260716-ocsec-07-ac1bqv-prod-host-mitigation-verified.research-report.md",
-    "set_id": "ocsec",
-    "status": "reference",
-    "summary": "Migrated from 20260716-ocsec-07-ac1bqv-prod-host-mitigation-verified.research-report.md.",
     "topic": []
   },
   {
@@ -445,20 +417,6 @@
     "topic": []
   },
   {
-    "created": "20260716",
-    "date": "20260716",
-    "id6": "e4ule1",
-    "kind": "research-report",
-    "model": "",
-    "order": "02",
-    "outcome": "adopted",
-    "path": "20260716-ocsec-02-e4ule1-source-validation.research-report.md",
-    "set_id": "ocsec",
-    "status": "reference",
-    "summary": "Migrated from 20260716-ocsec-02-e4ule1-source-validation.research-report.md.",
-    "topic": []
-  },
-  {
     "created": "20260821",
     "date": "20260821",
     "id6": "effzzi",
@@ -569,20 +527,6 @@
     "topic": []
   },
   {
-    "created": "20260716",
-    "date": "20260716",
-    "id6": "gwx5k4",
-    "kind": "research-report",
-    "model": "",
-    "order": "05",
-    "outcome": "adopted",
-    "path": "20260716-ocsec-05-gwx5k4-opencode-process-listener-session-vulnerability-detection.research-report.md",
-    "set_id": "ocsec",
-    "status": "reference",
-    "summary": "Migrated from 20260716-ocsec-05-gwx5k4-opencode-process-listener-session-vulnerability-detection.research-report.md.",
-    "topic": []
-  },
-  {
     "created": "20260712",
     "date": "20260712",
     "id6": "h5onf4",
@@ -683,34 +627,6 @@
     "set_id": "agent-instruction-file-discovery-prompt",
     "status": "reference",
     "summary": "Migrated from 20260712-agent-instruction-file-discovery-prompt-00-jd8qhs-agent-instruction-file-discovery-prompt.research-prompt.md.",
-    "topic": []
-  },
-  {
-    "created": "20260716",
-    "date": "20260716",
-    "id6": "jfoccf",
-    "kind": "patch-proposal",
-    "model": "",
-    "order": "03",
-    "outcome": "adopted",
-    "path": "20260716-ocsec-03-jfoccf-patch-proposal.patch-proposal.md",
-    "set_id": "ocsec",
-    "status": "reference",
-    "summary": "Migrated from 20260716-ocsec-03-jfoccf-patch-proposal.patch-proposal.md.",
-    "topic": []
-  },
-  {
-    "created": "20260716",
-    "date": "20260716",
-    "id6": "kams1a",
-    "kind": "advisory",
-    "model": "",
-    "order": "00",
-    "outcome": "informational",
-    "path": "20260716-opencode-unauthenticated-local-server-advisory-00-kams1a-opencode-unauthenticated-local-server-advisory.advisory.md",
-    "set_id": "opencode-unauthenticated-local-server-advisory",
-    "status": "reference",
-    "summary": "Migrated from 20260716-opencode-unauthenticated-local-server-advisory-00-kams1a-opencode-unauthenticated-local-server-advisory.advisory.md.",
     "topic": []
   },
   {
@@ -970,20 +886,6 @@
     "topic": []
   },
   {
-    "created": "20260716",
-    "date": "20260716",
-    "id6": "tt8ipb",
-    "kind": "howto",
-    "model": "",
-    "order": "00",
-    "outcome": "informational",
-    "path": "20260716-opencode-shared-host-hardening-howto-00-tt8ipb-opencode-shared-host-hardening-howto.howto.md",
-    "set_id": "opencode-shared-host-hardening-howto",
-    "status": "reference",
-    "summary": "Migrated from 20260716-opencode-shared-host-hardening-howto-00-tt8ipb-opencode-shared-host-hardening-howto.howto.md.",
-    "topic": []
-  },
-  {
     "created": "20260713",
     "date": "20260713",
     "id6": "u5wtc3",
@@ -1037,20 +939,6 @@
     "set_id": "awdeliv",
     "status": "reference",
     "summary": "Migrated from 20260726-awdeliv-04-uxq2tt-aw-delivery-and-clean-delta.reconciliation.reconciliation-report.md.",
-    "topic": []
-  },
-  {
-    "created": "20260716",
-    "date": "20260716",
-    "id6": "vcnu3f",
-    "kind": "test-evidence",
-    "model": "",
-    "order": "01",
-    "outcome": "adopted",
-    "path": "20260716-ocsec-01-vcnu3f-test-evidence.test-evidence.md",
-    "set_id": "ocsec",
-    "status": "reference",
-    "summary": "Migrated from 20260716-ocsec-01-vcnu3f-test-evidence.test-evidence.md.",
     "topic": []
   },
   {
@@ -1264,20 +1152,6 @@
     "set_id": "ocsec",
     "status": "reference",
     "summary": "Migrated from 20260716-ocsec-04-zhkhky-provenance-and-cross-validation.research-report.md.",
-    "topic": []
-  },
-  {
-    "created": "20260716",
-    "date": "20260716",
-    "id6": "zmgkwf",
-    "kind": "research-report",
-    "model": "",
-    "order": "08",
-    "outcome": "adopted",
-    "path": "20260716-ocsec-08-zmgkwf-maintainer-scoping-question-draft-for-human.research-report.md",
-    "set_id": "ocsec",
-    "status": "reference",
-    "summary": "Migrated from 20260716-ocsec-08-zmgkwf-maintainer-scoping-question-draft-for-human.research-report.md.",
     "topic": []
   },
   {

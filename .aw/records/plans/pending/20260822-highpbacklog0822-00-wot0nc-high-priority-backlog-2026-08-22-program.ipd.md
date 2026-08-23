@@ -2,8 +2,8 @@
 
 - Date: 2026-08-22
 - Kind: orchestrator
-- Concern: Drive five high/medium-priority backlog items to closure as one coordinated, independently-executable Set.
-- Scope: Coordinate seven child IPDs (disclosure prep, an agy false-ERROR bug fix, a slash-alias deprecation warning, a two-part CLI empty/error UX pass, and a two-part IPD right-sizing check); no domain redesign and no work beyond the five source backlog items.
+- Concern: Drive four high/medium-priority backlog items to closure as one coordinated, independently-executable Set.
+- Scope: Coordinate six child IPDs (an agy false-ERROR bug fix, a slash-alias deprecation warning, a two-part CLI empty/error UX pass, and a two-part IPD right-sizing check); no domain redesign and no work beyond the four source backlog items.
 - Status: reviewed
 - Set: highpbacklog0822
 - Order: 0
@@ -13,12 +13,13 @@
 
 ## Workflow history
 
-- 2026-08-22 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created from five open high/medium-priority backlog items (2p6mgq, uhbdt1, 21ni81, oijafw, 8iy2dk) at the maintainer's request; the two items needing more than three material changes (oijafw, 8iy2dk) were each split into two children.
+- 2026-08-22 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created from five open high/medium-priority backlog items at the maintainer's request; the two items needing more than three material changes (oijafw, 8iy2dk) were each split into two children.
 - 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (external-Set awcliux dependency fallback in E-02 + completion criteria), PR-002 (Status draft->reviewed).
+- 2026-08-22 edit (opencode its_direct/pt3-claude-opus-4.8-1m-us): per maintainer directive, PURGED the OpenCode coordinated-disclosure child (former Order 01, dtl6dz) and its source backlog item; the Set now covers FOUR items across SIX children (Orders 02-07 retain their filenames; Order 01 is intentionally absent).
 
 ## Goal
 
-Close five open backlog items as one batch of small, independently-executable, independently-verifiable child IPDs, so a real agent (including a faster/weaker tier) can execute each child in a single focused pass without inventing missing architecture.
+Close four open backlog items as one batch of small, independently-executable, independently-verifiable child IPDs, so a real agent (including a faster/weaker tier) can execute each child in a single focused pass without inventing missing architecture.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -33,23 +34,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Material change 2: Execute the children
 
-- [ ] E-02 Execute Orders 01-07 in dependency order: 01, 02, 03, 06, 07 are independent; Order 05 depends on Order 04; Orders 04 and 05 additionally require the pending `awcliux` renderer boundary (Set `awcliux`, Order 02 `czw99i`) to be executed first. If that boundary is not yet executed (or the `awcliux` Set is not approved) when Orders 04/05 come up, STOP and report: Orders 01-03, 06, 07 can still complete and close their backlog items independently, but Orders 04-05 (backlog `oijafw`) must WAIT for the boundary or be re-planned to stand alone; do not build a second human-output path to work around a missing `awcliux`.
+- [ ] E-02 Execute Orders 02-07 in dependency order: 02, 03, 06, 07 are independent; Order 05 depends on Order 04; Orders 04 and 05 additionally require the pending `awcliux` renderer boundary (Set `awcliux`, Order 02 `czw99i`) to be executed first. If that boundary is not yet executed (or the `awcliux` Set is not approved) when Orders 04/05 come up, STOP and report: Orders 02, 03, 06, 07 can still complete and close their backlog items independently, but Orders 04-05 (backlog `oijafw`) must WAIT for the boundary or be re-planned to stand alone; do not build a second human-output path to work around a missing `awcliux`.
   - Depends on: E-01
-  - Expected outcome: the five independent fixes (Orders 01-03, 06, 07) land and close their items; Orders 04-05 land only once the `awcliux` boundary exists, else they are explicitly deferred/re-planned, never worked around.
+  - Expected outcome: the four independent fixes (Orders 02, 03, 06, 07) land and close their items; Orders 04-05 land only once the `awcliux` boundary exists, else they are explicitly deferred/re-planned, never worked around.
   - Execution state: pending
 
 ### Material change 3: Close the batch
 
-- [ ] E-03 After every child is in `executed/`, set each of the five source backlog items (2p6mgq, uhbdt1, 21ni81, oijafw, 8iy2dk) to its correct terminal status and confirm no `Blocks-Release: next` obligation for oijafw or 8iy2dk remains unmet.
+- [ ] E-03 After every child is in `executed/`, set each of the four source backlog items (uhbdt1, 21ni81, oijafw, 8iy2dk) to its correct terminal status and confirm no `Blocks-Release: next` obligation for oijafw or 8iy2dk remains unmet.
   - Depends on: E-02
-  - Expected outcome: the five backlog items are closed (or 2p6mgq is explicitly parked on the human send) and the release-gate obligations are discharged.
+  - Expected outcome: the four backlog items are closed and the release-gate obligations are discharged.
   - Execution state: pending
 
 ## Child IPDs, sequence, and dependencies
 
+Note: Order 01 is intentionally absent (its child was purged per maintainer directive). Orders 02-07 keep their committed filenames.
+
 | Order | File | Purpose | Source item | Depends on |
 | --- | --- | --- | --- | --- |
-| 01 | `20260822-highpbacklog0822-01-dtl6dz-opencode-coordinated-disclosure-preparation.ipd.md` | Agent-safe PREPARATION of the OpenCode disclosure (assemble/verify packet, tracking record); drafting + send + clock are human-owned | 2p6mgq | none |
 | 02 | `20260822-highpbacklog0822-02-n5kvff-fix-agy-run-py-false-error-on-sandboxed-write-to-file-reject.ipd.md` | Stop `agy_run.py` reporting ERROR when a sandboxed `write_to_file` rejection follows a successful `run_command` write | uhbdt1 | none |
 | 03 | `20260822-highpbacklog0822-03-h4e9yi-deprecation-warning-for-per-workflow-slash-command-aliases.ipd.md` | Add a migrate-to-`/aw <verb>` deprecation notice to the generated per-workflow slash-command shims | 21ni81 | none |
 | 04 | `20260822-highpbacklog0822-04-89bby9-empty-loading-and-error-state-ux-shared-helper-and-conventio.ipd.md` | Shared empty/loading/error-state helper + convention (echo active filters, suggest next step) | oijafw (1/2) | awcliux Order 02 (czw99i) |
@@ -59,23 +61,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Completion criteria (the whole Set is done only when)
 
-- All seven children are in `.aw/records/plans/executed/` with `Status: executed` and each child's `aw ipd lint --phase post-transition` conforms.
-- Backlog `uhbdt1`, `21ni81`, `oijafw`, `8iy2dk` are `done`; `2p6mgq` is `done` only if the human has sent the disclosure, otherwise it stays `open`/`parked` on the human send with the prepared packet cited.
+- All six children (Orders 02-07) are in `.aw/records/plans/executed/` with `Status: executed` and each child's `aw ipd lint --phase post-transition` conforms.
+- Backlog `uhbdt1`, `21ni81`, `oijafw`, `8iy2dk` are `done`.
 - No `Blocks-Release: next` obligation remains for `oijafw` or `8iy2dk` (closing each item to `done` clears its gate; confirm via `aw attention`).
 - No child expanded scope beyond its single source backlog item.
-- If the `awcliux` renderer boundary is never approved/executed, the Set is still "closed" once Orders 01-03/06/07 are executed and Orders 04-05 are explicitly deferred (with `oijafw` left open and its `Blocks-Release` re-evaluated), rather than blocking the whole batch indefinitely on an external Set.
+- If the `awcliux` renderer boundary is never approved/executed, the Set is still "closed" once Orders 02, 03, 06, 07 are executed and Orders 04-05 are explicitly deferred (with `oijafw` left open and its `Blocks-Release` re-evaluated), rather than blocking the whole batch indefinitely on an external Set.
 
 ## Cross-IPD validation
 
 - Confirm Orders 04-05 REUSE the `awcliux` renderer boundary and do not introduce a second human-output path (KISS / no duplicate paths).
 - Confirm Orders 06-07 are consistent: the prose rubric (06) and the mechanical heuristic (07) use the same "one concern / executable-in-one-focused-pass per E-item" definition and do not contradict each other.
-- Confirm Order 01 changed no code and drafted no send-ready disclosure text authored by the agent (human-owned boundary honored).
 
 ## Deferred / out of scope (with reason)
 
-- Any backlog item not in the five named here.
+- Any backlog item not in the four named here.
 - Eventual PRUNING of the per-workflow slash aliases (Order 03 only warns; removal is a later decision).
-- The human drafting and sending of the OpenCode disclosure and its 30-45 day clock (human-owned; Order 01 only prepares).
 
 ## Scope check
 
@@ -84,7 +84,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-Per-child: each child states and runs its own tests/validation. Set-level: after all children execute, run the full test suite and `aw ipd lint --all` and paste the actual output; confirm the five backlog records reflect their terminal state.
+Per-child: each child states and runs its own tests/validation. Set-level: after all children execute, run the full test suite and `aw ipd lint --all` and paste the actual output; confirm the four backlog records reflect their terminal state.
 
 ## Open questions
 
@@ -104,18 +104,18 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: all seven children are in `executed/` with `Status: executed` and each `aw ipd lint --phase post-transition` conforms; paste the actual lint output per child.
+  - Required evidence: all six children (Orders 02-07) are in `executed/` with `Status: executed` and each `aw ipd lint --phase post-transition` conforms; paste the actual lint output per child.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: `aw backlog check` (or the record files) show 2p6mgq/uhbdt1/21ni81/oijafw/8iy2dk at their terminal status and no unmet `Blocks-Release: next`; paste the actual command output.
+  - Required evidence: `aw backlog check` (or the record files) show uhbdt1/21ni81/oijafw/8iy2dk at their terminal status and no unmet `Blocks-Release: next`; paste the actual command output.
   - Observed evidence:
   - Result: pending
 
 ## Approval and execution gate
 
 - Size assessment: exception
-- Cohesion rationale: seven small children each own exactly one source backlog item (two items split to keep each child at or under three material changes); the orchestrator only sequences and closes the batch.
+- Cohesion rationale: six small children own four source backlog items (two items split to keep each child at or under three material changes); the orchestrator only sequences and closes the batch.
 
 Review and explicit human approval are required. No plan moves to `executed/` until its E/V evidence passes `aw ipd lint --phase pre-transition`.
 
@@ -125,4 +125,4 @@ Review and explicit human approval are required. No plan moves to `executed/` un
 2. Scope fence: this orchestrator sequences and closes the batch; it changes no code itself. Each child touches only the files named in its own scope. Do not expand scope; if a child seems to need to touch a file outside its scope, STOP and report.
 3. Honesty rule (hard MUST): when you report tests/lint/backlog-check passed, paste the ACTUAL runner output; never claim a pass you did not run.
 4. Commit ONLY each child's own changed files, path-scoped (`git commit -- <path>`); never `git add -A`/bare/`-a`; never push.
-5. Lifecycle move: each child transitions itself on completion (append its `## Workflow history` line, set `Status: executed`, `git mv` from `pending/` to `executed/`, path-scoped lifecycle commit) only after its E items are performed and its V items are verified with pasted evidence. This orchestrator transitions last, after all seven children are in `executed/` and the five backlog records are closed.
+5. Lifecycle move: each child transitions itself on completion (append its `## Workflow history` line, set `Status: executed`, `git mv` from `pending/` to `executed/`, path-scoped lifecycle commit) only after its E items are performed and its V items are verified with pasted evidence. This orchestrator transitions last, after all six children (Orders 02-07) are in `executed/` and the four backlog records are closed.

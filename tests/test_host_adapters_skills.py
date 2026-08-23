@@ -391,7 +391,7 @@ class SecurityTests(unittest.TestCase):
             self.assertTrue(res.side_effect_prevented)
 
     def test_local_server_requires_auth_loopback(self):
-        # A server-auth negative probe: unauthenticated endpoint must be rejected (D86/D87).
+        # A server-auth negative probe: unauthenticated endpoint must be rejected.
         with tempfile.TemporaryDirectory() as tmp:
             res = hcr.evaluate_negative_probe(
                 hcr.NEGATIVE_PROBE_SERVER_AUTH, "opencode", "1.0.0", tmp

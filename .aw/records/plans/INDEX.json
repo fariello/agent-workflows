@@ -2283,16 +2283,6 @@
     "date": "2026-08-19",
     "disposition": "executed",
     "kind": "child",
-    "order": 8,
-    "path": "executed/20260819-backlog-medhigh-260819-08-0zxfic-hpc-shared-host-hardening-warning.ipd.md",
-    "plan_id": "0zxfic",
-    "set_id": "backlog-medhigh-260819",
-    "status": "executed"
-  },
-  {
-    "date": "2026-08-19",
-    "disposition": "executed",
-    "kind": "child",
     "order": 9,
     "path": "executed/20260819-backlog-medhigh-260819-09-plt26j-migration-uninstall-sweep-untracked-stale-agents-litter.ipd.md",
     "plan_id": "plt26j",
@@ -2337,6 +2327,16 @@
     "path": "executed/20260820-awuninstallfix-01-ejhzgk-complete-uninstall-remove-orphaned-config-state-gitignore-se.ipd.md",
     "plan_id": "ejhzgk",
     "set_id": "awuninstallfix",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260821-awoptimize-00-p070c8-agent-workflows-optimal-architecture-program.ipd.md",
+    "plan_id": "p070c8",
+    "set_id": "awoptimize",
     "status": "executed"
   },
   {
@@ -2500,6 +2500,56 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-21",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 17,
+    "path": "executed/20260821-awoptimize-17-gnfkh8-compatibility-contract-migration-rollback-and-deprecation.ipd.md",
+    "plan_id": "gnfkh8",
+    "set_id": "awoptimize",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 18,
+    "path": "executed/20260821-awoptimize-18-0zst62-documentation-security-hardening-lifecycle-fixtures-and-rele.ipd.md",
+    "plan_id": "0zst62",
+    "set_id": "awoptimize",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-22",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260822-awcliux-01-hd3kln-output-mode-contract-and-renderer-boundary.ipd.md",
+    "plan_id": "hd3kln",
+    "set_id": "awcliux",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-22",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260822-awcliux-02-czw99i-human-tty-information-design-and-256-color-system.ipd.md",
+    "plan_id": "czw99i",
+    "set_id": "awcliux",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-22",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 3,
+    "path": "executed/20260822-awcliux-03-8su0r3-token-efficient-agent-protocol-and-evidence-receipts.ipd.md",
+    "plan_id": "8su0r3",
+    "set_id": "awcliux",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -2520,16 +2570,6 @@
     "status": "not-executed"
   },
   {
-    "date": "2026-08-19",
-    "disposition": "not-executed",
-    "kind": "child",
-    "order": 3,
-    "path": "not-executed/20260819-backlog-medhigh-260819-03-38yl4s-coordinated-disclosure-to-opencode-maintainers-human.ipd.md",
-    "plan_id": "38yl4s",
-    "set_id": "backlog-medhigh-260819",
-    "status": "not-executed"
-  },
-  {
     "date": "2026-08-20",
     "disposition": "not-executed",
     "kind": "child",
@@ -2540,36 +2580,6 @@
     "status": "not-executed"
   },
   {
-    "date": "2026-08-21",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260821-awoptimize-00-p070c8-agent-workflows-optimal-architecture-program.ipd.md",
-    "plan_id": "p070c8",
-    "set_id": "awoptimize",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-21",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 17,
-    "path": "pending/20260821-awoptimize-17-gnfkh8-compatibility-contract-migration-rollback-and-deprecation.ipd.md",
-    "plan_id": "gnfkh8",
-    "set_id": "awoptimize",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-21",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 18,
-    "path": "pending/20260821-awoptimize-18-0zst62-documentation-security-hardening-lifecycle-fixtures-and-rele.ipd.md",
-    "plan_id": "0zst62",
-    "set_id": "awoptimize",
-    "status": "approved"
-  },
-  {
     "date": "2026-08-22",
     "disposition": "pending",
     "kind": "orchestrator",
@@ -2577,7 +2587,7 @@
     "path": "pending/20260822-awcliux-00-r0brcg-aw-cli-dual-audience-output-program.ipd.md",
     "plan_id": "r0brcg",
     "set_id": "awcliux",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-22",
@@ -2587,7 +2597,7 @@
     "path": "pending/20260822-awcliux-01-hd3kln-output-mode-contract-and-renderer-boundary.ipd.md",
     "plan_id": "hd3kln",
     "set_id": "awcliux",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-22",
@@ -2597,17 +2607,7 @@
     "path": "pending/20260822-awcliux-02-czw99i-human-tty-information-design-and-256-color-system.ipd.md",
     "plan_id": "czw99i",
     "set_id": "awcliux",
-    "status": "reviewed"
-  },
-  {
-    "date": "2026-08-22",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 3,
-    "path": "pending/20260822-awcliux-03-8su0r3-token-efficient-agent-protocol-and-evidence-receipts.ipd.md",
-    "plan_id": "8su0r3",
-    "set_id": "awcliux",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-22",
@@ -2617,7 +2617,7 @@
     "path": "pending/20260822-awcliux-04-10jpsa-full-command-surface-migration-and-compatibility.ipd.md",
     "plan_id": "10jpsa",
     "set_id": "awcliux",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-22",
@@ -2627,7 +2627,7 @@
     "path": "pending/20260822-awcliux-05-e8hu4s-output-conformance-harness-documentation-and-rollout.ipd.md",
     "plan_id": "e8hu4s",
     "set_id": "awcliux",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-22",
@@ -2637,17 +2637,7 @@
     "path": "pending/20260822-highpbacklog0822-00-wot0nc-high-priority-backlog-2026-08-22-program.ipd.md",
     "plan_id": "wot0nc",
     "set_id": "highpbacklog0822",
-    "status": "draft"
-  },
-  {
-    "date": "2026-08-22",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260822-highpbacklog0822-01-dtl6dz-opencode-coordinated-disclosure-preparation.ipd.md",
-    "plan_id": "dtl6dz",
-    "set_id": "highpbacklog0822",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-22",

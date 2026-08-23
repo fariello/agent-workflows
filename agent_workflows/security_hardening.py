@@ -107,7 +107,7 @@ def check_local_server_binding(
 ) -> BoundaryResult:
     """A local headless server MUST bind a loopback address AND require authentication.
 
-    D86/D87: local headless servers may be unauthenticated by DEFAULT; the new host
+    Rationale: local headless servers may be unauthenticated by DEFAULT; the new host
     integration must bind loopback and require auth. A bind to ``0.0.0.0`` / a routable
     address, or an unauthenticated endpoint, FAILS closed.
     """

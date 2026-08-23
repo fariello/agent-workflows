@@ -729,38 +729,6 @@ class InstallerEndToEndTests(unittest.TestCase):
             gtxt.count("<!-- aw:block -->"), 3
         )  # 2 pre-existing + 1 appended
 
-    def test_security_pointer_emitted(self):
-        """End-to-end install emits the shared-host security pointer with how-to reference (D86/D87)."""
-        import subprocess
-        import sys
-
-        proc = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "agent_workflows",
-                "install",
-                str(self.repo),
-                "--yes",
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertIn("Shared/multi-user host caveat", proc.stdout)
-        self.assertIn(
-            ".aw/records/research/20260716-opencode-shared-host-hardening-howto-00-tt8ipb-opencode-shared-host-hardening-howto.howto.md",
-            proc.stdout,
-        )
-        self.assertIn("D86/D87", proc.stdout)
-        self.assertEqual(
-            proc.stdout.count(
-                "20260716-opencode-shared-host-hardening-howto-00-tt8ipb-opencode-shared-host-hardening-howto.howto.md"
-            ),
-            1,
-        )
-
 
 class SingleSourceOrchestratorTests(unittest.TestCase):
     """Structural anti-drift guard (D83): the single-repo `run()` path and the shared

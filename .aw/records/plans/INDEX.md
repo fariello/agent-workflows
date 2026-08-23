@@ -7,16 +7,17 @@ Showing the 40 most-recent of 109 Sets; the full manifest is INDEX.json.
 ## awcliux
 
 - `r0brcg` [pending] 00 pending/20260822-awcliux-00-r0brcg-aw-cli-dual-audience-output-program.ipd.md
+- `hd3kln` [executed] 01 executed/20260822-awcliux-01-hd3kln-output-mode-contract-and-renderer-boundary.ipd.md
 - `hd3kln` [pending] 01 pending/20260822-awcliux-01-hd3kln-output-mode-contract-and-renderer-boundary.ipd.md
+- `czw99i` [executed] 02 executed/20260822-awcliux-02-czw99i-human-tty-information-design-and-256-color-system.ipd.md
 - `czw99i` [pending] 02 pending/20260822-awcliux-02-czw99i-human-tty-information-design-and-256-color-system.ipd.md
-- `8su0r3` [pending] 03 pending/20260822-awcliux-03-8su0r3-token-efficient-agent-protocol-and-evidence-receipts.ipd.md
+- `8su0r3` [executed] 03 executed/20260822-awcliux-03-8su0r3-token-efficient-agent-protocol-and-evidence-receipts.ipd.md
 - `10jpsa` [pending] 04 pending/20260822-awcliux-04-10jpsa-full-command-surface-migration-and-compatibility.ipd.md
 - `e8hu4s` [pending] 05 pending/20260822-awcliux-05-e8hu4s-output-conformance-harness-documentation-and-rollout.ipd.md
 
 ## highpbacklog0822
 
 - `wot0nc` [pending] 00 pending/20260822-highpbacklog0822-00-wot0nc-high-priority-backlog-2026-08-22-program.ipd.md
-- `dtl6dz` [pending] 01 pending/20260822-highpbacklog0822-01-dtl6dz-opencode-coordinated-disclosure-preparation.ipd.md
 - `n5kvff` [pending] 02 pending/20260822-highpbacklog0822-02-n5kvff-fix-agy-run-py-false-error-on-sandboxed-write-to-file-reject.ipd.md
 - `h4e9yi` [pending] 03 pending/20260822-highpbacklog0822-03-h4e9yi-deprecation-warning-for-per-workflow-slash-command-aliases.ipd.md
 - `89bby9` [pending] 04 pending/20260822-highpbacklog0822-04-89bby9-empty-loading-and-error-state-ux-shared-helper-and-conventio.ipd.md
@@ -26,7 +27,7 @@ Showing the 40 most-recent of 109 Sets; the full manifest is INDEX.json.
 
 ## awoptimize
 
-- `p070c8` [pending] 00 pending/20260821-awoptimize-00-p070c8-agent-workflows-optimal-architecture-program.ipd.md
+- `p070c8` [executed] 00 executed/20260821-awoptimize-00-p070c8-agent-workflows-optimal-architecture-program.ipd.md
 - `nmwy3m` [executed] 01 executed/20260821-awoptimize-01-nmwy3m-canonical-workflow-schema-and-compiler.ipd.md
 - `viuzu4` [executed] 02 executed/20260821-awoptimize-02-viuzu4-ledger-and-evidence-record-schemas-and-requirement-freeze.ipd.md
 - `7qs57e` [superseded] 02 superseded/20260821-awoptimize-02-7qs57e-run-ledger-and-evidence-contract.ipd.md
@@ -50,8 +51,8 @@ Showing the 40 most-recent of 109 Sets; the full manifest is INDEX.json.
 - `h1d5aa` [executed] 14 executed/20260821-awoptimize-14-h1d5aa-migration-disposition-inventory-and-shared-family-migration.ipd.md
 - `kh91or` [executed] 15 executed/20260821-awoptimize-15-kh91or-complex-orchestrated-workflow-migration.ipd.md
 - `g6zjao` [executed] 16 executed/20260821-awoptimize-16-g6zjao-compact-workflow-migration-generated-shims-and-promotion-gat.ipd.md
-- `gnfkh8` [pending] 17 pending/20260821-awoptimize-17-gnfkh8-compatibility-contract-migration-rollback-and-deprecation.ipd.md
-- `0zst62` [pending] 18 pending/20260821-awoptimize-18-0zst62-documentation-security-hardening-lifecycle-fixtures-and-rele.ipd.md
+- `gnfkh8` [executed] 17 executed/20260821-awoptimize-17-gnfkh8-compatibility-contract-migration-rollback-and-deprecation.ipd.md
+- `0zst62` [executed] 18 executed/20260821-awoptimize-18-0zst62-documentation-security-hardening-lifecycle-fixtures-and-rele.ipd.md
 
 ## awhistignore
 
@@ -88,12 +89,10 @@ Showing the 40 most-recent of 109 Sets; the full manifest is INDEX.json.
 - `p1ku23` [executed] 00 executed/20260819-backlog-medhigh-260819-00-p1ku23-high-medium-open-backlog-remediation.ipd.md
 - `m2h1z4` [executed] 01 executed/20260819-backlog-medhigh-260819-01-m2h1z4-ship-tools-awphysical-in-the-package-so-migrate-layout-works.ipd.md
 - `0qj4on` [executed] 02 executed/20260819-backlog-medhigh-260819-02-0qj4on-install-time-split-brain-layout-guard.ipd.md
-- `38yl4s` [not-executed] 03 not-executed/20260819-backlog-medhigh-260819-03-38yl4s-coordinated-disclosure-to-opencode-maintainers-human.ipd.md
 - `v1rj3p` [executed] 04 executed/20260819-backlog-medhigh-260819-04-v1rj3p-aw-ipd-scaffold-enforces-clustering-grammar-and-requires-set.ipd.md
 - `ckw2ze` [executed] 05 executed/20260819-backlog-medhigh-260819-05-ckw2ze-single-aw-slash-command-namespace-over-the-workflows.ipd.md
 - `0drnpf` [executed] 06 executed/20260819-backlog-medhigh-260819-06-0drnpf-research-topic-producer-workflow-drafts-a-handoff-prompt-int.ipd.md
 - `m7e2g3` [executed] 07 executed/20260819-backlog-medhigh-260819-07-m7e2g3-verify-and-regression-test-aw-layout-inventory-walk-honors-g.ipd.md
-- `0zxfic` [executed] 08 executed/20260819-backlog-medhigh-260819-08-0zxfic-hpc-shared-host-hardening-warning.ipd.md
 - `plt26j` [executed] 09 executed/20260819-backlog-medhigh-260819-09-plt26j-migration-uninstall-sweep-untracked-stale-agents-litter.ipd.md
 
 ## setupmarker-260819
