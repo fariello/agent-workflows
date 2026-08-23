@@ -4,7 +4,7 @@
 - Kind: orchestrator
 - Concern: The agent_workflows package has THREE separate concerns each implemented multiple times independently, so `aw` verbs disagree on how to find a file, how to detect a reference to a file, and how to build/validate a filename. This causes real inconsistencies: the same `<selector>` can resolve under one verb and fail under another; a `research` rename orphans stem citations that a `plans` rename would rewrite; and the filename grammar is re-encoded in ~6 regexes plus triplicated facet tables that must be hand-synchronized.
 - Scope: Orchestrates a four-child Set that consolidates (1) filename NAMING/grammar (build + validate), (2) selector-to-file RESOLUTION, and (3) reference MATCHING/rewriting + dangling-citation checking into one canonical library each, then (4) adds an additive, non-authoritative rename/regroup history ledger. Touches agent_workflows/{artifact_core.py,artifact_types.py,artifact_rename.py,plans_refs.py,research_refs.py,research_contract.py,plans_index.py,research_index.py,selectors.py,status_set.py,check_engine.py,ipd_lint.py,ipd_authoring.py,backlog.py,specs.py,record_history.py}, .aw/system/workflows/setup-repo/tools/normalize_plan_names.py, and the test suite. Does NOT change any on-disk filename grammar, citation syntax, or manifest schema in a user-visible way (pure internal consolidation, byte-for-byte behavior preserved) except where a child explicitly fixes a divergence and documents it.
-- Status: draft
+- Status: reviewed
 - Set: unifyfileio
 - Order: 0
 - Highest E allocated: 04
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-23 draft (Gabriele Fariello): created.
+- 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED (orchestrator only; the four children were read as evidence, not individually reviewed - use /aw plan-review-long for the full 5-plan batch). PR-002 (added a binding Module-placement principle + import-direction cross-IPD test, resolving the core-vs-naming placement inconsistency between Order 01 and Order 03); PR-003 (E-01 + completion criteria now require each child's single blocking OQ be human-resolved before that child executes); PR-001 (review-completeness: children not individually reviewed here - recommended next step). Verified all four children exist with cited Ids/orders and lint conforming.
 
 ## Goal
 
@@ -35,9 +36,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Orchestrate the four-child unification Set
 
-- [ ] E-01 Confirm the four child IPDs (Orders 01-04) are authored, `aw ipd lint`-conforming, and their dependency order (01 -> 02 -> 03 -> 04) is recorded in the child table below; do not execute any child until its `Depends on` predecessors are executed and their manifests are clean.
+- [ ] E-01 Confirm the four child IPDs (Orders 01-04) are authored, `aw ipd lint`-conforming, and their dependency order (01 -> 02 -> 03 -> 04) is recorded in the child table below; do not execute any child until (a) its `Depends on` predecessors are executed and their manifests are clean, AND (b) that child's own BLOCKING open question is human-resolved (each child carries exactly one: Order 01 OQ-02 walkthrough canonical name; Order 02 OQ-01 ambiguous-selector policy; Order 03 OQ-01 dangling policy for bare-filename/setid; Order 04 OQ-01 id6-less ledger handling). A child with an unresolved blocking OQ is NO-GO and MUST NOT be executed.
   - Depends on: none
-  - Expected outcome: the Set is coherent and ready for per-child human approval and sequential execution.
+  - Expected outcome: the Set is coherent and each child is ready for per-child human approval, blocking-OQ resolution, and sequential execution.
   - Execution state: pending
 
 - [ ] E-02 After all four children are executed, run the cross-IPD validation below (single grammar authority, single resolver, single reference library, ledger additive-only) and confirm no regressions in the full suite; then transition this orchestrator to executed.
@@ -64,11 +65,24 @@ Execution order MUST be 01 -> 02 -> 03 -> 04. Rationale: naming is the foundatio
 - Exactly ONE selector resolver backs every verb; `resolve_one`, `find_target_record`, and `match_selector` are collapsed to one (or two are thin shims over the third); a table-driven test asserts the SAME `<selector>` resolves identically across `rename`, `group`, `set`, `show`, and `find`.
 - Exactly ONE reference matcher/rewriter is called by the plans, research, and generic rename/group paths; a test asserts a `research` rename now rewrites bare-stem citations (the current gap) and that plans/backlog/etc behavior is byte-for-byte unchanged; the dangling-citation checker recognizes the same citation-form set for every type.
 - The rename ledger appends an id6-keyed `{from_name,to_name,verb}` record on every rename/regroup, is append-only, is absent-safe for id6-less types, and is proven NON-authoritative (deleting the ledger does not change any `aw` command's correctness, only the audit-trail query).
+- Each child's single blocking open question was human-resolved before that child executed (Order 01 OQ-02, Order 02 OQ-01, Order 03 OQ-01, Order 04 OQ-01); no child was executed with an open blocking OQ.
+- The module-placement principle above held: no `artifact_core -> artifact_naming/selectors/reference-matcher` import was introduced.
 - `pytest -n auto` is green and `aw check all` shows no NEW findings attributable to this Set.
+
+## Module-placement principle (binding on all children)
+
+To keep the three unified concerns from colliding or creating bad import cycles, the children MUST follow one placement principle:
+
+- **Naming/grammar authority** (Order 01) lives in its OWN module (`artifact_naming.py` is the expected choice per Order 01 OQ-01), NOT inside `artifact_core.py`, because `artifact_core.py` deliberately excludes filename-grammar (it holds only id6/kebab/IO primitives). It may import `artifact_core` primitives.
+- **Selector resolver** (Order 02) lives in `selectors.py`.
+- **Reference matcher/rewriter** (Order 03) lives beside the existing `find_dangling_citations`/`iter_scan_files` in `artifact_core.py` ONLY IF it does not need to import the naming authority; if it DOES need the naming authority (to compute a stem), it MUST live in its own module (or in `selectors.py`/`artifact_naming.py`) so the dependency flows toward core, never core -> naming. The allowed import direction is: `artifact_naming`, `selectors`, and the reference matcher may import `artifact_core`; `artifact_core` MUST NOT import any of them. Order 03's executor MUST honor this and, if it forces the matcher out of core, record that as its resolution rather than creating a core -> naming import.
+
+This resolves the latent cross-IPD placement inconsistency (Order 01 keeps grammar out of core while Order 03 initially proposed hosting the matcher in core): the guardrail above lets Order 03 choose core only when it introduces no core -> naming import.
 
 ## Cross-IPD validation
 
 - **No second grammar copy:** a test greps the package for the clustered-grammar regex signature and asserts exactly one canonical definition remains (all others import it).
+- **No bad import direction:** a test asserts `artifact_core` does not import `artifact_naming`/`selectors`/the reference matcher (import direction flows toward core only).
 - **Resolver parity:** a parametrized test drives one fixture repo with one `<selector>` of each kind (path/id6/setid/status/stem/substring) through every verb's resolution entry point and asserts identical resolved paths (or identical clean "no match" for kinds a verb intentionally rejects, with the rejection itself uniform).
 - **Reference parity + research fix:** a test renames a research doc that is cited by full-name AND by bare stem in another file and asserts BOTH are rewritten (today only full-name is); the same test for a plan is unchanged.
 - **Ledger additivity:** a test performs a rename with the ledger present and with the ledger file deleted mid-flight and asserts the rename result (files moved, citations rewritten, exit code) is identical; only the ledger query differs.
