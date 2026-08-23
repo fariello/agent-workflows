@@ -28,24 +28,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Material change 1: Compact records
 
-- [ ] E-01 Define `aw.agent/v1` JSONL with closed record kinds and required fields; use one result for bounded output and summary-plus-items only for streams. This schema is the machine convention that supersedes the existing `Drift`/`render_agent_drift`/`drift_exit_code` convention (`agent_workflows/artifact_core.py:247-266`) mandated by implemented spec `20260818-1525-01` G6; adopt the `Drift`-relationship decision frozen in Order 01 (hd3kln) E-03 and the schema-versioning mechanism frozen in Order 01 E-03 (the `schema:"aw.agent/v1"` tag and how a future `v2` is introduced) rather than re-deciding them here. All path-valued fields MUST be repo-relative and normalized (never absolute home paths, usernames, or hostnames) so records pass `aw sanitize --agent` when logged or pasted.
+- [x] E-01 Define `aw.agent/v1` JSONL with closed record kinds and required fields; use one result for bounded output and summary-plus-items only for streams. This schema is the machine convention that supersedes the existing `Drift`/`render_agent_drift`/`drift_exit_code` convention (`agent_workflows/artifact_core.py:247-266`) mandated by implemented spec `20260818-1525-01` G6; adopt the `Drift`-relationship decision frozen in Order 01 (hd3kln) E-03 and the schema-versioning mechanism frozen in Order 01 E-03 (the `schema:"aw.agent/v1"` tag and how a future `v2` is introduced) rather than re-deciding them here. All path-valued fields MUST be repo-relative and normalized (never absolute home paths, usernames, or hostnames) so records pass `aw sanitize --agent` when logged or pasted.
   - Depends on: none
   - Expected outcome: every command emits schema-valid, ANSI-free, sanitizer-clean records under exactly one machine convention.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Material change 2: Evidence receipts
 
-- [ ] E-02 Require outcome, applied/preview, completeness, changed targets, verification, evidence, omitted counts, and safe next command; never report `ok` for skipped, partial, unverified, or cannot-run work. Any path in `changed`/`target`/`evidence` fields is emitted repo-relative and sanitizer-clean (per E-01); evidence values name what was checked (e.g. `ipd-lint:author`, `backlog-check`), not raw file contents or sensitive data.
+- [x] E-02 Require outcome, applied/preview, completeness, changed targets, verification, evidence, omitted counts, and safe next command; never report `ok` for skipped, partial, unverified, or cannot-run work. Any path in `changed`/`target`/`evidence` fields is emitted repo-relative and sanitizer-clean (per E-01); evidence values name what was checked (e.g. `ipd-lint:author`, `backlog-check`), not raw file contents or sensitive data.
   - Depends on: E-01
   - Expected outcome: ambiguous output cannot support greenwashed completion, and receipts never leak absolute paths or sensitive data.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Material change 3: Token control
 
-- [ ] E-03 Add compact defaults, `--fields`, `--limit`, and `--verbose`/explicit JSON escape hatches; truncation records retain totals and continuation commands.
+- [x] E-03 Add compact defaults, `--fields`, `--limit`, and `--verbose`/explicit JSON escape hatches; truncation records retain totals and continuation commands.
   - Depends on: E-01
   - Expected outcome: fewer tokens without silent loss of decision facts.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -105,18 +105,26 @@ Publish schema, compatibility promise, exits, streams, examples, and “consume 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: schema tests for every record kind; a test proving records are ANSI-free and that every path field is repo-relative and passes `aw sanitize --agent` (zero findings); and identical fixtures parse across the target consumers. Paste the passing test output and the sanitizer run.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    `python3 -m unittest -v tests/test_agent_schema.py`: 10 tests passed (test_result_record_valid_construction, test_summary_record_valid_construction, test_item_record_valid_construction, test_error_record_valid_construction, test_reject_unknown_record_kind, test_reject_invalid_schema_version, test_reject_summary_inconsistent_counts, test_reject_ansi_escapes_in_record, test_normalize_repo_path_relative_and_clean, test_command_result_path_sanitization_under_agent_renderer).
+    `python3 -m agent_workflows.leak_sanitizer --agent`: exited 0 with 0 findings (no un-normalized paths, usernames, or leaks).
+  - Result: passed
+- [x] V-02 validates E-02
   - Required evidence: tests proving a receipt NEVER reports success for skipped/partial/unverified/cannot-run work (each such case asserted), that `outcome`/`complete`/`verified`/`remaining`/`evidence` are present and consistent, and that the embedded `exit` field matches the process exit code and the Order 01 `0`/`1`/`2` classification. Paste the passing test output.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    `python3 -m unittest -v tests/test_evidence_receipts.py`: 11 tests passed (test_reject_clean_outcome_when_unverified, test_reject_clean_outcome_when_incomplete_non_preview, test_reject_clean_outcome_with_exit_1, test_reject_clean_outcome_with_exit_2, test_clean_state_receipt [exit 0], test_findings_state_receipt [exit 1], test_preview_state_receipt [exit 0], test_skipped_state_receipt [exit 0], test_partial_state_receipt [exit 0], test_unverified_state_receipt [exit 1], test_cannot_run_error_state_receipt [exit 2]).
+  - Result: passed
+- [x] V-03 validates E-03
   - Required evidence: tests proving compact defaults, `--fields`, `--limit`, and `--verbose`/JSON escape hatches work; that a truncated stream retains `total`/`omitted` and a continuation `next` command; and a byte/token measurement showing the compact default is smaller than the verbose form with no loss of decision facts (outcome, completeness, identifiers, evidence, omitted counts, next). Paste the passing test output and the measured sizes.
   - Observed evidence:
-  - Result: pending
+    `python3 -m unittest -v tests/test_token_control.py`: 3 tests passed (test_compact_default_vs_verbose_and_json_size_measurement, test_fields_filtering_projection, test_limit_stream_truncation_with_continuation_command).
+    Measured multi-finding payload sizes:
+    Compact default: 607 bytes (1 line JSONL)
+    Verbose agent: 1,843 bytes
+    Full JSON: 2,752 bytes (77.9% reduction from full JSON to compact default with zero loss of decision facts).
+  - Result: passed
 
 
 ## Approval and execution gate
