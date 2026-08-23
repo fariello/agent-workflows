@@ -12,6 +12,7 @@
 - Id: 31744f
 
 ## Workflow history
+- 2026-08-23 /plan-review focused security (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH: mandate shell=False/argv worker spawn - avoid the shell=True probe pattern), PR-002 (reuse security_hardening.py boundaries, not net-new), PR-003 (map 6 net-new worker states to ledger performed|blocked|failed), PR-004 (timeout/cancellation is net-new), PR-005 (name reused anti-greenwashing + distinct-session validators to wire host output into). V-01 strengthened.
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (agy_run.py does not exist -> use agy_verifier.py), PR-004 (corrected host matrix facts: 7 rows incl. Copilot/Cursor, Kiro row missing).
 - 2026-08-23 to-review (aw set): Authored from current runtime, lifecycle, isolation, and cross-host capability research; ready for plan review.
 
@@ -29,6 +30,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 Implement `agent_workflows/host_runner.py` with bounded task packets, structured streaming, timeouts, cancellation, session identity, actual-diff capture, stderr/status parsing, and validated terminal envelopes; do not reuse benchmark live gates.
   - Depends on: none
+  - Note (verified - process spawning is net-new; pin its security posture): no worker-launcher exists today (net-new). SECURITY (hard requirements): (1) spawn workers with an argv LIST and `shell=False` - NEVER `shell=True` with task-derived content (the existing probe pattern `host_capability_registry.py:711-719` uses `shell=True` and MUST NOT be copied for task packets; this is a command-injection surface). (2) Timeouts and cancellation are genuinely net-new - existing subprocess calls use short fixed timeouts or none (`host_capability_registry.py:350` `timeout=5`; `run_isolated_probe` passes no timeout), so build a real bounded-timeout + kill/cancel path for a long-lived worker; a timed-out/cancelled worker is a failure, never completion. (3) Route ALL captured stdout/stderr/diff through redaction+leak scanning before it enters the ledger (see the reused `security_hardening.check_evidence_redaction` in the Scope check). Reuse `run_packet.StepOutcomeEnvelope` + `run_evidence` validators for the terminal envelope (see Proposed changes); do not treat host exit 0 as success.
   - Expected outcome: the coordinator receives facts, not free-form completion claims.
   - Execution state: pending
 
@@ -62,7 +64,9 @@ OpenCode is strong for heterogeneous model routing but needs external worktree/i
 
 ## Proposed changes (ordered, validatable)
 
-Worker terminal states: `completed`, `deferred_partial`, `deferred_ipd`, `failed_retryable`, `failed_final`, `blocked_required_input`. Every result carries changed files, checks with exit/log evidence, decisions, questions, deferred scope, and blocking question. Workers cannot ask users directly.
+Worker terminal states: `completed`, `deferred_partial`, `deferred_ipd`, `failed_retryable`, `failed_final`, `blocked_required_input`. These are host-worker-specific and NET-NEW (they do not exist in the codebase); E-01 MUST define them AND map each down to the authoritative ledger attempt states `performed|blocked|failed` (`run_state.py:29-31`) - e.g. `completed->performed`, `deferred_*/blocked_required_input->blocked`, `failed_*->failed` - so nothing bypasses the ledger vocabulary. Every result carries changed files, checks with exit/log evidence, decisions, questions, deferred scope, and blocking question. Workers cannot ask users directly.
+
+Anti-greenwashing is REUSE, not net-new: wire the host worker's exit code / stdout / stderr / diff INTO the existing validators - `run_evidence.validate_evidence` (`EV-FAILED-EXIT`, `EV-MISSING-OUTPUT`, `EV-FABRICATED-TEXT`, `EV-EXPIRED-PROBE`), `agent_schema` exit/outcome parity, `verify_roles.py:1738` (success-claim vs non-zero-exit guard), and `run_packet` prose/evidence rejection - so a host exit-0 with no verified side effect can never become `completed`. Distinct-session enforcement is REUSE too: use `agy_verifier.assert_distinct_sessions` / `run_fresh_verifier` (same-session is diagnostic-only and cannot finalize).
 
 Prefer one fresh process/session per lane; resume it for corrections; start a distinct clean verifier. The coordinator owns worktrees unless a probed native worktree mode is selected, never both.
 
@@ -74,7 +78,7 @@ Prefer one fresh process/session per lane; resume it for corrections; start a di
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: redact secrets/paths and bind any local server to loopback with authentication.
+- Under-scope: redact secrets/paths and bind any local server to loopback with authentication - but REUSE the existing `agent_workflows/security_hardening.py` boundary suite (Order 18), do NOT reimplement: `check_evidence_redaction` (RedactionPolicy + canonical leak sanitizer over captured worker output), `check_local_server_binding` (loopback + required auth; a live server does not exist today, so this applies only if `host_runner` starts one, e.g. OpenCode server mode), `check_external_file_access`, `check_real_home_excluded`, `check_untrusted_text_isolated`, and `check_destructive_tool_gated`. `host_runner`'s spawn + output-capture path MUST call these checkers rather than open-code equivalents.
 
 ## Required tests / validation
 
@@ -98,7 +102,7 @@ Generate the support matrix from unexpired evidence and document fallback behavi
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: runner-double tests prove malformed/free-form/timeout/success-without-diff outcomes cannot become completed.
+  - Required evidence: runner-double tests prove malformed/free-form/timeout/success-without-diff outcomes cannot become completed. SPECIFICALLY: (a) a test proves workers are spawned with an argv list and `shell=False` (a task packet containing shell metacharacters does NOT reach a shell); (b) a bounded-timeout test proves a hung worker is killed and recorded as failure, and cancellation terminates the process; (c) a redaction test proves captured stdout/stderr/diff pass through `security_hardening.check_evidence_redaction` before entering the ledger (a planted home-path/secret is masked/blocked); (d) each net-new worker terminal state maps to the correct `performed|blocked|failed` ledger state.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
