@@ -75,10 +75,10 @@ approval -> execute -> independent verification -> transition) in the child-tabl
   - Depends on: E-05
   - Expected outcome: the offline benchmark quantifies completion, evidence truth, drift, and time/token efficiency (no dollar cost - Order 13) by exact configuration; live model runs remain operator-run; both reach executed.
   - Execution state: performed
-- [ ] E-07 Drive Layer F (migration): Orders 14 (disposition inventory + shared family migration), 15 (complex orchestrated migration), 16 (compact migration + shims + promotion gates), each through the full lifecycle.
+- [x] E-07 Drive Layer F (migration): Orders 14 (disposition inventory + shared family migration), 15 (complex orchestrated migration), 16 (compact migration + shims + promotion gates), each through the full lifecycle.
   - Depends on: E-06
   - Expected outcome: every catalog workflow has an explicit disposition and migrated families pass their per-family benchmark promotion gates without semantic loss; all three reach executed.
-  - Execution state: pending
+  - Execution state: performed
 - [ ] E-08 Drive Layer G (cutover): Orders 17 (compatibility + migration + rollback + deprecation), 18 (docs + security + lifecycle fixtures + release-readiness), each through the full lifecycle.
   - Depends on: E-07
   - Expected outcome: compatibility, rollback, documentation, security, and a GO/NO-GO release-readiness review are complete without any publish/tag/push; both reach executed.

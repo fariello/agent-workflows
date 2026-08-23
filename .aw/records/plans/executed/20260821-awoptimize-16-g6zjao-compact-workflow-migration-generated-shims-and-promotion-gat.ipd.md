@@ -4,8 +4,7 @@
 - Kind: child
 - Concern: Migrate the compact workflows without needless orchestration and gate every family on benchmark evidence.
 - Scope: Migrate getting-started/list-workflows/whatnext/handoff/research/verify/spec/release-notes/scaffold + generate all legacy command shims and selected skills from canonical packages + run per-family benchmark promotion gates (failing families stay legacy with a corrective backlog item).
-- Status: approved
-- Approval: Gabriele Fariello (human), 2026-08-22
+- Status: executed
 - Set: awoptimize
 - Order: 16
 - Highest E allocated: 04
@@ -18,6 +17,7 @@
 - 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-07 E-08..E-10 into 4 right-sized E-items (compact-workflow migration, generated shims/skills with parity, per-family benchmark promotion gates, tests); carries the auto-activate OQ.
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Deps on 14 (inventory), 15 (complex), 13 (benchmark for promotion gates) all justified. Sound: shims reuse the Order-11/engine.py generator (no duplicate path), aliases bound to canonical digest + parity, per-family promotion gate keeps failing families on legacy with a corrective item (never advertised as migrated). PR-001 (LOW): E-01 listed `research` (whose body dir is `research-prompt/`) which could mislead an executor - FIXED by noting the command->body-dir mapping and directing to Order 14's inventory for exact resolution. V-01..V-04 map 1:1 with falsifiable evidence. OQ-01 (auto-activate skills) non-blocking, deferred to benchmark activation-precision evidence.
 - 2026-08-22 approved (Gabriele Fariello, human): explicit human approval of the awoptimize Set after /plan-review; reviewed -> approved.
+- 2026-08-22 executed (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): E-01..E-04 implemented directly (general subagent under opencode direction) - migration_compact.py (9 compact typed contracts + shim/skill generation REUSING engine.py generator, identity-asserted; Order-13 promotion gates w/ legacy fallback + corrective item; no threshold weakened) + tests/test_migration_compact_shims.py (22 tests). Non-destructive (no manifest/body edits). opencode independently verified: 22 module tests + full suite 1749 passed 1 skipped (pytest rc=0). V-01..V-04 filled. Terminal transition to executed/.
 
 ## Goal
 
@@ -33,31 +33,31 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: compact workflows
 
-- [ ] E-01 Migrate the compact manifest commands `getting-started`, `list-workflows`, `whatnext`, `handoff`, `research` (whose body dir is `research-prompt/`; resolve each command to its body via Order 14's disposition inventory rather than assuming the dir equals the command name), `verify`, `spec`, `release-notes`, and `scaffold` as compact single-context or deterministic-first packages with typed contracts, explicit write gates, and reusable scripts where fragility warrants - WITHOUT unnecessary subagent or orchestration overhead.
+- [x] E-01 Migrate the compact manifest commands `getting-started`, `list-workflows`, `whatnext`, `handoff`, `research` (whose body dir is `research-prompt/`; resolve each command to its body via Order 14's disposition inventory rather than assuming the dir equals the command name), `verify`, `spec`, `release-notes`, and `scaffold` as compact single-context or deterministic-first packages with typed contracts, explicit write gates, and reusable scripts where fragility warrants - WITHOUT unnecessary subagent or orchestration overhead.
   - Depends on: none
   - Expected outcome: each compact workflow passes typed input/output, read/write-boundary, interaction, deterministic-script, and negative tests without invoking a subagent it does not need.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: compatibility shims
 
-- [ ] E-02 Generate ALL legacy command shims and selected skill entry points from the canonical packages (reusing the Order-11/`engine.py` generator), preserving command names + argument behavior; add per-workflow golden, negative, interaction, evidence, and semantic-parity tests.
+- [x] E-02 Generate ALL legacy command shims and selected skill entry points from the canonical packages (reusing the Order-11/`engine.py` generator), preserving command names + argument behavior; add per-workflow golden, negative, interaction, evidence, and semantic-parity tests.
   - Depends on: E-01
   - Expected outcome: every compatibility command and selected skill resolves the correct package + digest; argument golden tests pass; a hand-edited generated output fails the drift check; old invocations still work during migration.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: promotion gates
 
-- [ ] E-03 Run the benchmark (Orders 12/13) promotion gates per risk class; keep any workflow that fails its gate on the legacy path with an explicit recorded reason + a corrective backlog item, and never advertise a failing family as migrated.
+- [x] E-03 Run the benchmark (Orders 12/13) promotion gates per risk class; keep any workflow that fails its gate on the legacy path with an explicit recorded reason + a corrective backlog item, and never advertise a failing family as migrated.
   - Depends on: E-02
   - Expected outcome: per-family benchmark reports meet the approved risk thresholds OR record a legacy fallback + corrective backlog item; no failing family is advertised as migrated; migration is evidence-gated, reversible, and observable.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: tests
 
-- [ ] E-04 Add `tests/test_migration_compact_shims.py` (stdlib unittest): per-compact-workflow typed-contract + boundary + interaction + negative tests (no needless subagent); shim/skill resolution + argument parity + drift; promotion-gate fixtures (pass -> advertised; fail -> legacy fallback + corrective item, not advertised). Then run the full serial suite and paste the tail.
+- [x] E-04 Add `tests/test_migration_compact_shims.py` (stdlib unittest): per-compact-workflow typed-contract + boundary + interaction + negative tests (no needless subagent); shim/skill resolution + argument parity + drift; promotion-gate fixtures (pass -> advertised; fail -> legacy fallback + corrective item, not advertised). Then run the full serial suite and paste the tail.
   - Depends on: E-03
   - Expected outcome: compact-migration + shim-parity + promotion-gate tests pass; the full serial suite is green (pasted).
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -116,22 +116,22 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted per-compact-workflow test output (typed input/output, read/write boundary, interaction, deterministic script, negative) showing each migrates without invoking an unneeded subagent.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: migration_compact.COMPACT_COMMANDS (getting-started, list-workflows, whatnext, handoff, research, verify, spec, release-notes, scaffold) as compact TypedContract/CompactPackage; resolve_body_dir via engine.parse_manifest (research -> research-prompt, not assumed); assert_no_needless_subagent enforced. tests.CompactContractTests incl. typed I/O, read/write boundary, interaction, deterministic-script, negative + needless-subagent rejection. PASS.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted test output showing every compatibility command + selected skill resolves the correct package/digest, argument golden parity holds, a hand-edited generated output fails the drift check, and old invocations still work.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: generate_compact_projection REUSES engine.generate_shim_members + host_adapters.build_skill_package (identity-asserted: MCC.generate_shim_members is engine.generate_shim_members, byte-for-byte shims). resolve_shim/argument_parity via engine.shim_body/validate_shim_grammar; detect_shim_drift FAILS on a hand-edited generated output; skill resolves correct package+digest; old_invocation_still_works. tests.ShimAndSkillTests. PASS.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted promotion-gate fixtures showing a family meeting its risk threshold is advertised as migrated and a failing family records a legacy fallback + corrective backlog item and is NOT advertised as migrated.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: evaluate_promotion_gate reuses Order-13 evaluate_release_gate/benchmark_thresholds per risk class; a failing family -> PATH_LEGACY_FALLBACK + CorrectiveBacklogItem(status=open) and is NOT in advertised_families; no threshold weakened (test_gate_reuses_order13_and_cannot_be_weakened, test_critical_escape_fails_gate_even_with_perfect_quality). tests.PromotionGateTests. PASS.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: `tests/test_migration_compact_shims.py` exists and passes; pasted full serial-suite tail (`make test` / `python3 -m unittest discover -s tests -t .`) showing green counts.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_migration_compact_shims.py` exists and passes (22 tests): per-compact typed-contract + boundary + interaction + negative (no needless subagent); shim/skill resolution + argument parity + drift; promotion-gate pass->advertised / fail->legacy+corrective-item-not-advertised. Full suite green: make test -> 1749 passed, 1 skipped, rc=0.
+  - Result: pass
 
 ## Approval and execution gate
 
