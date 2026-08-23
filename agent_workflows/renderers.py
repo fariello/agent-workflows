@@ -65,84 +65,122 @@ class HumanRenderer(BaseRenderer):
             return _doctor.render_human_report(result.data["report"], term)
 
         lines: List[str] = []
-        # Header / Status line
-        status_word = result.status.upper()
-        if result.exit_code == 0:
-            status_badge = (
-                term.colorize(f"[{status_word}]", "green")
-                if ctx.color
-                else f"[{status_word}]"
-            )
-        elif result.exit_code == 1:
-            status_badge = (
-                term.colorize(f"[{status_word}]", "yellow")
-                if ctx.color
-                else f"[{status_word}]"
-            )
-        else:
-            status_badge = (
-                term.colorize(f"[{status_word}]", "red")
-                if ctx.color
-                else f"[{status_word}]"
-            )
 
-        cmd_title = (
-            term.colorize(f"aw {result.command}", "bold")
-            if ctx.color
-            else f"aw {result.command}"
+        # 1. Top Title banner
+        target_str = str(result.data.get("target") or "")
+        elapsed_ms = result.data.get("elapsed_ms")
+        title_line = term.format_title(
+            result.command,
+            target=target_str,
+            elapsed_ms=elapsed_ms,
+            width=80,
         )
-        summary_txt = f": {result.summary}" if result.summary else ""
-        lines.append(f"{cmd_title} {status_badge}{summary_txt}")
+        lines.append(title_line)
 
-        # Diagnostics / Findings
+        # 2. Outcome banner
+        outcome_status = result.status
+        if result.exit_code == 0 and outcome_status in ("clean", "ok"):
+            outcome_status = "conforms"
+        elif result.exit_code == 1 and outcome_status in ("clean", "ok"):
+            outcome_status = "findings"
+        elif result.exit_code == 2 and outcome_status in ("clean", "ok"):
+            outcome_status = "error"
+        outcome_line = term.format_outcome(outcome_status, result.summary)
+        lines.append(outcome_line)
+
+        # 3. Diagnostics / Findings (doctor-derived grouping & severity labels)
         if result.diagnostics:
             lines.append("")
-            hdr = term.colorize("Findings:", "bold") if ctx.color else "Findings:"
-            lines.append(hdr)
-            for d in result.diagnostics:
-                loc_txt = term.colorize(d.location, "cyan") if ctx.color else d.location
-                rule_txt = f"[{d.rule}]"
-                sev_color = "red" if d.severity == "error" else "yellow"
-                rule_badge = (
-                    term.colorize(rule_txt, sev_color) if ctx.color else rule_txt
-                )
-                lines.append(f"  - {loc_txt}: {rule_badge} {d.detail}")
-                if d.fix:
-                    fix_txt = (
-                        term.colorize(f"Fix: {d.fix}", "green")
-                        if ctx.color
-                        else f"Fix: {d.fix}"
-                    )
-                    lines.append(f"      {fix_txt}")
+            lines.append(term.format_section("Findings:"))
+            from agent_workflows import doctor as _doctor
+            from pathlib import Path
 
-        # Changes
+            repo_root = Path(result.data.get("repo_root") or ".")
+            groups: dict = {}
+            for d in result.diagnostics:
+                drift_obj = d.to_drift() if hasattr(d, "to_drift") else d
+                try:
+                    title, dir_str, fname, extra, fix = _doctor._categorize_drift(
+                        drift_obj, repo_root
+                    )
+                except Exception:
+                    title, dir_str, fname, extra, fix = (
+                        d.rule,
+                        "",
+                        d.location,
+                        "",
+                        d.fix,
+                    )
+                fix_action = d.fix or fix
+                key = (title, fix_action)
+                if key not in groups:
+                    groups[key] = {}
+                if dir_str not in groups[key]:
+                    groups[key][dir_str] = []
+                groups[key][dir_str].append((fname, extra, d.severity))
+
+            for (title, fix_action), dir_map in groups.items():
+                lines.append(f"  {term.color256('Issue: ' + title, 214, bold=True)}")
+                for dir_str, files in dir_map.items():
+                    if dir_str and dir_str != ".":
+                        lines.append(f"  - {term.format_path(dir_str)}")
+                    for idx, (fname, extra, sev) in enumerate(files, 1):
+                        badge = term.badge(sev.upper(), sev)
+                        if dir_str and dir_str != ".":
+                            item_line = f"    {idx}. {fname}"
+                        else:
+                            item_line = f"  - {term.format_path(fname)} {badge}"
+                        if extra:
+                            item_line += f"\n       {term.color256('-> ' + extra, 244)}"
+                        lines.append(item_line)
+                if fix_action:
+                    lines.append(f"    {term.format_fix(fix_action)}")
+                lines.append("")
+
+        # 4. Changes / Mutation Preview
         if result.changes:
             lines.append("")
-            hdr = term.colorize("Changes:", "bold") if ctx.color else "Changes:"
-            lines.append(hdr)
+            hdr_text = (
+                "Would change:"
+                if any(not c.applied for c in result.changes)
+                else "Changes:"
+            )
+            lines.append(term.format_section(hdr_text))
             for c in result.changes:
-                status_ch = "applied" if c.applied else "would change"
-                lines.append(f"  - [{c.kind}] {c.path} ({status_ch}): {c.detail}")
+                lines.append(term.format_preview(c.kind, c.path, detail=c.detail))
 
-        # Evidence
+        # 5. Evidence
         if result.evidence:
             lines.append("")
-            hdr = term.colorize("Evidence:", "bold") if ctx.color else "Evidence:"
-            lines.append(hdr)
+            lines.append(term.format_section("Evidence"))
             for e in result.evidence:
-                val_repr = str(e.value)
-                lines.append(f"  - {e.key}: {val_repr} ({e.status})")
+                if isinstance(e.value, dict):
+                    # Format scalar key/vals as an evidence grid line
+                    grid_items = [
+                        (k, v)
+                        for k, v in e.value.items()
+                        if not isinstance(v, (dict, list))
+                    ]
+                    if grid_items:
+                        lines.append(term.format_evidence_grid(grid_items))
+                    else:
+                        lines.append(
+                            term.format_evidence(e.key, e.value, e.status, e.detail)
+                        )
+                else:
+                    lines.append(
+                        term.format_evidence(e.key, e.value, e.status, e.detail)
+                    )
 
-        # Next actions
+        # 6. Next Actions
         if result.next_actions:
             lines.append("")
-            hdr = term.colorize("Next action:", "bold") if ctx.color else "Next action:"
-            lines.append(hdr)
             for act in result.next_actions:
-                cmd_txt = (
-                    term.colorize(act.command, "cyan") if ctx.color else act.command
-                )
-                lines.append(f"  {cmd_txt}")
+                lines.append(term.format_next_action(act.command, act.description))
+
+        # 7. Agent Output Hint
+        if not result.data.get("suppress_agent_hint", False):
+            lines.append("Agent output: --agent (automatic when piped)")
 
         return "\n".join(lines) + "\n"
 

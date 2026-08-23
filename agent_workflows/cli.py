@@ -20,7 +20,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import List, Optional, Sequence, Union
+from typing import Any, List, Optional, Sequence, Union
 
 from . import __version__, config, discovery, engine, versioning
 from .project_schema import DeliveryMode, Preset, RecordsBackend
@@ -399,13 +399,38 @@ def _apply_descriptions(parser: argparse.ArgumentParser) -> None:
 
 
 class _AlphaHelpFormatter(argparse.RawDescriptionHelpFormatter):
-    """Help formatter that lists subcommands alphabetically (clianx-01 E-05) and preserves the raw
-    line breaks of description/epilog blocks (awhelp Order 02: the when/why + examples blocks).
+    """Help formatter that lists subcommands alphabetically (clianx-01 E-05), preserves the raw
+    line breaks of description/epilog blocks (awhelp Order 02: the when/why + examples blocks),
+    and dynamically adapts to terminal width (awcliux Order 02 E-03).
 
     Display-only: it sorts the sub-actions shown under a ``{cmd ...}`` listing by their
     name so ``--help`` is scannable, WITHOUT reordering how parsers were registered and
     WITHOUT affecting dispatch (argparse still routes by the parsed command name).
     """
+
+    def __init__(
+        self,
+        prog: str,
+        indent_increment: int = 2,
+        max_help_position: int = 24,
+        width: Optional[int] = None,
+    ) -> None:
+        if width is None:
+            if "COLUMNS" in os.environ:
+                try:
+                    width = int(os.environ["COLUMNS"])
+                except ValueError:
+                    width = None
+            if width is None:
+                import shutil
+
+                width = min(120, max(40, shutil.get_terminal_size((80, 24)).columns))
+        super().__init__(
+            prog,
+            indent_increment=indent_increment,
+            max_help_position=max_help_position,
+            width=width,
+        )
 
     def _iter_indented_subactions(self, action):
         get_subactions = getattr(action, "_get_subactions", None)
@@ -421,16 +446,28 @@ class _AlphaHelpFormatter(argparse.RawDescriptionHelpFormatter):
                 yield subaction
 
 
+class _AwArgumentParser(argparse.ArgumentParser):
+    """ArgumentParser that formats standard usage errors with next action recommendations."""
+
+    def error(self, message: str) -> None:
+        self.print_usage(sys.stderr)
+        prog = self.prog
+        hint_cmd = prog.replace("agent-workflows", "aw")
+        print(f"{prog}: error: {message}", file=sys.stderr)
+        print(f"Next  {hint_cmd} --help", file=sys.stderr)
+        self.exit(2)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     # A shared parent so --no-color works both before AND after the subcommand.
-    common = argparse.ArgumentParser(add_help=False)
+    common = _AwArgumentParser(add_help=False)
     common.add_argument(
         "--no-color",
         action="store_true",
         help="Disable ANSI color (also honored via NO_COLOR).",
     )
 
-    parser = argparse.ArgumentParser(
+    parser = _AwArgumentParser(
         prog="agent-workflows",
         description="Install and manage the agent-workflows framework across your repos.",
         parents=[common],
@@ -457,6 +494,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "  - Non-TTY / Piped / --agent: deterministic machine-readable aw.agent/v1 JSONL.\n"
             "  - Explicit --json: full structured JSON representation.\n"
             "  - Styling: --no-color and NO_COLOR change color styling only.\n"
+            "  - Exit codes: 0 clean, 1 findings, 2 cannot-run/usage error.\n"
             "  See docs/cli-output-contract.md for normative contract specifications.\n"
         ),
     )
@@ -1097,6 +1135,19 @@ def _build_parser() -> argparse.ArgumentParser:
         parents=[common],
         help="Research artifact tooling. 'research new'/'new-comparison' create correctly-named docs.",
         formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw research find --topic perf       # query index by topic\n"
+            "  aw research index --check          # verify index currency (CI gate)\n"
+            "  aw research new --slug memory-audit --kind spike --apply  # create research doc\n"
+            "\n"
+            "SAFETY & DEFAULTS\n"
+            "  'new' and 'new-comparison' are dry-run by default; pass --apply to write.\n"
+            "\n"
+            "OUTPUT & EXITS\n"
+            "  Exit codes: 0 clean, 1 drift/dangling citations, 2 cannot-run/usage error.\n"
+            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+        ),
     )
     research_sub = p_research.add_subparsers(dest="research_command")
     p_research_new = research_sub.add_parser(
@@ -1346,6 +1397,20 @@ def _build_parser() -> argparse.ArgumentParser:
         parents=[common],
         help="Owner verbs for project identity, registry status, attach, and move.",
         formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw project status            # inspect project identity and registry matching\n"
+            "  aw project attach PRJ_ID     # attach this repository to project ID\n"
+            "  aw project move PRJ_ID PATH  # update project target path association\n"
+            "\n"
+            "SAFETY & DEFAULTS\n"
+            "  Mutations (attach/move) support --dry-run to preview before write.\n"
+            "  Interactive confirmation required unless --yes is passed.\n"
+            "\n"
+            "OUTPUT & EXITS\n"
+            "  Exit codes: 0 clean/matched, 1 mismatch, 2 cannot-run/usage error.\n"
+            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL; --json for formatted JSON.\n"
+        ),
     )
     project_sub = p_project.add_subparsers(dest="project_command")
 
@@ -1404,6 +1469,15 @@ def _build_parser() -> argparse.ArgumentParser:
             "  aw storage status            # inspect the records backend + durability for this repo\n"
             "  aw storage status --json     # machine-readable status\n"
             "  aw storage init              # initialize records storage (+ optional git)\n"
+            "  aw storage attach --acknowledge-remote  # set remote durability policy\n"
+            "\n"
+            "SAFETY & DEFAULTS\n"
+            "  Mutations preview by default; pass --apply to write changes.\n"
+            "  Remote durability changes require explicit policy acknowledgement.\n"
+            "\n"
+            "OUTPUT & EXITS\n"
+            "  Exit codes: 0 clean/valid, 1 findings/uninitialized, 2 cannot-run/usage error.\n"
+            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL; --json for structured JSON.\n"
         ),
     )
     storage_sub = p_storage.add_subparsers(dest="storage_command")
@@ -1542,6 +1616,16 @@ def _build_parser() -> argparse.ArgumentParser:
         parents=[common],
         help="Manage user CLI config (the never-install exclude list).",
         formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw config exclude list       # list never-install exclude entries\n"
+            "  aw config exclude add ~/src/legacy  # add path to exclude list\n"
+            "  aw config exclude rm ~/src/legacy   # remove path from exclude list\n"
+            "\n"
+            "OUTPUT & EXITS\n"
+            "  Exit codes: 0 success, 1 not found, 2 cannot-run/usage error.\n"
+            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+        ),
     )
     config_sub = p_config.add_subparsers(dest="config_command")
 
@@ -1717,6 +1801,18 @@ def _build_parser() -> argparse.ArgumentParser:
             action="store_true",
             help="rename/group: rename the file only; do NOT rewrite citing documents.",
         )
+        if _verb == "check":
+            _p.formatter_class = _AlphaHelpFormatter
+            _p.epilog = (
+                "EXAMPLES\n"
+                "  aw check plans               # validate plan artifacts\n"
+                "  aw check all                 # validate every records tree\n"
+                "  aw check specs names         # check spec filename conformance\n"
+                "\n"
+                "OUTPUT & EXITS\n"
+                "  Exit codes: 0 clean, 1 findings, 2 cannot-run/usage error.\n"
+                "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL; --json for formatted JSON.\n"
+            )
 
     p_set = sub.add_parser(
         "set",
@@ -1894,6 +1990,20 @@ def _build_parser() -> argparse.ArgumentParser:
         parents=[common],
         help="Owner verbs for the attention-visible backlog tier. 'backlog new' creates an item; 'set' transitions status; 'check' validates.",
         formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw backlog check             # validate backlog tree fail-closed\n"
+            '  aw backlog new --summary "Fix auth" --set auth-01 --apply\n'
+            "  aw backlog set open <id6>    # transition backlog item status\n"
+            "\n"
+            "SAFETY & DEFAULTS\n"
+            "  'new' is dry-run by default; pass --apply to write.\n"
+            "  Moving to 'blocked' requires a typed --gate-kind and --gate-ref pair.\n"
+            "\n"
+            "OUTPUT & EXITS\n"
+            "  Exit codes: 0 clean, 1 contract findings, 2 cannot-run/usage error.\n"
+            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+        ),
     )
     backlog_sub = p_backlog.add_subparsers(dest="backlog_command")
     p_backlog_new = backlog_sub.add_parser(
@@ -2016,6 +2126,21 @@ def _build_parser() -> argparse.ArgumentParser:
         aliases=["spec"],
         parents=[common],
         help="Owner verbs for the specs tree. 'specs set'/'note' write status+history; 'specs check' validates.",
+        formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw specs check               # validate all specs against contract\n"
+            "  aw specs set reviewed <id6>  # advance spec status to reviewed\n"
+            '  aw specs note <id6> "Reviewed with team"  # append history note\n'
+            "\n"
+            "SAFETY & DEFAULTS\n"
+            "  Enforces legal transition table and anti-self-approval floor.\n"
+            "  Setting 'approved' requires explicit --by-human attestation.\n"
+            "\n"
+            "OUTPUT & EXITS\n"
+            "  Exit codes: 0 clean, 1 contract violations, 2 cannot-run/usage error.\n"
+            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+        ),
         description=(
             "Owner verbs for the design specifications and RFC documents in .aw/records/specs/: "
             "'set' transitions status (draft -> to-review -> reviewed -> approved -> implementing -> implemented, "
@@ -4728,14 +4853,18 @@ def _highlight_matches(text: str, rx: re.Pattern, term: Term) -> str:
     return rx.sub(lambda m: term.colorize(m.group(0), "bold", "yellow"), text)
 
 
-def _run_noun_verb(args: argparse.Namespace, term: Term) -> int:
+def _run_noun_verb(
+    args: argparse.Namespace,
+    term: Term,
+    context: Optional[Any] = None,
+) -> int:
     """awcmdsurf: dispatch a noun-verb command to the right backend. Order 01 scaffolded the router;
     Order 02 wires index/find/search/check; Order 03 wires rename/group (+ archive)."""
     verb = args.command
     if verb == "search":
         return _run_search(args, term)
     if verb == "check":
-        return _run_check(args, term)
+        return _run_check(args, term, context=context)
     if verb == "find":
         return _run_find(args, term)
     types = _nv_resolve_types(args, term, verb)
@@ -5023,43 +5152,209 @@ def _run_search(args: argparse.Namespace, term: Term) -> int:
     return 0 if hits else 1
 
 
-def _run_check(args: argparse.Namespace, term: Term) -> int:
-    """awcmdsurf Order 02: validate a TYPE via the awcheck engine (falls back to legacy per-type
-    run_check). Optional literal sub-token `names` restricts to name conformance."""
+def _run_check(
+    args: argparse.Namespace,
+    term: Term,
+    context: Optional[Any] = None,
+) -> int:
+    """awcmdsurf Order 02 / awcliux Order 02: validate a TYPE via the check engine with the doctor-derived recipe."""
     import os
+    import time
     from pathlib import Path
+    from agent_workflows import artifact_core as core
     from agent_workflows import artifact_types as at
+    from agent_workflows import check_engine as ce
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Diagnostic,
+        Evidence,
+        NextAction,
+        select_output,
+    )
 
-    try:
-        norm = at.normalize_type(args.type)
-    except ValueError as exc:
-        term.status("fail", str(exc))
-        return 2
-    selectors = list(args.selector or [])
-    only_names = "names" in selectors
+    start_time = time.monotonic()
+    ctx = context or select_output(args)
+    raw_type = getattr(args, "type", None) or "all"
     repo_root = Path(getattr(args, "dir", None) or os.getcwd())
-    try:
-        from agent_workflows import check_engine as ce
 
+    try:
+        norm = at.normalize_type(raw_type)
+    except ValueError as exc:
+        err_msg = str(exc)
+        result = CommandResult(
+            command="check",
+            status="error",
+            exit_code=2,
+            summary=err_msg,
+            next_actions=[NextAction(command="aw check --help")],
+            data={"target": raw_type, "repo_root": repo_root},
+            verified=True,
+            complete=True,
+        )
+        return get_renderer(ctx).emit(result, ctx)
+
+    selectors = list(getattr(args, "selector", None) or [])
+    only_names = "names" in selectors
+    target_types = [norm] if norm != "all" else list(at.ARTIFACT_TYPES)
+
+    try:
         drift = ce.check_types(
             repo_root,
             [norm] if norm != "all" else ["all"],
             names_only=only_names,
             collisions=(norm == "all"),
         )
-        return at.emit_findings(
-            term,
-            drift,
-            as_json=getattr(args, "as_json", False),
-            as_agent=getattr(args, "as_agent", False),
-        )
     except Exception:
         fn = at.resolve_backend(norm, "check")
         if fn is None:
-            term.status("warn", f"'check' is not supported for {norm}.")
-            return 2
-        result = fn(_nv_backend_args(args, norm))
-        return result if isinstance(result, int) else 0
+            result = CommandResult(
+                command="check",
+                status="error",
+                exit_code=2,
+                summary=f"'check' is not supported for {norm}.",
+                next_actions=[NextAction(command="aw check --help")],
+                data={"target": norm, "repo_root": repo_root},
+            )
+            return get_renderer(ctx).emit(result, ctx)
+        res_code = fn(_nv_backend_args(args, norm))
+        return res_code if isinstance(res_code, int) else 0
+
+    elapsed_ms = int((time.monotonic() - start_time) * 1000)
+
+    # Count checked files
+    type_counts: dict[str, int] = {}
+    total_checked = 0
+    for t in target_types:
+        try:
+            files = list(ce._iter_type_files(repo_root, t))
+            type_counts[t] = len(files)
+            total_checked += len(files)
+        except Exception:
+            type_counts[t] = 0
+
+    # Build diagnostics from drift
+    diagnostics = []
+    from agent_workflows import doctor as _doctor
+
+    seen_fixes = set()
+    for d in drift:
+        try:
+            title, dir_str, fname, extra, fix = _doctor._categorize_drift(d, repo_root)
+        except Exception:
+            fix = None
+        diagnostics.append(
+            Diagnostic(
+                location=d.location,
+                rule=d.rule,
+                detail=d.detail,
+                severity="error",
+                fix=fix or None,
+            )
+        )
+        if fix and fix not in seen_fixes:
+            seen_fixes.add(fix)
+
+    exit_code = core.drift_exit_code(drift)
+    status = "conforms" if exit_code == 0 else "findings"
+    target_label = norm if norm != "all" else "all"
+
+    if exit_code == 0:
+        summary = f"{total_checked} {target_label} checked"
+    else:
+        summary = (
+            f"{len(drift)} finding(s) detected across {total_checked} {target_label}"
+        )
+
+    # Evidence breakdown
+    evidence = []
+    if norm == "plans":
+        plans_dir = repo_root / ".aw" / "records" / "plans"
+        if not plans_dir.is_dir():
+            plans_dir = repo_root / ".agents" / "plans"
+        pending_cnt = (
+            len(list((plans_dir / "pending").glob("*.md")))
+            if (plans_dir / "pending").is_dir()
+            else 0
+        )
+        reusable_cnt = (
+            len(list((plans_dir / "reusable").glob("*.md")))
+            if (plans_dir / "reusable").is_dir()
+            else 0
+        )
+        terminal_cnt = sum(
+            len(list((plans_dir / d).glob("*.md")))
+            for d in ("executed", "parked", "superseded", "not-executed")
+            if (plans_dir / d).is_dir()
+        )
+        evidence.append(
+            Evidence(
+                key="inventory",
+                value={
+                    "pending": pending_cnt,
+                    "reusable": reusable_cnt,
+                    "terminal": terminal_cnt,
+                },
+                status="verified",
+            )
+        )
+    else:
+        evidence.append(
+            Evidence(
+                key="inventory",
+                value=type_counts
+                if len(type_counts) > 1
+                else {"checked": total_checked},
+                status="verified",
+            )
+        )
+
+    err_cnt = sum(1 for d in drift if not d.rule.startswith("warn"))
+    warn_cnt = sum(1 for d in drift if d.rule.startswith("warn"))
+    evidence.append(
+        Evidence(
+            key="rules",
+            value={"errors": err_cnt, "warnings": warn_cnt},
+            status="clean" if exit_code == 0 else "findings",
+        )
+    )
+
+    # Next actions
+    next_actions = []
+    if exit_code == 0:
+        if norm in ("plans", "all"):
+            next_actions.append(NextAction(command="aw ipd board"))
+        elif norm == "specs":
+            next_actions.append(NextAction(command="aw specs check"))
+        elif norm == "research":
+            next_actions.append(NextAction(command="aw research find"))
+        elif norm == "backlog":
+            next_actions.append(NextAction(command="aw backlog check"))
+    else:
+        for f in seen_fixes:
+            next_actions.append(NextAction(command=f))
+        if not next_actions:
+            next_actions.append(NextAction(command=f"aw check {norm}"))
+
+    result = CommandResult(
+        command="check",
+        status=status,
+        exit_code=exit_code,
+        summary=summary,
+        diagnostics=diagnostics,
+        evidence=evidence,
+        next_actions=next_actions,
+        data={
+            "target": target_label,
+            "elapsed_ms": elapsed_ms,
+            "repo_root": repo_root,
+            "drift": drift,
+            "type_counts": type_counts,
+        },
+        verified=True,
+        complete=True,
+    )
+    return get_renderer(ctx).emit(result, ctx)
 
 
 def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
@@ -5544,6 +5839,44 @@ def _rewrite_help_token(argv):
     return out
 
 
+def _show_family_help(
+    parser: argparse.ArgumentParser,
+    cmd_name: str,
+    next_cmd: str,
+    term: Term,
+    context: Optional[Any] = None,
+) -> int:
+    subparsers_action = next(
+        (a for a in parser._actions if isinstance(a, argparse._SubParsersAction)), None
+    )
+    subparser = subparsers_action.choices.get(cmd_name) if subparsers_action else None
+    if subparser:
+        help_text = subparser.format_help()
+    else:
+        help_text = parser.format_help()
+
+    if context and getattr(context, "is_agent", False):
+        from agent_workflows.result_types import CommandResult, NextAction
+        from agent_workflows.renderers import get_renderer
+
+        res = CommandResult(
+            command=cmd_name,
+            status="error",
+            exit_code=2,
+            summary=f"missing required subcommand for {cmd_name}",
+            next_actions=[NextAction(command=next_cmd)],
+            data={"target": cmd_name},
+            verified=True,
+            complete=True,
+        )
+        return get_renderer(context).emit(res, context)
+
+    print(help_text.rstrip())
+    print()
+    print(term.format_next_action(next_cmd))
+    return 2
+
+
 def _dispatch(argv: Optional[Sequence[str]]) -> int:
     parser = _build_parser()
     # awcmdsurf Order 05 (hard cutover): the `aw plans <verb>` -> `plans-<verb>` alias shim was
@@ -5584,8 +5917,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             return _run_project_attach(args, term)
         if project_cmd == "move":
             return _run_project_move(args, term)
-        parser.print_help()
-        return 2
+        return _show_family_help(parser, "project", "aw project status", term, context)
     if args.command == "storage":
         storage_cmd = getattr(args, "storage_command", None)
         if storage_cmd == "status":
@@ -5602,13 +5934,13 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             return _run_storage_reattach(args, term)
         if storage_cmd == "preflight":
             return _run_storage_preflight(args, term)
-        parser.print_help()
-        return 2
+        return _show_family_help(parser, "storage", "aw storage status", term, context)
     if args.command == "config":
         if getattr(args, "config_command", None) == "exclude":
             return _run_config_exclude(args, term)
-        parser.print_help()
-        return 2
+        return _show_family_help(
+            parser, "config", "aw config exclude list", term, context
+        )
     if args.command == "todo":
         # awcmdsurf Order 04 (item 32/D5): `todo` is an alias of `attention` (the cross-tree board).
         from agent_workflows import attention as att
@@ -5619,7 +5951,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     if args.command == "record-history":
         return _run_record_history(args, term)
     if args.command in ("check", "find", "search", "index", "rename", "group"):
-        return _run_noun_verb(args, term)
+        return _run_noun_verb(args, term, context=context)
     if args.command == "migrate-layout":
         return _run_migrate_layout(args, term)
     if args.command == "install":
@@ -5702,8 +6034,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         # awcmdsurf Order 04: `ipd board` and bare `aw ipd` both show the IPD board.
         if ipd_cmd == "board" or ipd_cmd is None:
             return _run_plans(args, term)
-        parser.print_help()
-        return 2
+        return _show_family_help(parser, "ipd", "aw ipd board", term, context)
     if args.command in ("prompt", "prompts"):
         prompt_cmd = getattr(args, "prompts_command", None) or getattr(
             args, "prompt_command", None
@@ -5717,8 +6048,9 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
                 args=args,
                 term=term,
             )
-        parser.print_help()
-        return 2
+        return _show_family_help(
+            parser, "prompts", "aw prompts set <status> <target>", term, context
+        )
     if args.command == "research":
         research_cmd = getattr(args, "research_command", None)
         if research_cmd == "new":
@@ -5757,8 +6089,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import research_archive as ra
 
             return ra.run_check_miscategorized(args)
-        parser.print_help()
-        return 2
+        return _show_family_help(parser, "research", "aw research find", term, context)
     if args.command == "context":
         return _run_context(args, term)
     if args.command == "path":
@@ -5793,8 +6124,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
                 return backlog_mod.run_set(args)
         if backlog_cmd == "check":
             return backlog_mod.run_check(args)
-        print("usage: aw backlog {new|set|check}", file=sys.stderr)
-        return 2
+        return _show_family_help(parser, "backlog", "aw backlog check", term, context)
     if args.command in ("specs", "spec"):
         specs_cmd = getattr(args, "specs_command", None) or getattr(
             args, "spec_command", None
@@ -5830,8 +6160,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import specs as sp
 
             return sp.run_migrate(args)
-        parser.print_help()
-        return 2
+        return _show_family_help(parser, "specs", "aw specs check", term, context)
     if args.command == "archive":
         return _run_archive(args, term)
     if args.command in ("check-local-leaks", "sanitize"):
