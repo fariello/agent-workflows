@@ -584,5 +584,110 @@ class NameConformityTests(unittest.TestCase):
         self.assertEqual(disp, S.DISPOSITION_LEGACY)
 
 
+class DensityAdvisoryLintTests(unittest.TestCase):
+    """Order 07: Per-E-item density heuristic surfacing in linter (spec Section 8.1)."""
+
+    def _dense_child(self) -> str:
+        # A conforming child IPD with a multi-concern E-item
+        doc = _conforming_child()
+        # Replace E-01 action with a multi-concern action
+        return doc.replace(
+            "- [ ] E-01 do a thing.",
+            "- [ ] E-01 add an append-only tamper-evident ledger AND crash recovery AND a 12-class evidence validator",
+        )
+
+    def test_multi_concern_item_emits_advisory_without_error(self):
+        text = self._dense_child()
+        res = L.lint_text(text, checkpoint="author", directory="pending")
+        # Conformance is NOT failed
+        self.assertEqual(res.disposition, S.DISPOSITION_CONFORMING)
+        self.assertTrue(res.passing)
+        self.assertEqual(len(res.diagnostics), 0)
+        # Advisory channel captures the finding
+        self.assertEqual(len(res.advisories), 1)
+        adv = res.advisories[0]
+        self.assertEqual(adv.code, "IPD-Z602")
+        self.assertEqual(adv.code, L.C_SIZE_DENSITY)
+        self.assertIn("E-01", adv.message)
+        self.assertIn("multi-concern", adv.message)
+        self.assertGreater(adv.line, 0)
+
+    def test_single_concern_plan_has_no_advisories(self):
+        text = _conforming_child()
+        res = L.lint_text(text, checkpoint="author", directory="pending")
+        self.assertEqual(res.disposition, S.DISPOSITION_CONFORMING)
+        self.assertTrue(res.passing)
+        self.assertEqual(len(res.diagnostics), 0)
+        self.assertEqual(len(res.advisories), 0)
+
+    def test_advisory_does_not_gate_checkpoints(self):
+        # A plan with an advisory passes pre-execution checkpoint if states/fields are valid
+        text = self._dense_child().replace("Status: to-review", "Status: approved")
+        text = text.replace(
+            "- 2026-08-03 to-review (tester): created.",
+            "- 2026-08-03 approved (tester): approved.",
+        )
+        # add approval field
+        text = text.replace(
+            "- Author: tester", "- Author: tester\n- Approval: tester 2026-08-03"
+        )
+        res = L.lint_text(text, checkpoint="pre-execution", directory="pending")
+        self.assertEqual(res.disposition, S.DISPOSITION_CONFORMING)
+        self.assertTrue(res.passing)
+        self.assertEqual(len(res.diagnostics), 0)
+        self.assertEqual(len(res.advisories), 1)
+
+    def test_cli_agent_output_emits_advisory_record_with_clean_outcome(self):
+        import json
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as td:
+            plan_file = Path(td) / "20260822-test-01-abc123-dense.ipd.md"
+            plan_file.write_text(self._dense_child(), encoding="utf-8")
+
+            ns = argparse.Namespace(
+                phase="author", all=False, legacy=False, agent=True, path=str(plan_file)
+            )
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = L.run_lint(ns)
+
+            self.assertEqual(rc, 0)
+            rec = json.loads(buf.getvalue().strip())
+            self.assertEqual(rec["schema"], "aw.agent/v1")
+            self.assertEqual(rec["cmd"], "ipd lint")
+            self.assertEqual(rec["outcome"], "clean")
+            self.assertEqual(rec["exit"], 0)
+            self.assertEqual(rec["findings"], 1)
+            self.assertTrue(
+                any(d["rule"] == "IPD-Z602" for d in rec.get("diagnostics", []))
+            )
+
+    def test_cli_human_output_emits_advisory_line(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as td:
+            plan_file = Path(td) / "20260822-test-01-abc123-dense.ipd.md"
+            plan_file.write_text(self._dense_child(), encoding="utf-8")
+
+            ns = argparse.Namespace(
+                phase="author",
+                all=False,
+                legacy=False,
+                agent=False,
+                no_color=True,
+                path=str(plan_file),
+            )
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = L.run_lint(ns)
+
+            self.assertEqual(rc, 0)
+            out = buf.getvalue()
+            self.assertIn("advisory:", out)
+            self.assertIn("IPD-Z602", out)
+            self.assertIn("disposition: conforming", out)
+
+
 if __name__ == "__main__":
     unittest.main()

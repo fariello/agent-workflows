@@ -65,6 +65,7 @@ C_CHECKPOINT = "IPD-S404"
 C_EXEC_HISTORY = "IPD-S405"
 C_OQ = "IPD-Q501"
 C_SIZE = "IPD-Z601"
+C_SIZE_DENSITY = "IPD-Z602"
 C_NAME = "IPD-N001"  # filename does not match the plan grammar (awcheck Order 03)
 
 
@@ -626,6 +627,29 @@ def check_size(doc: ParsedDoc) -> List[Diagnostic]:
     return diags
 
 
+def check_density(doc: ParsedDoc) -> List[Diagnostic]:
+    """Advisory density check (spec Section 8.1, Order 07).
+
+    Flags E-items whose action text appears to bundle multiple independent deliverables
+    or test-surfaces. Does NOT affect the conformance disposition.
+    """
+    advisories: List[Diagnostic] = []
+    for lf in doc.exec_leaves:
+        if lf.kind != "E":
+            continue
+        reason = S.e_item_density_advisory(lf.text)
+        if reason:
+            advisories.append(
+                Diagnostic(
+                    lf.line,
+                    1,
+                    C_SIZE_DENSITY,
+                    f"{lf.ident}: action text may bundle multiple concerns ({reason})",
+                )
+            )
+    return advisories
+
+
 def check_checkpoint(
     doc: ParsedDoc, checkpoint: str, directory: Optional[str]
 ) -> List[Diagnostic]:
@@ -713,6 +737,7 @@ def check_checkpoint(
 class LintResult(NamedTuple):
     disposition: str  # conforming | quarantined | legacy/not evaluated | error
     diagnostics: List[Diagnostic]
+    advisories: List[Diagnostic] = []
 
     @property
     def passing(self) -> bool:
@@ -749,7 +774,8 @@ def lint_text(
     diags += check_size(doc)
     diags += check_checkpoint(doc, checkpoint, directory)
     disposition = S.DISPOSITION_CONFORMING if not diags else S.DISPOSITION_ERROR
-    return LintResult(disposition, diags)
+    advisories = check_density(doc)
+    return LintResult(disposition, diags, advisories)
 
 
 def lint_file(
@@ -887,7 +913,19 @@ def run_lint(args: argparse.Namespace) -> int:
                             else "warning",
                         )
                     )
+                for a in getattr(res, "advisories", []):
+                    all_diags.append(
+                        OutDiag(
+                            location=str(f),
+                            rule=a.code,
+                            detail=a.message,
+                            severity="info",
+                        )
+                    )
                 if not (ctx.is_agent or ctx.is_json):
+                    if getattr(res, "advisories", []):
+                        for a in res.advisories:
+                            print(f"advisory: {a.render(str(f))}")
                     print(f"{_disp(disp)}: {f}")
 
             any_error = bool(counts.get(S.DISPOSITION_ERROR, 0))
@@ -961,10 +999,22 @@ def run_lint(args: argparse.Namespace) -> int:
                         severity="error" if disp == S.DISPOSITION_ERROR else "warning",
                     )
                 )
+            for a in getattr(res, "advisories", []):
+                all_diags.append(
+                    OutDiag(
+                        location=str(path),
+                        rule=a.code,
+                        detail=a.message,
+                        severity="info",
+                    )
+                )
             if not (ctx.is_agent or ctx.is_json):
                 if diags:
                     for d in diags:
                         print(d.render(str(path)))
+                if getattr(res, "advisories", []):
+                    for a in res.advisories:
+                        print(f"advisory: {a.render(str(path))}")
                 print(f"disposition: {_disp(disp)} ({path})")
 
         exit_code = 1 if any_error else 0

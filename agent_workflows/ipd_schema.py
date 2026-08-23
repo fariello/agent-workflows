@@ -539,6 +539,210 @@ def size_warning(task_group_count: int, e_leaf_count: int) -> bool:
 
 
 # --------------------------------------------------------------------------------------
+# Per-E-item density heuristic (spec Section 8.1, Order 07)
+# --------------------------------------------------------------------------------------
+
+DENSITY_DELIVERABLE_NOUNS: FrozenSet[str] = frozenset(
+    (
+        "ledger",
+        "ledgers",
+        "compiler",
+        "compilers",
+        "runtime",
+        "runtimes",
+        "engine",
+        "engines",
+        "validator",
+        "validators",
+        "suite",
+        "suites",
+        "schema",
+        "schemas",
+        "service",
+        "services",
+        "endpoint",
+        "endpoints",
+        "workflow",
+        "workflows",
+        "adapter",
+        "adapters",
+        "registry",
+        "registries",
+        "wizard",
+        "wizards",
+        "harness",
+        "harnesses",
+        "framework",
+        "frameworks",
+        "parser",
+        "parsers",
+        "generator",
+        "generators",
+        "cli",
+        "subcommand",
+        "subcommands",
+        "database",
+        "databases",
+        "pipeline",
+        "pipelines",
+        "recovery",
+        "controller",
+        "controllers",
+        "interface",
+        "interfaces",
+        "dashboard",
+        "dashboards",
+        "infrastructure",
+        "subsystem",
+        "subsystems",
+        "gateway",
+        "gateways",
+        "management",
+        "storage",
+        "frontend",
+        "backend",
+        "documentation",
+        "ui",
+    )
+)
+
+DENSITY_ACTION_VERBS: FrozenSet[str] = frozenset(
+    (
+        "add",
+        "create",
+        "implement",
+        "build",
+        "define",
+        "update",
+        "refactor",
+        "rewrite",
+        "migrate",
+        "wire",
+        "enforce",
+        "integrate",
+        "support",
+        "surface",
+        "replace",
+        "introduce",
+        "deploy",
+        "delete",
+        "write",
+    )
+)
+
+_E_LEAF_PREFIX_RE = re.compile(
+    r"^(?:-\s*\[[ x]\]\s*)?(?:E-[0-9]{2,}\b\s*:?\s*)?(.*)$", re.DOTALL
+)
+_CODE_SPAN_RE = re.compile(r"`[^`]+`")
+_ENUM_PARTS_RE = re.compile(
+    r"(?:\((?:a|1|i)\)|1\)|a\))\s+(.*?)(?:\((?:b|2|ii)\)|2\)|b\))\s+(.*?)(?:\((?:c|3|iii)\)|3\)|c\))\s+(.*)",
+    re.IGNORECASE | re.DOTALL,
+)
+_SINGLE_TEST_ITEM_RE = re.compile(
+    r"^(?:add\s+)?(?:falsifiable\s+|regression\s+|unit\s+)?(?:tests?|test\s+suite)\b",
+    re.IGNORECASE,
+)
+_TEST_SURFACES_RE = re.compile(
+    r"\b(unit\s+tests?|integration\s+tests?|end-to-end\s+tests?|e2e\s+tests?|regression\s+tests?|benchmark\s+harness|performance\s+benchmarks?)\b",
+    re.IGNORECASE,
+)
+_CLAUSE_SPLIT_RE = re.compile(
+    r",\s*(?:and|plus|along with|as well as)\b|[,;]|\b(?:and|plus|along with|as well as)\b",
+    re.IGNORECASE,
+)
+_WORD_RE = re.compile(r"\b[a-z]+\b")
+_PREP_START_RE = re.compile(
+    r"^(?:in|under|across|from|between|through|for|into|with)\s+", re.IGNORECASE
+)
+
+
+def e_item_density_advisory(action: str) -> Optional[str]:
+    """Evaluate whether an E-item action text may bundle multiple independent concerns.
+
+    Advisory only: returns a human-readable reason if the action text names multiple
+    independent deliverables or test-surfaces, or None if single-concern. Uses the
+    "one concern / executable-in-one-focused-pass" definition canonically stated in
+    plan-review.md (Order 06 por1hi).
+    """
+    if not action or not action.strip():
+        return None
+
+    text = action.strip()
+    if text.startswith("- [ ] ") or text.startswith("- [x] "):
+        text = text[6:].strip()
+    m = re.match(r"^E-[0-9]{2,}\b\s*:?\s*(.*)$", text, re.DOTALL)
+    if m:
+        text = m.group(1).strip()
+    if not text:
+        return None
+
+    # Exclude code spans to analyze natural language structure
+    cleaned = _CODE_SPAN_RE.sub("CODE", text)
+
+    # 1. Multi-part explicit enumeration of distinct major actions / deliverables: (a)...(b)...(c)
+    # Exclude single test file assertion breakdowns (e.g. "Add tests/test_x.py: (a) ... (b) ...")
+    if not _SINGLE_TEST_ITEM_RE.match(cleaned):
+        enum_match = _ENUM_PARTS_RE.search(cleaned)
+        if enum_match:
+            part_a, part_b, part_c = (
+                enum_match.group(1),
+                enum_match.group(2),
+                enum_match.group(3),
+            )
+
+            def _has_action_clause(p: str) -> bool:
+                w = set(_WORD_RE.findall(p.lower()))
+                return bool(
+                    w & DENSITY_ACTION_VERBS
+                    and (w & DENSITY_DELIVERABLE_NOUNS or len(w) >= 4)
+                )
+
+            if (_has_action_clause(part_a) and _has_action_clause(part_b)) or (
+                _has_action_clause(part_b) and _has_action_clause(part_c)
+            ):
+                return "explicit multi-part enumeration with multiple independent actions or deliverables"
+
+    # 2. Multiple independent test surfaces across subsystems
+    test_surface_matches = _TEST_SURFACES_RE.findall(cleaned)
+    if (
+        len(set(m.lower() for m in test_surface_matches)) >= 2
+        and len(test_surface_matches) >= 3
+    ):
+        return "names multiple distinct test surfaces across subsystems"
+
+    # 3. Three or more distinct action verb clauses targeting deliverables joined by commas/conjunctions/semicolons
+    segments = [s.strip() for s in _CLAUSE_SPLIT_RE.split(cleaned) if s.strip()]
+    if len(segments) >= 3:
+        distinct_action_clauses = 0
+        for seg in segments:
+            words = set(_WORD_RE.findall(seg.lower()))
+            has_verb = bool(words & DENSITY_ACTION_VERBS)
+            has_noun = bool(words & DENSITY_DELIVERABLE_NOUNS)
+            is_prep = bool(_PREP_START_RE.match(seg))
+            if has_verb and has_noun and not is_prep:
+                distinct_action_clauses += 1
+            elif has_noun and len(words) >= 2 and not is_prep:
+                distinct_action_clauses += 1
+        if distinct_action_clauses >= 3:
+            return "names multiple independent deliverables or action clauses (likely multi-concern)"
+
+    # 4. Semicolon-separated chain of 3+ distinct action verb clauses
+    semi_parts = [p.strip() for p in cleaned.split(";") if p.strip()]
+    if len(semi_parts) >= 3:
+        verb_clauses = 0
+        for p in semi_parts:
+            words = set(_WORD_RE.findall(p.lower()))
+            if words & DENSITY_ACTION_VERBS and (
+                words & DENSITY_DELIVERABLE_NOUNS or len(words) >= 4
+            ):
+                verb_clauses += 1
+        if verb_clauses >= 3:
+            return "chains multiple semicolon-separated action clauses"
+
+    return None
+
+
+# --------------------------------------------------------------------------------------
 # Open-question grammar (spec Section 7)
 # --------------------------------------------------------------------------------------
 

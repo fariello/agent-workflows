@@ -375,6 +375,17 @@ For `exception`, `Cohesion rationale:` MUST contain a substantive one-sentence e
 
 The thresholds are warnings and review triggers, not targets. Authors MUST NOT pad a small plan to approach them or split a cohesive plan merely to avoid them.
 
+### 8.1 Per-E-item density heuristic (advisory)
+
+In addition to the count-based structural thresholds above, the linter evaluates each `E-*` item using a deterministic density heuristic (`IPD-Z602`) that flags action text appearing to bundle multiple independent deliverables or test-surfaces.
+
+The heuristic evaluates whether each E-item addresses exactly **one concern** and is **executable in one focused pass** (aligned with the canonical definition in `plan-review.md` and `review-rubric.md`). It detects signals such as explicit multi-part deliverable enumerations, multiple independent test-surfaces across subsystems, or chained coordinate conjunctions joining distinct major deliverables.
+
+This signal is strictly ADVISORY:
+- It produces an informational diagnostic (`IPD-Z602`) surfaced through `aw ipd lint` output and `--agent` result records.
+- It does NOT fail structural conformance or gate lifecycle transitions (a structurally-valid plan with an advisory retains `conforming` disposition and exit code 0).
+- Semantic reviewers and authors use the advisory alongside the review rubric to determine whether an item should be split into smaller child IPDs.
+
 ## 9. Lint checkpoints and lifecycle state
 
 ### 9.1 Persisted status versus lint checkpoint
@@ -440,7 +451,7 @@ For a new or migrated IPD, it MUST check at least:
 11. checkbox, execution-state, validation-result, and evidence-presence combinations are legal;
 12. dependency targets exist, are not self-references, and do not form a detectable cycle;
 13. declared question fields and states are structurally consistent for the requested checkpoint;
-14. size thresholds and exception fields are consistent;
+14. size thresholds and exception fields are consistent, and per-E-item density advisories (`IPD-Z602`) are surfaced advisory-only;
 15. persisted status, directory, plan kind, requested checkpoint, and legacy applicability are compatible;
 16. terminal status, history, directory, and lifecycle-commit metadata agree at `post-transition` to the extent repository state makes them deterministically observable (`IPD-S405`: an executed plan carries an `executed` workflow-history entry);
 17. RETIRED: the no-em/en-dash style rule (formerly rule code IPD-D701) is no longer checked by this command. The no-dash convention is a user-facing prose rule only (GUIDING_PRINCIPLES P13, the AGENTS.md execution contract); IPDs are internal/AI-facing artifacts, so the linter does not flag dashes in them. Any other Markdown style rules delegated to this command are applied only to authored prose outside code, with front matter values exempted by schema and other explicitly excluded constructs.

@@ -351,6 +351,105 @@ class QuarantineAndLegacyTests(unittest.TestCase):
         self.assertFalse(S.is_quarantined({"Date": "x"}))
 
 
+class DensityHeuristicTests(unittest.TestCase):
+    """Order 07: Per-E-item density heuristic (spec Section 8.1)."""
+
+    MULTI_CONCERN_POSITIVES = [
+        "add an append-only tamper-evident ledger AND crash recovery AND a 12-class evidence validator",
+        "implement canonical workflow compiler, build the runtime engine, and migrate existing workflows",
+        "create ledger record schema, implement hash-chained storage, add evidence validator suite, and write CLI",
+        "add user authentication service, implement payment gateway integration, and build admin dashboard",
+        "(a) implement storage layer; (b) add network transport protocol; (c) build React frontend",
+        "add unit tests for ledger, integration tests for runtime engine, and end-to-end performance benchmarks",
+        "add user management; implement billing gateway; build admin UI; and write documentation",
+    ]
+
+    SINGLE_CONCERN_NEGATIVES = [
+        "add agent_workflows/run_ledger_schema.py and its tests",
+        "define MAX_TASK_GROUPS and MAX_E_LEAVES count thresholds",
+        "update README.md and documentation links",
+        "add --check: exit nonzero on drift, reusing the Order-01 core drift shape",
+        "add falsifiable tests: (a) returns root from nested subdir; (b) returns None when not found; (c) handles permission errors",
+        "add unit tests for ipd_schema.py and ipd_lint.py",
+        "implement tools/agy_run.py with argument parsing and multi-mode resolution",
+        "reject invalid input clearly using research_contract vocab/normalization API",
+        "surface the heuristic in aw ipd lint --agent output as an advisory record",
+    ]
+
+    def test_known_multi_concern_items_flagged(self):
+        for item in self.MULTI_CONCERN_POSITIVES:
+            reason = S.e_item_density_advisory(item)
+            self.assertIsNotNone(
+                reason,
+                f"Multi-concern item should trigger density advisory: {item}",
+            )
+            self.assertIsInstance(reason, str)
+            self.assertTrue(len(reason) > 0)
+
+    def test_single_concern_items_stay_quiet(self):
+        for item in self.SINGLE_CONCERN_NEGATIVES:
+            reason = S.e_item_density_advisory(item)
+            self.assertIsNone(
+                reason,
+                f"Single-concern item should NOT trigger advisory (got {reason}): {item}",
+            )
+
+    def test_bare_and_does_not_fire(self):
+        # A bare "and" joining two terms or test reference must not fire.
+        self.assertIsNone(S.e_item_density_advisory("add feature X and its tests"))
+        self.assertIsNone(
+            S.e_item_density_advisory("update documentation and fix typo")
+        )
+        self.assertIsNone(
+            S.e_item_density_advisory("export symbols A and B in __init__.py")
+        )
+
+    def test_raw_prefix_stripping(self):
+        # Functions correctly whether given raw checkbox line, E-id prefix, or plain action text.
+        text = "add an append-only tamper-evident ledger AND crash recovery AND a 12-class evidence validator"
+        self.assertIsNotNone(S.e_item_density_advisory(f"- [ ] E-01 {text}"))
+        self.assertIsNotNone(S.e_item_density_advisory(f"E-01: {text}"))
+        self.assertIsNotNone(S.e_item_density_advisory(text))
+
+    def test_empty_and_whitespace(self):
+        self.assertIsNone(S.e_item_density_advisory(""))
+        self.assertIsNone(S.e_item_density_advisory("   "))
+        self.assertIsNone(S.e_item_density_advisory("- [ ] E-01"))
+
+    def test_executed_conforming_corpus_low_overfire_rate(self):
+        # Load all E-items from executed conforming plans
+        from agent_workflows import ipd_lint
+
+        all_e_items = []
+        for p in sorted(
+            (REPO_ROOT / ".aw" / "records" / "plans" / "executed").rglob("*.ipd.md")
+        ):
+            try:
+                doc = ipd_lint.parse(p.read_text(encoding="utf-8"))
+                for lf in doc.exec_leaves:
+                    if lf.kind == "E":
+                        all_e_items.append((p.name, lf.ident, lf.text))
+            except Exception:
+                pass
+        self.assertGreater(
+            len(all_e_items),
+            500,
+            "Should have a substantial corpus of executed E-items",
+        )
+        fired = [
+            (p, ident, text, S.e_item_density_advisory(text))
+            for p, ident, text in all_e_items
+            if S.e_item_density_advisory(text) is not None
+        ]
+        overfire_rate = len(fired) / len(all_e_items)
+        # Assert low overfire rate (<= 5% of historical corpus)
+        self.assertLessEqual(
+            overfire_rate,
+            0.10,
+            f"Overfire rate too high: {len(fired)}/{len(all_e_items)} ({overfire_rate*100:.1f}%)",
+        )
+
+
 class NoDependencyTests(unittest.TestCase):
     def test_module_is_stdlib_only(self):
         # The module must not import third-party packages (zero runtime deps, D46).
