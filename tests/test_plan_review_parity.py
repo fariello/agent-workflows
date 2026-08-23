@@ -208,13 +208,29 @@ class RightSizingRubricParityTests(unittest.TestCase):
             )
 
     def test_authoring_guidance_in_assess_and_templates(self):
-        for path in (ASSESS, CHILD_TEMPLATE, ORCH_TEMPLATE):
-            t = _read(path).lower()
+        t_assess = _read(ASSESS).lower()
+        self.assertIn(
+            "each e-item\n   must address one concern and be executable in one focused pass",
+            t_assess,
+            "assess.md must require each E-item to address one concern and be executable in one focused pass",
+        )
+        self.assertIn(
+            "split when an e-item names\n   multiple distinct deliverables",
+            t_assess,
+            "assess.md must guide splitting multi-deliverable E-items",
+        )
+        self.assertIn(
+            "passing count-based size lint measures count, not conceptual density",
+            t_assess,
+            "assess.md must distinguish count from conceptual density",
+        )
+
+        for path in (CHILD_TEMPLATE, ORCH_TEMPLATE):
+            t = _read(path)
             self.assertIn(
-                "one concern", t, f"{path.name} must guide one concern per E-item"
-            )
-            self.assertIn(
-                "split", t, f"{path.name} must guide splitting multi-deliverable items"
+                "Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.",
+                t,
+                f"{path.name} must include the right-sizing rule in the execution checklist intro",
             )
 
 
