@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: A passing `aw ipd lint` size check measures COUNT (>18 E-leaves / >5 groups), not conceptual density; Order-sized E-items slip through as "Size assessment: standard", degrading a real agent's context/attention/execution.
 - Scope: The prose rubric in `/plan-review`, `/plan-review-long`, and the assess IPD-producing harness, plus `aw ipd scaffold` authoring guidance; NO code heuristic here (that is Order 07).
-- Status: draft
+- Status: reviewed
 - Set: highpbacklog0822
 - Order: 6
 - Highest E allocated: 04
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-22 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created for backlog 8iy2dk (part 1 of 2); root cause was the awoptimize Set passing size lint while Orders 02/03/04 each held Order-sized E-items.
+- 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (name plan-review.md as the CANONICAL rubric home; others copy/reference to avoid 6-file drift), PR-002 (E-03 targets template TEXT not ipd_authoring.py code; fence updated), PR-003 (V-04 dry-run against a NAMED awoptimize dense exemplar), PR-004 (gave the concrete rubric text: the a/b/c/d diagnostic questions), PR-005 (Status draft->reviewed). Claims verified: no right-sizing prose currently in plan-review/-long; assess template Size/Cohesion at :84-85; thresholds in ipd_schema.py:528-538 / ipd_lint.py:620-640.
 
 ## Goal
 
@@ -25,21 +26,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Review-workflow rubric
 
-- [ ] E-01 Add a per-E-item conceptual-density right-sizing rubric check to `.aw/system/workflows/plan-review/plan-review.md`: for each IPD, judge not just the mechanical size lint but whether any single E-item or the whole plan bundles multiple independently-verifiable concerns, and recommend splitting into smaller child IPDs when so (an UNDER-SCOPE/REPLAN-style finding).
+- [ ] E-01 Add a per-E-item conceptual-density right-sizing rubric check to `.aw/system/workflows/plan-review/plan-review.md` (this is the CANONICAL statement of the definition; all other locations reference or copy from it verbatim to avoid drift). The rubric asks, for each IPD and each E-item: (a) does one E-item name multiple distinct deliverables or touch multiple independent code regions/files? (b) does it bundle multiple independent test-surfaces (would it need several unrelated V-items)? (c) could it be executed and verified as two or more independent passes? (d) would a faster/weaker model lose focus/context executing it as one item? If yes to any, recommend splitting into smaller child IPDs (an UNDER-SCOPE/REPLAN-style finding) - a passing count-based size lint does NOT clear this.
   - Depends on: none
-  - Expected outcome: `/plan-review` explicitly evaluates conceptual density, not just count.
+  - Expected outcome: `/plan-review` explicitly evaluates conceptual density, not just count, using the canonical rubric text.
   - Execution state: pending
 
-- [ ] E-02 Add the same right-sizing rubric to `.aw/system/workflows/plan-review-long/` (its `02-review-and-revise.md` and/or `review-rubric.md`), keeping deliberate parity with the single-file variant.
+- [ ] E-02 Add the SAME right-sizing rubric (copied verbatim from the canonical E-01 wording, or referencing it) to `.aw/system/workflows/plan-review-long/` (its `02-review-and-revise.md` and/or `review-rubric.md`), keeping the deliberate parity the two variants already declare.
   - Depends on: none
-  - Expected outcome: the long/parallel variant applies the identical right-sizing check.
+  - Expected outcome: the long/parallel variant applies the identical right-sizing check, word-for-word aligned with plan-review.md.
   - Execution state: pending
 
 ### Task group 2: Authoring guidance
 
-- [ ] E-03 Add "one concern per E-item; split when an E-item names multiple deliverables/test-surfaces" guidance to the assess IPD-producing harness (`.aw/system/workflows/assess/assess.md`) and the IPD templates (`.aw/system/workflows/assess/templates/ipd.md`, `orchestrator-ipd.md`), and to the `aw ipd scaffold` authoring guidance so newly-scaffolded plans are pushed toward one-concern E-items.
+- [ ] E-03 Add the "one concern per E-item; split when an E-item names multiple deliverables/test-surfaces" guidance (the same canonical wording) to the assess IPD-producing harness (`.aw/system/workflows/assess/assess.md`) and the IPD TEMPLATES (`.aw/system/workflows/assess/templates/ipd.md`, `orchestrator-ipd.md`) - since `aw ipd scaffold` writes from those templates, editing the template text IS the scaffold authoring guidance. Do NOT modify `agent_workflows/ipd_authoring.py` scaffold CODE unless a one-line guidance string genuinely lives there rather than in the template; if it does, keep it to that one string and cite it.
   - Depends on: none
-  - Expected outcome: authored/scaffolded IPDs are steered toward one-concern E-items from the start.
+  - Expected outcome: authored/scaffolded IPDs are steered toward one-concern E-items from the start via the template text; no scaffold code refactor.
   - Execution state: pending
 
 ### Task group 3: Maintainer-signal rule
@@ -82,7 +83,7 @@ Workflow-prose change; validation is by inspection plus a dry-run: apply the new
 
 ## Spec / documentation sync
 
-Update the IPD spec/authoring guidance references only if they enumerate the review checks; keep the "one concern per E-item" definition identical across plan-review, plan-review-long, assess, and scaffold guidance (Order 07 must reuse the same definition).
+Update the IPD spec/authoring guidance references only if they enumerate the review checks. The CANONICAL "one concern / executable-in-one-focused-pass" definition lives in `plan-review.md` (E-01); plan-review-long, assess, and the templates copy it verbatim or reference it, and Order 07's mechanical heuristic MUST reuse that same definition. Naming one canonical home avoids six divergent copies drifting apart.
 
 ## Open questions
 
@@ -110,7 +111,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: both review workflows state that a maintainer sizing question is a finding to investigate by decomposition; a dry-run against a known-dense IPD shows the rubric would flag it; quote the rule and describe the dry-run result.
+  - Required evidence: both review workflows state that a maintainer sizing question is a finding to investigate by decomposition; a dry-run applying the new rubric to a NAMED dense exemplar (an awoptimize Order 02/03/04 that bundled an append-only ledger / crash recovery / a 12-class evidence-validator into single E-items, per Findings) shows the rubric would flag it for splitting; quote the rule and describe the dry-run result against that named plan.
   - Observed evidence:
   - Result: pending
 
@@ -124,7 +125,7 @@ Review and explicit approval required.
 ### Execution contract
 
 1. Open questions RESOLVED: OQ-01 above is resolved. `Depends on: none`.
-2. Scope fence: touch only `.aw/system/workflows/plan-review/plan-review.md`, `.aw/system/workflows/plan-review-long/*`, `.aw/system/workflows/assess/assess.md`, `.aw/system/workflows/assess/templates/ipd.md` + `orchestrator-ipd.md`, and the `aw ipd scaffold` authoring-guidance text. Do NOT change `ipd_schema.py`/`ipd_lint.py` code here (that is Order 07). If the rubric seems to need a code change, STOP and report.
+2. Scope fence: touch only `.aw/system/workflows/plan-review/plan-review.md`, `.aw/system/workflows/plan-review-long/*`, `.aw/system/workflows/assess/assess.md`, and `.aw/system/workflows/assess/templates/ipd.md` + `orchestrator-ipd.md` (the template text IS the scaffold authoring guidance). Do NOT change `ipd_schema.py`/`ipd_lint.py` (Order 07) and do NOT refactor `agent_workflows/ipd_authoring.py` scaffold code (at most a single guidance string if one genuinely lives there rather than in the template). This plan is PROSE/template only; if the rubric seems to need a code change, STOP and report.
 3. Honesty rule (hard MUST): when you report a workflow/docs lint or the dry-run result, paste the ACTUAL output; never claim a check you did not run.
 4. Commit ONLY this plan's own changed files, path-scoped (`git commit -- <path>`); never `git add -A`/bare/`-a`; never push.
 5. Lifecycle move: on completion, after every E item is performed and every V item is verified with evidence, append the `## Workflow history` line, set `Status: executed`, `git mv` this file from `pending/` to `executed/`, and make the path-scoped lifecycle commit. Backlog `8iy2dk` is set to `done` only after BOTH Order 06 and Order 07 are executed; do not close it from this plan alone.
