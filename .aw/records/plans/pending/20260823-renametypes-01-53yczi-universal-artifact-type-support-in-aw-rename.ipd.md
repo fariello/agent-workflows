@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: CLI noun-verb grammar consistency across all tracked artifact types for 'aw rename'.
 - Scope: Extend 'aw rename' to support all canonical artifact types (backlog, walkthroughs, specs, prompts, roadmaps, comms, releases) alongside plans and research.
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-23
 - Set: renametypes
 - Order: 1
 - Highest E allocated: 03
@@ -12,6 +13,7 @@
 - Id: 53yczi
 
 ## Workflow history
+- 2026-08-23 approved (aw set): status set to approved
 
 - 2026-08-23 draft (Gabriele Fariello): created.
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-003 (scope corrected + OQ-02 resolved by human: grammar types + per-type handlers, comms excluded, releases gated on ARTIFACT_TYPES addition), PR-004 (corrected extraction approach: parameterized engine required), PR-005 (sibling-collision note), PR-006 (research --kind/--model facet gap noted).

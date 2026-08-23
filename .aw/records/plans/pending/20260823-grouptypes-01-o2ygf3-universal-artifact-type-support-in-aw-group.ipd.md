@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: CLI noun-verb grammar consistency across all tracked artifact types for 'aw group'.
 - Scope: Extend 'aw group' to support all canonical artifact types (backlog, specs, prompts, roadmaps, walkthroughs) alongside plans and research.
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-23
 - Set: grouptypes
 - Order: 1
 - Highest E allocated: 03
@@ -12,6 +13,7 @@
 - Id: o2ygf3
 
 ## Workflow history
+- 2026-08-23 approved (aw set): status set to approved
 
 - 2026-08-23 draft (Gabriele Fariello): created.
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-003 (scope corrected + OQ-02 resolved by human: grammar types + per-type handlers, comms excluded), PR-004 (corrected extraction approach: artifact_core already exists, parameterized engine required), PR-005 (sibling-collision note).

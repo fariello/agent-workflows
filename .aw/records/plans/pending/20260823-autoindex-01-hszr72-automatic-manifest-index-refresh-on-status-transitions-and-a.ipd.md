@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Manifest index staleness after status transitions and artifact mutations.
 - Scope: agent_workflows/status_set.py, agent_workflows/plans_refs.py, agent_workflows/research_refs.py, manifest index triggers, and mutation regression tests.
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-23
 - Set: autoindex
 - Order: 1
 - Highest E allocated: 03
@@ -12,6 +13,7 @@
 - Id: hszr72
 
 ## Workflow history
+- 2026-08-23 approved (aw set): status set to approved
 
 - 2026-08-23 draft (Gabriele Fariello): created.
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (corrected non-existent `generate_index` -> `run_index`), PR-002/PR-005 (added cross-plan sibling-collision note).
