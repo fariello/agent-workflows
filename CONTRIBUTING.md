@@ -179,6 +179,11 @@ and an undeclared or uncovered leaf fails CI):
    [Human TTY guide](docs/cli-human-guide.md) and the
    [Agent protocol reference](docs/cli-agent-protocol.md); the contract itself is in
    [docs/cli-output-contract.md](docs/cli-output-contract.md).
+8. Empty, Loading, and Error States. Query, search, and list verbs MUST use
+    on zero matches to echo active
+   filters and suggest a next step; mutation verbs MUST report applied changes or dry-run
+   previews clearly with non-silent errors (see
+   [docs/cli-output-contract.md#11-empty-loading-and-error-state-ux-convention](docs/cli-output-contract.md#11-empty-loading-and-error-state-ux-convention)).
 
 ## Versioning
 
