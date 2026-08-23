@@ -1,6 +1,6 @@
 """Dual-audience renderers consuming typed CommandResult facts.
 
-awcliux Order 01 (`hd3kln`) E-01 / E-02.
+awcliux Order 01 (`hd3kln`) E-01 / E-02, Order 03 (`8su0r3`) E-01 / E-02 / E-03.
 
 Provides the renderer interface and concrete renderers (HumanRenderer, AgentRenderer,
 JsonRenderer) that consume identical facts and exit classifications from one CommandResult.
@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import abc
 import json
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
+from agent_workflows import agent_schema as _schema
 from agent_workflows import term as _term
 from agent_workflows.result_types import (
     CommandResult,
@@ -186,14 +187,106 @@ class HumanRenderer(BaseRenderer):
 
 
 class AgentRenderer(BaseRenderer):
-    """Agent-facing compact aw.agent/v1 JSONL renderer."""
+    """Agent-facing compact aw.agent/v1 JSONL renderer (Order 01/03)."""
 
     def render(
         self, result: CommandResult, context: Optional[OutputContext] = None
     ) -> str:
-        rec = result.to_agent_record()
-        # Single-line compact JSON, newline-terminated
-        return json.dumps(rec, separators=(",", ":")) + "\n"
+        rec = result.to_agent_record(context)
+        return _schema.render_jsonl_record(rec)
+
+    def render_item(
+        self, item: Dict[str, Any], cmd: str, context: Optional[OutputContext] = None
+    ) -> str:
+        """Render a single stream item record."""
+        rec: Dict[str, Any] = {
+            "schema": _schema.SCHEMA_VERSION,
+            "kind": "item",
+            "cmd": cmd,
+            **item,
+        }
+        if context and context.fields:
+            rec = _schema.filter_record_fields(rec, context.fields)
+        return _schema.render_jsonl_record(rec)
+
+    def render_summary(
+        self,
+        cmd: str,
+        total: int,
+        emitted: int,
+        omitted: int,
+        outcome: str = "clean",
+        exit_code: int = 0,
+        next_cmd: Optional[str] = None,
+        complete: bool = True,
+        context: Optional[OutputContext] = None,
+    ) -> str:
+        """Render a stream summary record."""
+        rec: Dict[str, Any] = {
+            "schema": _schema.SCHEMA_VERSION,
+            "kind": "summary",
+            "cmd": cmd,
+            "outcome": outcome,
+            "exit": exit_code,
+            "total": total,
+            "emitted": emitted,
+            "omitted": omitted,
+            "complete": complete,
+        }
+        if next_cmd is not None:
+            rec["next"] = next_cmd
+        if context and context.fields:
+            rec = _schema.filter_record_fields(rec, context.fields)
+        return _schema.render_jsonl_record(rec)
+
+    def render_stream(
+        self,
+        items: Sequence[Dict[str, Any]],
+        cmd: str,
+        context: Optional[OutputContext] = None,
+        total: Optional[int] = None,
+        next_template: Optional[str] = None,
+        outcome: str = "clean",
+        exit_code: int = 0,
+    ) -> str:
+        """Render a stream of items with summary record under --limit / token budgets."""
+        ctx = context or OutputContext(mode=OutputMode.AGENT)
+        all_items = list(items)
+        tot = total if total is not None else len(all_items)
+        limit = ctx.limit
+
+        if limit is not None and limit < len(all_items):
+            emitted_items = all_items[:limit]
+            omitted = tot - len(emitted_items)
+            complete = False
+            next_cmd = (
+                next_template.format(limit=tot)
+                if next_template
+                else f"aw {cmd} --agent --limit {tot}"
+            )
+        else:
+            emitted_items = all_items
+            omitted = 0
+            complete = True
+            next_cmd = None
+
+        lines: List[str] = []
+        for it in emitted_items:
+            lines.append(self.render_item(it, cmd, ctx))
+        lines.append(
+            self.render_summary(
+                cmd,
+                total=tot,
+                emitted=len(emitted_items),
+                omitted=omitted,
+                outcome=outcome,
+                exit_code=exit_code,
+                next_cmd=next_cmd,
+                complete=complete,
+                context=ctx,
+            )
+        )
+        return "".join(lines)
 
 
 class JsonRenderer(BaseRenderer):

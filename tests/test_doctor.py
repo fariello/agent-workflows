@@ -47,9 +47,14 @@ class DoctorTests(unittest.TestCase):
         self.assertTrue(any(d.rule == "doctor.git-untracked" for d in drift))
 
     def test_run_no_findings_exit0(self) -> None:
+        from agent_workflows import term as T
+
         out = io.StringIO()
+        term = T.Term(stream=out, color=False)
         with redirect_stdout(out), redirect_stderr(io.StringIO()):
-            rc = doctor.run(types.SimpleNamespace(dir=str(self.root), as_agent=False))
+            rc = doctor.run(
+                types.SimpleNamespace(dir=str(self.root), as_agent=False), term=term
+            )
         self.assertEqual(rc, 0)
         self.assertIn("no findings", out.getvalue())
 

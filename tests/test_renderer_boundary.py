@@ -184,7 +184,10 @@ class DoctorRendererBoundaryTests(unittest.TestCase):
 
         # 5. Assert evidence keys match
         evidence_keys = {e.key for e in result.evidence}
-        agent_evidence_keys = {e["key"] for e in agent_record.get("evidence", [])}
+        agent_evidence_keys = {
+            e.split(":")[0] if isinstance(e, str) else e.get("key")
+            for e in agent_record.get("evidence", [])
+        }
         self.assertEqual(evidence_keys, agent_evidence_keys)
         self.assertIn("git", evidence_keys)
         self.assertIn("env", evidence_keys)

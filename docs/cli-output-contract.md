@@ -1,10 +1,11 @@
-# Normative CLI Output Mode Contract and Renderer Boundary
+# Normative CLI Output Mode Contract and Token-Efficient Agent Protocol
 
-awcliux Order 01 (`hd3kln`) E-03 / V-03.
+awcliux Order 01 (`hd3kln`) E-03 / V-03, Order 03 (`8su0r3`) E-01 / E-02 / E-03.
 
 This document defines the normative contract governing audience selection, output modes,
-stream conventions, exit code semantics, schema versioning, broken-pipe behavior, and
-reconciliation with legacy machine formats across the `agent-workflows` (`aw`) CLI surface.
+stream conventions, exit code semantics, the `aw.agent/v1` machine protocol, evidence receipts,
+anti-greenwashing outcome invariants, token-control budgets, and reconciliation with legacy
+formats across the `agent-workflows` (`aw`) CLI surface.
 
 ---
 
@@ -40,8 +41,8 @@ explicit (--json / --format <fmt>)  >  --agent  >  non-TTY stdout (pipe/redirect
 Command logic and presentation are strictly decoupled. Domain handlers compute a single typed
 `CommandResult` containing standard stdlib outcome facts:
 
-- `CommandResult`: `command`, `status` (`clean`, `findings`, `fail`, `preview`, `stale`, `error`),
-  `exit_code` (`0`, `1`, `2`), `summary`, `diagnostics`, `changes`, `evidence`, `next_actions`, `data`.
+- `CommandResult`: `command`, `status` (`clean`, `findings`, `fail`, `preview`, `stale`, `error`, `skipped`, `partial`, `unverified`),
+  `exit_code` (`0`, `1`, `2`), `summary`, `diagnostics`, `changes`, `evidence`, `next_actions`, `target`, `applied`, `data`.
 - `Diagnostic`: `location`, `rule`, `detail`, `severity` (`error`, `warning`, `info`), `fix`.
 - `Change`: `path`, `kind` (`modify`, `create`, `delete`, `rename`), `detail`, `applied`.
 - `Evidence`: `key`, `value`, `status` (`verified`, `unverified`, `pass`, `fail`, `clean`), `detail`.
@@ -64,32 +65,98 @@ The CLI enforces a uniform three-state exit classification across all verbs:
 
 ---
 
-## 4. Stream Separation and Broken-Pipe Policy
+## 4. The `aw.agent/v1` JSONL Protocol and Closed Record Kinds
 
-- **`stdout`**: Reserved strictly for final structured results (the interactive human view or machine
-  JSONL records).
-- **`stderr`**: Reserved for interactive progress indicators, transient status updates, cannot-start
-  errors, and usage diagnostics. Diagnostics are never duplicated across both streams.
-- **Broken Pipes**: All handlers catch `BrokenPipeError` / `EPIPE` when writing to stdout and exit
-  cleanly without dumping Python stack traces.
+All agent output conforms to the `aw.agent/v1` newline-terminated JSONL protocol.
+Every record belongs to a closed set of record kinds:
+
+### Record Kinds
+
+1. `result`: Bounded single command execution record.
+2. `summary`: Summary record terminating a stream of items under pagination or token limits.
+3. `item`: An individual item in a multi-item stream sequence.
+4. `error`: A fatal or cannot-run execution diagnostic (exit code 2).
+
+### Protocol Invariants and Anti-Greenwashing Rules
+
+Agents (GPT, Gemini, Opus, GLM, etc.) and CI runners must **consume structured records and never infer completion from prose**.
+
+- **Anti-Greenwashing Invariant**: A record MUST NEVER report a positive outcome (`clean`, `ok`, `conforms`) for work that was `skipped`, `partial`, `unverified`, or `cannot-run`.
+- **Completeness and Verification**:
+  - If `verified=False`, the outcome is `unverified` and exit code is `1`.
+  - If `complete=False` (and not a non-destructive preview), the outcome is `partial` or `skipped`.
+  - If `exit=2`, kind is `error` and outcome is `cannot-run` or `error`.
+- **Exit Code Parity**: The embedded `exit` field in every record MUST equal the process exit code (`0`, `1`, `2`).
+- **Path Sanitization**: All path-valued fields (`target`, `location`, `path`, etc.) MUST be repo-relative, normalized (forward slashes, no leading `./`), and free of user home paths (`/home/<user>/`, `/Users/<user>/`), usernames, or hostnames. All records pass `aw sanitize --agent` with zero findings.
+- **ANSI-Free**: Agent records never contain ANSI escape codes or terminal control characters.
 
 ---
 
-## 5. Schema Versioning
+## 5. Record Examples
+
+### Clean Bounded Result (`exit: 0`)
+```json
+{"schema":"aw.agent/v1","kind":"result","cmd":"check plans","outcome":"clean","exit":0,"checked":17,"findings":0,"verified":true,"complete":true,"evidence":["ipd-lint:author"],"next":null}
+```
+
+### Mutation Preview Result (`exit: 0`)
+```json
+{"schema":"aw.agent/v1","kind":"result","cmd":"rename plans","outcome":"preview","exit":0,"applied":false,"complete":false,"verified":true,"changes":[{"kind":"rename","path":"plans/old-slug.ipd.md"}],"target":"plans/6psux0","next":"aw rename plans 6psux0 --slug new-slug --apply"}
+```
+
+### Domain Findings Result (`exit: 1`)
+```json
+{"schema":"aw.agent/v1","kind":"result","cmd":"check specs","outcome":"findings","exit":1,"verified":true,"complete":true,"findings":2,"diagnostics":[{"location":"specs/01.md","rule":"spec.draft"},{"location":"specs/02.md","rule":"spec.title"}],"next":"aw check specs --fix"}
+```
+
+### Stream Summary with Truncation (`exit: 1`)
+```json
+{"schema":"aw.agent/v1","kind":"summary","cmd":"attention","outcome":"findings","exit":1,"total":49,"emitted":20,"omitted":29,"complete":false,"next":"aw attention --agent --limit 50"}
+```
+
+### Cannot-Run Error (`exit: 2`)
+```json
+{"schema":"aw.agent/v1","kind":"error","cmd":"check","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"next":"aw check --help"}
+```
+
+---
+
+## 6. Token Control and Escape Hatches
+
+To minimize token usage during agent orchestration while preserving complete decision facts:
+
+- **Compact Defaults**: By default, agent records emit concise identifiers (check names in evidence receipts, count of changes when large, minimal diagnostic fields) rather than verbose text paragraphs.
+- **`--fields <list>`**: Projects records down to explicitly requested fields while preserving mandatory envelope metadata (`schema`, `kind`, `cmd`, `exit`, `outcome`, `complete`, `verified`).
+- **`--limit <N>`**: Bounds stream item emission to at most `N` items and includes total counts, omitted counts, and a continuation command in the terminating `summary` record.
+- **`--verbose` / `--json`**:
+  - `--verbose` in agent mode includes full nested diagnostics, change details, and evidence dicts.
+  - `--json` provides pretty-printed full `CommandResult` JSON dictionaries for human debugging.
+
+---
+
+## 7. Stream Separation and Broken-Pipe Policy
+
+- **`stdout`**: Reserved strictly for final structured results (the interactive human view or machine JSONL records).
+- **`stderr`**: Reserved for interactive progress indicators, transient status updates, cannot-start errors, and usage diagnostics. Diagnostics are never duplicated across both streams.
+- **Broken Pipes**: All handlers catch `BrokenPipeError` / `EPIPE` when writing to stdout and exit cleanly without dumping Python stack traces.
+
+---
+
+## 8. Schema Versioning
 
 The canonical agent machine format is tagged with:
 ```json
 {"schema":"aw.agent/v1", ...}
 ```
 
-- **Record Kinds**: `result`, `summary`, `error`.
+- **Record Kinds**: `result`, `summary`, `item`, `error`.
 - **Evolution Contract**: Additive, optional fields within `aw.agent/v1` are backward compatible.
   Any breaking modification to record schema or field semantics requires a version bump
   (`aw.agent/v2`).
 
 ---
 
-## 6. Automatic Non-TTY Migration Policy (Hard Cutover)
+## 9. Automatic Non-TTY Migration Policy (Hard Cutover)
 
 Per maintainer decision OQ-01, non-TTY stdout adopts `aw.agent/v1` JSONL immediately upon release
 with no deprecation window. Any external script parsing legacy plain-text or TSV pipe output
@@ -97,7 +164,7 @@ must migrate to `aw.agent/v1` or use explicit `--format` flags.
 
 ---
 
-## 7. Relationship to Legacy `Drift` Convention and Spec Reconciliation
+## 10. Relationship to Legacy `Drift` Convention and Spec Reconciliation
 
 Spec `20260818-1525-01` G6 previously required commands to reuse the TSV `Drift` / `render_agent_drift`
 convention from `artifact_core.py:247-266`.
