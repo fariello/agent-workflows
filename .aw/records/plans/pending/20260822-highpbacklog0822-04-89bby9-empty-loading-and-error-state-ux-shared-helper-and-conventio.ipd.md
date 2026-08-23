@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Every CLI verb rolls its own empty/error output; there is no shared helper to echo active filters, suggest a next step on empty results, or give consistent success/error feedback.
 - Scope: A shared empty/loading/error-state helper built on the `awcliux` human-TTY renderer boundary, plus the documented convention; NO per-verb rollout here (that is Order 05).
-- Status: draft
+- Status: reviewed
 - Set: highpbacklog0822
 - Order: 4
 - Highest E allocated: 03
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-22 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created for backlog oijafw (part 1 of 2); built on the awcliux renderer boundary to avoid a second human-output path.
+- 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; the awcliux Order 02 (czw99i) boundary is now EXECUTED (term.py:205+ has the component layer; no empty_result yet), so PR-001 concretized E-01/OQ-01/contract against term.py and retired the moot STOP guard; PR-002 scoped "loading" to the existing stderr step-cue (no spinner) per KISS; PR-003 tightened V-01 to cite term.py; PR-004 Status draft->reviewed. NOTE for maintainer: a stale duplicate czw99i exists in BOTH pending/ and executed/ (status/location inconsistency in that other plan) - out of this review's scope but worth cleaning up.
 
 ## Goal
 
@@ -25,9 +26,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Material change 1: Define the empty/error-state helper
 
-- [ ] E-01 Add an empty/loading/error-state component to the shared human renderer (the `awcliux` Order 02 `czw99i` `Term` component layer): an `empty_result(context)` that echoes the active filters/selectors and a suggested next command, a loading/progress cue, and consistent success and error renderers. Reuse the `awcliux` typed result/`Diagnostic`/`NextAction` facts; do not add a parallel output path.
+- [ ] E-01 Add an empty-state helper to the EXISTING `Term` component layer (`agent_workflows/term.py:205+`, which already has `outcome`, `section`, `table`, `diagnostic`, `preview`, `evidence`, `fix`, `next_action`, `glyph` from the executed awcliux Order 02 `czw99i`): an `empty_result(context)` that echoes the active filters/selectors and a suggested next command, composed from the existing `outcome`/`next_action`/`section` primitives (do NOT add a parallel output path or new palette). Reuse the awcliux typed result / `Diagnostic` / `NextAction` facts. "Loading/progress" here means ONLY the existing stderr step-cue pattern (as `doctor` uses `severity_label('info') "...ing..."`); do not add a spinner or any long-running-op machinery the synchronous CLI does not need.
   - Depends on: none
-  - Expected outcome: one helper renders empty/loading/success/error states for both audiences via the existing renderer boundary.
+  - Expected outcome: one `empty_result` helper (plus the existing outcome/error renderers) renders empty/success/error states for both audiences via the existing `Term` boundary; no new palette or parallel path.
   - Execution state: pending
 
 ### Material change 2: Document the convention
@@ -48,8 +49,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - `cli.py` has 66 `add_parser(...)` subcommands, each routed by name to a handler that rolls its own output; there is NO shared empty-result helper.
 - Empty/"No ..." messages are scattered across ~19 modules (e.g. `benchmark_ablations.py:387`, `layout_migration.py:1179`, `host_capability_registry.py:1344`), each phrasing its own.
-- `agent_workflows/term.py` (217 lines) has only presentation primitives (`line`, `status`, `heading`, `kv`, `status_label`, `severity_label`, `color256`/`status_256`); no empty-state/next-step helper.
-- The pending `awcliux` Set relocates human TTY rendering behind a renderer boundary (Order 01 `hd3kln`) and designs human output (Order 02 `czw99i`, `doctor` as reference). This UX work MUST build on that boundary, not duplicate it.
+- UPDATE (2026-08-22, at /plan-review): the awcliux Order 02 (`czw99i`) renderer boundary is now EXECUTED, so `agent_workflows/term.py:205+` `Term` already provides the component layer (`outcome`, `section`, `table`, `badge`, `path`, `diagnostic`, `preview`, `evidence`, `fix`, `next_action`, `glyph`, `format_*` variants). What is still MISSING is an `empty_result`/no-results helper (grep-confirmed absent) - that is exactly what E-01 adds, composed from those existing primitives.
+- Empty/"No ..." messages remain scattered across ~19 modules (e.g. `benchmark_ablations.py:387`, `layout_migration.py:1179`, `host_capability_registry.py:1344`), each phrasing its own; the full rollout that replaces them is Order 05.
+- This UX work builds ON the existing `Term` boundary; it MUST NOT duplicate it or add a second palette/output path.
 
 ## Findings
 
@@ -68,8 +70,8 @@ The empty/error UX is genuinely cross-cutting and today inconsistent and scatter
 
 ## Scope check
 
-- Over-scope: none.
-- Under-scope: if the `awcliux` renderer boundary is not yet executed, this plan cannot build on it; STOP and report (see execution contract) rather than creating a standalone helper.
+- Over-scope: none. In particular, do not add a spinner/long-running-progress subsystem; "loading" is only the existing stderr step-cue pattern.
+- Under-scope: the awcliux `Term` boundary is now executed (`term.py:205+`), so the dependency is satisfied; the residual risk is scope creep (a second palette/output path), which the KISS fence forbids. If the executed `Term` primitives are somehow absent at execution time, STOP and report rather than building a standalone helper.
 
 ## Required tests / validation
 
@@ -86,14 +88,14 @@ Add the empty/loading/error-state convention to the `awcliux` human TTY guide / 
 - Blocking: no
 - Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: it lives wherever `awcliux` Order 02 (`czw99i`) places the shared human `Term` components, so there is exactly one human-output path; if that module is not yet created when this plan runs, STOP and report (the dependency is unmet).
+- Resolution or deferral rationale: RESOLVED by evidence - awcliux Order 02 (`czw99i`) is executed and its `Term` components live in `agent_workflows/term.py` (`:205+`). The `empty_result` helper is added THERE, composed from the existing `outcome`/`next_action`/`section` primitives, so there is exactly one human-output path. The dependency is satisfied; no STOP condition remains.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: unit tests prove `empty_result` echoes active filters + next step, and loading/success/error renderers produce correct facts in both audiences via the existing boundary (no parallel path); paste the test output.
+  - Required evidence: unit tests prove `Term.empty_result` (in `agent_workflows/term.py`) echoes active filters + a next-step suggestion and composes from the existing primitives (no new palette, no parallel path), and that success/error renderers produce correct facts in both audiences; paste the test output and cite the `term.py` line of the new method.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
@@ -114,8 +116,8 @@ Review and explicit approval required.
 
 ### Execution contract
 
-1. Open questions RESOLVED: OQ-01 above is resolved. This plan DEPENDS on the `awcliux` human-TTY renderer boundary (Set `awcliux` Order 02 `czw99i`, itself gated on Order 01 `hd3kln`); if its shared human `Term` components are absent, STOP and report rather than building a standalone helper.
-2. Scope fence: touch only the `awcliux` shared human renderer module + `agent_workflows/term.py` if that is where the components live, the reference `aw find` handler in `agent_workflows/cli.py`, the convention doc, and tests under `tests/`. Do NOT roll the convention across other verbs here (Order 05) and do NOT change verb domain behavior. If more than the reference verb needs touching, STOP and report.
+1. Open questions RESOLVED: OQ-01 above is resolved. The `awcliux` renderer boundary (Order 02 `czw99i`) is EXECUTED and its `Term` components are in `agent_workflows/term.py:205+`; the dependency is satisfied. (If those primitives are somehow absent at execution time, STOP and report rather than building a standalone helper.)
+2. Scope fence: touch only `agent_workflows/term.py` (the new `empty_result` helper on the existing `Term` class), the reference `aw find` handler in `agent_workflows/cli.py` (`_run_find`, `:5161`), the convention doc, and tests under `tests/`. Do NOT roll the convention across other verbs here (Order 05), do NOT add a new palette or a spinner/long-running subsystem, and do NOT change verb domain behavior. If more than the reference verb needs touching, STOP and report.
 3. Honesty rule (hard MUST): when you report the helper/golden tests passed, paste the ACTUAL runner output; never claim a pass you did not run.
 4. Commit ONLY this plan's own changed files, path-scoped (`git commit -- <path>`); never `git add -A`/bare/`-a`; never push.
 5. Lifecycle move: on completion, after every E item is performed and every V item is verified with pasted evidence, append the `## Workflow history` line, set `Status: executed`, `git mv` this file from `pending/` to `executed/`, and make the path-scoped lifecycle commit. Do NOT set backlog `oijafw` to `done` here (that item closes only after Order 05 completes the rollout).
