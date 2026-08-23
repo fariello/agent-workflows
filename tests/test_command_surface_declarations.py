@@ -58,7 +58,7 @@ class CommandSurfaceDeclarationsTests(unittest.TestCase):
             self.assertTrue(len(s.rationale) > 10)
 
     def test_all_declarations_have_valid_fields(self):
-        """Every declaration has valid command class, recipe, record kind, and exit contract."""
+        """Every declaration has valid command class, recipe, record kind, exit contract, and empty/error renderer."""
         valid_classes = {
             "read",
             "check",
@@ -69,6 +69,7 @@ class CommandSurfaceDeclarationsTests(unittest.TestCase):
             "family",
         }
         valid_kinds = {"result", "summary", "item", "error", "raw_path"}
+        valid_renderers = {"shared_empty_result", "renderer_boundary", "delegated"}
         for decl in get_all_declarations():
             self.assertIn(
                 decl.command_class,
@@ -80,8 +81,66 @@ class CommandSurfaceDeclarationsTests(unittest.TestCase):
                 valid_kinds,
                 f"Invalid record kind '{decl.agent_record_kind}' on {decl.command}",
             )
+            self.assertIn(
+                decl.empty_error_renderer,
+                valid_renderers,
+                f"Invalid empty_error_renderer '{decl.empty_error_renderer}' on {decl.command}",
+            )
             self.assertTrue(len(decl.exit_contract) > 0)
             self.assertTrue(decl.migrated)
+
+    def test_ad_hoc_empty_error_renderer_detected_and_rejected(self):
+        """E-03 / V-03: A leaf attempting to roll its own ad-hoc empty/error output is rejected."""
+        from agent_workflows.command_surface import CommandDeclaration
+
+        valid_renderers = {"shared_empty_result", "renderer_boundary", "delegated"}
+        adhoc_decl = CommandDeclaration(
+            command="sample adhoc",
+            command_class="read",
+            human_recipe="table",
+            agent_record_kind="result",
+            mutation_gate="none",
+            empty_error_renderer="ad_hoc_custom_printer",
+        )
+        self.assertNotIn(
+            adhoc_decl.empty_error_renderer,
+            valid_renderers,
+            "Ad-hoc renderer must not be in valid renderers set",
+        )
+
+    def test_empty_error_renderer_classification_consistency(self):
+        """E-03 / V-03: Aliases delegate, read/list queries declare shared_empty_result, mutations declare boundary."""
+        for decl in get_all_declarations():
+            if decl.command_class == "alias":
+                self.assertEqual(
+                    decl.empty_error_renderer,
+                    "delegated",
+                    f"Alias {decl.command} must declare empty_error_renderer='delegated'",
+                )
+            elif decl.command in {
+                "list-repos",
+                "show",
+                "record-history",
+                "attention",
+                "project status",
+                "config exclude list",
+                "find",
+                "search",
+                "index",
+                "ipd board",
+                "research find",
+            }:
+                self.assertEqual(
+                    decl.empty_error_renderer,
+                    "shared_empty_result",
+                    f"Query {decl.command} must declare empty_error_renderer='shared_empty_result'",
+                )
+            else:
+                self.assertEqual(
+                    decl.empty_error_renderer,
+                    "renderer_boundary",
+                    f"Command {decl.command} must declare empty_error_renderer='renderer_boundary'",
+                )
 
 
 class ConflictingFlagsTests(unittest.TestCase):

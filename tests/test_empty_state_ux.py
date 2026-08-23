@@ -1,20 +1,23 @@
 """Tests for Empty, Loading, and Error State UX helper and conventions.
 
 IPD: 20260822-highpbacklog0822-04-89bby9 (Order 04 E-01, E-02, E-03, V-01, V-02, V-03).
+IPD: 20260822-highpbacklog0822-05-4ug8xp (Order 05 E-01, E-02, E-03, V-01, V-02, V-03).
 
 Asserts:
 1. Term.format_empty_result / Term.empty_result echoes active filters and next action,
    composed from existing primitives (outcome, section, next_action) with zero parallel palette.
 2. Step cue formatting for transient stderr progress updates.
-3. Reference read verb ('aw find') renders empty state with filters and next-action in both
-   Human TTY and Agent (aw.agent/v1) modes.
-4. Negative / error states never fail silently and exit with proper exit code (1 or 2).
+3. Surface-wide read/list verbs ('aw find', 'aw search', 'aw list-repos', 'aw ipd board', etc.)
+   render empty states with filters and next-action in both Human TTY and Agent (aw.agent/v1) modes.
+4. Mutation verbs report applied feedback / dry-run previews and never fail silently on errors.
+5. Characterization fact-parity: agent-mode facts and exit codes are verified against schema.
 """
 
 from __future__ import annotations
 
 import io
 import json
+import os
 import re
 import tempfile
 import unittest
@@ -123,7 +126,7 @@ class EmptyStateHelperUnitTests(unittest.TestCase):
 
 
 class FindReferenceVerbEmptyStateTests(unittest.TestCase):
-    """V-03: Reference read verb ('aw find') empty-state UX across TTY and Agent modes."""
+    """V-03 (Order 04): Reference read verb ('aw find') empty-state UX across TTY and Agent modes."""
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
@@ -200,7 +203,6 @@ class FindReferenceVerbEmptyStateTests(unittest.TestCase):
         self.assertTrue(rec["complete"])
         self.assertEqual(rec["next"], "aw find specs")
         self.assertIsNone(_ANSI.search(lines[0]))
-        # Schema validation
         val_errors = schema.validate_agent_record(rec)
         self.assertEqual(val_errors, [])
 
@@ -211,6 +213,314 @@ class FindReferenceVerbEmptyStateTests(unittest.TestCase):
         self.assertIn("abc123", out)
         self.assertIn("draft", out)
         self.assertNotIn("no matching", out)
+
+
+class ReadListVerbsEmptyStateSurfaceTests(unittest.TestCase):
+    """V-01: Surface-wide read/list verbs empty-state UX across Human TTY and Agent modes."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self._old_cwd = os.getcwd()
+        os.chdir(self.root)
+        # Create minimal .aw layout with records dirs
+        (self.root / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
+        (self.root / ".aw" / "records" / "specs").mkdir(parents=True)
+        (self.root / ".aw" / "records" / "research").mkdir(parents=True)
+
+    def tearDown(self) -> None:
+        os.chdir(self._old_cwd)
+        self._tmp.cleanup()
+
+    def _run_cli(self, argv: list[str]) -> tuple[int, str, str]:
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            try:
+                rc = cli.main(argv)
+            except SystemExit as e:
+                rc = int(e.code or 0)
+        return rc, out.getvalue(), err.getvalue()
+
+    def test_search_empty_human_tty_mode(self):
+        rc, out, err = self._run_cli(
+            ["search", "nonexistentpattern999", "--dir", str(self.root)]
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("FINDINGS", out)
+        self.assertIn("no matching lines for 'nonexistentpattern999'", out)
+        self.assertIn("Active filters:", out)
+        self.assertIn("pattern: nonexistentpattern999", out)
+        self.assertIn("Next  aw search", out)
+
+    def test_search_empty_agent_mode(self):
+        rc, out, err = self._run_cli(
+            ["search", "nonexistentpattern999", "--dir", str(self.root), "--agent"]
+        )
+        self.assertEqual(rc, 1)
+        lines = [line.strip() for line in out.splitlines() if line.strip()]
+        self.assertEqual(len(lines), 1)
+        rec = json.loads(lines[0])
+        self.assertEqual(rec["schema"], "aw.agent/v1")
+        self.assertEqual(rec["kind"], "result")
+        self.assertEqual(rec["cmd"], "search")
+        self.assertEqual(rec["outcome"], "findings")
+        self.assertEqual(rec["exit"], 1)
+        self.assertEqual(rec["findings"], 0)
+        self.assertIn("aw search", rec["next"])
+        self.assertIsNone(_ANSI.search(lines[0]))
+
+    def test_list_repos_empty_human_and_agent_modes(self):
+        # Human
+        rc, out, err = self._run_cli(["list-repos"])
+        self.assertEqual(rc, 0)
+        self.assertIn("CLEAN", out)
+        self.assertIn("no configured or discovered repos", out)
+        self.assertIn("Next  aw setup", out)
+
+        # Agent
+        rc, out, err = self._run_cli(["list-repos", "--agent"])
+        self.assertEqual(rc, 0)
+        lines = [line.strip() for line in out.splitlines() if line.strip()]
+        self.assertEqual(len(lines), 1)
+        rec = json.loads(lines[0])
+        self.assertEqual(rec["schema"], "aw.agent/v1")
+        self.assertEqual(rec["kind"], "result")
+        self.assertEqual(rec["cmd"], "list-repos")
+        self.assertEqual(rec["outcome"], "clean")
+        self.assertEqual(rec["exit"], 0)
+        self.assertEqual(rec["next"], "aw setup")
+
+    def test_config_exclude_list_empty_human_mode(self):
+        rc, out, err = self._run_cli(["config", "exclude", "list"])
+        self.assertEqual(rc, 0)
+        self.assertIn("CLEAN", out)
+        self.assertIn("never-install exclude list is empty", out)
+        self.assertIn("Next  aw config exclude add", out)
+
+    def test_ipd_board_empty_human_and_agent_modes(self):
+        # Human mode on empty plans dir
+        rc, out, err = self._run_cli(["ipd", "board", "--dir", str(self.root)])
+        self.assertEqual(rc, 0)
+        self.assertIn("CLEAN", out)
+        self.assertTrue("no matching plans" in out or "no plans found" in out)
+        self.assertIn("Next  aw ipd", out)
+
+        # Agent mode
+        rc, out, err = self._run_cli(
+            ["ipd", "board", "--dir", str(self.root), "--agent"]
+        )
+        self.assertEqual(rc, 0)
+        lines = [line.strip() for line in out.splitlines() if line.strip()]
+        self.assertEqual(len(lines), 1)
+        rec = json.loads(lines[0])
+        self.assertEqual(rec["schema"], "aw.agent/v1")
+        self.assertEqual(rec["kind"], "result")
+        self.assertEqual(rec["cmd"], "ipd board")
+        self.assertEqual(rec["outcome"], "clean")
+        self.assertEqual(rec["exit"], 0)
+
+    def test_record_history_empty_human_and_agent_modes(self):
+        # Human
+        rc, out, err = self._run_cli(
+            ["record-history", "nonex9", "--dir", str(self.root)]
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("CLEAN", out)
+        self.assertIn("no sidecar history for id6 nonex9", out)
+        self.assertIn("Active filters:", out)
+        self.assertIn("id6: nonex9", out)
+        self.assertIn("Next  aw show nonex9", out)
+
+        # Agent
+        rc, out, err = self._run_cli(
+            ["record-history", "nonex9", "--dir", str(self.root), "--agent"]
+        )
+        self.assertEqual(rc, 0)
+        lines = [line.strip() for line in out.splitlines() if line.strip()]
+        self.assertEqual(len(lines), 1)
+        rec = json.loads(lines[0])
+        self.assertEqual(rec["schema"], "aw.agent/v1")
+        self.assertEqual(rec["kind"], "result")
+        self.assertEqual(rec["cmd"], "record-history")
+        self.assertEqual(rec["outcome"], "clean")
+        self.assertEqual(rec["exit"], 0)
+        self.assertEqual(rec["next"], "aw show nonex9")
+
+    def test_project_status_empty_human_and_agent_modes(self):
+        # Human
+        rc, out, err = self._run_cli(["project", "status"])
+        self.assertEqual(rc, 0)
+        self.assertIn("CLEAN", out)
+        self.assertIn("no registered project association found", out)
+        self.assertIn("Active filters:", out)
+        self.assertIn("Next  aw project attach", out)
+
+        # Agent
+        rc, out, err = self._run_cli(["project", "status", "--agent"])
+        self.assertEqual(rc, 0)
+        lines = [line.strip() for line in out.splitlines() if line.strip()]
+        self.assertEqual(len(lines), 1)
+        rec = json.loads(lines[0])
+        self.assertEqual(rec["schema"], "aw.agent/v1")
+        self.assertEqual(rec["kind"], "result")
+        self.assertEqual(rec["cmd"], "project status")
+        self.assertEqual(rec["outcome"], "clean")
+        self.assertEqual(rec["exit"], 0)
+        self.assertIn("project attach", rec["next"])
+
+    def test_show_empty_human_and_agent_modes(self):
+        # Human
+        rc, out, err = self._run_cli(
+            ["show", "nonexistentref999", "--dir", str(self.root)]
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("FAIL", out)
+        self.assertIn("no records artifact matched 'nonexistentref999'", out)
+        self.assertIn("Active filters:", out)
+        self.assertIn("ref: nonexistentref999", out)
+        self.assertIn("Next  aw find", out)
+
+        # Agent
+        rc, out, err = self._run_cli(
+            ["show", "nonexistentref999", "--dir", str(self.root), "--agent"]
+        )
+        self.assertEqual(rc, 1)
+        lines = [line.strip() for line in out.splitlines() if line.strip()]
+        self.assertEqual(len(lines), 1)
+        rec = json.loads(lines[0])
+        self.assertEqual(rec["schema"], "aw.agent/v1")
+        self.assertEqual(rec["kind"], "result")
+        self.assertEqual(rec["cmd"], "show")
+        self.assertEqual(rec["outcome"], "findings")
+        self.assertEqual(rec["exit"], 1)
+        self.assertIn("aw find", rec["next"])
+
+    def test_characterization_fact_parity_on_empty_reads(self):
+        """Rubric D characterization: agent-mode facts and exit code match standard baseline."""
+        verbs_and_expected_exits = [
+            (["find", "nonexistent999", "--dir", str(self.root), "--agent"], 0),
+            (["search", "nonexistent999", "--dir", str(self.root), "--agent"], 1),
+            (["list-repos", "--agent"], 0),
+            (["ipd", "board", "--dir", str(self.root), "--agent"], 0),
+            (["record-history", "nonex9", "--dir", str(self.root), "--agent"], 0),
+            (["project", "status", "--agent"], 0),
+            (["show", "nonexistent999", "--dir", str(self.root), "--agent"], 1),
+        ]
+        for cmd, expected_rc in verbs_and_expected_exits:
+            rc, out, err = self._run_cli(cmd)
+            self.assertEqual(rc, expected_rc, f"Exit code mismatch on {cmd}")
+            lines = [line.strip() for line in out.splitlines() if line.strip()]
+            self.assertEqual(len(lines), 1, f"Expected exactly 1 JSONL record on {cmd}")
+            rec = json.loads(lines[0])
+            self.assertEqual(rec["schema"], "aw.agent/v1")
+            self.assertEqual(rec["exit"], expected_rc)
+            self.assertIsNone(
+                _ANSI.search(lines[0]), f"ANSI found in agent mode on {cmd}"
+            )
+
+
+class MutationVerbsFeedbackAndErrorStateTests(unittest.TestCase):
+    """V-02: Mutation verbs feedback, dry-run previews, and non-silent error paths."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self._old_cwd = os.getcwd()
+        os.chdir(self.root)
+        # Create minimal git repository layout
+        (self.root / ".git").mkdir()
+        (self.root / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
+
+    def tearDown(self) -> None:
+        os.chdir(self._old_cwd)
+        self._tmp.cleanup()
+
+    def _run_cli(self, argv: list[str]) -> tuple[int, str, str]:
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            try:
+                rc = cli.main(argv)
+            except SystemExit as e:
+                rc = int(e.code or 0)
+        return rc, out.getvalue(), err.getvalue()
+
+    def test_storage_init_dry_run_and_apply_feedback(self):
+        # Dry-run feedback
+        rc, out, err = self._run_cli(
+            ["storage", "init", "--repo", str(self.root), "--dry-run"]
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("DRY RUN", out)
+
+        # Applied mutation feedback
+        rc, out, err = self._run_cli(
+            ["storage", "init", "--repo", str(self.root), "--yes", "--no-git"]
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("Successfully initialized records storage", out)
+
+    def test_storage_move_missing_flag_error_exit_2(self):
+        # storage move without mandatory --new-dir must exit 2 with clear diagnostic, never silent
+        rc, out, err = self._run_cli(["storage", "move"])
+        self.assertEqual(rc, 2)
+        combined = out + err
+        self.assertTrue(len(combined.strip()) > 0)
+        self.assertIn("required: --new-dir", combined)
+
+    def test_storage_reattach_missing_companion_dir_error_exit_1(self):
+        # storage reattach without mandatory --companion-dir must exit 1 with clear diagnostic
+        rc, out, err = self._run_cli(["storage", "reattach"])
+        self.assertEqual(rc, 1)
+        combined = out + err
+        self.assertTrue(len(combined.strip()) > 0)
+        self.assertIn("--companion-dir is required", combined)
+
+    def test_config_exclude_rm_nonexistent_returns_exit_1(self):
+        rc, out, err = self._run_cli(
+            ["config", "exclude", "rm", "/nonexistent/repo/path/999"]
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("No exclude entry matched", out)
+
+    def test_mutation_never_fails_silently_on_bad_invocation(self):
+        # Point to a regular empty directory that is not a valid companion repo
+        fake_companion = self.root / "not_a_companion"
+        fake_companion.mkdir()
+        rc, out, err = self._run_cli(
+            ["storage", "attach", "--companion-dir", str(fake_companion), "--yes"]
+        )
+        self.assertNotEqual(rc, 0)
+        combined = out + err
+        self.assertTrue(len(combined.strip()) > 0)
+
+
+class SurfaceAdHocScanTests(unittest.TestCase):
+    """V-01 / V-03: Assert no CLI read/list handler uses bare ad-hoc 'no matching' prints."""
+
+    def test_no_ad_hoc_empty_prints_in_handlers(self):
+        pkg_dir = Path(__file__).resolve().parent.parent / "agent_workflows"
+        prohibited_patterns = [
+            re.compile(r'print\s*\(\s*["\']no matching', re.IGNORECASE),
+            re.compile(r'print\s*\(\s*["\']no plans found', re.IGNORECASE),
+            re.compile(r'print\s*\(\s*["\']no research doc', re.IGNORECASE),
+            re.compile(
+                r'term\.status\s*\(\s*["\']skip["\']\s*,\s*["\']No matching plans',
+                re.IGNORECASE,
+            ),
+        ]
+        violations = []
+        for py_file in pkg_dir.glob("*.py"):
+            text = py_file.read_text(encoding="utf-8")
+            for i, line in enumerate(text.splitlines(), 1):
+                for rx in prohibited_patterns:
+                    if rx.search(line):
+                        violations.append(f"{py_file.name}:{i}: {line.strip()}")
+
+        self.assertEqual(
+            violations,
+            [],
+            f"Found ad-hoc unformatted empty messages in CLI handlers (must use Term.empty_result): {violations}",
+        )
 
 
 if __name__ == "__main__":
