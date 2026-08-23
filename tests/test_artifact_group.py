@@ -117,6 +117,7 @@ class TestArtifactGroup(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertTrue(bkl.exists())  # file not renamed
         self.assertIn("- Set: newgrp", bkl.read_text(encoding="utf-8"))
+        self.assertIn("set metadata Set: newgrp in ", out)
 
     def test_group_specs_injects_set(self):
         spec = self.specs_dir / "20260823-1430-01-spec.spec.md"
@@ -188,6 +189,76 @@ class TestArtifactGroup(unittest.TestCase):
         self.assertEqual(rc, 0)
         content = rm.read_text(encoding="utf-8")
         self.assertIn("- Set: rdgrp", content)
+
+    def test_group_releases(self):
+        rel = self.releases_dir / "20260823-oldrel-01-re1234-rel-2-0.release.md"
+        rel.write_text(
+            "# Release: 2.0.0\n\n- Id: re1234\n- Version: 2.0.0\n- Status: planned\n- Set: oldrel\n- Order: 01\n",
+            encoding="utf-8",
+        )
+        ref_doc = self.plans_dir / "20260823-planset-01-pl1234-ref.ipd.md"
+        ref_doc.write_text(
+            "Citing 20260823-oldrel-01-re1234-rel-2-0.release.md here.\n",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "-A"], cwd=self.tmp_dir, check=True)
+        subprocess.run(["git", "commit", "-qm", "init"], cwd=self.tmp_dir, check=True)
+
+        # 1. Preview with --rename
+        rc, out = self._run(
+            ["group", "releases", "re1234", "--set", "newrel", "--rename"]
+        )
+        self.assertEqual(rc, 0)
+        self.assertTrue(rel.exists())
+        self.assertIn("would rename", out)
+        self.assertIn("would set metadata Set: newrel", out)
+
+        # 2. Apply with --rename
+        rc, out = self._run(
+            ["group", "releases", "re1234", "--set", "newrel", "--rename", "--apply"]
+        )
+        self.assertEqual(rc, 0)
+        self.assertFalse(rel.exists())
+        new_rel = self.releases_dir / "20260823-newrel-01-re1234-rel-2-0.release.md"
+        self.assertTrue(new_rel.exists())
+        content = new_rel.read_text(encoding="utf-8")
+        self.assertIn("- Set: newrel", content)
+        self.assertIn("- Id: re1234", content)
+        self.assertIn("renamed ", out)
+        self.assertIn("set metadata Set: newrel in ", out)
+        self.assertIn(
+            "20260823-newrel-01-re1234-rel-2-0.release.md",
+            ref_doc.read_text(encoding="utf-8"),
+        )
+
+        # 3. Apply metadata-only update (no --rename)
+        rc, out = self._run(
+            ["group", "releases", "re1234", "--set", "relnext", "--apply"]
+        )
+        self.assertEqual(rc, 0)
+        self.assertTrue(new_rel.exists())
+        content = new_rel.read_text(encoding="utf-8")
+        self.assertIn("- Set: relnext", content)
+        self.assertIn("set metadata Set: relnext in ", out)
+
+        # 4. Inject - Set: into a release without existing Set
+        rel_no_set = self.releases_dir / "20260823-re5678-release-2-1.release.md"
+        rel_no_set.write_text(
+            "# Release: 2.1.0\n\n- Id: re5678\n- Version: 2.1.0\n- Status: planned\n",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "-A"], cwd=self.tmp_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "add release no set"], cwd=self.tmp_dir, check=True
+        )
+
+        rc, out = self._run(
+            ["group", "releases", "re5678", "--set", "relinj", "--apply"]
+        )
+        self.assertEqual(rc, 0)
+        content_injected = rel_no_set.read_text(encoding="utf-8")
+        self.assertIn("- Set: relinj", content_injected)
+        self.assertIn("set metadata Set: relinj in ", out)
 
     def test_group_comms_is_unsupported(self):
         rc, out = self._run(["group", "comms", "c12345", "--set", "foo"])

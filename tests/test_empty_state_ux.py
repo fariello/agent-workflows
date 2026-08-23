@@ -222,6 +222,8 @@ class ReadListVerbsEmptyStateSurfaceTests(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         self._old_cwd = os.getcwd()
+        self._old_xdg = os.environ.get("XDG_CONFIG_HOME")
+        os.environ["XDG_CONFIG_HOME"] = str(self.root / "cfg")
         os.chdir(self.root)
         # Create minimal .aw layout with records dirs
         (self.root / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
@@ -230,6 +232,10 @@ class ReadListVerbsEmptyStateSurfaceTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         os.chdir(self._old_cwd)
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CONFIG_HOME", None)
+        else:
+            os.environ["XDG_CONFIG_HOME"] = self._old_xdg
         self._tmp.cleanup()
 
     def _run_cli(self, argv: list[str]) -> tuple[int, str, str]:

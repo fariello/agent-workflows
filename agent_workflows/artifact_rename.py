@@ -528,6 +528,8 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> int:
             _core.git_mv(repo_root, src_rel, dst_rel)
             print(f"renamed {src_rel} -> {dst_rel}")
         _update_or_inject_set_metadata(dst, set_id=set_k, order=order_val)
+        dst_rel = dst.relative_to(repo_root).as_posix()
+        print(f"set metadata Set: {set_k} in {dst_rel}")
 
     if update_refs and all_edits:
         apply_reference_rewrites(all_edits)

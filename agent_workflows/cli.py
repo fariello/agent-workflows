@@ -1642,7 +1642,7 @@ def _build_parser() -> argparse.ArgumentParser:
                 "type",
                 nargs="?",
                 default=None,
-                help="Artifact type (plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms) or 'all' (optional).",
+                help="Artifact type (plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms, releases) or 'all' (optional).",
             )
             _p.add_argument(
                 "selector",
@@ -1652,7 +1652,7 @@ def _build_parser() -> argparse.ArgumentParser:
         else:
             _p.add_argument(
                 "type",
-                help="Artifact type (plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms) or 'all'.",
+                help="Artifact type (plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms, releases) or 'all'.",
             )
             _p.add_argument(
                 "selector",
