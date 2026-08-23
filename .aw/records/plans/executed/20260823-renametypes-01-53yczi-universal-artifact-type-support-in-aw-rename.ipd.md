@@ -4,8 +4,7 @@
 - Kind: child
 - Concern: CLI noun-verb grammar consistency across all tracked artifact types for 'aw rename'.
 - Scope: Extend 'aw rename' to support all canonical artifact types (backlog, walkthroughs, specs, prompts, roadmaps, comms, releases) alongside plans and research.
-- Status: approved
-- Approval: Gabriele Fariello (human), 2026-08-23
+- Status: executed
 - Set: renametypes
 - Order: 1
 - Highest E allocated: 03
@@ -13,6 +12,7 @@
 - Id: 53yczi
 
 ## Workflow history
+- 2026-08-23 executed (aw set): status set to executed
 - 2026-08-23 approved (aw set): status set to approved
 
 - 2026-08-23 draft (Gabriele Fariello): created.
@@ -28,26 +28,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Material change 1: Core reference-rewriting rename engine for all artifact types
 
-- [ ] E-01 Generalize the artifact rename engine in `agent_workflows/` to support renaming the in-scope artifact types (see the Scope check below) by path or id6 selector, parsing the frontmatter, computing the target grammar-conformant filename (`YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md`), executing the filesystem move, updating internal frontmatter, and rewriting citing documents across `.aw/`.
+- [x] E-01 Generalize the artifact rename engine in `agent_workflows/` to support renaming the in-scope artifact types (see the Scope check below) by path or id6 selector, parsing the frontmatter, computing the target grammar-conformant filename (`YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md`), executing the filesystem move, updating internal frontmatter, and rewriting citing documents across `.aw/`.
   - Note (verified): `agent_workflows/artifact_core.py` ALREADY exists and owns the shared primitives; its docstring deliberately keeps filename-grammar and reference-rewriting per-area. `plans_refs.run_mv` and `research_refs.run_mv` DIVERGE materially: plans reads `--id`/`--set`/`--order`/`--slug`, preserves order/date on a bare rename, and uses the clustered grammar; research's `run_mv` additionally reads `--kind` and `--model` (research filenames carry model+kind facets) and encodes set/order in the filename. Therefore generalize via a PARAMETERIZED engine (inject the per-type name-builder, reference-rewriter, and frontmatter handler) - NOT a straight copy-paste extraction into a new `generic_refs.py`. Prefer extending `artifact_core.py` for any newly-shared primitive; add a new module only if there is genuinely no home for the shared surface.
   - Per-type handlers required (OQ-02, human-resolved scope): `backlog` reuses the id6/setid grammar; `specs`/`prompts`/`walkthroughs`/`roadmaps` are id6-less/free-form (`YYYYMMDD-HHMM-NN-<slug>` names, no Id/Set frontmatter), so each needs a handler that parses the existing name, preserves or derives components, and fails clearly if the name is unparseable (OQ-01). Any type with extra facets (as research uses `--kind`/`--model`) needs those in its handler.
   - Depends on: none
   - Expected outcome: a universal rename backend function can safely rename an artifact of any valid type with full reference rewriting.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Material change 2: CLI router and backend mapping
 
-- [ ] E-02 Register `rename` backend routes in `TYPE_BACKENDS` (`agent_workflows/artifact_types.py:72-93`) for each in-scope type from OQ-02 (`specs`, `prompts`, `backlog`, `walkthroughs`, `roadmaps`), each pointing at the parameterized engine (E-01) with that type's handler, so `aw rename <type> <selector> [--slug <new-slug>] [--order <NN>] [--apply]` dispatches cleanly without emitting `'rename' is not supported for <type>`. `comms` is NOT registered (out of scope). If `releases` is to be supported, FIRST add `releases` to `ARTIFACT_TYPES` (`agent_workflows/artifact_types.py:12-21`) as an explicit sub-step, then register its `rename` route; if the executor cannot confirm `releases` is wanted, defer it and record the deferral. The noun-verb flags (`--slug`/`--order`/`--apply`/selector) are already registered (`agent_workflows/cli.py:1662-1708`); no new flag wiring is needed.
+- [x] E-02 Register `rename` backend routes in `TYPE_BACKENDS` (`agent_workflows/artifact_types.py:72-93`) for each in-scope type from OQ-02 (`specs`, `prompts`, `backlog`, `walkthroughs`, `roadmaps`), each pointing at the parameterized engine (E-01) with that type's handler, so `aw rename <type> <selector> [--slug <new-slug>] [--order <NN>] [--apply]` dispatches cleanly without emitting `'rename' is not supported for <type>`. `comms` is NOT registered (out of scope). If `releases` is to be supported, FIRST add `releases` to `ARTIFACT_TYPES` (`agent_workflows/artifact_types.py:12-21`) as an explicit sub-step, then register its `rename` route; if the executor cannot confirm `releases` is wanted, defer it and record the deferral. The noun-verb flags (`--slug`/`--order`/`--apply`/selector) are already registered (`agent_workflows/cli.py:1662-1708`); no new flag wiring is needed.
   - Depends on: E-01
   - Expected outcome: `aw rename <type>` works consistently for every in-scope artifact type in the noun-verb grammar (`comms` excluded; `releases` gated on the ARTIFACT_TYPES addition).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Material change 3: Comprehensive test suite and validation
 
-- [ ] E-03 Author `tests/test_artifact_rename.py` validating that `aw rename` successfully renames artifacts across `backlog`, `walkthroughs`, `specs`, `prompts`, and `roadmaps` (testing dry-run preview, `--apply`, reference rewriting in referencing markdown docs, and error handling for missing files or invalid selectors), including the OQ-01/OQ-02 edge cases: an id6-less/free-form type renames by deriving components from its existing `YYYYMMDD-HHMM-NN-<slug>` name and fails clearly on an unparseable name; and existing `plans`/`research` rename behavior is unchanged (regression). If `releases` was added to `ARTIFACT_TYPES` in E-02, cover it too. Verify the full test suite passes with `pytest -n auto`.
+- [x] E-03 Author `tests/test_artifact_rename.py` validating that `aw rename` successfully renames artifacts across `backlog`, `walkthroughs`, `specs`, `prompts`, and `roadmaps` (testing dry-run preview, `--apply`, reference rewriting in referencing markdown docs, and error handling for missing files or invalid selectors), including the OQ-01/OQ-02 edge cases: an id6-less/free-form type renames by deriving components from its existing `YYYYMMDD-HHMM-NN-<slug>` name and fails clearly on an unparseable name; and existing `plans`/`research` rename behavior is unchanged (regression). If `releases` was added to `ARTIFACT_TYPES` in E-02, cover it too. Verify the full test suite passes with `pytest -n auto`.
   - Depends on: E-01, E-02
   - Expected outcome: all artifact types are covered with falsifiable unit and integration tests.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -122,18 +122,18 @@ This plan, its group sibling (`o2ygf3`), and the auto-index plan (`hszr72`) all 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: unit tests verify universal rename backend computes correct paths and rewrites inbound references across markdown files.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `tests/test_artifact_rename.py` tests `test_rename_backlog_preview_and_apply`, `test_rename_specs_legacy_timestamp`, `test_rename_walkthroughs`, `test_rename_prompts`, `test_rename_roadmaps`, `test_rename_releases` pass cleanly.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: CLI integration tests verify `aw rename <type>` succeeds for `backlog`, `walkthroughs`, `specs`, `prompts`, `roadmaps`, `plans`, and `research`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `tests/test_artifact_rename.py` tests verify CLI dispatch and error handling for all artifact types.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: comprehensive test suite passes in `tests/test_artifact_rename.py` and `pytest -n auto` passes cleanly.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `pytest -n auto` executed 2086 passed (1 skipped) in 155.02s.
+  - Result: pass
 
 ## Approval and execution gate
 

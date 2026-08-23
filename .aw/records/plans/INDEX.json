@@ -2670,6 +2670,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-23",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260823-renametypes-01-53yczi-universal-artifact-type-support-in-aw-rename.ipd.md",
+    "plan_id": "53yczi",
+    "set_id": "renametypes",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -2767,16 +2777,6 @@
     "path": "pending/20260823-grouptypes-01-o2ygf3-universal-artifact-type-support-in-aw-group.ipd.md",
     "plan_id": "o2ygf3",
     "set_id": "grouptypes",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-23",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260823-renametypes-01-53yczi-universal-artifact-type-support-in-aw-rename.ipd.md",
-    "plan_id": "53yczi",
-    "set_id": "renametypes",
     "status": "approved"
   },
   {

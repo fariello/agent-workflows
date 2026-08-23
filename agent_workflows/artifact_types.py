@@ -18,6 +18,7 @@ ARTIFACT_TYPES = (
     "walkthroughs",
     "roadmaps",
     "comms",
+    "releases",
 )
 
 # Singular / short aliases -> canonical plural.
@@ -30,6 +31,7 @@ _ALIASES = {
     "comm": "comms",
     "research": "research",
     "backlog": "backlog",
+    "release": "releases",
 }
 
 
@@ -86,9 +88,23 @@ TYPE_BACKENDS: Dict[str, Dict[str, str]] = {
     },
     "specs": {
         "check": "specs.run_check",
+        "rename": "artifact_rename.run_rename_specs",
+    },
+    "prompts": {
+        "rename": "artifact_rename.run_rename_prompts",
     },
     "backlog": {
         "check": "backlog.run_check",
+        "rename": "artifact_rename.run_rename_backlog",
+    },
+    "walkthroughs": {
+        "rename": "artifact_rename.run_rename_walkthroughs",
+    },
+    "roadmaps": {
+        "rename": "artifact_rename.run_rename_roadmaps",
+    },
+    "releases": {
+        "rename": "artifact_rename.run_rename_releases",
     },
 }
 

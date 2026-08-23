@@ -27,7 +27,7 @@ Showing the 40 most-recent of 114 Sets; the full manifest is INDEX.json.
 
 ## renametypes
 
-- `53yczi` [pending] 01 pending/20260823-renametypes-01-53yczi-universal-artifact-type-support-in-aw-rename.ipd.md
+- `53yczi` [executed] 01 executed/20260823-renametypes-01-53yczi-universal-artifact-type-support-in-aw-rename.ipd.md
 
 ## awcliux
 
