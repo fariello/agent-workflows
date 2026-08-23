@@ -4,7 +4,7 @@
 - Kind: orchestrator
 - Concern: Drive five high/medium-priority backlog items to closure as one coordinated, independently-executable Set.
 - Scope: Coordinate seven child IPDs (disclosure prep, an agy false-ERROR bug fix, a slash-alias deprecation warning, a two-part CLI empty/error UX pass, and a two-part IPD right-sizing check); no domain redesign and no work beyond the five source backlog items.
-- Status: draft
+- Status: reviewed
 - Set: highpbacklog0822
 - Order: 0
 - Highest E allocated: 03
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-22 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created from five open high/medium-priority backlog items (2p6mgq, uhbdt1, 21ni81, oijafw, 8iy2dk) at the maintainer's request; the two items needing more than three material changes (oijafw, 8iy2dk) were each split into two children.
+- 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (external-Set awcliux dependency fallback in E-02 + completion criteria), PR-002 (Status draft->reviewed).
 
 ## Goal
 
@@ -32,9 +33,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Material change 2: Execute the children
 
-- [ ] E-02 Execute Orders 01-07 in dependency order: 01, 02, 03, 06, 07 are independent; Order 05 depends on Order 04; Orders 04 and 05 additionally require the pending `awcliux` renderer boundary (Set `awcliux`, Order 02 `czw99i`) to be executed first, or STOP and report if its shared human-output components are absent.
+- [ ] E-02 Execute Orders 01-07 in dependency order: 01, 02, 03, 06, 07 are independent; Order 05 depends on Order 04; Orders 04 and 05 additionally require the pending `awcliux` renderer boundary (Set `awcliux`, Order 02 `czw99i`) to be executed first. If that boundary is not yet executed (or the `awcliux` Set is not approved) when Orders 04/05 come up, STOP and report: Orders 01-03, 06, 07 can still complete and close their backlog items independently, but Orders 04-05 (backlog `oijafw`) must WAIT for the boundary or be re-planned to stand alone; do not build a second human-output path to work around a missing `awcliux`.
   - Depends on: E-01
-  - Expected outcome: each source backlog item's fix has landed and its owning backlog record is set to `done`.
+  - Expected outcome: the five independent fixes (Orders 01-03, 06, 07) land and close their items; Orders 04-05 land only once the `awcliux` boundary exists, else they are explicitly deferred/re-planned, never worked around.
   - Execution state: pending
 
 ### Material change 3: Close the batch
@@ -60,8 +61,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - All seven children are in `.aw/records/plans/executed/` with `Status: executed` and each child's `aw ipd lint --phase post-transition` conforms.
 - Backlog `uhbdt1`, `21ni81`, `oijafw`, `8iy2dk` are `done`; `2p6mgq` is `done` only if the human has sent the disclosure, otherwise it stays `open`/`parked` on the human send with the prepared packet cited.
-- No `Blocks-Release: next` obligation remains for `oijafw` or `8iy2dk`.
+- No `Blocks-Release: next` obligation remains for `oijafw` or `8iy2dk` (closing each item to `done` clears its gate; confirm via `aw attention`).
 - No child expanded scope beyond its single source backlog item.
+- If the `awcliux` renderer boundary is never approved/executed, the Set is still "closed" once Orders 01-03/06/07 are executed and Orders 04-05 are explicitly deferred (with `oijafw` left open and its `Blocks-Release` re-evaluated), rather than blocking the whole batch indefinitely on an external Set.
 
 ## Cross-IPD validation
 
