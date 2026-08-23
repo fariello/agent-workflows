@@ -19,9 +19,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
-import json
 import re
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -581,9 +579,35 @@ def run_set_command(
                 seen_paths.add(rp_key)
                 matched_records.append(m)
 
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        Change,
+        CommandResult,
+        Diagnostic,
+        NextAction,
+        select_output,
+    )
+
+    ctx = select_output(args)
     for rec in matched_records:
         ok, err_msg = validate_transition_allowed(rec, target_status, args)
         if not ok:
+            if ctx.is_agent or ctx.is_json:
+                res = CommandResult(
+                    command="set",
+                    status="findings",
+                    exit_code=1,
+                    summary=f"Validation error on {rec.path.name}: {err_msg}",
+                    diagnostics=[
+                        Diagnostic(
+                            location=str(rec.path),
+                            rule="status.invalid_transition",
+                            detail=err_msg or "transition not allowed",
+                            severity="error",
+                        )
+                    ],
+                )
+                return get_renderer(ctx).emit(res, ctx)
             term.status(
                 "fail",
                 f"Validation error on {rec.path.name}: {err_msg}. Refusing before making changes.",
@@ -591,36 +615,75 @@ def run_set_command(
             return 1
 
     is_dry_run = getattr(args, "dry_run", False)
-    as_json = getattr(args, "as_json", False) or getattr(args, "json", False)
-    as_agent = getattr(args, "as_agent", False) or getattr(args, "agent", False)
+    yes = getattr(args, "yes", False) or getattr(args, "assume_yes", False)
+
+    if (ctx.is_agent or ctx.is_json) and not is_dry_run and not yes:
+        changes = [
+            Change(
+                path=str(r.path),
+                kind="update",
+                applied=False,
+                detail=f"status: {r.status or '-'} -> {normalize_target_status(target_status, r.record_type)}",
+            )
+            for r in matched_records
+        ]
+        cmd_str = f"aw set {' '.join(raw_args)} --yes"
+        res = CommandResult(
+            command="set",
+            status="cannot-run",
+            exit_code=2,
+            summary="confirmation required (--yes needed to execute mutation)",
+            changes=changes,
+            next_actions=[
+                NextAction(command=cmd_str, description="Apply status changes")
+            ],
+            verified=False,
+            complete=False,
+        )
+        return get_renderer(ctx).emit(res, ctx)
 
     if is_dry_run:
-        if as_json:
-            out_data = [
-                {
-                    "path": str(r.path),
-                    "type": r.record_type,
-                    "old_status": r.status,
-                    "new_status": normalize_target_status(target_status, r.record_type),
-                    "dry_run": True,
-                }
+        if ctx.is_agent or ctx.is_json:
+            changes = [
+                Change(
+                    path=str(r.path),
+                    kind="update",
+                    applied=False,
+                    detail=f"status: {r.status or '-'} -> {normalize_target_status(target_status, r.record_type)}",
+                )
                 for r in matched_records
             ]
-            sys.stdout.write(json.dumps(out_data, indent=2) + "\n")
-        elif as_agent:
-            for r in matched_records:
-                nstat = normalize_target_status(target_status, r.record_type)
-                stat_str = r.status or "-"
-                sys.stdout.write(
-                    f"{r.path}\t{stat_str}\t{nstat}\t{r.record_type}\tdry_run\n"
-                )
-        else:
-            for r in matched_records:
-                nstat = normalize_target_status(target_status, r.record_type)
-                stat_str = r.status or "-"
-                term.line(
-                    f"aw set (dry-run): would set {r.path.name} ({stat_str} -> {nstat})"
-                )
+            res = CommandResult(
+                command="set",
+                status="clean",
+                exit_code=0,
+                summary=f"would update status on {len(matched_records)} artifact(s)",
+                changes=changes,
+                data={
+                    "items": [
+                        {
+                            "path": str(r.path),
+                            "type": r.record_type,
+                            "old_status": r.status,
+                            "new_status": normalize_target_status(
+                                target_status, r.record_type
+                            ),
+                            "dry_run": True,
+                        }
+                        for r in matched_records
+                    ]
+                },
+                verified=True,
+                complete=True,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+
+        for r in matched_records:
+            nstat = normalize_target_status(target_status, r.record_type)
+            stat_str = r.status or "-"
+            term.line(
+                f"aw set (dry-run): would set {r.path.name} ({stat_str} -> {nstat})"
+            )
         return 0
 
     results: list[tuple[Path, str, ArtifactRecord]] = []
@@ -628,32 +691,48 @@ def run_set_command(
         dest_path, norm_stat = apply_status_change(rec, target_status, repo_root, args)
         results.append((dest_path, norm_stat, rec))
 
-    if as_json:
-        out_data = [
-            {
-                "path": str(dest),
-                "type": rec.record_type,
-                "old_status": rec.status,
-                "new_status": norm_stat,
-            }
+    if ctx.is_agent or ctx.is_json:
+        changes = [
+            Change(
+                path=str(dest),
+                kind="update",
+                applied=True,
+                detail=f"status: {rec.status or '-'} -> {norm_stat}",
+            )
             for dest, norm_stat, rec in results
         ]
-        sys.stdout.write(json.dumps(out_data, indent=2) + "\n")
-    elif as_agent:
-        for dest, norm_stat, rec in results:
-            stat_str = rec.status or "-"
-            sys.stdout.write(f"{dest}\t{stat_str}\t{norm_stat}\t{rec.record_type}\n")
-    else:
-        for dest, norm_stat, rec in results:
-            try:
-                rel = dest.relative_to(repo_root).as_posix()
-            except ValueError:
-                rel = str(dest)
-            status_disp = (
-                term.status_256(norm_stat, width=12)
-                if getattr(term, "color", False)
-                else norm_stat
-            )
-            term.line(f"aw set: {rel} -> {status_disp}")
+        res = CommandResult(
+            command="set",
+            status="clean",
+            exit_code=0,
+            summary=f"updated status on {len(results)} artifact(s)",
+            changes=changes,
+            data={
+                "items": [
+                    {
+                        "path": str(dest),
+                        "type": rec.record_type,
+                        "old_status": rec.status,
+                        "new_status": norm_stat,
+                    }
+                    for dest, norm_stat, rec in results
+                ]
+            },
+            verified=True,
+            complete=True,
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
+    for dest, norm_stat, rec in results:
+        try:
+            rel = dest.relative_to(repo_root).as_posix()
+        except ValueError:
+            rel = str(dest)
+        status_disp = (
+            term.status_256(norm_stat, width=12)
+            if getattr(term, "color", False)
+            else norm_stat
+        )
+        term.line(f"aw set: {rel} -> {status_disp}")
 
     return 0

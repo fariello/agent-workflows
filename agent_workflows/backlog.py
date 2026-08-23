@@ -67,15 +67,15 @@ class BacklogItem:
     """Parsed backlog item fields (from the leading `- Field:` bullet block)."""
 
     __slots__ = (
-        "id",
-        "status",
-        "set",
-        "priority",
-        "kind",
-        "summary",
+        "blocks_release",
         "gate_kind",
         "gate_ref",
-        "blocks_release",
+        "id",
+        "kind",
+        "priority",
+        "set",
+        "status",
+        "summary",
     )
 
     def __init__(self) -> None:
@@ -330,11 +330,46 @@ def run_new(args) -> int:
     body = getattr(args, "body", None) or ""
     rendered = _render_item(item, body)
 
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        Change,
+        CommandResult,
+        select_output,
+    )
+
+    ctx = select_output(args)
     if not getattr(args, "apply", False):
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="backlog new",
+                status="clean",
+                exit_code=0,
+                summary=f"would write {dest}",
+                changes=[Change(path=str(dest), kind="create", applied=False)],
+                data={"path": str(dest), "id": item.id},
+                verified=True,
+                complete=True,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         sys.stdout.write(f"--- would write {dest} ---\n{rendered}")
         return 0
+
     dest.parent.mkdir(parents=True, exist_ok=True)
     core.atomic_write(dest, rendered)
+
+    if ctx.is_agent or ctx.is_json:
+        res = CommandResult(
+            command="backlog new",
+            status="clean",
+            exit_code=0,
+            summary=f"wrote {dest}",
+            changes=[Change(path=str(dest), kind="create", applied=True)],
+            data={"path": str(dest), "id": item.id},
+            verified=True,
+            complete=True,
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
     sys.stdout.write(f"aw backlog new: wrote {dest}\n")
     return 0
 
@@ -467,11 +502,20 @@ def _reattach_history(
 
 def run_check(args) -> int:
     from agent_workflows.project_context import resolve_verb_repo_root
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Diagnostic,
+        Evidence,
+        select_output,
+    )
 
     repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
     drift: List[core.Drift] = []
     seen_ids: Dict[str, str] = {}
+    items_count = 0
     for f in _iter_items(repo_root):
+        items_count += 1
         text = f.read_text(encoding="utf-8")
         item_drift = validate_item(f, text)
         drift.extend(item_drift)
@@ -487,24 +531,56 @@ def run_check(args) -> int:
                 )
             else:
                 seen_ids[pid] = f.name
-    if getattr(args, "agent", False):
-        sys.stdout.write(core.render_agent_drift(drift))
-    else:
-        # awcolor Order 01: color the HUMAN branch only (agent branch byte-for-byte unchanged).
-        from agent_workflows import term as _term
 
-        t = _term.Term(
-            stream=sys.stdout, color=False if getattr(args, "no_color", False) else None
+    ctx = select_output(args)
+    if ctx.is_agent or ctx.is_json:
+        exit_code = core.drift_exit_code(drift)
+        status = "clean" if exit_code == 0 else "findings"
+        summary = (
+            f"{items_count} backlog items checked"
+            if exit_code == 0
+            else f"{len(drift)} finding(s) detected across {items_count} backlog items"
         )
-        colored = getattr(t, "color", False)
-        if drift:
-            for d in drift:
-                rule = t.color256(d.rule, 196, bold=True) if colored else d.rule
-                sys.stdout.write(f"{d.location}: {rule}: {d.detail}\n")
-            sys.stdout.write(f"aw backlog check: {len(drift)} violation(s).\n")
-        else:
-            msg = "aw backlog check: all backlog items conform."
-            sys.stdout.write(
-                (t.color256(msg, 46, bold=True) if colored else msg) + "\n"
+        diagnostics = [
+            Diagnostic(
+                location=d.location,
+                rule=d.rule,
+                detail=d.detail,
+                severity="error",
             )
+            for d in drift
+        ]
+        evidence = [
+            Evidence(
+                key="backlog",
+                value={"checked": items_count, "violations": len(drift)},
+                status=status,
+            )
+        ]
+        res = CommandResult(
+            command="backlog check",
+            status=status,
+            exit_code=exit_code,
+            summary=summary,
+            diagnostics=diagnostics,
+            evidence=evidence,
+            data={"checked": items_count, "violations": len(drift)},
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
+    # awcolor Order 01: color the HUMAN branch only (agent branch byte-for-byte unchanged).
+    from agent_workflows import term as _term
+
+    t = _term.Term(
+        stream=sys.stdout, color=False if getattr(args, "no_color", False) else None
+    )
+    colored = getattr(t, "color", False)
+    if drift:
+        for d in drift:
+            rule = t.color256(d.rule, 196, bold=True) if colored else d.rule
+            sys.stdout.write(f"{d.location}: {rule}: {d.detail}\n")
+        sys.stdout.write(f"aw backlog check: {len(drift)} violation(s).\n")
+    else:
+        msg = "aw backlog check: all backlog items conform."
+        sys.stdout.write((t.color256(msg, 46, bold=True) if colored else msg) + "\n")
     return core.drift_exit_code(drift)

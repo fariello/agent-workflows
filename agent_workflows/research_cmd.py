@@ -20,7 +20,6 @@ from typing import List, NamedTuple, Optional, Tuple
 from agent_workflows import artifact_core as _core
 from agent_workflows import research_contract as R
 
-
 # --------------------------------------------------------------------------------------
 # id generation (collision-checked against existing on-disk id6 tokens)
 # --------------------------------------------------------------------------------------
@@ -279,18 +278,55 @@ def _research_root(args: argparse.Namespace) -> Path:
     return R.resolve_research_root(root)
 
 
-def _emit_and_write(files: List[PlannedFile], apply: bool, overwrite: bool) -> int:
+def _emit_and_write(
+    files: List[PlannedFile],
+    apply: bool,
+    overwrite: bool,
+    command_name: str = "research new",
+    args: Optional[argparse.Namespace] = None,
+) -> int:
     """Common preview/apply path for planned files. Returns an exit code and prints results."""
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        Change,
+        CommandResult,
+        select_output,
+    )
+
+    ctx = select_output(args) if args else None
 
     # No-clobber check up front (so a partial apply never happens).
     if not overwrite:
         for f in files:
             if f.path.exists():
+                if ctx and (ctx.is_agent or ctx.is_json):
+                    res = CommandResult(
+                        command=command_name,
+                        status="findings",
+                        exit_code=1,
+                        summary=f"refusing to overwrite existing path (pass --overwrite): {f.path}",
+                    )
+                    return get_renderer(ctx).emit(res, ctx)
                 print(
                     f"error: refusing to overwrite existing path (pass --overwrite): {f.path}"
                 )
                 return 1
+
     if not apply:
+        if ctx and (ctx.is_agent or ctx.is_json):
+            changes = [
+                Change(path=str(f.path), kind="create", applied=False) for f in files
+            ]
+            res = CommandResult(
+                command=command_name,
+                status="clean",
+                exit_code=0,
+                summary=f"would write {len(files)} file(s)",
+                changes=changes,
+                verified=True,
+                complete=True,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         for f in files:
             print(f"--- would write {f.path} ---")
             print(f.content)
@@ -298,12 +334,35 @@ def _emit_and_write(files: List[PlannedFile], apply: bool, overwrite: bool) -> i
             "next step (informational): after --apply, run `aw research index` to refresh the manifest"
         )
         return 0
+
     try:
         for f in files:
             _atomic_write(f.path, f.content)
     except Exception as exc:  # noqa: BLE001
+        if ctx and (ctx.is_agent or ctx.is_json):
+            res = CommandResult(
+                command=command_name,
+                status="cannot-run",
+                exit_code=2,
+                summary=f"research write failed: {exc}",
+            )
+            return get_renderer(ctx).emit(res, ctx)
         print(f"error: research write failed: {exc}")
         return 2
+
+    if ctx and (ctx.is_agent or ctx.is_json):
+        changes = [Change(path=str(f.path), kind="create", applied=True) for f in files]
+        res = CommandResult(
+            command=command_name,
+            status="clean",
+            exit_code=0,
+            summary=f"wrote {len(files)} file(s)",
+            changes=changes,
+            verified=True,
+            complete=True,
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
     for f in files:
         print(f"wrote {f.path}")
     print("next step (informational): run `aw research index` to refresh the manifest")
@@ -326,10 +385,26 @@ def run_new(args: argparse.Namespace) -> int:
         date_str=getattr(args, "date", None),
     )
     if err:
+        from agent_workflows.renderers import get_renderer
+        from agent_workflows.result_types import CommandResult, select_output
+
+        ctx = select_output(args)
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="research new",
+                status="cannot-run",
+                exit_code=2,
+                summary=err,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         print(f"error: {err}")
         return 2
     return _emit_and_write(
-        files or [], getattr(args, "apply", False), getattr(args, "overwrite", False)
+        files or [],
+        getattr(args, "apply", False),
+        getattr(args, "overwrite", False),
+        command_name="research new",
+        args=args,
     )
 
 
@@ -339,6 +414,18 @@ def run_new_comparison(args: argparse.Namespace) -> int:
         m.strip() for m in (getattr(args, "models", None) or "").split(",") if m.strip()
     ]
     if not models:
+        from agent_workflows.renderers import get_renderer
+        from agent_workflows.result_types import CommandResult, select_output
+
+        ctx = select_output(args)
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="research new-comparison",
+                status="cannot-run",
+                exit_code=2,
+                summary="--models is required (comma-separated)",
+            )
+            return get_renderer(ctx).emit(res, ctx)
         print("error: --models is required (comma-separated)")
         return 2
     topic = [
@@ -354,8 +441,24 @@ def run_new_comparison(args: argparse.Namespace) -> int:
         date_str=getattr(args, "date", None),
     )
     if err:
+        from agent_workflows.renderers import get_renderer
+        from agent_workflows.result_types import CommandResult, select_output
+
+        ctx = select_output(args)
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="research new-comparison",
+                status="cannot-run",
+                exit_code=2,
+                summary=err,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         print(f"error: {err}")
         return 2
     return _emit_and_write(
-        files or [], getattr(args, "apply", False), getattr(args, "overwrite", False)
+        files or [],
+        getattr(args, "apply", False),
+        getattr(args, "overwrite", False),
+        command_name="research new-comparison",
+        args=args,
     )

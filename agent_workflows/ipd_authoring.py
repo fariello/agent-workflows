@@ -70,9 +70,7 @@ def _exec_placeholder_leaf() -> str:
         "  - Depends on: none\n"
         "  - Expected outcome: TODO observable result.\n"
         "  - Execution state: pending\n\n"
-        "Add further leaves as `- [ ] {marker} <action>` and run `aw ipd sync` to assign ids.".format(
-            marker=UNASSIGNED_MARKER
-        )
+        f"Add further leaves as `- [ ] {UNASSIGNED_MARKER} <action>` and run `aw ipd sync` to assign ids."
     )
 
 
@@ -112,22 +110,22 @@ def build_skeleton(
         plan_id = _core.generate_id6(set())
     order_seq = S.H2_ORDER_BY_KIND[kind]
     lines: List[str] = []
-    lines.append("# IPD: {0}".format(title))
+    lines.append(f"# IPD: {title}")
     lines.append("")
     # Metadata block.
-    lines.append("- Date: {0}".format(when))
-    lines.append("- Kind: {0}".format(kind))
+    lines.append(f"- Date: {when}")
+    lines.append(f"- Kind: {kind}")
     lines.append("- Concern: TODO.")
     lines.append("- Scope: TODO.")
     lines.append("- Status: draft")
-    lines.append("- Set: {0}".format(set_name))
-    lines.append("- Order: {0}".format(order))
+    lines.append(f"- Set: {set_name}")
+    lines.append(f"- Order: {order}")
     lines.append("- Highest E allocated: 01")
-    lines.append("- Author: {0}".format(author))
-    lines.append("- Id: {0}".format(plan_id))
+    lines.append(f"- Author: {author}")
+    lines.append(f"- Id: {plan_id}")
     lines.append("")
     for h in order_seq:
-        lines.append("## {0}".format(h))
+        lines.append(f"## {h}")
         lines.append("")
         if h == S.H_EXECUTION:
             lines.append(_EXEC_INTRO)
@@ -288,23 +286,73 @@ def run_scaffold(args: argparse.Namespace) -> int:
         order=order,
         plan_id=plan_id,
     )
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        Change,
+        CommandResult,
+        select_output,
+    )
+
+    ctx = select_output(args)
     if path.exists() and not getattr(args, "overwrite", False):
-        print(
-            "error: refusing to overwrite existing path (pass --overwrite): {0}".format(
-                target
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="ipd scaffold",
+                status="findings",
+                exit_code=1,
+                summary=f"refusing to overwrite existing path (pass --overwrite): {target}",
             )
+            return get_renderer(ctx).emit(res, ctx)
+        print(
+            f"error: refusing to overwrite existing path (pass --overwrite): {target}"
         )
         return 1
+
     if not getattr(args, "apply", False):
-        print("--- would write {0} ({1} lines) ---".format(target, text.count(chr(10))))
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="ipd scaffold",
+                status="clean",
+                exit_code=0,
+                summary=f"would write {target} ({text.count(chr(10))} lines)",
+                changes=[Change(path=str(path), kind="create", applied=False)],
+                data={"path": str(path), "id": plan_id},
+                verified=True,
+                complete=True,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        print(f"--- would write {target} ({text.count(chr(10))} lines) ---")
         print(text)
         return 0
+
     try:
         _atomic_write(path, text)
     except Exception as exc:
-        print("error: scaffold write failed: {0}".format(exc))
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="ipd scaffold",
+                status="cannot-run",
+                exit_code=2,
+                summary=f"scaffold write failed: {exc}",
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        print(f"error: scaffold write failed: {exc}")
         return 2
-    print("wrote {0}".format(target))
+
+    if ctx.is_agent or ctx.is_json:
+        res = CommandResult(
+            command="ipd scaffold",
+            status="clean",
+            exit_code=0,
+            summary=f"wrote {target}",
+            changes=[Change(path=str(path), kind="create", applied=True)],
+            data={"path": str(path), "id": plan_id},
+            verified=True,
+            complete=True,
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
+    print(f"wrote {target}")
     return 0
 
 
@@ -312,19 +360,17 @@ def run_scaffold(args: argparse.Namespace) -> int:
 # Sync
 # --------------------------------------------------------------------------------------
 
-_UNASSIGNED_LEAF_RE = re.compile(
-    r"^- \[ \] {0}\b(.*)$".format(re.escape(UNASSIGNED_MARKER))
-)
+_UNASSIGNED_LEAF_RE = re.compile(rf"^- \[ \] {re.escape(UNASSIGNED_MARKER)}\b(.*)$")
 _WATERMARK_RE = re.compile(r"^- Highest E allocated:\s*([0-9]+)\s*$")
 _VALIDATION_HEADING_RE = re.compile(r"^## Validation and cross-check\b")
 _GATE_HEADING_RE = re.compile(r"^## Approval and execution gate\b")
 
 
 def _fmt_suffix(n: int) -> str:
-    return "{0:02d}".format(n)
+    return f"{n:02d}"
 
 
-class SyncResult(object):
+class SyncResult:
     def __init__(self) -> None:
         self.new_text = ""
         self.assigned: List[str] = []
@@ -343,9 +389,7 @@ def compute_sync(text: str, *, directory: Optional[str]) -> SyncResult:
     # Refuse structural change once execution has begun or approval is granted (Section 6.1).
     if status in ("approved", "auto-approved"):
         res.errors.append(
-            "refusing sync: Status is '{0}'; use the amendment/re-review workflow".format(
-                status
-            )
+            f"refusing sync: Status is '{status}'; use the amendment/re-review workflow"
         )
         return res
     # Any non-initial execution/validation state means execution has begun -> refuse.
@@ -354,9 +398,7 @@ def compute_sync(text: str, *, directory: Optional[str]) -> SyncResult:
             lf.checked or lf.fields.get("Execution state", "pending") != "pending"
         ):
             res.errors.append(
-                "refusing sync: execution has begun ({0} is not pending); use amendment/re-review".format(
-                    lf.ident
-                )
+                f"refusing sync: execution has begun ({lf.ident} is not pending); use amendment/re-review"
             )
             return res
     for lf in doc.valid_leaves:
@@ -366,9 +408,7 @@ def compute_sync(text: str, *, directory: Optional[str]) -> SyncResult:
             or lf.fields.get("Observed evidence", "").strip()
         ):
             res.errors.append(
-                "refusing sync: validation has begun ({0}); use amendment/re-review".format(
-                    lf.ident
-                )
+                f"refusing sync: validation has begun ({lf.ident}); use amendment/re-review"
             )
             return res
 
@@ -389,7 +429,7 @@ def compute_sync(text: str, *, directory: Optional[str]) -> SyncResult:
     ]
     werr = S.watermark_error(watermark, [p for p in present if p is not None])
     if werr:
-        res.errors.append("refusing sync: {0}".format(werr))
+        res.errors.append(f"refusing sync: {werr}")
         return res
 
     # Locate unassigned leaves in source order; assign from watermark+1.
@@ -405,13 +445,13 @@ def compute_sync(text: str, *, directory: Optional[str]) -> SyncResult:
             m = _UNASSIGNED_LEAF_RE.match(raw)
             if m:
                 new_id = "E-" + _fmt_suffix(next_suffix)
-                out.append("- [ ] {0}{1}".format(new_id, m.group(1)))
+                out.append(f"- [ ] {new_id}{m.group(1)}")
                 res.assigned.append(new_id)
                 new_v_rows.append(
-                    "- [ ] V-{0} validates {1}\n"
+                    f"- [ ] V-{_fmt_suffix(next_suffix)} validates {new_id}\n"
                     "  - Required evidence: TODO falsifiable evidence.\n"
                     "  - Observed evidence:\n"
-                    "  - Result: pending".format(_fmt_suffix(next_suffix), new_id)
+                    "  - Result: pending"
                 )
                 next_suffix += 1
                 continue
@@ -427,7 +467,7 @@ def compute_sync(text: str, *, directory: Optional[str]) -> SyncResult:
     # Advance the watermark line.
     for i, raw in enumerate(out):
         if _WATERMARK_RE.match(raw):
-            out[i] = "- Highest E allocated: {0}".format(_fmt_suffix(new_watermark))
+            out[i] = f"- Highest E allocated: {_fmt_suffix(new_watermark)}"
             break
 
     # Insert the new V rows immediately before the approval gate, appended after existing V rows.
@@ -456,7 +496,7 @@ def compute_sync(text: str, *, directory: Optional[str]) -> SyncResult:
     return res
 
 
-def _backfill_id(text: str, existing: set) -> "tuple[str, Optional[str]]":
+def _backfill_id(text: str, existing: set) -> tuple[str, Optional[str]]:
     """Insert a `- Id:` line after `- Author:` if the block lacks one. Returns (new_text, id|None)."""
 
     if _ID_LINE_RE.search(text):
@@ -479,7 +519,7 @@ def run_sync(args: argparse.Namespace) -> int:
         return 2
     path = Path(target)
     if not path.is_file():
-        print("error: not a file: {0}".format(target))
+        print(f"error: not a file: {target}")
         return 2
     try:
         text = path.read_text(encoding="utf-8")
@@ -487,34 +527,119 @@ def run_sync(args: argparse.Namespace) -> int:
         text_after_id, backfilled_id = _backfill_id(text, _existing_plan_ids(path))
         res = compute_sync(text_after_id, directory=LINT._dir_of(path))
     except Exception as exc:
-        print("error: sync failed to run: {0}".format(exc))
+        print(f"error: sync failed to run: {exc}")
         return 2
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        Change,
+        CommandResult,
+        Diagnostic,
+        select_output,
+    )
+
+    ctx = select_output(args)
     if res.errors:
+        if ctx.is_agent or ctx.is_json:
+            diagnostics = [
+                Diagnostic(
+                    location=str(path),
+                    rule="ipd.sync_error",
+                    detail=str(e),
+                    severity="error",
+                )
+                for e in res.errors
+            ]
+            res_cmd = CommandResult(
+                command="ipd sync",
+                status="findings",
+                exit_code=1,
+                summary=f"sync failed with {len(res.errors)} error(s)",
+                diagnostics=diagnostics,
+            )
+            return get_renderer(ctx).emit(res_cmd, ctx)
         for e in res.errors:
             print(e)
         return 1
+
     if not res.changed and backfilled_id is None:
+        if ctx.is_agent or ctx.is_json:
+            res_cmd = CommandResult(
+                command="ipd sync",
+                status="clean",
+                exit_code=0,
+                summary="no unassigned leaves and Id present; nothing to sync",
+                changes=[],
+                verified=True,
+                complete=True,
+            )
+            return get_renderer(ctx).emit(res_cmd, ctx)
         print("no unassigned leaves and Id present; nothing to sync")
         return 0
+
     if not getattr(args, "apply", False):
         parts = []
         if backfilled_id is not None:
-            parts.append("Id {0}".format(backfilled_id))
+            parts.append(f"Id {backfilled_id}")
         if res.assigned:
             parts.append(", ".join(res.assigned))
+        if ctx.is_agent or ctx.is_json:
+            res_cmd = CommandResult(
+                command="ipd sync",
+                status="clean",
+                exit_code=0,
+                summary=f"would assign: {'; '.join(parts)}",
+                changes=[
+                    Change(
+                        path=str(path),
+                        kind="update",
+                        applied=False,
+                        detail="; ".join(parts),
+                    )
+                ],
+                verified=True,
+                complete=True,
+            )
+            return get_renderer(ctx).emit(res_cmd, ctx)
         print(
             "--- would assign: {0} (dry-run; pass --apply) ---".format("; ".join(parts))
         )
         return 0
+
     try:
         _atomic_write(path, res.new_text)
     except Exception as exc:
-        print("error: sync write failed: {0}".format(exc))
+        if ctx.is_agent or ctx.is_json:
+            res_cmd = CommandResult(
+                command="ipd sync",
+                status="cannot-run",
+                exit_code=2,
+                summary=f"sync write failed: {exc}",
+            )
+            return get_renderer(ctx).emit(res_cmd, ctx)
+        print(f"error: sync write failed: {exc}")
         return 2
+
     done = []
     if backfilled_id is not None:
-        done.append("backfilled Id {0}".format(backfilled_id))
+        done.append(f"backfilled Id {backfilled_id}")
     if res.assigned:
         done.append("assigned {0}; watermark advanced".format(", ".join(res.assigned)))
+
+    if ctx.is_agent or ctx.is_json:
+        res_cmd = CommandResult(
+            command="ipd sync",
+            status="clean",
+            exit_code=0,
+            summary="; ".join(done) if done else "synced",
+            changes=[
+                Change(
+                    path=str(path), kind="update", applied=True, detail="; ".join(done)
+                )
+            ],
+            verified=True,
+            complete=True,
+        )
+        return get_renderer(ctx).emit(res_cmd, ctx)
+
     print("; ".join(done) if done else "synced")
     return 0

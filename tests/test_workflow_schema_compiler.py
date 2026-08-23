@@ -21,12 +21,12 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
+from agent_workflows import workflow_cli as CLI
+from agent_workflows import workflow_compiler as COMPILER
+from agent_workflows import workflow_loader as LOADER
+from agent_workflows import workflow_profile as PROFILE
 from agent_workflows import workflow_schema as SCHEMA
 from agent_workflows import workflow_source as SOURCE
-from agent_workflows import workflow_loader as LOADER
-from agent_workflows import workflow_compiler as COMPILER
-from agent_workflows import workflow_profile as PROFILE
-from agent_workflows import workflow_cli as CLI
 from tests.support import REPO_ROOT
 
 FIXTURE_PKG = REPO_ROOT / "tests" / "fixtures" / "workflow-src" / "plan-review"
@@ -391,7 +391,8 @@ class CliDriftTests(unittest.TestCase):
         self.assertEqual(code, 0)
         line = out.strip().splitlines()[0]
         rec = json.loads(line)  # must parse
-        self.assertTrue(rec["ok"])
+        self.assertEqual(rec.get("schema"), "aw.agent/v1")
+        self.assertEqual(rec.get("outcome"), "clean")
         self.assertNotIn("\x1b", out)  # no ANSI escapes
 
 

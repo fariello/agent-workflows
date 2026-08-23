@@ -141,7 +141,9 @@ class TestStatusSetCommands(StatusSetTestBase):
         plan = self.create_plan(
             "20260822-testset-01-pl0001-test-plan.ipd.md", "pl0001", "testset", "draft"
         )
-        rc = cli.main(["set", "approved", "pl0001", "--dir", str(self.repo_root)])
+        rc = cli.main(
+            ["set", "approved", "pl0001", "--yes", "--dir", str(self.repo_root)]
+        )
         self.assertEqual(rc, 0)
         text = plan.read_text(encoding="utf-8")
         self.assertIn("- Status: approved", text)
@@ -154,7 +156,9 @@ class TestStatusSetCommands(StatusSetTestBase):
             "testset",
             "approved",
         )
-        rc = cli.main(["set", "executed", "pl0002", "--dir", str(self.repo_root)])
+        rc = cli.main(
+            ["set", "executed", "pl0002", "--yes", "--dir", str(self.repo_root)]
+        )
         self.assertEqual(rc, 0)
         self.assertFalse(plan.exists())
         executed_path = (
@@ -177,7 +181,9 @@ class TestStatusSetCommands(StatusSetTestBase):
             "executed",
             disposition="executed",
         )
-        rc = cli.main(["set", "to-review", "pl0020", "--dir", str(self.repo_root)])
+        rc = cli.main(
+            ["set", "to-review", "pl0020", "--yes", "--dir", str(self.repo_root)]
+        )
         self.assertEqual(rc, 0)
         self.assertFalse(plan.exists())
         pending_path = (
@@ -197,7 +203,7 @@ class TestStatusSetCommands(StatusSetTestBase):
             "20260822-testset-01-pl0003-test-plan.ipd.md", "pl0003", "testset", "draft"
         )
         rc = cli.main(
-            ["ipd", "set", "approved", "pl0003", "--dir", str(self.repo_root)]
+            ["ipd", "set", "approved", "pl0003", "--yes", "--dir", str(self.repo_root)]
         )
         self.assertEqual(rc, 0)
         text = plan.read_text(encoding="utf-8")
@@ -208,7 +214,15 @@ class TestStatusSetCommands(StatusSetTestBase):
             "20260822-testset-01-pl0021-test-plan.ipd.md", "pl0021", "testset", "draft"
         )
         rc = cli.main(
-            ["set", "plans", "approved", "pl0021", "--dir", str(self.repo_root)]
+            [
+                "set",
+                "plans",
+                "approved",
+                "pl0021",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
         )
         self.assertEqual(rc, 0)
         self.assertIn("- Status: approved", plan.read_text(encoding="utf-8"))
@@ -217,7 +231,15 @@ class TestStatusSetCommands(StatusSetTestBase):
             "20260822-0021-01-test-spec.spec.md", "sp0021", "specset", "draft"
         )
         rc2 = cli.main(
-            ["set", "specs", "to-review", "sp0021", "--dir", str(self.repo_root)]
+            [
+                "set",
+                "specs",
+                "to-review",
+                "sp0021",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
         )
         self.assertEqual(rc2, 0)
         self.assertIn("- Status: to-review", spec.read_text(encoding="utf-8"))
@@ -232,6 +254,7 @@ class TestStatusSetCommands(StatusSetTestBase):
                 "set",
                 "to-review",
                 "20260822-0001-01-test-spec.spec.md",
+                "--yes",
                 "--dir",
                 str(self.repo_root),
             ]
@@ -254,6 +277,7 @@ class TestStatusSetCommands(StatusSetTestBase):
                 "to-review",
                 "--message",
                 "legacy test message",
+                "--yes",
             ]
         )
         self.assertEqual(rc, 0)
@@ -269,7 +293,15 @@ class TestStatusSetCommands(StatusSetTestBase):
             "draft",
         )
         rc = cli.main(
-            ["set", "prompts", "approved", "pr0001", "--dir", str(self.repo_root)]
+            [
+                "set",
+                "prompts",
+                "approved",
+                "pr0001",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
         )
         self.assertEqual(rc, 0)
         text = prompt.read_text(encoding="utf-8")
@@ -283,7 +315,7 @@ class TestStatusSetCommands(StatusSetTestBase):
             "open",
         )
         rc = cli.main(
-            ["backlog", "set", "done", "bk0001", "--dir", str(self.repo_root)]
+            ["backlog", "set", "done", "bk0001", "--yes", "--dir", str(self.repo_root)]
         )
         self.assertEqual(rc, 0)
         self.assertFalse(bk.exists())
@@ -324,6 +356,7 @@ class TestStatusSetCommands(StatusSetTestBase):
                 "pl0005",
                 "sp0003",
                 "pr0002",
+                "--yes",
                 "--dir",
                 str(self.repo_root),
             ]
@@ -342,7 +375,9 @@ class TestStatusSetCommands(StatusSetTestBase):
             "20260822-setgrp-02-pl0007-plan2.ipd.md", "pl0007", "setgrp", "draft"
         )
 
-        rc = cli.main(["set", "to-review", "setgrp", "--dir", str(self.repo_root)])
+        rc = cli.main(
+            ["set", "to-review", "setgrp", "--yes", "--dir", str(self.repo_root)]
+        )
         self.assertEqual(rc, 0)
 
         self.assertIn("- Status: to-review", plan1.read_text(encoding="utf-8"))
@@ -361,7 +396,7 @@ class TestStatusSetCommands(StatusSetTestBase):
 
         # Targeting spec sp0004 with `aw ipd set` should fail with type mismatch
         rc = cli.main(
-            ["ipd", "set", "approved", "sp0004", "--dir", str(self.repo_root)]
+            ["ipd", "set", "approved", "sp0004", "--yes", "--dir", str(self.repo_root)]
         )
         self.assertNotEqual(rc, 0)
 
@@ -379,7 +414,15 @@ class TestStatusSetCommands(StatusSetTestBase):
 
         # Scoped command targeting a mixed set must refuse
         rc = cli.main(
-            ["ipd", "set", "approved", "mixedset", "--dir", str(self.repo_root)]
+            [
+                "ipd",
+                "set",
+                "approved",
+                "mixedset",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
         )
         self.assertNotEqual(rc, 0)
 
@@ -398,6 +441,7 @@ class TestStatusSetCommands(StatusSetTestBase):
                 "approved",
                 "pl0010",
                 "nonexistent999",
+                "--yes",
                 "--dir",
                 str(self.repo_root),
             ]
@@ -413,7 +457,9 @@ class TestStatusSetCommands(StatusSetTestBase):
         )
 
         # Backlog does not support "approved" status
-        rc = cli.main(["set", "approved", "bk0002", "--dir", str(self.repo_root)])
+        rc = cli.main(
+            ["set", "approved", "bk0002", "--yes", "--dir", str(self.repo_root)]
+        )
         self.assertNotEqual(rc, 0)
 
         self.assertIn("- Status: open", bk.read_text(encoding="utf-8"))
@@ -430,6 +476,7 @@ class TestStatusSetCommands(StatusSetTestBase):
                 "--message",
                 "explicit maintainer signoff",
                 "--by-human",
+                "--yes",
                 "--dir",
                 str(self.repo_root),
             ]
@@ -460,10 +507,26 @@ class TestStatusSetCommands(StatusSetTestBase):
             rc = cli.main(
                 ["set", "approved", "pl0012", "--json", "--dir", str(self.repo_root)]
             )
-        self.assertEqual(rc, 0)
-        data = json.loads(buf.getvalue())
-        self.assertEqual(len(data), 1)
-        self.assertEqual(data[0]["new_status"], "approved")
+        self.assertEqual(rc, 2)  # confirmation required in non-interactive/json mode
+        rec = json.loads(buf.getvalue())
+        self.assertEqual(rec["status"], "cannot-run")
+
+        buf2 = io.StringIO()
+        with patch("sys.stdout", buf2):
+            rc2 = cli.main(
+                [
+                    "set",
+                    "approved",
+                    "pl0012",
+                    "--yes",
+                    "--json",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc2, 0)
+        rec2 = json.loads(buf2.getvalue())
+        self.assertEqual(rec2["status"], "clean")
 
     def test_agent_output_mode(self):
         self.create_plan(
@@ -474,9 +537,25 @@ class TestStatusSetCommands(StatusSetTestBase):
             rc = cli.main(
                 ["set", "approved", "pl0013", "--agent", "--dir", str(self.repo_root)]
             )
-        self.assertEqual(rc, 0)
-        out = buf.getvalue()
-        self.assertIn("draft\tapproved\tplans", out)
+        self.assertEqual(rc, 2)  # confirmation required in non-interactive/agent mode
+
+        buf2 = io.StringIO()
+        with patch("sys.stdout", buf2):
+            rc2 = cli.main(
+                [
+                    "set",
+                    "approved",
+                    "pl0013",
+                    "--yes",
+                    "--agent",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc2, 0)
+        rec2 = json.loads(buf2.getvalue().strip())
+        self.assertEqual(rec2["schema"], "aw.agent/v1")
+        self.assertEqual(rec2["outcome"], "clean")
 
 
 if __name__ == "__main__":

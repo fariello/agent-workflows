@@ -24,10 +24,9 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from agent_workflows import run_engine
+from agent_workflows import run_engine, run_recovery, run_state
 from agent_workflows import run_evidence as evidence
 from agent_workflows import run_ledger_store as store
-from agent_workflows import run_recovery, run_state
 
 # ---- exit-code table (awoptimize Order 07 E-03) --------------------------------------------------
 # Distinct nonzero codes let a caller/CI distinguish outcome classes. Kept small and consistent:
@@ -75,7 +74,12 @@ def run_cli(args: argparse.Namespace) -> int:
 
 
 def _machine(args: argparse.Namespace) -> bool:
-    return bool(getattr(args, "as_agent", False) or getattr(args, "as_json", False))
+    return bool(
+        getattr(args, "agent", False)
+        or getattr(args, "as_agent", False)
+        or getattr(args, "json", False)
+        or getattr(args, "as_json", False)
+    )
 
 
 def _redact_output(data: Any) -> Any:
@@ -106,7 +110,7 @@ def _redact_output(data: Any) -> Any:
 def _emit_machine(args: argparse.Namespace, payload: Any) -> None:
     """Emit ANSI-free machine output. `--agent` emits compact JSON/JSONL; `--json` emits pretty JSON."""
     sanitized = _redact_output(payload)
-    if getattr(args, "as_agent", False):
+    if getattr(args, "agent", False) or getattr(args, "as_agent", False):
         if isinstance(sanitized, list):
             for item in sanitized:
                 print(
@@ -495,7 +499,7 @@ def _emit_error(args: argparse.Namespace, message: str, exit_code: int) -> int:
     return exit_code
 
 
-def _resolve_or_error(args: argparse.Namespace) -> "tuple[Optional[Path], int]":
+def _resolve_or_error(args: argparse.Namespace) -> tuple[Optional[Path], int]:
     """Resolve the ledger path or return an invalid-invocation error tuple."""
     target = getattr(args, "target", None)
     if not target:
@@ -569,7 +573,7 @@ def _reconstruct_workflow_from_ledger(records: List[Dict[str, Any]]) -> Dict[str
 
 def _build_engine(
     args: argparse.Namespace, ledger_file: Path
-) -> "tuple[Optional[run_engine.RunEngine], List[Dict[str, Any]], int]":
+) -> tuple[Optional[run_engine.RunEngine], List[Dict[str, Any]], int]:
     """Construct a RunEngine over a ledger. Returns (engine, records, exit_code)."""
     ledger_store = store.RunLedgerStore(ledger_file)
     try:
