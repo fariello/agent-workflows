@@ -446,7 +446,7 @@ _SINGULAR_TYPE = {
 }
 
 
-def _colorize_tree_segment(term: "T.Term", path: str, tree: str) -> str:
+def _colorize_tree_segment(term: T.Term, path: str, tree: str) -> str:
     """Color the tree-name directory segment WITHIN ``path`` bold blue, in place.
 
     e.g. ``.agents/backlog/open/x.md`` with tree ``backlog`` colors just the ``backlog``
@@ -548,7 +548,7 @@ def render_board(
     items: List[Item],
     drift: List[core.Drift],
     show_all: bool = False,
-    term: "T.Term | None" = None,
+    term: T.Term | None = None,
     long: bool = False,
 ) -> str:
     """Render the attention board.
@@ -669,49 +669,163 @@ def run(args) -> int:
     # Climb to the project root so `aw attention` works from any subdirectory; an explicit --dir is
     # honored verbatim (IPD awretrofit Order 06).
     from agent_workflows.project_context import (
-        resolve_verb_repo_root,
         is_project_dir,
         no_project_message,
+        resolve_verb_repo_root,
+    )
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Diagnostic,
+        Evidence,
+        select_output,
     )
 
     explicit_dir = getattr(args, "dir", None)
     repo_root = resolve_verb_repo_root(explicit_dir)
     check = getattr(args, "check", False)
+    ctx = select_output(args)
+
     # No AW project at cwd or any ancestor (and none named via --dir): emit the verbose guidance
     # instead of a silent empty board. --check stays fail-closed-valid (nothing to violate).
     if not explicit_dir and not is_project_dir(repo_root):
         if check:
-            agent = getattr(args, "agent", False)
-            if agent:
-                sys.stdout.write(core.render_agent_drift([]))
-            else:
-                sys.stdout.write("aw attention --check: the view is valid.\n")
+            if ctx.is_agent or ctx.is_json:
+                res = CommandResult(
+                    command="attention",
+                    status="clean",
+                    exit_code=0,
+                    summary="the view is valid",
+                    evidence=[
+                        Evidence(
+                            key="attention",
+                            value={"items": 0, "drift": 0},
+                            status="clean",
+                        )
+                    ],
+                    data={"items": [], "drift": []},
+                )
+                return get_renderer(ctx).emit(res, ctx)
+            sys.stdout.write("aw attention --check: the view is valid.\n")
             return 0
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="attention",
+                status="cannot-run",
+                exit_code=3,
+                summary=no_project_message("attention"),
+            )
+            return get_renderer(ctx).emit(res, ctx)
         sys.stderr.write(no_project_message("attention") + "\n")
         return 3
+
     try:
         items, drift = scan(repo_root)
     except (
         Exception
     ) as exc:  # a could-not-run condition (missing contract symbol, etc.)
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="attention",
+                status="cannot-run",
+                exit_code=2,
+                summary=f"could not run: {exc}",
+                diagnostics=[
+                    Diagnostic(
+                        location=str(repo_root),
+                        rule="attention.scan_error",
+                        detail=str(exc),
+                        severity="error",
+                    )
+                ],
+            )
+            return get_renderer(ctx).emit(res, ctx)
         sys.stderr.write(f"aw attention: could not run: {exc}\n")
         return 2
 
-    agent = getattr(args, "agent", False)
     fmt = getattr(args, "format", None)
 
     if check:
-        if agent:
-            sys.stdout.write(core.render_agent_drift(drift))
-        else:
-            if drift:
-                for d in drift:
-                    sys.stdout.write(f"{d.location}: {d.rule}: {d.detail}\n")
-            else:
-                sys.stdout.write("aw attention --check: the view is valid.\n")
-        return core.drift_exit_code(drift)
+        exit_code = core.drift_exit_code(drift)
+        status = "clean" if exit_code == 0 else "findings"
+        summary = (
+            f"{len(items)} items checked, 0 violations"
+            if exit_code == 0
+            else f"{len(drift)} finding(s) detected across {len(items)} items"
+        )
+        if ctx.is_agent or ctx.is_json:
+            diagnostics = [
+                Diagnostic(
+                    location=d.location,
+                    rule=d.rule,
+                    detail=d.detail,
+                    severity="error",
+                )
+                for d in drift
+            ]
+            evidence = [
+                Evidence(
+                    key="attention",
+                    value={"items": len(items), "drift": len(drift)},
+                    status=status,
+                )
+            ]
+            res = CommandResult(
+                command="attention",
+                status=status,
+                exit_code=exit_code,
+                summary=summary,
+                diagnostics=diagnostics,
+                evidence=evidence,
+                data={
+                    "items": [it._asdict() for it in items],
+                    "drift": [d._asdict() for d in drift],
+                },
+            )
+            return get_renderer(ctx).emit(res, ctx)
 
-    if fmt == "json":
+        if drift:
+            for d in drift:
+                sys.stdout.write(f"{d.location}: {d.rule}: {d.detail}\n")
+        else:
+            sys.stdout.write("aw attention --check: the view is valid.\n")
+        return exit_code
+
+    if ctx.is_agent:
+        exit_code = core.drift_exit_code(drift)
+        status = "clean" if exit_code == 0 else "findings"
+        summary = f"{len(items)} attention item(s)"
+        diagnostics = [
+            Diagnostic(
+                location=d.location,
+                rule=d.rule,
+                detail=d.detail,
+                severity="error",
+            )
+            for d in drift
+        ]
+        evidence = [
+            Evidence(
+                key="attention",
+                value={"items": len(items), "drift": len(drift)},
+                status=status,
+            )
+        ]
+        res = CommandResult(
+            command="attention",
+            status=status,
+            exit_code=exit_code,
+            summary=summary,
+            diagnostics=diagnostics,
+            evidence=evidence,
+            data={
+                "items": [it._asdict() for it in items],
+                "drift": [d._asdict() for d in drift],
+            },
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
+    if fmt == "json" or ctx.is_json:
         sys.stdout.write(render_json(items, drift))
     else:
         # Color only for a real TTY (should_color honors NO_COLOR/FORCE_COLOR/TERM/isatty);

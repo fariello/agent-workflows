@@ -869,11 +869,50 @@ def main(argv: list[str] | None = None) -> int:
         print(f"check-local-leaks: {exc}", file=sys.stderr)
         return 2
 
-    if args.agent:
-        # Precise, concise, machine-parseable: one tab-separated record per finding, no prose.
-        for f in (*fails, *warns):
-            print(f"{f.location}\t{f.rule}\t{f.severity}")
-        return 1 if fails else 0
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Diagnostic,
+        Evidence,
+        select_output,
+    )
+
+    ctx = select_output(args)
+    if ctx.is_agent or ctx.is_json:
+        findings = (*fails, *warns)
+        exit_code = 1 if fails else 0
+        status = "clean" if not fails else "findings"
+        summary = (
+            "No local leaks found."
+            if not fails
+            else f"{len(fails)} local leak(s) detected"
+        )
+        diagnostics = [
+            Diagnostic(
+                location=f.location,
+                rule=f.rule,
+                detail=f.snippet,
+                severity="error" if f.severity == "fail" else "warning",
+            )
+            for f in findings
+        ]
+        evidence = [
+            Evidence(
+                key="leak-scan",
+                value={"fails": len(fails), "warns": len(warns)},
+                status=status,
+            )
+        ]
+        res = CommandResult(
+            command="check-local-leaks",
+            status=status,
+            exit_code=exit_code,
+            summary=summary,
+            diagnostics=diagnostics,
+            evidence=evidence,
+            data={"fails": len(fails), "warns": len(warns)},
+        )
+        return get_renderer(ctx).emit(res, ctx)
 
     if warns:
         print(

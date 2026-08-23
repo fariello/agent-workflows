@@ -17,8 +17,7 @@ from pathlib import Path
 
 from agent_workflows import ipd_lint as L
 from agent_workflows import ipd_schema as S
-from tests.support import CONFORMING_ORCHESTRATOR, REPO_ROOT, SOURCE_PLANS, SOURCE_DOCS
-
+from tests.support import CONFORMING_ORCHESTRATOR, REPO_ROOT, SOURCE_DOCS, SOURCE_PLANS
 from tests.support import SOURCE_WORKFLOWS as _SWF
 
 CHILD_TEMPLATE = _SWF / "assess" / "templates" / "ipd.md"
@@ -468,6 +467,7 @@ class ExitCodeTests(unittest.TestCase):
     def test_all_exits_0_when_no_errors(self):
         # A repo whose only plan conforms -> --all exits 0.
         import tempfile
+
         from agent_workflows import ipd_authoring as A
 
         root = Path(tempfile.mkdtemp())
@@ -488,7 +488,9 @@ class ExitCodeTests(unittest.TestCase):
 
 
 class AgentOutputTests(unittest.TestCase):
-    def test_agent_output_is_tab_separated_no_prose(self):
+    def test_agent_output_is_agent_v1_jsonl_no_prose(self):
+        import json
+
         p = CONFORMING_ORCHESTRATOR
         ns = argparse.Namespace(
             phase="author", all=False, legacy=False, agent=True, path=str(p)
@@ -497,8 +499,11 @@ class AgentOutputTests(unittest.TestCase):
         with redirect_stdout(buf):
             L.run_lint(ns)
         out = buf.getvalue().strip()
-        self.assertIn("\t", out)
-        self.assertIn("DISPOSITION", out)
+        rec = json.loads(out)
+        self.assertEqual(rec["schema"], "aw.agent/v1")
+        self.assertEqual(rec["cmd"], "ipd lint")
+        self.assertEqual(rec["outcome"], "clean")
+        self.assertEqual(rec["exit"], 0)
 
 
 class NoDependencyTests(unittest.TestCase):

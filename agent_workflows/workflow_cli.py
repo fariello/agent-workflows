@@ -29,6 +29,15 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+from agent_workflows.renderers import get_renderer
+from agent_workflows.result_types import (
+    Change,
+    CommandResult,
+    Diagnostic,
+    select_output,
+)
+
+
 from agent_workflows import workflow_compiler as _compiler
 from agent_workflows import workflow_loader as _loader
 from agent_workflows import workflow_source as _source
@@ -72,46 +81,89 @@ def _is_invocation_failure(result: Any) -> bool:
 
 
 def _run_validate(args: argparse.Namespace) -> int:
+    ctx = select_output(args)
     packages = _packages(args)
     if not packages:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="workflow validate",
+                status="cannot-run",
+                exit_code=2,
+                summary="error: no package given",
+            )
+            return get_renderer(ctx).emit(res, ctx)
         print("error: no package given")
         return 2
-    machine = _machine(args)
+
     any_fail = False
     any_invocation = False
     records: List[Dict[str, Any]] = []
+    diagnostics: List[Diagnostic] = []
     for pkg in packages:
         try:
             result = _loader.load_package(pkg)
         except Exception as exc:  # noqa: BLE001 - an unexpected load error is an invocation failure
-            print("error: could not load {0}: {1}".format(pkg, exc))
+            if ctx.is_agent or ctx.is_json:
+                res = CommandResult(
+                    command="workflow validate",
+                    status="cannot-run",
+                    exit_code=2,
+                    summary=f"could not load {pkg}: {exc}",
+                )
+                return get_renderer(ctx).emit(res, ctx)
+            print(f"error: could not load {pkg}: {exc}")
             return 2
         ok = result.ok
         any_fail = any_fail or not ok
         any_invocation = any_invocation or _is_invocation_failure(result)
-        if machine:
-            records.append(
-                {
-                    "package": str(pkg),
-                    "ok": ok,
-                    "findings": [
-                        {"code": f.code, "where": f.where, "message": f.message}
-                        for f in result.findings
-                    ],
-                }
+        for f in result.findings:
+            diagnostics.append(
+                Diagnostic(
+                    location=f.where,
+                    rule=f.code,
+                    detail=f.message,
+                    severity="error",
+                )
             )
-        else:
+        records.append(
+            {
+                "package": str(pkg),
+                "ok": ok,
+                "findings": [
+                    {"code": f.code, "where": f.where, "message": f.message}
+                    for f in result.findings
+                ],
+            }
+        )
+        if not (ctx.is_agent or ctx.is_json):
             if ok:
-                print("ok: {0}".format(pkg))
+                print(f"ok: {pkg}")
             else:
-                print("FAIL: {0}".format(pkg))
+                print(f"FAIL: {pkg}")
                 for f in result.findings:
-                    print("  {0} {1}: {2}".format(f.code, f.where, f.message))
-    if machine:
-        _emit_machine(args, records)
-    if any_invocation:
-        return 2
-    return 1 if any_fail else 0
+                    print(f"  {f.code} {f.where}: {f.message}")
+
+    exit_code = 2 if any_invocation else (1 if any_fail else 0)
+    status = "cannot-run" if any_invocation else ("findings" if any_fail else "clean")
+
+    if ctx.is_agent or ctx.is_json:
+        res = CommandResult(
+            command="workflow validate",
+            status=status,
+            exit_code=exit_code,
+            summary=(
+                f"validated {len(packages)} workflow package(s)"
+                if exit_code == 0
+                else f"validation failed on {len(packages)} workflow package(s)"
+            ),
+            diagnostics=diagnostics,
+            data={"packages": records},
+            verified=exit_code == 0,
+            complete=True,
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
+    return exit_code
 
 
 # --------------------------------------------------------------------------------------
@@ -120,36 +172,57 @@ def _run_validate(args: argparse.Namespace) -> int:
 
 
 def _run_compile(args: argparse.Namespace) -> int:
+    ctx = select_output(args)
     packages = _packages(args)
     if not packages:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="workflow compile",
+                status="cannot-run",
+                exit_code=2,
+                summary="error: no package given",
+            )
+            return get_renderer(ctx).emit(res, ctx)
         print("error: no package given")
         return 2
+
     apply = bool(getattr(args, "apply", False))
-    machine = _machine(args)
     any_fail = False
     any_invocation = False
     records: List[Dict[str, Any]] = []
+    changes: List[Change] = []
+    diagnostics: List[Diagnostic] = []
+
     for pkg in packages:
         result = _loader.load_package(pkg)
         if not result.ok or result.ir is None:
             any_fail = True
             any_invocation = any_invocation or _is_invocation_failure(result)
-            if machine:
-                records.append(
-                    {
-                        "package": str(pkg),
-                        "ok": False,
-                        "findings": [
-                            {"code": f.code, "where": f.where, "message": f.message}
-                            for f in result.findings
-                        ],
-                    }
+            for f in result.findings:
+                diagnostics.append(
+                    Diagnostic(
+                        location=f.where,
+                        rule=f.code,
+                        detail=f.message,
+                        severity="error",
+                    )
                 )
-            else:
-                print("FAIL (cannot compile invalid package): {0}".format(pkg))
+            records.append(
+                {
+                    "package": str(pkg),
+                    "ok": False,
+                    "findings": [
+                        {"code": f.code, "where": f.where, "message": f.message}
+                        for f in result.findings
+                    ],
+                }
+            )
+            if not (ctx.is_agent or ctx.is_json):
+                print(f"FAIL (cannot compile invalid package): {pkg}")
                 for f in result.findings:
-                    print("  {0} {1}: {2}".format(f.code, f.where, f.message))
+                    print(f"  {f.code} {f.where}: {f.message}")
             continue
+
         compiled = _compiler.compile_workflow(result.ir)
         files = _compiler.render_generated_files(compiled)
         if apply:
@@ -158,21 +231,47 @@ def _run_compile(args: argparse.Namespace) -> int:
         else:
             written = sorted(files.keys())
             action = "would write"
-        if machine:
-            records.append(
-                {"package": str(pkg), "ok": True, "action": action, "files": written}
+
+        for rel in written:
+            changes.append(
+                Change(
+                    path=rel,
+                    kind="write",
+                    applied=apply,
+                    detail=f"generated file for {pkg}",
+                )
             )
-        else:
-            print(
-                "{0} {1} generated file(s) for {2}:".format(action, len(written), pkg)
-            )
+
+        records.append(
+            {"package": str(pkg), "ok": True, "action": action, "files": written}
+        )
+        if not (ctx.is_agent or ctx.is_json):
+            print(f"{action} {len(written)} generated file(s) for {pkg}:")
             for rel in written:
-                print("  {0}".format(rel))
-    if machine:
-        _emit_machine(args, records)
-    if any_invocation:
-        return 2
-    return 1 if any_fail else 0
+                print(f"  {rel}")
+
+    exit_code = 2 if any_invocation else (1 if any_fail else 0)
+    status = "cannot-run" if any_invocation else ("findings" if any_fail else "clean")
+
+    if ctx.is_agent or ctx.is_json:
+        res = CommandResult(
+            command="workflow compile",
+            status=status,
+            exit_code=exit_code,
+            summary=(
+                f"{'wrote' if apply else 'would write'} generated file(s) for {len(packages)} package(s)"
+                if exit_code == 0
+                else "compile failed"
+            ),
+            changes=changes,
+            diagnostics=diagnostics,
+            data={"packages": records},
+            verified=exit_code == 0,
+            complete=True,
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
+    return exit_code
 
 
 def _write_generated(source_root: Path, files: Dict[str, str]) -> List[str]:
@@ -201,20 +300,40 @@ def _write_generated(source_root: Path, files: Dict[str, str]) -> List[str]:
 
 
 def _run_check_generated(args: argparse.Namespace) -> int:
+    ctx = select_output(args)
     packages = _packages(args)
     if not packages:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="workflow check-generated",
+                status="cannot-run",
+                exit_code=2,
+                summary="error: no package given",
+            )
+            return get_renderer(ctx).emit(res, ctx)
         print("error: no package given")
         return 2
-    machine = _machine(args)
+
     any_fail = False
     any_invocation = False
     records: List[Dict[str, Any]] = []
+    diagnostics: List[Diagnostic] = []
+
     for pkg in packages:
         result = _loader.load_package(pkg)
         if not result.ok or result.ir is None:
             any_fail = True
             any_invocation = any_invocation or _is_invocation_failure(result)
-            _report_pkg_load_fail(machine, records, pkg, result)
+            _report_pkg_load_fail(ctx.is_agent or ctx.is_json, records, pkg, result)
+            for f in result.findings:
+                diagnostics.append(
+                    Diagnostic(
+                        location=f.where,
+                        rule=f.code,
+                        detail=f.message,
+                        severity="error",
+                    )
+                )
             continue
         expected = _compiler.render_generated_files(
             _compiler.compile_workflow(result.ir)
@@ -222,20 +341,43 @@ def _run_check_generated(args: argparse.Namespace) -> int:
         drift = _compute_drift(Path(result.ir["source_root"]), expected)
         if drift:
             any_fail = True
-        if machine:
-            records.append({"package": str(pkg), "ok": not drift, "drift": drift})
-        else:
+            for kind, rel in drift:
+                diagnostics.append(
+                    Diagnostic(
+                        location=rel,
+                        rule=f"drift.{kind}",
+                        detail=f"{kind}: {rel}",
+                        severity="error",
+                    )
+                )
+        records.append({"package": str(pkg), "ok": not drift, "drift": drift})
+        if not (ctx.is_agent or ctx.is_json):
             if not drift:
-                print("ok (generated matches source): {0}".format(pkg))
+                print(f"ok (generated matches source): {pkg}")
             else:
-                print("DRIFT: {0}".format(pkg))
+                print(f"DRIFT: {pkg}")
                 for kind, rel in drift:
-                    print("  {0}: {1}".format(kind, rel))
-    if machine:
-        _emit_machine(args, records)
-    if any_invocation:
-        return 2
-    return 1 if any_fail else 0
+                    print(f"  {kind}: {rel}")
+
+    exit_code = 2 if any_invocation else (1 if any_fail else 0)
+    status = "cannot-run" if any_invocation else ("findings" if any_fail else "clean")
+
+    if ctx.is_agent or ctx.is_json:
+        res = CommandResult(
+            command="workflow check-generated",
+            status=status,
+            exit_code=exit_code,
+            summary=(
+                f"check-generated: {len(packages)} package(s) checked, {'no drift' if exit_code == 0 else 'drift detected'}"
+            ),
+            diagnostics=diagnostics,
+            data={"packages": records},
+            verified=exit_code == 0,
+            complete=True,
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
+    return exit_code
 
 
 def _compute_drift(
@@ -283,9 +425,9 @@ def _report_pkg_load_fail(
             }
         )
     else:
-        print("FAIL (cannot load package): {0}".format(pkg))
+        print(f"FAIL (cannot load package): {pkg}")
         for f in result.findings:
-            print("  {0} {1}: {2}".format(f.code, f.where, f.message))
+            print(f"  {f.code} {f.where}: {f.message}")
 
 
 def _emit_machine(args: argparse.Namespace, records: List[Dict[str, Any]]) -> None:

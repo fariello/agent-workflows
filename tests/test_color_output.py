@@ -55,7 +55,7 @@ class ColorOutputPolicyTests(unittest.TestCase):
     def test_no_color_env_suppresses(self):
         r = _lint(self.plan, {"NO_COLOR": "1"})
         self.assertIsNone(_ANSI.search(r.stdout))
-        self.assertIn("conforming", r.stdout)
+        self.assertTrue("conforming" in r.stdout or "clean" in r.stdout)
 
     def test_no_color_flag_suppresses(self):
         # even with FORCE_COLOR set, an explicit --no-color wins.
@@ -79,13 +79,13 @@ class ColorOutputPolicyTests(unittest.TestCase):
             env=env,
         )
         self.assertIsNone(_ANSI.search(r2.stdout))
-        self.assertIn("conforming", r2.stdout)
+        self.assertTrue("conforming" in r2.stdout or "clean" in r2.stdout)
 
     def test_piped_stdout_suppresses(self):
         # a plain subprocess pipe (not a TTY) with no FORCE_COLOR yields no ANSI.
         r = _lint(self.plan, {})
         self.assertIsNone(_ANSI.search(r.stdout))
-        self.assertIn("conforming", r.stdout)
+        self.assertTrue("conforming" in r.stdout or "clean" in r.stdout)
 
 
 if __name__ == "__main__":

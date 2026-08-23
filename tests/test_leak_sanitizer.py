@@ -11,6 +11,7 @@ are synthesized at runtime so this test file holds no literal leak. Stdlib unitt
 from __future__ import annotations
 
 import io
+import json
 import os
 import subprocess
 import tempfile
@@ -18,8 +19,8 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from tests.support import REPO_ROOT
 from agent_workflows import leak_sanitizer as ls
+from tests.support import REPO_ROOT
 
 
 def _init_repo(path: Path) -> Path:
@@ -118,10 +119,13 @@ class AgentModeTests(unittest.TestCase):
         self.assertEqual(code, 1)
         lines = [ln for ln in text.splitlines() if ln.strip()]
         self.assertTrue(lines, "expected at least one finding line")
-        for ln in lines:
-            parts = ln.split("\t")
-            self.assertEqual(len(parts), 3, f"not path\\trule\\tseverity: {ln!r}")
-            self.assertIn(parts[2], ("fail", "warn"))
+        rec = json.loads(lines[0])
+        self.assertEqual(rec["schema"], "aw.agent/v1")
+        self.assertEqual(rec["cmd"], "check-local-leaks")
+        self.assertEqual(rec["outcome"], "findings")
+        self.assertEqual(rec["findings"], 1)
+        self.assertEqual(rec["diagnostics"][0]["location"], "a.md:1")
+        self.assertEqual(rec["diagnostics"][0]["rule"], "home-path")
         # No human prose footer.
         self.assertNotIn("Remove or abstract", text)
 
@@ -129,6 +133,9 @@ class AgentModeTests(unittest.TestCase):
         _commit(self.repo, "ok.md", "nothing\n", "add")
         code, text = self._run_main([str(self.repo), "--agent"])
         self.assertEqual(code, 0)
+        rec = json.loads(text.strip())
+        self.assertEqual(rec["schema"], "aw.agent/v1")
+        self.assertEqual(rec["outcome"], "clean")
 
 
 class IpRulesetTests(unittest.TestCase):

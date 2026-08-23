@@ -302,13 +302,62 @@ def run_mv(args: argparse.Namespace) -> int:
 
 def run_check_refs(args: argparse.Namespace) -> int:
     """Report dangling citations (the reusable detector as a standalone verb)."""
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Diagnostic,
+        Evidence,
+        select_output,
+    )
 
     repo_root = _repo_root(args)
     danglers = find_dangling_citations(repo_root)
-    if getattr(args, "agent", False):
-        for d in danglers:
-            print(f"{d.file}:{d.line}\tdangling-citation\t{d.id6}")
-        return 1 if danglers else 0
+    ctx = select_output(args)
+    if ctx.is_agent or ctx.is_json:
+        status = "clean" if not danglers else "findings"
+        exit_code = 1 if danglers else 0
+        summary = (
+            "no dangling citations"
+            if not danglers
+            else f"detected {len(danglers)} dangling citation(s)"
+        )
+        diagnostics = [
+            Diagnostic(
+                location=f"{d.file}:{d.line}",
+                rule="dangling-citation",
+                detail=f"dangling id6 '{d.id6}': {d.context}",
+                severity="error",
+            )
+            for d in danglers
+        ]
+        evidence = [
+            Evidence(
+                key="research-refs",
+                value={"dangling_count": len(danglers)},
+                status=status,
+            )
+        ]
+        result = CommandResult(
+            command="research check-refs",
+            status=status,
+            exit_code=exit_code,
+            summary=summary,
+            diagnostics=diagnostics,
+            evidence=evidence,
+            data={
+                "dangling_citations": [
+                    {
+                        "file": str(d.file),
+                        "line": d.line,
+                        "id6": d.id6,
+                        "context": d.context,
+                    }
+                    for d in danglers
+                ]
+            },
+        )
+        return get_renderer(ctx).emit(result, ctx)
+
     if not danglers:
         print("no dangling citations")
         return 0

@@ -38,9 +38,7 @@ class Diagnostic(NamedTuple):
     message: str
 
     def render(self, path: str) -> str:
-        return "{0}:{1}:{2} {3} {4}".format(
-            path, self.line, self.col, self.code, self.message
-        )
+        return f"{path}:{self.line}:{self.col} {self.code} {self.message}"
 
 
 # Stable rule codes (grouped by area).
@@ -389,7 +387,7 @@ def check_metadata(doc: ParsedDoc, directory: Optional[str]) -> List[Diagnostic]
             if me.message == "duplicate field"
             else (C_META_UNKNOWN if me.message == "unknown field" else C_META_FIELD)
         )
-        diags.append(Diagnostic(0, 0, code, "{0}: {1}".format(me.field, me.message)))
+        diags.append(Diagnostic(0, 0, code, f"{me.field}: {me.message}"))
     for me in S.validate_metadata(doc.meta_fields, directory=directory):
         code = (
             C_META_MISSING
@@ -400,7 +398,7 @@ def check_metadata(doc: ParsedDoc, directory: Optional[str]) -> List[Diagnostic]
                 else C_META_FIELD
             )
         )
-        diags.append(Diagnostic(0, 0, code, "{0}: {1}".format(me.field, me.message)))
+        diags.append(Diagnostic(0, 0, code, f"{me.field}: {me.message}"))
     # watermark vs present ids
     present: List[int] = []
     for leaf in doc.exec_leaves:
@@ -438,15 +436,11 @@ def check_headings(doc: ParsedDoc) -> List[Diagnostic]:
         cnt = titles.count(want)
         if cnt == 0:
             diags.append(
-                Diagnostic(
-                    0, 0, C_HEADING_MISSING, "required H2 missing: {0}".format(want)
-                )
+                Diagnostic(0, 0, C_HEADING_MISSING, f"required H2 missing: {want}")
             )
         elif cnt > 1:
             line = next((h.line for h in doc.h2 if h.title == want), 0)
-            diags.append(
-                Diagnostic(line, 1, C_HEADING_DUP, "duplicate H2: {0}".format(want))
-            )
+            diags.append(Diagnostic(line, 1, C_HEADING_DUP, f"duplicate H2: {want}"))
     # order: the subsequence of expected headings must appear in the expected order
     present_expected = [t for t in titles if t in expected]
     if present_expected != [t for t in expected if t in titles]:
@@ -455,7 +449,7 @@ def check_headings(doc: ParsedDoc) -> List[Diagnostic]:
                 0,
                 0,
                 C_HEADING_ORDER,
-                "H2 headings are out of canonical order for kind {0}".format(kind),
+                f"H2 headings are out of canonical order for kind {kind}",
             )
         )
     # execution immediately after Goal; validation immediately before gate
@@ -509,7 +503,7 @@ def check_ids_and_bijection(doc: ParsedDoc) -> List[Diagnostic]:
                     lf.line,
                     1,
                     C_ID_GRAMMAR,
-                    "duplicate execution id {0}".format(lf.ident),
+                    f"duplicate execution id {lf.ident}",
                 )
             )
         seen_e.add(lf.ident)
@@ -533,7 +527,7 @@ def check_ids_and_bijection(doc: ParsedDoc) -> List[Diagnostic]:
                     lf.line,
                     1,
                     C_ID_GRAMMAR,
-                    "duplicate validation id {0}".format(lf.ident),
+                    f"duplicate validation id {lf.ident}",
                 )
             )
         seen_v.add(lf.ident)
@@ -548,9 +542,7 @@ def check_ids_and_bijection(doc: ParsedDoc) -> List[Diagnostic]:
         dep_raw = lf.fields.get("Depends on", "none")
         deps, derr = S.parse_depends_on(dep_raw)
         if derr:
-            diags.append(
-                Diagnostic(lf.line, 1, C_DEPENDS, "{0}: {1}".format(lf.ident, derr))
-            )
+            diags.append(Diagnostic(lf.line, 1, C_DEPENDS, f"{lf.ident}: {derr}"))
         edges[lf.ident] = deps
     for err in S.dependency_errors(edges):
         diags.append(Diagnostic(0, 0, C_DEPENDS, err))
@@ -567,9 +559,7 @@ def check_states(doc: ParsedDoc) -> List[Diagnostic]:
         has_note = bool(lf.fields.get("Execution note", "").strip())
         err = S.execution_row_error(state, lf.checked, has_note)
         if err:
-            diags.append(
-                Diagnostic(lf.line, 1, C_EXEC_STATE, "{0}: {1}".format(lf.ident, err))
-            )
+            diags.append(Diagnostic(lf.line, 1, C_EXEC_STATE, f"{lf.ident}: {err}"))
         exec_by_suffix[S.suffix_of(lf.ident)] = state
     for lf in doc.valid_leaves:
         if lf.kind != "V":
@@ -578,18 +568,14 @@ def check_states(doc: ParsedDoc) -> List[Diagnostic]:
         observed_nonempty = bool(lf.fields.get("Observed evidence", "").strip())
         err = S.validation_row_error(result, lf.checked, observed_nonempty)
         if err:
-            diags.append(
-                Diagnostic(lf.line, 1, C_VALID_STATE, "{0}: {1}".format(lf.ident, err))
-            )
+            diags.append(Diagnostic(lf.line, 1, C_VALID_STATE, f"{lf.ident}: {err}"))
         # cross-state with the matching E
         ex_state = exec_by_suffix.get(S.suffix_of(lf.ident))
         if ex_state is not None:
             cerr = S.cross_state_error(ex_state, result)
             if cerr:
                 diags.append(
-                    Diagnostic(
-                        lf.line, 1, C_CROSS_STATE, "{0}: {1}".format(lf.ident, cerr)
-                    )
+                    Diagnostic(lf.line, 1, C_CROSS_STATE, f"{lf.ident}: {cerr}")
                 )
     return diags
 
@@ -652,9 +638,7 @@ def check_checkpoint(
                 0,
                 0,
                 C_CHECKPOINT,
-                "status '{0}' is incompatible with checkpoint '{1}'".format(
-                    status, checkpoint
-                ),
+                f"status '{status}' is incompatible with checkpoint '{checkpoint}'",
             )
         )
     if checkpoint == "pre-execution":
@@ -678,7 +662,7 @@ def check_checkpoint(
                         lf.line,
                         1,
                         C_CHECKPOINT,
-                        "{0}: not 'performed' at pre-transition".format(lf.ident),
+                        f"{lf.ident}: not 'performed' at pre-transition",
                     )
                 )
         for lf in doc.valid_leaves:
@@ -689,7 +673,7 @@ def check_checkpoint(
                             lf.line,
                             1,
                             C_CHECKPOINT,
-                            "{0}: not 'pass' at pre-transition".format(lf.ident),
+                            f"{lf.ident}: not 'pass' at pre-transition",
                         )
                     )
                 if not lf.fields.get("Observed evidence", "").strip():
@@ -698,9 +682,7 @@ def check_checkpoint(
                             lf.line,
                             1,
                             C_CHECKPOINT,
-                            "{0}: empty Observed evidence at pre-transition".format(
-                                lf.ident
-                            ),
+                            f"{lf.ident}: empty Observed evidence at pre-transition",
                         )
                     )
     if checkpoint == "post-transition":
@@ -832,16 +814,36 @@ def _default_pending_files() -> List[Path]:
 
 def run_lint(args: argparse.Namespace) -> int:
     """Entry point for `aw ipd lint`. Returns the process exit code (0/1/2)."""
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Evidence,
+        select_output,
+    )
+    from agent_workflows.result_types import (
+        Diagnostic as OutDiag,
+    )
+
     checkpoint = getattr(args, "phase", None) or "author"
+    ctx = select_output(args)
     if checkpoint not in S.CHECKPOINTS:
-        print("error: unknown --phase '{0}'".format(checkpoint))
+        err_msg = f"unknown --phase '{checkpoint}'"
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="ipd lint",
+                status="cannot-run",
+                exit_code=2,
+                summary=err_msg,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        print(f"error: {err_msg}")
         return 2
-    agent = getattr(args, "agent", False)
+
     legacy = getattr(args, "legacy", False)
 
     # awcolor Order 01: color the disposition word in the HUMAN branch only (agent output unchanged).
     def _disp(word: str) -> str:
-        if agent or getattr(args, "no_color", False):
+        if getattr(args, "no_color", False):
             return word
         try:
             from agent_workflows import term as _term
@@ -869,27 +871,44 @@ def run_lint(args: argparse.Namespace) -> int:
                 S.DISPOSITION_LEGACY: 0,
                 S.DISPOSITION_ERROR: 0,
             }
+            all_diags: list[OutDiag] = []
             for f in files:
                 res = lint_file(f, checkpoint=checkpoint, legacy=legacy)
                 diags, disp = _with_name_check(res, f, legacy)
                 counts[disp] = counts.get(disp, 0) + 1
-                if agent:
-                    for d in diags:
-                        print(
-                            "{0}\t{1}\t{2}".format(
-                                f, d.code, d.message.replace("\t", " ")
-                            )
+                for d in diags:
+                    all_diags.append(
+                        OutDiag(
+                            location=str(f),
+                            rule=d.code,
+                            detail=d.message,
+                            severity="error"
+                            if disp == S.DISPOSITION_ERROR
+                            else "warning",
                         )
-                    if not diags:
-                        print("{0}\t{1}\t{2}".format(f, "DISPOSITION", disp))
-                else:
-                    print("{0}: {1}".format(_disp(disp), f))
-            if not agent:
-                print(
-                    "counts: "
-                    + ", ".join("{0}={1}".format(k, v) for k, v in counts.items())
+                    )
+                if not (ctx.is_agent or ctx.is_json):
+                    print(f"{_disp(disp)}: {f}")
+
+            any_error = bool(counts.get(S.DISPOSITION_ERROR, 0))
+            exit_code = 1 if any_error else 0
+            if ctx.is_agent or ctx.is_json:
+                status = "clean" if not any_error else "findings"
+                res = CommandResult(
+                    command="ipd lint",
+                    status=status,
+                    exit_code=exit_code,
+                    summary=f"linted {len(files)} plan(s)",
+                    diagnostics=all_diags,
+                    evidence=[
+                        Evidence(key="plans-inventory", value=counts, status=status)
+                    ],
+                    data={"counts": counts, "files": [str(f) for f in files]},
                 )
-            return 1 if counts.get(S.DISPOSITION_ERROR, 0) else 0
+                return get_renderer(ctx).emit(res, ctx)
+
+            print("counts: " + ", ".join(f"{k}={v}" for k, v in counts.items()))
+            return exit_code
 
         # awlintmulti Order 01: `path` is now a LIST (nargs="*"). Lint the explicit files when given,
         # else default to every pending plan across both pending dirs.
@@ -902,36 +921,88 @@ def run_lint(args: argparse.Namespace) -> int:
         else:
             paths = _default_pending_files()
         if not paths:
-            print(
-                "error: no IPD files to lint (none given and no pending plans found)."
-            )
+            err_msg = "no IPD files to lint (none given and no pending plans found)."
+            if ctx.is_agent or ctx.is_json:
+                res = CommandResult(
+                    command="ipd lint",
+                    status="cannot-run",
+                    exit_code=2,
+                    summary=err_msg,
+                )
+                return get_renderer(ctx).emit(res, ctx)
+            print(f"error: {err_msg}")
             return 2
+
         any_error = False
+        all_diags = []
         for path in paths:
             if not path.is_file():
-                print("error: not a file: {0}".format(path))
+                err_msg = f"not a file: {path}"
+                if ctx.is_agent or ctx.is_json:
+                    res = CommandResult(
+                        command="ipd lint",
+                        status="cannot-run",
+                        exit_code=2,
+                        summary=err_msg,
+                    )
+                    return get_renderer(ctx).emit(res, ctx)
+                print(f"error: {err_msg}")
                 return 2
             res = lint_file(path, checkpoint=checkpoint, legacy=legacy)
             diags, disp = _with_name_check(res, path, legacy)
             if disp == S.DISPOSITION_ERROR:
                 any_error = True
-            if agent:
-                for d in diags:
-                    print(
-                        "{0}\t{1}\t{2}".format(
-                            path, d.code, d.message.replace("\t", " ")
-                        )
+            for d in diags:
+                all_diags.append(
+                    OutDiag(
+                        location=str(path),
+                        rule=d.code,
+                        detail=d.message,
+                        severity="error" if disp == S.DISPOSITION_ERROR else "warning",
                     )
-                if not diags:
-                    print("{0}\t{1}\t{2}".format(path, "DISPOSITION", disp))
-            else:
+                )
+            if not (ctx.is_agent or ctx.is_json):
                 if diags:
                     for d in diags:
                         print(d.render(str(path)))
-                print("disposition: {0} ({1})".format(_disp(disp), path))
-        return 1 if any_error else 0
+                print(f"disposition: {_disp(disp)} ({path})")
+
+        exit_code = 1 if any_error else 0
+        if ctx.is_agent or ctx.is_json:
+            status = "clean" if not any_error else "findings"
+            summary = (
+                f"linted {len(paths)} plan(s)"
+                if not any_error
+                else f"lint detected violation(s) in {len(paths)} plan(s)"
+            )
+            res = CommandResult(
+                command="ipd lint",
+                status=status,
+                exit_code=exit_code,
+                summary=summary,
+                diagnostics=all_diags,
+                evidence=[
+                    Evidence(
+                        key="plans-lint",
+                        value={"files": len(paths), "errors": any_error},
+                        status=status,
+                    )
+                ],
+                data={"files": [str(p) for p in paths]},
+            )
+            return get_renderer(ctx).emit(res, ctx)
+
+        return exit_code
     except (
         Exception
     ) as exc:  # invocation/internal failure -> exit 2, never a false pass
-        print("error: lint failed to run: {0}".format(exc))
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="ipd lint",
+                status="cannot-run",
+                exit_code=2,
+                summary=f"lint failed to run: {exc}",
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        print(f"error: lint failed to run: {exc}")
         return 2

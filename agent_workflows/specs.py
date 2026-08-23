@@ -345,6 +345,13 @@ def _add_gate_fields(
 
 def run_check(args) -> int:
     from agent_workflows.project_context import resolve_verb_repo_root
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Diagnostic,
+        Evidence,
+        select_output,
+    )
 
     # Climb to the project root so `aw specs check` works from any subdirectory (Order 06).
     repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
@@ -363,26 +370,60 @@ def run_check(args) -> int:
             )
             continue
         drift.extend(validate_spec(p, text))
-    if getattr(args, "agent", False):
-        sys.stdout.write(core.render_agent_drift(drift))
-    else:
-        # awcolor Order 01: color the HUMAN branch only (agent branch is byte-for-byte unchanged).
-        from agent_workflows import term as _term
 
-        t = _term.Term(
-            stream=sys.stdout, color=False if getattr(args, "no_color", False) else None
+    ctx = select_output(args)
+    if ctx.is_agent or ctx.is_json:
+        exit_code = core.drift_exit_code(drift)
+        status = "clean" if exit_code == 0 else "findings"
+        summary = (
+            f"{len(paths)} specs checked"
+            if exit_code == 0
+            else f"{len(drift)} finding(s) detected across {len(paths)} specs"
         )
-        if drift:
-            for d in drift:
-                rule = t.color256(d.rule, 196, bold=True)  # severity red
-                sys.stdout.write(f"{d.location}: {rule}: {d.detail}\n")
-            sys.stdout.write(
-                "Move pipeline metadata/status into a bare-enum `- Status:` bullet and a conformant history; see the specs contract.\n"
+        diagnostics = [
+            Diagnostic(
+                location=d.location,
+                rule=d.rule,
+                detail=d.detail,
+                severity="error",
             )
-        else:
-            sys.stdout.write(
-                t.color256("aw specs check: all specs conform.", 46, bold=True) + "\n"
+            for d in drift
+        ]
+        evidence = [
+            Evidence(
+                key="specs",
+                value={"checked": len(paths), "violations": len(drift)},
+                status=status,
             )
+        ]
+        res = CommandResult(
+            command="specs check",
+            status=status,
+            exit_code=exit_code,
+            summary=summary,
+            diagnostics=diagnostics,
+            evidence=evidence,
+            data={"checked": len(paths), "violations": len(drift)},
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
+    # Human branch
+    from agent_workflows import term as _term
+
+    t = _term.Term(
+        stream=sys.stdout, color=False if getattr(args, "no_color", False) else None
+    )
+    if drift:
+        for d in drift:
+            rule = t.color256(d.rule, 196, bold=True)  # severity red
+            sys.stdout.write(f"{d.location}: {rule}: {d.detail}\n")
+        sys.stdout.write(
+            "Move pipeline metadata/status into a bare-enum `- Status:` bullet and a conformant history; see the specs contract.\n"
+        )
+    else:
+        sys.stdout.write(
+            t.color256("aw specs check: all specs conform.", 46, bold=True) + "\n"
+        )
     return core.drift_exit_code(drift)
 
 

@@ -14,11 +14,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from agent_workflows import artifact_core as core
 from agent_workflows import attention as attention_mod
-from agent_workflows import check_engine
-from agent_workflows import engine
-from agent_workflows import leak_sanitizer
+from agent_workflows import check_engine, engine, leak_sanitizer, versioning
 from agent_workflows import term as T
-from agent_workflows import versioning
 from agent_workflows.renderers import get_renderer
 from agent_workflows.result_types import (
     CommandResult,
@@ -44,6 +41,23 @@ class GitProbeResult:
     conflicts: List[str] = field(default_factory=list)
     drift: List[core.Drift] = field(default_factory=list)
 
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "available": self.available,
+            "branch": self.branch,
+            "upstream": self.upstream,
+            "ahead": self.ahead,
+            "behind": self.behind,
+            "staged": self.staged,
+            "modified": self.modified,
+            "untracked": self.untracked,
+            "conflicts": self.conflicts,
+            "drift": [
+                {"location": d.location, "rule": d.rule, "detail": d.detail}
+                for d in self.drift
+            ],
+        }
+
 
 @dataclass
 class EnvironmentProbeResult:
@@ -57,6 +71,22 @@ class EnvironmentProbeResult:
     setup_needed: bool = False
     drift: List[core.Drift] = field(default_factory=list)
 
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "is_source_repo": self.is_source_repo,
+            "installed_version": self.installed_version,
+            "packaged_version": self.packaged_version,
+            "version_status": self.version_status,
+            "layout": self.layout,
+            "preset": self.preset,
+            "backend": self.backend,
+            "setup_needed": self.setup_needed,
+            "drift": [
+                {"location": d.location, "rule": d.rule, "detail": d.detail}
+                for d in self.drift
+            ],
+        }
+
 
 @dataclass
 class AttentionProbeResult:
@@ -65,6 +95,18 @@ class AttentionProbeResult:
     active_release: Optional[str] = None
     release_blockers: List[str] = field(default_factory=list)
     drift: List[core.Drift] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "total_items": self.total_items,
+            "by_class": self.by_class,
+            "active_release": self.active_release,
+            "release_blockers": self.release_blockers,
+            "drift": [
+                {"location": d.location, "rule": d.rule, "detail": d.detail}
+                for d in self.drift
+            ],
+        }
 
 
 @dataclass
@@ -75,12 +117,46 @@ class ArtifactsProbeResult:
     untracked_skipped: int = 0
     all_drift: List[core.Drift] = field(default_factory=list)
 
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "type_counts": self.type_counts,
+            "type_drift": {
+                k: [
+                    {"location": d.location, "rule": d.rule, "detail": d.detail}
+                    for d in v
+                ]
+                for k, v in self.type_drift.items()
+            },
+            "executed_warnings": [
+                {"location": d.location, "rule": d.rule, "detail": d.detail}
+                for d in self.executed_warnings
+            ],
+            "untracked_skipped": self.untracked_skipped,
+            "all_drift": [
+                {"location": d.location, "rule": d.rule, "detail": d.detail}
+                for d in self.all_drift
+            ],
+        }
+
 
 @dataclass
 class SanitizerProbeResult:
     scanned_files: int = 0
     findings: List[leak_sanitizer.Finding] = field(default_factory=list)
     drift: List[core.Drift] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "scanned_files": self.scanned_files,
+            "findings": [
+                {"path": f.path, "line": f.line, "rule": f.rule, "snippet": f.snippet}
+                for f in self.findings
+            ],
+            "drift": [
+                {"location": d.location, "rule": d.rule, "detail": d.detail}
+                for d in self.drift
+            ],
+        }
 
 
 @dataclass
@@ -92,6 +168,20 @@ class DoctorReport:
     artifacts: ArtifactsProbeResult
     sanitizer: SanitizerProbeResult
     all_drift: List[core.Drift] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "repo_root": str(self.repo_root),
+            "git": self.git.to_dict(),
+            "env": self.env.to_dict(),
+            "attention": self.attention.to_dict(),
+            "artifacts": self.artifacts.to_dict(),
+            "sanitizer": self.sanitizer.to_dict(),
+            "all_drift": [
+                {"location": d.location, "rule": d.rule, "detail": d.detail}
+                for d in self.all_drift
+            ],
+        }
 
 
 # --------------------------------------------------------------------------------------
@@ -997,8 +1087,11 @@ def inspect_repo(
         diagnostics=diagnostics,
         evidence=evidence,
         next_actions=next_actions,
-        data={"report": report, "counts": {"git": g, "names": m, "version": v}},
-        verified=True,
+        data={
+            "report": report.to_dict(),
+            "human_rendered": render_human_report(report, term or T.Term()),
+            "counts": {"git": g, "names": m, "version": v},
+        },
         complete=True,
     )
 

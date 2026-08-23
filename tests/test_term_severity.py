@@ -188,24 +188,27 @@ class MachineOutputFlagsTests(unittest.TestCase):
         rc_agent, out_agent, err_agent = self._run_cli(["status", "--agent"])
         self.assertEqual(rc_agent, 0, err_agent)
         data_agent = json.loads(out_agent)
-        self.assertIn("packaged_version", data_agent)
-        self.assertIn("currency", data_agent)
-        self.assertIn("repositories", data_agent)
+        self.assertEqual(data_agent["schema"], "aw.agent/v1")
+        self.assertEqual(data_agent["cmd"], "status")
 
         rc_json, out_json, err_json = self._run_cli(["status", "--json"])
         self.assertEqual(rc_json, 0, err_json)
-        self.assertEqual(json.loads(out_json), data_agent)
+        data_json = json.loads(out_json)
+        self.assertIn("data", data_json)
+        self.assertIn("packaged_version", data_json["data"])
 
     def test_list_repos_agent_emits_json(self):
         rc_agent, out_agent, err_agent = self._run_cli(["list-repos", "--agent"])
         self.assertEqual(rc_agent, 0, err_agent)
         data_agent = json.loads(out_agent)
-        self.assertIn("packaged", data_agent)
-        self.assertIn("repos", data_agent)
+        self.assertEqual(data_agent["schema"], "aw.agent/v1")
+        self.assertEqual(data_agent["cmd"], "list-repos")
 
         rc_json, out_json, err_json = self._run_cli(["list-repos", "--json"])
         self.assertEqual(rc_json, 0, err_json)
-        self.assertEqual(json.loads(out_json), data_agent)
+        data_json = json.loads(out_json)
+        self.assertIn("data", data_json)
+        self.assertIn("repos", data_json["data"])
 
     def test_doctor_agent_emits_agent_v1(self):
         rc, out, err = self._run_cli(["doctor", "--agent"])
@@ -217,17 +220,21 @@ class MachineOutputFlagsTests(unittest.TestCase):
             self.assertEqual(data.get("cmd"), "doctor")
             self.assertIn("exit", data)
 
-    def test_doctor_rejects_json_flag(self):
+    def test_doctor_accepts_json_flag(self):
         rc, out, err = self._run_cli(["doctor", "--json"])
-        self.assertEqual(rc, 2)
+        self.assertIn(rc, (0, 1))
+        data = json.loads(out)
+        self.assertIn("command", data)
 
     def test_backlog_check_agent_accepted(self):
         rc, out, err = self._run_cli(["backlog", "check", "--agent"])
         self.assertIn(rc, (0, 1))
 
-    def test_backlog_check_rejects_json_flag(self):
+    def test_backlog_check_accepts_json_flag(self):
         rc, out, err = self._run_cli(["backlog", "check", "--json"])
-        self.assertEqual(rc, 2)
+        self.assertIn(rc, (0, 1))
+        data = json.loads(out)
+        self.assertIn("command", data)
 
     def test_help_states_agent_format_per_verb(self):
         rc_s, out_s, _ = self._run_cli(["status", "--help"])
