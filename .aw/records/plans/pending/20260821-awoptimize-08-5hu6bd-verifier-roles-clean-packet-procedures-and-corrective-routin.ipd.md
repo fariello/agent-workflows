@@ -34,32 +34,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: roles and packet
 
-- [ ] E-01 Define the coordinator, executor, read-only investigator, independent verifier, corrector, and human-approver roles in `agent_workflows/verify_roles.py`, each with explicit inputs, outputs, permissions, state authority, and forbidden actions.
+- [x] E-01 Define the coordinator, executor, read-only investigator, independent verifier, corrector, and human-approver roles in `agent_workflows/verify_roles.py`, each with explicit inputs, outputs, permissions, state authority, and forbidden actions.
   - Depends on: none
   - Expected outcome: only the coordinator releases work and finalizes; the executor and corrector cannot verify their own work; the verifier cannot mutate product code; forbidden role actions are rejected by policy (consistent with the Order-02 RL-E032 verifier-authorship rule).
-  - Execution state: pending
-- [ ] E-02 Define the clean verifier packet builder: it contains frozen requirements, base/head identity, the actual diff + untracked inventory, a raw-evidence manifest, the declared scope, the test-change diff, prior-attempt metadata, and the verification rubric - and it EXCLUDES the executor's conclusion prose.
+  - Execution state: complete
+- [x] E-02 Define the clean verifier packet builder: it contains frozen requirements, base/head identity, the actual diff + untracked inventory, a raw-evidence manifest, the declared scope, the test-change diff, prior-attempt metadata, and the verification rubric - and it EXCLUDES the executor's conclusion prose.
   - Depends on: E-01
   - Expected outcome: a golden verifier-packet test includes every primary artifact + frozen requirements, contains no executor verdict prose, binds base/head/worktree, and rejects a missing or mismatched input.
-  - Execution state: pending
+  - Execution state: complete
 
 ### Task group 2: procedures and correction
 
-- [ ] E-03 Implement the verifier procedures: requirement-by-requirement inspection, scope audit, symbol-wiring check, negative cases, test falsifiability, targeted + full checks, artifact presence, residual search, and evidence validation, each producing an explicit `satisfied|partial|failed|not_verifiable` result with evidence ids.
+- [x] E-03 Implement the verifier procedures: requirement-by-requirement inspection, scope audit, symbol-wiring check, negative cases, test falsifiability, targeted + full checks, artifact presence, residual search, and evidence validation, each producing an explicit `satisfied|partial|failed|not_verifiable` result with evidence ids.
   - Depends on: E-02
   - Expected outcome: every V-item produces one explicit result with evidence ids; a symbol/negative-case/falsifiability/full-suite/artifact/residual/scope gap blocks completion.
-  - Execution state: pending
-- [ ] E-04 Implement corrective routing: a verifier finding produces either a bounded in-scope correction or an explicit pending corrective-IPD artifact - never disappearing into prose; the original failure is preserved immutably and all invalidated checks are rerun after a correction.
+  - Execution state: complete
+- [x] E-04 Implement corrective routing: a verifier finding produces either a bounded in-scope correction or an explicit pending corrective-IPD artifact - never disappearing into prose; the original failure is preserved immutably and all invalidated checks are rerun after a correction.
   - Depends on: E-03
   - Expected outcome: each seeded gap creates a correction or corrective artifact, original findings remain immutable, a changed artifact invalidates linked evidence, and all affected checks rerun before any pass.
-  - Execution state: pending
+  - Execution state: complete
 
 ### Task group 3: tests
 
-- [ ] E-05 Add `tests/test_verify_roles_packet.py` (stdlib unittest): a role/permission/authority matrix with negative tests (every forbidden role action rejected); a verifier-packet golden test (all primary artifacts, no executor prose, base/head bound, missing/mismatched input rejected); a seeded requirement set producing one explicit result per V-item with each gap class blocking completion; corrective-routing fixtures (immutable original, evidence invalidation, rerun). Then run the full serial suite and paste the tail.
+- [x] E-05 Add `tests/test_verify_roles_packet.py` (stdlib unittest): a role/permission/authority matrix with negative tests (every forbidden role action rejected); a verifier-packet golden test (all primary artifacts, no executor prose, base/head bound, missing/mismatched input rejected); a seeded requirement set producing one explicit result per V-item with each gap class blocking completion; corrective-routing fixtures (immutable original, evidence invalidation, rerun). Then run the full serial suite and paste the tail.
   - Depends on: E-04
   - Expected outcome: role/packet/procedure/correction tests pass; the full serial suite is green (pasted).
-  - Execution state: pending
+  - Execution state: complete
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
