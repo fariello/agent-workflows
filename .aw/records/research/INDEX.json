@@ -690,6 +690,26 @@
     "topic": []
   },
   {
+    "created": "20260823",
+    "date": "20260823",
+    "id6": "mqqk8e",
+    "kind": "research-report",
+    "model": "gpt56",
+    "order": "00",
+    "outcome": "adopted",
+    "path": "20260823-execset-00-mqqk8e-exec-set-architecture.gpt56.research-report.md",
+    "set_id": "execset",
+    "status": "reference",
+    "summary": "Architecture for autonomous parallel execution of approved IPD sets across supported coding hosts.",
+    "topic": [
+      "ipd",
+      "orchestration",
+      "parallelism",
+      "skills",
+      "host-adapters"
+    ]
+  },
+  {
     "created": "20260716",
     "date": "20260716",
     "id6": "nbbl7d",

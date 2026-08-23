@@ -2,7 +2,7 @@
 
 # Research index
 
-Showing the most-recent 40 of 68 hot docs (archive excluded).
+Showing the most-recent 40 of 69 hot docs (archive excluded).
 
 ## Needs addressing (intake)
 
@@ -14,6 +14,7 @@ Showing the most-recent 40 of 68 hot docs (archive excluded).
 
 ## Most recent
 
+- `mqqk8e` [reference] 20260823-execset-00-mqqk8e-exec-set-architecture.gpt56.research-report.md - Architecture for autonomous parallel execution of approved IPD sets across supported coding hosts.
 - `effzzi` [intake] 20260821-awoptimize-03-effzzi-agent-workflows-optimal-architecture-ipd-index.roadmap.md - Dependency-ordered IPD index, critical path, execution guidance, and human gates for the awoptimize plan Set
 - `f6i3z2` [intake] 20260821-awoptimize-02-f6i3z2-agent-workflows-optimal-architecture-evidence.reference-research.md - Evidence and source appendix: source ledger, repository evidence, experiment ledger, unverified claims, and probes
 - `y1eb0q` [intake] 20260821-awoptimize-01-y1eb0q-agent-workflows-optimal-architecture.research-report.md - Optimal architecture research, workflow inventory, false-completion threat model, matrices, and recommendation
@@ -53,4 +54,3 @@ Showing the most-recent 40 of 68 hot docs (archive excluded).
 - `dkxesq` [reference] 20260726-hostprobe-02-dkxesq-external-delivery-host-probe.gemini31pro.research-report.md - Migrated from 20260726-hostprobe-02-dkxesq-external-delivery-host-probe.gemini31pro.research-report.md.
 - `ibl5kt` [reference] 20260726-hostprobe-00-ibl5kt-external-delivery-host-probe.gpt56.research-report.md - Migrated from 20260726-hostprobe-00-ibl5kt-external-delivery-host-probe.gpt56.research-report.md.
 - `za72ko` [reference] 20260726-hostprobe-03-za72ko-external-delivery-host-probe.sonnet5.research-report.md - Migrated from 20260726-hostprobe-03-za72ko-external-delivery-host-probe.sonnet5.research-report.md.
-- `x41kw0` [reference] 20260722-agent-coding-system-file-discovery-and-write-safety-00-x41kw0-agent-coding-system-file-discovery-and-write-safety.findings.md - Migrated from 20260722-agent-coding-system-file-discovery-and-write-safety-00-x41kw0-agent-coding-system-file-discovery-and-write-safety.findings.md.
