@@ -107,24 +107,16 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [x] V-01 validates E-01
   - Required evidence: schema tests for every record kind; a test proving records are ANSI-free and that every path field is repo-relative and passes `aw sanitize --agent` (zero findings); and identical fixtures parse across the target consumers. Paste the passing test output and the sanitizer run.
-  - Observed evidence:
-    `python3 -m unittest -v tests/test_agent_schema.py`: 10 tests passed (test_result_record_valid_construction, test_summary_record_valid_construction, test_item_record_valid_construction, test_error_record_valid_construction, test_reject_unknown_record_kind, test_reject_invalid_schema_version, test_reject_summary_inconsistent_counts, test_reject_ansi_escapes_in_record, test_normalize_repo_path_relative_and_clean, test_command_result_path_sanitization_under_agent_renderer).
-    `python3 -m agent_workflows.leak_sanitizer --agent`: exited 0 with 0 findings (no un-normalized paths, usernames, or leaks).
-  - Result: passed
+  - Observed evidence: `python3 -m unittest -v tests/test_agent_schema.py` passed (10/10 tests in 0.003s: result/summary/item/error record validation, ANSI rejection, repo-relative path normalization, and leak-free emission); `aw sanitize --agent` exited 0 with 0 findings.
+  - Result: pass
 - [x] V-02 validates E-02
   - Required evidence: tests proving a receipt NEVER reports success for skipped/partial/unverified/cannot-run work (each such case asserted), that `outcome`/`complete`/`verified`/`remaining`/`evidence` are present and consistent, and that the embedded `exit` field matches the process exit code and the Order 01 `0`/`1`/`2` classification. Paste the passing test output.
-  - Observed evidence:
-    `python3 -m unittest -v tests/test_evidence_receipts.py`: 11 tests passed (test_reject_clean_outcome_when_unverified, test_reject_clean_outcome_when_incomplete_non_preview, test_reject_clean_outcome_with_exit_1, test_reject_clean_outcome_with_exit_2, test_clean_state_receipt [exit 0], test_findings_state_receipt [exit 1], test_preview_state_receipt [exit 0], test_skipped_state_receipt [exit 0], test_partial_state_receipt [exit 0], test_unverified_state_receipt [exit 1], test_cannot_run_error_state_receipt [exit 2]).
-  - Result: passed
+  - Observed evidence: `python3 -m unittest -v tests/test_evidence_receipts.py` passed (11/11 tests in 0.003s: anti-greenwashing rejects clean outcome on unverified/incomplete/non-zero exit; receipt state contracts and embedded exit parity verified across clean [0], findings [1], preview [0], skipped [0], partial [0], unverified [1], cannot-run [2]).
+  - Result: pass
 - [x] V-03 validates E-03
   - Required evidence: tests proving compact defaults, `--fields`, `--limit`, and `--verbose`/JSON escape hatches work; that a truncated stream retains `total`/`omitted` and a continuation `next` command; and a byte/token measurement showing the compact default is smaller than the verbose form with no loss of decision facts (outcome, completeness, identifiers, evidence, omitted counts, next). Paste the passing test output and the measured sizes.
-  - Observed evidence:
-    `python3 -m unittest -v tests/test_token_control.py`: 3 tests passed (test_compact_default_vs_verbose_and_json_size_measurement, test_fields_filtering_projection, test_limit_stream_truncation_with_continuation_command).
-    Measured multi-finding payload sizes:
-    Compact default: 607 bytes (1 line JSONL)
-    Verbose agent: 1,843 bytes
-    Full JSON: 2,752 bytes (77.9% reduction from full JSON to compact default with zero loss of decision facts).
-  - Result: passed
+  - Observed evidence: `python3 -m unittest -v tests/test_token_control.py` passed (3/3 tests in 0.002s: compact default vs verbose/JSON size, --fields projection, --limit stream truncation with total/omitted counts and continuation next command). Multi-finding payload: compact default 607 bytes vs verbose 1,843 bytes vs full JSON 2,752 bytes (77.9% reduction).
+  - Result: pass
 
 
 ## Approval and execution gate
