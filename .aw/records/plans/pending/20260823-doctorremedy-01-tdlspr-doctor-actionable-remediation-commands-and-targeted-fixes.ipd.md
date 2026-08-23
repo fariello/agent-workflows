@@ -77,11 +77,17 @@ Summary of issues and proposed fixes:
 
 ## Proposed changes (ordered, validatable)
 
-1. Define `Remediation` dataclass in `agent_workflows/doctor.py` holding `title`, `summary_fix`, `detailed_fix`, and `command`.
-2. Enhance `_categorize_drift` to extract the artifact type from the location path or rule, and synthesize the specific command with sanitized repo-relative paths.
-3. Update `render_human_report` to format the concrete `Fix: <command>` lines.
-4. Populate `next_actions` in `collect_doctor_report` with concrete command strings.
-5. Create `tests/test_doctor_remediations.py` to assert remediation commands across all rule types.
+1. Define `Remediation` dataclass in `agent_workflows/doctor.py` holding `title`, `summary_fix`, `detailed_fix`, `command`, `file_path`, and `line_number`.
+2. Enhance `_categorize_drift` to extract the artifact type from the location path or rule, and synthesize specific commands with sanitized repo-relative POSIX paths.
+3. Establish a deterministic priority order for `CommandResult.next`:
+   - Priority 1: `doctor.setup-needed` -> `"aw setup"`
+   - Priority 2: `doctor.layout-split-brain` -> `"aw migrate-layout"`
+   - Priority 3: `doctor.leak-*` -> `"aw sanitize --fix"`
+   - Priority 4: `stale-index` / `doctor.index-*` -> `"aw index"`
+   - Priority 5: First actionable artifact repair (`aw rename <type> <path>`, `aw group <type> <path> --set <new-set-id>`).
+4. Update `render_human_report` to format per-file `-> Fix: <command>` lines in the detail breakdown and clean `Fix: <command>` lines in the summary table.
+5. Populate `CommandResult.next_actions` with all synthesized commands.
+6. Create `tests/test_doctor_remediations.py` to assert remediation commands across all rule types and priority ranking.
 
 ## Deferred / out of scope (with reason)
 
@@ -95,6 +101,7 @@ Summary of issues and proposed fixes:
 ## Required tests / validation
 
 - Unit tests in `tests/test_doctor_remediations.py` verifying each drift rule category produces the expected concrete command.
+- Deterministic priority tests proving `CommandResult.next` selects the highest-priority action.
 - Existing doctor suites (`tests/test_doctor.py`, `tests/test_term_severity.py`, `tests/test_cli_reads_and_checks.py`) pass.
 - Full regression suite via `make test`.
 
@@ -110,6 +117,14 @@ Summary of issues and proposed fixes:
 - Status: resolved
 - Owner: Antigravity
 - Resolution or deferral rationale: For multi-file issues spanning different types, the summary line provides the general family command (e.g. `aw index` or `aw rename`), while the detailed per-issue breakdown provides the exact file-specific command.
+
+### OQ-02: How is the primary next-action selected when multiple findings of different categories are present?
+
+- Blocking: no
+- Status: resolved
+- Owner: Antigravity
+- Resolution or deferral rationale: A deterministic priority hierarchy (`setup` -> `migrate-layout` -> `sanitize --fix` -> `index` -> per-file repairs) selects the single most foundational next step for `CommandResult.next`, while `CommandResult.next_actions` contains the complete list.
+
 
 ## Validation and cross-check (verify before reporting done)
 
