@@ -28,24 +28,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Material change 1: Reads and checks
 
-- [ ] E-01 Migrate status/context/path/project/storage reads; attention/todo/IPD board; workflow/research reads; show/find/search/index/check; doctor; specs/backlog checks; and sanitizer.
+- [x] E-01 Migrate status/context/path/project/storage reads; attention/todo/IPD board; workflow/research reads; show/find/search/index/check; doctor; specs/backlog checks; and sanitizer.
   - Depends on: none
   - Expected outcome: consistent modes, facts, errors, empty states, and limits.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Material change 2: Previews and mutations
 
-- [ ] E-02 Migrate install/setup/uninstall, include/exclude/config, normalization, artifact writes, project/storage changes, rename/group/archive, migrations, and sanitizer fixes to previews, confirmations, receipts, and verification states. Preserve two invariants exactly: (a) `--agent` and piped stdout NEVER imply `--yes` or mutation permission - a mutation requested without confirmation emits a structured "confirmation required" cannot-run receipt (exit 2) and changes nothing; (b) a partially-applied or skipped mutation reports `complete:false` / the honest outcome (preview, partial, skipped, unverified) with the exact changed subset, never `ok`/`verified:true` for work not fully done (the Order 03 receipt semantics). Preserve every command's existing dry-run default.
+- [x] E-02 Migrate install/setup/uninstall, include/exclude/config, normalization, artifact writes, project/storage changes, rename/group/archive, migrations, and sanitizer fixes to previews, confirmations, receipts, and verification states. Preserve two invariants exactly: (a) `--agent` and piped stdout NEVER imply `--yes` or mutation permission - a mutation requested without confirmation emits a structured "confirmation required" cannot-run receipt (exit 2) and changes nothing; (b) a partially-applied or skipped mutation reports `complete:false` / the honest outcome (preview, partial, skipped, unverified) with the exact changed subset, never `ok`/`verified:true` for work not fully done (the Order 03 receipt semantics). Preserve every command's existing dry-run default.
   - Depends on: none
   - Expected outcome: agents get safe structured failure or explicit receipts; humans retain decision-ready prompts; no mutation runs without confirmation and no receipt overstates completion.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Material change 3: Entrypoints and prevention
 
-- [ ] E-03 Route bare `aw`, empty families, `help`, aliases, and module entrypoints through the boundary; make conflicting explicit format flags (e.g. `--agent` with `--json`/`--format`) a usage error (exit 2) per OQ-01; add the per-leaf contract declaration that the Order 05 (e8hu4s) conformance harness consumes to fail CI on any undeclared/untested leaf (Order 05 owns the CI gate; this plan produces the declaration it checks, not a second CI mechanism). Explicitly classify the standalone installer scripts named in the Scope check as in or out of the boundary.
+- [x] E-03 Route bare `aw`, empty families, `help`, aliases, and module entrypoints through the boundary; make conflicting explicit format flags (e.g. `--agent` with `--json`/`--format`) a usage error (exit 2) per OQ-01; add the per-leaf contract declaration that the Order 05 (e8hu4s) conformance harness consumes to fail CI on any undeclared/untested leaf (Order 05 owns the CI gate; this plan produces the declaration it checks, not a second CI mechanism). Explicitly classify the standalone installer scripts named in the Scope check as in or out of the boundary.
   - Depends on: E-01, E-02
   - Expected outcome: aliases are agent-byte-equivalent, conflicting-format calls fail cleanly, and every parser leaf carries a contract declaration so new commands cannot land uncovered.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -99,18 +99,19 @@ Replace divergent per-command agent prose with links to the canonical contract.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: generated read/check inventory has no unmigrated row and all scenario tests pass.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `pytest tests/test_cli_reads_and_checks.py` passed 16/16 tests verifying all read and check commands emit canonical `aw.agent/v1` records, obey limits, handle empty states, and report verified evidence.
+  - Result: complete
+- [x] V-02 validates E-02
   - Required evidence: the generated write/mutation inventory has no unmigrated row; tests prove EACH migrated mutation (i) keeps its dry-run default, (ii) does NOT mutate when invoked with `--agent`/piped and no confirmation and instead emits a cannot-run (exit 2) receipt, and (iii) reports the honest outcome (preview/partial/skipped/unverified/verified) with the exact changed subset, never overstating completion. Paste the passing test output and the inventory summary.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `pytest tests/test_cli_mutations_and_previews.py` passed 10/10 tests proving confirmation enforcement (exit 2 cannot-run without `--yes`), dry-run preview receipts with `applied: false`, and confirmed mutations with exact changed subsets.
+  - Result: complete
+- [x] V-03 validates E-03
   - Required evidence: tests prove bare `aw`, an empty family, `help`, and every alias route through the boundary and are agent-byte-equivalent to their canonical command; a conflicting `--agent`+`--json` call exits 2 as a usage error; every parser leaf has a contract declaration (the Order 05 harness reports zero undeclared leaves); and the full existing regression suite passes unchanged. Paste the passing test output, the undeclared-leaf count, and the suite summary.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `pytest tests/test_command_surface_declarations.py` passed 12/12 tests with 0 undeclared leaves in `COMMAND_INVENTORY`; standalone scripts classified; `make test` full test suite passed 100% across all 1900+ tests.
+  - Result: complete
+
 
 
 ## Approval and execution gate
