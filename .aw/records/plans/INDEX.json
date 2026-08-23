@@ -2792,12 +2792,72 @@
   {
     "date": "2026-08-23",
     "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260823-ipdgates-00-do64fh-enforce-single-ipd-lifecycle-and-scope-gates-fail-closed.ipd.md",
+    "plan_id": "do64fh",
+    "set_id": "ipdgates",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "pending",
     "kind": "child",
     "order": 1,
-    "path": "pending/20260823-ipdfidelity-01-39fz2x-corrective-enforce-single-ipd-lifecycle-and-scope-gates.ipd.md",
-    "plan_id": "39fz2x",
-    "set_id": "ipdfidelity",
-    "status": "to-review"
+    "path": "pending/20260823-ipdgates-01-v6zie5-own-and-regression-test-the-p7dqwz-xdg-config-isolation-resi.ipd.md",
+    "plan_id": "v6zie5",
+    "set_id": "ipdgates",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260823-ipdgates-02-oorry1-canonical-scope-paths-allowlist-schema-and-grandfather-polic.ipd.md",
+    "plan_id": "oorry1",
+    "set_id": "ipdgates",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260823-ipdgates-03-xjbvu2-aw-ipd-begin-fail-closed-execution-start-receipt.ipd.md",
+    "plan_id": "xjbvu2",
+    "set_id": "ipdgates",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 4,
+    "path": "pending/20260823-ipdgates-04-v7e88a-aw-ipd-finalize-atomic-terminal-transaction.ipd.md",
+    "plan_id": "v7e88a",
+    "set_id": "ipdgates",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 5,
+    "path": "pending/20260823-ipdgates-05-3xh53a-aw-ipd-finalize-rollback-and-failure-semantics.ipd.md",
+    "plan_id": "3xh53a",
+    "set_id": "ipdgates",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 6,
+    "path": "pending/20260823-ipdgates-06-wezhxg-remove-raw-terminal-transition-bypasses-and-strengthen-histo.ipd.md",
+    "plan_id": "wezhxg",
+    "set_id": "ipdgates",
+    "status": "draft"
   },
   {
     "date": "2026-08-23",
@@ -2927,6 +2987,16 @@
     "path": "superseded/20260821-awoptimize-08-kk41rr-compatibility-documentation-and-cutover.ipd.md",
     "plan_id": "kk41rr",
     "set_id": "awoptimize",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 1,
+    "path": "superseded/20260823-ipdfidelity-01-39fz2x-corrective-enforce-single-ipd-lifecycle-and-scope-gates.ipd.md",
+    "plan_id": "39fz2x",
+    "set_id": "ipdfidelity",
     "status": "superseded"
   }
 ]

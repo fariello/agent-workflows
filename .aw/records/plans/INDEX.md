@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 117 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 118 Sets; the full manifest is INDEX.json.
 
 ## artifactenginefix
 
@@ -31,7 +31,17 @@ Showing the 40 most-recent of 117 Sets; the full manifest is INDEX.json.
 
 ## ipdfidelity
 
-- `39fz2x` [pending] 01 pending/20260823-ipdfidelity-01-39fz2x-corrective-enforce-single-ipd-lifecycle-and-scope-gates.ipd.md
+- `39fz2x` [superseded] 01 superseded/20260823-ipdfidelity-01-39fz2x-corrective-enforce-single-ipd-lifecycle-and-scope-gates.ipd.md
+
+## ipdgates
+
+- `do64fh` [pending] 00 pending/20260823-ipdgates-00-do64fh-enforce-single-ipd-lifecycle-and-scope-gates-fail-closed.ipd.md
+- `v6zie5` [pending] 01 pending/20260823-ipdgates-01-v6zie5-own-and-regression-test-the-p7dqwz-xdg-config-isolation-resi.ipd.md
+- `oorry1` [pending] 02 pending/20260823-ipdgates-02-oorry1-canonical-scope-paths-allowlist-schema-and-grandfather-polic.ipd.md
+- `xjbvu2` [pending] 03 pending/20260823-ipdgates-03-xjbvu2-aw-ipd-begin-fail-closed-execution-start-receipt.ipd.md
+- `v7e88a` [pending] 04 pending/20260823-ipdgates-04-v7e88a-aw-ipd-finalize-atomic-terminal-transaction.ipd.md
+- `3xh53a` [pending] 05 pending/20260823-ipdgates-05-3xh53a-aw-ipd-finalize-rollback-and-failure-semantics.ipd.md
+- `wezhxg` [pending] 06 pending/20260823-ipdgates-06-wezhxg-remove-raw-terminal-transition-bypasses-and-strengthen-histo.ipd.md
 
 ## renametypes
 
@@ -264,10 +274,6 @@ Showing the 40 most-recent of 117 Sets; the full manifest is INDEX.json.
 ## backlogtier
 
 - `crv40v` [executed] 01 executed/20260813-backlogtier-01-crv40v-attention-visible-backlog-tier.ipd.md
-
-## ipdexechist
-
-- `69xrut` [executed] 01 executed/20260813-ipdexechist-01-69xrut-executed-history-lint-guard.ipd.md
 
 ## (singletons: no Set)
 
