@@ -315,7 +315,25 @@ def run_find(args: argparse.Namespace) -> int:
         status=getattr(args, "status", None),
     )
     if not results:
-        print("no matching research docs")
+        from agent_workflows.term import Term
+        from agent_workflows.result_types import NextAction
+
+        filters_dict = {}
+        for k in ("id", "set", "topic", "status"):
+            v = getattr(args, k, None)
+            if v:
+                filters_dict[k] = v
+        Term().empty_result(
+            summary="no matching research docs",
+            filters=filters_dict if filters_dict else None,
+            next_action=NextAction(
+                command="aw research find", description="find across all research docs"
+            )
+            if filters_dict
+            else NextAction(
+                command="aw research new", description="create a new research doc"
+            ),
+        )
         return 0
     for e in results:
         print(f"{e.id6}\t{e.status}\t{e.path}\t{e.summary}")

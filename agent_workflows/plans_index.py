@@ -354,7 +354,25 @@ def run_find(args: argparse.Namespace) -> int:
         disposition=getattr(args, "disposition", None),
     )
     if not results:
-        print("no matching plans")
+        from agent_workflows.term import Term
+        from agent_workflows.result_types import NextAction
+
+        filters_dict = {}
+        for k in ("id", "set", "status", "disposition"):
+            v = getattr(args, k, None)
+            if v:
+                filters_dict[k] = v
+        Term().empty_result(
+            summary="no matching plans",
+            filters=filters_dict if filters_dict else None,
+            next_action=NextAction(
+                command="aw find plans", description="find across all plans"
+            )
+            if filters_dict
+            else NextAction(
+                command="aw ipd scaffold", description="scaffold a new plan"
+            ),
+        )
         return 0
     for e in results:
         print(f"{e.plan_id or '??????'}\t{e.disposition}\t{e.set_id or '-'}\t{e.path}")

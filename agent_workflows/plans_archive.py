@@ -173,7 +173,16 @@ def run_archive(args: argparse.Namespace) -> int:
     if target:
         paths = _find_targets(plans_dir, target)
         if not paths:
-            print(f"no terminal-root plan or Set matches '{target}'")
+            from agent_workflows.term import Term
+            from agent_workflows.result_types import NextAction
+
+            Term().empty_result(
+                summary=f"no terminal-root plan or Set matches '{target}'",
+                filters={"target": target},
+                next_action=NextAction(
+                    command="aw find plans", description="find plans"
+                ),
+            )
             return 0
         moves = [mv for mv in (plan_shard_move(plans_dir, p) for p in paths) if mv]
         if not apply:
@@ -192,7 +201,14 @@ def run_archive(args: argparse.Namespace) -> int:
     # Bare sweep.
     cands = sweep_candidates(plans_dir)
     if not cands:
-        print("no aged terminal-root plans to sweep")
+        from agent_workflows.term import Term
+        from agent_workflows.result_types import NextAction
+
+        Term().empty_result(
+            summary="no aged terminal-root plans to sweep",
+            filters=None,
+            next_action=NextAction(command="aw find plans", description="find plans"),
+        )
         return 0
     moves = [mv for mv in (plan_shard_move(plans_dir, p) for p in cands) if mv]
     if not apply:

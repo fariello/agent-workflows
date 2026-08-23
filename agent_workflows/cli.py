@@ -3293,6 +3293,7 @@ def _run_list(
     from agent_workflows.result_types import (
         CommandResult,
         Evidence,
+        NextAction,
         select_output,
     )
 
@@ -3312,20 +3313,36 @@ def _run_list(
 
     if ctx.is_agent or ctx.is_json:
         data = {"packaged": packaged, "repos": rows}
+        next_acts = (
+            [NextAction(command="aw setup", description="set up repositories")]
+            if not repos
+            else []
+        )
         res = CommandResult(
             command="list-repos",
             status="clean",
             exit_code=0,
-            summary=f"discovered {len(repos)} repo(s)",
+            summary=f"discovered {len(repos)} repo(s)"
+            if repos
+            else "no configured or discovered repos",
             evidence=[
                 Evidence(key="repos", value={"count": len(repos)}, status="verified")
             ],
+            next_actions=next_acts,
             data=data,
         )
         return get_renderer(ctx).emit(res, ctx)
 
     if not repos:
-        term.status("warn", "No configured or discovered repos. Run 'aw setup'.")
+        term.empty_result(
+            summary="no configured or discovered repos",
+            filters={"recursive": args.recursive}
+            if getattr(args, "recursive", False)
+            else None,
+            next_action=NextAction(
+                command="aw setup", description="set up repositories"
+            ),
+        )
         return 0
     term.heading("Repositories")
     for repo in repos:
@@ -3698,6 +3715,8 @@ def _run_status(args, term: Term, context: Optional[Any] = None) -> int:
 
 def _run_exclude(args: argparse.Namespace, term: Term) -> int:
     """aw exclude [repo|repos] repodir1 [repodir2 ...]: exclude repos from aw management."""
+    from agent_workflows.result_types import NextAction
+
     raw_repos = list(getattr(args, "repos", []) or [])
     if raw_repos and raw_repos[0] in ("repo", "repos"):
         raw_repos = raw_repos[1:]
@@ -3714,7 +3733,13 @@ def _run_exclude(args: argparse.Namespace, term: Term) -> int:
 
     if not raw_repos:
         if not current_exclude:
-            term.line("No repositories are currently excluded.")
+            term.empty_result(
+                summary="no repositories are currently excluded",
+                filters=None,
+                next_action=NextAction(
+                    command="aw exclude <path>", description="exclude a repository"
+                ),
+            )
             return 0
         term.heading(f"Excluded Repositories ({len(current_exclude)})")
         for e in current_exclude:
@@ -3747,6 +3772,8 @@ def _run_exclude(args: argparse.Namespace, term: Term) -> int:
 
 def _run_include(args: argparse.Namespace, term: Term) -> int:
     """aw include [repo|repos] repodir1 [repodir2 ...]: include repos in aw management."""
+    from agent_workflows.result_types import NextAction
+
     raw_repos = list(getattr(args, "repos", []) or [])
     if raw_repos and raw_repos[0] in ("repo", "repos"):
         raw_repos = raw_repos[1:]
@@ -3763,8 +3790,12 @@ def _run_include(args: argparse.Namespace, term: Term) -> int:
 
     if not raw_repos:
         if not current_repos:
-            term.line(
-                "No explicit repositories configured (run 'aw setup' or 'aw include <path>')."
+            term.empty_result(
+                summary="no explicit repositories configured",
+                filters=None,
+                next_action=NextAction(
+                    command="aw setup", description="set up repositories"
+                ),
             )
             return 0
         term.heading(f"Configured Repositories ({len(current_repos)})")
@@ -3939,6 +3970,7 @@ def _orient(term: Term) -> None:
 
 def _run_config_exclude(args: argparse.Namespace, term: Term) -> int:
     """Manage the never-install exclude blocklist (clianx-01 E-04): add/list/rm."""
+    from agent_workflows.result_types import NextAction
 
     sub = getattr(args, "exclude_command", None)
     cfg = config.load()
@@ -3957,7 +3989,14 @@ def _run_config_exclude(args: argparse.Namespace, term: Term) -> int:
 
     if sub == "list":
         if not current:
-            term.status("ok", "The never-install exclude list is empty.")
+            term.empty_result(
+                summary="never-install exclude list is empty",
+                filters=None,
+                next_action=NextAction(
+                    command="aw config exclude add <path>",
+                    description="exclude a repository",
+                ),
+            )
             return 0
         term.heading("Never-install exclude list")
         for e in current:
@@ -4000,6 +4039,7 @@ def _run_plans(
     from agent_workflows.result_types import (
         CommandResult,
         Evidence,
+        NextAction,
         select_output,
     )
 
@@ -4052,17 +4092,33 @@ def _run_plans(
     # legacy .agents/plans read-fallback) rather than gating on the vanished legacy path.
     plans_dir = plans_mod._resolve_area_dir(root, "plans")
     if not plans_dir.is_dir():
+        plans_name = (
+            plans_dir.relative_to(root).as_posix()
+            if plans_dir.is_relative_to(root)
+            else plans_dir.name
+        )
         if ctx.is_agent or ctx.is_json:
             res = CommandResult(
                 command="ipd board",
                 status="clean",
                 exit_code=0,
-                summary="No plans found.",
+                summary="no plans found",
                 evidence=[Evidence(key="plans", value={"count": 0}, status="verified")],
+                next_actions=[
+                    NextAction(
+                        command="aw ipd scaffold", description="scaffold a new plan"
+                    )
+                ],
                 data={"plans": []},
             )
             return get_renderer(ctx).emit(res, ctx)
-        term.status("skip", f"No plans found (no {plans_dir} under {root}).")
+        term.empty_result(
+            summary=f"no plans found (no {plans_name} under {root})",
+            filters=None,
+            next_action=NextAction(
+                command="aw ipd scaffold", description="scaffold a new plan"
+            ),
+        )
         return 0
 
     records = plans_mod.scan(root)
@@ -4101,11 +4157,27 @@ def _run_plans(
                     "order": r.order,
                 }
             )
+        filters_map = {}
+        if getattr(args, "pending", False):
+            filters_map["disposition"] = "pending"
+        if status_filter:
+            filters_map["status"] = status_filter
+        next_act = (
+            [NextAction(command="aw ipd board", description="view full board")]
+            if filters_map and not records
+            else [
+                NextAction(command="aw ipd scaffold", description="scaffold a new plan")
+            ]
+            if not records
+            else []
+        )
         res = CommandResult(
             command="ipd board",
             status="clean",
             exit_code=0,
-            summary=f"ipd board: {len(records)} plan(s)",
+            summary=f"ipd board: {len(records)} plan(s)"
+            if records
+            else "no matching plans",
             evidence=[
                 Evidence(
                     key="plans-board",
@@ -4113,12 +4185,29 @@ def _run_plans(
                     status="verified",
                 )
             ],
-            data={"plans": plan_rows, "count": len(records)},
+            next_actions=next_act,
+            data={"plans": plan_rows, "count": len(records), "filters": filters_map},
         )
         return get_renderer(ctx).emit(res, ctx)
 
     if not records:
-        term.status("skip", "No matching plans.")
+        filters_map = {}
+        if getattr(args, "pending", False):
+            filters_map["disposition"] = "pending"
+        if status_filter:
+            filters_map["status"] = status_filter
+        next_act = (
+            NextAction(command="aw ipd board", description="view full board")
+            if filters_map
+            else NextAction(
+                command="aw ipd scaffold", description="scaffold a new plan"
+            )
+        )
+        term.empty_result(
+            summary="no matching plans",
+            filters=filters_map if filters_map else None,
+            next_action=next_act,
+        )
         return 0
 
     by_disp = plans_mod.group(records)
@@ -4392,6 +4481,7 @@ def _run_project_status(
     from agent_workflows.result_types import (
         CommandResult,
         Evidence,
+        NextAction,
         select_output,
     )
 
@@ -4413,9 +4503,20 @@ def _run_project_status(
         "candidate_hint": match_res.candidate_hint.to_dict()
         if match_res.candidate_hint
         else None,
+        "filters": {"target_repo": repo_path},
     }
 
     if ctx.is_agent or ctx.is_json:
+        next_act = (
+            [
+                NextAction(
+                    command="aw project attach <project-id>",
+                    description="attach to project",
+                )
+            ]
+            if not match_res.entry
+            else []
+        )
         res = CommandResult(
             command="project status",
             status="clean",
@@ -4435,6 +4536,7 @@ def _run_project_status(
                     status="verified" if match_res.entry else "unverified",
                 )
             ],
+            next_actions=next_act,
             data=status_data,
         )
         return get_renderer(ctx).emit(res, ctx)
@@ -4453,7 +4555,14 @@ def _run_project_status(
             f"Candidate Hint:    {match_res.candidate_hint.project_id} (origin matched; requires 'aw project attach')",
         )
     else:
-        term.status("warn", "No registered project association found.")
+        term.empty_result(
+            summary="no registered project association found",
+            filters={"target_repo": repo_path},
+            next_action=NextAction(
+                command="aw project attach <project-id>",
+                description="attach to project",
+            ),
+        )
     return 0
 
 
@@ -4847,6 +4956,7 @@ def _run_show(
         CommandResult,
         Diagnostic,
         Evidence,
+        NextAction,
         select_output,
     )
 
@@ -4902,7 +5012,7 @@ def _run_show(
     if ctx.is_agent or ctx.is_json:
         res = CommandResult(
             command="show",
-            status="cannot-run",
+            status="findings",
             exit_code=1,
             summary=f"No records artifact matched '{ref}'.",
             diagnostics=[
@@ -4913,12 +5023,18 @@ def _run_show(
                     severity="error",
                 )
             ],
+            next_actions=[
+                NextAction(command="aw find", description="list all records")
+            ],
         )
         return get_renderer(ctx).emit(res, ctx)
 
-    # setupmarker Order 01: the action-ledger fallback was removed with the ledger. `aw show`
-    # resolves records artifacts only.
-    term.status("fail", f"No records artifact matched '{ref}'.")
+    term.empty_result(
+        summary=f"no records artifact matched '{ref}'",
+        filters={"ref": ref},
+        next_action=NextAction(command="aw find", description="list all records"),
+        status="fail",
+    )
     return 1
 
 
@@ -4933,6 +5049,7 @@ def _run_record_history(
     from agent_workflows.result_types import (
         CommandResult,
         Evidence,
+        NextAction,
         select_output,
     )
 
@@ -4943,12 +5060,12 @@ def _run_record_history(
     if ctx.is_agent or ctx.is_json:
         res = CommandResult(
             command="record-history",
-            status="clean" if records else "findings",
+            status="clean",
             exit_code=0,
             summary=(
                 f"history for {id6} ({len(records)} entries)"
                 if records
-                else f"No sidecar history for id6 {id6}."
+                else f"no sidecar history for id6 {id6}"
             ),
             evidence=[
                 Evidence(
@@ -4957,12 +5074,24 @@ def _run_record_history(
                     status="verified" if records else "unverified",
                 )
             ],
-            data={"id6": id6, "history": records},
+            next_actions=[
+                NextAction(command=f"aw show {id6}", description="view record content")
+            ]
+            if not records
+            else [],
+            data={"id6": id6, "history": records, "filters": {"id6": id6}},
         )
         return get_renderer(ctx).emit(res, ctx)
 
     if not records:
-        term.status("warn", f"No sidecar history for id6 {id6}.")
+        term.empty_result(
+            summary=f"no sidecar history for id6 {id6}",
+            filters={"id6": id6},
+            next_action=NextAction(
+                command=f"aw show {id6}", description="view record content"
+            ),
+            status="clean",
+        )
         return 0
     term.heading(f"History for {id6}")
     for r in records:
@@ -5324,6 +5453,7 @@ def _run_search(
     from agent_workflows.result_types import (
         CommandResult,
         Evidence,
+        NextAction,
         select_output,
     )
 
@@ -5408,11 +5538,23 @@ def _run_search(
     if ctx.is_agent or ctx.is_json:
         exit_code = 0 if hits else 1
         status = "clean" if hits else "findings"
+        next_actions = (
+            [
+                NextAction(
+                    command="aw search <pattern>",
+                    description="search with broader pattern",
+                )
+            ]
+            if not hits
+            else []
+        )
         res = CommandResult(
             command="search",
             status=status,
             exit_code=exit_code,
-            summary=f"found {hits} match(es)",
+            summary=f"found {hits} match(es)"
+            if hits
+            else f"no matching lines for '{pattern}'",
             evidence=[
                 Evidence(
                     key="search-hits",
@@ -5420,11 +5562,29 @@ def _run_search(
                     status=status,
                 )
             ],
-            data={"pattern": pattern, "hits": hits, "matches": json_results},
+            next_actions=next_actions,
+            data={
+                "pattern": pattern,
+                "hits": hits,
+                "matches": json_results,
+                "filters": {"type": norm, "pattern": pattern},
+            },
         )
         return get_renderer(ctx).emit(res, ctx)
 
-    return 0 if hits else 1
+    if not hits:
+        term.empty_result(
+            summary=f"no matching lines for '{pattern}'",
+            filters={"type": norm, "pattern": pattern},
+            next_action=NextAction(
+                command="aw search <pattern>",
+                description="search with broader pattern",
+            ),
+            status="findings",
+        )
+        return 1
+
+    return 0
 
 
 def _run_check(

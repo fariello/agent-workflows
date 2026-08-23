@@ -242,7 +242,16 @@ def run_archive(args: argparse.Namespace) -> int:
                     return 2
                 moves.append(mv)
         if not moves:
-            print(f"no research doc or set matches '{target}'")
+            from agent_workflows.term import Term
+            from agent_workflows.result_types import NextAction
+
+            Term().empty_result(
+                summary=f"no research doc or set matches '{target}'",
+                filters={"target": target},
+                next_action=NextAction(
+                    command="aw research find", description="find research docs"
+                ),
+            )
             return 0
         if not apply:
             for m in moves:
