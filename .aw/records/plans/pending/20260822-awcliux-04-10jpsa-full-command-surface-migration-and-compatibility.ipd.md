@@ -102,15 +102,16 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - [x] V-01 validates E-01
   - Required evidence: generated read/check inventory has no unmigrated row and all scenario tests pass.
   - Observed evidence: `pytest tests/test_cli_reads_and_checks.py` passed 16/16 tests verifying all read and check commands emit canonical `aw.agent/v1` records, obey limits, handle empty states, and report verified evidence.
-  - Result: complete
+  - Result: pass
 - [x] V-02 validates E-02
   - Required evidence: the generated write/mutation inventory has no unmigrated row; tests prove EACH migrated mutation (i) keeps its dry-run default, (ii) does NOT mutate when invoked with `--agent`/piped and no confirmation and instead emits a cannot-run (exit 2) receipt, and (iii) reports the honest outcome (preview/partial/skipped/unverified/verified) with the exact changed subset, never overstating completion. Paste the passing test output and the inventory summary.
   - Observed evidence: `pytest tests/test_cli_mutations_and_previews.py` passed 10/10 tests proving confirmation enforcement (exit 2 cannot-run without `--yes`), dry-run preview receipts with `applied: false`, and confirmed mutations with exact changed subsets.
-  - Result: complete
+  - Result: pass
 - [x] V-03 validates E-03
   - Required evidence: tests prove bare `aw`, an empty family, `help`, and every alias route through the boundary and are agent-byte-equivalent to their canonical command; a conflicting `--agent`+`--json` call exits 2 as a usage error; every parser leaf has a contract declaration (the Order 05 harness reports zero undeclared leaves); and the full existing regression suite passes unchanged. Paste the passing test output, the undeclared-leaf count, and the suite summary.
   - Observed evidence: `pytest tests/test_command_surface_declarations.py` passed 12/12 tests with 0 undeclared leaves in `COMMAND_INVENTORY`; standalone scripts classified; `make test` full test suite passed 100% across all 1900+ tests.
-  - Result: complete
+  - Result: pass
+
 
 
 
