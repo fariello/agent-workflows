@@ -213,6 +213,135 @@ class CommandShimsTests(unittest.TestCase):
         self.assertFalse(INS.is_shim_customized_vs_expected(oc, oc))
         self.assertFalse(INS.is_shim_customized_vs_expected(cl, cl))
 
+    def test_per_workflow_shims_contain_deprecation_notice_and_dispatcher_does_not(
+        self,
+    ) -> None:
+        """Every generated per-workflow shim carries deprecation notice; dispatcher does not (E-01/V-01)."""
+        shims = INS.generate_shim_members(
+            self.workflows, self.source, target_layout="aw"
+        )
+        wf_commands = {
+            w.command for w in self.workflows if not INS.is_concern_catalog_row(w)
+        }
+
+        # Dispatcher shims do NOT contain deprecation notice
+        for host in ("opencode", "claude"):
+            disp_key = f".{host}/commands/aw.md"
+            self.assertIn(disp_key, shims)
+            self.assertNotIn("deprecated", shims[disp_key].lower())
+            self.assertNotIn("deprecation", shims[disp_key].lower())
+
+        # Every per-workflow shim contains deprecation notice mentioning /aw <verb>
+        for cmd in wf_commands:
+            for host in ("opencode", "claude"):
+                shim_key = f".{host}/commands/{cmd}.md"
+                self.assertIn(shim_key, shims)
+                content = shims[shim_key]
+                self.assertIn("deprecated", content.lower())
+                self.assertIn(f"/aw {cmd}", content)
+                self.assertIn("pruned", content.lower())
+                self.assertIn("alias", content.lower())
+
+    def test_deprecation_notice_placement_in_body_and_grammar_valid(
+        self,
+    ) -> None:
+        """Notice is placed in the body after closing fence, not in frontmatter, and grammar passes (E-02/V-02)."""
+        shims = INS.generate_shim_members(
+            self.workflows, self.source, target_layout="aw"
+        )
+        for rel, content in shims.items():
+            if rel.endswith("README.md"):
+                continue
+            tool = "claude" if rel.startswith(".claude") else "opencode"
+            self.assertTrue(
+                INS.validate_shim_grammar(content, tool),
+                f"validate_shim_grammar returned False for {rel}",
+            )
+            if not rel.endswith("/aw.md"):
+                lines = content.splitlines()
+                closing_fence_idx = -1
+                for idx in range(1, len(lines)):
+                    if lines[idx].strip() == "---":
+                        closing_fence_idx = idx
+                        break
+                self.assertGreater(closing_fence_idx, 0)
+                frontmatter_text = "\n".join(lines[1:closing_fence_idx])
+                body_text = "\n".join(lines[closing_fence_idx + 1 :])
+                self.assertNotIn("deprecated", frontmatter_text.lower())
+                self.assertNotIn("deprecation", frontmatter_text.lower())
+                self.assertIn("deprecation notice", body_text.lower())
+
+    def test_shim_drift_reconciliation_pre_notice_updates_customized_preserved(
+        self,
+    ) -> None:
+        """Pre-notice shim is classified installer-owned and updates, while customized shim is preserved (E-02/V-02)."""
+        wf_map = {w.command: w for w in self.workflows}
+        spec_wf = wf_map["spec"]
+
+        # 1. Post-notice generated shim is not customized
+        current_expected = INS.shim_body(
+            "spec", spec_wf, "opencode", target_layout="aw"
+        )
+        self.assertFalse(INS.is_shim_customized(current_expected))
+
+        # 2. Pre-notice generated shim (without the deprecation line)
+        pre_notice_lines = [
+            line
+            for line in current_expected.splitlines()
+            if "deprecation" not in line.lower() and "deprecated" not in line.lower()
+        ]
+        pre_notice_shim = "\n".join(pre_notice_lines) + "\n"
+        self.assertNotIn("deprecated", pre_notice_shim)
+        self.assertFalse(
+            INS.is_shim_customized(pre_notice_shim),
+            "pre-notice generated shim must be recognized as installer-owned (not customized)",
+        )
+
+        # 3. Plan-level drift check for pre-notice shim without manifest (structural fallback)
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            repo_root = Path(tmp_dir)
+            plan = INS.InstallPlan(
+                source_root=self.source,
+                repo_root=repo_root,
+                dry_run=False,
+                backup=True,
+                prune=True,
+                no_color=True,
+                yes=False,
+                manifest=None,
+            )
+            # Pre-notice shim is NOT flagged as user modified -> updates silently
+            self.assertFalse(
+                INS._shim_is_user_modified(
+                    plan,
+                    ".opencode/commands/spec.md",
+                    pre_notice_shim,
+                    current_expected,
+                ),
+                "pre-notice shim must not be flagged as user modified",
+            )
+
+            # 4. Genuinely customized shim IS flagged as user modified
+            customized_shim = (
+                pre_notice_shim + "\n# User hand-edit: custom steps\necho 'custom'\n"
+            )
+            self.assertTrue(
+                INS.is_shim_customized(customized_shim),
+                "customized shim must be detected as customized",
+            )
+            self.assertTrue(
+                INS._shim_is_user_modified(
+                    plan,
+                    ".opencode/commands/spec.md",
+                    customized_shim,
+                    current_expected,
+                ),
+                "customized shim must be flagged as user modified",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

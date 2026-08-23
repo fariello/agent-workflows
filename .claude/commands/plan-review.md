@@ -3,6 +3,8 @@ description: Pre-execution plan reviewer: review and improve a proposed implemen
 argument-hint: "[optional target path or flags]"
 ---
 
+<!-- Deprecation notice: `/plan-review` is deprecated; prefer `/aw plan-review`. This alias continues to work for now but will eventually be pruned. -->
+
 Read and execute @.aw/system/workflows/plan-review/plan-review.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS

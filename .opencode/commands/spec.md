@@ -3,6 +3,8 @@ description: Front of funnel: turn a fuzzy request into a reviewable specificati
 agent: build
 ---
 
+<!-- Deprecation notice: `/spec` is deprecated; prefer `/aw spec`. This alias continues to work for now but will eventually be pruned. -->
+
 Read and execute @.aw/system/workflows/spec/spec.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS

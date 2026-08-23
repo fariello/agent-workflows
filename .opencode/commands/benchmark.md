@@ -3,6 +3,8 @@ description: Guided performance benchmarking (informational, not a regression ga
 agent: build
 ---
 
+<!-- Deprecation notice: `/benchmark` is deprecated; prefer `/aw benchmark`. This alias continues to work for now but will eventually be pruned. -->
+
 Read and execute @.aw/system/workflows/benchmark/benchmark.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS

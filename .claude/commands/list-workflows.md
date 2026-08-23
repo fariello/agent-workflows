@@ -3,6 +3,8 @@ description: Toolkit discovery: list what this toolkit can do (core workflows, t
 argument-hint: "[treat them as an optional filter to narrow the catalog (a concern, area, or category, e.g. `security` or `assess`); omit to list everything]"
 ---
 
+<!-- Deprecation notice: `/list-workflows` is deprecated; prefer `/aw list-workflows`. This alias continues to work for now but will eventually be pruned. -->
+
 Read and execute @.aw/system/workflows/list-workflows/list-workflows.md.
 
 If the user provided arguments, treat them as an optional filter to narrow the catalog (a concern, area, or category, e.g. `security` or `assess`); omit to list everything: $ARGUMENTS

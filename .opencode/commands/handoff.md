@@ -3,6 +3,8 @@ description: Session-continuity generator: capture this session's ephemeral cont
 agent: build
 ---
 
+<!-- Deprecation notice: `/handoff` is deprecated; prefer `/aw handoff`. This alias continues to work for now but will eventually be pruned. -->
+
 Read and execute @.aw/system/workflows/handoff/handoff.md.
 
 If the user provided arguments, treat them as an optional focus for the handoff (an area or thread to emphasize, e.g. `release`); omit to capture the whole session: $ARGUMENTS

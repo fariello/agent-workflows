@@ -3,6 +3,8 @@ description: Blameless post-mortem for a production incident: timeline, impact, 
 argument-hint: "[optional target path or flags]"
 ---
 
+<!-- Deprecation notice: `/incident` is deprecated; prefer `/aw incident`. This alias continues to work for now but will eventually be pruned. -->
+
 Read and execute @.aw/system/workflows/incident/incident.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS

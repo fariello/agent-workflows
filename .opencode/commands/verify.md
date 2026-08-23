@@ -3,6 +3,8 @@ description: Proof, not prose: discover the repo's own test/lint/build/type-chec
 agent: build
 ---
 
+<!-- Deprecation notice: `/verify` is deprecated; prefer `/aw verify`. This alias continues to work for now but will eventually be pruned. -->
+
 Read and execute @.aw/system/workflows/verify/verify.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS

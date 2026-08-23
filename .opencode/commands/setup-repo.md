@@ -3,6 +3,8 @@ description: Guided, idempotent, drift-aware repo setup AND conformance check: d
 agent: build
 ---
 
+<!-- Deprecation notice: `/setup-repo` is deprecated; prefer `/aw setup-repo`. This alias continues to work for now but will eventually be pruned. -->
+
 Read and execute @.aw/system/workflows/setup-repo/setup-repo.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS

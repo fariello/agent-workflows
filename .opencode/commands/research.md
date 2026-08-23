@@ -3,6 +3,8 @@ description: Research prompt producer: turns a research topic into a house-confo
 agent: build
 ---
 
+<!-- Deprecation notice: `/research` is deprecated; prefer `/aw research`. This alias continues to work for now but will eventually be pruned. -->
+
 Read and execute @.aw/system/workflows/research-prompt/research-prompt.md.
 
 If the user provided arguments, treat them as the research topic and optional scope; omit to be prompted for the topic: $ARGUMENTS

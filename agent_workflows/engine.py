@@ -818,6 +818,8 @@ def shim_body(
 
     return (
         f"{frontmatter}\n"
+        f"<!-- Deprecation notice: `/{command}` is deprecated; prefer `/aw {command}`. "
+        "This alias continues to work for now but will eventually be pruned. -->\n\n"
         f"Read and execute @{body_target}.{planning_note}\n"
         f"{lens_note}\n"
         f"{arguments_line}"
@@ -2856,6 +2858,9 @@ def is_stale_shim_customized(content: str) -> bool:
         "Read and execute @.aw/system/workflows/",
         "Read the workflow manifest @.agents/workflows/",
         "Read the workflow manifest @.aw/system/workflows/",
+        # Deprecation notice prefix for per-workflow aliases:
+        "<!-- Deprecation notice:",
+        "<!--",
         # The generated arguments line: the generic default AND any per-workflow arg-hint
         # clause both start with this prefix, so recognize the prefix rather than the exact
         # generic sentence (a workflow with an arg-hint is still a generated, non-customized shim).
@@ -2917,6 +2922,10 @@ def is_stale_shim_customized(content: str) -> bool:
                 "dispatcher",
                 "manifest",
                 "verb",
+                "deprecated",
+                "deprecation",
+                "pruned",
+                "alias",
             )
         ):
             continue

@@ -9,7 +9,7 @@ and `setup-repo` can report the installed version.
 Reusable, tool-agnostic agent workflows for this repository. Each workflow is a
 capability with its own subdirectory here. To run one, read and execute its body
 file (the path below), or use the matching slash command in a tool that supports them
-(`/<command>`).
+(`/<command>`, deprecated; prefer `/aw <verb>`).
 
 These workflows are invoked on demand; they are not always-loaded context. `AGENTS.md`
 carries only a one-line pointer to this index, not the workflow contents.

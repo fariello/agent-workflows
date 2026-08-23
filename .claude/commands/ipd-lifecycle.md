@@ -3,6 +3,8 @@ description: Authoritative execution-and-transition gate for an approved IPD: ru
 argument-hint: "[optional target path or flags]"
 ---
 
+<!-- Deprecation notice: `/ipd-lifecycle` is deprecated; prefer `/aw ipd-lifecycle`. This alias continues to work for now but will eventually be pruned. -->
+
 Read and execute @.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md.
 
 If the user provided arguments, treat them as the target path(s) and/or flags for this workflow: $ARGUMENTS
