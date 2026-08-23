@@ -4,8 +4,7 @@
 - Kind: child
 - Concern: Generate the thinnest native host wrappers from the canonical source without duplicating semantics.
 - Scope: Generated Agent Skills + per-host adapter metadata + the agy fresh-session verifier mode + generated-parity/discovery/permission/security tests. Consumes Order 10's registry; marks nothing supported without evidence.
-- Status: approved
-- Approval: Gabriele Fariello (human), 2026-08-22
+- Status: executed
 - Set: awoptimize
 - Order: 11
 - Highest E allocated: 05
@@ -19,6 +18,7 @@
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE; GO - PENDING HUMAN APPROVAL. Deps on Order 10 (registry) + Order 08 (verifier packet) are justified (it consumes both). Sound discipline: advertises nothing the Order-10 registry has not marked non-unverified; authoritative behavior never lives only in SKILL.md; agy fresh-verifier replaces same-session audit. V-01..V-05 map 1:1 with falsifiable evidence incl. security (loopback/auth, external-path, redaction). No findings. OQ-01 resolved.
 - 2026-08-21 /plan-review re-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Deeper pass found two the first missed: PR-001 (LOW) the generator module was unnamed - FIXED by naming `agent_workflows/host_adapters.py` in E-02 + the scope fence; PR-002 (MEDIUM, rubric C) the repo ALREADY has a host-shim generator (`engine.py` generate_shim_members/shim_body/COMMAND_SHIM_DIRS) and this Order must EXTEND it, not fork a parallel adapter path - FIXED by mandating reuse in E-02, the Findings, and the scope fence (which now names `engine.py`). Re-lint conforming.
 - 2026-08-22 approved (Gabriele Fariello, human): explicit human approval of the awoptimize Set after /plan-review; reviewed -> approved.
+- 2026-08-22 executed (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): E-01..E-05 implemented directly (general subagent under opencode direction) - host_adapters.py (skill generation + evidence-gated adapters REUSING engine.py shim generator, not forked - identity-asserted), agy_verifier.py (fresh-session verifier consuming Order-08 packet, distinct session, same-session audit non-authoritative), tests/test_host_adapters_skills.py (32 tests). engine.py untouched (extended by import). opencode independently verified: scope clean, 32 module tests + full suite 1611 passed 1 skipped (pytest rc=0). Doc-sync satisfied by the tested registry-driven build_support_table (not a hand-copied AGENTS.md table, honoring 'prose cannot exceed a recorded claim'). V-01..V-05 filled. Terminal transition to executed/.
 
 ## Goal
 
@@ -34,32 +34,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: skills and adapters
 
-- [ ] E-01 Generate portable Agent Skills packages (`SKILL.md` router with an exact trigger description, the canonical semantic digest, an explicit-invocation option, reference files, templates, and deterministic scripts), each main file within the project context budget, so compatible hosts discover on-demand packages without loading all workflow text up front. Scope v1 to OpenCode + Codex via the shared `.agents/skills/` target (per Order-10 OQ-01).
+- [x] E-01 Generate portable Agent Skills packages (`SKILL.md` router with an exact trigger description, the canonical semantic digest, an explicit-invocation option, reference files, templates, and deterministic scripts), each main file within the project context budget, so compatible hosts discover on-demand packages without loading all workflow text up front. Scope v1 to OpenCode + Codex via the shared `.agents/skills/` target (per Order-10 OQ-01).
   - Depends on: none
   - Expected outcome: generated skills pass format validation, trigger descriptions distinguish use vs non-use, resource references resolve within the package, main files meet the budget, and deterministic scripts have direct tests.
-  - Execution state: pending
-- [ ] E-02 Generate host-specific adapter metadata in `agent_workflows/host_adapters.py`, EXTENDING the existing shim generator in `agent_workflows/engine.py` (`generate_shim_members`/`shim_body`/`COMMAND_SHIM_DIRS`) rather than forking a second adapter-generation path (rubric C, no duplicate paths). Generate ONLY where required and ONLY for capabilities the Order-10 registry marks non-`unverified`: Codex skill metadata + AGENTS pointer; OpenCode command/agent/skill permissions; (deferred, generated-but-flagged-unverified) Kiro `skill://`, Gemini skill/GEMINI pointer/subagent, Claude skill/subagent incl. optional `context: fork`; agy runner templates. Each adapter maps native features to canonical roles and falls back to external runtime coordination when a feature is absent.
+  - Execution state: performed
+- [x] E-02 Generate host-specific adapter metadata in `agent_workflows/host_adapters.py`, EXTENDING the existing shim generator in `agent_workflows/engine.py` (`generate_shim_members`/`shim_body`/`COMMAND_SHIM_DIRS`) rather than forking a second adapter-generation path (rubric C, no duplicate paths). Generate ONLY where required and ONLY for capabilities the Order-10 registry marks non-`unverified`: Codex skill metadata + AGENTS pointer; OpenCode command/agent/skill permissions; (deferred, generated-but-flagged-unverified) Kiro `skill://`, Gemini skill/GEMINI pointer/subagent, Claude skill/subagent incl. optional `context: fork`; agy runner templates. Each adapter maps native features to canonical roles and falls back to external runtime coordination when a feature is absent.
   - Depends on: E-01
   - Expected outcome: per-host golden adapters contain ONLY evidence-backed fields/commands (unverified capabilities are not advertised as supported), map roles/permissions correctly, reuse (not duplicate) the existing `engine.py` shim-generation path, and fall back to external runtime coordination when native isolation is unavailable.
-  - Execution state: pending
-- [ ] E-03 Restrict skills to discoverable on-demand capabilities + deterministic resources: complex workflows become thin skill entry points, simple informational commands may remain generated commands, and authoritative runtime behavior NEVER lives only in `SKILL.md` prose (it lives in the canonical source + runtime).
+  - Execution state: performed
+- [x] E-03 Restrict skills to discoverable on-demand capabilities + deterministic resources: complex workflows become thin skill entry points, simple informational commands may remain generated commands, and authoritative runtime behavior NEVER lives only in `SKILL.md` prose (it lives in the canonical source + runtime).
   - Depends on: E-02
   - Expected outcome: the skill/discovery inventory matches policy, simple commands remain compact, authoritative semantic digests live outside the wrappers, and disabling a skill leaves the explicit runtime invocation usable.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: agy fresh-verifier
 
-- [ ] E-04 Replace the same-session agy audit as the completion path with a fresh-session verifier mode that consumes the Order-08 verifier packet; retain the same-session audit ONLY as an optional diagnostic explicitly recorded as non-authoritative.
+- [x] E-04 Replace the same-session agy audit as the completion path with a fresh-session verifier mode that consumes the Order-08 verifier packet; retain the same-session audit ONLY as an optional diagnostic explicitly recorded as non-authoritative.
   - Depends on: E-03
   - Expected outcome: agy test doubles show execution and the fresh verifier use a different session identity + the verifier packet; the same-session audit is labeled diagnostic and cannot finalize.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests
 
-- [ ] E-05 Add `tests/test_host_adapters_skills.py` (stdlib unittest): generated-artifact + semantic-digest-parity tests; discovery diagnostics; unsupported-capability refusal (a capability `unverified` in the Order-10 registry is not advertised); security tests for local-server loopback/auth, permission denial, external-path refusal, and secret redaction; the agy fresh-verifier doubles. Then run the full serial suite and paste the tail.
+- [x] E-05 Add `tests/test_host_adapters_skills.py` (stdlib unittest): generated-artifact + semantic-digest-parity tests; discovery diagnostics; unsupported-capability refusal (a capability `unverified` in the Order-10 registry is not advertised); security tests for local-server loopback/auth, permission denial, external-path refusal, and secret redaction; the agy fresh-verifier doubles. Then run the full serial suite and paste the tail.
   - Depends on: E-04
   - Expected outcome: generated parity, discovery, unsupported-refusal, permission, external-path, loopback/auth, secret-redaction, and agy-verifier tests pass; each `supported` live claim links an exact Order-10 probe; the full serial suite is green (pasted).
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -135,26 +135,26 @@ Every cell is a candidate to VALIDATE via Order 10's probe, not a supported clai
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted test output showing generated skills pass format validation, trigger descriptions distinguish use vs non-use, resource references resolve within the package, main files meet the budget, and deterministic scripts have direct tests.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: host_adapters.build_skill_package/validate_skill_package generate portable Agent Skills (SKILL.md router w/ trigger description, canonical semantic digest via compute_workflow_semantic_digest reusing Order-01 workflow_profile.semantic_digest, explicit-invocation, reference files, templates, deterministic scripts); main files within budget; trigger descriptions distinguish use vs non-use; scripts have direct tests. tests.SkillPackageTests (v1 OpenCode+Codex via .agents/skills/). PASS.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted per-host golden-adapter output containing only evidence-backed fields/commands (no `unverified` capability advertised as supported), correct role/permission mapping, and external-runtime fallback when native isolation is absent.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: host_adapters.build_host_adapter/generate_adapter_bundle EXTEND engine.generate_shim_members (identity-asserted, not forked); adapters contain ONLY registry-non-unverified fields (registry.query_capability gate); map_feature_to_role/resolve_role_target map roles/permissions; external-runtime fallback when native isolation absent. tests.HostAdapterTests incl. test_reuses_engine_shim_generator_not_forked + test_unverified_capability_not_advertised_as_supported. PASS.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted test output showing the skill/discovery inventory matches policy, simple commands stay compact, authoritative semantic digests live OUTSIDE the wrappers, and disabling a skill leaves the explicit runtime invocation usable.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: classify_discovery_policy/check_authority_not_inlined/disabled_skill_still_invocable: complex workflows -> thin skill entry points, simple commands stay generated commands, authoritative semantic digests live OUTSIDE wrappers, disabling a skill leaves explicit runtime invocation usable. tests.DiscoveryPolicyTests. PASS.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted agy test-double output showing execution and the fresh verifier use a different session identity + the Order-08 verifier packet, and the same-session audit is labeled diagnostic and cannot finalize.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: agy_verifier: run_fresh_verifier consumes the Order-08 VerifierPacket with a DISTINCT SessionIdentity from execution (assert_distinct_sessions); MODE_SAME_SESSION_AUDIT is labeled non-authoritative and finalize_run refuses it. Model-free doubles (AgySessionDouble). tests.AgyFreshVerifierTests. PASS.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: `tests/test_host_adapters_skills.py` exists and passes (generated parity, discovery, unsupported refusal, permission, external path, loopback/auth, secret redaction, agy verifier); each `supported` live claim links an exact Order-10 probe; pasted full serial-suite tail showing green counts.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_host_adapters_skills.py` exists and passes (32 tests): generated parity+semantic-digest, discovery, unsupported-refusal (registry unverified not advertised), security (loopback/auth, permission denial, external-path refusal via assert_contained, secret redaction), agy fresh-verifier doubles. Doc-sync: support table GENERATED from registry (build_support_table, tested) rather than hand-copied into AGENTS.md, honoring 'documented prose cannot exceed a recorded claim'. Full suite green: make test -> 1611 passed, 1 skipped, rc=0.
+  - Result: pass
 
 ## Approval and execution gate
 
