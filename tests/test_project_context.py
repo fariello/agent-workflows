@@ -271,8 +271,9 @@ class TestProjectContextResolver(unittest.TestCase):
         )
         self.assertEqual(res.returncode, 0, f"CLI error: {res.stderr}")
         data = json.loads(res.stdout)
-        self.assertIn("target_repo", data)
-        self.assertIn("logical_roots", data)
+        data_dict = data.get("data", data)
+        self.assertIn("target_repo", data_dict)
+        self.assertIn("logical_roots", data_dict)
 
     def test_cli_path_agent_output(self):
         """Test `aw path records --agent` returns clean path with no prose."""
@@ -355,9 +356,9 @@ class PhysicalContextResolutionTests(unittest.TestCase):
             data = json.load(f)
 
         from agent_workflows.project_schema import (
-            parse_portable_policy,
-            parse_local_binding,
             atomic_save_json,
+            parse_local_binding,
+            parse_portable_policy,
         )
 
         portable = parse_portable_policy(data["portable_policy"])
@@ -490,8 +491,8 @@ class PhysicalContextResolutionTests(unittest.TestCase):
             data = json.load(f)
 
         from agent_workflows.project_schema import (
-            migrate_legacy_config,
             atomic_save_json,
+            migrate_legacy_config,
         )
 
         port_dict, local_dict = migrate_legacy_config(data["legacy_policy"])

@@ -19,14 +19,14 @@ import io
 import os
 import re
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, List, Optional, Sequence, Union
+from typing import Any, List, Optional, Union
 
 from . import __version__, config, discovery, engine, versioning
 from .project_schema import DeliveryMode, Preset, RecordsBackend
-from .result_types import select_output
+from .result_types import ConflictingFlagsError, select_output
 from .term import Term
-
 
 # --------------------------------------------------------------------------------------
 # Argument parsing
@@ -449,6 +449,10 @@ class _AlphaHelpFormatter(argparse.RawDescriptionHelpFormatter):
 class _AwArgumentParser(argparse.ArgumentParser):
     """ArgumentParser that formats standard usage errors with next action recommendations."""
 
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("conflict_handler", "resolve")
+        super().__init__(*args, **kwargs)
+
     def error(self, message: str) -> None:
         self.print_usage(sys.stderr)
         prog = self.prog
@@ -459,12 +463,24 @@ class _AwArgumentParser(argparse.ArgumentParser):
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    # A shared parent so --no-color works both before AND after the subcommand.
+    # A shared parent so --no-color, --agent, and --json work consistently across all subcommands.
     common = _AwArgumentParser(add_help=False)
     common.add_argument(
         "--no-color",
         action="store_true",
         help="Disable ANSI color (also honored via NO_COLOR).",
+    )
+    common.add_argument(
+        "--agent",
+        dest="agent",
+        action="store_true",
+        help="Machine-readable output (aw.agent/v1 JSONL).",
+    )
+    common.add_argument(
+        "--json",
+        dest="json",
+        action="store_true",
+        help="Emit full structured JSON representation.",
     )
 
     parser = _AwArgumentParser(
@@ -656,30 +672,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p_list_repos.add_argument(
         "--recursive", action="store_true", help="Discover repos recursively."
     )
-    p_list_repos.add_argument(
-        "--json",
-        dest="as_json",
-        action="store_true",
-        help="Emit the repo list as JSON (legacy/alias).",
-    )
-    p_list_repos.add_argument(
-        "--agent",
-        dest="as_json",
-        action="store_true",
-        help="Machine-readable output (emits JSON).",
-    )
 
-    p_status = sub.add_parser(
+    sub.add_parser(
         "status", parents=[common], help="Show environment + currency summary."
-    )
-    p_status.add_argument(
-        "--json", dest="as_json", action="store_true", help="Emit the status as JSON."
-    )
-    p_status.add_argument(
-        "--agent",
-        dest="as_json",
-        action="store_true",
-        help="Machine-readable output (emits JSON).",
     )
 
     # awuntrackedfix Order 01: rename local/ quarantine lanes to untracked/ (retroactive, tools-free).
@@ -702,16 +697,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dir", default=None, help="Repo root (default: current directory)."
     )
     p_doctor.add_argument(
-        "--agent",
-        dest="as_agent",
-        action="store_true",
-        help="Machine-readable tab-separated findings.",
-    )
-    p_doctor.add_argument(
         "--include-untracked",
         action="store_true",
         help="Include artifacts in untracked/ directories in checks (default: excluded).",
     )
+
     p_doctor.add_argument(
         "--include-executed",
         action="store_true",
@@ -801,11 +791,6 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Run the reduced legacy checks against a grandfathered terminal file.",
     )
-    p_ipd_lint.add_argument(
-        "--agent",
-        action="store_true",
-        help="Machine output: one tab-separated record per finding or disposition; no prose.",
-    )
 
     p_ipd_scaffold = ipd_sub.add_parser(
         "scaffold",
@@ -877,9 +862,6 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Filter by disposition (e.g. executed, pending, reusable).",
     )
-    p_ipd_board.add_argument(
-        "--agent", action="store_true", help="Machine-readable output."
-    )
 
     p_ipd_set = ipd_sub.add_parser(
         "set",
@@ -905,13 +887,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dry-run", action="store_true", help="Preview without writing."
     )
     p_ipd_set.add_argument(
-        "--json", dest="as_json", action="store_true", help="Emit output as JSON."
-    )
-    p_ipd_set.add_argument(
-        "--agent",
-        dest="as_agent",
-        action="store_true",
-        help="Emit output as tab-separated machine output.",
+        "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
     )
 
     # awoptimize Order 01 E-06: canonical workflow schema/compiler CLI (validate/compile/
@@ -947,10 +923,10 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
         (
             "compile",
-            "Compile to generated projections (dry-run; --apply writes atomically).",
-            "Compile a validated package into the six deterministic generated projections (prompt "
-            "bundle, step packets, manifest, evidence, catalog row, command descriptor). Dry-run "
-            "by default (previews the file list); --apply writes them atomically under _generated/.",
+            "Compile workflow source packages into generated files (dry-run by default; --apply to write).",
+            "Compile typed workflow source packages into runtime-ingestible projections. "
+            "Dry-run by default: shows what would change without touching disk. Pass --apply "
+            "to write the generated files. Exit 0 on success, 1 on a compiler failure, 2 on a bad path.",
         ),
         (
             "check-generated",
@@ -965,16 +941,6 @@ def _build_parser() -> argparse.ArgumentParser:
         )
         _p.add_argument(
             "path", nargs="*", default=None, help="One or more workflow package roots."
-        )
-        _p.add_argument(
-            "--agent",
-            action="store_true",
-            help="Machine output: one JSON record per line; no ANSI.",
-        )
-        _p.add_argument(
-            "--json",
-            action="store_true",
-            help="Machine output: a single JSON array; no ANSI.",
         )
         if _wf_sub == "compile":
             _p.add_argument(
@@ -1081,18 +1047,7 @@ def _build_parser() -> argparse.ArgumentParser:
             default=None,
             help="Repo root directory (default: current directory).",
         )
-        _pr.add_argument(
-            "--agent",
-            dest="as_agent",
-            action="store_true",
-            help="Machine output: one JSON record per line; no ANSI.",
-        )
-        _pr.add_argument(
-            "--json",
-            dest="as_json",
-            action="store_true",
-            help="Machine output: formatted JSON; no ANSI.",
-        )
+
         if _r_sub in (
             "start",
             "next",
@@ -1272,11 +1227,6 @@ def _build_parser() -> argparse.ArgumentParser:
     p_research_checkrefs.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
     )
-    p_research_checkrefs.add_argument(
-        "--agent",
-        action="store_true",
-        help="Machine output: tab-separated location/rule/id.",
-    )
 
     p_research_index = research_sub.add_parser(
         "index",
@@ -1296,11 +1246,6 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="Hot-window size for INDEX.md (default 40).",
-    )
-    p_research_index.add_argument(
-        "--agent",
-        action="store_true",
-        help="Machine output for --check: tab-separated records.",
     )
 
     p_research_find = research_sub.add_parser(
@@ -1354,16 +1299,6 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Target repository directory (default: current directory).",
     )
     p_context.add_argument(
-        "--json",
-        action="store_true",
-        help="Output context as formatted JSON (no ANSI).",
-    )
-    p_context.add_argument(
-        "--agent",
-        action="store_true",
-        help="Machine-readable JSON output for LLM callers.",
-    )
-    p_context.add_argument(
         "--public",
         "--redact",
         action="store_true",
@@ -1385,11 +1320,6 @@ def _build_parser() -> argparse.ArgumentParser:
         "--repo",
         default=None,
         help="Target repository directory (default: current directory).",
-    )
-    p_path.add_argument(
-        "--agent",
-        action="store_true",
-        help="Print only the absolute resolved path with no prose.",
     )
 
     p_project = sub.add_parser(
@@ -1421,12 +1351,6 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_project_status.add_argument(
         "--repo", default=None, help="Target repository path (default: current dir)."
-    )
-    p_project_status.add_argument(
-        "--json", action="store_true", help="Output status as formatted JSON."
-    )
-    p_project_status.add_argument(
-        "--agent", action="store_true", help="Machine-readable output for LLM callers."
     )
 
     p_project_attach = project_sub.add_parser(
@@ -1489,12 +1413,6 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_storage_status.add_argument(
         "--repo", default=None, help="Target repository path (default: current dir)."
-    )
-    p_storage_status.add_argument(
-        "--json", action="store_true", help="Output status as formatted JSON."
-    )
-    p_storage_status.add_argument(
-        "--agent", action="store_true", help="Machine-readable output for LLM callers."
     )
 
     p_storage_init = storage_sub.add_parser(
@@ -1607,9 +1525,6 @@ def _build_parser() -> argparse.ArgumentParser:
     p_storage_preflight.add_argument(
         "--companion-dir", required=True, help="Companion directory path."
     )
-    p_storage_preflight.add_argument(
-        "--json", action="store_true", help="Output preflight report as JSON."
-    )
 
     p_config = sub.add_parser(
         "config",
@@ -1661,7 +1576,6 @@ def _build_parser() -> argparse.ArgumentParser:
     p_todo = sub.add_parser(
         "todo", parents=[common], help="List operational AW actions."
     )
-    p_todo.add_argument("--agent", action="store_true", help="Machine-readable output.")
     p_todo.add_argument("--all", action="store_true", help="Include non-open actions.")
 
     p_show = sub.add_parser(
@@ -1747,15 +1661,6 @@ def _build_parser() -> argparse.ArgumentParser:
             )
         _p.add_argument(
             "--dir", default=None, help="Repo root (default: current directory)."
-        )
-        _p.add_argument(
-            "--json", dest="as_json", action="store_true", help="Emit findings as JSON."
-        )
-        _p.add_argument(
-            "--agent",
-            dest="as_agent",
-            action="store_true",
-            help="Emit findings as tab-separated machine output.",
         )
         if _verb == "search":
             _p.add_argument(
@@ -1855,13 +1760,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dry-run", action="store_true", help="Preview without writing."
     )
     p_set.add_argument(
-        "--json", dest="as_json", action="store_true", help="Emit output as JSON."
-    )
-    p_set.add_argument(
-        "--agent",
-        dest="as_agent",
-        action="store_true",
-        help="Emit output as tab-separated machine output.",
+        "--yes", "-y", action="store_true", help="Confirm execution without prompt."
     )
 
     p_migrate = sub.add_parser(
@@ -1941,9 +1840,6 @@ def _build_parser() -> argparse.ArgumentParser:
         "run leaves existing names (dual-read keeps them working).",
     )
     p_migrate.add_argument(
-        "--json", action="store_true", help="Output migration plan as JSON."
-    )
-    p_migrate.add_argument(
         "-y",
         "--yes",
         action="store_true",
@@ -1969,11 +1865,6 @@ def _build_parser() -> argparse.ArgumentParser:
         "--check",
         action="store_true",
         help="Validate all tracked trees; fail closed on any violation.",
-    )
-    p_attention.add_argument(
-        "--agent",
-        action="store_true",
-        help="Machine-readable tab-separated drift output (with --check).",
     )
     p_attention.add_argument(
         "--all", action="store_true", help="Show done/parked groups in the board."
@@ -2097,13 +1988,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dry-run", action="store_true", help="Preview without writing."
     )
     p_backlog_set.add_argument(
-        "--json", dest="as_json", action="store_true", help="Emit output as JSON."
-    )
-    p_backlog_set.add_argument(
-        "--agent",
-        dest="as_agent",
-        action="store_true",
-        help="Emit output as tab-separated machine output.",
+        "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
     )
 
     p_backlog_check = backlog_sub.add_parser(
@@ -2114,11 +1999,6 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_backlog_check.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
-    )
-    p_backlog_check.add_argument(
-        "--agent",
-        action="store_true",
-        help="Machine-readable tab-separated drift output.",
     )
 
     p_specs = sub.add_parser(
@@ -2210,14 +2090,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dry-run", action="store_true", help="Preview without writing."
     )
     p_specs_set.add_argument(
-        "--json", dest="as_json", action="store_true", help="Emit output as JSON."
+        "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
     )
-    p_specs_set.add_argument(
-        "--agent",
-        dest="as_agent",
-        action="store_true",
-        help="Emit output as tab-separated machine output.",
-    )
+
     p_specs_note = specs_sub.add_parser(
         "note",
         parents=[common],
@@ -2241,9 +2116,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_specs_check.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
     )
-    p_specs_check.add_argument(
-        "--agent", action="store_true", help="Machine-readable tab-separated output."
-    )
+
     p_specs_migrate = specs_sub.add_parser(
         "migrate",
         parents=[common],
@@ -2344,11 +2217,7 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Scan STAGED blob content instead of the tree (for the pre-commit hook).",
     )
-    p_leaks.add_argument(
-        "--agent",
-        action="store_true",
-        help="Machine-parseable output for an LLM caller (path\\trule\\tseverity, no prose).",
-    )
+
     p_leaks.add_argument(
         "--fix",
         action="store_true",
@@ -2737,8 +2606,6 @@ def _install_one(
         )
         outcome = "ok"
 
-    _security_pointer(term)
-
     # Record install history event & drop the self-explaining setup-repo-needed marker (setupmarker
     # Order 01: replaces the old operational-action ledger). Install history is a genuine append-only
     # audit; the marker is the per-machine "run setup here" reminder that `aw setup`/deletion clears.
@@ -2888,11 +2755,11 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
         if not kept_legacy:
             # Resolve policy via install_wizard (E-01..E-05) for .aw/ layout
             from agent_workflows.install_wizard import (
-                collect_policy_interactive,
-                render_pre_write_plan,
-                persist_project_policy,
                 PolicyCancelledError,
                 PolicyError,
+                collect_policy_interactive,
+                persist_project_policy,
+                render_pre_write_plan,
             )
 
             explicit_preset = getattr(args, "preset", None)
@@ -3059,16 +2926,6 @@ def _teach(term: Term) -> None:
         "ok",
         "Next: run the LLM '/setup-repo' workflow in each repo for "
         "stack-tailored conformance (CI, .gitignore, lifecycle contract).",
-    )
-
-
-def _security_pointer(term: Term) -> None:
-    """Print the install-time security pointer for shared/multi-user hosts (D86/D87)."""
-    term.status(
-        "warn",
-        "Shared/multi-user host caveat: unauthenticated local agent control servers can be "
-        "driven by other local users. See .aw/records/research/20260716-opencode-shared-host-hardening-howto-00-tt8ipb-opencode-shared-host-hardening-howto.howto.md "
-        "and DECISIONS.md D86/D87 for hardening guidance.",
     )
 
 
@@ -3429,24 +3286,44 @@ def _repos_for_report(recursive: bool) -> List[Path]:
     return out
 
 
-def _run_list(args: argparse.Namespace, term: Term) -> int:
+def _run_list(
+    args: argparse.Namespace, term: Term, context: Optional[Any] = None
+) -> int:
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Evidence,
+        select_output,
+    )
+
+    ctx = context or select_output(args)
     packaged = _packaged_version()
     repos = _repos_for_report(args.recursive)
-    if getattr(args, "as_json", False):
-        import json
+    rows = []
+    for repo in repos:
+        installed = engine.read_installed_version(repo)
+        rows.append(
+            {
+                "repo": str(repo),
+                "installed": installed or None,
+                "state": versioning.status(installed, packaged),
+            }
+        )
 
-        rows = []
-        for repo in repos:
-            installed = engine.read_installed_version(repo)
-            rows.append(
-                {
-                    "repo": str(repo),
-                    "installed": installed or None,
-                    "state": versioning.status(installed, packaged),
-                }
-            )
-        sys.stdout.write(json.dumps({"packaged": packaged, "repos": rows}) + "\n")
-        return 0
+    if ctx.is_agent or ctx.is_json:
+        data = {"packaged": packaged, "repos": rows}
+        res = CommandResult(
+            command="list-repos",
+            status="clean",
+            exit_code=0,
+            summary=f"discovered {len(repos)} repo(s)",
+            evidence=[
+                Evidence(key="repos", value={"count": len(repos)}, status="verified")
+            ],
+            data=data,
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
     if not repos:
         term.status("warn", "No configured or discovered repos. Run 'aw setup'.")
         return 0
@@ -3511,104 +3388,134 @@ def _collect_repo_status_details(repo: Path, packaged: str) -> dict:
             try:
                 import json
 
-                cfg_data = json.loads(cfg_file.read_text(encoding="utf-8"))
-                preset = cfg_data.get("preset")
-                backend = cfg_data.get("records_backend")
+                c_json = json.loads(cfg_file.read_text(encoding="utf-8"))
+                preset = c_json.get("preset")
+                backend = c_json.get("records_backend")
             except Exception:
                 pass
 
+    # Inspect attention metrics
+    attn_total = 0
+    attn_by_class: dict[str, int] = {}
+    attn_blockers = 0
+    if layout != "none":
+        try:
+            from agent_workflows import attention
+
+            items, drift = attention.scan(repo)
+            attn_total = len(items)
+            for it in items:
+                attn_by_class[it.attention_class] = (
+                    attn_by_class.get(it.attention_class, 0) + 1
+                )
+            attn_blockers = len(attention.release_blockers(items, repo))
+        except Exception:
+            pass
+
+    # Inspect git metrics
     git_info = {
         "available": False,
-        "branch": "",
-        "upstream": "",
+        "branch": None,
+        "upstream": None,
         "ahead": 0,
         "behind": 0,
         "dirty": False,
         "changes_count": 0,
     }
     if engine.git_available(repo):
-        git_info["available"] = True
         try:
             import subprocess
 
-            proc = subprocess.run(
-                ["git", "status", "--porcelain=v1", "-b"],
-                cwd=str(repo),
+            # Branch
+            r_br = subprocess.run(
+                ["git", "-C", str(repo), "rev-parse", "--abbrev-ref", "HEAD"],
                 capture_output=True,
                 text=True,
-                shell=False,
+                check=False,
             )
-            if proc.returncode == 0:
-                lines = proc.stdout.splitlines()
-                if lines:
-                    header = lines[0]
-                    if header.startswith("## "):
-                        h = header[3:].strip()
-                        if "..." in h:
-                            b, rest = h.split("...", 1)
-                            git_info["branch"] = b.strip()
-                            if "[" in rest and "]" in rest:
-                                u, track = rest.split("[", 1)
-                                git_info["upstream"] = u.strip()
-                                track = track.rstrip("]")
-                                for part in track.split(","):
-                                    part = part.strip()
-                                    if part.startswith("ahead "):
-                                        try:
-                                            git_info["ahead"] = int(part.split()[1])
-                                        except ValueError:
-                                            pass
-                                    elif part.startswith("behind "):
-                                        try:
-                                            git_info["behind"] = int(part.split()[1])
-                                        except ValueError:
-                                            pass
-                            else:
-                                git_info["upstream"] = rest.strip()
-                        else:
-                            git_info["branch"] = h
-                changes = [line for line in lines[1:] if line.strip()]
-                git_info["dirty"] = len(changes) > 0
-                git_info["changes_count"] = len(changes)
-        except Exception:
-            pass
+            if r_br.returncode == 0:
+                git_info["available"] = True
+                git_info["branch"] = r_br.stdout.strip()
 
-    attention_info = {
-        "total": 0,
-        "by_class": {},
-        "release_blockers": 0,
-    }
-    if layout != "none":
-        try:
-            from agent_workflows import attention as attn_mod
-
-            items, _drift = attn_mod.scan(repo)
-            attention_info["total"] = len(items)
-            for it in items:
-                attention_info["by_class"][it.attention_class] = (
-                    attention_info["by_class"].get(it.attention_class, 0) + 1
+            # Upstream tracking
+            r_up = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(repo),
+                    "rev-parse",
+                    "--abbrev-ref",
+                    "@{upstream}",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if r_up.returncode == 0:
+                git_info["upstream"] = r_up.stdout.strip()
+                # Ahead/behind counts
+                r_ab = subprocess.run(
+                    [
+                        "git",
+                        "-C",
+                        str(repo),
+                        "rev-list",
+                        "--left-right",
+                        "--count",
+                        "HEAD...@{upstream}",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=False,
                 )
-            attention_info["release_blockers"] = len(
-                attn_mod.release_blockers(items, repo)
+                if r_ab.returncode == 0:
+                    parts = r_ab.stdout.strip().split()
+                    if len(parts) == 2:
+                        git_info["ahead"] = int(parts[0])
+                        git_info["behind"] = int(parts[1])
+
+            # Status (dirty / changes count)
+            r_st = subprocess.run(
+                ["git", "-C", str(repo), "status", "--porcelain"],
+                capture_output=True,
+                text=True,
+                check=False,
             )
+            if r_st.returncode == 0:
+                lines = [line for line in r_st.stdout.split("\n") if line.strip()]
+                git_info["changes_count"] = len(lines)
+
+                git_info["dirty"] = len(lines) > 0
         except Exception:
             pass
 
     return {
         "path": str(repo),
-        "installed": installed,
+        "installed": installed or None,
         "is_source": is_source,
         "state": state,
         "layout": layout,
-        "split_brain": split_brain,
         "preset": preset,
         "backend": backend,
+        "split_brain": split_brain,
+        "attention": {
+            "total": attn_total,
+            "by_class": attn_by_class,
+            "release_blockers": attn_blockers,
+        },
         "git": git_info,
-        "attention": attention_info,
     }
 
 
-def _run_status(args, term: Term) -> int:
+def _run_status(args, term: Term, context: Optional[Any] = None) -> int:
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Evidence,
+        select_output,
+    )
+
+    ctx = context or select_output(args)
     packaged = _packaged_version()
     cfg = config.load()
     repos = _repos_for_report(recursive=False)
@@ -3625,33 +3532,35 @@ def _run_status(args, term: Term) -> int:
     repo_details = [_collect_repo_status_details(r, packaged) for r in repos]
     repo_details.sort(key=lambda rd: str(rd["path"]).lower())
     excluded_entries = sorted(cfg.get("exclude", []), key=lambda e: str(e).lower())
+    counts: dict = {}
+    for rd in repo_details:
+        state = rd["state"]
+        counts[state] = counts.get(state, 0) + 1
 
-    if getattr(args, "as_json", False):
-        import json
+    data = {
+        "packaged_version": packaged,
+        "python": sys.version.split()[0],
+        "git": engine.git_available(Path.cwd()),
+        "config": str(config.config_path()),
+        "config_present": config.config_path().is_file(),
+        "search_roots": cfg.get("search_roots", []),
+        "repos_configured": len(cfg.get("repos", [])),
+        "repos_excluded": len(excluded_entries),
+        "currency": counts,
+        "repositories": repo_details,
+        "excluded": excluded_entries,
+    }
 
-        counts: dict = {}
-        for rd in repo_details:
-            state = rd["state"]
-            counts[state] = counts.get(state, 0) + 1
-        sys.stdout.write(
-            json.dumps(
-                {
-                    "packaged_version": packaged,
-                    "python": sys.version.split()[0],
-                    "git": engine.git_available(Path.cwd()),
-                    "config": str(config.config_path()),
-                    "config_present": config.config_path().is_file(),
-                    "search_roots": cfg.get("search_roots", []),
-                    "repos_configured": len(cfg.get("repos", [])),
-                    "repos_excluded": len(excluded_entries),
-                    "currency": counts,
-                    "repositories": repo_details,
-                    "excluded": excluded_entries,
-                }
-            )
-            + "\n"
+    if ctx.is_agent or ctx.is_json:
+        res = CommandResult(
+            command="status",
+            status="clean",
+            exit_code=0,
+            summary=f"status: {len(repo_details)} repo(s) inspected, packaged version {packaged}",
+            evidence=[Evidence(key="currency", value=counts, status="verified")],
+            data=data,
         )
-        return 0
+        return get_renderer(ctx).emit(res, ctx)
 
     term.heading("agent-workflows status")
     term.line(term.colorize("Environment:", "bold"))
@@ -4079,19 +3988,37 @@ def _run_config_exclude(args: argparse.Namespace, term: Term) -> int:
     return 2
 
 
-def _run_plans(args: argparse.Namespace, term: Term) -> int:
-    from . import plans as plans_mod
+def _run_plans(
+    args: argparse.Namespace, term: Term, context: Optional[Any] = None
+) -> int:
     from agent_workflows.project_context import (
-        resolve_verb_repo_root,
         is_project_dir,
         no_project_message,
+        resolve_verb_repo_root,
+    )
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Evidence,
+        select_output,
     )
 
+    from . import plans as plans_mod
+
+    ctx = context or select_output(args)
     # Climb to the project root so `aw plans` works from any subdirectory; explicit --dir verbatim
     # (IPD awretrofit Order 06).
     explicit_dir = getattr(args, "dir", None)
     root = resolve_verb_repo_root(explicit_dir)
     if not explicit_dir and not is_project_dir(root):
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="ipd board",
+                status="cannot-run",
+                exit_code=3,
+                summary=no_project_message("plans"),
+            )
+            return get_renderer(ctx).emit(res, ctx)
         sys.stderr.write(no_project_message("plans") + "\n")
         return 3
 
@@ -4106,9 +4033,18 @@ def _run_plans(args: argparse.Namespace, term: Term) -> int:
         valid = ", ".join(
             plans_mod.PRE_TERMINAL + plans_mod.TERMINAL + plans_mod.STANDING
         )
+        err_msg = f"Unrecognized --status '{status_filter}'. Valid readiness statuses: {valid}."
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="ipd board",
+                status="cannot-run",
+                exit_code=2,
+                summary=err_msg,
+            )
+            return get_renderer(ctx).emit(res, ctx)
         term.status(
             "warn",
-            f"Unrecognized --status '{status_filter}'. Valid readiness statuses: {valid}.",
+            err_msg,
         )
         return 2
 
@@ -4116,6 +4052,16 @@ def _run_plans(args: argparse.Namespace, term: Term) -> int:
     # legacy .agents/plans read-fallback) rather than gating on the vanished legacy path.
     plans_dir = plans_mod._resolve_area_dir(root, "plans")
     if not plans_dir.is_dir():
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="ipd board",
+                status="clean",
+                exit_code=0,
+                summary="No plans found.",
+                evidence=[Evidence(key="plans", value={"count": 0}, status="verified")],
+                data={"plans": []},
+            )
+            return get_renderer(ctx).emit(res, ctx)
         term.status("skip", f"No plans found (no {plans_dir} under {root}).")
         return 0
 
@@ -4137,6 +4083,39 @@ def _run_plans(args: argparse.Namespace, term: Term) -> int:
             f"Wrote {index_path.relative_to(root).as_posix()} ({len(records)} entries).",
         )
         return 0
+
+    if ctx.is_agent or ctx.is_json:
+        plan_rows = []
+        for r in records:
+            try:
+                rel = str(r.path.relative_to(root).as_posix())
+            except Exception:
+                rel = str(r.path)
+            plan_rows.append(
+                {
+                    "path": rel,
+                    "area": r.area,
+                    "disposition": r.disposition,
+                    "status": r.status,
+                    "set_id": r.set_id,
+                    "order": r.order,
+                }
+            )
+        res = CommandResult(
+            command="ipd board",
+            status="clean",
+            exit_code=0,
+            summary=f"ipd board: {len(records)} plan(s)",
+            evidence=[
+                Evidence(
+                    key="plans-board",
+                    value={"count": len(records)},
+                    status="verified",
+                )
+            ],
+            data={"plans": plan_rows, "count": len(records)},
+        )
+        return get_renderer(ctx).emit(res, ctx)
 
     if not records:
         term.status("skip", "No matching plans.")
@@ -4222,6 +4201,7 @@ def _run_leaks_configure(args: argparse.Namespace, term: Term) -> int:
     """Interactive leak-sanitizer config wizard (`--configure`, D98). Reads/writes the
     tracked allowlist + the gitignored user hints; never scans."""
     from pathlib import Path
+
     from . import leak_sanitizer_config as lsc
 
     # An interview needs a real terminal. Unlike --fix, there is no meaningful "accept
@@ -4282,36 +4262,70 @@ def _run_check_local_leaks(args: argparse.Namespace, term: Term) -> int:
     return leak_sanitizer.main(passthrough)
 
 
-def _run_context(args: argparse.Namespace, term: Term) -> int:
+def _run_context(
+    args: argparse.Namespace, term: Term, context: Optional[Any] = None
+) -> int:
     """Inspect resolved AW project context (spec Section 9 & Order 02 E-05)."""
     import json
+
     from agent_workflows.project_context import (
-        resolve_project_context,
-        redact_public_context,
         ProjectContextError,
+        redact_public_context,
+        resolve_project_context,
+    )
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Diagnostic,
+        select_output,
     )
 
+    ctx_out = context or select_output(args)
     try:
         ctx = resolve_project_context(target_repo=getattr(args, "repo", None))
     except ProjectContextError as exc:
-        if (
-            getattr(args, "json", False)
-            or getattr(args, "agent", False)
-            or getattr(args, "public", False)
-        ):
-            print(json.dumps({"error": str(exc)}, indent=2))
-        else:
-            term.status("fail", str(exc))
+        if ctx_out.is_agent or ctx_out.is_json:
+            res = CommandResult(
+                command="context",
+                status="cannot-run",
+                exit_code=1,
+                summary=str(exc),
+                diagnostics=[
+                    Diagnostic(
+                        location=str(getattr(args, "repo", None) or "."),
+                        rule="context.error",
+                        detail=str(exc),
+                        severity="error",
+                    )
+                ],
+            )
+            return get_renderer(ctx_out).emit(res, ctx_out)
+        term.status("fail", str(exc))
         return 1
 
     if getattr(args, "public", False):
         redacted = redact_public_context(ctx.to_dict())
+        if ctx_out.is_agent or ctx_out.is_json:
+            res = CommandResult(
+                command="context",
+                status="clean",
+                exit_code=0,
+                summary="project context (public redacted)",
+                data=redacted,
+            )
+            return get_renderer(ctx_out).emit(res, ctx_out)
         print(json.dumps(redacted, indent=2))
         return 0
 
-    if getattr(args, "json", False) or getattr(args, "agent", False):
-        print(ctx.to_json(indent=2))
-        return 0
+    if ctx_out.is_agent or ctx_out.is_json:
+        res = CommandResult(
+            command="context",
+            status="clean",
+            exit_code=0,
+            summary="project context",
+            data=ctx.to_dict(),
+        )
+        return get_renderer(ctx_out).emit(res, ctx_out)
 
     term.heading("AW Resolved Project Context")
     term.status("info", f"Target Repo:       {ctx.target_repo}")
@@ -4335,8 +4349,8 @@ def _run_context(args: argparse.Namespace, term: Term) -> int:
 def _run_path(args: argparse.Namespace, term: Term) -> int:
     """Resolve physical path for a logical AW root (system|config|state|records)."""
     from agent_workflows.project_context import (
-        resolve_project_context,
         ProjectContextError,
+        resolve_project_context,
     )
 
     try:
@@ -4363,16 +4377,25 @@ def _run_path(args: argparse.Namespace, term: Term) -> int:
     return 0
 
 
-def _run_project_status(args: argparse.Namespace, term: Term) -> int:
-    import json
+def _run_project_status(
+    args: argparse.Namespace, term: Term, context: Optional[Any] = None
+) -> int:
     import os
+
     from agent_workflows import config
     from agent_workflows.project_registry import (
         find_project,
-        load_registry,
         get_registry_path,
+        load_registry,
+    )
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Evidence,
+        select_output,
     )
 
+    ctx = context or select_output(args)
     repo_path = getattr(args, "repo", None) or os.getcwd()
     aw_home, home_source = config.get_aw_home()
     reg_path = get_registry_path(str(aw_home))
@@ -4392,9 +4415,29 @@ def _run_project_status(args: argparse.Namespace, term: Term) -> int:
         else None,
     }
 
-    if getattr(args, "json", False) or getattr(args, "agent", False):
-        print(json.dumps(status_data, indent=2))
-        return 0
+    if ctx.is_agent or ctx.is_json:
+        res = CommandResult(
+            command="project status",
+            status="clean",
+            exit_code=0,
+            summary=(
+                f"matched project {match_res.entry.project_id}"
+                if match_res.entry
+                else "no registered project association found"
+            ),
+            evidence=[
+                Evidence(
+                    key="project-match",
+                    value={
+                        "matched": bool(match_res.entry),
+                        "kind": match_res.match_kind,
+                    },
+                    status="verified" if match_res.entry else "unverified",
+                )
+            ],
+            data=status_data,
+        )
+        return get_renderer(ctx).emit(res, ctx)
 
     term.heading("AW Project Registry Status")
     term.status("info", f"Target Repo:       {repo_path}")
@@ -4416,6 +4459,7 @@ def _run_project_status(args: argparse.Namespace, term: Term) -> int:
 
 def _run_project_attach(args: argparse.Namespace, term: Term) -> int:
     import os
+
     from agent_workflows import config
     from agent_workflows.project_registry import register_or_update_project
 
@@ -4474,24 +4518,63 @@ def _run_project_move(args: argparse.Namespace, term: Term) -> int:
     return 0
 
 
-def _run_storage_status(args: argparse.Namespace, term: Term) -> int:
-    import json
+def _run_storage_status(
+    args: argparse.Namespace, term: Term, context: Optional[Any] = None
+) -> int:
     import os
-    from agent_workflows.storage import get_storage_status, StorageError
 
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Diagnostic,
+        Evidence,
+        select_output,
+    )
+    from agent_workflows.storage import StorageError, get_storage_status
+
+    ctx = context or select_output(args)
     repo_path = getattr(args, "repo", None) or os.getcwd()
     try:
         st = get_storage_status(repo_path=repo_path)
     except StorageError as exc:
-        if getattr(args, "json", False) or getattr(args, "agent", False):
-            print(json.dumps({"error": str(exc)}, indent=2))
-        else:
-            term.status("fail", str(exc))
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="storage status",
+                status="cannot-run",
+                exit_code=1,
+                summary=str(exc),
+                diagnostics=[
+                    Diagnostic(
+                        location=repo_path,
+                        rule="storage.error",
+                        detail=str(exc),
+                        severity="error",
+                    )
+                ],
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        term.status("fail", str(exc))
         return 1
 
-    if getattr(args, "json", False) or getattr(args, "agent", False):
-        print(json.dumps(st.to_dict(), indent=2))
-        return 0
+    if ctx.is_agent or ctx.is_json:
+        res = CommandResult(
+            command="storage status",
+            status="clean",
+            exit_code=0,
+            summary=f"records storage: {st.records_backend} ({st.durability_state})",
+            evidence=[
+                Evidence(
+                    key="storage",
+                    value={
+                        "backend": st.records_backend,
+                        "durability": st.durability_state,
+                    },
+                    status="verified",
+                )
+            ],
+            data=st.to_dict(),
+        )
+        return get_renderer(ctx).emit(res, ctx)
 
     term.heading("AW Records Storage Status")
     term.status("info", f"Target Repo:       {st.target_repo}")
@@ -4508,7 +4591,8 @@ def _run_storage_status(args: argparse.Namespace, term: Term) -> int:
 
 def _run_storage_init(args: argparse.Namespace, term: Term) -> int:
     import os
-    from agent_workflows.storage import init_records_storage, StorageError
+
+    from agent_workflows.storage import StorageError, init_records_storage
 
     repo_path = getattr(args, "repo", None) or os.getcwd()
 
@@ -4545,10 +4629,11 @@ def _run_storage_init(args: argparse.Namespace, term: Term) -> int:
 
 def _run_storage_attach(args: argparse.Namespace, term: Term) -> int:
     import os
+
     from agent_workflows.storage import (
-        attach_companion,
-        acknowledge_remote_durability,
         StorageError,
+        acknowledge_remote_durability,
+        attach_companion,
     )
 
     repo_path = getattr(args, "repo", None) or os.getcwd()
@@ -4620,7 +4705,8 @@ def _run_storage_attach(args: argparse.Namespace, term: Term) -> int:
 
 def _run_storage_detach(args: argparse.Namespace, term: Term) -> int:
     import os
-    from agent_workflows.storage import detach_companion, StorageError
+
+    from agent_workflows.storage import StorageError, detach_companion
 
     repo_path = getattr(args, "repo", None) or os.getcwd()
     dry_run = getattr(args, "dry_run", False)
@@ -4646,7 +4732,8 @@ def _run_storage_detach(args: argparse.Namespace, term: Term) -> int:
 
 def _run_storage_move(args: argparse.Namespace, term: Term) -> int:
     import os
-    from agent_workflows.storage import move_companion, StorageError
+
+    from agent_workflows.storage import StorageError, move_companion
 
     repo_path = getattr(args, "repo", None) or os.getcwd()
     new_dir = getattr(args, "new_dir", None)
@@ -4681,7 +4768,8 @@ def _run_storage_move(args: argparse.Namespace, term: Term) -> int:
 
 def _run_storage_reattach(args: argparse.Namespace, term: Term) -> int:
     import os
-    from agent_workflows.storage import reattach_companion, StorageError
+
+    from agent_workflows.storage import StorageError, reattach_companion
 
     repo_path = getattr(args, "repo", None) or os.getcwd()
     companion_dir = getattr(args, "companion_dir", None)
@@ -4715,7 +4803,8 @@ def _run_storage_reattach(args: argparse.Namespace, term: Term) -> int:
 def _run_storage_preflight(args: argparse.Namespace, term: Term) -> int:
     import json
     import os
-    from agent_workflows.storage import validate_companion_preflight, StorageError
+
+    from agent_workflows.storage import StorageError, validate_companion_preflight
 
     repo_path = getattr(args, "repo", None) or os.getcwd()
     companion_dir = getattr(args, "companion_dir", None)
@@ -4748,10 +4837,20 @@ def _run_storage_preflight(args: argparse.Namespace, term: Term) -> int:
         return 1
 
 
-def _run_show(args: argparse.Namespace, term: Term) -> int:
+def _run_show(
+    args: argparse.Namespace, term: Term, context: Optional[Any] = None
+) -> int:
     from agent_workflows import selectors
     from agent_workflows.project_context import resolve_verb_repo_root
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Diagnostic,
+        Evidence,
+        select_output,
+    )
 
+    ctx = context or select_output(args)
     ref = args.action_ref
     # 1. Try to resolve the token as a RECORDS artifact (id6 | setid | filename | status),
     #    searching each record type; print every match.
@@ -4772,24 +4871,96 @@ def _run_show(args: argparse.Namespace, term: Term) -> int:
     seen: set = set()
     unique = [p for p in hits if not (str(p) in seen or seen.add(str(p)))]
     if unique:
+        if ctx.is_agent or ctx.is_json:
+            contents = {}
+            for p in unique:
+                try:
+                    contents[str(p)] = p.read_text(encoding="utf-8")
+                except OSError:
+                    pass
+            res = CommandResult(
+                command="show",
+                status="clean",
+                exit_code=0,
+                summary=f"matched {len(unique)} artifact(s)",
+                evidence=[
+                    Evidence(
+                        key="show-match",
+                        value={"count": len(unique)},
+                        status="verified",
+                    )
+                ],
+                data={"matches": [str(p) for p in unique], "contents": contents},
+            )
+            return get_renderer(ctx).emit(res, ctx)
+
         for p in unique:
             term.heading(str(p))
             print(p.read_text(encoding="utf-8"))
         return 0
+
+    if ctx.is_agent or ctx.is_json:
+        res = CommandResult(
+            command="show",
+            status="cannot-run",
+            exit_code=1,
+            summary=f"No records artifact matched '{ref}'.",
+            diagnostics=[
+                Diagnostic(
+                    location=ref,
+                    rule="show.not_found",
+                    detail=f"No records artifact matched '{ref}'.",
+                    severity="error",
+                )
+            ],
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
     # setupmarker Order 01: the action-ledger fallback was removed with the ledger. `aw show`
     # resolves records artifacts only.
     term.status("fail", f"No records artifact matched '{ref}'.")
     return 1
 
 
-def _run_record_history(args: argparse.Namespace, term: Term) -> int:
+def _run_record_history(
+    args: argparse.Namespace, term: Term, context: Optional[Any] = None
+) -> int:
     import os
     from pathlib import Path
-    from agent_workflows import record_history as rh
 
+    from agent_workflows import record_history as rh
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Evidence,
+        select_output,
+    )
+
+    ctx = context or select_output(args)
     repo_root = Path(getattr(args, "dir", None) or os.getcwd())
     id6 = args.id6
     records = rh.read_for(repo_root, id6)
+    if ctx.is_agent or ctx.is_json:
+        res = CommandResult(
+            command="record-history",
+            status="clean" if records else "findings",
+            exit_code=0,
+            summary=(
+                f"history for {id6} ({len(records)} entries)"
+                if records
+                else f"No sidecar history for id6 {id6}."
+            ),
+            evidence=[
+                Evidence(
+                    key="history-count",
+                    value={"count": len(records)},
+                    status="verified" if records else "unverified",
+                )
+            ],
+            data={"id6": id6, "history": records},
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
     if not records:
         term.status("warn", f"No sidecar history for id6 {id6}.")
         return 0
@@ -4862,11 +5033,11 @@ def _run_noun_verb(
     Order 02 wires index/find/search/check; Order 03 wires rename/group (+ archive)."""
     verb = args.command
     if verb == "search":
-        return _run_search(args, term)
+        return _run_search(args, term, context=context)
     if verb == "check":
         return _run_check(args, term, context=context)
     if verb == "find":
-        return _run_find(args, term)
+        return _run_find(args, term, context=context)
     types = _nv_resolve_types(args, term, verb)
     if types is None:
         return 2
@@ -4987,12 +5158,22 @@ def _find_type_records(
     return lines
 
 
-def _run_find(args: argparse.Namespace, term: Term) -> int:
+def _run_find(
+    args: argparse.Namespace, term: Term, context: Optional[Any] = None
+) -> int:
     """awcmdsurf Order 02: find artifacts of a TYPE (or all types if omitted) by selector."""
     import os
     from pathlib import Path
-    from agent_workflows import artifact_types as at
 
+    from agent_workflows import artifact_types as at
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Evidence,
+        select_output,
+    )
+
+    ctx = context or select_output(args)
     raw_type = getattr(args, "type", None)
     raw_selector = list(getattr(args, "selector", None) or [])
 
@@ -5014,6 +5195,27 @@ def _run_find(args: argparse.Namespace, term: Term) -> int:
             sub.id = selectors[0]
         lines = _find_type_records(repo_root, t, selectors, sub, term)
         all_lines.extend(lines)
+
+    if ctx.is_agent or ctx.is_json:
+        res = CommandResult(
+            command="find",
+            status="clean",
+            exit_code=0,
+            summary=(
+                f"found {len(all_lines)} {norm} artifact(s)"
+                if all_lines
+                else f"no matching {norm}"
+            ),
+            evidence=[
+                Evidence(
+                    key="find-count",
+                    value={"count": len(all_lines), "type": norm},
+                    status="verified",
+                )
+            ],
+            data={"matches": all_lines, "type": norm, "count": len(all_lines)},
+        )
+        return get_renderer(ctx).emit(res, ctx)
 
     if not all_lines:
         if norm == "all":
@@ -5072,17 +5274,26 @@ def _run_archive(args: argparse.Namespace, term: Term) -> int:
     return r if isinstance(r, int) else 0
 
 
-def _run_search(args: argparse.Namespace, term: Term) -> int:
+def _run_search(
+    args: argparse.Namespace, term: Term, context: Optional[Any] = None
+) -> int:
     """Search record tree(s) for regex matches. If the first positional is a known TYPE,
     restricts search to that type; otherwise searches 'all' types. Prints file path once
     in bold blue, followed by matching lines with matches highlighted in bold yellow
     (with line numbers if --line-numbers)."""
-    import json
     import os
     import re
     from pathlib import Path
-    from agent_workflows import artifact_types as at
 
+    from agent_workflows import artifact_types as at
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Evidence,
+        select_output,
+    )
+
+    ctx = context or select_output(args)
     raw_type = getattr(args, "type", None)
     raw_selector = list(getattr(args, "selector", None) or [])
 
@@ -5095,17 +5306,32 @@ def _run_search(args: argparse.Namespace, term: Term) -> int:
 
     pattern = " ".join(pattern_tokens) if pattern_tokens else None
     if not pattern:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="search",
+                status="cannot-run",
+                exit_code=2,
+                summary="search requires a pattern (positional selector).",
+            )
+            return get_renderer(ctx).emit(res, ctx)
         term.status("fail", "search requires a pattern (positional selector).")
         return 2
     try:
         rx = re.compile(pattern)
     except re.error as exc:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="search",
+                status="cannot-run",
+                exit_code=2,
+                summary=f"invalid regex: {exc}",
+            )
+            return get_renderer(ctx).emit(res, ctx)
         term.status("fail", f"invalid regex: {exc}")
         return 2
 
     repo_root = Path(getattr(args, "dir", None) or os.getcwd())
     types = at.ARTIFACT_TYPES if norm == "all" else (norm,)
-    as_json = getattr(args, "as_json", False)
     line_numbers = getattr(args, "line_numbers", False)
 
     hits = 0
@@ -5126,12 +5352,11 @@ def _run_search(args: argparse.Namespace, term: Term) -> int:
                     if rx.search(line):
                         hits += 1
                         file_matches.append((i, line))
-                        if as_json:
-                            json_results.append(
-                                {"path": str(p), "line": i, "text": line.strip()}
-                            )
+                        json_results.append(
+                            {"path": str(p), "line": i, "text": line.strip()}
+                        )
 
-                if file_matches and not as_json:
+                if file_matches and not (ctx.is_agent or ctx.is_json):
                     file_header = (
                         term.color256(str(p), 39, bold=True) if term.color else str(p)
                     )
@@ -5146,8 +5371,24 @@ def _run_search(args: argparse.Namespace, term: Term) -> int:
                         else:
                             term.line(f"  {highlighted}")
 
-    if as_json:
-        print(json.dumps(json_results, indent=2))
+    if ctx.is_agent or ctx.is_json:
+        exit_code = 0 if hits else 1
+        status = "clean" if hits else "findings"
+        res = CommandResult(
+            command="search",
+            status=status,
+            exit_code=exit_code,
+            summary=f"found {hits} match(es)",
+            evidence=[
+                Evidence(
+                    key="search-hits",
+                    value={"count": hits},
+                    status=status,
+                )
+            ],
+            data={"pattern": pattern, "hits": hits, "matches": json_results},
+        )
+        return get_renderer(ctx).emit(res, ctx)
 
     return 0 if hits else 1
 
@@ -5161,6 +5402,7 @@ def _run_check(
     import os
     import time
     from pathlib import Path
+
     from agent_workflows import artifact_core as core
     from agent_workflows import artifact_types as at
     from agent_workflows import check_engine as ce
@@ -5358,15 +5600,16 @@ def _run_check(
 
 
 def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
+    import io
     import json
     import os
     import sys
-    import io
     from pathlib import Path
+
     from agent_workflows import layout_inventory as inv_mod
     from agent_workflows.layout_migration import (
-        MigrationManager,
         MigrationError,
+        MigrationManager,
         is_stale_tool_litter,
     )
 
@@ -5856,18 +6099,18 @@ def _show_family_help(
         help_text = parser.format_help()
 
     if context and getattr(context, "is_agent", False):
-        from agent_workflows.result_types import CommandResult, NextAction
         from agent_workflows.renderers import get_renderer
+        from agent_workflows.result_types import CommandResult, NextAction
 
         res = CommandResult(
             command=cmd_name,
-            status="error",
+            status="cannot-run",
             exit_code=2,
             summary=f"missing required subcommand for {cmd_name}",
             next_actions=[NextAction(command=next_cmd)],
             data={"target": cmd_name},
-            verified=True,
-            complete=True,
+            verified=False,
+            complete=False,
         )
         return get_renderer(context).emit(res, context)
 
@@ -5886,7 +6129,13 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     argv = _rewrite_help_token(argv_list)
     args = parser.parse_args(argv)
 
-    context = select_output(args)
+    try:
+        context = select_output(args)
+    except ConflictingFlagsError as exc:
+        print(f"agent-workflows: error: {exc}", file=sys.stderr)
+        print("Next  aw --help", file=sys.stderr)
+        return 2
+
     term = Term(color=context.color)
 
     if args.command is None:
@@ -5899,9 +6148,15 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
                     ),
                     term,
                 )
+            if context.is_agent or context.is_json:
+                return _run_status(
+                    argparse.Namespace(as_json=False), term, context=context
+                )
             term.status("warn", "Not configured. Run 'aw setup' to get started.")
-            return _run_status(argparse.Namespace(as_json=False), term)
-        _run_status(argparse.Namespace(as_json=False), term)
+            return _run_status(argparse.Namespace(as_json=False), term, context=context)
+        if context.is_agent or context.is_json:
+            return _run_status(argparse.Namespace(as_json=False), term, context=context)
+        _run_status(argparse.Namespace(as_json=False), term, context=context)
         term.line()
         term.line(
             "Commands: install <dir>|all, setup, todo, complete, dismiss, status, plans, "
@@ -5912,7 +6167,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     if args.command == "project":
         project_cmd = getattr(args, "project_command", None)
         if project_cmd == "status":
-            return _run_project_status(args, term)
+            return _run_project_status(args, term, context=context)
         if project_cmd == "attach":
             return _run_project_attach(args, term)
         if project_cmd == "move":
@@ -5921,7 +6176,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     if args.command == "storage":
         storage_cmd = getattr(args, "storage_command", None)
         if storage_cmd == "status":
-            return _run_storage_status(args, term)
+            return _run_storage_status(args, term, context=context)
         if storage_cmd == "init":
             return _run_storage_init(args, term)
         if storage_cmd == "attach":
@@ -5947,9 +6202,9 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
 
         return att.run(args)
     if args.command == "show":
-        return _run_show(args, term)
+        return _run_show(args, term, context=context)
     if args.command == "record-history":
-        return _run_record_history(args, term)
+        return _run_record_history(args, term, context=context)
     if args.command in ("check", "find", "search", "index", "rename", "group"):
         return _run_noun_verb(args, term, context=context)
     if args.command == "migrate-layout":
@@ -5959,15 +6214,17 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     if args.command == "uninstall":
         return _run_uninstall(args, term)
     if args.command == "list-repos":
-        return _run_list(args, term)
+        return _run_list(args, term, context=context)
     if args.command == "exclude":
         return _run_exclude(args, term)
     if args.command == "include":
         return _run_include(args, term)
     if args.command == "status":
-        return _run_status(args, term)
+        return _run_status(args, term, context=context)
+
     if args.command == "normalize-lanes":
         import os as _os
+
         from agent_workflows import engine as _engine
 
         repo_root = Path(getattr(args, "dir", None) or _os.getcwd())
@@ -5988,10 +6245,18 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     # removed. Those capabilities are the noun-verb grammar (ipd board / index|find|group|rename|
     # archive plans / check <type> names / list-repos). _run_plans is retained: `ipd board` calls it.
     if args.command == "workflow":
+        if not getattr(args, "workflow_command", None):
+            return _show_family_help(
+                parser, "workflow", "aw workflow validate <pkg>", term, context=context
+            )
         from agent_workflows import workflow_cli
 
         return workflow_cli.run_workflow(args)
     if args.command == "run":
+        if not getattr(args, "run_command", None):
+            return _show_family_help(
+                parser, "run", "aw run show <target>", term, context=context
+            )
         from agent_workflows import run_cli
 
         return run_cli.run_cli(args)
@@ -6033,7 +6298,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             return ipd_authoring.run_sync(args)
         # awcmdsurf Order 04: `ipd board` and bare `aw ipd` both show the IPD board.
         if ipd_cmd == "board" or ipd_cmd is None:
-            return _run_plans(args, term)
+            return _run_plans(args, term, context=context)
         return _show_family_help(parser, "ipd", "aw ipd board", term, context)
     if args.command in ("prompt", "prompts"):
         prompt_cmd = getattr(args, "prompts_command", None) or getattr(
@@ -6091,9 +6356,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             return ra.run_check_miscategorized(args)
         return _show_family_help(parser, "research", "aw research find", term, context)
     if args.command == "context":
-        return _run_context(args, term)
+        return _run_context(args, term, context=context)
     if args.command == "path":
         return _run_path(args, term)
+
     if args.command in ("attention", "att"):
         from agent_workflows import attention as att
 

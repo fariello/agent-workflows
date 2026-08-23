@@ -10,8 +10,9 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
+from agent_workflows import cli
+from agent_workflows import config as CFG
 from tests.support import init_repo
-from agent_workflows import cli, config as CFG
 
 
 def _run(argv):
@@ -121,11 +122,12 @@ class ExcludeIncludeStatusTests(unittest.TestCase):
         code, out = _run(["status", "--json"])
         self.assertEqual(code, 0)
         data = json.loads(out)
-        self.assertEqual(data["repos_configured"], 1)
-        self.assertEqual(data["repos_excluded"], 1)
-        self.assertIn("repositories", data)
-        self.assertEqual(len(data["repositories"]), 1)
-        repo_data = data["repositories"][0]
+        data_dict = data.get("data", data)
+        self.assertEqual(data_dict["repos_configured"], 1)
+        self.assertEqual(data_dict["repos_excluded"], 1)
+        self.assertIn("repositories", data_dict)
+        self.assertEqual(len(data_dict["repositories"]), 1)
+        repo_data = data_dict["repositories"][0]
         self.assertIn("proj1", repo_data["path"])
 
     def test_status_alphabetical_order_and_dual_layout(self):

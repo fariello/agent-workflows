@@ -89,7 +89,7 @@ class CheckRecipeUnitTests(unittest.TestCase):
         out, err = io.StringIO(), io.StringIO()
         with redirect_stdout(out), redirect_stderr(err):
             try:
-                rc = cli.main(argv)
+                rc = cli.main([*argv, "--agent"])
             except SystemExit as e:
                 rc = int(e.code or 0)
         return rc, out.getvalue(), err.getvalue()

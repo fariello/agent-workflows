@@ -14,6 +14,7 @@ from unittest import mock
 from agent_workflows import config
 from agent_workflows.project_registry import (
     RegistrySecurityError,
+    _check_registry_path_security,
     find_project,
     generate_project_id,
     get_git_common_dir,
@@ -21,7 +22,6 @@ from agent_workflows.project_registry import (
     normalize_origin_hint,
     register_or_update_project,
     save_registry,
-    _check_registry_path_security,
 )
 
 
@@ -199,8 +199,9 @@ class TestProjectRegistry(unittest.TestCase):
         )
         self.assertEqual(res.returncode, 0, f"CLI error: {res.stderr}")
         data = json.loads(res.stdout)
-        self.assertIn("target_repo", data)
-        self.assertIn("effective_aw_home", data)
+        data_dict = data.get("data", data)
+        self.assertIn("target_repo", data_dict)
+        self.assertIn("effective_aw_home", data_dict)
 
     def test_cli_project_attach_and_move(self):
         """Test `aw project attach` and `aw project move` CLI commands."""
@@ -237,8 +238,9 @@ class TestProjectRegistry(unittest.TestCase):
             cmd_status, capture_output=True, text=True, cwd=Path(__file__).parent.parent
         )
         data = json.loads(res2.stdout)
-        self.assertTrue(data["matched"])
-        self.assertEqual(data["project_entry"]["project_id"], pid)
+        data_dict = data.get("data", data)
+        self.assertTrue(data_dict["matched"])
+        self.assertEqual(data_dict["project_entry"]["project_id"], pid)
 
         # Move to new path
         new_repo = os.path.join(self.tmp_dir, "newrepo")

@@ -8,10 +8,9 @@ import shutil
 import subprocess
 import tempfile
 import unittest
-from unittest.mock import patch
 from pathlib import Path
+from unittest.mock import patch
 
-from tests.support import FIXTURES
 from agent_workflows.project_registry import (
     register_or_update_project,
 )
@@ -27,6 +26,7 @@ from agent_workflows.storage import (
     init_records_storage,
     validate_storage_boundaries,
 )
+from tests.support import FIXTURES
 
 
 class TestStorageBackendsAndDurability(unittest.TestCase):
@@ -200,9 +200,10 @@ class TestStorageBackendsAndDurability(unittest.TestCase):
         )
         self.assertEqual(res.returncode, 0, f"CLI error: {res.stderr}")
         data = json.loads(res.stdout)
-        self.assertIn("records_backend", data)
-        self.assertIn("durability_state", data)
-        self.assertIn("recommendation", data)
+        data_dict = data.get("data", data)
+        self.assertIn("records_backend", data_dict)
+        self.assertIn("durability_state", data_dict)
+        self.assertIn("recommendation", data_dict)
 
     def test_cli_storage_init_dry_run(self):
         """Test `aw storage init --dry-run` does not mutate filesystem."""
@@ -271,12 +272,12 @@ class CompanionAttachmentTests(unittest.TestCase):
     def test_e01(self):
         """E-01: Portable companion identity and machine-local attachment record."""
         from agent_workflows.storage import (
+            IdentityConflictError,
             create_companion_identity,
             load_companion_identity,
-            write_local_attachment_record,
             load_local_attachment_record,
             validate_companion_preflight,
-            IdentityConflictError,
+            write_local_attachment_record,
         )
 
         fx = FIXTURES / "awphysical" / "order05" / "e01-identity.json"
@@ -321,8 +322,8 @@ class CompanionAttachmentTests(unittest.TestCase):
     def test_e02(self):
         """E-02: Preflight validation for unsafe or ambiguous storage resolution."""
         from agent_workflows.storage import (
-            validate_companion_preflight,
             StorageSecurityError,
+            validate_companion_preflight,
         )
 
         fx = FIXTURES / "awphysical" / "order05" / "e02-preflight.json"
@@ -350,8 +351,8 @@ class CompanionAttachmentTests(unittest.TestCase):
     def test_e03(self):
         """E-03: Materialize private companion storage bundle and Git boundary separation."""
         from agent_workflows.storage import (
-            materialize_companion_storage,
             get_git_commit_boundaries,
+            materialize_companion_storage,
         )
 
         fx = FIXTURES / "awphysical" / "order05" / "e03-bundle.json"
@@ -392,9 +393,9 @@ class CompanionAttachmentTests(unittest.TestCase):
     def test_e04(self):
         """E-04: Truthful durability state classification and revocation handling."""
         from agent_workflows.storage import (
+            acknowledge_remote_durability,
             get_storage_status,
             init_records_storage,
-            acknowledge_remote_durability,
         )
 
         fx = FIXTURES / "awphysical" / "order05" / "e04-durability.json"
@@ -505,8 +506,8 @@ class CompanionAttachmentTests(unittest.TestCase):
     def test_e06(self):
         """E-06: Independent staging and commit boundaries for target and companion."""
         from agent_workflows.storage import (
-            get_git_commit_boundaries,
             attach_companion,
+            get_git_commit_boundaries,
         )
 
         fx = FIXTURES / "awphysical" / "order05" / "e06-boundaries.json"
@@ -529,9 +530,9 @@ class CompanionAttachmentTests(unittest.TestCase):
     def test_e07(self):
         """E-07: Closed matrix of attachment/durability states and transition testing."""
         from agent_workflows.storage import (
+            acknowledge_remote_durability,
             get_storage_status,
             init_records_storage,
-            acknowledge_remote_durability,
         )
 
         fx = FIXTURES / "awphysical" / "order05" / "e07-matrix.json"

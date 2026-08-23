@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 import json
 import unittest
-from contextlib import redirect_stdout, redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 
 from agent_workflows import cli
 
@@ -25,15 +25,17 @@ class JsonAndExitCodesTests(unittest.TestCase):
         rc, out, err = _run(["status", "--json"])
         self.assertEqual(rc, 0)
         data = json.loads(out)
-        self.assertIn("packaged_version", data)
-        self.assertIn("currency", data)
+        self.assertEqual(data["schema"], "aw.agent/v1")
+        self.assertIn("packaged_version", data.get("data", data))
+        self.assertIn("currency", data.get("data", data))
 
     def test_list_repos_json_is_valid(self):
         rc, out, err = _run(["list-repos", "--json"])
         self.assertEqual(rc, 0)
         data = json.loads(out)
-        self.assertIn("repos", data)
-        self.assertIsInstance(data["repos"], list)
+        self.assertEqual(data["schema"], "aw.agent/v1")
+        repos = data["data"]["repos"] if "data" in data else data["repos"]
+        self.assertIsInstance(repos, list)
 
     def test_status_human_unchanged(self):
         rc, out, err = _run(["status"])
