@@ -149,7 +149,13 @@ class SanitizerProbeResult:
         return {
             "scanned_files": self.scanned_files,
             "findings": [
-                {"path": f.path, "line": f.line, "rule": f.rule, "snippet": f.snippet}
+                {
+                    "location": f.location,
+                    "line_number": getattr(f, "line_number", None),
+                    "rule": f.rule,
+                    "severity": getattr(f, "severity", "error"),
+                    "snippet": f.snippet,
+                }
                 for f in self.findings
             ],
             "drift": [
