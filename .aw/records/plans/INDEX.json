@@ -2792,6 +2792,16 @@
   {
     "date": "2026-08-23",
     "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260823-ipdfidelity-01-39fz2x-corrective-enforce-single-ipd-lifecycle-and-scope-gates.ipd.md",
+    "plan_id": "39fz2x",
+    "set_id": "ipdfidelity",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260823-unifyfileio-00-g6mbht-unify-artifact-file-finding-reference-matching-and-naming-on.ipd.md",
@@ -2807,7 +2817,7 @@
     "path": "pending/20260823-unifyfileio-01-o6b8l3-canonical-artifact-naming-and-filename-grammar-authority.ipd.md",
     "plan_id": "o6b8l3",
     "set_id": "unifyfileio",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-23",
@@ -2817,7 +2827,7 @@
     "path": "pending/20260823-unifyfileio-02-laykok-unified-selector-to-file-resolver.ipd.md",
     "plan_id": "laykok",
     "set_id": "unifyfileio",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-23",
@@ -2827,7 +2837,7 @@
     "path": "pending/20260823-unifyfileio-03-3cmnfc-unified-reference-matcher-rewriter-and-consistent-dangling-c.ipd.md",
     "plan_id": "3cmnfc",
     "set_id": "unifyfileio",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-23",
@@ -2837,7 +2847,7 @@
     "path": "pending/20260823-unifyfileio-04-52zgqr-additive-rename-and-regroup-history-ledger-on-the-workflow-s.ipd.md",
     "plan_id": "52zgqr",
     "set_id": "unifyfileio",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-07",

@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 116 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 117 Sets; the full manifest is INDEX.json.
 
 ## artifactenginefix
 
@@ -28,6 +28,10 @@ Showing the 40 most-recent of 116 Sets; the full manifest is INDEX.json.
 ## grouptypes
 
 - `o2ygf3` [executed] 01 executed/20260823-grouptypes-01-o2ygf3-universal-artifact-type-support-in-aw-group.ipd.md
+
+## ipdfidelity
+
+- `39fz2x` [pending] 01 pending/20260823-ipdfidelity-01-39fz2x-corrective-enforce-single-ipd-lifecycle-and-scope-gates.ipd.md
 
 ## renametypes
 
@@ -264,10 +268,6 @@ Showing the 40 most-recent of 116 Sets; the full manifest is INDEX.json.
 ## ipdexechist
 
 - `69xrut` [executed] 01 executed/20260813-ipdexechist-01-69xrut-executed-history-lint-guard.ipd.md
-
-## migdispo
-
-- `bsxowq` [executed] 01 executed/20260812-migdispo-01-bsxowq-generalize-layout-migration-dispositions-and-entrypoint.ipd.md
 
 ## (singletons: no Set)
 
