@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: `agy_run.py` reports a turn as ERROR when Antigravity rejects a sandboxed `write_to_file` even though the intended write already landed via `run_command` and the work committed, making agy status untrustworthy.
 - Scope: The turn-status classification in `tools/agy_run.py` and the execution/audit steering prompts under `tools/awphysical/`; no change to what the agent actually does to the repo.
-- Status: draft
+- Status: reviewed
 - Set: highpbacklog0822
 - Order: 2
 - Highest E allocated: 03
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-22 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created for backlog uhbdt1; false-ERROR observed executing backlog-medhigh-260819 Orders 01 + 07 (both ERROR-but-complete).
+- 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; maintainer confirmed the false-ERROR is STILL live under the current `--dangerous` invocation (permission-skip is orthogonal to the sandbox rejection); PR-001 (reconcile premise with --dangerous/--add-dir + record confirmation), PR-002 (capture the real rejection payload before writing the E-02 predicate), PR-003 (--add-dir considered/rejected), PR-004 (Status draft->reviewed).
 
 ## Goal
 
@@ -32,9 +33,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Material change 2: Treat the expected rejection as non-fatal
 
-- [ ] E-02 In `tools/agy_run.py`, before `run_agy()` raises `ScriptError` on a non-SUCCESS terminal status (around `tools/agy_run.py:613-619`), classify a terminal status whose only failure is a `write_to_file` rejection on a target-repo path as NON-fatal when the run otherwise completed (exit 0 and the intended write is present), and downgrade it to SUCCESS-with-warning rather than ERROR.
+- [ ] E-02 FIRST capture a real rejection payload: from an actual logged agy run that exhibited the false-ERROR (or a fresh reproduction), record the exact terminal `payload`/`error`/status text Antigravity emits for the `write_to_file`-on-repo-path rejection, so the detection predicate matches ACTUAL output, not a guessed string. THEN, in `tools/agy_run.py`, before `run_agy()` raises `ScriptError` on a non-SUCCESS terminal status (`tools/agy_run.py:614-619`, the `returncode != 0 or status != "SUCCESS"` gate), classify a terminal status whose ONLY failure signal matches that captured rejection as NON-fatal when the run otherwise completed (exit 0 and the intended write is present), and downgrade it to SUCCESS-with-warning rather than ERROR.
   - Depends on: none
-  - Expected outcome: an otherwise-successful turn whose sole error is the sandboxed `write_to_file` rejection reports SUCCESS (with a logged warning), not ERROR.
+  - Expected outcome: an otherwise-successful turn whose sole error is the captured `write_to_file` rejection reports SUCCESS (with a logged warning), not ERROR; the predicate is keyed to real observed output.
   - Execution state: pending
 
 ### Material change 3: Surface the downgrade honestly
@@ -48,8 +49,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - The runner is `tools/agy_run.py`; `tools/watch-agy.py` is only a log tailer.
 - Steering prompts are durable markdown under `tools/awphysical/` loaded at `tools/agy_run.py:48-54` and assembled by `build_turn1_prompt()` (`:631-651`) / `build_turn2_prompt()` (`:653-670`).
-- `run_agy()` raises `ScriptError` whenever `returncode != 0 or status != "SUCCESS"` (`tools/agy_run.py:615`); step ERROR mapping is `_progress_messages()` (`:483-488`, `"ERROR": "failed"`); terminal status parsed at `:466-473`, `:604-605`, `:613`.
-- There is currently NO handling that distinguishes a benign/expected tool-call rejection from a genuine failure.
+- `run_agy()` raises `ScriptError` whenever `returncode != 0 or status != "SUCCESS"` (`tools/agy_run.py:614-619`); step ERROR mapping is `_progress_messages()` (`:483-488`, `"ERROR": "failed"`); terminal status parsed around `:604-619`.
+- There is currently NO handling that distinguishes a benign/expected tool-call rejection from a genuine failure, and `agy_run.py` contains no `write_to_file`/sandbox/rejection logic (grep-confirmed).
+- Two ADJACENT flags exist and do NOT already fix this (confirmed 2026-08-22): `--dangerous` / `--dangerously-skip-permissions` (`agy_run.py:250-256,561-562`) auto-approves PERMISSION prompts only; `--add-dir` (`agy_run.py:131-135,261-268,563-565`) extends the sandbox, whose DEFAULT is the repository root. The `write_to_file` rejection is a distinct sandbox/path behavior neither flag suppresses, and the `status != "SUCCESS"` classifier still fires regardless. The maintainer CONFIRMED (2026-08-22, /plan-review) the false-ERROR is still a live issue under the current `--dangerous` invocation, so this plan stands.
 
 ## Findings
 
@@ -67,6 +69,7 @@ The two fixes are belt-and-suspenders: E-01 stops the rejection occurring; E-02/
 
 - Replacing Antigravity's native tool sandbox or its `write_to_file` semantics: not ours to change.
 - Broader agy status-model refactor: out of scope; this fix is narrow to the false-ERROR path.
+- Using `--add-dir` to widen the sandbox as the fix: CONSIDERED and rejected. The sandbox default already includes the repo root (`agy_run.py:131-135`), so the rejection is not a missing-add-dir problem; widening the sandbox would not stop Gemini's redundant `write_to_file` call nor fix the blunt classifier, and would loosen the sandbox for no benefit. The chosen fix is prompt-steer (E-01) + narrow classifier downgrade (E-02/E-03).
 
 ## Scope check
 
