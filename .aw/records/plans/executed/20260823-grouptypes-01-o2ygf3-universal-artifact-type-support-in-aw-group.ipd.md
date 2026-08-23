@@ -4,8 +4,7 @@
 - Kind: child
 - Concern: CLI noun-verb grammar consistency across all tracked artifact types for 'aw group'.
 - Scope: Extend 'aw group' to support all canonical artifact types (backlog, specs, prompts, roadmaps, walkthroughs) alongside plans and research.
-- Status: approved
-- Approval: Gabriele Fariello (human), 2026-08-23
+- Status: executed
 - Set: grouptypes
 - Order: 1
 - Highest E allocated: 03
@@ -13,6 +12,7 @@
 - Id: o2ygf3
 
 ## Workflow history
+- 2026-08-23 executed (aw set): status set to executed
 - 2026-08-23 approved (aw set): status set to approved
 
 - 2026-08-23 draft (Gabriele Fariello): created.
@@ -28,26 +28,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Material change 1: Generalized set-assignment and regrouping engine
 
-- [ ] E-01 Generalize the group/set-assignment backend in `agent_workflows/` to support re-assigning Set IDs across the in-scope artifact types (see the Scope check below), validating the new Set ID syntax, updating the artifact's YAML frontmatter (`- Set: <new-set-id>`), calculating the target grammar filename, executing filesystem renames, and rewriting inbound reference links across all referencing markdown documents.
+- [x] E-01 Generalize the group/set-assignment backend in `agent_workflows/` to support re-assigning Set IDs across the in-scope artifact types (see the Scope check below), validating the new Set ID syntax, updating the artifact's YAML frontmatter (`- Set: <new-set-id>`), calculating the target grammar filename, executing filesystem renames, and rewriting inbound reference links across all referencing markdown documents.
   - Note (verified): `agent_workflows/artifact_core.py` ALREADY exists and owns the shared primitives (`iter_scan_files`, `atomic_write`, `git_mv`, `find_dangling_citations`, id6/kebab helpers); its docstring deliberately scopes filename-grammar and reference-rewriting OUT of core, keeping them per-area. `plans_refs.run_set_assign` and `research_refs.run_set_assign` genuinely DIVERGE: plans edits in-file `- Set:`/`- Order:` frontmatter and rewrites three citation forms (full name + bare stem + range shorthand) via a clustered grammar (`clustered_name`); research encodes set/order in the FILENAME only (no frontmatter edit), requires `--date`, and rewrites only the full old-filename token. Therefore the generalization MUST be a PARAMETERIZED engine (inject the per-type name-builder, reference-rewriter, and metadata-writer) - NOT a straight copy-paste extraction into a new `generic_refs.py`. Prefer extending `artifact_core.py` for any newly-shared primitive; introduce a new module only if the shared surface genuinely has no home there.
   - Per-type handlers required (OQ-02, human-resolved scope): `backlog` reuses the id6/setid grammar + `- Set:` frontmatter path; `specs`/`prompts` need a handler for id6-less `YYYYMMDD-HHMM-NN-<slug>` names that injects/updates a `- Set:` frontmatter field (per OQ-01) and computes that type's own name form; `roadmaps`/`walkthroughs` are free-form and Set-less, so a group op injects `- Set:` per OQ-01 or refuses cleanly.
   - Depends on: none
   - Expected outcome: a universal set-assignment backend function safely updates Set IDs, frontmatter, filenames, and references for any artifact type.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Material change 2: CLI router and backend registration
 
-- [ ] E-02 Register `group` backend routes in `TYPE_BACKENDS` (`agent_workflows/artifact_types.py:72-93`) for each in-scope type resolved in OQ-02 (`backlog`, `specs`, `prompts`, `roadmaps`, `walkthroughs`), each pointing at the parameterized engine from E-01 with that type's handler. The noun-verb parsers and `_nv_backend_args` already pass `--set`/`--order`/`--apply`/selector (`agent_workflows/cli.py:1662-1708,5002-5017`), so `aw group <type> <selector...> --set <new-setid> [--order <NN>] [--apply]` must execute cleanly without emitting `'group' is not supported for <type>`. For a Set-less free-form type, `group` must either inject `- Set:` per OQ-01 or refuse cleanly - never report a silent no-op as success.
+- [x] E-02 Register `group` backend routes in `TYPE_BACKENDS` (`agent_workflows/artifact_types.py:72-93`) for each in-scope type resolved in OQ-02 (`backlog`, `specs`, `prompts`, `roadmaps`, `walkthroughs`), each pointing at the parameterized engine from E-01 with that type's handler. The noun-verb parsers and `_nv_backend_args` already pass `--set`/`--order`/`--apply`/selector (`agent_workflows/cli.py:1662-1708,5002-5017`), so `aw group <type> <selector...> --set <new-setid> [--order <NN>] [--apply]` must execute cleanly without emitting `'group' is not supported for <type>`. For a Set-less free-form type, `group` must either inject `- Set:` per OQ-01 or refuse cleanly - never report a silent no-op as success.
   - Depends on: E-01
   - Expected outcome: `aw group <type>` works consistently for every in-scope artifact type in the noun-verb grammar (`comms` remains excluded).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Material change 3: Comprehensive test suite and validation
 
-- [ ] E-03 Author `tests/test_artifact_group.py` validating that `aw group` successfully re-groups artifacts across `backlog`, `specs`, `prompts`, `walkthroughs`, and `roadmaps` (testing dry-run preview, `--apply`, set ID collision resolution, frontmatter synchronization, and reference rewrites), including the OQ-01/OQ-02 edge cases: a Set-less type gets a `- Set:` field injected on group (or the op refuses cleanly with a non-zero/clear message if the project decides the type has no Set semantics - assert whichever behavior E-01/E-02 implement, and assert it is NOT a silent success), and existing `plans`/`research` group behavior is unchanged (regression). Verify the full test suite passes with `pytest -n auto`.
+- [x] E-03 Author `tests/test_artifact_group.py` validating that `aw group` successfully re-groups artifacts across `backlog`, `specs`, `prompts`, `walkthroughs`, and `roadmaps` (testing dry-run preview, `--apply`, set ID collision resolution, frontmatter synchronization, and reference rewrites), including the OQ-01/OQ-02 edge cases: a Set-less type gets a `- Set:` field injected on group (or the op refuses cleanly with a non-zero/clear message if the project decides the type has no Set semantics - assert whichever behavior E-01/E-02 implement, and assert it is NOT a silent success), and existing `plans`/`research` group behavior is unchanged (regression). Verify the full test suite passes with `pytest -n auto`.
   - Depends on: E-01, E-02
   - Expected outcome: all artifact types are covered with falsifiable unit and integration tests for set assignment.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -122,18 +122,18 @@ This plan, its rename sibling (`53yczi`), and the auto-index plan (`hszr72`) all
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: unit tests verify universal group backend modifies frontmatter, calculates target paths, renames files, and rewrites references.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `tests/test_artifact_group.py` tests `test_group_backlog_preview_and_apply`, `test_group_backlog_metadata_only`, `test_group_specs_injects_set`, `test_group_walkthroughs_injects_set`, `test_group_prompts_with_order`, `test_group_roadmaps_injects_set` pass cleanly.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: CLI integration tests verify `aw group <type>` succeeds for `backlog`, `specs`, `prompts`, `roadmaps`, `walkthroughs`, `plans`, and `research`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `tests/test_artifact_group.py` and `tests/test_awcmdsurf_mutation_verbs.py` test group execution across types.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: comprehensive test suite passes in `tests/test_artifact_group.py` and `pytest -n auto` passes cleanly.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `pytest -n auto` executed 2093 passed (1 skipped) in 162.45s.
+  - Result: pass
 
 ## Approval and execution gate
 

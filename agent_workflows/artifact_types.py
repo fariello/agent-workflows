@@ -89,22 +89,28 @@ TYPE_BACKENDS: Dict[str, Dict[str, str]] = {
     "specs": {
         "check": "specs.run_check",
         "rename": "artifact_rename.run_rename_specs",
+        "group": "artifact_rename.run_group_specs",
     },
     "prompts": {
         "rename": "artifact_rename.run_rename_prompts",
+        "group": "artifact_rename.run_group_prompts",
     },
     "backlog": {
         "check": "backlog.run_check",
         "rename": "artifact_rename.run_rename_backlog",
+        "group": "artifact_rename.run_group_backlog",
     },
     "walkthroughs": {
         "rename": "artifact_rename.run_rename_walkthroughs",
+        "group": "artifact_rename.run_group_walkthroughs",
     },
     "roadmaps": {
         "rename": "artifact_rename.run_rename_roadmaps",
+        "group": "artifact_rename.run_group_roadmaps",
     },
     "releases": {
         "rename": "artifact_rename.run_rename_releases",
+        "group": "artifact_rename.run_group_releases",
     },
 }
 

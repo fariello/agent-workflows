@@ -23,7 +23,7 @@ Showing the 40 most-recent of 114 Sets; the full manifest is INDEX.json.
 
 ## grouptypes
 
-- `o2ygf3` [pending] 01 pending/20260823-grouptypes-01-o2ygf3-universal-artifact-type-support-in-aw-group.ipd.md
+- `o2ygf3` [executed] 01 executed/20260823-grouptypes-01-o2ygf3-universal-artifact-type-support-in-aw-group.ipd.md
 
 ## renametypes
 

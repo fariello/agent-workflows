@@ -230,6 +230,105 @@ def _update_frontmatter_metadata(
         _core.atomic_write(file_path, text, prefix=".aw-meta-")
 
 
+def _update_or_inject_set_metadata(
+    file_path: Path, set_id: Optional[str] = None, order: Optional[int] = None
+) -> None:
+    """Update or inject Set and Order metadata in the file frontmatter."""
+    try:
+        text = file_path.read_text(encoding="utf-8")
+    except OSError:
+        return
+
+    lines = text.splitlines()
+    updated = False
+    is_fenced_yaml = bool(lines and lines[0].strip() == "---")
+
+    if is_fenced_yaml:
+        new_lines = []
+        set_done = False
+        in_fm = True
+        for line in lines:
+            if in_fm and line.strip() == "---" and new_lines:
+                in_fm = False
+                if set_id is not None and not set_done:
+                    new_lines.append(f"set: {set_id}")
+                    if order is not None:
+                        new_lines.append(f"order: {order}")
+                    set_done = True
+                    updated = True
+                new_lines.append(line)
+            elif in_fm and re.match(r"^set:\s*", line, re.IGNORECASE):
+                if set_id is not None:
+                    new_lines.append(f"set: {set_id}")
+                    set_done = True
+                    updated = True
+                else:
+                    new_lines.append(line)
+            elif (
+                in_fm
+                and order is not None
+                and re.match(r"^order:\s*", line, re.IGNORECASE)
+            ):
+                new_lines.append(f"order: {order}")
+                updated = True
+            else:
+                new_lines.append(line)
+        lines = new_lines
+    else:
+        # Markdown bullet frontmatter
+        set_done = False
+        new_lines = []
+        in_fm = True
+        for line in lines:
+            if in_fm and line.startswith("## "):
+                in_fm = False
+                if set_id is not None and not set_done:
+                    new_lines.append(f"- Set: {set_id}")
+                    if order is not None:
+                        new_lines.append(f"- Order: {order}")
+                    set_done = True
+                    updated = True
+            if in_fm and _SET_LINE_RE.match(line):
+                if set_id is not None:
+                    new_lines.append(f"- Set: {set_id}")
+                    set_done = True
+                    updated = True
+                else:
+                    new_lines.append(line)
+            elif in_fm and order is not None and _ORDER_LINE_RE.match(line):
+                new_lines.append(f"- Order: {order}")
+                updated = True
+            else:
+                new_lines.append(line)
+
+        if set_id is not None and not set_done:
+            inserted = False
+            res = []
+            for line in new_lines:
+                res.append(line)
+                if not inserted and (
+                    line.startswith("# ") or line.startswith("- Date:")
+                ):
+                    res.append(f"- Set: {set_id}")
+                    if order is not None:
+                        res.append(f"- Order: {order}")
+                    inserted = True
+                    updated = True
+            if not inserted:
+                res.insert(0, f"- Set: {set_id}")
+                if order is not None:
+                    res.insert(1, f"- Order: {order}")
+                updated = True
+            lines = res
+        else:
+            lines = new_lines
+
+    if updated:
+        _core.atomic_write(
+            file_path, "\n".join(lines).rstrip() + "\n", prefix=".aw-meta-"
+        )
+
+
 def run_rename_generic(args: argparse.Namespace, artifact_type: str) -> int:
     """Universal rename execution engine for an artifact type."""
     repo_root = _resolve_repo_root(args)
@@ -291,16 +390,16 @@ def run_rename_generic(args: argparse.Namespace, artifact_type: str) -> int:
         return 0
 
     # Apply changes
-    if new_set is not None or new_order is not None:
-        _update_frontmatter_metadata(
-            src, set_id=_core.kebab(new_set) if new_set else None, order=new_order
-        )
-
     if src.resolve() != dst.resolve():
         src_rel = src.relative_to(repo_root).as_posix()
         dst_rel = dst.relative_to(repo_root).as_posix()
         _core.git_mv(repo_root, src_rel, dst_rel)
         print(f"renamed {src_rel} -> {dst_rel}")
+
+    if new_set is not None or new_order is not None:
+        _update_frontmatter_metadata(
+            dst, set_id=_core.kebab(new_set) if new_set else None, order=new_order
+        )
 
     if update_refs and ref_edits:
         apply_reference_rewrites(ref_edits)
@@ -312,6 +411,134 @@ def run_rename_generic(args: argparse.Namespace, artifact_type: str) -> int:
             print(f"rewrote {e.hits}x '{e.old}' -> '{e.new}' in {rel_f}")
 
     # Auto-index if supported
+    if artifact_type in {"plans", "research"}:
+        try:
+            if artifact_type == "plans":
+                from agent_workflows import plans_index as _pidx
+
+                _pidx.run_index(
+                    argparse.Namespace(
+                        dir=str(repo_root),
+                        check=False,
+                        as_agent=False,
+                        json=False,
+                        no_color=True,
+                        limit=None,
+                        quiet=True,
+                    )
+                )
+            elif artifact_type == "research":
+                from agent_workflows import research_index as _ridx
+
+                _ridx.run_index(
+                    argparse.Namespace(
+                        dir=str(repo_root),
+                        check=False,
+                        agent=False,
+                        limit=None,
+                        quiet=True,
+                    )
+                )
+        except Exception:
+            pass
+
+    return 0
+
+
+def run_group_generic(args: argparse.Namespace, artifact_type: str) -> int:
+    """Universal set assignment / group execution engine for an artifact type."""
+    repo_root = _resolve_repo_root(args)
+    raw_selectors = (
+        getattr(args, "ids", None)
+        or getattr(args, "selector", None)
+        or [getattr(args, "id", None)]
+    )
+    if isinstance(raw_selectors, str):
+        raw_selectors = [raw_selectors]
+    selectors_list = [s.strip() for s in (raw_selectors or []) if s and s.strip()]
+
+    if not selectors_list:
+        print("error: at least one <id6>, <setid>, or <path> is required")
+        return 2
+
+    new_set = getattr(args, "set", None)
+    if not new_set or not new_set.strip():
+        print("error: --set <set-id> is required")
+        return 2
+
+    set_k = _core.kebab(new_set)
+    start_order = getattr(args, "order", None)
+    apply = bool(getattr(args, "apply", False))
+    update_refs = not bool(getattr(args, "no_refs", False))
+    rename_files = bool(getattr(args, "rename", False))
+
+    targets: List[Tuple[Path, Path, Optional[int]]] = []
+    all_edits: List[RefEdit] = []
+
+    for i, sel in enumerate(selectors_list):
+        src = find_target_record(repo_root, artifact_type, sel)
+        if src is None or not src.exists():
+            print(f"error: no {artifact_type} artifact matched '{sel}'")
+            return 2
+        order_val = (start_order + i) if start_order is not None else None
+        if rename_files:
+            new_name, err = compute_target_name(
+                src.name,
+                artifact_type,
+                new_set=set_k,
+                new_order=order_val,
+            )
+            if err:
+                new_name = src.name
+            assert new_name is not None
+            dst = src.parent / new_name
+        else:
+            dst = src
+
+        if dst.resolve() != src.resolve() and dst.exists():
+            print(f"error: destination file already exists: {dst.name}")
+            return 2
+
+        targets.append((src, dst, order_val))
+        if update_refs and src.name != dst.name:
+            all_edits.extend(plan_reference_rewrites(repo_root, src.name, dst.name))
+
+    if not apply:
+        for src, dst, _order_val in targets:
+            src_rel = src.relative_to(repo_root).as_posix()
+            if src.resolve() != dst.resolve():
+                print(f"--- would rename {src_rel} -> {dst.name} ---")
+            print(f"--- would set metadata Set: {set_k} in {src_rel} ---")
+        if update_refs:
+            for e in all_edits:
+                try:
+                    rel_f = e.file.relative_to(repo_root).as_posix()
+                except ValueError:
+                    rel_f = str(e.file)
+                print(
+                    f"--- would rewrite {e.hits}x '{e.old}' -> '{e.new}' in {rel_f} ---"
+                )
+        return 0
+
+    # Apply changes
+    for src, dst, order_val in targets:
+        if src.resolve() != dst.resolve():
+            src_rel = src.relative_to(repo_root).as_posix()
+            dst_rel = dst.relative_to(repo_root).as_posix()
+            _core.git_mv(repo_root, src_rel, dst_rel)
+            print(f"renamed {src_rel} -> {dst_rel}")
+        _update_or_inject_set_metadata(dst, set_id=set_k, order=order_val)
+
+    if update_refs and all_edits:
+        apply_reference_rewrites(all_edits)
+        for e in all_edits:
+            try:
+                rel_f = e.file.relative_to(repo_root).as_posix()
+            except ValueError:
+                rel_f = str(e.file)
+            print(f"rewrote {e.hits}x '{e.old}' -> '{e.new}' in {rel_f}")
+
+    # Auto-index if indexed type
     if artifact_type in {"plans", "research"}:
         try:
             if artifact_type == "plans":
@@ -368,3 +595,27 @@ def run_rename_roadmaps(args: argparse.Namespace) -> int:
 
 def run_rename_releases(args: argparse.Namespace) -> int:
     return run_rename_generic(args, "releases")
+
+
+def run_group_backlog(args: argparse.Namespace) -> int:
+    return run_group_generic(args, "backlog")
+
+
+def run_group_specs(args: argparse.Namespace) -> int:
+    return run_group_generic(args, "specs")
+
+
+def run_group_prompts(args: argparse.Namespace) -> int:
+    return run_group_generic(args, "prompts")
+
+
+def run_group_walkthroughs(args: argparse.Namespace) -> int:
+    return run_group_generic(args, "walkthroughs")
+
+
+def run_group_roadmaps(args: argparse.Namespace) -> int:
+    return run_group_generic(args, "roadmaps")
+
+
+def run_group_releases(args: argparse.Namespace) -> int:
+    return run_group_generic(args, "releases")
