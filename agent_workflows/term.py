@@ -185,11 +185,8 @@ def should_unicode(stream: Optional[TextIO] = None) -> bool:
     Degrades to ASCII fallbacks when:
     - AW_ASCII_ONLY or FORCE_ASCII is set in os.environ
     - stream encoding is ascii, us-ascii, cp1252, or not utf-8/utf8
-    - TERM=dumb
     """
     if os.environ.get("AW_ASCII_ONLY") == "1" or os.environ.get("FORCE_ASCII") == "1":
-        return False
-    if os.environ.get("TERM") == "dumb":
         return False
     stream = stream or sys.stdout
     enc = getattr(stream, "encoding", None)
