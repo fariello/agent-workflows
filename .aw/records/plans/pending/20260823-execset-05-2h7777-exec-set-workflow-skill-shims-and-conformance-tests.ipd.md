@@ -12,6 +12,7 @@
 - Id: 2h7777
 
 ## Workflow history
+- 2026-08-23 /plan-review focused (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (help advertised nonexistent commands - aw run questions/decisions, --max-parallel, execute-set --resume; E-02 must own or trim), PR-002 (lifecycle-wording overlap with Order 02 - inherit, do not re-author the shared always-loaded surface), PR-003 (skill-generation-into-installer wiring is net-new), PR-004 (manifest-row registration mechanism clarified). V-02 strengthened.
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; no plan-specific finding (reviewed as Set evidence; conforms).
 - 2026-08-23 to-review (aw set): Authored from current runtime, lifecycle, isolation, and cross-host capability research; ready for plan review.
 
@@ -29,6 +30,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 Add `.aw/system/workflows/exec-set/` and manifest rows for `exec-set` plus plan-only mode over the same coordinator; generate a compact Agent Skill/router and host shims with semantic-digest parity.
   - Depends on: none
+  - Note (verified - registration mechanism + net-new wiring): register by adding the workflow subdir `.aw/system/workflows/exec-set/` and a manifest ROW inside `index.md` between the `WORKFLOWS-MANIFEST` markers (`engine.py:220-221`, table at `.aw/system/workflows/index.md:28-91`; columns `command|body|lens|description|arg-hint`), following the multi-file `release-review/`/`plan-review-long/` pattern (one manifest row each + a per-dir README/steps). REUSE the existing skill/shim generation (`host_adapters.build_skill_package`, `compute_workflow_semantic_digest`, `engine.generate_shim_members`/`validate_shim_grammar`) and the drift/parity checks (`migration_compact.detect_shim_drift`, `tests/test_migration_compact_shims.py`) - do not fork. NOTE: that skill generation is library code today and is NOT yet wired into the installer `run()` path (no `.agents/skills/` is emitted), so wiring generation-into-target is net-new here.
   - Expected outcome: supported hosts discover `/exec-set`, while explicit `aw ipd execute-set` always remains available.
   - Execution state: pending
 
@@ -36,6 +38,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-02 Add human/agent CLI output, help, config examples, decision/question/resume commands, and update `ipd-lifecycle`/templates so child `STOP` is contained and deferred work cannot be reported executed.
   - Depends on: E-01
+  - Note (verified - own or align the advertised surface; verb accuracy): the help block below advertises commands that do NOT exist today. `aw run` exposes `show|evidence|verify-ledger|start|next|record|resume|cancel|status|finalize` (`run_cli.py:49-73`) - it has `status` and `resume` but NO `questions` or `decisions` subcommands, and no sibling Order adds them (Order 02 emits `decisions.md`/`open-questions.md` FILES, not `aw run` subcommands). `--max-parallel` is not a wired flag anywhere. `aw ipd execute-set` is net-new (Order 01 adds `--plan-only`, Order 03 the executor). E-02 MUST either (a) add the `aw run questions|decisions` inspection subcommands + the `--max-parallel` flag it advertises (own them here), or (b) trim the help to the surfaces that exist / are delivered by Orders 01/03; do NOT ship help that names nonexistent commands. Confirm the resume spelling matches Order 03's executor (`aw ipd execute-set --resume <run-id>`).
   - Expected outcome: a small-context model or human can invoke, inspect, answer, and resume without reading implementation code.
   - Execution state: pending
 
@@ -90,6 +93,8 @@ Forward-test the skill on realistic Sets using fresh agents; run all focused/uni
 
 Update workflow index, README/getting-started/list-workflows, CLI help, contributor command checklist, lifecycle/template wording, generated skills/shims, and evidence-derived support matrix.
 
+CROSS-PLAN COORDINATION (verified): the child-`STOP`-containment / "deferred work cannot be reported executed" wording lives on the SHARED, always-loaded surfaces `.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md:20`, `.aw/records/specs/20260726-1340-01-ipd-spec.spec.md:35`, and the generated AGENTS block `agent_workflows/engine.py:1138-1148` - and Order 02 (`3m4e54`) already OWNS the substantive semantic change there (its Spec-sync claims those exact lines). Because this Order runs after 01-04, it MUST INHERIT Order 02's wording and confine itself to the exec-set workflow/skill/TEMPLATE surface (new `.aw/system/workflows/exec-set/`, generated skills/shims, README/index rows); it MUST NOT re-author the shared lifecycle/spec/always-loaded text Order 02 changed (avoid divergent phrasing on an always-loaded surface). Verified doc-sync targets that DO exist: `.aw/system/workflows/index.md` manifest, `README.md:150-160` workflow table, `/list-workflows` (a workflow, not a CLI verb), `CONTRIBUTING.md:14-30` doc-sync checklist, `getting-started`.
+
 ## Open questions
 
 ### OQ-01: Separate planning workflow?
@@ -108,7 +113,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: golden human/agent help and run reports expose invocation, partial state, decisions, questions, resume, and evidence compactly; lifecycle fixtures prove child `STOP` cannot terminate the Set or mark deferred work executed.
+  - Required evidence: golden human/agent help and run reports expose invocation, partial state, decisions, questions, resume, and evidence compactly; lifecycle fixtures prove child `STOP` cannot terminate the Set or mark deferred work executed. SPECIFICALLY: every command the shipped help text names actually dispatches (no help line advertises a nonexistent command) - i.e. `aw run questions`/`aw run decisions`/`--max-parallel`/`aw ipd execute-set --resume` either exist and are tested, or were trimmed from the help; and the lifecycle fixture uses Order 02's (inherited) shared wording, not a re-authored variant.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
