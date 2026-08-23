@@ -15,6 +15,7 @@
 
 - 2026-08-23 draft (Gabriele Fariello): created.
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. PR-001 (closed-vs-open facet policy divergence between plans_refs._CLUSTERED_RE and artifact_rename._UNIFORM_RE - added OQ-03 + E-02 guidance); PR-002 (normalize_plan_names is a stdlib-only standalone bootstrap tool - added OQ-04 + E-04 constraint); PR-003 (strengthened V-05 single-source to include facet policy). OQ-02 resolved by human: MIGRATE walkthroughs to .walkthrough.md facet form (added E-06/V-06 migration). OQ-04 resolved by human: normalize_plan_names imports the authority (E-04 must verify setup-repo pre-install import path). Accepted advisory IPD-Z602 on E-04 (single cohesive concern - validator re-routing - with two OQ-gated constraints, not independent deliverables). Verified grammar-site claims at artifact_rename.py:20-38, plans_refs.py:44-55, check_engine.py:29-37, normalize_plan_names.py:107-114.
+- 2026-08-23 note (opencode its_direct/pt3-claude-opus-4.8-1m-us): added blocking OQ-05 (walkthrough builder mints its OWN id6; source-plan link is a typed frontmatter field, never the identity slot) per DECISIONS.md D140. The on-disk `p7dqwz` walkthrough fix rides the E-06 walkthrough migration; the `aw check`/`aw doctor` identity-slot enforcement is a separate new child IPD in this Set. Additive OQ only; E-items unchanged (the pre-existing E-04 IPD-Z602 advisory was already accepted above).
 
 ## Goal
 
@@ -136,6 +137,13 @@ Because the grammar lives in six+ places, the codebase has already drifted (the 
 - Status: resolved
 - Owner: human
 - Resolution or deferral rationale: RESOLVED by human (2026-08-23, /plan-review): make `normalize_plan_names` IMPORT the naming authority (Option B) - true single copy. CONSEQUENCE the executor MUST handle in E-04: this tool runs during setup-repo; verify WHETHER it is invoked before `agent_workflows` is importable. If setup-repo can run it pre-install, E-04 MUST make the authority importable at that point (e.g. ensure the package is on the path by then, or vendor the authority into an import location the bootstrap can reach) - if that cannot be guaranteed safely, STOP and report rather than silently breaking pre-install setup. Confirm the setup-repo invocation path as part of E-04.
+
+### OQ-05: Does the walkthrough builder mint the walkthrough its OWN id6, and how is the source-plan link expressed?
+
+- Blocking: yes
+- Status: resolved
+- Owner: human
+- Resolution or deferral rationale: RESOLVED by human (2026-08-23, /plan-review) per DECISIONS.md D140: the `<id6>` in the `YYYYMMDD-<setid>-NN-<id6>` identity slot is the UNIQUE IDENTITY of that one file. Therefore the walkthrough builder (already migrating walkthroughs to the `.walkthrough.md` facet form, OQ-02) MUST mint each walkthrough its OWN id6 in the identity slot and MUST NOT reuse the source plan's id6 there; the optional plan link is a TYPED frontmatter field (`Target-Id:`/`References: <id6>`), not the identity slot. Today one on-disk walkthrough violates this (`20260823-artifactenginefix-01-p7dqwz-execution.walkthrough.md` carries the plan's `p7dqwz` in its slot and declares no `- Id:`). The E-06 walkthrough migration in this Set MUST additionally give that file its own id6 + a typed `Target-Id: p7dqwz` and rewrite any inbound citation. NOTE: the `aw check`/`aw doctor` ENFORCEMENT of "a filename-slot id6 must equal the file's own declared Id" (the check `tmp/find_id6_dupes.py` performs; today `check_collisions` reads only the frontmatter `- Id:` line, `check_engine.py:199,237`, and never inspects the filename slot) is a distinct code change tracked as a new child IPD in this Set - do not fold that enforcement into Order 01.
 
 ## Validation and cross-check (verify before reporting done)
 
