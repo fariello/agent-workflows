@@ -311,6 +311,8 @@ def _dirs(args: argparse.Namespace) -> Tuple[Path, Path]:
         plans_dir = repo_root / ".aw" / "records" / "plans"
     if not plans_dir.is_dir() and (repo_root / ".agents" / "plans").is_dir():
         plans_dir = repo_root / ".agents" / "plans"
+    elif not plans_dir.is_dir() and (repo_root / ".aw" / "records" / "plans").is_dir():
+        plans_dir = repo_root / ".aw" / "records" / "plans"
     return repo_root, plans_dir
 
 
@@ -336,10 +338,11 @@ def run_index(args: argparse.Namespace) -> int:
     )
     # Regeneration always writes the CURRENT state (a snapshot); metadata drift (e.g. a plan still
     # lacking an Id) is reported but does NOT block the write. Use `--check` as the gate.
-    if drift:
+    if drift and not getattr(args, "quiet", False):
         for d in drift:
             print(f"{d.location}: {d.rule}: {d.detail}")
-    print(f"wrote {INDEX_JSON} + {INDEX_MD} ({len(entries)} plans)")
+    if not getattr(args, "quiet", False):
+        print(f"wrote {INDEX_JSON} + {INDEX_MD} ({len(entries)} plans)")
     return 0
 
 

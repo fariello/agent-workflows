@@ -4,8 +4,7 @@
 - Kind: child
 - Concern: Manifest index staleness after status transitions and artifact mutations.
 - Scope: agent_workflows/status_set.py, agent_workflows/plans_refs.py, agent_workflows/research_refs.py, manifest index triggers, and mutation regression tests.
-- Status: approved
-- Approval: Gabriele Fariello (human), 2026-08-23
+- Status: executed
 - Set: autoindex
 - Order: 1
 - Highest E allocated: 03
@@ -13,6 +12,8 @@
 - Id: hszr72
 
 ## Workflow history
+- 2026-08-23 executed (aw set): status set to executed
+- 2026-08-23 executed (aw set): status set to executed
 - 2026-08-23 approved (aw set): status set to approved
 
 - 2026-08-23 draft (Gabriele Fariello): created.
@@ -28,24 +29,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Material change 1: Auto-indexing in status_set
 
-- [ ] E-01 Update `agent_workflows/status_set.py` to inspect the unique artifact types touched during a non-dry-run status change, automatically invoke the corresponding index regeneration entry point for each affected type (the real API is `plans_index.run_index` / `research_index.run_index`, built on `build_index_json`/`build_index_md`/`scan_plans`; there is NO `generate_index` function - do not invent one), and append the updated `INDEX.json` and `INDEX.md` files to the command result's `changes` list. Only plans and research have an index backend today (`TYPE_BACKENDS` in `agent_workflows/artifact_types.py:72-93`); a status change to a type with no index backend (specs, backlog) refreshes nothing and must not error.
+- [x] E-01 Update `agent_workflows/status_set.py` to inspect the unique artifact types touched during a non-dry-run status change, automatically invoke the corresponding index regeneration entry point for each affected type (the real API is `plans_index.run_index` / `research_index.run_index`, built on `build_index_json`/`build_index_md`/`scan_plans`; there is NO `generate_index` function - do not invent one), and append the updated `INDEX.json` and `INDEX.md` files to the command result's `changes` list. Only plans and research have an index backend today (`TYPE_BACKENDS` in `agent_workflows/artifact_types.py:72-93`); a status change to a type with no index backend (specs, backlog) refreshes nothing and must not error.
   - Depends on: none
   - Expected outcome: executing `aw set <status> <id>` automatically updates the target artifact and refreshes its manifest index in the same command execution.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Material change 2: Auto-indexing in rename and group mutation backends
 
-- [ ] E-02 Wire automatic manifest index refresh into `plans_refs.py`, `research_refs.py`, and generalized mutation backends when executing `--apply` renames or Set ID regrouping, so moving or renaming an artifact automatically updates `INDEX.json` and `INDEX.md` without requiring a separate `aw index` run.
+- [x] E-02 Wire automatic manifest index refresh into `plans_refs.py`, `research_refs.py`, and generalized mutation backends when executing `--apply` renames or Set ID regrouping, so moving or renaming an artifact automatically updates `INDEX.json` and `INDEX.md` without requiring a separate `aw index` run.
   - Depends on: E-01
   - Expected outcome: `aw rename` and `aw group` operations with `--apply` keep manifest indices synchronized immediately.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Material change 3: Comprehensive test suite and validation
 
-- [ ] E-03 Author `tests/test_auto_index_on_mutation.py` asserting that `aw set`, `aw rename`, and `aw group` operations automatically update `INDEX.json` and `INDEX.md` files with the new status, path, and metadata, verifying that `aw check` reports zero `stale-index` drift immediately following mutations, and confirming the full test suite passes with `pytest -n auto`.
+- [x] E-03 Author `tests/test_auto_index_on_mutation.py` asserting that `aw set`, `aw rename`, and `aw group` operations automatically update `INDEX.json` and `INDEX.md` files with the new status, path, and metadata, verifying that `aw check` reports zero `stale-index` drift immediately following mutations, and confirming the full test suite passes with `pytest -n auto`.
   - Depends on: E-01, E-02
   - Expected outcome: automatic index refresh is thoroughly tested across multiple artifact types and mutation commands.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -107,18 +108,18 @@ This plan's E-02 edits `agent_workflows/plans_refs.py` and `agent_workflows/rese
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: unit tests verify `aw set executed <id>` automatically updates `INDEX.json` and `INDEX.md` for the corresponding artifact type.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `tests/test_auto_index_on_mutation.py` tests `test_aw_set_plan_auto_refreshes_manifest_index` and `test_aw_set_research_auto_refreshes_manifest_index` pass cleanly.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: tests verify `aw rename` and `aw group` with `--apply` update manifest index files without manual `aw index`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `tests/test_auto_index_on_mutation.py` tests `test_aw_rename_plan_auto_refreshes_manifest_index` and `test_aw_group_plan_auto_refreshes_manifest_index` pass cleanly.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: test suite in `tests/test_auto_index_on_mutation.py` passes and `pytest -n auto` passes cleanly.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `pytest -n auto` executed 2079 tests passing (1 skipped) in 106.98s.
+  - Result: pass
 
 ## Approval and execution gate
 

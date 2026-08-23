@@ -26,6 +26,7 @@ from pathlib import Path
 from agent_workflows import artifact_core as _core
 from agent_workflows import plans as _plans_mod
 from agent_workflows import selectors as _sel
+from agent_workflows.result_types import Change
 from agent_workflows.term import Term
 
 # Recognized status sets per artifact type
@@ -358,28 +359,56 @@ def apply_status_change(
 
     text = rec.path.read_text(encoding="utf-8")
     lines = text.splitlines()
-
-    # Update or insert - Status: <norm_status>
+    # Update or insert - Status: <norm_status> in frontmatter only
     status_updated = False
     new_lines = []
+    in_frontmatter = True
+    is_fenced_yaml = bool(lines and lines[0].strip() == "---")
+
     for line in lines:
-        if _STATUS_RE.match(line):
-            new_lines.append(f"- Status: {norm_status}")
-            status_updated = True
+        if is_fenced_yaml:
+            if in_frontmatter and line.strip() == "---" and new_lines:
+                in_frontmatter = False
+            if (
+                in_frontmatter
+                and not status_updated
+                and re.match(r"^status:\s*\S+", line, re.I)
+            ):
+                new_lines.append(f"status: {norm_status}")
+                status_updated = True
+            else:
+                new_lines.append(line)
         else:
-            new_lines.append(line)
+            if in_frontmatter and line.startswith("## "):
+                in_frontmatter = False
+            if in_frontmatter and not status_updated and _STATUS_RE.match(line):
+                new_lines.append(f"- Status: {norm_status}")
+                status_updated = True
+            else:
+                new_lines.append(line)
 
     if not status_updated:
-        inserted = False
-        res_lines = []
-        for i, line in enumerate(new_lines):
-            res_lines.append(line)
-            if not inserted and (line.startswith(("# ", "- Date:"))):
-                res_lines.append(f"- Status: {norm_status}")
-                inserted = True
-        if not inserted:
-            res_lines.insert(0, f"- Status: {norm_status}")
-        new_lines = res_lines
+        if is_fenced_yaml:
+            # insert status: before closing ---
+            res_lines = []
+            inserted = False
+            for line in new_lines:
+                if not inserted and line.strip() == "---" and res_lines:
+                    res_lines.append(f"status: {norm_status}")
+                    inserted = True
+                res_lines.append(line)
+            new_lines = res_lines
+        else:
+            inserted = False
+            res_lines = []
+            for i, line in enumerate(new_lines):
+                res_lines.append(line)
+                if not inserted and (line.startswith(("# ", "- Date:"))):
+                    res_lines.append(f"- Status: {norm_status}")
+                    inserted = True
+            if not inserted:
+                res_lines.insert(0, f"- Status: {norm_status}")
+            new_lines = res_lines
 
     # Handle gate fields if moving away from deferred/blocked
     if rec.record_type == "specs":
@@ -422,6 +451,13 @@ def apply_status_change(
             tmp_text = "\n".join(new_lines)
             tmp_text = _releases.set_blocks_release_line(tmp_text, br)
             new_lines = tmp_text.splitlines()
+
+    if rec.record_type == "plans" and norm_status != "approved":
+        new_lines = [
+            line_item
+            for line_item in new_lines
+            if not re.match(r"^- Approval:\s*", line_item)
+        ]
 
     # Append Workflow history
     hist_entry = f"- {today} {norm_status} ({actor}): {message}"
@@ -495,6 +531,91 @@ def apply_status_change(
             pass
 
     return dest_path, norm_status
+
+
+def _auto_index_types(
+    touched_types: set[str],
+    repo_root: Path,
+    changes: list[Change] | None = None,
+) -> None:
+    """Automatically refresh manifest indices for modified artifact types that maintain an index."""
+    for rtype in sorted(touched_types):
+        if rtype == "plans":
+            try:
+                from agent_workflows import plans_index as _pidx
+
+                _pidx.run_index(
+                    argparse.Namespace(
+                        dir=str(repo_root),
+                        check=False,
+                        as_agent=False,
+                        json=False,
+                        no_color=True,
+                        limit=None,
+                        quiet=True,
+                    )
+                )
+                _, plans_dir = _pidx._dirs(argparse.Namespace(dir=str(repo_root)))
+                if changes is not None and plans_dir.is_dir():
+                    idx_json = plans_dir / "INDEX.json"
+                    idx_md = plans_dir / "INDEX.md"
+                    if idx_json.exists():
+                        changes.append(
+                            Change(
+                                path=str(idx_json),
+                                kind="update",
+                                applied=True,
+                                detail="manifest index auto-refreshed",
+                            )
+                        )
+                    if idx_md.exists():
+                        changes.append(
+                            Change(
+                                path=str(idx_md),
+                                kind="update",
+                                applied=True,
+                                detail="manifest index auto-refreshed",
+                            )
+                        )
+            except Exception:
+                pass
+        elif rtype == "research":
+            try:
+                from agent_workflows import research_index as _ridx
+
+                _ridx.run_index(
+                    argparse.Namespace(
+                        dir=str(repo_root),
+                        check=False,
+                        agent=False,
+                        limit=None,
+                        quiet=True,
+                    )
+                )
+                _, res_dir = _ridx._roots(argparse.Namespace(dir=str(repo_root)))
+                if changes is not None and res_dir.is_dir():
+                    idx_json = res_dir / "INDEX.json"
+                    idx_md = res_dir / "INDEX.md"
+                    if idx_json.exists():
+                        changes.append(
+                            Change(
+                                path=str(idx_json),
+                                kind="update",
+                                applied=True,
+                                detail="manifest index auto-refreshed",
+                            )
+                        )
+                    if idx_md.exists():
+                        changes.append(
+                            Change(
+                                path=str(idx_md),
+                                kind="update",
+                                applied=True,
+                                detail="manifest index auto-refreshed",
+                            )
+                        )
+            except Exception:
+                pass
 
 
 def run_set_command(
@@ -687,9 +808,11 @@ def run_set_command(
         return 0
 
     results: list[tuple[Path, str, ArtifactRecord]] = []
+    touched_types: set[str] = set()
     for rec in matched_records:
         dest_path, norm_stat = apply_status_change(rec, target_status, repo_root, args)
         results.append((dest_path, norm_stat, rec))
+        touched_types.add(rec.record_type)
 
     if ctx.is_agent or ctx.is_json:
         changes = [
@@ -701,6 +824,7 @@ def run_set_command(
             )
             for dest, norm_stat, rec in results
         ]
+        _auto_index_types(touched_types, repo_root, changes=changes)
         res = CommandResult(
             command="set",
             status="clean",
@@ -722,6 +846,8 @@ def run_set_command(
             complete=True,
         )
         return get_renderer(ctx).emit(res, ctx)
+
+    _auto_index_types(touched_types, repo_root)
 
     for dest, norm_stat, rec in results:
         try:

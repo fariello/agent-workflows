@@ -270,6 +270,10 @@ def _roots(args: argparse.Namespace) -> Tuple[Path, Path]:
         res_root = repo_root / ".aw" / "records" / "research"
     if not res_root.is_dir() and (repo_root / ".agents" / "docs" / "research").is_dir():
         res_root = repo_root / ".agents" / "docs" / "research"
+    elif (
+        not res_root.is_dir() and (repo_root / ".aw" / "records" / "research").is_dir()
+    ):
+        res_root = repo_root / ".aw" / "records" / "research"
     return repo_root, res_root
 
 
@@ -292,15 +296,17 @@ def run_index(args: argparse.Namespace) -> int:
     entries, drift = _scan_docs(research_root)
     if drift:
         # Refuse to write over invalid input; report and exit nonzero.
-        for d in drift:
-            print(f"{d.location}: {d.rule}: {d.detail}")
+        if not getattr(args, "quiet", False):
+            for d in drift:
+                print(f"{d.location}: {d.rule}: {d.detail}")
         return 1
     research_root.mkdir(parents=True, exist_ok=True)
     (research_root / INDEX_JSON).write_text(build_index_json(entries), encoding="utf-8")
     (research_root / INDEX_MD).write_text(
         build_index_md(entries, limit=limit), encoding="utf-8"
     )
-    print(f"wrote {INDEX_JSON} + {INDEX_MD} ({len(entries)} docs)")
+    if not getattr(args, "quiet", False):
+        print(f"wrote {INDEX_JSON} + {INDEX_MD} ({len(entries)} docs)")
     return 0
 
 

@@ -34,7 +34,7 @@ class MutationVerbsTests(unittest.TestCase):
             self.plan_a,
             "# IPD\n\n- Id: aaa111\n- Set: demo (demo)\n- Status: draft\n\n## Workflow history\n- 2026-01-01 draft (t): x\n",
         )
-        self.doc_b = self.root / ".agents" / "plans" / "INDEX.md"
+        self.doc_b = self.root / ".agents" / "docs" / "ref.md"
         _write(self.doc_b, "citing 20260101-demo-01-aaa111-original.ipd.md here\n")
         subprocess.run(["git", "add", "-A"], cwd=self.root, check=True)
         subprocess.run(["git", "commit", "-qm", "init"], cwd=self.root, check=True)

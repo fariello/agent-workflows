@@ -2,11 +2,24 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 112 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 114 Sets; the full manifest is INDEX.json.
+
+## autoindex
+
+- `hszr72` [executed] 01 executed/20260823-autoindex-01-hszr72-automatic-manifest-index-refresh-on-status-transitions-and-a.ipd.md
 
 ## doctorremedy
 
 - `tdlspr` [executed] 01 executed/20260823-doctorremedy-01-tdlspr-doctor-actionable-remediation-commands-and-targeted-fixes.ipd.md
+
+## execset
+
+- `5ahblp` [pending] 00 pending/20260823-execset-00-5ahblp-autonomous-ipd-set-execution-program.ipd.md
+- `iy1a2g` [pending] 01 pending/20260823-execset-01-iy1a2g-ipd-set-graph-compiler-and-execution-manifest.ipd.md
+- `3m4e54` [pending] 02 pending/20260823-execset-02-3m4e54-deferred-questions-autonomous-decisions-and-skip-records.ipd.md
+- `m2wwns` [pending] 03 pending/20260823-execset-03-m2wwns-parallel-scheduler-worktree-integration-and-model-routing.ipd.md
+- `31744f` [pending] 04 pending/20260823-execset-04-31744f-host-session-adapters-and-capability-gated-launchers.ipd.md
+- `2h7777` [pending] 05 pending/20260823-execset-05-2h7777-exec-set-workflow-skill-shims-and-conformance-tests.ipd.md
 
 ## grouptypes
 
@@ -27,14 +40,13 @@ Showing the 40 most-recent of 112 Sets; the full manifest is INDEX.json.
 
 ## highpbacklog0822
 
-- `wot0nc` [pending] 00 pending/20260822-highpbacklog0822-00-wot0nc-high-priority-backlog-2026-08-22-program.ipd.md
+- `wot0nc` [executed] 00 executed/20260822-highpbacklog0822-00-wot0nc-high-priority-backlog-2026-08-22-program.ipd.md
 - `n5kvff` [executed] 02 executed/20260822-highpbacklog0822-02-n5kvff-fix-agy-run-py-false-error-on-sandboxed-write-to-file-reject.ipd.md
-- `n5kvff` [pending] 02 pending/20260822-highpbacklog0822-02-n5kvff-fix-agy-run-py-false-error-on-sandboxed-write-to-file-reject.ipd.md
-- `h4e9yi` [pending] 03 pending/20260822-highpbacklog0822-03-h4e9yi-deprecation-warning-for-per-workflow-slash-command-aliases.ipd.md
-- `89bby9` [pending] 04 pending/20260822-highpbacklog0822-04-89bby9-empty-loading-and-error-state-ux-shared-helper-and-conventio.ipd.md
-- `4ug8xp` [pending] 05 pending/20260822-highpbacklog0822-05-4ug8xp-empty-and-error-state-ux-surface-wide-rollout-and-tests.ipd.md
-- `por1hi` [pending] 06 pending/20260822-highpbacklog0822-06-por1hi-ipd-right-sizing-rubric-in-review-workflows-and-authoring-gu.ipd.md
-- `wb045s` [pending] 07 pending/20260822-highpbacklog0822-07-wb045s-ipd-right-sizing-mechanical-lint-heuristic.ipd.md
+- `h4e9yi` [executed] 03 executed/20260822-highpbacklog0822-03-h4e9yi-deprecation-warning-for-per-workflow-slash-command-aliases.ipd.md
+- `89bby9` [executed] 04 executed/20260822-highpbacklog0822-04-89bby9-empty-loading-and-error-state-ux-shared-helper-and-conventio.ipd.md
+- `4ug8xp` [executed] 05 executed/20260822-highpbacklog0822-05-4ug8xp-empty-and-error-state-ux-surface-wide-rollout-and-tests.ipd.md
+- `por1hi` [executed] 06 executed/20260822-highpbacklog0822-06-por1hi-ipd-right-sizing-rubric-in-review-workflows-and-authoring-gu.ipd.md
+- `wb045s` [executed] 07 executed/20260822-highpbacklog0822-07-wb045s-ipd-right-sizing-mechanical-lint-heuristic.ipd.md
 
 ## awoptimize
 
@@ -263,21 +275,6 @@ Showing the 40 most-recent of 112 Sets; the full manifest is INDEX.json.
 - `es1phc` [executed] 09 executed/20260809-awlayout-09-es1phc-layout-migration-rollback-and-uninstall.ipd.md
 - `jmjh97` [executed] 10 executed/20260809-awlayout-10-jmjh97-clean-delta-skills-and-host-gates.ipd.md
 - `blw6qp` [executed] 11 executed/20260809-awlayout-11-blw6qp-docs-release-and-end-to-end-cutover.ipd.md
-
-## attnview
-
-- `94dhrt` [executed] 00 executed/20260808-attnview-00-94dhrt-attention-view-orchestrator.ipd.md
-- `0i8ass` [executed] 01 executed/20260808-attnview-01-0i8ass-phase0-contracts-and-fixtures.ipd.md
-- `u4q8ml` [executed] 02 executed/20260808-attnview-02-u4q8ml-aw-specs-owner-verbs.ipd.md
-- `h3dadd` [executed] 03 executed/20260808-attnview-03-h3dadd-aw-attention-scanner.ipd.md
-- `dxoxgi` [executed] 04 executed/20260808-attnview-04-dxoxgi-specs-migration.ipd.md
-- `9y2fz1` [executed] 05 executed/20260808-attnview-05-9y2fz1-whatnext-and-ci.ipd.md
-
-## plans-adopter
-
-- `lus9ou` [executed] 00 executed/20260808-0004-00-plans-adopter-orchestrator.ipd.md
-- `7qx7ys` [executed] 06 executed/20260808-0004-06-migrate-existing-plans.ipd.md
-- `8q6yr9` [executed] 07 executed/20260808-0004-07-plans-scaffold-directives-decisions.ipd.md
 
 ## (singletons: no Set)
 

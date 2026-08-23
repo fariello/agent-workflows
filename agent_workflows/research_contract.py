@@ -344,6 +344,10 @@ def resolve_research_root(repo_root) -> Path:
         res_root = repo_root / ".aw" / "records" / "research"
     if not res_root.is_dir() and (repo_root / ".agents" / "docs" / "research").is_dir():
         res_root = repo_root / ".agents" / "docs" / "research"
+    elif (
+        not res_root.is_dir() and (repo_root / ".aw" / "records" / "research").is_dir()
+    ):
+        res_root = repo_root / ".aw" / "records" / "research"
     return res_root
 
 

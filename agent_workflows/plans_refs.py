@@ -208,9 +208,11 @@ def plan_set_assign(
                 slug=_slug_of(src.name, id6),
                 artifact_type="ipd",
             )
-            plans.append(RenamePlan(src, src.parent / new_name, id6))
+            plans.append(RenamePlan(src, src.parent / new_name, id6, order=order))
         else:
-            plans.append(RenamePlan(src, src, id6))  # metadata-only (no rename)
+            plans.append(
+                RenamePlan(src, src, id6, order=order)
+            )  # metadata-only (no rename)
     return plans, None
 
 
@@ -356,6 +358,19 @@ def apply_renames(
     apply_reference_rewrites(ref_edits)
     for e in ref_edits:
         print(f"rewrote {e.hits}x [{e.kind}] in {e.file}")
+    try:
+        _idx.run_index(
+            argparse.Namespace(
+                dir=str(repo_root),
+                check=False,
+                as_agent=False,
+                json=False,
+                no_color=True,
+                limit=None,
+            )
+        )
+    except Exception:
+        pass
 
 
 # --------------------------------------------------------------------------------------
@@ -377,6 +392,8 @@ def _dirs(args: argparse.Namespace) -> Tuple[Path, Path]:
         plans_dir = repo_root / ".aw" / "records" / "plans"
     if not plans_dir.is_dir() and (repo_root / ".agents" / "plans").is_dir():
         plans_dir = repo_root / ".agents" / "plans"
+    elif not plans_dir.is_dir() and (repo_root / ".aw" / "records" / "plans").is_dir():
+        plans_dir = repo_root / ".aw" / "records" / "plans"
     return repo_root, plans_dir
 
 

@@ -256,6 +256,19 @@ def _apply_renames(repo_root: Path, plans: List[RenamePlan], apply: bool) -> Non
     apply_reference_rewrites(ref_edits)
     for e in ref_edits:
         print(f"rewrote {e.hits}x '{e.old_name}' -> '{e.new_name}' in {e.file}")
+    try:
+        from agent_workflows import research_index as _ridx
+
+        _ridx.run_index(
+            argparse.Namespace(
+                dir=str(repo_root),
+                check=False,
+                agent=False,
+                limit=None,
+            )
+        )
+    except Exception:
+        pass
 
 
 def run_set_assign(args: argparse.Namespace) -> int:

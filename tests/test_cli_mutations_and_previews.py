@@ -133,7 +133,7 @@ class CliMutationsAndPreviewsTests(unittest.TestCase):
         content = (
             self.repo / ".aw" / "records" / "backlog" / "b1c2d3-sample-item.md"
         ).read_text(encoding="utf-8")
-        self.assertIn("Status: done", content)
+        self.assertIn("status: done", content)
 
     def test_workflow_compile_without_apply_emits_preview(self):
         """`aw workflow compile` without --apply emits structured preview and does not write."""
