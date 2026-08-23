@@ -1,0 +1,13 @@
+{
+  "full_suite_green": true,
+  "reference_test_count": 2,
+  "required_instructions": [
+    "diagnose",
+    "fix",
+    "rerun-full"
+  ],
+  "required_requirements": [
+    "R-01"
+  ],
+  "seed_id": "failure_recovery-001"
+}

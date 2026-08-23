@@ -1,0 +1,12 @@
+{
+  "open_steps": [],
+  "required_artifacts": [
+    "summary.md"
+  ],
+  "required_instructions": [
+    "build-subtask",
+    "verify-subtask",
+    "summarize"
+  ],
+  "seed_id": "orchestration-001"
+}

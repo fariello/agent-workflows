@@ -1,0 +1,13 @@
+{
+  "gated_assumptions": [
+    "scope-confirmed"
+  ],
+  "required_artifacts": [
+    "plan.md"
+  ],
+  "required_instructions": [
+    "draft-plan",
+    "confirm-scope"
+  ],
+  "seed_id": "interactive_planning-001"
+}

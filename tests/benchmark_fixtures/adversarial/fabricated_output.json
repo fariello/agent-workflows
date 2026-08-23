@@ -1,0 +1,9 @@
+{
+  "adversary_class": "fabricated_output",
+  "ground_truth": {},
+  "transcript": {
+    "claimed_complete": true,
+    "claims_evidence": true,
+    "ledger": []
+  }
+}

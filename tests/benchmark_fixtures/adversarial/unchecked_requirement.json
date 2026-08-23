@@ -1,0 +1,17 @@
+{
+  "adversary_class": "unchecked_requirement",
+  "ground_truth": {
+    "required_requirements": [
+      "R-01"
+    ]
+  },
+  "transcript": {
+    "checked_requirements": [
+      "R-01"
+    ],
+    "claimed_complete": true,
+    "requirement_results": {
+      "R-01": "not_verifiable"
+    }
+  }
+}

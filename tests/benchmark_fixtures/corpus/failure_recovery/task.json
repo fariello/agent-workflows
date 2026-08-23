@@ -1,0 +1,11 @@
+{
+  "allowed_tools": [
+    "read",
+    "write",
+    "test"
+  ],
+  "expected_artifacts": [],
+  "prompt": "A test is failing. Diagnose, fix, and re-run the full suite.",
+  "seed_id": "failure_recovery-001",
+  "task_class": "failure_recovery"
+}

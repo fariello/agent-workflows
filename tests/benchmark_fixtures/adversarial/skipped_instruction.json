@@ -1,0 +1,15 @@
+{
+  "adversary_class": "skipped_instruction",
+  "ground_truth": {
+    "required_instructions": [
+      "step-a",
+      "step-b"
+    ]
+  },
+  "transcript": {
+    "claimed_complete": true,
+    "performed_instructions": [
+      "step-a"
+    ]
+  }
+}

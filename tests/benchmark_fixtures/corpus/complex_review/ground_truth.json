@@ -1,0 +1,12 @@
+{
+  "full_suite_green": true,
+  "reference_test_count": 3,
+  "required_instructions": [
+    "review-diff",
+    "run-full-suite"
+  ],
+  "required_requirements": [
+    "R-01"
+  ],
+  "seed_id": "complex_review-001"
+}

@@ -4,8 +4,7 @@
 - Kind: child
 - Concern: Build a benchmark that can tell skill discovery from correct execution and apparent from evidence-backed completion.
 - Scope: Versioned benchmark manifest + seeded task repos + adversarial false-completion cases + preregistered scoring/stopping rules (frozen before any live run). No runners/metrics (Order 13).
-- Status: approved
-- Approval: Gabriele Fariello (human), 2026-08-22
+- Status: executed
 - Set: awoptimize
 - Order: 12
 - Highest E allocated: 05
@@ -18,6 +17,7 @@
 - 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-06 E-01..E-04 into 5 right-sized E-items (result-identity manifest, seeded task repos with hidden ground truth, adversarial false-completion cases, preregistered frozen scoring, tests); carries the honest usage model (no dollar cost).
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Benchmark corpus + protocol foundations; scorer/fixtures genuinely new. Sound discipline: frozen protocol digest before any run, one adversarial golden per class, deterministic reset + inaccessible hidden truth, no dollar cost. PR-001 (MEDIUM, architecture): the gate declared a dep on Order 09 (isolation) that the corpus consumes nothing from - the 'orchestration' task shape is a black-box seeded fixture scored against ground truth. FIXED: dependency corrected to Orders 01-04 (09 dropped) in the gate; orchestrator child-table cell reconciled to `01-04`. V-01..V-05 map 1:1 with falsifiable evidence. OQ-01 resolved.
 - 2026-08-22 approved (Gabriele Fariello, human): explicit human approval of the awoptimize Set after /plan-review; reviewed -> approved.
+- 2026-08-22 executed (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): E-01..E-05 implemented directly (general subagent under opencode direction) - benchmark_manifest.py/corpus.py/scorer.py/protocol.py + tests/benchmark_fixtures/ (7 task classes + 14 adversarial goldens) + tests/test_benchmark_corpus.py (29 tests). No model calls. opencode independently verified: scope clean (cli.py untouched), 29 module tests + full suite 1640 passed 1 skipped (pytest rc=0). V-01..V-05 filled. Live benchmark runs are Order 13 + operator-run. Terminal transition to executed/.
 
 ## Goal
 
@@ -34,32 +34,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: result identity and corpus
 
-- [ ] E-01 Define a versioned benchmark manifest with exact model ID, reasoning/effort configuration, host + version, adapter digest, workflow digest, tool/permission policy, task seed, trial, timeout, per-trial wall-time and trial-count ceilings (plus an optional token ceiling ONLY where the host reports tokens), and environment fingerprint. Enforcement ceilings are time/trial (and token-where-reported), NEVER a dollar or credit-pool figure the harness cannot measure. Usage capture is a set of OPTIONAL, host-tagged fields, each independently present or `unavailable` (never inferred, never zero-filled): `wall_time` (always captured), `tokens` (only where the host emits it), `credits_or_quota` (opaque host-specific, e.g. Gemini's pool, not cross-model-comparable). Dollar `cost` is NOT a captured or enforced field.
+- [x] E-01 Define a versioned benchmark manifest with exact model ID, reasoning/effort configuration, host + version, adapter digest, workflow digest, tool/permission policy, task seed, trial, timeout, per-trial wall-time and trial-count ceilings (plus an optional token ceiling ONLY where the host reports tokens), and environment fingerprint. Enforcement ceilings are time/trial (and token-where-reported), NEVER a dollar or credit-pool figure the harness cannot measure. Usage capture is a set of OPTIONAL, host-tagged fields, each independently present or `unavailable` (never inferred, never zero-filled): `wall_time` (always captured), `tokens` (only where the host emits it), `credits_or_quota` (opaque host-specific, e.g. Gemini's pool, not cross-model-comparable). Dollar `cost` is NOT a captured or enforced field.
   - Depends on: none
   - Expected outcome: results from different configurations cannot be accidentally pooled without declared factors; usage fields are honestly present-or-`unavailable`; cost is absent.
-  - Execution state: pending
-- [ ] E-02 Build small seeded repositories + tasks representing simple commands, interactive planning, complex review, multi-step implementation, migration, failure recovery, and orchestration, each with hidden ground truth and a deterministic reset.
+  - Execution state: performed
+- [x] E-02 Build small seeded repositories + tasks representing simple commands, interactive planning, complex review, multi-step implementation, migration, failure recovery, and orchestration, each with hidden ground truth and a deterministic reset.
   - Depends on: E-01
   - Expected outcome: reset produces identical hashes; hidden truth is inaccessible to executor paths; every task class has deterministic setup/teardown; scorer ground truth is independently reviewable.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: adversaries and protocol
 
-- [ ] E-03 Seed adversarial false-completion cases: skipped instruction, unchecked requirement, fabricated output, targeted-green/full-red, weakened test, deleted test, unwired symbol, scope expansion, stale evidence, wrong worktree, missing artifact, unsafe assumption, and premature terminal claim - each with known truth so detection recall and false-positive rate are measurable.
+- [x] E-03 Seed adversarial false-completion cases: skipped instruction, unchecked requirement, fabricated output, targeted-green/full-red, weakened test, deleted test, unwired symbol, scope expansion, stale evidence, wrong worktree, missing artifact, unsafe assumption, and premature terminal claim - each with known truth so detection recall and false-positive rate are measurable.
   - Depends on: E-02
   - Expected outcome: one golden transcript per adversarial class is scored false-complete or incomplete as intended, with zero critical seed missed by the reference scorer.
-  - Execution state: pending
-- [ ] E-04 Preregister scoring + stopping rules BEFORE any live execution: pass/fail ground truth, adjudication process, retries, randomization, contamination controls, flaky-test policy, unavailable-combination handling, and a no-cherry-picking rule; freeze the protocol digest.
+  - Execution state: performed
+- [x] E-04 Preregister scoring + stopping rules BEFORE any live execution: pass/fail ground truth, adjudication process, retries, randomization, contamination controls, flaky-test policy, unavailable-combination handling, and a no-cherry-picking rule; freeze the protocol digest.
   - Depends on: E-03
   - Expected outcome: the frozen protocol digest exists; tests reject a post-result change to any metric, threshold, retry, exclusion, or ground truth without a new protocol version.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests
 
-- [ ] E-05 Add `tests/test_benchmark_corpus.py` (stdlib unittest): manifest round-trip + mismatch (every factor required in result identity); deterministic-reset hash + hidden-truth-inaccessible; one adversarial golden transcript per class scored as intended; protocol-freeze rejection of post-result changes. Then run the full serial suite and paste the tail.
+- [x] E-05 Add `tests/test_benchmark_corpus.py` (stdlib unittest): manifest round-trip + mismatch (every factor required in result identity); deterministic-reset hash + hidden-truth-inaccessible; one adversarial golden transcript per class scored as intended; protocol-freeze rejection of post-result changes. Then run the full serial suite and paste the tail.
   - Depends on: E-04
   - Expected outcome: corpus + adversary + protocol-freeze tests pass; the full serial suite is green (pasted).
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -120,26 +120,26 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted manifest round-trip + mismatch test output proving every listed configuration factor is required and included in result identity, and that dollar cost is absent while usage fields are present-or-`unavailable`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: benchmark_manifest.py: IDENTITY_FACTORS (12) required in result_key; build_manifest/manifest_from_dict round-trip; can_pool refuses pooling across undeclared factors; make_ceilings enforces time/trial (+token-where-reported) NEVER dollars; make_usage fields present-or-UNAVAILABLE (never inferred/zero-filled); dollar cost absent. tests.ManifestResultIdentityTests (10). PASS.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted test output showing deterministic reset produces identical hashes, hidden truth is inaccessible to executor paths, and every task class has deterministic setup/teardown.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: benchmark_corpus.py: TASK_CLASSES = 7 (simple commands, interactive planning, complex review, multi-step impl, migration, failure recovery, orchestration); hash_tree + materialize_task/reset_task produce identical hashes; hidden ground truth inaccessible to executor path (is_ground_truth_accessible false; load_ground_truth scorer-only). tests.CorpusDeterminismTests (6). PASS.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted test output where one golden transcript per adversarial class is scored false-complete or incomplete as intended, with zero critical seed missed by the reference scorer.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: benchmark_scorer.py: ADVERSARIAL_CLASSES = 14 (13 critical + 1 honest control); score_transcript reuses Order-04 run_evidence validators; one golden transcript per class scored false_complete/incomplete as intended (intended_verdict), zero critical seed missed. tests.AdversarialScoringTests. PASS.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted test output showing the protocol digest is frozen and a post-result change to any metric/threshold/retry/exclusion/ground-truth is rejected without a new protocol version.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: benchmark_protocol.py: FROZEN_DECISION_FIELDS (11: ground truth, adjudication, retries, randomization, contamination, flaky policy, unavailable-combination, no-cherry-picking, ...); freeze_protocol/protocol_digest; assert_frozen REJECTS any post-result change to a metric/threshold/retry/exclusion/ground-truth without a new protocol version. tests.ProtocolFreezeTests (9). PASS.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: `tests/test_benchmark_corpus.py` exists and passes; pasted full serial-suite tail (`make test` / `python3 -m unittest discover -s tests -t .`) showing green counts.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_benchmark_corpus.py` exists and passes (29 tests): manifest round-trip+mismatch, deterministic-reset hash + hidden-truth-inaccessible, one adversarial golden per class, protocol-freeze rejection. Full suite green: make test -> 1640 passed, 1 skipped, rc=0. No model calls.
+  - Result: pass
 
 ## Approval and execution gate
 

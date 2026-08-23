@@ -1,0 +1,5 @@
+--- a/x.py
++++ b/x.py
+@@
+-return 1
++return 2

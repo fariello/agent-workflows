@@ -1,0 +1,12 @@
+{
+  "adversary_class": "unwired_symbol",
+  "ground_truth": {
+    "must_wire_symbols": [
+      "add"
+    ]
+  },
+  "transcript": {
+    "claimed_complete": true,
+    "wired_symbols": []
+  }
+}

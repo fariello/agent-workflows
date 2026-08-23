@@ -1,0 +1,13 @@
+{
+  "allowed_tools": [
+    "read",
+    "write",
+    "ask"
+  ],
+  "expected_artifacts": [
+    "plan.md"
+  ],
+  "prompt": "Draft a plan for adding a health-check endpoint. Confirm scope before editing.",
+  "seed_id": "interactive_planning-001",
+  "task_class": "interactive_planning"
+}

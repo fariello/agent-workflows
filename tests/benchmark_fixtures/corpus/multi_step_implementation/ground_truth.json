@@ -1,0 +1,24 @@
+{
+  "full_suite_green": true,
+  "must_wire_symbols": [
+    "add"
+  ],
+  "reference_assertion_count": 2,
+  "reference_test_count": 2,
+  "required_artifacts": [
+    "src/calc.py"
+  ],
+  "required_instructions": [
+    "implement-add",
+    "wire-main"
+  ],
+  "required_requirements": [
+    "R-01",
+    "R-02"
+  ],
+  "scope_fence_paths": [
+    "src/calc.py",
+    "src/main.py"
+  ],
+  "seed_id": "multi_step_implementation-001"
+}

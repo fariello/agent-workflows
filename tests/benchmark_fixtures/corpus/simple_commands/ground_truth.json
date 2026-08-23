@@ -1,0 +1,6 @@
+{
+  "seed_id": "simple_commands-001",
+  "required_instructions": ["list-data-dir"],
+  "required_artifacts": ["report.txt"],
+  "reference_files": ["data/a.txt", "data/b.txt"]
+}

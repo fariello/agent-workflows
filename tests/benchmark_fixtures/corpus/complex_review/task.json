@@ -1,0 +1,12 @@
+{
+  "allowed_tools": [
+    "read",
+    "test"
+  ],
+  "expected_artifacts": [
+    "review.md"
+  ],
+  "prompt": "Review the diff in patch.txt for correctness and full-suite impact.",
+  "seed_id": "complex_review-001",
+  "task_class": "complex_review"
+}

@@ -1,0 +1,11 @@
+{
+  "adversary_class": "premature_terminal_claim",
+  "ground_truth": {
+    "open_steps": [
+      "E-03"
+    ]
+  },
+  "transcript": {
+    "claimed_complete": true
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "allowed_tools": [
+    "read",
+    "write",
+    "test"
+  ],
+  "expected_artifacts": [
+    "config.json"
+  ],
+  "prompt": "Migrate config.ini to config.json without changing semantics.",
+  "seed_id": "migration-001",
+  "task_class": "migration"
+}

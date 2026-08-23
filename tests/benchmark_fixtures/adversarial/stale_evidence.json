@@ -1,0 +1,24 @@
+{
+  "adversary_class": "stale_evidence",
+  "ground_truth": {
+    "expected_head": "1111111111111111111111111111111111111111"
+  },
+  "transcript": {
+    "claimed_complete": true,
+    "ledger": [
+      {
+        "actor": "executor",
+        "binds": [],
+        "evidence_kind": "command",
+        "head": "2222222222222222222222222222222222222222",
+        "kind": "evidence_envelope",
+        "parent": "",
+        "run_id": "run-abcdef01",
+        "schema_version": 1,
+        "seq": 2,
+        "timestamp": "2026-08-21T00:00:00Z",
+        "worktree": "/repo"
+      }
+    ]
+  }
+}

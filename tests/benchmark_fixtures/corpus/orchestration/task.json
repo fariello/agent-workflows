@@ -1,0 +1,13 @@
+{
+  "allowed_tools": [
+    "read",
+    "write",
+    "spawn"
+  ],
+  "expected_artifacts": [
+    "summary.md"
+  ],
+  "prompt": "Coordinate two sub-tasks (build then verify) and produce a summary.",
+  "seed_id": "orchestration-001",
+  "task_class": "orchestration"
+}

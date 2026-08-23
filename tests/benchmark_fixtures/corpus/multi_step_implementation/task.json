@@ -1,0 +1,13 @@
+{
+  "allowed_tools": [
+    "read",
+    "write",
+    "test"
+  ],
+  "expected_artifacts": [
+    "src/calc.py"
+  ],
+  "prompt": "Implement add() and wire it into main(). Keep the full test suite green.",
+  "seed_id": "multi_step_implementation-001",
+  "task_class": "multi_step_implementation"
+}

@@ -1,0 +1,17 @@
+{
+  "full_suite_green": true,
+  "reference_test_count": 1,
+  "required_artifacts": [
+    "config.json"
+  ],
+  "required_instructions": [
+    "convert-config",
+    "remove-legacy"
+  ],
+  "scope_fence_paths": [
+    "config.json",
+    "config.ini",
+    "src/loader.py"
+  ],
+  "seed_id": "migration-001"
+}

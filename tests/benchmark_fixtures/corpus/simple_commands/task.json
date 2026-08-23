@@ -1,0 +1,7 @@
+{
+  "seed_id": "simple_commands-001",
+  "task_class": "simple_commands",
+  "prompt": "Run the provided list command and report the files present in data/.",
+  "allowed_tools": ["read", "list"],
+  "expected_artifacts": ["report.txt"]
+}
