@@ -123,9 +123,11 @@ Then, after all revision edits are applied (Step 2/3), re-run at the finalize ch
 Only a `conforming` disposition proceeds. Exit `1` (a conformance error) is a distinct STRUCTURAL
 finding that MUST be repaired before a passing verdict; exit `2` (the linter could not run) is a
 hard stop, not a skip. INVOKE the linter; do not paraphrase or hand-simulate its checks. The linter
-proves STRUCTURE and STATE only (heading order, `E-*`/`V-*` bijection, state legality, metadata);
-it establishes nothing semantic (coverage, correctness, evidence sufficiency, truthful
-blocking-classification), so the semantic review below remains fully required and separate.
+proves STRUCTURE and STATE only (heading order, `E-*`/`V-*` bijection, state legality, metadata,
+and coarse count thresholds); it establishes nothing semantic (coverage, correctness, evidence
+sufficiency, truthful blocking-classification, or conceptual density per E-item), so the semantic
+review below remains fully required and separate. A passing count-based size lint does NOT
+clear right-sizing; conceptual density must be evaluated in semantic review.
 
 (Only while the linter does not yet exist may a run record say `machine preflight unavailable:
 bootstrap`; once `aw ipd lint` is available that exception no longer applies.)
@@ -160,7 +162,9 @@ Review against:
 
 ### 2.2 Record findings
 Record each distinct actionable issue. Combine duplicate symptoms under one
-root cause. Do not invent findings.
+root cause. Do not invent findings. A maintainer's sizing or splitting question is an
+actionable FINDING to investigate by decomposition, never a signal to dismiss because the
+size lint passed.
 
 Classify each finding with:
 - **Severity:** `BLOCKER`, `HIGH`, `MEDIUM`, or `LOW`.
@@ -377,6 +381,13 @@ Verify the plan states:
 - For an agent-executable plan: BOTH a top execution checklist AND an end verification/cross-check
   checklist that maps 1:1 with concrete per-item evidence. A weak or absent verification checklist
   (one that could let an agent claim completion without doing every step) is an UNDER-SCOPE finding.
+- **Right-sizing and conceptual density (per E-item):** Evaluate whether each E-item addresses exactly **one concern** and is **executable in one focused pass**. A passing count-based size check (`aw ipd lint`) measures only structural count (>18 E-leaves / >5 groups), NOT conceptual density. For each IPD and each E-item, ask:
+  (a) Does one E-item name multiple distinct deliverables or touch multiple independent code regions/files?
+  (b) Does it bundle multiple independent test-surfaces (would it need several unrelated V-items)?
+  (c) Could it be executed and verified as two or more independent passes?
+  (d) Would a faster/weaker model lose focus/context executing it as one item?
+  If YES to any diagnostic question, recommend splitting into smaller child IPDs (an UNDER-SCOPE / REPLAN finding)—a passing count-based size lint does NOT clear this.
+- **Maintainer sizing signals:** A maintainer's sizing or splitting question is an actionable FINDING to investigate by decomposition, never a signal to dismiss because the size lint passed.
 
 Another qualified agent or developer must be able to execute the plan without
 inventing missing architecture.

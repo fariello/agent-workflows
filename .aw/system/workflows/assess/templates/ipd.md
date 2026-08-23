@@ -21,7 +21,7 @@ TODO: one or two sentences on what this plan achieves and why.
 
 ## Detailed Implementation Checklist (TODO)
 
-Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
 ### Task group 1: TODO
 

@@ -20,6 +20,10 @@ PRL_DIR = WF / "plan-review-long"
 PRL_01 = PRL_DIR / "01-discover-and-snapshot.md"
 PRL_03 = PRL_DIR / "03-resolve-and-finalize.md"
 RUBRIC = PRL_DIR / "review-rubric.md"
+PRL_02 = PRL_DIR / "02-review-and-revise.md"
+ASSESS = WF / "assess" / "assess.md"
+CHILD_TEMPLATE = WF / "assess" / "templates" / "ipd.md"
+ORCH_TEMPLATE = WF / "assess" / "templates" / "orchestrator-ipd.md"
 REPORT_TEMPLATE = PRL_DIR / "report-template.md"
 LIFECYCLE = WF / "ipd-lifecycle" / "ipd-lifecycle.md"
 LIFECYCLE_README = WF / "ipd-lifecycle" / "README.md"
@@ -137,6 +141,81 @@ class DriftGuardTests(unittest.TestCase):
         # Sanity: the parity assertions are content-based, so removing the preflight line from a
         # copy is detectable. We assert the marker exists in the real file (the inverse of drift).
         self.assertIn("aw ipd lint --phase author", _read(PRL_01))
+
+
+class RightSizingRubricParityTests(unittest.TestCase):
+    def test_right_sizing_rubric_in_plan_review_and_rubric(self):
+        for path in (PLAN_REVIEW, RUBRIC):
+            t = _read(path)
+            # Conceptual density vs count lint
+            self.assertIn(
+                "conceptual density",
+                t.lower(),
+                f"{path.name} must mention conceptual density",
+            )
+            self.assertIn(
+                "one concern",
+                t.lower(),
+                f"{path.name} must require one concern per E-item",
+            )
+            self.assertIn(
+                "one focused pass",
+                t.lower(),
+                f"{path.name} must require execution in one focused pass",
+            )
+
+            # Diagnostic questions (a), (b), (c), (d)
+            self.assertIn(
+                "multiple distinct deliverables",
+                t,
+                f"{path.name} missing diagnostic (a) distinct deliverables",
+            )
+            self.assertIn(
+                "multiple independent test-surfaces",
+                t,
+                f"{path.name} missing diagnostic (b) test surfaces",
+            )
+            self.assertIn(
+                "independent passes",
+                t,
+                f"{path.name} missing diagnostic (c) independent passes",
+            )
+            self.assertIn(
+                "lose focus", t, f"{path.name} missing diagnostic (d) model focus"
+            )
+
+            # Split recommendation and count lint insufficiency
+            self.assertIn("split", t.lower(), f"{path.name} must recommend splitting")
+            self.assertIn(
+                "passing count-based size lint does not clear",
+                t.lower(),
+                f"{path.name} must state count lint does not clear right-sizing",
+            )
+
+    def test_maintainer_signal_rule_in_both_variants(self):
+        for path in (PLAN_REVIEW, PRL_02, RUBRIC):
+            t = _read(path).lower()
+            self.assertIn(
+                "maintainer", t, f"{path.name} must reference maintainer sizing signals"
+            )
+            self.assertIn(
+                "finding", t, f"{path.name} must treat sizing questions as a finding"
+            )
+            self.assertIn(
+                "decomposition",
+                t,
+                f"{path.name} must recommend investigating by decomposition",
+            )
+
+    def test_authoring_guidance_in_assess_and_templates(self):
+        for path in (ASSESS, CHILD_TEMPLATE, ORCH_TEMPLATE):
+            t = _read(path).lower()
+            self.assertIn(
+                "one concern", t, f"{path.name} must guide one concern per E-item"
+            )
+            self.assertIn(
+                "split", t, f"{path.name} must guide splitting multi-deliverable items"
+            )
 
 
 if __name__ == "__main__":

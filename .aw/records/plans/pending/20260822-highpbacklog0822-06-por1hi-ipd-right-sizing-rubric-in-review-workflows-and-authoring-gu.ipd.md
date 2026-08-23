@@ -28,29 +28,33 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Review-workflow rubric
 
-- [ ] E-01 Add a per-E-item conceptual-density right-sizing rubric check to `.aw/system/workflows/plan-review/plan-review.md` (this is the CANONICAL statement of the definition; all other locations reference or copy from it verbatim to avoid drift). The rubric asks, for each IPD and each E-item: (a) does one E-item name multiple distinct deliverables or touch multiple independent code regions/files? (b) does it bundle multiple independent test-surfaces (would it need several unrelated V-items)? (c) could it be executed and verified as two or more independent passes? (d) would a faster/weaker model lose focus/context executing it as one item? If yes to any, recommend splitting into smaller child IPDs (an UNDER-SCOPE/REPLAN-style finding) - a passing count-based size lint does NOT clear this.
+- [x] E-01 Add a per-E-item conceptual-density right-sizing rubric check to `.aw/system/workflows/plan-review/plan-review.md` (this is the CANONICAL statement of the definition; all other locations reference or copy from it verbatim to avoid drift). The rubric asks, for each IPD and each E-item: (a) does one E-item name multiple distinct deliverables or touch multiple independent code regions/files? (b) does it bundle multiple independent test-surfaces (would it need several unrelated V-items)? (c) could it be executed and verified as two or more independent passes? (d) would a faster/weaker model lose focus/context executing it as one item? If yes to any, recommend splitting into smaller child IPDs (an UNDER-SCOPE/REPLAN-style finding) - a passing count-based size lint does NOT clear this.
   - Depends on: none
   - Expected outcome: `/plan-review` explicitly evaluates conceptual density, not just count, using the canonical rubric text.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: Added canonical conceptual-density right-sizing rubric (diagnostic questions a, b, c, d, splitting recommendation, and count lint insufficiency) to .aw/system/workflows/plan-review/plan-review.md under Engineering rubric G and Structural preflight.
 
-- [ ] E-02 Add the SAME right-sizing rubric (copied verbatim from the canonical E-01 wording, or referencing it) to `.aw/system/workflows/plan-review-long/` (its `02-review-and-revise.md` and/or `review-rubric.md`), keeping the deliberate parity the two variants already declare.
+- [x] E-02 Add the SAME right-sizing rubric (copied verbatim from the canonical E-01 wording, or referencing it) to `.aw/system/workflows/plan-review-long/` (its `02-review-and-revise.md` and/or `review-rubric.md`), keeping the deliberate parity the two variants already declare.
   - Depends on: none
   - Expected outcome: the long/parallel variant applies the identical right-sizing check, word-for-word aligned with plan-review.md.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: Added the matching right-sizing rubric to .aw/system/workflows/plan-review-long/review-rubric.md (Plan completeness and preflight) and .aw/system/workflows/plan-review-long/02-review-and-revise.md (Revise in place).
 
 ### Task group 2: Authoring guidance
 
-- [ ] E-03 Add the "one concern per E-item; split when an E-item names multiple deliverables/test-surfaces" guidance (the same canonical wording) to the assess IPD-producing harness (`.aw/system/workflows/assess/assess.md`) and the IPD TEMPLATES (`.aw/system/workflows/assess/templates/ipd.md`, `orchestrator-ipd.md`) - since `aw ipd scaffold` writes from those templates, editing the template text IS the scaffold authoring guidance. Do NOT modify `agent_workflows/ipd_authoring.py` scaffold CODE unless a one-line guidance string genuinely lives there rather than in the template; if it does, keep it to that one string and cite it.
+- [x] E-03 Add the "one concern per E-item; split when an E-item names multiple deliverables/test-surfaces" guidance (the same canonical wording) to the assess IPD-producing harness (`.aw/system/workflows/assess/assess.md`) and the IPD TEMPLATES (`.aw/system/workflows/assess/templates/ipd.md`, `orchestrator-ipd.md`) - since `aw ipd scaffold` writes from those templates, editing the template text IS the scaffold authoring guidance. Do NOT modify `agent_workflows/ipd_authoring.py` scaffold CODE unless a one-line guidance string genuinely lives there rather than in the template; if it does, keep it to that one string and cite it.
   - Depends on: none
   - Expected outcome: authored/scaffolded IPDs are steered toward one-concern E-items from the start via the template text; no scaffold code refactor.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: Added one-concern-per-E-item right-sizing guidance to .aw/system/workflows/assess/assess.md (Operating mode and IPD description), .aw/system/workflows/assess/templates/ipd.md, and .aw/system/workflows/assess/templates/orchestrator-ipd.md, maintaining parity with agent_workflows/ipd_authoring.py _EXEC_INTRO.
 
 ### Task group 3: Maintainer-signal rule
 
-- [ ] E-04 Add an explicit rule to `/plan-review` and `/plan-review-long` that a maintainer's sizing/splitting question is a FINDING to investigate by decomposition, never a signal to dismiss because the size lint passed.
+- [x] E-04 Add an explicit rule to `/plan-review` and `/plan-review-long` that a maintainer's sizing/splitting question is a FINDING to investigate by decomposition, never a signal to dismiss because the size lint passed.
   - Depends on: E-01, E-02
   - Expected outcome: reviewers treat a human sizing concern as an investigation trigger, not a lint-cleared non-issue.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: Added maintainer sizing/splitting signal rule to .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review-long/02-review-and-revise.md, and .aw/system/workflows/plan-review-long/review-rubric.md.
 
 ## Project conventions discovered (Step 0)
 
@@ -100,22 +104,22 @@ Update the IPD spec/authoring guidance references only if they enumerate the rev
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `plan-review.md` contains the per-E-item conceptual-density right-sizing check with a split recommendation; quote the added rubric lines.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `.aw/system/workflows/plan-review/plan-review.md:384-391` contains: "- **Right-sizing and conceptual density (per E-item):** Evaluate whether each E-item addresses exactly **one concern** and is **executable in one focused pass**. A passing count-based size check (`aw ipd lint`) measures only structural count (>18 E-leaves / >5 groups), NOT conceptual density. For each IPD and each E-item, ask: (a) Does one E-item name multiple distinct deliverables or touch multiple independent code regions/files? (b) Does it bundle multiple independent test-surfaces (would it need several unrelated V-items)? (c) Could it be executed and verified as two or more independent passes? (d) Would a faster/weaker model lose focus/context executing it as one item? If YES to any diagnostic question, recommend splitting into smaller child IPDs (an UNDER-SCOPE / REPLAN finding)—a passing count-based size lint does NOT clear this." Verified by `tests/test_plan_review_parity.py`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: `plan-review-long/` carries the identical right-sizing check in parity; quote the added lines and cite the file.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `.aw/system/workflows/plan-review-long/review-rubric.md:25-32` contains the identical right-sizing rubric text in parity, and `02-review-and-revise.md:75` includes `- enforce per-E-item right-sizing (one concern / executable-in-one-focused-pass; split multi-deliverable items);`. Verified by `tests/test_plan_review_parity.py`.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: the assess harness, both IPD templates, and the scaffold authoring guidance state "one concern per E-item; split when multiple deliverables/test-surfaces"; quote the added lines per file.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `assess.md:124-129` and `156-159` state "Enforce right-sizing: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or touches multiple independent test-surfaces." `templates/ipd.md:24` and `orchestrator-ipd.md:24` include "Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces." in parity with `agent_workflows/ipd_authoring.py:53-58`. Verified by `tests/test_ipd_templates.py` and `tests/test_plan_review_parity.py`.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: both review workflows state that a maintainer sizing question is a finding to investigate by decomposition; a dry-run applying the new rubric to a NAMED dense exemplar (an awoptimize Order 02/03/04 that bundled an append-only ledger / crash recovery / a 12-class evidence-validator into single E-items, per Findings) shows the rubric would flag it for splitting; quote the rule and describe the dry-run result against that named plan.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Rule quoted from `plan-review.md:392` and `review-rubric.md:33`: "- **Maintainer sizing signals:** A maintainer's sizing or splitting question is an actionable FINDING to investigate by decomposition, never a signal to dismiss because the size lint passed." and `02-review-and-revise.md:23-26`. Dry-run applied against historical plan `.aw/records/plans/superseded/20260821-awoptimize-02-7qs57e-run-ledger-and-evidence-contract.ipd.md`: E-03 bundled append-only storage, sequence numbers, hash chaining / tamper evidence, crash-safe recovery, redaction hooks, and corruption refusal; E-05 bundled 12 separate validator classes. Diagnostic questions (a), (b), (c), (d) all answer YES (multiple distinct deliverables touching distinct components, separate test surfaces, independent execution passes, and model attention overload). The rubric flags them as UNDER-SCOPE / REPLAN requiring decomposition into Orders 02, 03, 04, matching the actual maintainer decomposition decision.
+  - Result: pass
 
 ## Approval and execution gate
 

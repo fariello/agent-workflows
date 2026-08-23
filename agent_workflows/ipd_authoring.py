@@ -53,7 +53,9 @@ _SECTION_BODY = {
 
 _EXEC_INTRO = (
     "Execution-state rule: mark an `E-*` item complete only after performing the action. "
-    "That mark is not validation."
+    "That mark is not validation. Right-sizing rule: each E-item must address one concern "
+    "and be executable in one focused pass; split when an E-item names multiple distinct deliverables "
+    "or independent test-surfaces."
 )
 _VALID_INTRO = (
     "Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item "

@@ -18,7 +18,9 @@ Read `review-rubric.md` in full. Apply:
 ## 1. Record findings
 
 Record each distinct actionable finding. Combine duplicate symptoms under one
-root cause. Do not invent findings.
+root cause. Do not invent findings. A maintainer's sizing or splitting question is an
+actionable FINDING to investigate by decomposition, never a signal to dismiss because the
+size lint passed.
 
 Each finding MUST contain:
 
@@ -68,6 +70,7 @@ Make surgical, well-anchored edits:
   recovery, specification work, and validation;
 - inject the gate execution contract if missing (resolved open questions, a scope
   fence, the hard-MUST honesty rule, path-scoped commit and never-push, lifecycle move);
+- enforce per-E-item right-sizing (one concern / executable-in-one-focused-pass; split multi-deliverable items);
 - remove unsupported or gold-plated scope;
 - keep the plan concise and executable;
 - do not weaken valid requirements.

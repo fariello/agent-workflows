@@ -121,9 +121,11 @@ Then read the selected lens file and adopt its focus, lead personas, and rubric.
    Fix-by-default: propose acting on everything unless Remediation Risk is Medium-High
    or higher (then propose deferral with the named axis). Down-scope to the safe part
    where possible; never silently drop a finding.
-4. **Guard scope (KISS):** the Complexity axis is the counterweight to fix-by-default.
+4. **Guard scope and right-sizing (KISS):** the Complexity axis is the counterweight to fix-by-default.
    Flag over-scope (untraceable to a need - propose removal/deferral) and under-scope
-   (a needed capability that is missing - propose adding it). Do not gold-plate.
+   (a needed capability that is missing - propose adding it). Enforce right-sizing: each E-item
+   must address one concern and be executable in one focused pass; split when an E-item names
+   multiple distinct deliverables or touches multiple independent test-surfaces. Do not gold-plate.
 5. **Write the IPD** to the pending-plans directory using `templates/ipd.md`, named per
    the project's filename convention (canonical: `YYYYMMDD-HHMM-NN-<slug>.md`, local
    date+time, `NN` a two-digit per-minute sequence with `00` reserved for an orchestrator),
@@ -153,6 +155,10 @@ validatable steps with Remediation Risk; deferred items with the named axis; req
 tests/validation; spec/doc sync if behavior changes; open questions; and an explicit
 **approval and execution gate** stating the plan must be human-approved before
 execution and is not auto-run.
+
+Structure each task group and execution leaf around one concern executable in one focused pass;
+split when an E-item names multiple distinct deliverables or touches multiple independent
+test-surfaces. A passing count-based size lint measures count, not conceptual density.
 
 Keep the IPD honest and self-contained enough that a different agent or engineer could
 execute it later with no other context (the cold-start standard).
