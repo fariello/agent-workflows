@@ -2522,6 +2522,16 @@
   {
     "date": "2026-08-22",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260822-awcliux-00-r0brcg-aw-cli-dual-audience-output-program.ipd.md",
+    "plan_id": "r0brcg",
+    "set_id": "awcliux",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-22",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260822-awcliux-01-hd3kln-output-mode-contract-and-renderer-boundary.ipd.md",
@@ -2547,6 +2557,46 @@
     "path": "executed/20260822-awcliux-03-8su0r3-token-efficient-agent-protocol-and-evidence-receipts.ipd.md",
     "plan_id": "8su0r3",
     "set_id": "awcliux",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-22",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 4,
+    "path": "executed/20260822-awcliux-04-10jpsa-full-command-surface-migration-and-compatibility.ipd.md",
+    "plan_id": "10jpsa",
+    "set_id": "awcliux",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-22",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 5,
+    "path": "executed/20260822-awcliux-05-e8hu4s-output-conformance-harness-documentation-and-rollout.ipd.md",
+    "plan_id": "e8hu4s",
+    "set_id": "awcliux",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-22",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260822-highpbacklog0822-02-n5kvff-fix-agy-run-py-false-error-on-sandboxed-write-to-file-reject.ipd.md",
+    "plan_id": "n5kvff",
+    "set_id": "highpbacklog0822",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260823-doctorremedy-01-tdlspr-doctor-actionable-remediation-commands-and-targeted-fixes.ipd.md",
+    "plan_id": "tdlspr",
+    "set_id": "doctorremedy",
     "status": "executed"
   },
   {
@@ -2584,60 +2634,10 @@
     "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
-    "path": "pending/20260822-awcliux-00-r0brcg-aw-cli-dual-audience-output-program.ipd.md",
-    "plan_id": "r0brcg",
-    "set_id": "awcliux",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-22",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260822-awcliux-01-hd3kln-output-mode-contract-and-renderer-boundary.ipd.md",
-    "plan_id": "hd3kln",
-    "set_id": "awcliux",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-22",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260822-awcliux-02-czw99i-human-tty-information-design-and-256-color-system.ipd.md",
-    "plan_id": "czw99i",
-    "set_id": "awcliux",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-22",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 4,
-    "path": "pending/20260822-awcliux-04-10jpsa-full-command-surface-migration-and-compatibility.ipd.md",
-    "plan_id": "10jpsa",
-    "set_id": "awcliux",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-22",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 5,
-    "path": "pending/20260822-awcliux-05-e8hu4s-output-conformance-harness-documentation-and-rollout.ipd.md",
-    "plan_id": "e8hu4s",
-    "set_id": "awcliux",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-22",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
     "path": "pending/20260822-highpbacklog0822-00-wot0nc-high-priority-backlog-2026-08-22-program.ipd.md",
     "plan_id": "wot0nc",
     "set_id": "highpbacklog0822",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-22",
@@ -2647,7 +2647,7 @@
     "path": "pending/20260822-highpbacklog0822-02-n5kvff-fix-agy-run-py-false-error-on-sandboxed-write-to-file-reject.ipd.md",
     "plan_id": "n5kvff",
     "set_id": "highpbacklog0822",
-    "status": "draft"
+    "status": "approved"
   },
   {
     "date": "2026-08-22",
@@ -2657,7 +2657,7 @@
     "path": "pending/20260822-highpbacklog0822-03-h4e9yi-deprecation-warning-for-per-workflow-slash-command-aliases.ipd.md",
     "plan_id": "h4e9yi",
     "set_id": "highpbacklog0822",
-    "status": "draft"
+    "status": "approved"
   },
   {
     "date": "2026-08-22",
@@ -2667,7 +2667,7 @@
     "path": "pending/20260822-highpbacklog0822-04-89bby9-empty-loading-and-error-state-ux-shared-helper-and-conventio.ipd.md",
     "plan_id": "89bby9",
     "set_id": "highpbacklog0822",
-    "status": "draft"
+    "status": "approved"
   },
   {
     "date": "2026-08-22",
@@ -2677,7 +2677,7 @@
     "path": "pending/20260822-highpbacklog0822-05-4ug8xp-empty-and-error-state-ux-surface-wide-rollout-and-tests.ipd.md",
     "plan_id": "4ug8xp",
     "set_id": "highpbacklog0822",
-    "status": "draft"
+    "status": "approved"
   },
   {
     "date": "2026-08-22",
@@ -2687,7 +2687,7 @@
     "path": "pending/20260822-highpbacklog0822-06-por1hi-ipd-right-sizing-rubric-in-review-workflows-and-authoring-gu.ipd.md",
     "plan_id": "por1hi",
     "set_id": "highpbacklog0822",
-    "status": "draft"
+    "status": "approved"
   },
   {
     "date": "2026-08-22",
@@ -2697,6 +2697,26 @@
     "path": "pending/20260822-highpbacklog0822-07-wb045s-ipd-right-sizing-mechanical-lint-heuristic.ipd.md",
     "plan_id": "wb045s",
     "set_id": "highpbacklog0822",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260823-grouptypes-01-o2ygf3-universal-artifact-type-support-in-aw-group.ipd.md",
+    "plan_id": "o2ygf3",
+    "set_id": "grouptypes",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260823-renametypes-01-53yczi-universal-artifact-type-support-in-aw-rename.ipd.md",
+    "plan_id": "53yczi",
+    "set_id": "renametypes",
     "status": "draft"
   },
   {

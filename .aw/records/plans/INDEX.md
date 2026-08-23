@@ -2,22 +2,33 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 109 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 112 Sets; the full manifest is INDEX.json.
+
+## doctorremedy
+
+- `tdlspr` [executed] 01 executed/20260823-doctorremedy-01-tdlspr-doctor-actionable-remediation-commands-and-targeted-fixes.ipd.md
+
+## grouptypes
+
+- `o2ygf3` [pending] 01 pending/20260823-grouptypes-01-o2ygf3-universal-artifact-type-support-in-aw-group.ipd.md
+
+## renametypes
+
+- `53yczi` [pending] 01 pending/20260823-renametypes-01-53yczi-universal-artifact-type-support-in-aw-rename.ipd.md
 
 ## awcliux
 
-- `r0brcg` [pending] 00 pending/20260822-awcliux-00-r0brcg-aw-cli-dual-audience-output-program.ipd.md
+- `r0brcg` [executed] 00 executed/20260822-awcliux-00-r0brcg-aw-cli-dual-audience-output-program.ipd.md
 - `hd3kln` [executed] 01 executed/20260822-awcliux-01-hd3kln-output-mode-contract-and-renderer-boundary.ipd.md
-- `hd3kln` [pending] 01 pending/20260822-awcliux-01-hd3kln-output-mode-contract-and-renderer-boundary.ipd.md
 - `czw99i` [executed] 02 executed/20260822-awcliux-02-czw99i-human-tty-information-design-and-256-color-system.ipd.md
-- `czw99i` [pending] 02 pending/20260822-awcliux-02-czw99i-human-tty-information-design-and-256-color-system.ipd.md
 - `8su0r3` [executed] 03 executed/20260822-awcliux-03-8su0r3-token-efficient-agent-protocol-and-evidence-receipts.ipd.md
-- `10jpsa` [pending] 04 pending/20260822-awcliux-04-10jpsa-full-command-surface-migration-and-compatibility.ipd.md
-- `e8hu4s` [pending] 05 pending/20260822-awcliux-05-e8hu4s-output-conformance-harness-documentation-and-rollout.ipd.md
+- `10jpsa` [executed] 04 executed/20260822-awcliux-04-10jpsa-full-command-surface-migration-and-compatibility.ipd.md
+- `e8hu4s` [executed] 05 executed/20260822-awcliux-05-e8hu4s-output-conformance-harness-documentation-and-rollout.ipd.md
 
 ## highpbacklog0822
 
 - `wot0nc` [pending] 00 pending/20260822-highpbacklog0822-00-wot0nc-high-priority-backlog-2026-08-22-program.ipd.md
+- `n5kvff` [executed] 02 executed/20260822-highpbacklog0822-02-n5kvff-fix-agy-run-py-false-error-on-sandboxed-write-to-file-reject.ipd.md
 - `n5kvff` [pending] 02 pending/20260822-highpbacklog0822-02-n5kvff-fix-agy-run-py-false-error-on-sandboxed-write-to-file-reject.ipd.md
 - `h4e9yi` [pending] 03 pending/20260822-highpbacklog0822-03-h4e9yi-deprecation-warning-for-per-workflow-slash-command-aliases.ipd.md
 - `89bby9` [pending] 04 pending/20260822-highpbacklog0822-04-89bby9-empty-loading-and-error-state-ux-shared-helper-and-conventio.ipd.md
@@ -267,23 +278,6 @@ Showing the 40 most-recent of 109 Sets; the full manifest is INDEX.json.
 - `lus9ou` [executed] 00 executed/20260808-0004-00-plans-adopter-orchestrator.ipd.md
 - `7qx7ys` [executed] 06 executed/20260808-0004-06-migrate-existing-plans.ipd.md
 - `8q6yr9` [executed] 07 executed/20260808-0004-07-plans-scaffold-directives-decisions.ipd.md
-
-## plansadopt
-
-- `qkc93l` [executed] 01 executed/20260808-plansadopt-01-qkc93l-shared-artifact-core.ipd.md
-- `2bpoz6` [executed] 02 executed/20260808-plansadopt-02-2bpoz6-plan-id-in-ipd-schema.ipd.md
-- `xh08he` [executed] 03 executed/20260808-plansadopt-03-xh08he-plans-manifest-and-check.ipd.md
-- `qb3ubs` [executed] 04 executed/20260808-plansadopt-04-qb3ubs-plans-regroup-and-refs.ipd.md
-- `gxa8xb` [executed] 05 executed/20260808-plansadopt-05-gxa8xb-plans-shards-and-archival.ipd.md
-
-## ipd-history
-
-- `wrt0wq` [superseded] 01 superseded/20260807-ipd-history-01-wrt0wq-ipd-lifecycle-history-tracking.ipd.md
-
-## verify-execution
-
-- `c5685e` [executed] 00 executed/20260712-verify-execution-00-c5685e-verify-execution-workflow.ipd.md
-- `2p9fd3` [executed] 01 executed/20260807-verify-execution-01-2p9fd3-thorough-execution-verification-workflow.ipd.md
 
 ## (singletons: no Set)
 
