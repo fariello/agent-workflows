@@ -110,3 +110,28 @@ If a repository has previously committed `workflow-artifacts/` run records to Gi
    git filter-repo --path workflow-artifacts/ --invert-paths
    ```
    **WARNING (destructive; run ONLY with explicit human approval):** this REWRITES history, changes every subsequent commit SHA, and requires a coordinated force-push that invalidates all existing clones and open branches/PRs. It is NOT reversible by a normal pull. Do NOT run it automatically or as part of routine remediation; propose it, explain the blast radius, and wait for an explicit human decision before executing (consistent with the toolkit's never-rewrite-history-without-approval posture).
+
+## `pwatch.py`
+
+`tools/pwatch.py` is a generic process-tree watcher and recorder. It monitors and visualizes process trees matching user-defined strings or regular expressions, collapsing redundant sibling processes and same-name threads with box line art and 256-color styling.
+
+### Usage
+
+```bash
+# Watch processes matching a case-insensitive string or bare argument:
+python3 tools/pwatch.py python3
+python3 tools/pwatch.py -m opencode
+
+# Match with case-sensitive strings (-M) or regular expressions (-R, -r):
+python3 tools/pwatch.py -M Python -R '^pytest.*'
+
+# Exclude processes matching strings or regexes (-eM, -em, -eR, -er):
+python3 tools/pwatch.py python3 -em pyright
+
+# Record matching processes in the watched tree to JSONL (-rM, -rm, -rR, -rr):
+python3 tools/pwatch.py python3 -rm pytest --record-file /tmp/pytest-runs.jsonl
+```
+
+### Backwards Compatibility
+
+`tools/watch-agy.py` acts as a convenience wrapper around `pwatch.py`, defaulting to `-m agy` when invoked without process filter arguments.
