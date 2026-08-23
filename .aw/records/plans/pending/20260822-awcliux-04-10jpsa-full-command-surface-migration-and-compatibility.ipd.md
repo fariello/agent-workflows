@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Apply the dual-audience contract to every current and future command.
 - Scope: Read, check, preview, mutation, interactive, family, bare, and alias paths.
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello 2026-08-23 (aw set)
 - Set: awcliux
 - Order: 4
 - Highest E allocated: 03
@@ -12,6 +13,7 @@
 - Id: 10jpsa
 
 ## Workflow history
+- 2026-08-23 approved (aw set): status set to approved
 
 - 2026-08-22 draft (OpenAI): created from `_build_parser()` inventory.
 - 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (execution contract), PR-002 (regression/suite evidence in V-items), PR-003 (mutation-authorization invariant: --agent never implies --yes, mapped to test), PR-004 (Order 05 owns CI gate + installer-script classification), PR-005 (partial-failure receipt honesty), PR-006 (conflicting-flag usage error), Status draft->reviewed.

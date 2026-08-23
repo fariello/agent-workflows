@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Make interactive output compact, organized, self-documenting, and actionable.
 - Scope: Shared TTY components, family recipes, help/errors, width, and accessibility.
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello 2026-08-23 (aw set)
 - Set: awcliux
 - Order: 2
 - Highest E allocated: 03
@@ -12,6 +13,7 @@
 - Id: czw99i
 
 ## Workflow history
+- 2026-08-23 approved (aw set): status set to approved
 
 - 2026-08-22 draft (OpenAI): made `aw doctor` the reference human diagnostic view after user feedback.
 - 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (execution contract), PR-002 (V-02/V-03 concrete evidence), PR-003 (extend existing STATUS_COLOR_256, no parallel palette), PR-004 (Unicode ASCII fallback moved in-scope), PR-005 (name check exit-contract invariant + test), PR-006 (Status draft->reviewed).

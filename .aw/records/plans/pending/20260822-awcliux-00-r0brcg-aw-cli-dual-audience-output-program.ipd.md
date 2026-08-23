@@ -4,7 +4,8 @@
 - Kind: orchestrator
 - Concern: Make every `aw` command communicate optimally to humans and coding agents.
 - Scope: Output contract, two renderers, command migration, conformance tests, and documentation; no domain redesign.
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello 2026-08-23 (aw set)
 - Set: awcliux
 - Order: 0
 - Highest E allocated: 03
@@ -12,6 +13,7 @@
 - Id: r0brcg
 
 ## Workflow history
+- 2026-08-23 approved (aw set): status set to approved
 
 - 2026-08-22 draft (OpenAI): created from origin/main `546373c40c84c7fb7576ad381f1b260bdf46cb99`.
 - 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (Drift/spec-1525-01 reconciliation), PR-002 (execution contract), PR-003 (V-item evidence), PR-004 (blocking OQ-01 resolved: hard cutover), PR-005 (Status draft->reviewed).

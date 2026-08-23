@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Give coding agents deterministic, concise, evidence-bearing output.
 - Scope: Agent schema, receipts, budgets, errors, and examples; no vendor-specific dialect.
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello 2026-08-23 (aw set)
 - Set: awcliux
 - Order: 3
 - Highest E allocated: 03
@@ -12,6 +13,7 @@
 - Id: 8su0r3
 
 ## Workflow history
+- 2026-08-23 approved (aw set): status set to approved
 
 - 2026-08-22 draft (OpenAI): created from agent/pipe output audit.
 - 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (Drift/spec-1525-01 reconciliation + Order 01 versioning cross-ref), PR-002 (repo-relative sanitizer-clean path/evidence fields), PR-003 (execution contract), PR-004 (V-02/V-03 concrete evidence + V-01 sanitizer test), PR-005 (schema-versioning owned by Order 01), PR-006 (fixed attention findings example exit 0->1), Status draft->reviewed.

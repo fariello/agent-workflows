@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Prove output quality and prevent regression.
 - Scope: Generated matrix, PTY/golden/schema/token tests, documentation, compatibility, and release gates.
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello 2026-08-23 (aw set)
 - Set: awcliux
 - Order: 5
 - Highest E allocated: 03
@@ -12,6 +13,7 @@
 - Id: e8hu4s
 
 ## Workflow history
+- 2026-08-23 approved (aw set): status set to approved
 
 - 2026-08-22 draft (OpenAI): created to close the program with reproducible evidence.
 - 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (blocking OQ-01 resolved: hard cutover), PR-002 (E-03 supersede spec 1525-01 G6 + loud byte-break docs), PR-003 (execution contract + release-record note + no tag/publish), PR-004 (V-02/V-03 concrete evidence), PR-005 (paste actual gating output), PR-006 (pin argparse color in goldens), Status draft->reviewed.
