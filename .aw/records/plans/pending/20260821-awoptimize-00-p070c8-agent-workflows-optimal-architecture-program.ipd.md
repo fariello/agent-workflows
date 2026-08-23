@@ -51,30 +51,30 @@ THIS orchestrator itself right-sized, its gates coordinate by LAYER (A-G), not o
 each layer gate drives its member Orders through the full lifecycle (author -> /plan-review -> human
 approval -> execute -> independent verification -> transition) in the child-table dependency order.
 
-- [ ] E-01 Establish and freeze the baseline: architecture decision record (D139), the re-scope map (superseded old 02-08 -> new 02-18), and the layer dependency graph, before Layer A begins.
+- [x] E-01 Establish and freeze the baseline: architecture decision record (D139), the re-scope map (superseded old 02-08 -> new 02-18), and the layer dependency graph, before Layer A begins.
   - Depends on: none
   - Expected outcome: every child consumes one reviewed baseline + numbering plan; no child can redefine the program's goals or evidence standard, and Order 01's executed artifacts are the fixed foundation.
-  - Execution state: pending
-- [ ] E-02 Drive Layer A (evidence substrate): Orders 02 (record schemas + requirement freeze), 03 (append-only tamper-evident ledger store), 04 (evidence capture + validators + completion predicates + inspection CLI), each through the full lifecycle in dependency order.
+  - Execution state: performed
+- [x] E-02 Drive Layer A (evidence substrate): Orders 02 (record schemas + requirement freeze), 03 (append-only tamper-evident ledger store), 04 (evidence capture + validators + completion predicates + inspection CLI), each through the full lifecycle in dependency order.
   - Depends on: E-01
   - Expected outcome: a completion claim is a deterministic predicate over frozen requirements + valid append-only evidence, not a model's word; all three Orders reach executed.
-  - Execution state: pending
-- [ ] E-03 Drive Layer B (runtime): Orders 05 (state machine + single-writer engine), 06 (bounded packets + outcome envelopes + human gates), 07 (retry + resume + crash recovery + run lifecycle CLI), each through the full lifecycle.
+  - Execution state: performed
+- [x] E-03 Drive Layer B (runtime): Orders 05 (state machine + single-writer engine), 06 (bounded packets + outcome envelopes + human gates), 07 (retry + resume + crash recovery + run lifecycle CLI), each through the full lifecycle.
   - Depends on: E-02
   - Expected outcome: sequencing, resumability, transition guards, and fail-closed behavior live in deterministic code over the Layer A ledger, not in model memory; all three reach executed.
-  - Execution state: pending
-- [ ] E-04 Drive Layer C (verification + isolation): Orders 08 (verifier roles + clean packet + procedures + corrective routing), 09 (isolation hierarchy + concurrency eligibility + merge-revalidate), each through the full lifecycle.
+  - Execution state: performed
+- [x] E-04 Drive Layer C (verification + isolation): Orders 08 (verifier roles + clean packet + procedures + corrective routing), 09 (isolation hierarchy + concurrency eligibility + merge-revalidate), each through the full lifecycle.
   - Depends on: E-03
   - Expected outcome: execution, review, and correction authorities are separated; independent verification runs on frozen requirements + actual diff + raw evidence; both reach executed.
-  - Execution state: pending
-- [ ] E-05 Drive Layer D (hosts): Orders 10 (capability-evidence registry + isolated probes), 11 (generated skills + host adapters + agy fresh verifier), each through the full lifecycle.
+  - Execution state: performed
+- [x] E-05 Drive Layer D (hosts): Orders 10 (capability-evidence registry + isolated probes), 11 (generated skills + host adapters + agy fresh verifier), each through the full lifecycle.
   - Depends on: E-04
   - Expected outcome: native adapters/skills are generated only for evidence-backed capabilities (unverified by default); both reach executed with no unproven support claim.
-  - Execution state: pending
-- [ ] E-06 Drive Layer E (evaluation): Orders 12 (benchmark corpus + preregistered scoring), 13 (offline runners + ablations + metrics + reports), each through the full lifecycle.
+  - Execution state: performed
+- [x] E-06 Drive Layer E (evaluation): Orders 12 (benchmark corpus + preregistered scoring), 13 (offline runners + ablations + metrics + reports), each through the full lifecycle.
   - Depends on: E-05
   - Expected outcome: the offline benchmark quantifies completion, evidence truth, drift, and time/token efficiency (no dollar cost - Order 13) by exact configuration; live model runs remain operator-run; both reach executed.
-  - Execution state: pending
+  - Execution state: performed
 - [ ] E-07 Drive Layer F (migration): Orders 14 (disposition inventory + shared family migration), 15 (complex orchestrated migration), 16 (compact migration + shims + promotion gates), each through the full lifecycle.
   - Depends on: E-06
   - Expected outcome: every catalog workflow has an explicit disposition and migrated families pass their per-family benchmark promotion gates without semantic loss; all three reach executed.
