@@ -17,6 +17,7 @@
 - 2026-08-22 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created for backlog oijafw (part 1 of 2); built on the awcliux renderer boundary to avoid a second human-output path.
 - 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; the awcliux Order 02 (czw99i) boundary is now EXECUTED (term.py:205+ has the component layer; no empty_result yet), so PR-001 concretized E-01/OQ-01/contract against term.py and retired the moot STOP guard; PR-002 scoped "loading" to the existing stderr step-cue (no spinner) per KISS; PR-003 tightened V-01 to cite term.py; PR-004 Status draft->reviewed. NOTE for maintainer: a stale duplicate czw99i exists in BOTH pending/ and executed/ (status/location inconsistency in that other plan) - out of this review's scope but worth cleaning up.
 - 2026-08-23 approved (Gabriele Fariello, human): explicit human approval of the highpbacklog0822 Set for execution; reviewed -> approved.
+- 2026-08-23 executed (agy/Gemini 3.7 Flash): E-01 (Term.empty_result + step_cue helper on existing Term boundary in term.py:551+), E-02 (normative empty/loading/error-state convention in docs/cli-output-contract.md Section 11 + guides), E-03 (reference adoption in aw find in cli.py:5161). Full test suite 2056 passed 1 skipped (make test rc=0).
 
 ## Goal
 
@@ -28,24 +29,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Material change 1: Define the empty/error-state helper
 
-- [ ] E-01 Add an empty-state helper to the EXISTING `Term` component layer (`agent_workflows/term.py:205+`, which already has `outcome`, `section`, `table`, `diagnostic`, `preview`, `evidence`, `fix`, `next_action`, `glyph` from the executed awcliux Order 02 `czw99i`): an `empty_result(context)` that echoes the active filters/selectors and a suggested next command, composed from the existing `outcome`/`next_action`/`section` primitives (do NOT add a parallel output path or new palette). Reuse the awcliux typed result / `Diagnostic` / `NextAction` facts. "Loading/progress" here means ONLY the existing stderr step-cue pattern (as `doctor` uses `severity_label('info') "...ing..."`); do not add a spinner or any long-running-op machinery the synchronous CLI does not need.
+- [x] E-01 Add an empty-state helper to the EXISTING `Term` component layer (`agent_workflows/term.py:205+`, which already has `outcome`, `section`, `table`, `diagnostic`, `preview`, `evidence`, `fix`, `next_action`, `glyph` from the executed awcliux Order 02 `czw99i`): an `empty_result(context)` that echoes the active filters/selectors and a suggested next command, composed from the existing `outcome`/`next_action`/`section` primitives (do NOT add a parallel output path or new palette). Reuse the awcliux typed result / `Diagnostic` / `NextAction` facts. "Loading/progress" here means ONLY the existing stderr step-cue pattern (as `doctor` uses `severity_label('info') "...ing..."`); do not add a spinner or any long-running-op machinery the synchronous CLI does not need.
   - Depends on: none
   - Expected outcome: one `empty_result` helper (plus the existing outcome/error renderers) renders empty/success/error states for both audiences via the existing `Term` boundary; no new palette or parallel path.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Material change 2: Document the convention
 
-- [ ] E-02 Write the empty/loading/error-state convention: when a read/list verb returns nothing it MUST echo the active filters and suggest a next step; mutations MUST give consistent success/error feedback; errors MUST NOT fail silently. Include the agent-mode equivalent (the empty/error facts appear in the `aw.agent/v1` record, not just human prose).
+- [x] E-02 Write the empty/loading/error-state convention: when a read/list verb returns nothing it MUST echo the active filters and suggest a next step; mutations MUST give consistent success/error feedback; errors MUST NOT fail silently. Include the agent-mode equivalent (the empty/error facts appear in the `aw.agent/v1` record, not just human prose).
   - Depends on: E-01
   - Expected outcome: a single normative convention Order 05 applies uniformly.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Material change 3: Prove it on a reference verb
 
-- [ ] E-03 Adopt the helper in ONE reference read verb that can return empty (e.g. `aw find`) so the empty-with-filters-and-next-step behavior is exercised end to end in both audiences; full rollout is Order 05.
+- [x] E-03 Adopt the helper in ONE reference read verb that can return empty (e.g. `aw find`) so the empty-with-filters-and-next-step behavior is exercised end to end in both audiences; full rollout is Order 05.
   - Depends on: E-01, E-02
   - Expected outcome: the reference verb shows the new empty-state UX in TTY and agent modes; the pattern is proven for Order 05.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -96,18 +97,37 @@ Add the empty/loading/error-state convention to the `awcliux` human TTY guide / 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: unit tests prove `Term.empty_result` (in `agent_workflows/term.py`) echoes active filters + a next-step suggestion and composes from the existing primitives (no new palette, no parallel path), and that success/error renderers produce correct facts in both audiences; paste the test output and cite the `term.py` line of the new method.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `Term.format_empty_result` (term.py:551), `Term.empty_result` (term.py:650), `Term.format_step_cue` (term.py:670), and `Term.step_cue` (term.py:674) added to `agent_workflows/term.py`. Unit tests in `tests/test_empty_state_ux.py` and `tests/test_term_components.py` verify monochrome/ASCII, color/Unicode, and stream formatting without parallel palettes or paths. `pytest tests/test_empty_state_ux.py tests/test_term_components.py` output: `26 passed in 0.28s`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: the convention doc exists and specifies both human and agent-mode behavior and the no-silent-failure rule; quote the normative lines.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `docs/cli-output-contract.md` Section 11 ("Empty, Loading, and Error State UX Convention") added and cross-referenced in `docs/cli-human-guide.md` and `docs/cli-agent-protocol.md`.
+    Normative lines:
+    - Section 11.1: "When a query, find, search, or list verb matches zero records or produces an empty result set: Never Fail Silently / Blank: The handler MUST NOT print blank output or an uninformative raw string."
+    - Section 11.1: "Interactive Human TTY: Handlers MUST use `Term.empty_result(summary, filters=..., next_action=...)`... Outcome line with clean status... Active filters: section echoing all applied selectors... Next recommendation offering a broadening query..."
+    - Section 11.1: "Agent Protocol (`aw.agent/v1`): The handler MUST emit a structured result (or summary) record with: outcome: "clean", exit: 0, findings: 0, verified: true, complete: true. Evidence/data carrying the zero count and active filter dictionary. next: the suggested broadening or fallback command."
+    - Section 11.4: "No Silent Failures: Handlers MUST NEVER catch and swallow unexpected exceptions or return exit code 0 on fatal failure."
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: the reference verb (`aw find`) shows the empty-with-filters-and-next-step UX in a PTY golden and the agent record; paste the golden and the record.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `_run_find` in `agent_workflows/cli.py:5161` updated to use `term.empty_result` on 0 matches and populate `CommandResult.next_actions` / filters in agent mode. Tested by `tests/test_empty_state_ux.py::FindReferenceVerbEmptyStateTests`.
+    Human TTY Golden:
+    ```text
+    OK CLEAN  no matching specs
+
+    Active filters:
+      type: specs
+      selector: nonexistent999
+
+    Next  aw find specs (list all specs without selector filter)
+    ```
+    Agent Record:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"find","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":[{"key":"find-count","status":"verified","value":{"count":0,"selectors":["nonexistent999"],"type":"specs"}}],"next":"aw find specs"}
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

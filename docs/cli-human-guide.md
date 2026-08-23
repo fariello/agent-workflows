@@ -86,6 +86,15 @@ Every `aw` command uses the same three-way exit classification:
 A common pitfall: `aw check` finding problems returns `1`, which is not a crash. Reserve `2`
 in your own scripts for "the command could not run at all".
 
+## Empty states and progress cues
+
+- **Empty results**: When a search or list command matches zero items, it never fails silently or prints blank lines.
+  It renders `OK CLEAN` / `✓ CLEAN`, echoes your active filters/selectors, and gives a `Next` follow-up command
+  to broaden your search (e.g. `aw find`).
+- **Progress step-cues**: Synchronous commands emit transient progress indicators (`[INFO ] ...ing...`) strictly to
+  `stderr`. No spinners or async terminal animation machinery is used.
+- For normative specifications, see the [CLI Output Mode Contract](cli-output-contract.md#11-empty-loading-and-error-state-ux-convention).
+
 ## Streams
 
 - stdout carries the final result only (the human view, or the machine records).

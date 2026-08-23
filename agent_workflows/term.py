@@ -27,7 +27,7 @@ from __future__ import annotations
 import os
 import re
 import sys
-from typing import Any, Optional, Sequence, TextIO, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, TextIO, Tuple, Union
 
 _ANSI_RE = re.compile(r"\033\[[0-9;]*m")
 
@@ -546,6 +546,130 @@ class Term:
 
     def next_action(self, command: str, description: str = "") -> None:
         self.line(self.format_next_action(command, description))
+
+    def format_empty_result(
+        self,
+        summary: Union[str, Dict[str, Any], Any] = "no matching items",
+        *,
+        filters: Optional[
+            Union[Dict[str, Any], Sequence[Tuple[str, Any]], Sequence[str], str]
+        ] = None,
+        next_action: Optional[Union[str, Tuple[str, str], Any]] = None,
+        status: str = "clean",
+    ) -> str:
+        """Format a unified empty-state UX result (highpbacklog0822 Order 04 E-01).
+
+        Echoes an outcome line (e.g. `✓ CLEAN  <summary>`), the active filters/selectors
+        if any, and a recommended next action, composed from existing primitives
+        (`format_outcome`, `format_section`, `colorize`, `format_next_action`).
+        """
+        # Handle dict or object context passed as first positional arg
+        if isinstance(summary, dict):
+            ctx_dict = summary
+            filters = ctx_dict.get("filters", filters)
+            next_action = (
+                ctx_dict.get("next_action") or ctx_dict.get("next") or next_action
+            )
+            status = ctx_dict.get("status", status)
+            summary = ctx_dict.get("summary") or ctx_dict.get(
+                "message", "no matching items"
+            )
+        elif hasattr(summary, "summary") and not isinstance(summary, str):
+            ctx_obj = summary
+            data = getattr(ctx_obj, "data", {}) or {}
+            filters = data.get("filters", filters)
+            next_actions = getattr(ctx_obj, "next_actions", []) or []
+            if next_actions and next_action is None:
+                next_action = next_actions[0]
+            status = getattr(ctx_obj, "status", status)
+            summary = getattr(ctx_obj, "summary", "no matching items")
+
+        lines: List[str] = [self.format_outcome(status, str(summary))]
+
+        # Active filters / selectors
+        if filters:
+            lines.append("")
+            lines.append(self.format_section("Active filters:"))
+            if isinstance(filters, dict):
+                for k, v in filters.items():
+                    if v is not None and v != "":
+                        v_str = (
+                            ", ".join(str(x) for x in v)
+                            if isinstance(v, (list, tuple))
+                            else str(v)
+                        )
+                        k_styled = (
+                            self.colorize(f"{k}:", "bold") if self.color else f"{k}:"
+                        )
+                        lines.append(f"  {k_styled} {v_str}")
+            elif isinstance(filters, (list, tuple)):
+                for item in filters:
+                    if isinstance(item, tuple) and len(item) == 2:
+                        k, v = item
+                        if v is not None and v != "":
+                            v_str = (
+                                ", ".join(str(x) for x in v)
+                                if isinstance(v, (list, tuple))
+                                else str(v)
+                            )
+                            k_styled = (
+                                self.colorize(f"{k}:", "bold")
+                                if self.color
+                                else f"{k}:"
+                            )
+                            lines.append(f"  {k_styled} {v_str}")
+                    elif item:
+                        lines.append(f"  {item}")
+            elif isinstance(filters, str):
+                lines.append(f"  {filters}")
+
+        # Suggested next action
+        if next_action:
+            lines.append("")
+            if isinstance(next_action, str):
+                lines.append(self.format_next_action(next_action))
+            elif isinstance(next_action, tuple):
+                cmd = next_action[0]
+                desc = next_action[1] if len(next_action) > 1 else ""
+                lines.append(self.format_next_action(cmd, desc))
+            elif hasattr(next_action, "command"):
+                lines.append(
+                    self.format_next_action(
+                        next_action.command,
+                        getattr(next_action, "description", ""),
+                    )
+                )
+
+        return "\n".join(lines)
+
+    def empty_result(
+        self,
+        summary: Union[str, Dict[str, Any], Any] = "no matching items",
+        *,
+        filters: Optional[
+            Union[Dict[str, Any], Sequence[Tuple[str, Any]], Sequence[str], str]
+        ] = None,
+        next_action: Optional[Union[str, Tuple[str, str], Any]] = None,
+        status: str = "clean",
+    ) -> None:
+        """Print an empty-state result with active filters and next action."""
+        self.line(
+            self.format_empty_result(
+                summary=summary,
+                filters=filters,
+                next_action=next_action,
+                status=status,
+            )
+        )
+
+    def format_step_cue(self, message: str) -> str:
+        """Format a transient progress step-cue for stderr using severity_label('info')."""
+        return f"{self.severity_label('info')} {message}"
+
+    def step_cue(self, message: str, stream: Optional[TextIO] = None) -> None:
+        """Emit a transient step-cue line to stderr (or specified stream)."""
+        dest = stream if stream is not None else sys.stderr
+        print(self.format_step_cue(message), file=dest)
 
 
 def severity_label(kind: str, term: Optional[Term] = None) -> str:

@@ -176,3 +176,52 @@ convention from `artifact_core.py:247-266`.
   compatibility.
 - This contract formally supersedes the TSV requirement in spec `20260818-1525-01` G6. Exactly one
   canonical machine format (`aw.agent/v1`) is active.
+
+---
+
+## 11. Empty, Loading, and Error State UX Convention
+
+highpbacklog0822 Order 04 (`89bby9`) E-02 / V-02.
+
+This section defines the uniform UX convention governing empty results, transient progress step-cues,
+mutation feedback, and error states across all `aw` verbs.
+
+### 11.1 Empty Result Convention (Read and List Verbs)
+When a query, find, search, or list verb matches zero records or produces an empty result set:
+- **Never Fail Silently / Blank**: The handler MUST NOT print blank output or an uninformative raw string.
+- **Interactive Human TTY**: Handlers MUST use `Term.empty_result(summary, filters=..., next_action=...)`.
+  The render displays:
+  1. Outcome line with clean status (e.g. `✓ CLEAN  no matching <type>`).
+  2. `Active filters:` section echoing all applied selectors, types, sets, or flags.
+  3. `Next` recommendation offering a broadening query (e.g. searching without selectors) or helpful navigation.
+- **Agent Protocol (`aw.agent/v1`)**: The handler MUST emit a structured `result` (or `summary`) record with:
+  - `outcome: "clean"`, `exit: 0`, `findings: 0`, `verified: true`, `complete: true`.
+  - Evidence/data carrying the zero count and active filter dictionary.
+  - `next`: the suggested broadening or fallback command.
+
+### 11.2 Loading and Step-Cue Convention (Progress State)
+- **Transient `stderr` Step-Cues**: Handlers performing synchronous multi-step operations (e.g. `doctor`, `index`, `check`)
+  MUST emit progress step-cues to `stderr` formatted with bracketed info severity labels:
+  `[INFO ] <Action>ing...` (via `Term.step_cue()` or `Term.severity_label("info")`).
+- **Stream Segregation**: Progress cues MUST NEVER be written to `stdout`.
+- **KISS Philosophy**: Synchronous CLI verbs MUST NOT implement spinners, background worker threads, or cursor-hiding ANSI machinery.
+
+### 11.3 Mutation Feedback Convention
+- **Consistent Outcome Feedback**: Every mutation verb (`apply`, `create`, `rename`, `archive`, `set`, etc.) MUST report
+  its outcome clearly.
+- **Human TTY**:
+  - Applied mutations display `✓ EXECUTED` (or `✓ OK`), followed by `Changes:` and the modified paths.
+  - Dry-run / preview invocations display `! PREVIEW`, followed by `Would change:` and a `Next` command with `--apply`.
+- **Agent Mode**:
+  - Applied mutations emit `applied: true`, `complete: true`, `changes: [...]`.
+  - Previews emit `outcome: "preview"`, `applied: false`, `complete: true`, `changes: [...]`, and a `next` command with `--apply`.
+
+### 11.4 Error States and No-Silent-Failure Rule
+- **No Silent Failures**: Handlers MUST NEVER catch and swallow unexpected exceptions or return exit code `0` on fatal failure.
+- **Usage / Cannot-Run Errors (`exit: 2`)**:
+  - Missing mandatory arguments, unknown subcommands, or invalid selectors MUST exit `2`.
+  - Human TTY: prints diagnostic message and usage help to `stderr`.
+  - Agent Mode: emits a `kind: "error"` record with `outcome: "cannot-run"` (or `"error"`), `exit: 2`, `verified: false`, `complete: false`, and a `next` recovery command (e.g. `aw <cmd> --help`).
+- **Domain Findings / Violations (`exit: 1`)**:
+  - Verification failures, policy drift, or schema nonconformance MUST exit `1`.
+  - Emits diagnostic findings with actionable `Fix:` hints and appropriate follow-up `next` actions.

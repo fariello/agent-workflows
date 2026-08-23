@@ -5161,7 +5161,7 @@ def _find_type_records(
 def _run_find(
     args: argparse.Namespace, term: Term, context: Optional[Any] = None
 ) -> int:
-    """awcmdsurf Order 02: find artifacts of a TYPE (or all types if omitted) by selector."""
+    """awcmdsurf Order 02 / highpbacklog0822 Order 04: find artifacts with empty-state UX."""
     import os
     from pathlib import Path
 
@@ -5170,6 +5170,7 @@ def _run_find(
     from agent_workflows.result_types import (
         CommandResult,
         Evidence,
+        NextAction,
         select_output,
     )
 
@@ -5196,36 +5197,69 @@ def _run_find(
         lines = _find_type_records(repo_root, t, selectors, sub, term)
         all_lines.extend(lines)
 
+    # Active filter facts and next action recommendation (highpbacklog0822 Order 04 E-03)
+    filters_dict = {"type": norm}
+    if selectors:
+        filters_dict["selector"] = " ".join(selectors)
+
+    if selectors:
+        next_cmd = f"aw find {norm}" if norm != "all" else "aw find"
+        next_desc = (
+            f"list all {norm} without selector filter"
+            if norm != "all"
+            else "list all artifacts without selector filter"
+        )
+    elif norm != "all":
+        next_cmd = "aw find"
+        next_desc = "search across all artifact types"
+    else:
+        next_cmd = "aw status"
+        next_desc = "check workspace status"
+
+    summary_text = (
+        f"found {len(all_lines)} {norm} artifact(s)"
+        if all_lines
+        else (f"no matching {norm}" if norm != "all" else "no matching artifacts")
+    )
+
     if ctx.is_agent or ctx.is_json:
         res = CommandResult(
             command="find",
             status="clean",
             exit_code=0,
-            summary=(
-                f"found {len(all_lines)} {norm} artifact(s)"
-                if all_lines
-                else f"no matching {norm}"
-            ),
+            summary=summary_text,
             evidence=[
                 Evidence(
                     key="find-count",
-                    value={"count": len(all_lines), "type": norm},
+                    value={
+                        "count": len(all_lines),
+                        "type": norm,
+                        "selectors": selectors,
+                    },
                     status="verified",
                 )
             ],
-            data={"matches": all_lines, "type": norm, "count": len(all_lines)},
+            next_actions=[NextAction(command=next_cmd, description=next_desc)],
+            data={
+                "matches": all_lines,
+                "type": norm,
+                "selectors": selectors,
+                "count": len(all_lines),
+                "filters": filters_dict,
+            },
         )
         return get_renderer(ctx).emit(res, ctx)
 
     if not all_lines:
-        if norm == "all":
-            print("no matching artifacts")
-        else:
-            print(f"no matching {norm}")
+        term.empty_result(
+            summary=summary_text,
+            filters=filters_dict,
+            next_action=NextAction(command=next_cmd, description=next_desc),
+        )
         return 0
 
     for line in all_lines:
-        print(line)
+        term.line(line)
     return 0
 
 

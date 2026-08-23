@@ -241,6 +241,10 @@ class TermComponentsTests(unittest.TestCase):
         term.evidence("total", 10)
         term.fix("run fix")
         term.next_action("aw next")
+        term.empty_result(
+            "no matching records", filters={"type": "plans"}, next_action="aw find"
+        )
+        term.step_cue("checking...")
 
         lines = [line.strip() for line in buf.getvalue().splitlines() if line.strip()]
         self.assertTrue(any("AW check  plans" in line_str for line_str in lines))
@@ -253,6 +257,11 @@ class TermComponentsTests(unittest.TestCase):
         self.assertTrue(any("total: 10" in line_str for line_str in lines))
         self.assertTrue(any("Fix: run fix" in line_str for line_str in lines))
         self.assertTrue(any("Next  aw next" in line_str for line_str in lines))
+        self.assertTrue(
+            any("OK CLEAN  no matching records" in line_str for line_str in lines)
+        )
+        self.assertTrue(any("type: plans" in line_str for line_str in lines))
+        self.assertTrue(any("Next  aw find" in line_str for line_str in lines))
 
 
 class AsciiFallbackDegradationTests(unittest.TestCase):
@@ -275,6 +284,10 @@ class AsciiFallbackDegradationTests(unittest.TestCase):
             term.format_evidence_grid([("k1", 1), ("k2", 2)]),
             term.format_fix("do this"),
             term.format_next_action("next cmd"),
+            term.format_empty_result(
+                "no items", filters={"k": "v"}, next_action="aw next"
+            ),
+            term.format_step_cue("doing work..."),
         ]
         for s in samples:
             # Must encode cleanly to 7-bit ASCII
@@ -302,6 +315,10 @@ class AsciiFallbackDegradationTests(unittest.TestCase):
             term.format_evidence_grid([("k1", 1), ("k2", 2)]),
             term.format_fix("do this"),
             term.format_next_action("next cmd"),
+            term.format_empty_result(
+                "no items", filters={"k": "v"}, next_action="aw next"
+            ),
+            term.format_step_cue("doing work..."),
         ]
         for s in samples:
             self.assertIsNone(
