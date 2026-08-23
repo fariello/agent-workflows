@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Apply the dual-audience contract to every current and future command.
 - Scope: Read, check, preview, mutation, interactive, family, bare, and alias paths.
-- Status: draft
+- Status: reviewed
 - Set: awcliux
 - Order: 4
 - Highest E allocated: 03
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-22 draft (OpenAI): created from `_build_parser()` inventory.
+- 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (execution contract), PR-002 (regression/suite evidence in V-items), PR-003 (mutation-authorization invariant: --agent never implies --yes, mapped to test), PR-004 (Order 05 owns CI gate + installer-script classification), PR-005 (partial-failure receipt honesty), PR-006 (conflicting-flag usage error), Status draft->reviewed.
 
 ## Goal
 
@@ -32,16 +33,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Material change 2: Previews and mutations
 
-- [ ] E-02 Migrate install/setup/uninstall, include/exclude/config, normalization, artifact writes, project/storage changes, rename/group/archive, migrations, and sanitizer fixes to previews, confirmations, receipts, and verification states.
+- [ ] E-02 Migrate install/setup/uninstall, include/exclude/config, normalization, artifact writes, project/storage changes, rename/group/archive, migrations, and sanitizer fixes to previews, confirmations, receipts, and verification states. Preserve two invariants exactly: (a) `--agent` and piped stdout NEVER imply `--yes` or mutation permission - a mutation requested without confirmation emits a structured "confirmation required" cannot-run receipt (exit 2) and changes nothing; (b) a partially-applied or skipped mutation reports `complete:false` / the honest outcome (preview, partial, skipped, unverified) with the exact changed subset, never `ok`/`verified:true` for work not fully done (the Order 03 receipt semantics). Preserve every command's existing dry-run default.
   - Depends on: none
-  - Expected outcome: agents get safe structured failure or explicit receipts; humans retain decision-ready prompts.
+  - Expected outcome: agents get safe structured failure or explicit receipts; humans retain decision-ready prompts; no mutation runs without confirmation and no receipt overstates completion.
   - Execution state: pending
 
 ### Material change 3: Entrypoints and prevention
 
-- [ ] E-03 Route bare `aw`, empty families, `help`, aliases, and module entrypoints through the boundary; fail CI when a parser leaf lacks a contract declaration.
+- [ ] E-03 Route bare `aw`, empty families, `help`, aliases, and module entrypoints through the boundary; make conflicting explicit format flags (e.g. `--agent` with `--json`/`--format`) a usage error (exit 2) per OQ-01; add the per-leaf contract declaration that the Order 05 (e8hu4s) conformance harness consumes to fail CI on any undeclared/untested leaf (Order 05 owns the CI gate; this plan produces the declaration it checks, not a second CI mechanism). Explicitly classify the standalone installer scripts named in the Scope check as in or out of the boundary.
   - Depends on: E-01, E-02
-  - Expected outcome: aliases are agent-byte-equivalent and new commands cannot land uncovered.
+  - Expected outcome: aliases are agent-byte-equivalent, conflicting-format calls fail cleanly, and every parser leaf carries a contract declaration so new commands cannot land uncovered.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -101,11 +102,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: the generated write/mutation inventory has no unmigrated row; tests prove EACH migrated mutation (i) keeps its dry-run default, (ii) does NOT mutate when invoked with `--agent`/piped and no confirmation and instead emits a cannot-run (exit 2) receipt, and (iii) reports the honest outcome (preview/partial/skipped/unverified/verified) with the exact changed subset, never overstating completion. Paste the passing test output and the inventory summary.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: tests prove bare `aw`, an empty family, `help`, and every alias route through the boundary and are agent-byte-equivalent to their canonical command; a conflicting `--agent`+`--json` call exits 2 as a usage error; every parser leaf has a contract declaration (the Order 05 harness reports zero undeclared leaves); and the full existing regression suite passes unchanged. Paste the passing test output, the undeclared-leaf count, and the suite summary.
   - Observed evidence:
   - Result: pending
 
@@ -116,3 +117,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Cohesion rationale: exactly three migrations cover read, write, and entrypoint/prevention surfaces.
 
 Review and explicit approval required. Preserve semantics and safety; split any domain change.
+
+### Execution contract
+
+1. Open questions RESOLVED: OQ-01 above is resolved (non-blocking). This plan consumes the Order 01 boundary and the Order 02/03 renderers, so it may execute only AFTER Orders 02 (czw99i) AND 03 (8su0r3) are executed; if their shared components, result types, or `aw.agent/v1` schema are absent, STOP and report.
+2. Scope fence: touch the command handlers in `agent_workflows/cli.py` and the per-family handler modules (e.g. `attention.py`, `doctor.py`, `specs.py`, `backlog.py`, `plans*.py`, `research_cmd.py`, `workflow_cli.py`, `run_cli.py`, `install_wizard.py`, `leak_sanitizer.py`) ONLY to route output through the shared boundary and adopt the receipts, plus tests/fixtures. Do NOT change any command's DOMAIN behavior, mutation semantics, safety prompts, or dry-run defaults; command renames belong to `awcmdsurf` and domain refactors need separate corrective IPDs. If a migration seems to require a domain change, STOP and report (do not widen scope).
+3. Honesty rule (hard MUST): when you report the inventory/family/alias/safety/regression tests passed, paste the ACTUAL runner output; never claim a pass you did not run.
+4. Commit ONLY this plan's own changed files, path-scoped (`git commit -- <path>`); never `git add -A`/bare/`-a`; never push. Prefer one commit per migrated family for reviewability.
+5. Lifecycle move: on completion, after every E item is performed and every V item is verified with pasted evidence, append the `## Workflow history` line, set `Status: executed`, `git mv` this file from `pending/` to `executed/`, and make the path-scoped lifecycle commit.
