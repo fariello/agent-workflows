@@ -2,7 +2,27 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 107 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 109 Sets; the full manifest is INDEX.json.
+
+## awcliux
+
+- `r0brcg` [pending] 00 pending/20260822-awcliux-00-r0brcg-aw-cli-dual-audience-output-program.ipd.md
+- `hd3kln` [pending] 01 pending/20260822-awcliux-01-hd3kln-output-mode-contract-and-renderer-boundary.ipd.md
+- `czw99i` [pending] 02 pending/20260822-awcliux-02-czw99i-human-tty-information-design-and-256-color-system.ipd.md
+- `8su0r3` [pending] 03 pending/20260822-awcliux-03-8su0r3-token-efficient-agent-protocol-and-evidence-receipts.ipd.md
+- `10jpsa` [pending] 04 pending/20260822-awcliux-04-10jpsa-full-command-surface-migration-and-compatibility.ipd.md
+- `e8hu4s` [pending] 05 pending/20260822-awcliux-05-e8hu4s-output-conformance-harness-documentation-and-rollout.ipd.md
+
+## highpbacklog0822
+
+- `wot0nc` [pending] 00 pending/20260822-highpbacklog0822-00-wot0nc-high-priority-backlog-2026-08-22-program.ipd.md
+- `dtl6dz` [pending] 01 pending/20260822-highpbacklog0822-01-dtl6dz-opencode-coordinated-disclosure-preparation.ipd.md
+- `n5kvff` [pending] 02 pending/20260822-highpbacklog0822-02-n5kvff-fix-agy-run-py-false-error-on-sandboxed-write-to-file-reject.ipd.md
+- `h4e9yi` [pending] 03 pending/20260822-highpbacklog0822-03-h4e9yi-deprecation-warning-for-per-workflow-slash-command-aliases.ipd.md
+- `89bby9` [pending] 04 pending/20260822-highpbacklog0822-04-89bby9-empty-loading-and-error-state-ux-shared-helper-and-conventio.ipd.md
+- `4ug8xp` [pending] 05 pending/20260822-highpbacklog0822-05-4ug8xp-empty-and-error-state-ux-surface-wide-rollout-and-tests.ipd.md
+- `por1hi` [pending] 06 pending/20260822-highpbacklog0822-06-por1hi-ipd-right-sizing-rubric-in-review-workflows-and-authoring-gu.ipd.md
+- `wb045s` [pending] 07 pending/20260822-highpbacklog0822-07-wb045s-ipd-right-sizing-mechanical-lint-heuristic.ipd.md
 
 ## awoptimize
 
@@ -12,24 +32,24 @@ Showing the 40 most-recent of 107 Sets; the full manifest is INDEX.json.
 - `7qs57e` [superseded] 02 superseded/20260821-awoptimize-02-7qs57e-run-ledger-and-evidence-contract.ipd.md
 - `6psux0` [executed] 03 executed/20260821-awoptimize-03-6psux0-append-only-tamper-evident-run-ledger-store.ipd.md
 - `7cqbel` [superseded] 03 superseded/20260821-awoptimize-03-7cqbel-deterministic-workflow-runtime.ipd.md
-- `yndh7k` [pending] 04 pending/20260821-awoptimize-04-yndh7k-evidence-capture-validators-completion-predicates-and-run-in.ipd.md
+- `yndh7k` [executed] 04 executed/20260821-awoptimize-04-yndh7k-evidence-capture-validators-completion-predicates-and-run-in.ipd.md
 - `mcubhc` [superseded] 04 superseded/20260821-awoptimize-04-mcubhc-independent-verification-and-orchestration.ipd.md
-- `b1v3wl` [pending] 05 pending/20260821-awoptimize-05-b1v3wl-deterministic-run-state-machine-and-single-writer-engine.ipd.md
+- `b1v3wl` [executed] 05 executed/20260821-awoptimize-05-b1v3wl-deterministic-run-state-machine-and-single-writer-engine.ipd.md
 - `5elu0u` [superseded] 05 superseded/20260821-awoptimize-05-5elu0u-host-adapters-skills-and-capability-registry.ipd.md
-- `ptsfjn` [pending] 06 pending/20260821-awoptimize-06-ptsfjn-bounded-step-packets-outcome-envelopes-and-human-decision-ga.ipd.md
+- `ptsfjn` [executed] 06 executed/20260821-awoptimize-06-ptsfjn-bounded-step-packets-outcome-envelopes-and-human-decision-ga.ipd.md
 - `ozlus1` [superseded] 06 superseded/20260821-awoptimize-06-ozlus1-behavioral-benchmark-and-regression-harness.ipd.md
-- `7yqm1v` [pending] 07 pending/20260821-awoptimize-07-7yqm1v-retry-correction-resume-cancel-crash-recovery-and-run-lifecy.ipd.md
+- `7yqm1v` [executed] 07 executed/20260821-awoptimize-07-7yqm1v-retry-correction-resume-cancel-crash-recovery-and-run-lifecy.ipd.md
 - `01iuql` [superseded] 07 superseded/20260821-awoptimize-07-01iuql-workflow-family-migration.ipd.md
-- `5hu6bd` [pending] 08 pending/20260821-awoptimize-08-5hu6bd-verifier-roles-clean-packet-procedures-and-corrective-routin.ipd.md
+- `5hu6bd` [executed] 08 executed/20260821-awoptimize-08-5hu6bd-verifier-roles-clean-packet-procedures-and-corrective-routin.ipd.md
 - `kk41rr` [superseded] 08 superseded/20260821-awoptimize-08-kk41rr-compatibility-documentation-and-cutover.ipd.md
-- `1m5ob8` [pending] 09 pending/20260821-awoptimize-09-1m5ob8-isolation-hierarchy-concurrency-eligibility-and-merge-revali.ipd.md
-- `4fttzq` [pending] 10 pending/20260821-awoptimize-10-4fttzq-host-capability-evidence-registry-and-isolated-probes.ipd.md
-- `bmd1ur` [pending] 11 pending/20260821-awoptimize-11-bmd1ur-generated-skills-host-adapters-and-agy-fresh-verifier.ipd.md
-- `1jfxvo` [pending] 12 pending/20260821-awoptimize-12-1jfxvo-benchmark-corpus-seeded-tasks-and-preregistered-scoring.ipd.md
-- `9ihhzr` [pending] 13 pending/20260821-awoptimize-13-9ihhzr-benchmark-runners-ablations-metrics-and-reports-offline.ipd.md
-- `h1d5aa` [pending] 14 pending/20260821-awoptimize-14-h1d5aa-migration-disposition-inventory-and-shared-family-migration.ipd.md
-- `kh91or` [pending] 15 pending/20260821-awoptimize-15-kh91or-complex-orchestrated-workflow-migration.ipd.md
-- `g6zjao` [pending] 16 pending/20260821-awoptimize-16-g6zjao-compact-workflow-migration-generated-shims-and-promotion-gat.ipd.md
+- `1m5ob8` [executed] 09 executed/20260821-awoptimize-09-1m5ob8-isolation-hierarchy-concurrency-eligibility-and-merge-revali.ipd.md
+- `4fttzq` [executed] 10 executed/20260821-awoptimize-10-4fttzq-host-capability-evidence-registry-and-isolated-probes.ipd.md
+- `bmd1ur` [executed] 11 executed/20260821-awoptimize-11-bmd1ur-generated-skills-host-adapters-and-agy-fresh-verifier.ipd.md
+- `1jfxvo` [executed] 12 executed/20260821-awoptimize-12-1jfxvo-benchmark-corpus-seeded-tasks-and-preregistered-scoring.ipd.md
+- `9ihhzr` [executed] 13 executed/20260821-awoptimize-13-9ihhzr-benchmark-runners-ablations-metrics-and-reports-offline.ipd.md
+- `h1d5aa` [executed] 14 executed/20260821-awoptimize-14-h1d5aa-migration-disposition-inventory-and-shared-family-migration.ipd.md
+- `kh91or` [executed] 15 executed/20260821-awoptimize-15-kh91or-complex-orchestrated-workflow-migration.ipd.md
+- `g6zjao` [executed] 16 executed/20260821-awoptimize-16-g6zjao-compact-workflow-migration-generated-shims-and-promotion-gat.ipd.md
 - `gnfkh8` [pending] 17 pending/20260821-awoptimize-17-gnfkh8-compatibility-contract-migration-rollback-and-deprecation.ipd.md
 - `0zst62` [pending] 18 pending/20260821-awoptimize-18-0zst62-documentation-security-hardening-lifecycle-fixtures-and-rele.ipd.md
 
@@ -265,27 +285,6 @@ Showing the 40 most-recent of 107 Sets; the full manifest is INDEX.json.
 
 - `c5685e` [executed] 00 executed/20260712-verify-execution-00-c5685e-verify-execution-workflow.ipd.md
 - `2p9fd3` [executed] 01 executed/20260807-verify-execution-01-2p9fd3-thorough-execution-verification-workflow.ipd.md
-
-## ipdstruct
-
-- `by245s` [executed] 00 executed/20260802-ipdstruct-00-by245s-ipd-structure-orchestrator.ipd.md
-- `ktv5h3` [executed] 01 executed/20260802-ipdstruct-01-ktv5h3-canonical-ipd-schema.ipd.md
-- `dkpqmy` [executed] 02 executed/20260802-ipdstruct-02-dkpqmy-ipd-lint-parser-and-state-machine.ipd.md
-- `l060ep` [executed] 03 executed/20260802-ipdstruct-03-l060ep-ipd-scaffold-and-sync.ipd.md
-- `x9engh` [executed] 04 executed/20260802-ipdstruct-04-x9engh-templates-and-spec-and-defect-fixes.ipd.md
-- `nyfgsz` [executed] 05 executed/20260802-ipdstruct-05-nyfgsz-review-preflight-and-enforcement.ipd.md
-- `5xwaxi` [executed] 06 executed/20260802-ipdstruct-06-5xwaxi-migrate-nonterminal-and-adopt.ipd.md
-
-## researchorg
-
-- `jwbo2u` [executed] 00 executed/20260730-researchorg-00-jwbo2u-research-org-orchestrator.ipd.md
-- `3x7po2` [executed] 01 executed/20260730-researchorg-01-3x7po2-research-naming-and-frontmatter-contract.ipd.md
-- `g7w8ul` [executed] 02 executed/20260730-researchorg-02-g7w8ul-aw-research-create-tool.ipd.md
-- `7xzlug` [executed] 03 executed/20260730-researchorg-03-7xzlug-research-index-generator.ipd.md
-- `evuvbe` [executed] 04 executed/20260730-researchorg-04-evuvbe-research-rename-and-refs-tool.ipd.md
-- `9tdap2` [executed] 05 executed/20260730-researchorg-05-9tdap2-research-archival-and-states.ipd.md
-- `w2u8ws` [executed] 06 executed/20260730-researchorg-06-w2u8ws-migrate-existing-research.ipd.md
-- `bv7oat` [executed] 07 executed/20260730-researchorg-07-bv7oat-scaffold-directives-and-decision-updates.ipd.md
 
 ## (singletons: no Set)
 

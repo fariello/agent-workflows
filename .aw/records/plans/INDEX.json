@@ -2370,6 +2370,136 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-21",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 4,
+    "path": "executed/20260821-awoptimize-04-yndh7k-evidence-capture-validators-completion-predicates-and-run-in.ipd.md",
+    "plan_id": "yndh7k",
+    "set_id": "awoptimize",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 5,
+    "path": "executed/20260821-awoptimize-05-b1v3wl-deterministic-run-state-machine-and-single-writer-engine.ipd.md",
+    "plan_id": "b1v3wl",
+    "set_id": "awoptimize",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 6,
+    "path": "executed/20260821-awoptimize-06-ptsfjn-bounded-step-packets-outcome-envelopes-and-human-decision-ga.ipd.md",
+    "plan_id": "ptsfjn",
+    "set_id": "awoptimize",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 7,
+    "path": "executed/20260821-awoptimize-07-7yqm1v-retry-correction-resume-cancel-crash-recovery-and-run-lifecy.ipd.md",
+    "plan_id": "7yqm1v",
+    "set_id": "awoptimize",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 8,
+    "path": "executed/20260821-awoptimize-08-5hu6bd-verifier-roles-clean-packet-procedures-and-corrective-routin.ipd.md",
+    "plan_id": "5hu6bd",
+    "set_id": "awoptimize",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 9,
+    "path": "executed/20260821-awoptimize-09-1m5ob8-isolation-hierarchy-concurrency-eligibility-and-merge-revali.ipd.md",
+    "plan_id": "1m5ob8",
+    "set_id": "awoptimize",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 10,
+    "path": "executed/20260821-awoptimize-10-4fttzq-host-capability-evidence-registry-and-isolated-probes.ipd.md",
+    "plan_id": "4fttzq",
+    "set_id": "awoptimize",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 11,
+    "path": "executed/20260821-awoptimize-11-bmd1ur-generated-skills-host-adapters-and-agy-fresh-verifier.ipd.md",
+    "plan_id": "bmd1ur",
+    "set_id": "awoptimize",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 12,
+    "path": "executed/20260821-awoptimize-12-1jfxvo-benchmark-corpus-seeded-tasks-and-preregistered-scoring.ipd.md",
+    "plan_id": "1jfxvo",
+    "set_id": "awoptimize",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 13,
+    "path": "executed/20260821-awoptimize-13-9ihhzr-benchmark-runners-ablations-metrics-and-reports-offline.ipd.md",
+    "plan_id": "9ihhzr",
+    "set_id": "awoptimize",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 14,
+    "path": "executed/20260821-awoptimize-14-h1d5aa-migration-disposition-inventory-and-shared-family-migration.ipd.md",
+    "plan_id": "h1d5aa",
+    "set_id": "awoptimize",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 15,
+    "path": "executed/20260821-awoptimize-15-kh91or-complex-orchestrated-workflow-migration.ipd.md",
+    "plan_id": "kh91or",
+    "set_id": "awoptimize",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-21",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 16,
+    "path": "executed/20260821-awoptimize-16-g6zjao-compact-workflow-migration-generated-shims-and-promotion-gat.ipd.md",
+    "plan_id": "g6zjao",
+    "set_id": "awoptimize",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -2423,136 +2553,6 @@
     "date": "2026-08-21",
     "disposition": "pending",
     "kind": "child",
-    "order": 4,
-    "path": "pending/20260821-awoptimize-04-yndh7k-evidence-capture-validators-completion-predicates-and-run-in.ipd.md",
-    "plan_id": "yndh7k",
-    "set_id": "awoptimize",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-21",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 5,
-    "path": "pending/20260821-awoptimize-05-b1v3wl-deterministic-run-state-machine-and-single-writer-engine.ipd.md",
-    "plan_id": "b1v3wl",
-    "set_id": "awoptimize",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-21",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 6,
-    "path": "pending/20260821-awoptimize-06-ptsfjn-bounded-step-packets-outcome-envelopes-and-human-decision-ga.ipd.md",
-    "plan_id": "ptsfjn",
-    "set_id": "awoptimize",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-21",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 7,
-    "path": "pending/20260821-awoptimize-07-7yqm1v-retry-correction-resume-cancel-crash-recovery-and-run-lifecy.ipd.md",
-    "plan_id": "7yqm1v",
-    "set_id": "awoptimize",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-21",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 8,
-    "path": "pending/20260821-awoptimize-08-5hu6bd-verifier-roles-clean-packet-procedures-and-corrective-routin.ipd.md",
-    "plan_id": "5hu6bd",
-    "set_id": "awoptimize",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-21",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 9,
-    "path": "pending/20260821-awoptimize-09-1m5ob8-isolation-hierarchy-concurrency-eligibility-and-merge-revali.ipd.md",
-    "plan_id": "1m5ob8",
-    "set_id": "awoptimize",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-21",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 10,
-    "path": "pending/20260821-awoptimize-10-4fttzq-host-capability-evidence-registry-and-isolated-probes.ipd.md",
-    "plan_id": "4fttzq",
-    "set_id": "awoptimize",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-21",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 11,
-    "path": "pending/20260821-awoptimize-11-bmd1ur-generated-skills-host-adapters-and-agy-fresh-verifier.ipd.md",
-    "plan_id": "bmd1ur",
-    "set_id": "awoptimize",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-21",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 12,
-    "path": "pending/20260821-awoptimize-12-1jfxvo-benchmark-corpus-seeded-tasks-and-preregistered-scoring.ipd.md",
-    "plan_id": "1jfxvo",
-    "set_id": "awoptimize",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-21",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 13,
-    "path": "pending/20260821-awoptimize-13-9ihhzr-benchmark-runners-ablations-metrics-and-reports-offline.ipd.md",
-    "plan_id": "9ihhzr",
-    "set_id": "awoptimize",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-21",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 14,
-    "path": "pending/20260821-awoptimize-14-h1d5aa-migration-disposition-inventory-and-shared-family-migration.ipd.md",
-    "plan_id": "h1d5aa",
-    "set_id": "awoptimize",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-21",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 15,
-    "path": "pending/20260821-awoptimize-15-kh91or-complex-orchestrated-workflow-migration.ipd.md",
-    "plan_id": "kh91or",
-    "set_id": "awoptimize",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-21",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 16,
-    "path": "pending/20260821-awoptimize-16-g6zjao-compact-workflow-migration-generated-shims-and-promotion-gat.ipd.md",
-    "plan_id": "g6zjao",
-    "set_id": "awoptimize",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-21",
-    "disposition": "pending",
-    "kind": "child",
     "order": 17,
     "path": "pending/20260821-awoptimize-17-gnfkh8-compatibility-contract-migration-rollback-and-deprecation.ipd.md",
     "plan_id": "gnfkh8",
@@ -2568,6 +2568,146 @@
     "plan_id": "0zst62",
     "set_id": "awoptimize",
     "status": "approved"
+  },
+  {
+    "date": "2026-08-22",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260822-awcliux-00-r0brcg-aw-cli-dual-audience-output-program.ipd.md",
+    "plan_id": "r0brcg",
+    "set_id": "awcliux",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-22",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260822-awcliux-01-hd3kln-output-mode-contract-and-renderer-boundary.ipd.md",
+    "plan_id": "hd3kln",
+    "set_id": "awcliux",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-22",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260822-awcliux-02-czw99i-human-tty-information-design-and-256-color-system.ipd.md",
+    "plan_id": "czw99i",
+    "set_id": "awcliux",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-22",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260822-awcliux-03-8su0r3-token-efficient-agent-protocol-and-evidence-receipts.ipd.md",
+    "plan_id": "8su0r3",
+    "set_id": "awcliux",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-22",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 4,
+    "path": "pending/20260822-awcliux-04-10jpsa-full-command-surface-migration-and-compatibility.ipd.md",
+    "plan_id": "10jpsa",
+    "set_id": "awcliux",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-22",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 5,
+    "path": "pending/20260822-awcliux-05-e8hu4s-output-conformance-harness-documentation-and-rollout.ipd.md",
+    "plan_id": "e8hu4s",
+    "set_id": "awcliux",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-22",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260822-highpbacklog0822-00-wot0nc-high-priority-backlog-2026-08-22-program.ipd.md",
+    "plan_id": "wot0nc",
+    "set_id": "highpbacklog0822",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-22",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260822-highpbacklog0822-01-dtl6dz-opencode-coordinated-disclosure-preparation.ipd.md",
+    "plan_id": "dtl6dz",
+    "set_id": "highpbacklog0822",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-22",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260822-highpbacklog0822-02-n5kvff-fix-agy-run-py-false-error-on-sandboxed-write-to-file-reject.ipd.md",
+    "plan_id": "n5kvff",
+    "set_id": "highpbacklog0822",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-22",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260822-highpbacklog0822-03-h4e9yi-deprecation-warning-for-per-workflow-slash-command-aliases.ipd.md",
+    "plan_id": "h4e9yi",
+    "set_id": "highpbacklog0822",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-22",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 4,
+    "path": "pending/20260822-highpbacklog0822-04-89bby9-empty-loading-and-error-state-ux-shared-helper-and-conventio.ipd.md",
+    "plan_id": "89bby9",
+    "set_id": "highpbacklog0822",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-22",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 5,
+    "path": "pending/20260822-highpbacklog0822-05-4ug8xp-empty-and-error-state-ux-surface-wide-rollout-and-tests.ipd.md",
+    "plan_id": "4ug8xp",
+    "set_id": "highpbacklog0822",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-22",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 6,
+    "path": "pending/20260822-highpbacklog0822-06-por1hi-ipd-right-sizing-rubric-in-review-workflows-and-authoring-gu.ipd.md",
+    "plan_id": "por1hi",
+    "set_id": "highpbacklog0822",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-22",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 7,
+    "path": "pending/20260822-highpbacklog0822-07-wb045s-ipd-right-sizing-mechanical-lint-heuristic.ipd.md",
+    "plan_id": "wb045s",
+    "set_id": "highpbacklog0822",
+    "status": "draft"
   },
   {
     "date": "2026-08-07",

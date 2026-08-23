@@ -1,0 +1,120 @@
+# IPD: IPD Right-Sizing Mechanical Lint Heuristic
+
+- Date: 2026-08-22
+- Kind: child
+- Concern: The count-based size lint (>18 E-leaves / >5 groups) does not flag a single E-item that bundles multiple deliverables/test-surfaces, so conceptually-dense IPDs pass as "standard".
+- Scope: A per-E-item mechanical heuristic in `agent_workflows/ipd_schema.py` surfaced through `check_size` in `agent_workflows/ipd_lint.py`, plus tests; NO workflow-prose change (that is Order 06).
+- Status: draft
+- Set: highpbacklog0822
+- Order: 7
+- Highest E allocated: 03
+- Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
+- Id: wb045s
+
+## Workflow history
+
+- 2026-08-22 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created for backlog 8iy2dk (part 2 of 2); complements the Order 06 prose rubric with a mechanical signal.
+
+## Goal
+
+Add a deterministic, advisory lint heuristic that flags an E-item whose action text names multiple deliverables or test-surfaces (a likely multi-concern item), using the same "one concern / executable-in-one-focused-pass" definition as the Order 06 rubric.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.
+
+### Material change 1: The heuristic
+
+- [ ] E-01 In `agent_workflows/ipd_schema.py` (alongside the count thresholds at `ipd_schema.py:528-538`), add a per-E-item density heuristic that flags an E-item action naming multiple deliverables/test-surfaces (e.g. multiple "and"-joined distinct nouns/verbs, enumerations, or several test surfaces in one action). It is ADVISORY: it produces a warning, never a hard structural failure, to avoid false-positive gating.
+  - Depends on: none
+  - Expected outcome: a pure function returns a density warning for a multi-concern E-item action and stays quiet for a single-concern one.
+  - Execution state: pending
+
+### Material change 2: Surface it in the linter
+
+- [ ] E-02 Surface the heuristic through `check_size` in `agent_workflows/ipd_lint.py:620-640` as an advisory finding (its own warning line in `--agent` output), distinct from the count-based `Size assessment: exception` requirement, so a conforming plan can still carry a density advisory without failing.
+  - Depends on: E-01
+  - Expected outcome: `aw ipd lint` reports per-E-item density advisories without changing conformance disposition.
+  - Execution state: pending
+
+### Material change 3: Tests
+
+- [ ] E-03 Add unit tests: a known multi-concern E-item (e.g. "add an append-only tamper-evident ledger AND crash recovery AND a 12-class evidence validator") triggers the advisory; a single-concern E-item does not; and the advisory does NOT flip a structurally-conforming plan to non-conforming.
+  - Depends on: E-01, E-02
+  - Expected outcome: the heuristic is proven to flag the historical awoptimize-style dense items and not to over-flag.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- Count thresholds: `agent_workflows/ipd_schema.py:528-538` (`MAX_TASK_GROUPS=5` at `:531`, `MAX_E_LEAVES=18` at `:532`, `size_warning(...)` at `:536-538`).
+- Enforced in `agent_workflows/ipd_lint.py:620-640` (`check_size`): counts E-leaves (`:622`), calls `S.size_warning` (`:623`), requires `Size assessment: exception` + rationale when exceeded (`:631-639`).
+- `aw ipd lint --agent` emits tab-separated findings; advisories must be a distinct record, not a conformance error, so `plan-review`'s GATE (which proceeds only on `conforming`) is not broken by an advisory.
+
+## Findings
+
+The root-cause dense items (awoptimize Orders 02/03/04) had few E-leaves but each E-item bundled an Order's worth of work. A mechanical, advisory signal on the E-item ACTION text catches the common "X and Y and Z" pattern cheaply and points the reviewer (Order 06 rubric) at the right item. It must be advisory to avoid gating on a noisy heuristic.
+
+## Proposed changes (ordered, validatable)
+
+1. A pure per-E-item density heuristic in `ipd_schema.py` (E-01).
+2. An advisory finding surfaced by `check_size` in `ipd_lint.py`, distinct from the count gate (E-02).
+3. Tests proving it flags multi-concern items and does not over-flag or change conformance (E-03).
+
+## Deferred / out of scope (with reason)
+
+- The judgment rubric in the review/authoring workflows: Order 06.
+- Making the heuristic a HARD failure/gate: deliberately excluded; a heuristic that gates would produce false positives and erode trust. Advisory only.
+
+## Scope check
+
+- Over-scope: none.
+- Under-scope: keep the heuristic's "one concern" definition textually aligned with Order 06's rubric so the code and prose agree.
+
+## Required tests / validation
+
+Unit tests in the ipd-lint test module: multi-concern E-item triggers the advisory; single-concern does not; a structurally-conforming plan with an advisory still lints as `conforming` (disposition unchanged). Run `aw ipd lint --agent` on a crafted fixture and on a real conforming plan and paste both outputs, plus the unit-test output.
+
+## Spec / documentation sync
+
+Note the advisory in the IPD structure/linting spec (`.aw/records/specs/20260802-1904-01-ipd-structure-and-linting.spec.md`) as an advisory (non-conformance) signal, and confirm its "one concern" wording matches the Order 06 rubric.
+
+## Open questions
+
+### OQ-01: Advisory-only, or should it ever gate?
+
+- Blocking: no
+- Status: resolved
+- Owner: maintainer
+- Resolution or deferral rationale: advisory-only. A conceptual-density heuristic is inherently approximate; gating on it would cause false-positive failures and break `plan-review`'s conforming-only GATE. It informs the human/agent rubric (Order 06); it never blocks.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [ ] V-01 validates E-01
+  - Required evidence: unit test shows the heuristic function flags a multi-deliverable E-item action and stays quiet for a single-concern one; paste the test output and cite the `ipd_schema.py` function.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-02 validates E-02
+  - Required evidence: `aw ipd lint --agent` on a crafted dense fixture emits the advisory as a distinct record while the plan's disposition remains `conforming`; paste the actual lint output.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-03 validates E-03
+  - Required evidence: the test suite proves the advisory fires on multi-concern items, not on single-concern items, and never changes conformance disposition; paste the suite output.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: exactly three changes (heuristic, surface, tests) around one advisory signal; deliberately parallel to Order 06's prose rubric and sharing its definition.
+
+Review and explicit approval required.
+
+### Execution contract
+
+1. Open questions RESOLVED: OQ-01 above is resolved (advisory-only). `Depends on: none`.
+2. Scope fence: touch only `agent_workflows/ipd_schema.py`, `agent_workflows/ipd_lint.py`, the ipd-lint tests under `tests/`, and at most an advisory note in the ipd-structure-and-linting spec. Do NOT change the count thresholds, do NOT make the heuristic gate/fail conformance, and do NOT edit the review-workflow prose (Order 06). If the heuristic seems to need to gate, STOP and report.
+3. Honesty rule (hard MUST): when you report the unit tests and the `aw ipd lint` runs passed, paste the ACTUAL runner output; never claim a pass you did not run.
+4. Commit ONLY this plan's own changed files, path-scoped (`git commit -- <path>`); never `git add -A`/bare/`-a`; never push.
+5. Lifecycle move: on completion, after every E item is performed and every V item is verified with pasted evidence, append the `## Workflow history` line, set `Status: executed`, `git mv` this file from `pending/` to `executed/`, and make the path-scoped lifecycle commit. After BOTH Order 06 and Order 07 are executed, set backlog `8iy2dk` to `done` (clearing its `Blocks-Release: next` obligation).
