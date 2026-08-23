@@ -3,8 +3,8 @@
 - Date: 2026-08-23
 - Kind: child
 - Concern: Reference matching (finding citations to a file so a rename/regroup can rewrite them) is implemented three independent times with DIFFERENT coverage, and the dangling-citation checker understands different citation forms per type. `plans_refs.plan_reference_rewrites` rewrites full-name + bare-stem (+ range as a special case of bare-stem); `artifact_rename.plan_reference_rewrites` rewrites full-name + a DIFFERENT "whole-name-minus-.md" stem; `research_refs.plan_reference_rewrites` rewrites the full old filename ONLY - so a research rename ORPHANS any bare-stem citation that a plans rename would have fixed. The dangling checkers diverge too: plans recognize only the `PLAN-<id6>` handle; research recognizes `RSCH-<id6>` + a full parseable filename; NEITHER recognizes a setid citation, and plans do not flag a bare-filename citation as dangling. This is the "one unified way to IDENTIFY references to files" gap.
-- Scope: Create ONE reference matcher/rewriter library and ONE dangling-citation matcher policy, and route the plans, research, and generic rename/group paths plus the check engine through them. Touch: agent_workflows/artifact_core.py (host the shared matcher, next to `find_dangling_citations` and `iter_scan_files`), agent_workflows/plans_refs.py (`plan_reference_rewrites`/`apply_reference_rewrites`), agent_workflows/research_refs.py (`plan_reference_rewrites`/`apply_reference_rewrites`/`find_dangling_citations`), agent_workflows/artifact_rename.py (`plan_reference_rewrites`/`apply_reference_rewrites`), agent_workflows/research_contract.py (`iter_id6_citations`), agent_workflows/plans_index.py (`_plan_cite_matcher`/`check_drift` class d), agent_workflows/research_index.py (`check_drift`), agent_workflows/check_engine.py (`check_refs` stub). Depends on Order 01 (grammar authority, to know what a stem/name IS) and Order 02 (resolver, to answer "does this cited name currently exist?"). Note: id6/setid citations are NOT rewritten and MUST remain so - they are stable across renames by design; this child only unifies the FILENAME-derived forms and makes the dangling check consistent.
-- Status: draft
+- Scope: Create ONE reference matcher/rewriter library and ONE dangling-citation matcher policy, and route the plans, research, and generic rename/group paths plus the check engine through them. Touch: agent_workflows/artifact_core.py (the shared dangling ENGINE `find_dangling_citations` already lives here; the new reference MATCHER must live in its OWN module - NOT in artifact_core - because it imports the Order 01 naming authority and the orchestrator's module-placement principle forbids a core->naming import; see E-02), agent_workflows/plans_refs.py (`plan_reference_rewrites`/`apply_reference_rewrites`), agent_workflows/research_refs.py (`plan_reference_rewrites`/`apply_reference_rewrites`/`find_dangling_citations`), agent_workflows/artifact_rename.py (`plan_reference_rewrites`/`apply_reference_rewrites`), agent_workflows/research_contract.py (`iter_id6_citations`), agent_workflows/plans_index.py (`_plan_cite_matcher`/`check_drift` class d), agent_workflows/research_index.py (`check_drift`), agent_workflows/check_engine.py (`check_refs` stub). Depends on Order 01 (grammar authority, to know what a stem/name IS) and Order 02 (resolver, to answer "does this cited name currently exist?"). Note: id6/setid citations are NOT rewritten and MUST remain so - they are stable across renames by design; this child only unifies the FILENAME-derived forms and makes the dangling check consistent.
+- Status: reviewed
 - Set: unifyfileio
 - Order: 3
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 ## Workflow history
 
 - 2026-08-23 draft (Gabriele Fariello): created.
+- 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (module-placement: matcher must NOT live in artifact_core since it imports the Order 01 authority - per orchestrator binding principle), PR-002/PR-003 (corrected apply_ ordering + id6 docstring citation overstatements), PR-004 (Order 02 dependency), OQ-01 human-resolved = option B (dead bare-filename citations flagged via Order 02 resolver; setid-dangling deferred), which makes Order 02 an unconditional hard prerequisite. Core path:line claims verified TRUE.
 
 ## Goal
 
@@ -33,14 +34,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: Build the one reference library
 
-- [ ] E-02 Implement one reference matcher/rewriter in `artifact_core.py` (beside `iter_scan_files`/`find_dangling_citations`): given a `name_map` (old->new) and, via the Order 01 authority, the stem for each name, produce the set of `RefEdit`s covering full-name, bare-stem (word-boundaried, driven ONLY by the map so unrelated same-grammar stems are never touched - preserving the plans safety property at `plans_refs.py:245`), and range shorthand (the stem-inside-`..NN` case). Provide one `apply_reference_rewrites` that applies full-name before bare-stem deterministically. Do NOT match or rewrite bare id6 or setid tokens (stable by design).
+- [ ] E-02 Implement one reference matcher/rewriter: given a `name_map` (old->new) and, via the Order 01 authority, the stem for each name, produce the set of `RefEdit`s covering full-name, bare-stem (word-boundaried, driven ONLY by the map so unrelated same-grammar stems are never touched - preserving the plans safety property at `plans_refs.py:245`), and range shorthand (the stem-inside-`..NN` case). Provide one `apply_reference_rewrites` that applies full-name before bare-stem deterministically. Do NOT match or rewrite bare id6 or setid tokens (stable by design).
   - Depends on: E-01
+  - Note (verified - MODULE PLACEMENT, resolving the orchestrator's binding principle): because this matcher imports the Order 01 naming authority to compute a stem, it MUST NOT live in `artifact_core.py` (the orchestrator `g6mbht` "Module-placement principle" forbids a `artifact_core -> artifact_naming` import; `artifact_core` may be imported BY others but must import none of them). Place the matcher in its OWN module (or in `artifact_naming.py`/`selectors.py`) so the dependency flows toward core, and record that placement as the resolution. (This corrects the Scope line's "host the shared matcher... in artifact_core.py", which held only if the matcher needed no naming import.)
+  - Note (verified - reproduce the exact safety regex): the plans safety property is NOT a plain `\b` word boundary - it is a hyphen-aware negative lookaround `(?<![0-9A-Za-z-])<escaped-stem>(?![0-9A-Za-z-])` applied per map entry with `re.escape` on the literal old stem (`plans_refs.py:275-277`, reused at `:295-297`). The unified library MUST copy this exact lookaround (not `\b`) to keep byte-for-byte parity and preserve the "embedded stem in a longer hyphenated token is not matched" property.
   - Expected outcome: one library reproduces the strongest current behavior (plans' three-form rewrite) for any type, exercised directly.
   - Execution state: pending
 
-- [ ] E-03 Implement one dangling-citation matcher policy consumed by the shared `find_dangling_citations` engine: recognize the explicit id6 handles (`PLAN-<id6>`, `RSCH-<id6>`) uniformly, and decide (per OQ-01) whether a bare-filename/stem citation to a now-missing file is also flagged. Keep the "known example ids excluded" and "spec-only stems never treated as plan citations" safeguards. Do not add a setid dangling concept unless OQ-01 says to.
+- [ ] E-03 Implement one dangling-citation matcher policy consumed by the shared `find_dangling_citations` engine (OQ-01 resolved = option B): recognize the explicit id6 handles (`PLAN-<id6>`, `RSCH-<id6>`) uniformly, AND flag a bare-filename/bare-stem citation whose target file no longer exists, using the Order 02 resolver to confirm non-existence. Keep the "known example ids excluded" and "spec-only stems never treated as plan citations" safeguards. Do NOT add a setid dangling concept (option C explicitly deferred per OQ-01).
   - Depends on: E-01
-  - Expected outcome: one dangling-matcher policy shared by the plans and research drift checks.
+  - Note (OQ-01 resolved -> Order 02 is a HARD prerequisite): option B checks bare-filename EXISTENCE, so E-03 requires the Order 02 resolver to answer "does this cited name still exist?". The bare-filename dangling flag MUST fire only when the resolver confirms the target does not resolve (avoid flagging prose that merely matches the grammar). Setid citations are NOT checked (deferred).
+  - Expected outcome: one dangling-matcher policy shared by the plans and research drift checks, flagging dead id6 handles AND dead bare-filename citations.
   - Execution state: pending
 
 ### Task group 3: Route the engines and the checker through the library
@@ -61,8 +65,8 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Project conventions discovered (Step 0)
 
-- Three independent rewriters over one shared scan/IO base (`artifact_core.iter_scan_files`/`atomic_write`/`git_mv`): `plans_refs.plan_reference_rewrites` (full-name + bare-stem + range-as-special-case, map-driven, `plans_refs.py:239-281`); `research_refs.plan_reference_rewrites` (full-name ONLY, `research_refs.py:53-72`); `artifact_rename.plan_reference_rewrites` (full-name + whole-name-minus-.md stem, `artifact_rename.py:152-183`). Each has its own `apply_reference_rewrites` (`plans_refs.py:284`, `research_refs.py:76`, `artifact_rename.py:186`).
-- id6/setid are NEVER rewritten, by design and correctly: a rename carries the id6 into the new filename (`artifact_rename.py:111`) and preserves `- Id:`/`- Set:`; docstrings state it at `plans_refs.py:13`, `research_refs.py:8-9,56-58`, `plans_index.py:224-225`.
+- Three independent rewriters over one shared scan/IO base (`artifact_core.iter_scan_files`/`atomic_write`/`git_mv`): `plans_refs.plan_reference_rewrites` (full-name + bare-stem + range-as-special-case, map-driven, `plans_refs.py:239-281`); `research_refs.plan_reference_rewrites` (full-name ONLY, `research_refs.py:53-73`); `artifact_rename.plan_reference_rewrites` (full-name + whole-name-minus-.md stem, `artifact_rename.py:152-183`). The real divergence is in these `plan_reference_rewrites` (which FORMS each produces), not in `apply_reference_rewrites`: each has its own `apply_reference_rewrites` (`plans_refs.py:284`, `research_refs.py:76`, `artifact_rename.py:186`) but plans and artifact_rename already share IDENTICAL full-name-before-stem ordering; they differ only cosmetically (temp-file prefix, an OSError try/except).
+- id6/setid are NEVER rewritten, by design and correctly: a rename carries the id6 into the new filename (`artifact_rename.py:111`) and preserves `- Id:`/`- Set:`; the crisp "id6 never rewritten" statements are `plans_refs.py:13` and `research_refs.py:8-9,56-58` (`plans_index.py:224-225` states the related matcher policy that bare stems/filenames resolve via the manifest, not by id).
 - Dangling checkers: shared engine `artifact_core.find_dangling_citations` (`artifact_core.py:207`) parameterized by a per-area `cite_matcher`. Plans matcher `_plan_cite_matcher` recognizes ONLY `PLAN-<id6>` (`plans_index.py:220-227`); research matcher `research_contract.iter_id6_citations` recognizes `RSCH-<id6>` + full filename (`research_contract.py:50,67-81`). Neither recognizes setid; plans do not flag bare-filename citations.
 - `check_engine.check_refs` is a no-op stub returning `[]` (`check_engine.py:191-196`); ref integrity is delivered indirectly via `check_content` -> per-type `check_drift`.
 
@@ -104,9 +108,9 @@ The research full-name-only rewriter is a latent correctness bug: rename a resea
 ### OQ-01: Should a bare-filename/bare-stem citation to a now-MISSING file be flagged as dangling (and should setid citations be checked at all)?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: human
-- Resolution or deferral rationale: TODO (human). Today plans flag ONLY `PLAN-<id6>` dangling; a bare-filename citation to a deleted plan is caught by nobody. Widening the dangling matcher to bare-filename/stem could raise false positives (a stem that coincidentally matches the grammar but is prose). Options: (A) keep id6-handle-only dangling detection (status quo, lowest false-positive risk); (B) also flag bare-filename citations whose target file no longer exists (uses the Order 02 resolver to check existence); (C) additionally recognize setid citations. The executor MUST get a human decision before E-03 fixes the policy.
+- Resolution or deferral rationale: RESOLVED by human decision (2026-08-23, /plan-review): OPTION B. The unified dangling matcher recognizes the id6 handles (`PLAN-<id6>`/`RSCH-<id6>`) uniformly AND flags a bare-filename/bare-stem citation whose target file NO LONGER EXISTS, using the Order 02 resolver to confirm non-existence (crisp per-file yes/no, low false-positive risk). Setid-dangling (option C) is EXPLICITLY DEFERRED to a follow-up: a setid names a cohort not a single file, so "missing set" semantics are ambiguous and `- Set:` values appear in prose, giving high false-positive risk for little payoff; add it later only if real setid rot appears and a "missing set" rule is defined. This makes Order 02 (resolver) an UNCONDITIONAL hard prerequisite for E-03.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -121,7 +125,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: a unit test drives the shared dangling matcher and asserts it recognizes `PLAN-<id6>`/`RSCH-<id6>` uniformly and behaves per the OQ-01 decision for bare-filename/setid.
+  - Required evidence: a unit test drives the shared dangling matcher and asserts it (a) recognizes `PLAN-<id6>`/`RSCH-<id6>` uniformly; (b) per OQ-01 option B, FLAGS a bare-filename/bare-stem citation whose target file no longer exists (resolver confirms non-existence) and does NOT flag one whose target still resolves; (c) does NOT flag setid citations (option C deferred); and (d) does not flag known example ids or spec-only stems.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
@@ -140,7 +144,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 ### Execution contract
 
-1. Open questions RESOLVED: OQ-01 (dangling policy for bare-filename/setid) MUST be resolved by a human before E-03.
+1. Open questions RESOLVED: OQ-01 RESOLVED by human (2026-08-23) = option B (flag dead id6 handles AND dead bare-filename citations via the Order 02 resolver; setid-dangling deferred). PREREQUISITE GATE: this whole IPD executes only AFTER Orders 01 (grammar authority) and 02 (resolver) are EXECUTED - both are currently pending/unexecuted, so this plan is not runnable until they land.
 2. Scope fence: unify ONLY reference matching/rewriting and dangling detection; route the listed engines/checkers through the shared library. Do NOT begin rewriting id6/setid citations, do NOT change the grammar (Order 01) or the resolver (Order 02). If it seems to need more, STOP and report.
 3. Honesty rule (hard MUST): when reporting tests passed, paste the ACTUAL runner output; never claim a pass without running the actual command.
 4. Commit ONLY this plan's own changed files, path-scoped (`git commit -m msg -- <paths>`); never `git add -A`/bare/`-a`; never push.
