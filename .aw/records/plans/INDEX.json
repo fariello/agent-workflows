@@ -2722,12 +2722,22 @@
   {
     "date": "2026-08-23",
     "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260823-artifactenginefix-01-p7dqwz-corrective-parameterized-artifact-engine-stale-research-inde.ipd.md",
+    "plan_id": "p7dqwz",
+    "set_id": "artifactenginefix",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260823-execset-00-5ahblp-autonomous-ipd-set-execution-program.ipd.md",
     "plan_id": "5ahblp",
     "set_id": "execset",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-23",
@@ -2737,7 +2747,7 @@
     "path": "pending/20260823-execset-01-iy1a2g-ipd-set-graph-compiler-and-execution-manifest.ipd.md",
     "plan_id": "iy1a2g",
     "set_id": "execset",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-23",
@@ -2747,7 +2757,7 @@
     "path": "pending/20260823-execset-02-3m4e54-deferred-questions-autonomous-decisions-and-skip-records.ipd.md",
     "plan_id": "3m4e54",
     "set_id": "execset",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-23",
@@ -2757,7 +2767,7 @@
     "path": "pending/20260823-execset-03-m2wwns-parallel-scheduler-worktree-integration-and-model-routing.ipd.md",
     "plan_id": "m2wwns",
     "set_id": "execset",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-23",
@@ -2767,7 +2777,7 @@
     "path": "pending/20260823-execset-04-31744f-host-session-adapters-and-capability-gated-launchers.ipd.md",
     "plan_id": "31744f",
     "set_id": "execset",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-23",
@@ -2777,7 +2787,57 @@
     "path": "pending/20260823-execset-05-2h7777-exec-set-workflow-skill-shims-and-conformance-tests.ipd.md",
     "plan_id": "2h7777",
     "set_id": "execset",
-    "status": "to-review"
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260823-unifyfileio-00-g6mbht-unify-artifact-file-finding-reference-matching-and-naming-on.ipd.md",
+    "plan_id": "g6mbht",
+    "set_id": "unifyfileio",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260823-unifyfileio-01-o6b8l3-canonical-artifact-naming-and-filename-grammar-authority.ipd.md",
+    "plan_id": "o6b8l3",
+    "set_id": "unifyfileio",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260823-unifyfileio-02-laykok-unified-selector-to-file-resolver.ipd.md",
+    "plan_id": "laykok",
+    "set_id": "unifyfileio",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260823-unifyfileio-03-3cmnfc-unified-reference-matcher-rewriter-and-consistent-dangling-c.ipd.md",
+    "plan_id": "3cmnfc",
+    "set_id": "unifyfileio",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 4,
+    "path": "pending/20260823-unifyfileio-04-52zgqr-additive-rename-and-regroup-history-ledger-on-the-workflow-s.ipd.md",
+    "plan_id": "52zgqr",
+    "set_id": "unifyfileio",
+    "status": "draft"
   },
   {
     "date": "2026-08-07",

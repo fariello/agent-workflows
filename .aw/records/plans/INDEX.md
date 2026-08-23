@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 114 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 116 Sets; the full manifest is INDEX.json.
+
+## artifactenginefix
+
+- `p7dqwz` [pending] 01 pending/20260823-artifactenginefix-01-p7dqwz-corrective-parameterized-artifact-engine-stale-research-inde.ipd.md
 
 ## autoindex
 
@@ -28,6 +32,14 @@ Showing the 40 most-recent of 114 Sets; the full manifest is INDEX.json.
 ## renametypes
 
 - `53yczi` [executed] 01 executed/20260823-renametypes-01-53yczi-universal-artifact-type-support-in-aw-rename.ipd.md
+
+## unifyfileio
+
+- `g6mbht` [pending] 00 pending/20260823-unifyfileio-00-g6mbht-unify-artifact-file-finding-reference-matching-and-naming-on.ipd.md
+- `o6b8l3` [pending] 01 pending/20260823-unifyfileio-01-o6b8l3-canonical-artifact-naming-and-filename-grammar-authority.ipd.md
+- `laykok` [pending] 02 pending/20260823-unifyfileio-02-laykok-unified-selector-to-file-resolver.ipd.md
+- `3cmnfc` [pending] 03 pending/20260823-unifyfileio-03-3cmnfc-unified-reference-matcher-rewriter-and-consistent-dangling-c.ipd.md
+- `52zgqr` [pending] 04 pending/20260823-unifyfileio-04-52zgqr-additive-rename-and-regroup-history-ledger-on-the-workflow-s.ipd.md
 
 ## awcliux
 
@@ -256,25 +268,6 @@ Showing the 40 most-recent of 114 Sets; the full manifest is INDEX.json.
 ## migdispo
 
 - `bsxowq` [executed] 01 executed/20260812-migdispo-01-bsxowq-generalize-layout-migration-dispositions-and-entrypoint.ipd.md
-
-## clianx
-
-- `3e70cv` [executed] 01 executed/20260810-clianx-01-3e70cv-cli-ux-exclude-alpha-help.ipd.md
-
-## awlayout
-
-- `az9912` [executed] 00 executed/20260809-awlayout-00-az9912-aw-project-layout-orchestrator.ipd.md
-- `m9tqof` [executed] 01 executed/20260809-awlayout-01-m9tqof-aw-context-and-logical-roots.ipd.md
-- `bgyymp` [executed] 02 executed/20260809-awlayout-02-bgyymp-aw-home-project-identity-and-registry.ipd.md
-- `g4y28x` [executed] 03 executed/20260809-awlayout-03-g4y28x-records-backends-and-durability.ipd.md
-- `q0wpk4` [executed] 04 executed/20260809-awlayout-04-q0wpk4-install-update-policy-wizard.ipd.md
-- `tg60qo` [executed] 05 executed/20260809-awlayout-05-tg60qo-system-config-state-layout-and-ownership.ipd.md
-- `anlovz` [executed] 06 executed/20260809-awlayout-06-anlovz-operational-actions-and-install-history.ipd.md
-- `b31tuy` [executed] 07 executed/20260809-awlayout-07-b31tuy-action-workflow-and-status-integration.ipd.md
-- `0me1hr` [executed] 08 executed/20260809-awlayout-08-0me1hr-producing-workflow-record-routing.ipd.md
-- `es1phc` [executed] 09 executed/20260809-awlayout-09-es1phc-layout-migration-rollback-and-uninstall.ipd.md
-- `jmjh97` [executed] 10 executed/20260809-awlayout-10-jmjh97-clean-delta-skills-and-host-gates.ipd.md
-- `blw6qp` [executed] 11 executed/20260809-awlayout-11-blw6qp-docs-release-and-end-to-end-cutover.ipd.md
 
 ## (singletons: no Set)
 
