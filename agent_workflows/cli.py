@@ -5200,21 +5200,39 @@ def _find_type_records(
 
         _repo, plans_dir = pi._dirs(args)
         entries, _drift = pi.scan_plans(plans_dir)
-        plan_id = getattr(args, "id", None) or (
-            selectors_list[0] if selectors_list else None
-        )
-        results = pi.query(
-            entries,
-            plan_id=plan_id
-            if (plan_id and len(plan_id) == 6)
-            else getattr(args, "id", None),
-            set_id=getattr(args, "set", None),
-            status=getattr(args, "status", None),
-            disposition=getattr(args, "disposition", None),
-        )
-        if not results and selectors_list:
-            matched = set(sel_mod.resolve_selectors(repo_root, "plans", selectors_list))
-            results = [e for e in entries if (plans_dir / e.path) in matched]
+        explicit_id = getattr(args, "id", None)
+        explicit_set = getattr(args, "set", None)
+        explicit_status = getattr(args, "status", None)
+        explicit_disp = getattr(args, "disposition", None)
+
+        if selectors_list:
+            matched = set(
+                p.resolve()
+                for p in sel_mod.resolve_selectors(repo_root, "plans", selectors_list)
+            )
+            results = [
+                e
+                for e in entries
+                if (plans_dir / e.path).resolve() in matched
+                or (repo_root / e.path).resolve() in matched
+            ]
+            if explicit_set or explicit_status or explicit_disp or explicit_id:
+                results = pi.query(
+                    results,
+                    plan_id=explicit_id,
+                    set_id=explicit_set,
+                    status=explicit_status,
+                    disposition=explicit_disp,
+                )
+        else:
+            results = pi.query(
+                entries,
+                plan_id=explicit_id,
+                set_id=explicit_set,
+                status=explicit_status,
+                disposition=explicit_disp,
+            )
+
         lines = []
         for e in results:
             status = e.disposition or e.status or "-"
@@ -5233,21 +5251,41 @@ def _find_type_records(
 
         _repo, research_root = ri._roots(args)
         entries, _drift = ri._scan_docs(research_root)
-        id6 = getattr(args, "id", None) or (
-            selectors_list[0] if selectors_list else None
-        )
-        results = ri.query(
-            entries,
-            id6=id6 if (id6 and len(id6) == 6) else getattr(args, "id", None),
-            set_id=getattr(args, "set", None),
-            topic=getattr(args, "topic", None),
-            status=getattr(args, "status", None),
-        )
-        if not results and selectors_list:
+        explicit_id = getattr(args, "id", None)
+        explicit_set = getattr(args, "set", None)
+        explicit_topic = getattr(args, "topic", None)
+        explicit_status = getattr(args, "status", None)
+
+        if selectors_list:
             matched = set(
-                sel_mod.resolve_selectors(repo_root, "research", selectors_list)
+                p.resolve()
+                for p in sel_mod.resolve_selectors(
+                    repo_root, "research", selectors_list
+                )
             )
-            results = [e for e in entries if (research_root / e.path) in matched]
+            results = [
+                e
+                for e in entries
+                if (research_root / e.path).resolve() in matched
+                or (repo_root / e.path).resolve() in matched
+            ]
+            if explicit_set or explicit_status or explicit_topic or explicit_id:
+                results = ri.query(
+                    results,
+                    id6=explicit_id,
+                    set_id=explicit_set,
+                    topic=explicit_topic,
+                    status=explicit_status,
+                )
+        else:
+            results = ri.query(
+                entries,
+                id6=explicit_id,
+                set_id=explicit_set,
+                topic=explicit_topic,
+                status=explicit_status,
+            )
+
         lines = []
         for e in results:
             status = e.status or "-"
@@ -5261,7 +5299,7 @@ def _find_type_records(
             lines.append(f"{status_txt}  {id6_txt}  {e.path}{summary}")
         return lines
 
-    # All other types: specs, prompts, backlog, walkthroughs, roadmaps, comms
+    # All other types: specs, prompts, backlog, walkthroughs, roadmaps, comms, releases
     if selectors_list:
         matched_paths = sel_mod.resolve_selectors(
             repo_root, artifact_type, selectors_list
@@ -5318,12 +5356,16 @@ def _run_find(
     types = at.ARTIFACT_TYPES if norm == "all" else (norm,)
 
     all_lines = []
+    explicit_flags = argparse.Namespace(
+        id=getattr(args, "id", None),
+        set=getattr(args, "set", None),
+        status=getattr(args, "status", None),
+        topic=getattr(args, "topic", None),
+        disposition=getattr(args, "disposition", None),
+        dir=getattr(args, "dir", None),
+    )
     for t in types:
-        sub = _nv_backend_args(args, t)
-        sub.selector = selectors
-        if selectors and not getattr(sub, "id", None):
-            sub.id = selectors[0]
-        lines = _find_type_records(repo_root, t, selectors, sub, term)
+        lines = _find_type_records(repo_root, t, selectors, explicit_flags, term)
         all_lines.extend(lines)
 
     # Active filter facts and next action recommendation (highpbacklog0822 Order 04 E-03)

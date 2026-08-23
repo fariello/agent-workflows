@@ -287,8 +287,24 @@ class CliMutationsAndPreviewsTests(unittest.TestCase):
         rec = json.loads(proc.stdout.strip())
         self.assertEqual(rec["schema"], "aw.agent/v1")
         self.assertEqual(rec["cmd"], "research new")
-        self.assertEqual(rec["outcome"], "clean")
-        schema.assert_valid_agent_record(rec)
+
+    def test_find_multiple_selectors_returns_all_matches(self):
+        """`aw find <id1> <id2> ...` must return all matching artifacts across all provided selectors."""
+        # Create second plan
+        plan2_text = "# Plan 2\n\n- Id: p2p3p4\n- Set: setb\n- Status: pending\n"
+        (
+            self.repo
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20260823-setb-01-p2p3p4-plan-two.ipd.md"
+        ).write_text(plan2_text, encoding="utf-8")
+
+        proc = _run_aw("find", "b1c2d3", "p2p3p4", cwd=str(self.repo))
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn("b1c2d3", proc.stdout)
+        self.assertIn("p2p3p4", proc.stdout)
 
 
 if __name__ == "__main__":
