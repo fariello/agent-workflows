@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: The count-based size lint (>18 E-leaves / >5 groups) does not flag a single E-item that bundles multiple deliverables/test-surfaces, so conceptually-dense IPDs pass as "standard".
 - Scope: A per-E-item mechanical heuristic in `agent_workflows/ipd_schema.py` surfaced through `check_size` in `agent_workflows/ipd_lint.py`, plus tests; NO workflow-prose change (that is Order 06).
-- Status: draft
+- Status: reviewed
 - Set: highpbacklog0822
 - Order: 7
 - Highest E allocated: 03
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-22 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created for backlog 8iy2dk (part 2 of 2); complements the Order 06 prose rubric with a mechanical signal.
+- 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH: verified lint_text sets disposition=ERROR on ANY Diagnostic, so E-02 must add a SEPARATE advisory channel, NOT a check_size Diagnostic, or it would break the conforming-only gate), PR-002 (heuristic must be tuned against a real executed-plan corpus to avoid "and" over-firing), PR-003 (corrected line citations: ipd_schema.py:531-538, check_size ipd_lint.py:606-626), PR-004 (cite plan-review.md as the canonical one-concern definition per Order 06), PR-005 (Status draft->reviewed).
 
 ## Goal
 
@@ -25,30 +26,31 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Material change 1: The heuristic
 
-- [ ] E-01 In `agent_workflows/ipd_schema.py` (alongside the count thresholds at `ipd_schema.py:528-538`), add a per-E-item density heuristic that flags an E-item action naming multiple deliverables/test-surfaces (e.g. multiple "and"-joined distinct nouns/verbs, enumerations, or several test surfaces in one action). It is ADVISORY: it produces a warning, never a hard structural failure, to avoid false-positive gating.
+- [ ] E-01 In `agent_workflows/ipd_schema.py` (alongside the count thresholds `MAX_TASK_GROUPS`/`MAX_E_LEAVES`/`size_warning` at `:531-538`), add a per-E-item density heuristic that flags an E-item action naming multiple INDEPENDENT deliverables/test-surfaces, using the same "one concern / executable-in-one-focused-pass" definition CANONICALLY stated in `plan-review.md` (Order 06 `por1hi`). Tune it to minimize false positives: a bare "and" is NOT sufficient (many single-concern items say "add X and its test"); target signals like several distinct deliverable nouns, explicit enumerations ("(a)...(b)...(c)"), or multiple unrelated test-surfaces. It is ADVISORY: it produces a warning, never a hard structural failure.
   - Depends on: none
-  - Expected outcome: a pure function returns a density warning for a multi-concern E-item action and stays quiet for a single-concern one.
+  - Expected outcome: a pure function returns a density advisory for a genuinely multi-concern E-item action and stays quiet for single-concern ones (including ones that merely use "and").
   - Execution state: pending
 
 ### Material change 2: Surface it in the linter
 
-- [ ] E-02 Surface the heuristic through `check_size` in `agent_workflows/ipd_lint.py:620-640` as an advisory finding (its own warning line in `--agent` output), distinct from the count-based `Size assessment: exception` requirement, so a conforming plan can still carry a density advisory without failing.
+- [ ] E-02 Surface the heuristic in `aw ipd lint --agent` output as an advisory record via a SEPARATE advisory channel that does NOT feed the conformance disposition. NOTE (verified): `check_size` returns `List[Diagnostic]` and `lint_text` (`ipd_lint.py:751`) sets `disposition = CONFORMING if not diags else ERROR`, so ANY `Diagnostic` forces ERROR - therefore the density advisory MUST NOT be appended as a `Diagnostic` from `check_size`. Add a distinct advisory list on the lint result (its own record kind in `--agent` output, e.g. an `advisory`/`info` line) that leaves `disposition` `conforming`. Do not gate.
   - Depends on: E-01
-  - Expected outcome: `aw ipd lint` reports per-E-item density advisories without changing conformance disposition.
+  - Expected outcome: `aw ipd lint` reports per-E-item density advisories as a distinct non-conformance record; the plan's disposition stays `conforming`.
   - Execution state: pending
 
 ### Material change 3: Tests
 
-- [ ] E-03 Add unit tests: a known multi-concern E-item (e.g. "add an append-only tamper-evident ledger AND crash recovery AND a 12-class evidence validator") triggers the advisory; a single-concern E-item does not; and the advisory does NOT flip a structurally-conforming plan to non-conforming.
+- [ ] E-03 Add unit tests: a known multi-concern E-item (e.g. "add an append-only tamper-evident ledger AND crash recovery AND a 12-class evidence validator") triggers the advisory; single-concern items do NOT (including a false-positive-guard corpus of real E-item actions drawn from EXECUTED conforming plans, asserting a low/zero over-fire rate); and the advisory does NOT flip a structurally-conforming plan to non-conforming.
   - Depends on: E-01, E-02
-  - Expected outcome: the heuristic is proven to flag the historical awoptimize-style dense items and not to over-flag.
+  - Expected outcome: the heuristic flags the historical awoptimize-style dense items, does not over-flag real single-concern E-items, and never changes conformance.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
 
-- Count thresholds: `agent_workflows/ipd_schema.py:528-538` (`MAX_TASK_GROUPS=5` at `:531`, `MAX_E_LEAVES=18` at `:532`, `size_warning(...)` at `:536-538`).
-- Enforced in `agent_workflows/ipd_lint.py:620-640` (`check_size`): counts E-leaves (`:622`), calls `S.size_warning` (`:623`), requires `Size assessment: exception` + rationale when exceeded (`:631-639`).
-- `aw ipd lint --agent` emits tab-separated findings; advisories must be a distinct record, not a conformance error, so `plan-review`'s GATE (which proceeds only on `conforming`) is not broken by an advisory.
+- Count thresholds: `agent_workflows/ipd_schema.py` (`MAX_TASK_GROUPS=5` at `:531`, `MAX_E_LEAVES=18` at `:532`, `size_warning(...)` at `:536-538`).
+- Enforced in `agent_workflows/ipd_lint.py` `check_size` (`:606-626`): counts E-leaves, calls `S.size_warning`, and appends a `Diagnostic` requiring `Size assessment: exception` + rationale when the count is exceeded.
+- CONFORMANCE MODEL (verified): `lint_text` (`ipd_lint.py:751`) sets `disposition = CONFORMING if not diags else ERROR`, so EVERY `Diagnostic` forces ERROR; there is no advisory-that-passes channel today (`severity="warning"` at `:961` is display-only). The density advisory therefore needs a NEW channel separate from the `Diagnostic` list. `aw ipd lint --agent` emits tab-separated records; the advisory must be its own record kind so `plan-review`'s conforming-only GATE is not broken.
+- The "one concern / executable-in-one-focused-pass" definition is CANONICAL in `plan-review.md` (Order 06 `por1hi`); this heuristic must reuse that exact definition.
 
 ## Findings
 
@@ -92,7 +94,7 @@ Note the advisory in the IPD structure/linting spec (`.aw/records/specs/20260802
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: unit test shows the heuristic function flags a multi-deliverable E-item action and stays quiet for a single-concern one; paste the test output and cite the `ipd_schema.py` function.
+  - Required evidence: unit test shows the heuristic flags a multi-deliverable E-item action and stays quiet for single-concern ones, INCLUDING a corpus of real E-item actions from executed conforming plans (asserting a low/zero over-fire rate, and specifically that a mere "and" does not trigger it); paste the test output and cite the `ipd_schema.py` function.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
