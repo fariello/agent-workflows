@@ -2654,6 +2654,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260823-artifactenginefix-01-p7dqwz-corrective-parameterized-artifact-engine-stale-research-inde.ipd.md",
+    "plan_id": "p7dqwz",
+    "set_id": "artifactenginefix",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260823-autoindex-01-hszr72-automatic-manifest-index-refresh-on-status-transitions-and-a.ipd.md",
     "plan_id": "hszr72",
     "set_id": "autoindex",
@@ -2718,16 +2728,6 @@
     "plan_id": "pprchd",
     "set_id": "awhistignore",
     "status": "not-executed"
-  },
-  {
-    "date": "2026-08-23",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260823-artifactenginefix-01-p7dqwz-corrective-parameterized-artifact-engine-stale-research-inde.ipd.md",
-    "plan_id": "p7dqwz",
-    "set_id": "artifactenginefix",
-    "status": "reviewed"
   },
   {
     "date": "2026-08-23",
@@ -2797,7 +2797,7 @@
     "path": "pending/20260823-unifyfileio-00-g6mbht-unify-artifact-file-finding-reference-matching-and-naming-on.ipd.md",
     "plan_id": "g6mbht",
     "set_id": "unifyfileio",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-23",

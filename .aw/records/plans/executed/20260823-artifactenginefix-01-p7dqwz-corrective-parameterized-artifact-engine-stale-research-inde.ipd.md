@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Three executed plans (autoindex hszr72, grouptypes o2ygf3, renametypes 53yczi) left three SAFE, self-contained post-execution gaps: the research manifest index is stale; aw group carries an untested/undocumented releases route; and aw group --apply prints no success confirmation. (The larger parameterized-engine design-debt is deliberately split into a SEPARATE follow-up IPD - see Deferred - because it is risky internal churn against already-shipped, passing plans/research paths with no user-visible payoff, and must be planned deliberately rather than ride along with these small fixes.)
 - Scope: agent_workflows/artifact_types.py, agent_workflows/artifact_rename.py (aw group --apply output only), the research manifest index, CLI --help/docs for the releases group route, and tests/test_artifact_group.py. Does NOT reopen or edit the three executed IPDs, and does NOT refactor the rename/group engine or re-route plans/research.
-- Status: reviewed
+- Status: executed
 - Set: artifactenginefix
 - Order: 1
 - Highest E allocated: 03
@@ -12,6 +12,8 @@
 - Id: p7dqwz
 
 ## Workflow history
+- 2026-08-23 executed (aw set): status set to executed
+- 2026-08-23 approved (aw set, --by-human): status set to approved
 
 - 2026-08-23 draft (Gabriele Fariello): created.
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (OQ-01 resolved by human: keep `aw group releases`, add test+doc); PR-002 (human-decided scope split: deferred the risky parameterized-engine refactor + plans/research unification to a separate follow-up IPD, dropped E-01/E-02/E-03, renumbered the three safe fixes to E-01/E-02/E-03); PR-003 (removed E-02's self-authorizing "split if unsafe" escape hatch by removing that E-item); PR-004 (replaced non-falsifiable "no regex ladder remains" evidence with checkable index/test evidence); PR-005 (tightened E-item wording and validation mapping). Range-shorthand (former E-03) confirmed near-no-op for the free-form types (range cites exist only for plans/research).
@@ -26,22 +28,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Stale research manifest index
 
-- [ ] E-01 Re-seat the stale research manifest index. On the current tree `aw index research --check` reports `stale-index` on both `INDEX.json` and `INDEX.md` (pre-existing debt, not introduced by the three siblings, but it means the repo is not in the zero-drift state their narrative implies). Run `aw index research` to regenerate, verify the regenerated index is deterministic (re-running produces no diff), and commit the refreshed index path-scoped.
+- [x] E-01 Re-seat the stale research manifest index. On the current tree `aw index research --check` reports `stale-index` on both `INDEX.json` and `INDEX.md` (pre-existing debt, not introduced by the three siblings, but it means the repo is not in the zero-drift state their narrative implies). Run `aw index research` to regenerate, verify the regenerated index is deterministic (re-running produces no diff), and commit the refreshed index path-scoped.
   - Depends on: none
   - Expected outcome: `aw index research --check` is clean and `aw check all` reports zero `stale-index` findings.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: aw group releases coverage + UX
 
-- [ ] E-02 Close the untested `aw group releases` gap (OQ-01 resolved: KEEP). `releases` was registered as a `group` route in `agent_workflows/artifact_types.py` by the grouptypes commit but has no test and no doc. Add `test_group_releases` to `tests/test_artifact_group.py` covering preview, `--apply`, and `- Set:` injection/update on a `releases` record, and document `releases` as an in-scope `group` type in the relevant CLI `--help`/docs. Do not leave an untested, undocumented route.
+- [x] E-02 Close the untested `aw group releases` gap (OQ-01 resolved: KEEP). `releases` was registered as a `group` route in `agent_workflows/artifact_types.py` by the grouptypes commit but has no test and no doc. Add `test_group_releases` to `tests/test_artifact_group.py` covering preview, `--apply`, and `- Set:` injection/update on a `releases` record, and document `releases` as an in-scope `group` type in the relevant CLI `--help`/docs. Do not leave an untested, undocumented route.
   - Depends on: none
   - Expected outcome: `aw group releases` is covered by a passing test and documented as in-scope; no untested route remains.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Emit a success confirmation line from `aw group <type> --apply`. Today a successful `--apply` that only injects `- Set:` (no rename) prints nothing on the apply path (`agent_workflows/artifact_rename.py:524-539`), while the dry-run path does print `--- would set metadata Set: ... ---`. Print a concrete confirmation on apply (e.g. `set metadata Set: <id> in <path>`) consistent with how `aw rename --apply` reports, and cover it with a test assertion. Do NOT change the group engine's structure beyond adding this output.
+- [x] E-03 Emit a success confirmation line from `aw group <type> --apply`. Today a successful `--apply` that only injects `- Set:` (no rename) prints nothing on the apply path (`agent_workflows/artifact_rename.py:524-539`), while the dry-run path does print `--- would set metadata Set: ... ---`. Print a concrete confirmation on apply (e.g. `set metadata Set: <id> in <path>`) consistent with how `aw rename --apply` reports, and cover it with a test assertion. Do NOT change the group engine's structure beyond adding this output.
   - Depends on: none
   - Expected outcome: `aw group --apply` prints a clear per-artifact confirmation line; a test asserts it.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -102,18 +104,18 @@ Verification of the three executed sibling plans (2026-08-23) found five gaps. T
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `aw index research --check` clean output and `aw check all` showing zero `stale-index`; regenerated index is deterministic on re-run (second `aw index research` produces no diff).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `aw index research` ran cleanly (`wrote INDEX.json + INDEX.md (79 docs)`), re-run produced no diff (deterministic), committed in 4d7ea3f; `aw index research --check` output: `index --check: clean`; `aw check all --agent | grep 'stale-index'` reported 0 findings.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: `test_group_releases` passes (preview + `--apply` + `- Set:` injection on a `releases` record) and `releases` is documented as an in-scope `group` type in CLI `--help`/docs.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `test_group_releases` added to `tests/test_artifact_group.py` and passed in 0.62s; `releases` added to artifact type help strings in `agent_workflows/cli.py:1645,1655` and visible in `aw group --help`.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: a test asserts `aw group <type> --apply` prints a concrete per-artifact confirmation line on the metadata-only (no-rename) path.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `agent_workflows/artifact_rename.py:532` emits `set metadata Set: <id> in <path>` on apply; `test_group_backlog_metadata_only` and `test_group_releases` in `tests/test_artifact_group.py` assert `set metadata Set: <id> in <path>` and pass. Full suite: 2105 passed, 1 skipped in 97.27s via `pytest -n auto`.
+  - Result: pass
 
 ## Approval and execution gate
 

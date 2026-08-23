@@ -6,7 +6,7 @@ Showing the 40 most-recent of 116 Sets; the full manifest is INDEX.json.
 
 ## artifactenginefix
 
-- `p7dqwz` [pending] 01 pending/20260823-artifactenginefix-01-p7dqwz-corrective-parameterized-artifact-engine-stale-research-inde.ipd.md
+- `p7dqwz` [executed] 01 executed/20260823-artifactenginefix-01-p7dqwz-corrective-parameterized-artifact-engine-stale-research-inde.ipd.md
 
 ## autoindex
 
