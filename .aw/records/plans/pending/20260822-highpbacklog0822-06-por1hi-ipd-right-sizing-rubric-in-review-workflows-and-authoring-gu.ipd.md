@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: A passing `aw ipd lint` size check measures COUNT (>18 E-leaves / >5 groups), not conceptual density; Order-sized E-items slip through as "Size assessment: standard", degrading a real agent's context/attention/execution.
 - Scope: The prose rubric in `/plan-review`, `/plan-review-long`, and the assess IPD-producing harness, plus `aw ipd scaffold` authoring guidance; NO code heuristic here (that is Order 07).
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-23
 - Set: highpbacklog0822
 - Order: 6
 - Highest E allocated: 04
@@ -15,6 +16,7 @@
 
 - 2026-08-22 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created for backlog 8iy2dk (part 1 of 2); root cause was the awoptimize Set passing size lint while Orders 02/03/04 each held Order-sized E-items.
 - 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (name plan-review.md as the CANONICAL rubric home; others copy/reference to avoid 6-file drift), PR-002 (E-03 targets template TEXT not ipd_authoring.py code; fence updated), PR-003 (V-04 dry-run against a NAMED awoptimize dense exemplar), PR-004 (gave the concrete rubric text: the a/b/c/d diagnostic questions), PR-005 (Status draft->reviewed). Claims verified: no right-sizing prose currently in plan-review/-long; assess template Size/Cohesion at :84-85; thresholds in ipd_schema.py:528-538 / ipd_lint.py:620-640.
+- 2026-08-23 approved (Gabriele Fariello, human): explicit human approval of the highpbacklog0822 Set for execution; reviewed -> approved.
 
 ## Goal
 

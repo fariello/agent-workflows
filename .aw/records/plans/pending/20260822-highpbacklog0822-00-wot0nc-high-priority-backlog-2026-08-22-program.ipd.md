@@ -4,7 +4,8 @@
 - Kind: orchestrator
 - Concern: Drive four high/medium-priority backlog items to closure as one coordinated, independently-executable Set.
 - Scope: Coordinate six child IPDs (an agy false-ERROR bug fix, a slash-alias deprecation warning, a two-part CLI empty/error UX pass, and a two-part IPD right-sizing check); no domain redesign and no work beyond the four source backlog items.
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-23
 - Set: highpbacklog0822
 - Order: 0
 - Highest E allocated: 03
@@ -16,6 +17,7 @@
 - 2026-08-22 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created from five open high/medium-priority backlog items at the maintainer's request; the two items needing more than three material changes (oijafw, 8iy2dk) were each split into two children.
 - 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (external-Set awcliux dependency fallback in E-02 + completion criteria), PR-002 (Status draft->reviewed).
 - 2026-08-22 edit (opencode its_direct/pt3-claude-opus-4.8-1m-us): per maintainer directive, PURGED the OpenCode coordinated-disclosure child (former Order 01, dtl6dz) and its source backlog item; the Set now covers FOUR items across SIX children (Orders 02-07 retain their filenames; Order 01 is intentionally absent).
+- 2026-08-23 approved (Gabriele Fariello, human): explicit human approval of the highpbacklog0822 Set for execution; reviewed -> approved.
 
 ## Goal
 

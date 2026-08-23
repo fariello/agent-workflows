@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Every CLI verb rolls its own empty/error output; there is no shared helper to echo active filters, suggest a next step on empty results, or give consistent success/error feedback.
 - Scope: A shared empty/loading/error-state helper built on the `awcliux` human-TTY renderer boundary, plus the documented convention; NO per-verb rollout here (that is Order 05).
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-23
 - Set: highpbacklog0822
 - Order: 4
 - Highest E allocated: 03
@@ -15,6 +16,7 @@
 
 - 2026-08-22 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created for backlog oijafw (part 1 of 2); built on the awcliux renderer boundary to avoid a second human-output path.
 - 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; the awcliux Order 02 (czw99i) boundary is now EXECUTED (term.py:205+ has the component layer; no empty_result yet), so PR-001 concretized E-01/OQ-01/contract against term.py and retired the moot STOP guard; PR-002 scoped "loading" to the existing stderr step-cue (no spinner) per KISS; PR-003 tightened V-01 to cite term.py; PR-004 Status draft->reviewed. NOTE for maintainer: a stale duplicate czw99i exists in BOTH pending/ and executed/ (status/location inconsistency in that other plan) - out of this review's scope but worth cleaning up.
+- 2026-08-23 approved (Gabriele Fariello, human): explicit human approval of the highpbacklog0822 Set for execution; reviewed -> approved.
 
 ## Goal
 

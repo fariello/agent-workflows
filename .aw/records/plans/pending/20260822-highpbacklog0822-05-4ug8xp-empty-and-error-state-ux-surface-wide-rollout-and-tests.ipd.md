@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: The empty/loading/error-state convention exists but is applied to only one reference verb; the rest of the ~66 CLI paths still roll their own inconsistent messages.
 - Scope: Migrate every read/list/mutation verb to the Order 04 helper and convention, plus a coverage test preventing new verbs from regressing; NO new UX design and NO domain behavior change.
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-23
 - Set: highpbacklog0822
 - Order: 5
 - Highest E allocated: 03
@@ -15,6 +16,7 @@
 
 - 2026-08-22 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created for backlog oijafw (part 2 of 2); consumes the Order 04 helper/convention.
 - 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; awcliux Order 04 (10jpsa) is now EXECUTED with command_surface.py (CommandDeclaration/COMMAND_INVENTORY) + test_command_surface_declarations.py present, so PR-001 rewrote E-03/V-03/scope to EXTEND that coverage mechanism (no parallel test), PR-002 resolved OQ-01 by evidence (surface already migrated; no double-touch), PR-003 added fact-parity characterization to V-01 for the broad refactor, PR-004 updated the dependency guard, PR-005 Status draft->reviewed.
+- 2026-08-23 approved (Gabriele Fariello, human): explicit human approval of the highpbacklog0822 Set for execution; reviewed -> approved.
 
 ## Goal
 

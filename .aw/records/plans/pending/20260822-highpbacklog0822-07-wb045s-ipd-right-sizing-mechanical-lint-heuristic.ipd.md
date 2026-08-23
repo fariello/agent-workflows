@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: The count-based size lint (>18 E-leaves / >5 groups) does not flag a single E-item that bundles multiple deliverables/test-surfaces, so conceptually-dense IPDs pass as "standard".
 - Scope: A per-E-item mechanical heuristic in `agent_workflows/ipd_schema.py` surfaced through `check_size` in `agent_workflows/ipd_lint.py`, plus tests; NO workflow-prose change (that is Order 06).
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-23
 - Set: highpbacklog0822
 - Order: 7
 - Highest E allocated: 03
@@ -15,6 +16,7 @@
 
 - 2026-08-22 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created for backlog 8iy2dk (part 2 of 2); complements the Order 06 prose rubric with a mechanical signal.
 - 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH: verified lint_text sets disposition=ERROR on ANY Diagnostic, so E-02 must add a SEPARATE advisory channel, NOT a check_size Diagnostic, or it would break the conforming-only gate), PR-002 (heuristic must be tuned against a real executed-plan corpus to avoid "and" over-firing), PR-003 (corrected line citations: ipd_schema.py:531-538, check_size ipd_lint.py:606-626), PR-004 (cite plan-review.md as the canonical one-concern definition per Order 06), PR-005 (Status draft->reviewed).
+- 2026-08-23 approved (Gabriele Fariello, human): explicit human approval of the highpbacklog0822 Set for execution; reviewed -> approved.
 
 ## Goal
 

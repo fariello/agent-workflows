@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: The single `/aw <verb>` dispatcher has shipped, but the ~24 per-workflow slash-command aliases give users no signal to migrate before eventual pruning.
 - Scope: The shim generator in `agent_workflows/engine.py` and the regenerated command files under `.opencode/commands/` and `.claude/commands/`; the aliases keep working.
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-23
 - Set: highpbacklog0822
 - Order: 3
 - Highest E allocated: 03
@@ -15,6 +16,7 @@
 
 - 2026-08-22 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created for backlog 21ni81; the `/aw <verb>` dispatcher prerequisite is already met (`.opencode/commands/aw.md`, `.claude/commands/aw.md`).
 - 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (reconcile with is_shim_customized shim-drift machinery so pre-notice shims update and customized ones are preserved), PR-002 (notice goes in the body after the frontmatter fence, not inside YAML frontmatter), PR-003 (V-02 asserts placement + drift behavior), PR-004 (Status draft->reviewed). Claims verified: shim_body engine.py:700, aw_dispatcher_shim :828, validate_shim_grammar :871, dirs :167-168, dispatcher aw.md present in both dirs.
+- 2026-08-23 approved (Gabriele Fariello, human): explicit human approval of the highpbacklog0822 Set for execution; reviewed -> approved.
 
 ## Goal
 

@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: `agy_run.py` reports a turn as ERROR when Antigravity rejects a sandboxed `write_to_file` even though the intended write already landed via `run_command` and the work committed, making agy status untrustworthy.
 - Scope: The turn-status classification in `tools/agy_run.py` and the execution/audit steering prompts under `tools/awphysical/`; no change to what the agent actually does to the repo.
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-23
 - Set: highpbacklog0822
 - Order: 2
 - Highest E allocated: 03
@@ -15,6 +16,7 @@
 
 - 2026-08-22 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created for backlog uhbdt1; false-ERROR observed executing backlog-medhigh-260819 Orders 01 + 07 (both ERROR-but-complete).
 - 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; maintainer confirmed the false-ERROR is STILL live under the current `--dangerous` invocation (permission-skip is orthogonal to the sandbox rejection); PR-001 (reconcile premise with --dangerous/--add-dir + record confirmation), PR-002 (capture the real rejection payload before writing the E-02 predicate), PR-003 (--add-dir considered/rejected), PR-004 (Status draft->reviewed).
+- 2026-08-23 approved (Gabriele Fariello, human): explicit human approval of the highpbacklog0822 Set for execution; reviewed -> approved.
 
 ## Goal
 
