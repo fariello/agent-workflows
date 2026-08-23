@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: The empty/loading/error-state convention exists but is applied to only one reference verb; the rest of the ~66 CLI paths still roll their own inconsistent messages.
 - Scope: Migrate every read/list/mutation verb to the Order 04 helper and convention, plus a coverage test preventing new verbs from regressing; NO new UX design and NO domain behavior change.
-- Status: draft
+- Status: reviewed
 - Set: highpbacklog0822
 - Order: 5
 - Highest E allocated: 03
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-22 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created for backlog oijafw (part 2 of 2); consumes the Order 04 helper/convention.
+- 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; awcliux Order 04 (10jpsa) is now EXECUTED with command_surface.py (CommandDeclaration/COMMAND_INVENTORY) + test_command_surface_declarations.py present, so PR-001 rewrote E-03/V-03/scope to EXTEND that coverage mechanism (no parallel test), PR-002 resolved OQ-01 by evidence (surface already migrated; no double-touch), PR-003 added fact-parity characterization to V-01 for the broad refactor, PR-004 updated the dependency guard, PR-005 Status draft->reviewed.
 
 ## Goal
 
@@ -39,16 +40,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Material change 3: Prevent regression with a coverage test
 
-- [ ] E-03 Add a generated coverage test over the parser surface asserting each read/list verb uses the shared empty-state helper and each mutation uses the shared success/error renderer, so a new verb that rolls its own empty/error output fails the test.
+- [ ] E-03 EXTEND the existing command-surface coverage mechanism, do NOT build a parallel one: awcliux Order 04 (`10jpsa`, executed) already ships `agent_workflows/command_surface.py` (`CommandDeclaration`, `COMMAND_INVENTORY`) and `tests/test_command_surface_declarations.py` that fail CI on an undeclared/untested leaf. Add an empty-state / success-error field to `CommandDeclaration` (per leaf: does it use the shared `empty_result` / shared success-error renderer) and extend the existing coverage test so a new verb rolling its own empty/error output fails it.
   - Depends on: E-01, E-02
-  - Expected outcome: new verbs cannot silently reintroduce ad-hoc empty/error output.
+  - Expected outcome: the existing surface-coverage test now also enforces shared empty/error output; new verbs cannot silently reintroduce ad-hoc empty/error output; no second coverage mechanism is created.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
 
 - Empty/"No ..." messages are scattered across ~19 modules (`benchmark_ablations.py:387`, `layout_migration.py:1179`, `host_capability_registry.py:1344`, and more), each with its own phrasing; `cli.py` routes 66 subcommands by name.
-- Order 04 (`89bby9`) provides the `empty_result`/loading/success/error helper and the normative convention on the `awcliux` renderer boundary and proves it on `aw find`.
-- `awcliux` Order 04 (`10jpsa`) migrates the whole surface to the renderer boundary; this UX rollout must ride on that migration where it overlaps and must not create a second output path.
+- Order 04 (`89bby9`) provides the `empty_result`/success/error helper and the normative convention on the `awcliux` renderer boundary and proves it on `aw find`.
+- UPDATE (2026-08-22, at /plan-review): `awcliux` Order 04 (`10jpsa`) is now EXECUTED - the whole command surface is already routed through the renderer boundary, and `agent_workflows/command_surface.py` (`CommandDeclaration`, `COMMAND_INVENTORY`) + `tests/test_command_surface_declarations.py` already enforce per-leaf declaration/coverage. So this rollout rides on already-migrated handlers (no double-touch) and EXTENDS that declaration/coverage mechanism rather than creating a second output path or a second coverage test.
 
 ## Findings
 
@@ -67,8 +68,8 @@ Rolling out is mechanical but broad (66 paths, ~19 modules), so it is its own pl
 
 ## Scope check
 
-- Over-scope: none.
-- Under-scope: reconcile overlap with `awcliux` Order 04's surface migration so a verb is migrated once, not twice; if both would touch the same handler, coordinate/sequence rather than double-edit.
+- Over-scope: none. Do NOT build a second coverage test or a second output/declaration mechanism; extend the existing `command_surface.py` + `test_command_surface_declarations.py`.
+- Under-scope: none material - `awcliux` Order 04 is executed, so the surface is already migrated to the boundary and this plan rides on it (no double-touch). Residual guard: if a handler still needs a domain change to adopt the convention, STOP and report.
 
 ## Required tests / validation
 
@@ -85,14 +86,14 @@ Update the contributor command checklist to require the empty-state helper and s
 - Blocking: no
 - Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: coordinate. Where `awcliux` Order 04 (`10jpsa`) migrates a handler to the renderer boundary, this plan adds the empty/error convention in the same pass or immediately after, so each handler is touched once. If `awcliux` Order 04 is still pending when this runs, apply the convention through the same boundary Order 04 (`89bby9`) established and avoid a second output path.
+- Resolution or deferral rationale: RESOLVED by evidence - `awcliux` Order 04 (`10jpsa`) is EXECUTED, so every handler is already at the renderer boundary and carries a `command_surface.py` `CommandDeclaration`. This plan therefore adds the empty/error convention on the already-migrated handlers (no double-touch) and extends the existing `CommandDeclaration`/coverage mechanism. No independent/parallel path is created.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: a scan/test shows no read/list verb still uses an ad-hoc empty message and each returns filter echo + next step on empty; PTY golden for a representative empty read in both audiences; paste the output.
+  - Required evidence: a scan/test shows no read/list verb still uses an ad-hoc empty message and each returns filter echo + next step on empty; PTY golden for a representative empty read in both audiences; AND a characterization check on a sample of migrated verbs proving only the empty-state PRESENTATION changed while the agent-mode FACTS and exit code are byte-identical to the pre-migration baseline (rubric D: characterization coverage for a broad refactor). Paste the output.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
@@ -100,7 +101,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: the generated coverage test fails on a deliberately ad-hoc verb and passes on the migrated surface, and the full regression suite passes unchanged; paste the coverage-test output and the suite summary.
+  - Required evidence: the EXTENDED `test_command_surface_declarations.py` coverage test (not a new parallel test) fails on a deliberately ad-hoc verb and passes on the migrated surface, `CommandDeclaration` carries the new empty/error field for every leaf, and the full regression suite passes unchanged; paste the coverage-test output and the suite summary.
   - Observed evidence:
   - Result: pending
 
@@ -113,8 +114,8 @@ Review and explicit approval required.
 
 ### Execution contract
 
-1. Open questions RESOLVED: OQ-01 above is resolved. This plan DEPENDS on Order 04 (`89bby9`); if the `empty_result`/success/error helper and convention are absent, STOP and report.
-2. Scope fence: touch the command handlers in `agent_workflows/cli.py` and the ~19 per-family modules ONLY to route empty/error output through the shared helper, plus tests under `tests/` and the contributor command checklist. Do NOT change verb domain behavior, facts, or exit codes, and do NOT redesign UX components. If a handler needs a domain change, STOP and report.
+1. Open questions RESOLVED: OQ-01 above is resolved. This plan DEPENDS on Order 04 (`89bby9`, the `empty_result`/success/error helper) - if that helper is absent, STOP and report. The awcliux surface migration (`10jpsa`) and its `command_surface.py` declaration/coverage mechanism are already EXECUTED and present; extend them.
+2. Scope fence: touch the command handlers in `agent_workflows/cli.py` and the ~19 per-family modules ONLY to route empty/error output through the shared helper; `agent_workflows/command_surface.py` (extend `CommandDeclaration` + `COMMAND_INVENTORY` with the empty/error field); the extended `tests/test_command_surface_declarations.py` and other tests under `tests/`; and the contributor command checklist. Do NOT change verb domain behavior, facts, or exit codes, do NOT redesign UX components, and do NOT create a second coverage/output mechanism. If a handler needs a domain change, STOP and report.
 3. Honesty rule (hard MUST): when you report the coverage test and full suite passed, paste the ACTUAL runner output; never claim a pass you did not run.
 4. Commit ONLY this plan's own changed files, path-scoped (`git commit -- <path>`); never `git add -A`/bare/`-a`; never push. Prefer one commit per migrated family for reviewability.
 5. Lifecycle move: on completion, after every E item is performed and every V item is verified with pasted evidence, append the `## Workflow history` line, set `Status: executed`, `git mv` this file from `pending/` to `executed/`, make the path-scoped lifecycle commit, and set backlog `oijafw` to `done` (clearing its `Blocks-Release: next` obligation).
