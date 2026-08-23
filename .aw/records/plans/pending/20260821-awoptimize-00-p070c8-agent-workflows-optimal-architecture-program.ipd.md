@@ -79,10 +79,10 @@ approval -> execute -> independent verification -> transition) in the child-tabl
   - Depends on: E-06
   - Expected outcome: every catalog workflow has an explicit disposition and migrated families pass their per-family benchmark promotion gates without semantic loss; all three reach executed.
   - Execution state: performed
-- [ ] E-08 Drive Layer G (cutover): Orders 17 (compatibility + migration + rollback + deprecation), 18 (docs + security + lifecycle fixtures + release-readiness), each through the full lifecycle.
+- [x] E-08 Drive Layer G (cutover): Orders 17 (compatibility + migration + rollback + deprecation), 18 (docs + security + lifecycle fixtures + release-readiness), each through the full lifecycle.
   - Depends on: E-07
   - Expected outcome: compatibility, rollback, documentation, security, and a GO/NO-GO release-readiness review are complete without any publish/tag/push; both reach executed.
-  - Execution state: pending
+  - Execution state: performed
 - [ ] E-09 Perform the final whole-Set residual audit from a clean checkout: full suite, `aw ipd lint --all`, leak scan, compiler drift check, host-adapter fixtures, benchmark thresholds, complete workflow-disposition coverage, and archive-quality evidence retention.
   - Depends on: E-08
   - Expected outcome: no open critical requirement, unsupported capability claim, generated drift, red required check, or unassigned workflow remains across all 17 children.

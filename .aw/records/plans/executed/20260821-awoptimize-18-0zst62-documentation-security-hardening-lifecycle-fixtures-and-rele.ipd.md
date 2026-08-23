@@ -4,8 +4,7 @@
 - Kind: child
 - Concern: Make the cutover truthful, safe, and reversible, and produce a GO/NO-GO without publishing.
 - Scope: Operator/author/security docs (generated from evidence registries) + threat-model hardening + clean-install/update/rollback lifecycle fixtures + a final release-readiness review that never tags/publishes/pushes.
-- Status: approved
-- Approval: Gabriele Fariello (human), 2026-08-22
+- Status: executed
 - Set: awoptimize
 - Order: 18
 - Highest E allocated: 05
@@ -18,6 +17,7 @@
 - 2026-08-21 authored (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): body carved from superseded old-Order-08 E-05..E-09 into 5 right-sized E-items (docs rendered from registries, model-profile docs, security hardening, lifecycle matrix fixtures, GO/NO-GO release-readiness); the final Order.
 - 2026-08-21 /plan-review (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. Deps on 17 + all prior justified; the never-tag/publish/push + GO/NO-GO-only invariant is airtight (9 hits) and cites RELEASING.md / release-review Section 9; docs render from registries (no prose exceeding claims). PR-002 (MEDIUM, rubric C): E-03/E-05 said generic "leak scan" without naming the repo's canonical security tools - FIXED by naming `aw sanitize`/`check-local-leaks` (leak sanitizer) + `scan_secrets.py` (secret scanner) in E-03, and `aw sanitize --agent` + `aw ipd lint --all --agent` in E-05 and the required-tests, so the release gate reuses existing tooling not a fork. V-01..V-05 map 1:1 with falsifiable evidence. OQ-01 resolved.
 - 2026-08-22 approved (Gabriele Fariello, human): explicit human approval of the awoptimize Set after /plan-review; reviewed -> approved.
+- 2026-08-22 executed (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): E-01..E-05 implemented directly (general subagent under opencode direction) - 18 ASCII-only docs + docs_render.py/docs_check.py (registry-driven tables), security_hardening.py (7 boundary checkers REUSING aw sanitize + scan_secrets.py, no new scanner), lifecycle_fixtures.py (11 real-legacy-state fixtures), release_readiness.py (GO/NO-GO over 11 gates, assert_no_release_action) + 4 test modules (76 tests). opencode independently verified: no em/en dashes in docs, ruff clean, live `aw sanitize --agent` exit 0, 76 module tests + full suite 1866 passed 1 skipped (pytest rc=0), release-readiness verdict GO with NO tag/publish/push. V-01..V-05 filled. Terminal transition to executed/ (final child of the Set).
 
 ## Goal
 
@@ -34,32 +34,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: documentation
 
-- [ ] E-01 Write architecture, authoring, skill-selection, orchestration, evidence, verification, benchmark, host-adapter, troubleshooting, recovery, and security documentation with exact commands, outputs, limitations, and responsibility boundaries.
+- [x] E-01 Write architecture, authoring, skill-selection, orchestration, evidence, verification, benchmark, host-adapter, troubleshooting, recovery, and security documentation with exact commands, outputs, limitations, and responsibility boundaries.
   - Depends on: none
   - Expected outcome: documentation link/command/option checks pass, and operator walkthroughs reproduce incomplete-run diagnosis, evidence inspection, a host probe, recovery, and rollback from a clean fixture without reading implementation internals.
-  - Execution state: pending
-- [ ] E-02 Document model profiles as EVIDENCE-BACKED defaults, not universal personality claims: distinguish model ID from reasoning configuration, and render tables FROM the benchmark/capability registries with benchmark date, task corpus, host, version, thresholds, uncertainty, and pending combinations.
+  - Execution state: performed
+- [x] E-02 Document model profiles as EVIDENCE-BACKED defaults, not universal personality claims: distinguish model ID from reasoning configuration, and render tables FROM the benchmark/capability registries with benchmark date, task corpus, host, version, thresholds, uncertainty, and pending combinations.
   - Depends on: E-01
   - Expected outcome: model/support tables render exact IDs/configurations, corpus, host/version, dates, thresholds, uncertainty, and pending cells from the registries, with NO documentation turning vendor marketing or one observed rollout into a general quality guarantee.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: security hardening
 
-- [ ] E-03 Harden the security boundaries of the new execution + host integration: local servers loopback/authenticated, external files consented + contained, skills least-privilege, evidence redacted, real HOME excluded from probes, untrusted repository text isolated as data, and destructive tools human-gated. REUSE the repo's existing security tooling rather than inventing new scanners: `aw sanitize` / `aw check-local-leaks` (the leak sanitizer) and `.aw/system/workflows/assess/tools/scan_secrets.py` (the secret scanner) for the leak/secret checks (rubric C, no duplicate path).
+- [x] E-03 Harden the security boundaries of the new execution + host integration: local servers loopback/authenticated, external files consented + contained, skills least-privilege, evidence redacted, real HOME excluded from probes, untrusted repository text isolated as data, and destructive tools human-gated. REUSE the repo's existing security tooling rather than inventing new scanners: `aw sanitize` / `aw check-local-leaks` (the leak sanitizer) and `.aw/system/workflows/assess/tools/scan_secrets.py` (the secret scanner) for the leak/secret checks (rubric C, no duplicate path).
   - Depends on: E-02
   - Expected outcome: threat-model tests + runbooks prove loopback/auth, containment, consent, least privilege, redaction, real-HOME refusal, untrusted-text isolation, and human destructive gates across the new attack surface, invoking the existing `aw sanitize`/`scan_secrets.py` tools (not new ones).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: lifecycle fixtures and release gate
 
-- [ ] E-04 Execute clean-install, legacy-update, partial-state, customized-file, interrupted-update, rollback, downgrade-warning, no-network, no-credential, multi-host-discovery, and unsupported-host lifecycle fixtures from real legacy starting states.
+- [x] E-04 Execute clean-install, legacy-update, partial-state, customized-file, interrupted-update, rollback, downgrade-warning, no-network, no-credential, multi-host-discovery, and unsupported-host lifecycle fixtures from real legacy starting states.
   - Depends on: E-03
   - Expected outcome: every named lifecycle fixture passes from a clean isolated environment; unsupported/no-credential cases fail BEFORE mutation; reruns show no unmanaged drift.
-  - Execution state: pending
-- [ ] E-05 Perform the final release-readiness review and add `tests/test_release_readiness.py` (stdlib unittest for the checkable parts): full suite (`make test`), the canonical leak scan `aw sanitize --agent` (exit 0), all IPD lint phases (`aw ipd lint --all --agent`), generated/compiler drift, docs checks, complete workflow disposition, capability-evidence freshness, benchmark thresholds, changelog + versioning, artifact manifest, and residual-risk sign-off - producing a GO/NO-GO report that does NOT tag, publish, deploy, or push. Then run the full serial suite and paste the tail.
+  - Execution state: performed
+- [x] E-05 Perform the final release-readiness review and add `tests/test_release_readiness.py` (stdlib unittest for the checkable parts): full suite (`make test`), the canonical leak scan `aw sanitize --agent` (exit 0), all IPD lint phases (`aw ipd lint --all --agent`), generated/compiler drift, docs checks, complete workflow disposition, capability-evidence freshness, benchmark thresholds, changelog + versioning, artifact manifest, and residual-risk sign-off - producing a GO/NO-GO report that does NOT tag, publish, deploy, or push. Then run the full serial suite and paste the tail.
   - Depends on: E-04
   - Expected outcome: retained outputs show the full suite, leak scan, IPD lint phases, drift, docs, disposition, claim freshness, benchmark, and residual-risk gates pass; a GO/NO-GO report is produced; git evidence shows NO tag/release/deploy/push; the full serial suite is green (pasted).
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -123,26 +123,26 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted documentation link/command/option check output, and operator-walkthrough fixtures reproducing incomplete-run diagnosis, evidence inspection, a host probe, recovery, and rollback from a clean fixture.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: 18 Markdown docs (architecture/authoring/skill-selection/orchestration/evidence/verification/benchmark/host-adapters/model-profiles/security/troubleshooting/recovery + 5 walkthroughs) with exact commands/outputs/limitations/boundaries; ASCII-only (no em/en dashes verified). docs_check.py link/command/dash checks pass; walkthroughs reproduce incomplete-run diagnosis, evidence inspection, host probe, recovery, rollback from clean fixtures. tests.test_docs (DocsExist/DocCheck/DocCheckFalsifiability). PASS.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted output showing model/support tables render exact IDs/configurations, corpus, host/version, dates, thresholds, uncertainty, and pending cells FROM the registries, with no unsupported generalization.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: docs_render.render_support_table/render_model_profile_table/render_benchmark_thresholds_table render FROM the Order-10 capability + Order-13 benchmark registries (model ID distinct from reasoning config; date, corpus, host, version, thresholds, uncertainty, pending cells); no doc turns marketing/one-rollout into a general guarantee. tests.SupportTableRendersFromRegistry/ModelProfileTable/BenchmarkThresholdTable. PASS.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted threat-model test output proving loopback/auth, containment, consent, least privilege, redaction, real-HOME refusal, untrusted-text isolation, and human destructive gates.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: security_hardening.py: 7 boundary checkers (loopback/auth, external-file consent+containment, skill least-privilege, evidence redaction, real-HOME exclusion, untrusted-text isolation, destructive-tool human gate) + REUSES aw sanitize/leak_sanitizer + .aw/system/workflows/assess/tools/scan_secrets.py (no new scanner). tests.test_security_hardening (25) incl. scanner-reuse. Live leak scan `aw sanitize --agent` exit 0. PASS.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted output showing every named lifecycle fixture passes from a clean isolated environment, unsupported/no-credential cases fail before mutation, and reruns show no unmanaged drift.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: lifecycle_fixtures.py: 11 fixtures (clean-install, legacy-update, partial-state, customized-file, interrupted-update, rollback, downgrade-warning, no-network, no-credential, multi-host-discovery, unsupported-host) from real legacy states via CompatMigrator/CompatRollback/registry in isolated envs; unsupported/no-credential FAIL BEFORE mutation; reruns show no unmanaged drift. tests.test_lifecycle_fixtures (17). PASS.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: retained outputs showing full suite, leak scan, all IPD lint phases, compiler/generated drift, docs, disposition, claim freshness, benchmark, and residual-risk gates pass; a GO/NO-GO report; git evidence showing NO tag/release/deploy/push; `tests/test_release_readiness.py` exists and passes; pasted full serial-suite tail.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: release_readiness.py produces a GO/NO-GO report over gates: full_suite, leak_scan (aw sanitize --agent exit 0), ipd_lint (aw ipd lint --all --agent), generated_drift, docs_checks, workflow_disposition, capability_freshness, benchmark_thresholds (0 critical escapes/1.0 evidence validity), changelog_versioning, artifact_manifest, residual_risk. assert_no_release_action + git-tag-unchanged guard prove NO tag/publish/deploy/push. Verdict GO. tests/test_release_readiness.py (20). Full suite green: make test -> 1866 passed, 1 skipped, rc=0.
+  - Result: pass
 
 ## Approval and execution gate
 
