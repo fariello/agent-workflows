@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Give coding agents deterministic, concise, evidence-bearing output.
 - Scope: Agent schema, receipts, budgets, errors, and examples; no vendor-specific dialect.
-- Status: draft
+- Status: reviewed
 - Set: awcliux
 - Order: 3
 - Highest E allocated: 03
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-22 draft (OpenAI): created from agent/pipe output audit.
+- 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (Drift/spec-1525-01 reconciliation + Order 01 versioning cross-ref), PR-002 (repo-relative sanitizer-clean path/evidence fields), PR-003 (execution contract), PR-004 (V-02/V-03 concrete evidence + V-01 sanitizer test), PR-005 (schema-versioning owned by Order 01), PR-006 (fixed attention findings example exit 0->1), Status draft->reviewed.
 
 ## Goal
 
@@ -25,16 +26,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Material change 1: Compact records
 
-- [ ] E-01 Define `aw.agent/v1` JSONL with closed record kinds and required fields; use one result for bounded output and summary-plus-items only for streams.
+- [ ] E-01 Define `aw.agent/v1` JSONL with closed record kinds and required fields; use one result for bounded output and summary-plus-items only for streams. This schema is the machine convention that supersedes the existing `Drift`/`render_agent_drift`/`drift_exit_code` convention (`agent_workflows/artifact_core.py:247-266`) mandated by implemented spec `20260818-1525-01` G6; adopt the `Drift`-relationship decision frozen in Order 01 (hd3kln) E-03 and the schema-versioning mechanism frozen in Order 01 E-03 (the `schema:"aw.agent/v1"` tag and how a future `v2` is introduced) rather than re-deciding them here. All path-valued fields MUST be repo-relative and normalized (never absolute home paths, usernames, or hostnames) so records pass `aw sanitize --agent` when logged or pasted.
   - Depends on: none
-  - Expected outcome: every command emits schema-valid, ANSI-free records.
+  - Expected outcome: every command emits schema-valid, ANSI-free, sanitizer-clean records under exactly one machine convention.
   - Execution state: pending
 
 ### Material change 2: Evidence receipts
 
-- [ ] E-02 Require outcome, applied/preview, completeness, changed targets, verification, evidence, omitted counts, and safe next command; never report `ok` for skipped, partial, unverified, or cannot-run work.
+- [ ] E-02 Require outcome, applied/preview, completeness, changed targets, verification, evidence, omitted counts, and safe next command; never report `ok` for skipped, partial, unverified, or cannot-run work. Any path in `changed`/`target`/`evidence` fields is emitted repo-relative and sanitizer-clean (per E-01); evidence values name what was checked (e.g. `ipd-lint:author`, `backlog-check`), not raw file contents or sensitive data.
   - Depends on: E-01
-  - Expected outcome: ambiguous output cannot support greenwashed completion.
+  - Expected outcome: ambiguous output cannot support greenwashed completion, and receipts never leak absolute paths or sensitive data.
   - Execution state: pending
 
 ### Material change 3: Token control
@@ -67,10 +68,10 @@ Ambiguity, not model identity, is the core defect. Gemini's completion bias is b
 ```
 
 ```json
-{"schema":"aw.agent/v1","kind":"summary","cmd":"attention","outcome":"findings","exit":0,"total":49,"emitted":20,"omitted":29,"complete":false,"next":"aw attention --agent --limit 50"}
+{"schema":"aw.agent/v1","kind":"summary","cmd":"attention","outcome":"findings","exit":1,"total":49,"emitted":20,"omitted":29,"complete":false,"next":"aw attention --agent --limit 50"}
 ```
 
-Cannot-run domain errors are schema-valid stdout records with exit 2. Unexpected serialization/startup faults use stderr; never duplicate a diagnostic on both streams.
+Exit classification is inherited from Order 01 (hd3kln): `0` clean/completed, `1` completed with a negative domain result or findings present, `2` usage/cannot-run. The embedded `exit` field MUST equal the process exit code (so an agent parsing captured text with no process metadata still knows the outcome); e.g. a `findings` outcome carries `exit:1`, a clean `check` carries `exit:0`, and a `preview` carries `exit:0`. Cannot-run domain errors are schema-valid stdout records with exit 2. Unexpected serialization/startup faults use stderr; never duplicate a diagnostic on both streams.
 
 ## Deferred / out of scope (with reason)
 
@@ -79,15 +80,15 @@ Cannot-run domain errors are schema-valid stdout records with exit 2. Unexpected
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: review sensitive paths before expanding evidence.
+- Under-scope: path/evidence-field sanitization is IN scope (repo-relative, sanitizer-clean, no sensitive contents) as a hard schema requirement, not a later review.
 
 ## Required tests / validation
 
-Schema-test every kind; fuzz paths; assert ordering, stable bytes, and size; cover skipped, partial, preview, changed-unverified, verified, truncated, and cannot-run.
+Schema-test every kind; fuzz paths; assert ordering, stable bytes, and size; cover skipped, partial, preview, changed-unverified, verified, truncated, and cannot-run. Assert the embedded `exit` field matches the process exit code and matches the Order 01 `0`/`1`/`2` classification for each outcome. Run `aw sanitize --agent` over sample records and assert zero findings (no absolute paths, usernames, or hostnames).
 
 ## Spec / documentation sync
 
-Publish schema, compatibility promise, exits, streams, examples, and “consume records; do not infer completion.”
+Publish schema, compatibility promise, exits, streams, examples, and “consume records; do not infer completion.” State that this schema SUPERSEDES the `Drift`/`drift_exit_code` machine convention required by implemented spec `20260818-1525-01` G6; Order 05 (e8hu4s) updates or supersedes that spec via `aw specs` so the repository does not carry two conflicting machine conventions.
 
 ## Open questions
 
@@ -103,15 +104,15 @@ Publish schema, compatibility promise, exits, streams, examples, and “consume 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: schema tests for every record kind and identical fixtures across model consumers.
+  - Required evidence: schema tests for every record kind; a test proving records are ANSI-free and that every path field is repo-relative and passes `aw sanitize --agent` (zero findings); and identical fixtures parse across the target consumers. Paste the passing test output and the sanitizer run.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: tests proving a receipt NEVER reports success for skipped/partial/unverified/cannot-run work (each such case asserted), that `outcome`/`complete`/`verified`/`remaining`/`evidence` are present and consistent, and that the embedded `exit` field matches the process exit code and the Order 01 `0`/`1`/`2` classification. Paste the passing test output.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: tests proving compact defaults, `--fields`, `--limit`, and `--verbose`/JSON escape hatches work; that a truncated stream retains `total`/`omitted` and a continuation `next` command; and a byte/token measurement showing the compact default is smaller than the verbose form with no loss of decision facts (outcome, completeness, identifiers, evidence, omitted counts, next). Paste the passing test output and the measured sizes.
   - Observed evidence:
   - Result: pending
 
@@ -122,3 +123,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Cohesion rationale: exactly three changes cover records, evidence, and bounded verbosity.
 
 Review and explicit approval required; field removal or semantic changes are incompatible.
+
+### Execution contract
+
+1. Open questions RESOLVED: OQ-01 above is resolved (non-blocking). This plan consumes the Order 01 contract, so it may execute only after Order 01 (hd3kln) is executed; if the `OutputContext`/typed-result boundary and the frozen `Drift`-relationship + schema-versioning decisions from Order 01 are absent, STOP and report.
+2. Scope fence: touch only the NEW agent-schema/result module and the agent renderer wired in Order 01, plus tests and fixtures under `tests/`, and the schema/protocol documentation. Do NOT migrate individual command handlers here (that is Order 04) and do NOT change any command's domain behavior. Reuse the existing `aw sanitize` (`agent_workflows/leak_sanitizer.py`) for the sanitizer assertion rather than adding new tooling. If a change seems to need a domain handler, STOP and report.
+3. Honesty rule (hard MUST): when you report the schema/receipt/token/sanitizer tests passed, paste the ACTUAL runner output; never claim a pass you did not run.
+4. Commit ONLY this plan's own changed files, path-scoped (`git commit -- <path>`); never `git add -A`/bare/`-a`; never push.
+5. Lifecycle move: on completion, after every E item is performed and every V item is verified with pasted evidence, append the `## Workflow history` line, set `Status: executed`, `git mv` this file from `pending/` to `executed/`, and make the path-scoped lifecycle commit.
