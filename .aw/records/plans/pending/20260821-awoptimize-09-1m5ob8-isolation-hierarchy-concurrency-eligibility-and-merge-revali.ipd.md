@@ -33,28 +33,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: isolation hierarchy
 
-- [ ] E-01 Implement a portable isolation hierarchy `agent_workflows/orchestrate_isolation.py`: a fresh session or an independent subagent is preferred for the verifier; a fork is allowed only for read-only side work that benefits from inherited context; a same-session audit is allowed ONLY as a non-authoritative diagnostic. Hosts lacking native subagents fall back to a new process/session with a handoff packet.
+- [x] E-01 Implement a portable isolation hierarchy `agent_workflows/orchestrate_isolation.py`: a fresh session or an independent subagent is preferred for the verifier; a fork is allowed only for read-only side work that benefits from inherited context; a same-session audit is allowed ONLY as a non-authoritative diagnostic. Hosts lacking native subagents fall back to a new process/session with a handoff packet.
   - Depends on: none
   - Expected outcome: the portable two-process fallback and supported native-isolation doubles pass; a same-session audit cannot write an authoritative verifier decision; a forked verifier is rejected (fork is read-only-side-work only).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: concurrency + integration
 
-- [ ] E-02 Implement a concurrency eligibility analyzer: parallelize independent read-only investigations; serialize mutations by default; allow parallel mutation ONLY with separate worktrees, disjoint file ownership, dependency independence, no shared generated files, and a deterministic merge order.
+- [x] E-02 Implement a concurrency eligibility analyzer: parallelize independent read-only investigations; serialize mutations by default; allow parallel mutation ONLY with separate worktrees, disjoint file ownership, dependency independence, no shared generated files, and a deterministic merge order.
   - Depends on: E-01
   - Expected outcome: the eligibility matrix allows independent read-only lanes, refuses a dependent/overlapping/shared-generated mutation fan-out with named conflicts + a serial fallback plan, and requires worktree + disjoint ownership for any allowed writer.
-  - Execution state: pending
-- [ ] E-03 Implement merge-and-revalidate gates for isolated mutators: stale-base detection, conflict-resolution authority, combined-diff review, generated-file ownership, and FULL validation after integration (never trusting per-lane results).
+  - Execution state: performed
+- [x] E-03 Implement merge-and-revalidate gates for isolated mutators: stale-base detection, conflict-resolution authority, combined-diff review, generated-file ownership, and FULL validation after integration (never trusting per-lane results).
   - Depends on: E-02
   - Expected outcome: integration fixtures detect a stale base and conflicts, serialize merge order, review the combined diff, and rerun full validation; a per-lane-green + combined-red case yields failure.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: adversarial suite
 
-- [ ] E-04 Add seeded orchestration adversarial tests `tests/test_orchestrate_isolation.py` (stdlib unittest) for executor/verifier identity collision, leaked executor summary, verifier mutation attempt, shared-worktree conflict, stale branch, overlapping ownership, lane timeout, missing result, unsafe background completion, and correction invalidation; then run the full serial suite and paste the tail.
+- [x] E-04 Add seeded orchestration adversarial tests `tests/test_orchestrate_isolation.py` (stdlib unittest) for executor/verifier identity collision, leaked executor summary, verifier mutation attempt, shared-worktree conflict, stale branch, overlapping ownership, lane timeout, missing result, unsafe background completion, and correction invalidation; then run the full serial suite and paste the tail.
   - Depends on: E-03
   - Expected outcome: every listed role/isolation violation fails BEFORE terminal state or merge with a named state; no unauthorized product mutation or completion occurs; a timed-out/missing background lane is never treated as success; the full serial suite is green (pasted).
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
