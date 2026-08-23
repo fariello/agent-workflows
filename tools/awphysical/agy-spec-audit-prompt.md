@@ -14,7 +14,7 @@ Procedure:
 3. Check for out-of-scope additions: verify that the IPD does not introduce gold-plating or scope creep beyond the specification's mandates.
 4. Structural compliance check: run `aw ipd lint --phase author --agent {IPD_PATH}` and paste the exact runner output. Verify that heading order, frontmatter fields, E/V 1:1 bijection, and state tags conform strictly.
 5. Falsifiability audit: verify that every `V-*` validation item requires falsifiable evidence rather than subjective assertion.
-6. Fix any discovered gaps, missing requirements, or structural lint errors in place.
+6. Fix any discovered gaps, missing requirements, or structural lint errors in place. Write target-repo files via `run_command` ONLY; never call `write_to_file` on a target-repo path (it is sandboxed to the brain dir and will be rejected).
 
 Report back with:
 - Verdict: `CONFORMING`, `CONFORMING AFTER CORRECTIONS`, or `NOT CONFORMING`

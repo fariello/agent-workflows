@@ -529,6 +529,52 @@ def _progress_messages(event: dict[str, object], phase: str) -> list[tuple[str, 
     return messages
 
 
+_SANDBOXED_WRITE_REJECTION_RE = re.compile(
+    r"(?:declaring permissions:\s*)?cortex tool write_to_file:.*?"
+    r"(\S+)\s+is not a valid artifact path;\s*artifacts must be in\s+(\S+)"
+)
+
+
+def _is_sandboxed_repo_write_rejection(error: str, root: Path) -> Path | None:
+    """Return the rejected repository path if `error` is a benign sandboxed write_to_file rejection.
+
+    Antigravity sandboxes `write_to_file` to its internal brain directory and rejects paths
+    targeting the active workspace / repository. When the agent writes the file via `run_command`
+    and also attempts `write_to_file`, Antigravity reports a terminal ERROR even though the run
+    succeeded and the intended file exists on disk.
+
+    To be classified as benign:
+    1. The error string must match the exact Antigravity artifact path rejection payload.
+    2. The rejected path must be within the target repository workspace.
+    3. The file must exist on disk (proving the write landed, e.g. via `run_command`).
+    """
+    if not error:
+        return None
+    match = _SANDBOXED_WRITE_REJECTION_RE.search(error)
+    if not match:
+        return None
+    raw_path_str = match.group(1).strip()
+    raw_path = Path(raw_path_str)
+    root_resolved = root.resolve()
+    target_path = raw_path if raw_path.is_absolute() else (root / raw_path)
+    try:
+        target_resolved = target_path.resolve()
+    except (OSError, RuntimeError):
+        return None
+
+    try:
+        target_resolved.relative_to(root_resolved)
+    except ValueError:
+        # Path is outside the repository root; genuine failure, do not downgrade
+        return None
+
+    if not target_resolved.exists():
+        # File was not actually created or written; genuine failure, do not downgrade
+        return None
+
+    return target_resolved
+
+
 def run_agy(
     *,
     executable: str,
@@ -612,6 +658,22 @@ def run_agy(
 
     status = str(payload.get("status", ""))
     error = str(payload.get("error", "")).strip()
+
+    if returncode == 0 and status != "SUCCESS":
+        rejected_file = _is_sandboxed_repo_write_rejection(error, root)
+        if rejected_file is not None:
+            try:
+                rel = rejected_file.relative_to(root.resolve())
+            except ValueError:
+                rel = rejected_file
+            print(
+                f"[{phase}] Warning: downgraded benign sandboxed write_to_file rejection on repo path "
+                f"'{rel}' to SUCCESS (file exists on disk via run_command).",
+                file=sys.stderr,
+                flush=True,
+            )
+            status = "SUCCESS"
+
     if returncode != 0 or status != "SUCCESS":
         detail = error or f"inspect {log_path}"
         raise ScriptError(

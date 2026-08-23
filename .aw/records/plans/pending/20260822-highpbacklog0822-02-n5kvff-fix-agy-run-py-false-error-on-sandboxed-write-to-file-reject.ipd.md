@@ -28,24 +28,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Material change 1: Steer the agent away from the rejected path
 
-- [ ] E-01 In the execution and audit preambles under `tools/awphysical/` (`agy-execution-preamble.md`, `agy-self-audit-prompt.md`, and the general variants), add an explicit instruction: write target-repo files via `run_command` ONLY; never call `write_to_file` on a target-repo path (it is sandboxed to the brain dir and will be rejected).
+- [x] E-01 In the execution and audit preambles under `tools/awphysical/` (`agy-execution-preamble.md`, `agy-self-audit-prompt.md`, and the general variants), add an explicit instruction: write target-repo files via `run_command` ONLY; never call `write_to_file` on a target-repo path (it is sandboxed to the brain dir and will be rejected).
   - Depends on: none
   - Expected outcome: Gemini stops issuing the redundant `write_to_file` on repo paths, so the rejection stops occurring at the source.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Material change 2: Treat the expected rejection as non-fatal
 
-- [ ] E-02 FIRST capture a real rejection payload: from an actual logged agy run that exhibited the false-ERROR (or a fresh reproduction), record the exact terminal `payload`/`error`/status text Antigravity emits for the `write_to_file`-on-repo-path rejection, so the detection predicate matches ACTUAL output, not a guessed string. THEN, in `tools/agy_run.py`, before `run_agy()` raises `ScriptError` on a non-SUCCESS terminal status (`tools/agy_run.py:614-619`, the `returncode != 0 or status != "SUCCESS"` gate), classify a terminal status whose ONLY failure signal matches that captured rejection as NON-fatal when the run otherwise completed (exit 0 and the intended write is present), and downgrade it to SUCCESS-with-warning rather than ERROR.
+- [x] E-02 FIRST capture a real rejection payload: from an actual logged agy run that exhibited the false-ERROR (or a fresh reproduction), record the exact terminal `payload`/`error`/status text Antigravity emits for the `write_to_file`-on-repo-path rejection, so the detection predicate matches ACTUAL output, not a guessed string. THEN, in `tools/agy_run.py`, before `run_agy()` raises `ScriptError` on a non-SUCCESS terminal status (`tools/agy_run.py:614-619`, the `returncode != 0 or status != "SUCCESS"` gate), classify a terminal status whose ONLY failure signal matches that captured rejection as NON-fatal when the run otherwise completed (exit 0 and the intended write is present), and downgrade it to SUCCESS-with-warning rather than ERROR.
   - Depends on: none
   - Expected outcome: an otherwise-successful turn whose sole error is the captured `write_to_file` rejection reports SUCCESS (with a logged warning), not ERROR; the predicate is keyed to real observed output.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Material change 3: Surface the downgrade honestly
 
-- [ ] E-03 Emit a clear, non-silent warning when the downgrade in E-02 fires (which path was rejected, why it is benign, that the write landed via `run_command`), so the status change is auditable and a genuine `write_to_file` failure on a non-repo path is NOT downgraded.
+- [x] E-03 Emit a clear, non-silent warning when the downgrade in E-02 fires (which path was rejected, why it is benign, that the write landed via `run_command`), so the status change is auditable and a genuine `write_to_file` failure on a non-repo path is NOT downgraded.
   - Depends on: E-02
   - Expected outcome: the downgrade is logged and narrowly scoped; unrelated tool failures still surface as ERROR.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -99,18 +99,29 @@ Update any agy runbook/preamble docs under `tools/awphysical/` to state the "rep
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the four preamble files under `tools/awphysical/` contain the explicit "repo files via run_command only; never write_to_file on a target-repo path" instruction; quote the added lines.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: All prompt preambles and audit prompts under `tools/awphysical/` updated with explicit instruction.
+    - `agy-execution-preamble.md` (Rule 9): `9. Write target-repo files via \`run_command\` ONLY; never call \`write_to_file\` on a target-repo path (it is sandboxed to the brain dir and will be rejected).`
+    - `agy-self-audit-prompt.md` (Procedure 9): `9. Fix every safely correctable in-scope gap immediately. Write target-repo files via \`run_command\` ONLY; never call \`write_to_file\` on a target-repo path (it is sandboxed to the brain dir and will be rejected).`
+    - `agy-general-preamble.md` (Rule 6): `6. Write target-repo files via \`run_command\` ONLY; never call \`write_to_file\` on a target-repo path (it is sandboxed to the brain dir and will be rejected).`
+    - `agy-general-audit-prompt.md` (Procedure 4): `4. Fix every safely correctable in-scope gap immediately. Write target-repo files via \`run_command\` ONLY; never call \`write_to_file\` on a target-repo path (it is sandboxed to the brain dir and will be rejected).`
+    - `agy-spec-preamble.md` (Rule 8): `8. Write target-repo files via \`run_command\` ONLY; never call \`write_to_file\` on a target-repo path (it is sandboxed to the brain dir and will be rejected).`
+    - `agy-spec-audit-prompt.md` (Procedure 6): `6. Fix every safely correctable in-scope gap immediately. Write target-repo files via \`run_command\` ONLY; never call \`write_to_file\` on a target-repo path (it is sandboxed to the brain dir and will be rejected).`
+    - Verified by `tools/test_agy_run.py::AgyRunSandboxedWriteRejectionTests::test_preambles_contain_repo_write_instruction`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: the new unit test proving a sandboxed `write_to_file`-repo-path rejection on an otherwise-successful committed run classifies as SUCCESS-with-warning passes; paste the test output.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: Real rejection payload captured from `tmp/antigravity/agy-807218-*.jsonl`:
+    `declaring permissions: cortex tool write_to_file: convert tool call for permissions: model output error: invalid tool call error (invalid_args) /home/user/VC/agent-workflows/agent_workflows/subagent_tool.py is not a valid artifact path; artifacts must be in /home/user/.gemini/antigravity-cli/brain/94770857-4b77-4404-b903-8889ec1b4b57/`
+    `_is_sandboxed_repo_write_rejection()` predicate and downgrade logic implemented in `tools/agy_run.py`. Verified by `tools/test_agy_run.py::AgyRunSandboxedWriteRejectionTests::test_sandboxed_write_to_file_repo_path_downgraded_to_success_with_warning` and `test_captured_rejection_predicate_real_payloads` passing.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: a test proving a genuine tool failure (or `write_to_file` failure on a non-repo path) still classifies ERROR, and that the downgrade logs a visible warning; paste the test output and the warning text.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Warning emitted to stderr:
+    `[execution] Warning: downgraded benign sandboxed write_to_file rejection on repo path 'agent_workflows/foo.py' to SUCCESS (file exists on disk via run_command).`
+    Fail-closed tests `test_sandboxed_write_to_file_missing_target_file_raises_scripterror`, `test_sandboxed_write_to_file_outside_repo_raises_scripterror`, `test_unrelated_tool_error_raises_scripterror`, and `test_nonzero_exit_code_with_rejection_raises_scripterror` in `tools/test_agy_run.py` pass.
+  - Result: pass
 
 ## Approval and execution gate
 

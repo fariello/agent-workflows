@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import datetime
+import io
 import json
 import subprocess
 import sys
@@ -520,6 +521,313 @@ class AgySessionsTests(unittest.TestCase):
             self.assertEqual(s.duration_str, "20m 00s")
             self.assertEqual(s.step_count, 2)
             self.assertFalse(s.is_active)
+
+
+class AgyRunSandboxedWriteRejectionTests(unittest.TestCase):
+    """Verify detection, classification, and safe downgrade of sandboxed write_to_file rejections."""
+
+    def test_preambles_contain_repo_write_instruction(self):
+        """V-01 / E-01: Steering preambles and audit prompts explicitly forbid write_to_file on repo paths."""
+        ipd_preamble = agy_run._load_prompt_file(agy_run._IPD_EXECUTION_PREAMBLE_FILE)
+        self.assertIsNotNone(ipd_preamble)
+        self.assertIn("Write target-repo files via `run_command` ONLY", ipd_preamble)
+        self.assertIn("never call `write_to_file` on a target-repo path", ipd_preamble)
+
+        ipd_audit = agy_run._load_prompt_file(agy_run._IPD_SELF_AUDIT_PROMPT_FILE)
+        self.assertIsNotNone(ipd_audit)
+        self.assertIn("Write target-repo files via `run_command` ONLY", ipd_audit)
+        self.assertIn("never call `write_to_file` on a target-repo path", ipd_audit)
+
+        gen_preamble = agy_run._load_prompt_file(agy_run._GENERAL_PREAMBLE_FILE)
+        self.assertIsNotNone(gen_preamble)
+        self.assertIn("Write target-repo files via `run_command` ONLY", gen_preamble)
+        self.assertIn("never call `write_to_file` on a target-repo path", gen_preamble)
+
+        gen_audit = agy_run._load_prompt_file(agy_run._GENERAL_AUDIT_PROMPT_FILE)
+        self.assertIsNotNone(gen_audit)
+        self.assertIn("Write target-repo files via `run_command` ONLY", gen_audit)
+        self.assertIn("never call `write_to_file` on a target-repo path", gen_audit)
+
+        spec_preamble = agy_run._load_prompt_file(agy_run._SPEC_PREAMBLE_FILE)
+        self.assertIsNotNone(spec_preamble)
+        self.assertIn("Write target-repo files via `run_command` ONLY", spec_preamble)
+        self.assertIn("never call `write_to_file` on a target-repo path", spec_preamble)
+
+        spec_audit = agy_run._load_prompt_file(agy_run._SPEC_AUDIT_PROMPT_FILE)
+        self.assertIsNotNone(spec_audit)
+        self.assertIn("Write target-repo files via `run_command` ONLY", spec_audit)
+        self.assertIn("never call `write_to_file` on a target-repo path", spec_audit)
+
+    def test_captured_rejection_predicate_real_payloads(self):
+        """E-02: Predicate matches actual captured error strings from real Antigravity runs."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            target_file = root / "tools" / "awphysical" / "aw_layout_inventory.py"
+            target_file.parent.mkdir(parents=True)
+            target_file.write_text("# inventory\n", encoding="utf-8")
+
+            # Real captured error 1:
+            err1 = (
+                f"declaring permissions: cortex tool write_to_file: convert tool call for permissions: "
+                f"model output error: invalid tool call error (invalid_args) {target_file} "
+                f"is not a valid artifact path; artifacts must be in /home/user/.gemini/antigravity-cli/brain/f619bdbd/"
+            )
+            matched = agy_run._is_sandboxed_repo_write_rejection(err1, root)
+            self.assertEqual(matched, target_file.resolve())
+
+            # Real captured error 2:
+            target_file2 = root / "agent_workflows" / "benchmark_runners.py"
+            target_file2.parent.mkdir(parents=True)
+            target_file2.write_text("# benchmark\n", encoding="utf-8")
+            err2 = (
+                f"declaring permissions: cortex tool write_to_file: convert tool call for permissions: "
+                f"model output error: invalid tool call error (invalid_args) {target_file2} "
+                f"is not a valid artifact path; artifacts must be in /home/user/.gemini/antigravity-cli/brain/1a623b96/"
+            )
+            matched2 = agy_run._is_sandboxed_repo_write_rejection(err2, root)
+            self.assertEqual(matched2, target_file2.resolve())
+
+    def test_sandboxed_write_to_file_repo_path_downgraded_to_success_with_warning(self):
+        """E-02 / E-03 / V-02 / V-03: Benign write_to_file rejection on repo path downgrades to SUCCESS with visible warning."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            committed_file = root / "agent_workflows" / "example.py"
+            committed_file.parent.mkdir(parents=True)
+            committed_file.write_text("print('hello')\n", encoding="utf-8")
+
+            rejection_error = (
+                f"declaring permissions: cortex tool write_to_file: convert tool call for permissions: "
+                f"model output error: invalid tool call error (invalid_args) {committed_file} "
+                f"is not a valid artifact path; artifacts must be in /home/user/.gemini/antigravity-cli/brain/c-123/"
+            )
+
+            with mock.patch("subprocess.Popen") as mock_popen:
+                mock_proc = mock.MagicMock()
+                mock_proc.stdout = iter(
+                    [
+                        json.dumps({"event": "init"}) + "\n",
+                        json.dumps(
+                            {
+                                "event": "result",
+                                "result": {
+                                    "status": "ERROR",
+                                    "conversation_id": "c-123",
+                                    "response": "Execution completed and committed via git.",
+                                    "error": rejection_error,
+                                },
+                            }
+                        )
+                        + "\n",
+                    ]
+                )
+                mock_proc.wait.return_value = 0
+                mock_popen.return_value = mock_proc
+
+                with mock.patch("sys.stderr", new_callable=io.StringIO) as mock_stderr:
+                    res = agy_run.run_agy(
+                        executable="/bin/agy",
+                        root=root,
+                        prompt="test prompt",
+                        phase="execution",
+                        session_id=None,
+                        use_continue=False,
+                        timeout="30m",
+                        skip_permissions=True,
+                    )
+                    self.assertEqual(res.status, "SUCCESS")
+                    self.assertEqual(res.conversation_id, "c-123")
+                    self.assertIn("Execution completed", res.response)
+
+                    # Assert visible warning emitted on stderr
+                    stderr_output = mock_stderr.getvalue()
+                    self.assertIn(
+                        "Warning: downgraded benign sandboxed write_to_file rejection",
+                        stderr_output,
+                    )
+                    self.assertIn("agent_workflows/example.py", stderr_output)
+                    self.assertIn("run_command", stderr_output)
+
+    def test_sandboxed_write_to_file_missing_target_file_raises_scripterror(self):
+        """E-02 / E-03 / V-03: Rejection for file NOT on disk fails closed as ERROR (ScriptError)."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            missing_file = root / "agent_workflows" / "nonexistent.py"
+
+            rejection_error = (
+                f"declaring permissions: cortex tool write_to_file: convert tool call for permissions: "
+                f"model output error: invalid tool call error (invalid_args) {missing_file} "
+                f"is not a valid artifact path; artifacts must be in /home/user/.gemini/antigravity-cli/brain/c-123/"
+            )
+
+            with mock.patch("subprocess.Popen") as mock_popen:
+                mock_proc = mock.MagicMock()
+                mock_proc.stdout = iter(
+                    [
+                        json.dumps(
+                            {
+                                "event": "result",
+                                "result": {
+                                    "status": "ERROR",
+                                    "conversation_id": "c-123",
+                                    "response": "failed to write",
+                                    "error": rejection_error,
+                                },
+                            }
+                        )
+                        + "\n",
+                    ]
+                )
+                mock_proc.wait.return_value = 0
+                mock_popen.return_value = mock_proc
+
+                with self.assertRaises(agy_run.ScriptError) as ctx:
+                    agy_run.run_agy(
+                        executable="/bin/agy",
+                        root=root,
+                        prompt="test prompt",
+                        phase="execution",
+                        session_id=None,
+                        use_continue=False,
+                        timeout="30m",
+                        skip_permissions=True,
+                    )
+                self.assertIn("Antigravity ended with status ERROR", str(ctx.exception))
+                self.assertIn("nonexistent.py", str(ctx.exception))
+
+    def test_sandboxed_write_to_file_outside_repo_raises_scripterror(self):
+        """E-02 / E-03 / V-03: Rejection on path outside repo root fails closed as ERROR (ScriptError)."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir) / "repo"
+            root.mkdir()
+            outside_file = Path(tmp_dir) / "external_file.py"
+            outside_file.write_text("external\n", encoding="utf-8")
+
+            rejection_error = (
+                f"declaring permissions: cortex tool write_to_file: convert tool call for permissions: "
+                f"model output error: invalid tool call error (invalid_args) {outside_file} "
+                f"is not a valid artifact path; artifacts must be in /home/user/.gemini/antigravity-cli/brain/c-123/"
+            )
+
+            with mock.patch("subprocess.Popen") as mock_popen:
+                mock_proc = mock.MagicMock()
+                mock_proc.stdout = iter(
+                    [
+                        json.dumps(
+                            {
+                                "event": "result",
+                                "result": {
+                                    "status": "ERROR",
+                                    "conversation_id": "c-123",
+                                    "response": "failed",
+                                    "error": rejection_error,
+                                },
+                            }
+                        )
+                        + "\n",
+                    ]
+                )
+                mock_proc.wait.return_value = 0
+                mock_popen.return_value = mock_proc
+
+                with self.assertRaises(agy_run.ScriptError) as ctx:
+                    agy_run.run_agy(
+                        executable="/bin/agy",
+                        root=root,
+                        prompt="test prompt",
+                        phase="execution",
+                        session_id=None,
+                        use_continue=False,
+                        timeout="30m",
+                        skip_permissions=True,
+                    )
+                self.assertIn("Antigravity ended with status ERROR", str(ctx.exception))
+
+    def test_unrelated_tool_error_raises_scripterror(self):
+        """E-03 / V-03: Unrelated tool error fails closed as ERROR (ScriptError)."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            with mock.patch("subprocess.Popen") as mock_popen:
+                mock_proc = mock.MagicMock()
+                mock_proc.stdout = iter(
+                    [
+                        json.dumps(
+                            {
+                                "event": "result",
+                                "result": {
+                                    "status": "ERROR",
+                                    "conversation_id": "c-123",
+                                    "response": "command failed",
+                                    "error": "cortex tool run_command: command exited with code 1: syntax error",
+                                },
+                            }
+                        )
+                        + "\n",
+                    ]
+                )
+                mock_proc.wait.return_value = 0
+                mock_popen.return_value = mock_proc
+
+                with self.assertRaises(agy_run.ScriptError) as ctx:
+                    agy_run.run_agy(
+                        executable="/bin/agy",
+                        root=root,
+                        prompt="test prompt",
+                        phase="execution",
+                        session_id=None,
+                        use_continue=False,
+                        timeout="30m",
+                        skip_permissions=True,
+                    )
+                self.assertIn("Antigravity ended with status ERROR", str(ctx.exception))
+                self.assertIn("syntax error", str(ctx.exception))
+
+    def test_nonzero_exit_code_with_rejection_raises_scripterror(self):
+        """E-02: Nonzero process returncode fails closed even if error text matches rejection."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            committed_file = root / "agent_workflows" / "example.py"
+            committed_file.parent.mkdir(parents=True)
+            committed_file.write_text("print('hello')\n", encoding="utf-8")
+
+            rejection_error = (
+                f"declaring permissions: cortex tool write_to_file: convert tool call for permissions: "
+                f"model output error: invalid tool call error (invalid_args) {committed_file} "
+                f"is not a valid artifact path; artifacts must be in /home/user/.gemini/antigravity-cli/brain/c-123/"
+            )
+
+            with mock.patch("subprocess.Popen") as mock_popen:
+                mock_proc = mock.MagicMock()
+                mock_proc.stdout = iter(
+                    [
+                        json.dumps(
+                            {
+                                "event": "result",
+                                "result": {
+                                    "status": "ERROR",
+                                    "conversation_id": "c-123",
+                                    "response": "crashed",
+                                    "error": rejection_error,
+                                },
+                            }
+                        )
+                        + "\n",
+                    ]
+                )
+                mock_proc.wait.return_value = 1
+                mock_popen.return_value = mock_proc
+
+                with self.assertRaises(agy_run.ScriptError) as ctx:
+                    agy_run.run_agy(
+                        executable="/bin/agy",
+                        root=root,
+                        prompt="test prompt",
+                        phase="execution",
+                        session_id=None,
+                        use_continue=False,
+                        timeout="30m",
+                        skip_permissions=True,
+                    )
+                self.assertIn("exit 1", str(ctx.exception))
 
 
 if __name__ == "__main__":

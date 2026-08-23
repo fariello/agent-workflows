@@ -6,3 +6,4 @@ Before executing the requested task below, adhere strictly to these non-negotiab
 3. Test thoroughly and falsifiably: add or run tests that assert both successful operation and error/rejection conditions.
 4. Verify against regressions: run the project test suite to confirm no existing functionality was broken.
 5. Report with actual outputs: paste actual execution outputs, diffs, and test results.
+6. Write target-repo files via `run_command` ONLY; never call `write_to_file` on a target-repo path (it is sandboxed to the brain dir and will be rejected).

@@ -10,3 +10,4 @@ Adhere strictly to the repository's canonical IPD authoring contract and quality
 5. Assign IDs and format properly: use `aw ipd sync` to assign stable IDs and validation skeletons.
 6. Verify structure: run `aw ipd lint --phase author --agent <ipd-path>` to confirm deterministic structural and state compliance.
 7. Scope discipline: do NOT invent out-of-scope features or premature refactors not justified by the specification.
+8. Write target-repo files via `run_command` ONLY; never call `write_to_file` on a target-repo path (it is sandboxed to the brain dir and will be rejected).

@@ -9,3 +9,4 @@ Before executing the plan below, adhere strictly to these non-negotiable enginee
 6. Paste actual command outputs. Never fabricate, reconstruct, or approximate test outputs.
 7. Follow the repository execution contract: commit path-scoped (`git commit -m msg -- <paths>`), never use `git add -A` or `-a`, and never push. Do NOT transition the plan to `executed/` or declare the lifecycle complete—the orchestrator retains authority over terminal transitions and independently verifies all evidence.
 8. If any requirement is genuinely blocked or ambiguous, stop and state the blocker explicitly instead of papering over it with a hollow test or unverified assumption.
+9. Write target-repo files via `run_command` ONLY; never call `write_to_file` on a target-repo path (it is sandboxed to the brain dir and will be rejected).

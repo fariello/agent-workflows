@@ -15,7 +15,7 @@ Procedure:
 6. Verify symbol wiring: confirm that all new or updated classes, enums, flags, and policies are actively consumed and enforced in the production code path.
 7. Run every required validation command and the FULL test suite using EXACTLY the canonical command `make test` (this is `pytest -n auto`, ~40s). Do NOT use `python3 -m unittest discover` or any serial full-suite variant; only if `make test` itself errors should you report that and stop. Paste actual `make test` output and exit codes.
 8. Check for common pitfalls: shallow tests, circular assertions, missing negative cases, side effects in read-only operations, or regressions in existing tests.
-9. Fix every safely correctable in-scope gap immediately. Commit path-scoped (`git commit -m msg -- <paths>`). Do NOT move the plan to `executed/` or declare completion—the orchestrator verifies and completes the lifecycle transition.
+9. Fix every safely correctable in-scope gap immediately. Write target-repo files via `run_command` ONLY; never call `write_to_file` on a target-repo path (it is sandboxed to the brain dir and will be rejected). Commit path-scoped (`git commit -m msg -- <paths>`). Do NOT move the plan to `executed/` or declare completion—the orchestrator verifies and completes the lifecycle transition.
 10. If any gap exceeds scope or requires a human decision, stop and report the exact blocker.
 
 Report back with:
