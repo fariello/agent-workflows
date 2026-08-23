@@ -59,6 +59,10 @@ class OutputContext:
         return self.mode == OutputMode.JSON
 
 
+class ConflictingFlagsError(ValueError):
+    """Raised when conflicting explicit output format flags (e.g. --agent and --json) are passed."""
+
+
 def select_output(
     args: Any = None,
     stdout: Optional[TextIO] = None,
@@ -66,11 +70,12 @@ def select_output(
 ) -> OutputContext:
     """Resolve the output context according to the canonical precedence contract:
 
-    1. Explicit format: `--json` or `--format <fmt>` -> OutputMode.JSON (explicit format context).
-    2. Agent flag or non-TTY stdout: `--agent` or `not stdout.isatty()` -> OutputMode.AGENT.
+    1. Explicit format conflict check (OQ-01 / Order 04 E-03): cannot combine --agent and --json/--format.
+    2. Explicit format: `--json` or `--format <fmt>` -> OutputMode.JSON (explicit format context).
+    3. Agent flag or non-TTY stdout: `--agent` or `not stdout.isatty()` -> OutputMode.AGENT.
        (Note: `stdin.isatty()` controls interactive prompting, NOT audience/mode).
-    3. TTY stdout: -> OutputMode.HUMAN with color determined by `should_color(stdout)`.
-    4. `--no-color` / `NO_COLOR` / `FORCE_COLOR` changes color styling only, not the mode.
+    4. TTY stdout: -> OutputMode.HUMAN with color determined by `should_color(stdout)`.
+    5. `--no-color` / `NO_COLOR` / `FORCE_COLOR` changes color styling only, not the mode.
     """
     out_stream = stdout if stdout is not None else sys.stdout
     err_stream = stderr if stderr is not None else sys.stderr
@@ -94,20 +99,36 @@ def select_output(
         elif isinstance(raw_fields, (list, tuple, set)):
             fields_val = [str(f).strip() for f in raw_fields if str(f).strip()]
 
-    # 1. Explicit format check
+    # Format conflict detection (OQ-01 / Order 04 E-03)
+    is_agent_flag = False
     is_explicit_json = False
     explicit_fmt = None
+
     if args is not None:
+        is_agent_flag = bool(
+            getattr(args, "agent", False) or getattr(args, "as_agent", False)
+        )
         if getattr(args, "as_json", False) or getattr(args, "json", False):
             is_explicit_json = True
             explicit_fmt = "json"
-        elif getattr(args, "format", None) == "json":
-            is_explicit_json = True
-            explicit_fmt = "json"
-        elif getattr(args, "format", None) is not None:
-            explicit_fmt = str(args.format).lower()
+        raw_fmt = getattr(args, "format", None)
+        if raw_fmt is not None:
+            explicit_fmt = str(raw_fmt).lower()
             if explicit_fmt == "json":
                 is_explicit_json = True
+
+        if is_agent_flag and is_explicit_json:
+            raise ConflictingFlagsError(
+                "conflicting output format flags: cannot combine --agent and --json"
+            )
+        if is_agent_flag and explicit_fmt is not None and explicit_fmt != "agent":
+            raise ConflictingFlagsError(
+                f"conflicting output format flags: cannot combine --agent and --format {raw_fmt}"
+            )
+        if is_explicit_json and explicit_fmt is not None and explicit_fmt != "json":
+            raise ConflictingFlagsError(
+                f"conflicting output format flags: cannot combine --json and --format {raw_fmt}"
+            )
 
     if is_explicit_json:
         return OutputContext(
@@ -121,24 +142,11 @@ def select_output(
             fields=fields_val,
         )
 
-    # 2. Agent flag or non-TTY stdout
-    is_agent_flag = False
-    if args is not None:
-        is_agent_flag = bool(
-            getattr(args, "agent", False) or getattr(args, "as_agent", False)
-        )
-
-    is_tty = False
-    try:
-        is_tty = bool(out_stream.isatty())
-    except Exception:
-        is_tty = False
-
-    if is_agent_flag or not is_tty:
+    if is_agent_flag or explicit_fmt == "agent":
         return OutputContext(
             mode=OutputMode.AGENT,
             color=False,
-            explicit_format=None,
+            explicit_format=explicit_fmt,
             stdout=out_stream,
             stderr=err_stream,
             limit=limit_val,
@@ -146,11 +154,9 @@ def select_output(
             fields=fields_val,
         )
 
-    # 3. Human TTY stdout
+    # Human stdout (color enabled if should_color(stream) is True, disabled if non-TTY/NO_COLOR/--no-color)
     color_enabled = False
-    if getattr(args, "no_color", False):
-        color_enabled = False
-    else:
+    if not getattr(args, "no_color", False):
         color_enabled = _term.should_color(out_stream)
 
     return OutputContext(
@@ -369,9 +375,11 @@ class CommandResult:
             rec["applied"] = self.applied
         elif "applied" in self.data:
             rec["applied"] = bool(self.data["applied"])
-        elif outcome == "preview":
-            rec["applied"] = False
-        elif self.changes and any(not c.applied for c in self.changes):
+        elif (
+            outcome == "preview"
+            or self.changes
+            and any(not c.applied for c in self.changes)
+        ):
             rec["applied"] = False
 
         if norm_target:

@@ -19,17 +19,17 @@ import types
 import unittest
 from unittest.mock import MagicMock, patch
 
-from agent_workflows.result_types import (
-    CommandResult,
-    OutputContext,
-    OutputMode,
-    select_output,
-)
 from agent_workflows.renderers import (
     AgentRenderer,
     HumanRenderer,
     JsonRenderer,
     get_renderer,
+)
+from agent_workflows.result_types import (
+    CommandResult,
+    OutputContext,
+    OutputMode,
+    select_output,
 )
 
 
@@ -45,9 +45,9 @@ class FakeStream(io.StringIO):
 class OutputModePrecedenceTests(unittest.TestCase):
     """Truth-table tests for select_output precedence (E-01 / V-01)."""
 
-    def test_explicit_json_flag_overrides_agent_and_tty(self):
-        # Explicit --json wins over everything, selecting JSON mode with color=False
-        args = types.SimpleNamespace(as_json=True, agent=True, no_color=False)
+    def test_explicit_json_flag_selects_json_mode_on_tty(self):
+        # Explicit --json selects JSON mode with color=False
+        args = types.SimpleNamespace(as_json=True, agent=False, no_color=False)
         stream = FakeStream(is_a_tty=True)
         ctx = select_output(args, stdout=stream)
         self.assertEqual(ctx.mode, OutputMode.JSON)
@@ -56,6 +56,15 @@ class OutputModePrecedenceTests(unittest.TestCase):
         self.assertFalse(ctx.is_human)
         self.assertFalse(ctx.color)
         self.assertEqual(ctx.explicit_format, "json")
+
+    def test_conflicting_agent_and_json_flags_raise_error(self):
+        # OQ-01 / Order 04 E-03: conflicting format flags raise ConflictingFlagsError
+        from agent_workflows.result_types import ConflictingFlagsError
+
+        args = types.SimpleNamespace(as_json=True, agent=True, no_color=False)
+        stream = FakeStream(is_a_tty=True)
+        with self.assertRaises(ConflictingFlagsError):
+            select_output(args, stdout=stream)
 
     def test_explicit_format_json_overrides_tty(self):
         # Explicit --format json selects JSON mode
@@ -76,14 +85,14 @@ class OutputModePrecedenceTests(unittest.TestCase):
         self.assertFalse(ctx.is_human)
         self.assertFalse(ctx.color)
 
-    def test_non_tty_stdout_automatically_selects_agent_mode(self):
-        # Non-TTY stdout (piped / redirected) automatically selects agent mode without any flag
+    def test_non_tty_stdout_disables_color_in_human_mode(self):
+        # Non-TTY stdout (piped / redirected) without --agent produces plain human output (color=False)
         args = types.SimpleNamespace(agent=False, no_color=False)
         stream = FakeStream(is_a_tty=False)
         ctx = select_output(args, stdout=stream)
-        self.assertEqual(ctx.mode, OutputMode.AGENT)
-        self.assertTrue(ctx.is_agent)
-        self.assertFalse(ctx.is_human)
+        self.assertEqual(ctx.mode, OutputMode.HUMAN)
+        self.assertTrue(ctx.is_human)
+        self.assertFalse(ctx.is_agent)
         self.assertFalse(ctx.color)
 
     def test_tty_stdout_selects_human_mode(self):
