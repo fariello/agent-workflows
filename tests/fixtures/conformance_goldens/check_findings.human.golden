@@ -4,11 +4,11 @@ AW check  plans
 Findings:
   Issue: Filename does not match artifact naming grammar
   - a.md [ERROR]
-    Fix: run 'aw rename <type>' or rename to match 'YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md'.
+    Fix: run 'aw rename plans a.md' or rename to match 'YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md'.
 
   Issue: Set ID collision across artifact records
   - b.md [ERROR]
-    Fix: run 'aw group <type> <file> --set <unique-setid>' to assign a unique Set ID.
+    Fix: run 'aw group plans b.md --set <new-set-id>' to assign a unique Set ID.
 
 
 Evidence

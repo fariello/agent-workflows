@@ -4,7 +4,8 @@
 - Kind: child
 - Concern: Doctor CLI usability and actionable remediation output.
 - Scope: agent_workflows/doctor.py, remediation generation, and doctor report tests.
-- Status: reviewed
+- Status: approved
+- Approval: Gabriele Fariello (human), 2026-08-23
 - Set: doctorremedy
 - Order: 1
 - Highest E allocated: 03
@@ -12,6 +13,7 @@
 - Id: tdlspr
 
 ## Workflow history
+- 2026-08-23 approved (aw set, --by-human): User approved plan execution
 
 - 2026-08-23 draft (Antigravity): initial plan draft for copy-pasteable doctor remediation commands.
 - 2026-08-23 /plan-review (Antigravity): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
@@ -26,24 +28,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Material change 1: Remediation engine and command synthesizer
 
-- [ ] E-01 Implement a structured remediation synthesizer in `agent_workflows/doctor.py` that inspects drift findings, extracts resolved repository-relative POSIX file paths (sanitizing any absolute machine paths), derives artifact types and targets, and produces typed `Remediation` records with concrete CLI commands (e.g. `aw index`, `aw setup`, `aw migrate-layout`, `aw sanitize --fix`, `aw rename <type> <path>`, `aw group <type> <path> --set <new-set-id>`).
+- [x] E-01 Implement a structured remediation synthesizer in `agent_workflows/doctor.py` that inspects drift findings, extracts resolved repository-relative POSIX file paths (sanitizing any absolute machine paths), derives artifact types and targets, and produces typed `Remediation` records with concrete CLI commands (e.g. `aw index`, `aw setup`, `aw migrate-layout`, `aw sanitize --fix`, `aw rename <type> <path>`, `aw group <type> <path> --set <new-set-id>`).
   - Depends on: none
   - Expected outcome: every drift rule maps to a concrete remediation record with pre-populated relative paths, types, and commands.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Material change 2: Human report renderer upgrades
 
-- [ ] E-02 Update `render_human_report` in `agent_workflows/doctor.py` to format concrete, cut-and-pastable remediation commands in both the per-issue breakdown and the bottom "Summary of issues and proposed fixes" table, displaying single-line copy-pasteable commands for automated fixes and target-populated commands for parameterized actions, while preserving terminal color, NO_COLOR, and plain width wrapping.
+- [x] E-02 Update `render_human_report` in `agent_workflows/doctor.py` to format concrete, cut-and-pastable remediation commands in both the per-issue breakdown and the bottom "Summary of issues and proposed fixes" table, displaying single-line copy-pasteable commands for automated fixes and target-populated commands for parameterized actions, while preserving terminal color, NO_COLOR, and plain width wrapping.
   - Depends on: E-01
   - Expected outcome: human terminal output shows immediate copy-pasteable commands without placeholder syntax.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Material change 3: Structured next-actions and test suite
 
-- [ ] E-03 Wire concrete remediation commands into `CommandResult.next` and `CommandResult.next_actions` for `--agent` and `--json` modes in `agent_workflows/doctor.py`, and write comprehensive tests in `tests/test_doctor_remediations.py` validating that every supported issue category produces the exact expected remediation command while existing doctor test suites (`tests/test_doctor.py`, `tests/test_term_severity.py`, `tests/test_cli_reads_and_checks.py`) remain 100% green.
+- [x] E-03 Wire concrete remediation commands into `CommandResult.next` and `CommandResult.next_actions` for `--agent` and `--json` modes in `agent_workflows/doctor.py`, and write comprehensive tests in `tests/test_doctor_remediations.py` validating that every supported issue category produces the exact expected remediation command while existing doctor test suites (`tests/test_doctor.py`, `tests/test_term_severity.py`, `tests/test_cli_reads_and_checks.py`) remain 100% green.
   - Depends on: E-01, E-02
   - Expected outcome: machine and human outputs share fact parity, and all remediation commands are verified by automated tests.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -130,18 +132,18 @@ Summary of issues and proposed fixes:
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: unit tests in `tests/test_doctor_remediations.py` verify `_categorize_drift` generates typed `Remediation` records with populated types and relative paths.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: 13/13 tests pass in `tests/test_doctor_remediations.py` asserting `Remediation` attributes, `_infer_artifact_type`, `_normalize_rel_path`, and `build_remediation` across all rules.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: CLI tests verify `render_human_report` outputs concrete copy-pasteable commands in both the detail section and summary table without placeholder syntax.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `test_human_report_renders_concrete_commands` and golden tests confirm detailed and summary remediation outputs render full concrete commands (`aw rename plans ...`, `aw setup`, `aw index`, etc.) without generic placeholders.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: tests verify `CommandResult.next_actions` contains synthesized remediation commands, and full test suite passes with `make test`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `test_priority_ranking_next_action` and `test_inspect_repo_next_actions_integration` verify `CommandResult.next_actions`, and `pytest -n auto` passed completely (2029 passed, 1 skipped in 146.34s).
+  - Result: pass
 
 ## Approval and execution gate
 

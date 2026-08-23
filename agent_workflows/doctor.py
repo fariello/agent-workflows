@@ -10,7 +10,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from agent_workflows import artifact_core as core
 from agent_workflows import attention as attention_mod
@@ -601,72 +601,348 @@ def _version_drift(repo_root: Path) -> List[core.Drift]:
 # --------------------------------------------------------------------------------------
 
 
-def _categorize_drift(d: core.Drift, repo_root: Path) -> Tuple[str, str, str, str, str]:
-    """Categorize a Drift finding into (issue_title, directory, filename, extra_detail, fix_action)."""
+@dataclass
+class Remediation:
+    """Structured remediation guidance and concrete CLI action for a Drift finding."""
+
+    title: str
+    summary_fix: str
+    detailed_fix: str
+    command: Optional[str] = None
+    file_path: Optional[str] = None
+    line_number: Optional[int] = None
+
+
+def _infer_artifact_type(path_str: str) -> Optional[str]:
+    """Deterministically infer artifact type from path string or extension."""
+    if not path_str:
+        return None
+    norm = path_str.replace("\\", "/")
+    if (
+        ".aw/records/plans" in norm
+        or ".agents/plans" in norm
+        or norm.endswith(".ipd.md")
+    ):
+        return "plans"
+    if (
+        ".aw/records/specs" in norm
+        or ".agents/specs" in norm
+        or norm.endswith(".spec.md")
+    ):
+        return "specs"
+    if (
+        ".aw/records/prompts" in norm
+        or ".agents/prompts" in norm
+        or norm.endswith(".prompt.md")
+    ):
+        return "prompts"
+    if (
+        ".aw/records/backlog" in norm
+        or ".agents/backlog" in norm
+        or norm.endswith(".backlog.md")
+    ):
+        return "backlog"
+    if (
+        ".aw/records/research" in norm
+        or ".agents/research" in norm
+        or norm.endswith(".research.md")
+    ):
+        return "research"
+    if (
+        ".aw/records/walkthroughs" in norm
+        or ".agents/walkthroughs" in norm
+        or norm.endswith(".walkthrough.md")
+    ):
+        return "walkthroughs"
+    if (
+        ".aw/records/roadmaps" in norm
+        or ".agents/roadmaps" in norm
+        or norm.endswith(".roadmap.md")
+    ):
+        return "roadmaps"
+    if (
+        ".aw/records/comms" in norm
+        or ".agents/comms" in norm
+        or norm.endswith(".comms.md")
+    ):
+        return "comms"
+    if (
+        ".aw/records/releases" in norm
+        or ".agents/releases" in norm
+        or norm.endswith(".release.md")
+    ):
+        return "releases"
+    return None
+
+
+def _normalize_rel_path(loc: str, repo_root: Path) -> str:
+    """Normalize a drift location to a clean repo-relative POSIX path."""
+    if not loc or (loc.startswith("<") and loc.endswith(">")):
+        return loc
+    try:
+        p = Path(loc)
+        if p.is_absolute() and p.is_relative_to(repo_root):
+            return p.relative_to(repo_root).as_posix()
+        return p.as_posix()
+    except Exception:
+        return loc
+
+
+def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
+    """Synthesize a structured Remediation record from a Drift finding."""
     rule = d.rule
     detail = d.detail
-    loc = d.location
+    loc = _normalize_rel_path(d.location, repo_root)
+    art_type = _infer_artifact_type(loc)
 
-    extra = ""
     if "setid-collision" in rule:
         title = "Set ID collision across artifact records"
-        fix = "run 'aw group <type> <file> --set <unique-setid>' to assign a unique Set ID."
-        if "conflicts with" in detail:
-            parts = detail.split("conflicts with", 1)
-            conflict_target = parts[1].strip()
-            try:
-                first_tok = conflict_target.split()[0]
-                c_path = Path(first_tok)
-                if c_path.is_absolute() and c_path.is_relative_to(repo_root):
-                    rel_c = str(c_path.relative_to(repo_root))
-                    conflict_target = conflict_target.replace(first_tok, rel_c)
-            except Exception:
-                pass
-            extra = f"conflicts with {conflict_target}"
-    elif "summary-unsafe" in rule:
-        title = "Summary is not a single bounded control-char-free line"
-        fix = "edit frontmatter '- Summary:' to be a single-line string without control characters or line breaks."
-    elif "name-nonconformant" in rule:
-        title = "Filename does not match artifact naming grammar"
-        fix = "run 'aw rename <type>' or rename to match 'YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md'."
-    elif "stale-index" in rule:
-        title = "Manifest index is missing or out of date"
-        fix = "run 'aw index' (or 'aw backlog index' / 'aw research index') to regenerate the manifest index."
-    elif "blocks-release-dangling" in rule:
-        title = "Dangling Blocks-Release reference (target release does not exist)"
-        fix = "update '- Blocks-Release:' to point to an existing planned release record or 'next'."
-    elif rule.startswith("doctor.git-dirty"):
-        title = "Unstaged git modifications"
-        fix = (
-            "review and stage/commit changes with 'git commit -m \"<msg>\" -- <paths>'."
+        target_type = art_type or "plans"
+        cmd = f"aw group {target_type} {loc} --set <new-set-id>"
+        return Remediation(
+            title=title,
+            summary_fix=cmd,
+            detailed_fix=f"run '{cmd}' to assign a unique Set ID.",
+            command=cmd,
+            file_path=loc,
         )
-    elif rule.startswith("doctor.git-untracked"):
+
+    if "summary-unsafe" in rule:
+        title = "Summary is not a single bounded control-char-free line"
+        return Remediation(
+            title=title,
+            summary_fix="edit frontmatter '- Summary:' to be a single-line string without control characters or line breaks.",
+            detailed_fix=f"edit frontmatter '- Summary:' in {loc} to be a single-line string without control characters or line breaks.",
+            command=None,
+            file_path=loc,
+        )
+
+    if "name-nonconformant" in rule:
+        title = "Filename does not match artifact naming grammar"
+        target_type = art_type or "plans"
+        cmd = f"aw rename {target_type} {loc}"
+        return Remediation(
+            title=title,
+            summary_fix=cmd,
+            detailed_fix=f"run '{cmd}' or rename to match 'YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md'.",
+            command=cmd,
+            file_path=loc,
+        )
+
+    if "stale-index" in rule or rule.startswith("doctor.index-"):
+        title = "Manifest index is missing or out of date"
+        cmd = f"aw index {art_type}" if art_type else "aw index"
+        return Remediation(
+            title=title,
+            summary_fix="aw index",
+            detailed_fix=f"run '{cmd}' to regenerate the manifest index.",
+            command=cmd,
+            file_path=loc,
+        )
+
+    if "blocks-release-dangling" in rule:
+        title = "Dangling Blocks-Release reference (target release does not exist)"
+        target_type = art_type or "specs"
+        cmd = f"aw {target_type} set {loc} --blocks-release next"
+        return Remediation(
+            title=title,
+            summary_fix=cmd,
+            detailed_fix=f"update '- Blocks-Release:' in {loc} to point to an existing planned release record or 'next' with '{cmd}'.",
+            command=cmd,
+            file_path=loc,
+        )
+
+    if rule.startswith("doctor.git-dirty"):
+        title = "Unstaged git modifications"
+        cmd = (
+            f'git commit -m "Update" -- {loc}'
+            if loc and not loc.startswith("<")
+            else 'git commit -m "<msg>" -- <paths>'
+        )
+        return Remediation(
+            title=title,
+            summary_fix="review and stage/commit changes with 'git commit -m \"<msg>\" -- <paths>'.",
+            detailed_fix=f"review and stage/commit changes with '{cmd}'.",
+            command=cmd,
+            file_path=loc,
+        )
+
+    if rule.startswith("doctor.git-untracked"):
         title = "Untracked files in git working tree"
-        fix = "add files to git, add to .gitignore, or use untracked marker (*.untracked.md)."
-    elif rule.startswith("doctor.git-staged"):
+        return Remediation(
+            title=title,
+            summary_fix="add files to git, add to .gitignore, or use untracked marker (*.untracked.md).",
+            detailed_fix=f"add {loc} to git, add to .gitignore, or use untracked marker (*.untracked.md).",
+            command=None,
+            file_path=loc,
+        )
+
+    if rule.startswith("doctor.git-staged"):
         title = "Staged changes pending git commit"
-        fix = "commit staged changes with 'git commit -m \"<msg>\" -- <paths>'."
-    elif rule.startswith("doctor.git-conflict"):
+        cmd = (
+            f'git commit -m "Update" -- {loc}'
+            if loc and not loc.startswith("<")
+            else 'git commit -m "<msg>" -- <paths>'
+        )
+        return Remediation(
+            title=title,
+            summary_fix="commit staged changes with 'git commit -m \"<msg>\" -- <paths>'.",
+            detailed_fix=f"commit staged changes with '{cmd}'.",
+            command=cmd,
+            file_path=loc,
+        )
+
+    if rule.startswith("doctor.git-conflict"):
         title = "Unmerged git merge conflicts"
-        fix = "resolve conflict markers in the file and git commit."
-    elif rule.startswith("doctor.setup-needed"):
+        return Remediation(
+            title=title,
+            summary_fix="resolve conflict markers in the file and git commit.",
+            detailed_fix=f"resolve conflict markers in {loc} and git commit.",
+            command=None,
+            file_path=loc,
+        )
+
+    if rule.startswith("doctor.setup-needed"):
         title = "Initial repository setup pending"
-        fix = "run 'aw setup' or execute .aw/system/workflows/setup-repo/setup-repo.md."
-    elif rule.startswith("doctor.layout-split-brain"):
+        cmd = "aw setup"
+        return Remediation(
+            title=title,
+            summary_fix=cmd,
+            detailed_fix="run 'aw setup' or execute .aw/system/workflows/setup-repo/setup-repo.md.",
+            command=cmd,
+            file_path=None,
+        )
+
+    if rule.startswith("doctor.layout-split-brain"):
         title = "Dual framework layout (.aw/ and .agents/) split-brain"
-        fix = "run 'aw migrate-layout' to consolidate legacy .agents/ into .aw/."
-    elif rule.startswith("doctor.version-"):
+        cmd = "aw migrate-layout"
+        return Remediation(
+            title=title,
+            summary_fix=cmd,
+            detailed_fix="run 'aw migrate-layout' to consolidate legacy .agents/ into .aw/.",
+            command=cmd,
+            file_path=None,
+        )
+
+    if rule.startswith("doctor.version-"):
         title = "Framework version mismatch or stale installation"
-        fix = "run 'aw setup' or reinstall the framework to update files to the current package version."
-    elif rule.startswith("doctor.leak-"):
+        cmd = "aw setup"
+        return Remediation(
+            title=title,
+            summary_fix=cmd,
+            detailed_fix="run 'aw setup' or reinstall the framework to update files to the current package version.",
+            command=cmd,
+            file_path=None,
+        )
+
+    if rule.startswith("doctor.leak-"):
         title = "Sensitive token or local leak finding"
-        fix = "remove sensitive tokens or run 'aw sanitize --fix'."
-    else:
-        title = detail if len(detail) < 60 else rule
-        fix = "inspect artifact frontmatter and schema conformity."
+        cmd = "aw sanitize --fix"
+        return Remediation(
+            title=title,
+            summary_fix=cmd,
+            detailed_fix=f"remove sensitive tokens in {loc} or run 'aw sanitize --fix'.",
+            command=cmd,
+            file_path=loc,
+        )
+
+    title = detail if len(detail) < 60 else rule
+    return Remediation(
+        title=title,
+        summary_fix="inspect artifact frontmatter and schema conformity.",
+        detailed_fix=f"inspect {loc} frontmatter and schema conformity.",
+        command=None,
+        file_path=loc,
+    )
+
+
+def resolve_next_actions(
+    drift_list: List[core.Drift], repo_root: Path
+) -> Tuple[Optional[str], List[NextAction]]:
+    """Deterministically prioritize primary next command and aggregate all next actions."""
+    if not drift_list:
+        return None, []
+
+    remediations = [build_remediation(d, repo_root) for d in drift_list]
+    raw_actions: List[NextAction] = []
+    seen_cmds: Set[str] = set()
+
+    for rem in remediations:
+        if rem.command and rem.command not in seen_cmds:
+            seen_cmds.add(rem.command)
+            raw_actions.append(
+                NextAction(command=rem.command, description=rem.summary_fix)
+            )
+
+    if not raw_actions:
+        return None, []
+
+    # Priority ranking for single primary next command:
+    # 1. setup-needed ("aw setup")
+    # 2. layout-split-brain ("aw migrate-layout")
+    # 3. leak ("aw sanitize --fix")
+    # 4. stale-index ("aw index" or "aw index <type>")
+    # 5. first actionable command
+    primary_cmd: Optional[str] = None
+    for action in raw_actions:
+        if action.command == "aw setup":
+            primary_cmd = "aw setup"
+            break
+    if not primary_cmd:
+        for action in raw_actions:
+            if action.command == "aw migrate-layout":
+                primary_cmd = "aw migrate-layout"
+                break
+    if not primary_cmd:
+        for action in raw_actions:
+            if action.command == "aw sanitize --fix":
+                primary_cmd = "aw sanitize --fix"
+                break
+    if not primary_cmd:
+        for action in raw_actions:
+            if action.command.startswith("aw index") or action.command == "aw index":
+                primary_cmd = action.command
+                break
+    if not primary_cmd:
+        primary_cmd = raw_actions[0].command
+
+    # Reorder raw_actions so primary_cmd is first
+    ordered_actions: List[NextAction] = []
+    for action in raw_actions:
+        if action.command == primary_cmd:
+            ordered_actions.insert(0, action)
+        else:
+            ordered_actions.append(action)
+
+    return primary_cmd, ordered_actions
+
+
+def _categorize_drift(d: core.Drift, repo_root: Path) -> Tuple[str, str, str, str, str]:
+    """Categorize a Drift finding into (issue_title, directory, filename, extra_detail, fix_action)."""
+    rem = build_remediation(d, repo_root)
+    title = rem.title
+    fix = rem.detailed_fix
+    loc = rem.file_path or d.location
+
+    extra = ""
+    if "setid-collision" in d.rule and "conflicts with" in d.detail:
+        parts = d.detail.split("conflicts with", 1)
+        conflict_target = parts[1].strip()
+        try:
+            first_tok = conflict_target.split()[0]
+            c_path = Path(first_tok)
+            if c_path.is_absolute() and c_path.is_relative_to(repo_root):
+                rel_c = str(c_path.relative_to(repo_root))
+                conflict_target = conflict_target.replace(first_tok, rel_c)
+        except Exception:
+            pass
+        extra = f"conflicts with {conflict_target}"
 
     p = Path(loc)
-    if p.parent != Path("."):
+    if loc.startswith("<") and loc.endswith(">"):
+        dir_str = loc
+        fname = loc
+    elif p.parent != Path("."):
         dir_str = p.parent.as_posix()
         fname = p.name
     else:
@@ -945,8 +1221,8 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
 
         summary_groups = {}
         for d in report.all_drift:
-            title, dir_str, fname, extra, fix = _categorize_drift(d, repo_root)
-            key = (title, fix)
+            rem = build_remediation(d, repo_root)
+            key = (rem.title, rem.summary_fix)
             summary_groups[key] = summary_groups.get(key, 0) + 1
 
         for idx, ((title, fix), count) in enumerate(summary_groups.items(), 1):
@@ -1013,7 +1289,7 @@ def inspect_repo(
 
     diagnostics: List[Diagnostic] = []
     for d in report.all_drift:
-        title, dir_str, fname, extra, fix = _categorize_drift(d, repo_root)
+        _title, _dir_str, _fname, _extra, fix = _categorize_drift(d, repo_root)
         diagnostics.append(
             Diagnostic(
                 location=d.location,
@@ -1072,12 +1348,7 @@ def inspect_repo(
         ),
     ]
 
-    next_actions: List[NextAction] = []
-    seen_fixes = set()
-    for diag in diagnostics:
-        if diag.fix and diag.fix not in seen_fixes:
-            seen_fixes.add(diag.fix)
-            next_actions.append(NextAction(command=diag.fix))
+    _primary_next, next_actions = resolve_next_actions(report.all_drift, repo_root)
 
     return CommandResult(
         command="doctor",
