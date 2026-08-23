@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Launch structured fresh workers across coding hosts without duplicating semantics.
 - Scope: Generic runner, OpenCode/Codex/Claude/Antigravity/Kiro/Gemini adapters, capability evidence, structured streams, and fresh verification.
-- Status: to-review
+- Status: reviewed
 - Set: execset
 - Order: 4
 - Highest E allocated: 03
@@ -12,6 +12,7 @@
 - Id: 31744f
 
 ## Workflow history
+- 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (agy_run.py does not exist -> use agy_verifier.py), PR-004 (corrected host matrix facts: 7 rows incl. Copilot/Cursor, Kiro row missing).
 - 2026-08-23 to-review (aw set): Authored from current runtime, lifecycle, isolation, and cross-host capability research; ready for plan review.
 
 - 2026-08-23 draft (OpenAI GPT 5.6 Sol): created from official host documentation and repository capability audit.
@@ -33,8 +34,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Material change 2: Capability-gated adapters
 
-- [ ] E-02 Add thin OpenCode, Codex, Claude Code, Antigravity/agy, Kiro, and Gemini launchers generated through existing adapter/shim code; advertise native subagents, model flags, resume, JSON, worktrees, or permissions only with current positive and fail-closed probe evidence.
+- [ ] E-02 Add thin per-host launchers generated through the existing adapter/shim code, advertising native subagents, model flags, resume, JSON, worktrees, or permissions only with current positive and fail-closed probe evidence.
   - Depends on: E-01
+  - Note (verified): generate via `host_adapters.py` + `engine.py` shim generators; do not fork wrapper generation. The capability/support matrix (`host_capability_registry.py:371-449`, `host_matrix.json`) currently has 7 rows (OpenCode, Codex, Claude Code, Antigravity/AGY, Copilot, Cursor, Gemini) and NO Kiro row, while Kiro already exists as an adapter (`host_adapters.py:70`) and benchmark runner - E-03 adds the missing Kiro matrix row and must not drop the existing Copilot/Cursor rows. v1 skill targets remain OpenCode and Codex (Step-0 conventions).
   - Expected outcome: unsupported/unverified capabilities use a safe external-process fallback or explicit refusal.
   - Execution state: pending
 
@@ -51,7 +53,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 - Extend `host_adapters.py`, `host_capability_registry.py`, and `engine.py` generators; do not fork wrapper generation.
 - OpenCode and Codex are v1 skill targets; other hosts remain unverified until probes.
-- `agy_run.py` same-conversation review is legacy and cannot be authoritative beside `agy_verifier.py`.
+- `agy_verifier.py` (`agent_workflows/agy_verifier.py:1`, verified to exist) is the authoritative fresh-session verifier contract; use it. NOTE (verified): there is NO `agy_run.py` module in the tree - the name appears only as a compat-migration test-surface string (`compat_migration.py:276-278`), so do not plan to reuse an `agy_run.py`; same-session/same-conversation review must not be treated as authoritative regardless.
 - Host native teams/subagents differ; set-level orchestration must not depend on them.
 
 ## Findings

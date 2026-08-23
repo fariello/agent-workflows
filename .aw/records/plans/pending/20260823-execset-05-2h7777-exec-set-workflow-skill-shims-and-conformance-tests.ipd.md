@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Make autonomous Set execution discoverable, portable, understandable, and regression-proof.
 - Scope: Canonical `/exec-set` workflow, thin skill/shims, CLI UX, examples, lifecycle wording, conformance, security, and release readiness.
-- Status: to-review
+- Status: reviewed
 - Set: execset
 - Order: 5
 - Highest E allocated: 03
@@ -12,6 +12,7 @@
 - Id: 2h7777
 
 ## Workflow history
+- 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; no plan-specific finding (reviewed as Set evidence; conforms).
 - 2026-08-23 to-review (aw set): Authored from current runtime, lifecycle, isolation, and cross-host capability research; ready for plan review.
 
 - 2026-08-23 draft (OpenAI GPT 5.6 Sol): created as the packaging and proof tail of the Set.

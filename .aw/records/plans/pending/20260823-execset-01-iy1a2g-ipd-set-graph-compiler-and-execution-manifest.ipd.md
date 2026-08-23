@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Convert approved IPD Sets into deterministic, schedulable work.
 - Scope: Set selection, IPD/E-item parsing, inter-plan dependencies, resource ownership, work classification, and plan-only output.
-- Status: to-review
+- Status: reviewed
 - Set: execset
 - Order: 1
 - Highest E allocated: 03
@@ -12,6 +12,7 @@
 - Id: iy1a2g
 
 ## Workflow history
+- 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-002 (corrected `ipd_lint.parse()` API claim: Depends-on graph is derived in the lint pass, not returned by parse()).
 - 2026-08-23 to-review (aw set): Authored from current runtime, lifecycle, isolation, and cross-host capability research; ready for plan review.
 
 - 2026-08-23 draft (OpenAI GPT 5.6 Sol): created after current parser/runtime audit.
@@ -49,7 +50,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Project conventions discovered (Step 0)
 
-- `ipd_lint.parse()` already exposes E-item leaves and within-IPD `Depends on`; only between-IPD dependencies and resource ownership are missing.
+- `ipd_lint.parse()` (`agent_workflows/ipd_lint.py:212`) returns `ParsedDoc.exec_leaves` (the E-item leaves, each with a `fields` dict). NOTE (verified): the within-IPD `Depends on` dependency GRAPH is NOT returned by `parse()`; it is derived inside the lint pass (`ipd_lint.py:539-547`, via `ipd_schema.parse_depends_on`). E-01 must therefore read `Depends on` from each leaf's `fields` and build the intra-IPD edge map itself (or lift that logic), rather than expecting `parse()` to hand back a dependency graph. Between-IPD dependencies and resource ownership are entirely absent and are this plan's to add.
 - `status_set` and `plans_index` already resolve artifacts/Sets; stable IPD `Id` survives lifecycle moves.
 - Unknown IPD metadata currently fails lint; use a per-run manifest first rather than silently extending front matter.
 

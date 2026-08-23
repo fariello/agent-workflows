@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Execute all provably independent Set work concurrently and integrate it safely.
 - Scope: Coordinator, ready queue, path leases, worktrees, model roles, merge/revalidation, lifecycle, and resume.
-- Status: to-review
+- Status: reviewed
 - Set: execset
 - Order: 3
 - Highest E allocated: 03
@@ -12,6 +12,7 @@
 - Id: m2wwns
 
 ## Workflow history
+- 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-003 (OQ-02 human-resolved: keep exception-sized E-01, strengthen V-01 to independently verify scheduler, classifier, model routing, and decision handshake).
 - 2026-08-23 to-review (aw set): Authored from current runtime, lifecycle, isolation, and cross-host capability research; ready for plan review.
 
 - 2026-08-23 draft (OpenAI GPT 5.6 Sol): created over existing run/isolation/recovery foundations.
@@ -90,12 +91,19 @@ Document scheduling, lease, model-role, integration, and recovery contracts; gen
 - Owner: none
 - Resolution or deferral rationale: no. Store operator/host bindings in local configuration or CLI flags; evidence-backed examples may be suggested defaults only.
 
+### OQ-02: Is E-01 conceptually over-dense (should it be split)?
+
+- Blocking: no
+- Status: resolved
+- Owner: human
+- Resolution or deferral rationale: RESOLVED by human decision (2026-08-23, /plan-review): KEEP E-01 as one exception-sized item (its four parts - ready queue, classifier, model routing, decision handshake - share one data structure, so splitting them into independent passes would introduce integration seams and shared-state re-litigation that REDUCE execution fidelity). Instead, V-01 was strengthened to require INDEPENDENT, concrete evidence for each of the four bundled sub-deliverables (scheduler/queue, work-class classifier, model-role routing/bindings, and the write-ahead decision handshake), closing the greenwashing gap without fragmenting cohesive logic.
+
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: scheduler tests show every node reaches a recorded running/deferred/serialized disposition and all provably safe lanes share a wave.
+  - Required evidence (each sub-deliverable proven INDEPENDENTLY - E-01 is exception-sized and bundles four concerns; do not mark done without all four): (a) SCHEDULER/QUEUE: tests show every node reaches a recorded running/deferred/serialized disposition and all provably safe lanes share a wave; (b) WORK-CLASS CLASSIFIER: a fixture set exercises `coding|human_prose|mixed|verifier` classification and asserts the correct class per node (including a `mixed` split case); (c) MODEL-ROLE ROUTING/BINDINGS: a test proves each work class routes to its configured host/model binding (and that an absent binding fails closed rather than defaulting silently); (d) DECISION HANDSHAKE: a test proves the write-ahead `decision_proposal -> coordinator record -> decision_authorized` sequence - a worker mutation without a prior recorded authorization is rejected, and a consultation-preferred choice pauses as a proposal until the coordinator records disposition.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02

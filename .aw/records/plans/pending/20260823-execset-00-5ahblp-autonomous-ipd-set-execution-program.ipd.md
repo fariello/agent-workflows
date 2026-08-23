@@ -4,7 +4,7 @@
 - Kind: orchestrator
 - Concern: Execute complete approved IPD Sets with maximal safe parallelism and almost no interruption.
 - Scope: Set planning, decision/defer records, scheduler, model routing, host launchers, workflow/skill packaging, and conformance.
-- Status: to-review
+- Status: reviewed
 - Set: execset
 - Order: 0
 - Highest E allocated: 03
@@ -12,6 +12,7 @@
 - Id: 5ahblp
 
 ## Workflow history
+- 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-005 (added full execution contract to orchestrator gate). Reuse premise verified: awoptimize Orders 00-18 present in executed/.
 - 2026-08-23 to-review (aw set): Authored from current runtime, lifecycle, isolation, and cross-host capability research; ready for plan review.
 
 - 2026-08-23 draft (OpenAI GPT 5.6 Sol): created from repository and cross-host investigation at `05910e16ca9aa005b8bb76cf789b5c17d5dd7dcc`.
@@ -116,6 +117,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 ## Approval and execution gate
 
 - Size assessment: exception
-- Cohesion rationale: five small children build one missing coordinator over already-executed runtime foundations.
+- Cohesion rationale: five small children build one missing coordinator over already-executed runtime foundations (the awoptimize Set, Orders 00-18, verified present in `.aw/records/plans/executed/`).
 
-Requires plan review and explicit human approval. Executors cannot approve, verify, or terminally transition their own work; path-scoped commits only; never push.
+### Execution contract
+
+1. Open questions RESOLVED: OQ-01 resolved. Each child carries its own resolved OQ-01; no blocking OQ remains at the Set level.
+2. Scope fence: Build ONLY the missing coordinator layer (Set compiler, records/stop-policy, scheduler/integration, host runner/adapters, workflow/skill packaging) by reusing the executed awoptimize runtime (`run_engine`, `run_state`, `run_packet`, `run_evidence`, `run_recovery`, `run_gates`, `verify_roles`, `orchestrate_isolation`, `host_capability_registry`, `host_adapters`, `agy_verifier`, `ipd_lint`, the closed run ledger, and `ipd-lifecycle`); do NOT fork equivalents. Remote/distributed execution beyond one machine stays deferred. Publishing/deploy/release/approval stay separate human gates.
+3. Honesty rule (hard MUST): When reporting any test/suite/check passed, paste the ACTUAL runner output (child suites, generated-parity, capability probes/doubles, adversarial fixtures, full serial suite, `aw check all`, `aw doctor --agent`, `aw sanitize --agent`, and combined-HEAD evidence); never claim a pass without running the actual command.
+4. Commit ONLY each order's own changed files, path-scoped (`git commit -m msg -- <paths>`); never `git add -A`/bare/`-a`; never push. Executors cannot approve, verify, or terminally transition their own work; the coordinator alone owns the ledger, main worktree, IPD evidence/checkmarks, integration, and terminal transitions.
+5. Lifecycle move: Each child transitions to `executed` only after every E item is performed and every V item is verified with pasted evidence; a child with deferred work stays `pending` and produces a partial result + durable walkthrough + attention-visible blocked backlog item. This orchestrator transitions to `executed` only after all five children reach verified terminal lifecycle.
+
+Requires plan review and explicit human approval before any child executes.

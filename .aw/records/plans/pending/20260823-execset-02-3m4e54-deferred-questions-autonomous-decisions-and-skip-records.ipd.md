@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Prevent needless interruption without hiding decisions or skipped work.
 - Scope: Versioned run events, exact stop/defer classifier, generated projections, durable summaries, and answer/resume linkage.
-- Status: to-review
+- Status: reviewed
 - Set: execset
 - Order: 2
 - Highest E allocated: 03
@@ -12,6 +12,7 @@
 - Id: 3m4e54
 
 ## Workflow history
+- 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-003 (right-sizing, human-resolved: keep exception-sized E-01, strengthen V-01 to per-event-kind + per-transition evidence; investigator-role divergence noted).
 - 2026-08-23 to-review (aw set): Authored from current runtime, lifecycle, isolation, and cross-host capability research; ready for plan review.
 
 - 2026-08-23 draft (OpenAI GPT 5.6 Sol): created from stop-policy and record-taxonomy audit.
@@ -56,7 +57,9 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Findings
 
-The current ledger is closed and cannot truthfully store decisions/questions. Existing `STOP and report` text is child-scoped in practice but not stated. A run with deferred work needs a first-class `partial` result and must leave affected IPDs pending.
+The current ledger is closed and cannot truthfully store decisions/questions (verified: `run_ledger_schema.py:47-70` defines a closed `RECORD_KINDS` frozenset and fails closed on unknown kinds; `question_raised`/`work_claim` etc. do not exist yet). Existing `STOP and report` text is child-scoped in practice but not stated. A run with deferred work needs a first-class `partial` result and must leave affected IPDs pending.
+
+Right-sizing note (/plan-review 2026-08-23, human-resolved with Order 03 OQ-02): E-01 is intentionally kept as one exception-sized item (schema extension + state machine are cohesive), and V-01 was strengthened to require independent per-event-kind and per-transition evidence rather than splitting the E-item.
 
 ## Proposed changes (ordered, validatable)
 
@@ -101,7 +104,7 @@ Update lifecycle wording so `STOP THIS IPD` returns control to the Set coordinat
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: old and new ledgers validate under explicit version rules; each new kind/role has positive and negative schema tests; transition-table tests reject illegal actors, illegal edges, and completion with any unresolved required node.
+  - Required evidence (E-01 is dense - it bundles a ledger-schema extension AND a Set state machine; prove BOTH independently): (a) LEDGER SCHEMA: old and new ledgers validate under explicit version rules; EACH of the nine new event kinds (`question_raised`, `question_disposition`, `human_answer`, `autonomous_decision`, `scope_deferred`, `work_claim`, `lane_outcome`, `integration_result`, `set_checkpoint`) has a positive AND a negative schema test; the added `investigator` actor role is accepted by the ledger `ROLES` set and reconciled with `verify_roles.ROLE_INVESTIGATOR` (verified divergence: today `run_ledger_schema.py:42-44` omits `investigator` while `verify_roles.py:42` defines it); (b) STATE MACHINE: transition-table tests cover every legal edge among `planned|running|waiting_input|partial|complete|failed|cancelled` and REJECT illegal actors, illegal edges, and completion with any unresolved required node; resume semantics and coordinator-only authority are each asserted by a test.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
