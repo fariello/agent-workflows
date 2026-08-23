@@ -1,0 +1,43 @@
+{
+  "schema": "aw.agent/v1",
+  "command": "check",
+  "status": "findings",
+  "exit_code": 1,
+  "summary": "2 findings across 41 checked",
+  "verified": true,
+  "complete": true,
+  "diagnostics": [
+    {
+      "location": "a.md",
+      "rule": "check.name-nonconformant",
+      "detail": "bad name",
+      "severity": "error"
+    },
+    {
+      "location": "b.md",
+      "rule": "check.setid-collision",
+      "detail": "dup",
+      "severity": "error"
+    }
+  ],
+  "changes": [],
+  "evidence": [
+    {
+      "key": "checked",
+      "value": 41,
+      "status": "verified",
+      "detail": ""
+    }
+  ],
+  "next_actions": [
+    {
+      "command": "aw group plans x --set y",
+      "description": "regroup"
+    }
+  ],
+  "data": {
+    "target": "plans",
+    "checked": 41,
+    "findings": 2
+  }
+}

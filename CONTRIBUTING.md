@@ -154,6 +154,32 @@ instruction prose (prose is reviewed by `/assess prose`, not unit-tested).
   labels `[ERROR]`, `[WARN ]`, `[INFO ]`); non-TTY machine output routes through universal
   machine flags (`--agent` / `--json`) for parseable stream output.
 
+## Adding a CLI command: the output-contract checklist
+
+Every leaf command MUST honor the dual-audience output contract. Before you land a new leaf,
+walk this list (the conformance harness in `tests/test_cli_conformance_matrix.py` enforces it,
+and an undeclared or uncovered leaf fails CI):
+
+1. Route through the boundary. Resolve the audience with `select_output(args)` and render the
+   typed `CommandResult` through `get_renderer(context)`. Do not `print` results directly.
+2. Populate a `CommandResult`. Set `status`, `exit_code` (0 clean / 1 findings / 2 cannot-run),
+   `summary`, and the fact lists (`diagnostics`, `changes`, `evidence`, `next_actions`). Never
+   claim a positive outcome with `verified=False` or an incomplete non-preview state.
+3. Declare the leaf. Add a `CommandDeclaration` to `COMMAND_INVENTORY` in
+   `agent_workflows/command_surface.py` (command class, human recipe, agent record kind,
+   mutation gate, legacy flags, exit contract). The harness asserts zero undeclared leaves.
+4. Support the flags. Read verbs support `--agent` and, where a machine consumer benefits,
+   `--json`; all verbs honor `--no-color`. Conflicting explicit format flags exit 2.
+5. Streams. Write results to stdout; write progress and cannot-start diagnostics to stderr;
+   catch `BrokenPipeError` and exit cleanly.
+6. If the leaf is safe to run read-only in the repo, add it to `LIVE_SAFE_LEAVES` in
+   `tests/conformance_matrix.py` so the harness exercises it live (ANSI-free agent stream,
+   exit-code parity, fact-parity, help, usage error, no-color).
+7. Docs. If the leaf introduces a new output shape, note it in the
+   [Human TTY guide](docs/cli-human-guide.md) and the
+   [Agent protocol reference](docs/cli-agent-protocol.md); the contract itself is in
+   [docs/cli-output-contract.md](docs/cli-output-contract.md).
+
 ## Versioning
 
 The framework uses git-tag-driven semantic versioning (baseline `v1.0.0`; DECISIONS

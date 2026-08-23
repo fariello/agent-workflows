@@ -1,0 +1,1 @@
+{"schema":"aw.agent/v1","kind":"result","cmd":"rename","outcome":"preview","exit":0,"verified":true,"complete":true,"applied":false,"target":"plans","findings":0,"changes":[{"kind":"rename","path":"old.md"}],"next":"aw rename plans x --slug new --apply"}

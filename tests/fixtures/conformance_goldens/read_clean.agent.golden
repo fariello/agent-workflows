@@ -1,0 +1,1 @@
+{"schema":"aw.agent/v1","kind":"result","cmd":"status","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["currency:up-to-date"],"next":null}

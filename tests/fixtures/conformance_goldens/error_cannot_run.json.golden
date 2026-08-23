@@ -1,0 +1,19 @@
+{
+  "schema": "aw.agent/v1",
+  "command": "project",
+  "status": "cannot-run",
+  "exit_code": 2,
+  "summary": "no subcommand; try 'aw project status'",
+  "verified": false,
+  "complete": false,
+  "diagnostics": [],
+  "changes": [],
+  "evidence": [],
+  "next_actions": [
+    {
+      "command": "aw project status",
+      "description": "inspect"
+    }
+  ],
+  "data": {}
+}

@@ -130,3 +130,48 @@ jobs:
       - name: aw attention --check (cross-tree attention view; fail closed)
         shell: bash
         run: python -m agent_workflows attention --check --agent
+
+  output-conformance:
+    name: CLI output-conformance harness (fail-closed)
+    runs-on: ${{ matrix.os }}
+    # awcliux Order 05 (e8hu4s): the generated output-conformance matrix + quality gates run
+    # as a NAMED fail-closed gate so a regression in the dual-audience output contract (an
+    # undeclared parser leaf, a non-ANSI-free agent stream, a human/agent fact-parity mismatch,
+    # a golden byte drift, or a budget overrun) blocks the merge visibly. Runs across every
+    # supported Python minor so the argparse color/help goldens are proven stable per version.
+    # Read-only; writes nothing; no secrets; zero runtime deps.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Configure git identity (some tests init throwaway repos)
+        shell: bash
+        run: |
+          git config --global user.email "ci@example.com"
+          git config --global user.name "CI"
+          git config --global init.defaultBranch main
+
+      - name: Install parallel test runner (test-only; package stays stdlib-only)
+        shell: bash
+        run: python -m pip install --upgrade pip pytest pytest-xdist
+
+      - name: Run the output-conformance harness (E-01 matrix + E-02 gates + E-03 docs)
+        shell: bash
+        run: |
+          python -m pytest \
+            tests/test_cli_conformance_matrix.py \
+            tests/test_cli_quality_gates.py \
+            tests/test_cli_output_docs_rollout.py \
+            -q

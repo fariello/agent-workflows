@@ -1,0 +1,1 @@
+{"schema":"aw.agent/v1","kind":"error","cmd":"project","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":"aw project status"}

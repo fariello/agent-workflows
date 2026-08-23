@@ -1,0 +1,1 @@
+{"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"plans","checked":41,"findings":2,"evidence":["checked:41"],"diagnostics":[{"location":"a.md","rule":"check.name-nonconformant"},{"location":"b.md","rule":"check.setid-collision"}],"next":"aw group plans x --set y"}

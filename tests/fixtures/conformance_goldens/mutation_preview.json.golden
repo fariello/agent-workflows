@@ -1,0 +1,28 @@
+{
+  "schema": "aw.agent/v1",
+  "command": "rename",
+  "status": "preview",
+  "exit_code": 0,
+  "summary": "would rename 1 file",
+  "verified": true,
+  "complete": true,
+  "diagnostics": [],
+  "changes": [
+    {
+      "path": "old.md",
+      "kind": "rename",
+      "detail": "-> new.md",
+      "applied": false
+    }
+  ],
+  "evidence": [],
+  "next_actions": [
+    {
+      "command": "aw rename plans x --slug new --apply",
+      "description": "apply"
+    }
+  ],
+  "data": {
+    "target": "plans"
+  }
+}

@@ -9,7 +9,7 @@
 
 ## Workflow history
 
-- 2026-08-19 implemented (aw specs): Implemented by the awcmdsurf Set (noun-verb grammar: check/find/search/index/rename/group + ipd board + list-repos + todo=attention; hard cutover removed the old verbs); suite 1107 passed 1 skipped.
+- 2026-08-23 note (aw specs): awcliux Order 05 (e8hu4s) E-03: G6 SUPERSEDED. The retired Drift/drift_exit_code/render_agent_drift machine convention is no longer mandated; the single canonical machine format is now aw.agent/v1 (see docs/cli-output-contract.md section 10 and docs/cli-migration.md). The 0/1/2 exit classification carries over unchanged. This reconciles G6 with the dual-audience output contract and the non-TTY hard cutover.
 ## 0. Decisions locked (maintainer, 2026-08-18)
 
 - **D1. Hard cutover, no alias retention.** Old verbs (`plans-mv`, `plan-names`, `plans-index`, `plans-find`, `plans-set-assign`, `plans-archive`) are REMOVED, not kept as hidden aliases. Every in-repo doc/workflow/test referencing an old verb is updated in lockstep. Rationale: pre-release, not widely used, maintainer prefers a clean surface over back-compat.

@@ -1,0 +1,24 @@
+{
+  "schema": "aw.agent/v1",
+  "command": "status",
+  "status": "clean",
+  "exit_code": 0,
+  "summary": "repository is current",
+  "verified": true,
+  "complete": true,
+  "diagnostics": [],
+  "changes": [],
+  "evidence": [
+    {
+      "key": "currency",
+      "value": "up-to-date",
+      "status": "verified",
+      "detail": ""
+    }
+  ],
+  "next_actions": [],
+  "data": {
+    "target": "",
+    "currency": "up-to-date"
+  }
+}
