@@ -32,28 +32,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: evidence registry
 
-- [ ] E-01 Implement the capability-evidence registry `agent_workflows/host_capability_registry.py`: records keyed by host, distribution, exact version, OS, mode, feature, configuration, probe variant, result, evidence artifact, observed date, expiry, and source type; any missing or expired entry defaults to `unverified`, and a generator asking about an unproven capability gets `unverified`, never `supported`.
+- [x] E-01 Implement the capability-evidence registry `agent_workflows/host_capability_registry.py`: records keyed by host, distribution, exact version, OS, mode, feature, configuration, probe variant, result, evidence artifact, observed date, expiry, and source type; any missing or expired entry defaults to `unverified`, and a generator asking about an unproven capability gets `unverified`, never `supported`.
   - Depends on: none
   - Expected outcome: a migration fixture proves every old static-matrix boolean becomes a versioned claim; missing evidence yields `unverified`; stale (past-expiry) evidence yields `unverified`; a query for an unproven capability cannot return `supported`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: probe harness
 
-- [ ] E-02 Upgrade the conformance probe harness: source command templates from validated adapters, detect the installed host version, scaffold isolated HOME/XDG fixtures, capture stdout/stderr/exit + a nonce side effect, redact the captured evidence, and REFUSE a real-HOME target. Probes test capability RESOLUTION and FOLLOWING separately and emit a machine-validated durable report.
+- [x] E-02 Upgrade the conformance probe harness: source command templates from validated adapters, detect the installed host version, scaffold isolated HOME/XDG fixtures, capture stdout/stderr/exit + a nonce side effect, redact the captured evidence, and REFUSE a real-HOME target. Probes test capability RESOLUTION and FOLLOWING separately and emit a machine-validated durable report.
   - Depends on: E-01
   - Expected outcome: isolated-fixture tests prove version detection, real-HOME refusal, adapter-derived commands, complete capture + redaction, nonce verification, and a valid durable report; no probe touches the real user HOME or credentials.
-  - Execution state: pending
-- [ ] E-03 Add NEGATIVE probes for missing skill, denied permission, no user input, path precedence, stale adapter, malformed frontmatter, external-path refusal, server authentication, and background result loss - so "supported" requires reproducing BOTH the positive contract and the expected fail-closed behavior.
+  - Execution state: performed
+- [x] E-03 Add NEGATIVE probes for missing skill, denied permission, no user input, path precedence, stale adapter, malformed frontmatter, external-path refusal, server authentication, and background result loss - so "supported" requires reproducing BOTH the positive contract and the expected fail-closed behavior.
   - Depends on: E-02
   - Expected outcome: every negative variant yields its declared fail-closed result and cannot promote a capability claim; positive and negative outcomes are recorded as separate evidence.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: tests
 
-- [ ] E-04 Add `tests/test_host_capability_registry.py` (stdlib unittest): the migration + unverified-default + expiry fixtures (E-01); the isolated-fixture probe tests incl. real-HOME refusal + redaction + nonce (E-02); one negative-probe fixture per class (E-03). Then run the full serial suite and paste the tail.
+- [x] E-04 Add `tests/test_host_capability_registry.py` (stdlib unittest): the migration + unverified-default + expiry fixtures (E-01); the isolated-fixture probe tests incl. real-HOME refusal + redaction + nonce (E-02); one negative-probe fixture per class (E-03). Then run the full serial suite and paste the tail.
   - Depends on: E-03
   - Expected outcome: registry + probe + negative-probe tests pass; the full serial suite is green (pasted).
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
