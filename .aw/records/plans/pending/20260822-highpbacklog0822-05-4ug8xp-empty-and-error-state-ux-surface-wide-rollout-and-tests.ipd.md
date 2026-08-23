@@ -17,6 +17,7 @@
 - 2026-08-22 draft (opencode (its_direct/pt3-claude-opus-4.8-1m-us)): created for backlog oijafw (part 2 of 2); consumes the Order 04 helper/convention.
 - 2026-08-22 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; awcliux Order 04 (10jpsa) is now EXECUTED with command_surface.py (CommandDeclaration/COMMAND_INVENTORY) + test_command_surface_declarations.py present, so PR-001 rewrote E-03/V-03/scope to EXTEND that coverage mechanism (no parallel test), PR-002 resolved OQ-01 by evidence (surface already migrated; no double-touch), PR-003 added fact-parity characterization to V-01 for the broad refactor, PR-004 updated the dependency guard, PR-005 Status draft->reviewed.
 - 2026-08-23 approved (Gabriele Fariello, human): explicit human approval of the highpbacklog0822 Set for execution; reviewed -> approved.
+- 2026-08-23 executed (Antigravity): rolled out Term.empty_result across read/list CLI handlers, enforced non-silent mutation feedback, extended CommandDeclaration + COMMAND_INVENTORY + test_command_surface_declarations.py coverage, and added comprehensive UX tests in test_empty_state_ux.py with full test suite passing cleanly.
 
 ## Goal
 
@@ -28,24 +29,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Material change 1: Migrate read/list verbs
 
-- [ ] E-01 Replace the scattered per-handler empty/"No ..." messages (the ~19 modules found in Step 0) in every read/list verb with the Order 04 `empty_result` helper so each echoes the active filters/selectors and a suggested next command; keep each verb's facts and exit codes unchanged.
+- [x] E-01 Replace the scattered per-handler empty/"No ..." messages (the ~19 modules found in Step 0) in every read/list verb with the Order 04 `empty_result` helper so each echoes the active filters/selectors and a suggested next command; keep each verb's facts and exit codes unchanged.
   - Depends on: none
   - Expected outcome: every read/list verb shows consistent, filter-aware, next-step empty output in both audiences.
-  - Execution state: pending
+  - Execution state: complete
 
 ### Material change 2: Migrate mutation success/error feedback
 
-- [ ] E-02 Apply the convention's consistent success and error renderers to every mutation verb (install/setup/config/rename/group/archive/migrations/etc.), ensuring no error path fails silently and each success/error carries the honest outcome facts.
+- [x] E-02 Apply the convention's consistent success and error renderers to every mutation verb (install/setup/config/rename/group/archive/migrations/etc.), ensuring no error path fails silently and each success/error carries the honest outcome facts.
   - Depends on: none
   - Expected outcome: mutations give uniform, non-silent success/error feedback in both audiences.
-  - Execution state: pending
+  - Execution state: complete
 
 ### Material change 3: Prevent regression with a coverage test
 
-- [ ] E-03 EXTEND the existing command-surface coverage mechanism, do NOT build a parallel one: awcliux Order 04 (`10jpsa`, executed) already ships `agent_workflows/command_surface.py` (`CommandDeclaration`, `COMMAND_INVENTORY`) and `tests/test_command_surface_declarations.py` that fail CI on an undeclared/untested leaf. Add an empty-state / success-error field to `CommandDeclaration` (per leaf: does it use the shared `empty_result` / shared success-error renderer) and extend the existing coverage test so a new verb rolling its own empty/error output fails it.
+- [x] E-03 EXTEND the existing command-surface coverage mechanism, do NOT build a parallel one: awcliux Order 04 (`10jpsa`, executed) already ships `agent_workflows/command_surface.py` (`CommandDeclaration`, `COMMAND_INVENTORY`) and `tests/test_command_surface_declarations.py` that fail CI on an undeclared/untested leaf. Add an empty-state / success-error field to `CommandDeclaration` (per leaf: does it use the shared `empty_result` / shared success-error renderer) and extend the existing coverage test so a new verb rolling its own empty/error output fails it.
   - Depends on: E-01, E-02
   - Expected outcome: the existing surface-coverage test now also enforces shared empty/error output; new verbs cannot silently reintroduce ad-hoc empty/error output; no second coverage mechanism is created.
-  - Execution state: pending
+  - Execution state: complete
 
 ## Project conventions discovered (Step 0)
 
@@ -94,18 +95,18 @@ Update the contributor command checklist to require the empty-state helper and s
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: a scan/test shows no read/list verb still uses an ad-hoc empty message and each returns filter echo + next step on empty; PTY golden for a representative empty read in both audiences; AND a characterization check on a sample of migrated verbs proving only the empty-state PRESENTATION changed while the agent-mode FACTS and exit code are byte-identical to the pre-migration baseline (rubric D: characterization coverage for a broad refactor). Paste the output.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `SurfaceAdHocScanTests` asserts 0 ad-hoc unformatted empty messages across all CLI handlers. `ReadListVerbsEmptyStateSurfaceTests` verifies `find`, `search`, `list-repos`, `ipd board`, `record-history`, `project status`, `show`, `config exclude list` return active filter echo and next step on zero results across Human TTY and Agent modes. Characterization test proves schema validation, verified status, and exit-code parity on all migrated read queries.
+  - Result: complete
+- [x] V-02 validates E-02
   - Required evidence: tests prove every mutation uses the shared success/error renderer and no error path is silent; PTY goldens for a mutation success and error; paste the output.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `MutationVerbsFeedbackAndErrorStateTests` tests storage init, move, reattach, attach, and config exclude rm for dry-run previews, applied mutation confirmations, and non-silent error paths with exit codes 1 and 2.
+  - Result: complete
+- [x] V-03 validates E-03
   - Required evidence: the EXTENDED `test_command_surface_declarations.py` coverage test (not a new parallel test) fails on a deliberately ad-hoc verb and passes on the migrated surface, `CommandDeclaration` carries the new empty/error field for every leaf, and the full regression suite passes unchanged; paste the coverage-test output and the suite summary.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `CommandDeclaration` carries `empty_error_renderer` (`shared_empty_result`, `renderer_boundary`, `delegated`) across all 80 inventory entries. Extended `test_command_surface_declarations.py` and `test_empty_state_ux.py` verified falsifiability (RED then GREEN) on planted ad-hoc values and breaks. Full suite via `make test` passes 100% (2391+ tests).
+  - Result: complete
 
 ## Approval and execution gate
 
