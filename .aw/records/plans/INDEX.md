@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 120 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 121 Sets; the full manifest is INDEX.json.
 
 ## archiveage
 
@@ -56,6 +56,10 @@ Showing the 40 most-recent of 120 Sets; the full manifest is INDEX.json.
 ## renametypes
 
 - `53yczi` [executed] 01 executed/20260823-renametypes-01-53yczi-universal-artifact-type-support-in-aw-rename.ipd.md
+
+## shardmonth
+
+- `nhbgcc` [pending] 01 pending/20260823-shardmonth-01-nhbgcc-transition-cold-archival-shards-from-weekly-to-monthly-yyyym.ipd.md
 
 ## unifyfileio
 
@@ -273,10 +277,6 @@ Showing the 40 most-recent of 120 Sets; the full manifest is INDEX.json.
 - `7cvh9t` [executed] 15 executed/20260816-awphysical-15-7cvh9t-fresh-install-aw-target.ipd.md
 - `88bnw0` [executed] 16 executed/20260816-awphysical-16-88bnw0-migrate-layout-wizard.ipd.md
 - `wvlk84` [executed] 17 executed/20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md
-
-## agyrun
-
-- `71ibuy` [executed] 01 executed/20260816-agyrun-01-71ibuy-agy-run-executor-validator.ipd.md
 
 ## (singletons: no Set)
 

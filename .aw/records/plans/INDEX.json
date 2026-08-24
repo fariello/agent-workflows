@@ -2902,6 +2902,16 @@
   {
     "date": "2026-08-23",
     "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260823-shardmonth-01-nhbgcc-transition-cold-archival-shards-from-weekly-to-monthly-yyyym.ipd.md",
+    "plan_id": "nhbgcc",
+    "set_id": "shardmonth",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260823-unifyfileio-00-g6mbht-unify-artifact-file-finding-reference-matching-and-naming-on.ipd.md",
