@@ -67,6 +67,11 @@ workflow-artifacts/
 # is also ignored for the transition; new runs write under `.aw/workflow-artifacts/`.
 .aw/workflow-artifacts/
 
+# Per-lane git worktrees allocated by the Set coordinator (execset Order 03): each write lane runs in
+# an isolated `.aw/worktrees/<lane>` checkout that is created/torn down at runtime and must never be
+# tracked (it holds a transient working tree, not durable records).
+.aw/worktrees/
+
 # <!-- aw:block -->
 # <!-- aw:untracked -->
 # --- Deliberately-untracked local artifacts (DO NOT REMOVE these patterns) ---

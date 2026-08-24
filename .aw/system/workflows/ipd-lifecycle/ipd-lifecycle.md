@@ -226,3 +226,31 @@ and fails closed; there is no permanent prose-only fallback.
   terminal transition, deterministically.
 - It never approves a plan or a spec; human approval is a separate, prior step.
 - It never creates or pushes a tag, GitHub Release, or registry upload.
+
+## Set coordination contracts (additive; execset Order 03)
+
+When a whole approved Set is run by the coordinator (`aw ipd execute-set`, over the compiled
+execution manifest), the following contracts hold ON TOP OF this per-IPD lifecycle. They are additive
+and change nothing for single-IPD execution.
+
+- Scheduling: the coordinator composes the run engine's DAG/gate readiness and the concurrency
+  analyzer's eligibility to run the maximal PROVABLY-safe wave; it never overrides the analyzer toward
+  more concurrency, and every node reaches a recorded disposition (running/deferred/serialized/blocked)
+  - none is silently ignored. Uncertain ownership serializes.
+- Leases + isolation: every WRITE lane gets a REAL git worktree (under gitignored `.aw/worktrees/`), a
+  fresh session, and a per-path EXCLUSIVE lease; a second lane cannot claim a path another lane owns.
+  Workers never write coordinator-owned surfaces (`events.jsonl`, source IPDs, history, backlog,
+  walkthroughs, the main worktree); the lease + worktree isolation fences them.
+- Model roles: each lane is classified `coding | human_prose | mixed | verifier` and routed to an
+  operator/host-configured model binding. A missing binding FAILS CLOSED (no silent default). The
+  verifier lane is always a fresh context.
+- Decision handshake: a worker mutation is permitted only AFTER the coordinator durably records an
+  authorization (write-ahead `decision_proposal -> coordinator record -> decision_authorized`); a
+  consultation-preferred choice pauses as a proposal until the coordinator records its disposition.
+- Integration + revalidation: returned path-scoped commits integrate in topological/IPD/lane order
+  through the merge-and-revalidate gate, which reruns validation on the COMBINED HEAD (per-lane green
+  never implies integrated green) and rejects on conflict/overlap/scope-violation/stale-base.
+- Recovery + honesty: restart reconstructs lease/node state without replaying completed side effects
+  (fail-closed on unknown outcomes); evidence bound to a pre-integration HEAD is invalidated before it
+  can satisfy a terminal transition; deferred IPDs remain pending (never marked executed); a Set is
+  `set_complete` only when every required child reached verified terminal lifecycle.
