@@ -4,7 +4,7 @@
 - Kind: orchestrator
 - Concern: The agent_workflows package has THREE separate concerns each implemented multiple times independently, so `aw` verbs disagree on how to find a file, how to detect a reference to a file, and how to build/validate a filename. This causes real inconsistencies: the same `<selector>` can resolve under one verb and fail under another; a `research` rename orphans stem citations that a `plans` rename would rewrite; and the filename grammar is re-encoded in ~6 regexes plus triplicated facet tables that must be hand-synchronized.
 - Scope: Orchestrates a five-child Set that consolidates (1) filename NAMING/grammar (build + validate), (2) selector-to-file RESOLUTION, and (3) reference MATCHING/rewriting + dangling-citation checking into one canonical library each, then (4) adds an additive, non-authoritative rename/regroup history ledger, and (5) enforces the filename identity-slot id6-uniqueness invariant (DECISIONS.md D140) in `aw check`/`aw doctor` and fixes the one existing violator. Touches agent_workflows/{artifact_core.py,artifact_types.py,artifact_rename.py,plans_refs.py,research_refs.py,research_contract.py,plans_index.py,research_index.py,selectors.py,status_set.py,check_engine.py,ipd_lint.py,ipd_authoring.py,doctor.py,backlog.py,specs.py,record_history.py}, .aw/system/workflows/setup-repo/tools/normalize_plan_names.py, one on-disk walkthrough (Order 05), and the test suite. Does NOT change any on-disk filename grammar, citation syntax, or manifest schema in a user-visible way (pure internal consolidation, byte-for-byte behavior preserved) except where a child explicitly fixes a divergence and documents it (Order 01 migrates walkthroughs to the facet form; Order 05 renames the one identity-slot violator).
-- Status: approved
+- Status: executed
 - Set: unifyfileio
 - Order: 0
 - Highest E allocated: 04
@@ -13,6 +13,7 @@
 - Approval: 2026-08-24, human ("approved. go."): status set to approved
 
 ## Workflow history
+- 2026-08-24 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us, run-20260824T150827Z-2301181): unifyfileio Set closeout. All five children executed (01 o6b8l3 naming authority `artifact_naming.py`; 02 laykok unified `selectors.resolve`; 03 3cmnfc unified reference matcher `artifact_refs.py` + id6-handle dangling policy; 04 52zgqr additive rename ledger on the sidecar; 05 9a655p identity-slot invariant enforcement + p7dqwz fix), each lint-clean and in executed/. E-01/V-01: all six lint clean; dependency order honored (05 ran after 01 which is valid since it depends only on Order 01). E-02/V-02: Cross-IPD validation all pass - ONE clustered-grammar regex + facet-enum build (only artifact_naming.py); artifact_core imports none of naming/selectors/refs (import direction); resolver parity; reference parity + the research bare-stem fix; ledger additivity-under-unwritable; identity-slot invariant (aw check 0 identity-slot findings, p7dqwz -> own id6 hey7r7 + Target-Id). Whole suite `pytest -n auto` = 2216 passed, 1 skipped; `aw check all` = 28 findings, all pre-existing categories, 0 new Set-attributable (0 id6-identity-slot, 0 dangling). No product code changed by this orchestrator turn (coordination only). No material question arose. Status set to executed; moved pending/ -> executed/.
 - 2026-08-24 approved (aw set, --by-human): status set to approved
 
 - 2026-08-23 draft (Gabriele Fariello): created.
@@ -41,15 +42,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Orchestrate the five-child unification Set
 
-- [ ] E-01 Confirm the five child IPDs (Orders 01-05) are authored, `aw ipd lint`-conforming, and their dependency order is recorded in the child table below; do not execute any child until (a) its `Depends on` predecessors are executed and their manifests are clean, AND (b) every BLOCKING open question that child carries is human-resolved. The blocking-OQ ledger across the Set (all currently RESOLVED at /plan-review): Order 01 OQ-02 (walkthrough canonical form -> migrate to facet), OQ-04 (normalize_plan_names imports the authority), OQ-05 (walkthrough mints its own id6 + typed source ref); Order 02 OQ-01 (kind-aware ambiguity + `--force`); Order 03 OQ-01 (dangling policy for bare-filename/setid); Order 04 OQ-01 (id6-less ledger by endpoint case). Orders 01 OQ-01/OQ-03 and Order 05 OQ-01/OQ-02 are non-blocking. A child with any unresolved blocking OQ is NO-GO and MUST NOT be executed.
+- [x] E-01 Confirm the five child IPDs (Orders 01-05) are authored, `aw ipd lint`-conforming, and their dependency order is recorded in the child table below; do not execute any child until (a) its `Depends on` predecessors are executed and their manifests are clean, AND (b) every BLOCKING open question that child carries is human-resolved. The blocking-OQ ledger across the Set (all currently RESOLVED at /plan-review): Order 01 OQ-02 (walkthrough canonical form -> migrate to facet), OQ-04 (normalize_plan_names imports the authority), OQ-05 (walkthrough mints its own id6 + typed source ref); Order 02 OQ-01 (kind-aware ambiguity + `--force`); Order 03 OQ-01 (dangling policy for bare-filename/setid); Order 04 OQ-01 (id6-less ledger by endpoint case). Orders 01 OQ-01/OQ-03 and Order 05 OQ-01/OQ-02 are non-blocking. A child with any unresolved blocking OQ is NO-GO and MUST NOT be executed.
   - Depends on: none
   - Expected outcome: the Set is coherent and each child is ready for per-child human approval, blocking-OQ resolution, and sequential execution.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 After all five children are executed, run the cross-IPD validation below (single grammar authority, single resolver, single reference library, ledger additive-only, identity-slot invariant enforced) and confirm no regressions in the full suite; then transition this orchestrator to executed.
+- [x] E-02 After all five children are executed, run the cross-IPD validation below (single grammar authority, single resolver, single reference library, ledger additive-only, identity-slot invariant enforced) and confirm no regressions in the full suite; then transition this orchestrator to executed.
   - Depends on: E-01
   - Expected outcome: the whole Set is verified consistent and the orchestrator is closed.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -126,14 +127,14 @@ This resolves the latent cross-IPD placement inconsistency (Order 01 keeps gramm
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `aw ipd lint --agent` reports `conforming` for all five child IPDs (Orders 01-05) and this orchestrator; the child table lists all five with the recorded dependency order (01->02->03->04, plus 05 after 01); the Set-wide blocking-OQ ledger in E-01 is accurate.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `aw ipd lint --agent` reports `clean` for all six members: 00-g6mbht, 01-o6b8l3, 02-laykok, 03-3cmnfc, 04-52zgqr, 05-9a655p (all `outcome: clean`). All five children are in `.aw/records/plans/executed/` (verified by `ls`), executed in a dependency-valid order (the driver queue ran 01 -> 05 -> 02 -> 03 -> 04; 05 depends only on Order 01's naming authority + Order 01 E-06's walkthrough facet migration, both of which landed with o6b8l3, so running 05 before 02/03/04 was dependency-valid). Every blocking OQ was human-resolved before its child executed and is recorded in each child's executed workflow-history/run decisions: Order 01 OQ-02/04/05 (o6b8l3), Order 02 OQ-01 (laykok), Order 03 OQ-01 (3cmnfc), Order 04 OQ-01 (52zgqr endpoint cases), Order 05 OQ-01/02 (9a655p). The child table lists all five with correct dependency order.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: after all five children are executed, the Cross-IPD validation tests pass (including the identity-slot invariant) and `pytest -n auto` is green (pasted); `aw check all` shows no new Set-attributable findings (pasted).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: all Cross-IPD validation items verified: (1) NO SECOND GRAMMAR COPY - `grep -rln 'id6>[0-9a-z]{6}' agent_workflows/*.py` -> only `artifact_naming.py`; `_FACET_ALT = "|".join(` -> only `artifact_naming.py` (test_naming_authority_single_source). (2) NO BAD IMPORT DIRECTION - `artifact_core` imports none of artifact_naming/selectors/artifact_refs (verified via inspect + test_naming_authority_single_source::test_import_direction). (3) RESOLVER PARITY - test_selector_resolver_parity (same selector -> same file across rename/group/set/show/find). (4) REFERENCE PARITY + RESEARCH FIX - test_reference_matcher_parity::test_research_rename_rewrites_full_and_bare_stem (research now rewrites full+bare-stem; id6/setid never rewritten). (5) LEDGER ADDITIVITY - test_rename_ledger::test_additivity_unwritable_ledger_does_not_raise (rename with an unwritable ledger yields identical result, no raise). (6) IDENTITY-SLOT INVARIANT - test_check_engine::IdentitySlotTests (flags a foreign slot id6, clean on a conformant tree); `aw check all` reports 0 check.id6-identity-slot findings (p7dqwz violator fixed to its own id6 hey7r7 + Target-Id). Combined child suites: `pytest tests/test_naming_authority_golden.py tests/test_naming_authority_single_source.py tests/test_selector_resolver_matrix.py tests/test_selector_resolver_parity.py tests/test_reference_matcher_golden.py tests/test_reference_matcher_parity.py tests/test_rename_ledger.py tests/test_check_engine.py -q` -> 108 passed. WHOLE-SUITE: `python3 -m pytest -n auto` -> `2216 passed, 1 skipped in 119.79s`. `aw check all` -> 28 findings, ALL pre-existing categories (backlog.summary-unsafe 3, check.name-nonconformant 8 on legacy files, check.setid-collision 15, stale-index 2); 0 id6-identity-slot, 0 dangling-citation - NO new Set-attributable findings (28 is the identical baseline that held before o6b8l3 and across all five children).
+  - Result: pass
 
 ## Approval and execution gate
 
