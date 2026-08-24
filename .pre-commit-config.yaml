@@ -45,3 +45,16 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+
+      # ipdgates Order dulzpy: LOCAL prevention of a raw (non-finalize) plan->executed commit
+      # (hand-edited `- Status: executed` or `git mv` into executed/ then a raw `git commit`, which
+      # bypasses `aw ipd finalize`'s receipt/scope/attribution gates). Inspects the staged diff and,
+      # for each plan gaining executed status / moved into executed/, requires matching finalize
+      # evidence in .aw/state/. Best-effort/local only (skippable with --no-verify); the deterministic
+      # backstop is the local proclint detector via `aw check`/`aw doctor`. No CI enforcement.
+      - id: ipd-executed-transition-gate
+        name: no raw plan->executed commit (use aw ipd finalize)
+        entry: python3 -m agent_workflows ipd-executed-gate
+        language: system
+        pass_filenames: false
+        always_run: true

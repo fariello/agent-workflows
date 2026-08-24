@@ -105,6 +105,19 @@ plus every nonterminal plan transition is unchanged. The post-transition attribu
 rejects a generic (`aw set`)/empty actor or empty summary on the newest terminal history entry,
 forward-only (the existing executed tree is grandfathered via Order oorry1's `Scope-Paths` cutoff).
 
+Local commit gate (Order dulzpy, defense-in-depth for the raw-commit path): Order wezhxg's delegation
+covers the CLI, but an agent that never touches the CLI can still hand-edit a plan's `- Status:` to
+`executed` (or `git mv` it into `executed/`) and `git commit` it raw, running no finalize. A LOCAL
+`repo: local` pre-commit hook (`python3 -m agent_workflows ipd-executed-gate`, installed into
+`.pre-commit-config.yaml` by `aw install`/`setup-repo`) inspects the staged diff and, for each PLAN
+gaining `- Status: executed`/`done` or moved into `executed/`, requires matching finalize evidence in
+`.aw/state/` (the finalize transaction journal proving `aw ipd finalize` performed THIS transition);
+absent evidence REFUSES the commit naming `aw ipd finalize <plan>`. Honest limits: git hooks are LOCAL,
+not cloned by default, and skippable with `--no-verify`, so this is PREVENTION, not an absolute gate;
+the deterministic backstop is the `proclint` detector via `aw check`/`aw doctor`. There is deliberately
+NO remote/CI enforcement. It does NOT fire on prompts (which share the `executed` token), non-plan
+artifacts, nonterminal plan changes, or ordinary commits.
+
 Recovery paths (no bypass MUST NOT mean no way forward): each stuck case has an honest, non-fabricating
 recovery. (1) MISSING begin receipt: finalize refuses and points to running `aw ipd begin` (it does NOT
 back-date a start that never happened); a genuinely pre-receipt/grandfathered plan records an honest

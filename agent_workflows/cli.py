@@ -374,6 +374,15 @@ _DESCRIPTIONS = {
         "appear in a public artifact. --agent for machine-readable output; exits nonzero on "
         "a fail."
     ),
+    "ipd-executed-gate": (
+        "Local pre-commit gate (ipdgates Order dulzpy): refuse a raw (non-finalize) plan-to-"
+        "executed commit. Inspects the staged diff and, for each plan gaining '- Status: executed'/"
+        "'done' or moved into an executed/ directory, requires matching finalize evidence in "
+        ".aw/state/ (the transaction journal proving 'aw ipd finalize' performed the transition); "
+        "absent evidence refuses the commit naming 'aw ipd finalize <plan>'. LOCAL best-effort only "
+        "(--no-verify bypasses it; 'aw check'/'aw doctor' proclint is the backstop); no CI. Exit 0 "
+        "= ok/no-op, 1 = refused. Invoked by the repo:local pre-commit hook, not typically by hand."
+    ),
 }
 
 
@@ -2423,6 +2432,16 @@ EXAMPLES
         action="store_true",
         help="Launch the interactive wizard to author the leak-sanitizer config "
         "(allowlist, IP/hostname toggles, personal hints) instead of scanning.",
+    )
+
+    # ipdgates Order dulzpy: local pre-commit gate on raw plan->executed commits. Backs the
+    # `repo: local` hook; refuses a staged plan gaining executed status / moved into executed/ that
+    # has no matching finalize evidence. LOCAL best-effort only (no CI).
+    sub.add_parser(
+        "ipd-executed-gate",
+        parents=[common],
+        help="Local pre-commit gate: refuse a raw (non-finalize) plan->executed commit "
+        "(verifies aw ipd finalize evidence; LOCAL prevention, no CI).",
     )
 
     _apply_descriptions(parser)
@@ -6857,6 +6876,11 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return _run_archive(args, term)
     if args.command in ("check-local-leaks", "sanitize"):
         return _run_check_local_leaks(args, term)
+
+    if args.command == "ipd-executed-gate":
+        from agent_workflows.hooks import executed_transition_gate as _gate
+
+        return _gate.main([])
 
     parser.print_help()
     return 2

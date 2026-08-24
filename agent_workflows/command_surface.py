@@ -566,6 +566,19 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         ),
         exit_contract=(0, 1, 2),
     ),
+    CommandDeclaration(
+        # ipdgates Order dulzpy: local pre-commit gate on raw plan->executed commits. A check-class,
+        # read-only gate (reads the staged diff + .aw/state/; makes no changes). Exit 0 ok/no-op,
+        # 1 refused. Invoked by the repo:local pre-commit hook, not typically by a human.
+        command="ipd-executed-gate",
+        command_class="check",
+        human_recipe="check",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--agent", "--json"),
+        exit_contract=(0, 1),
+    ),
     # --- IPD / Plans Family ---
     CommandDeclaration(
         command="ipd board",

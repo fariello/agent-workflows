@@ -4294,7 +4294,7 @@ jobs:
 # be importable there (e.g. pip install agent-workflows in that env).
 _LOCAL_LEAKS_PRECOMMIT_TEMPLATE = """\
 # Pre-commit hooks (created by agent-workflows). If you already use pre-commit, MERGE the
-# local-leaks hook below into your existing .pre-commit-config.yaml instead of this file.
+# hooks below into your existing .pre-commit-config.yaml instead of this file.
 repos:
   # Local guard: no local leaks (identifying info) in TRACKED files. Scans the whole tracked
   # tree (not just staged files) via the packaged agent_workflows engine, so it cannot be
@@ -4308,6 +4308,16 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+
+      # Local prevention: refuse a raw (non-finalize) plan->executed commit (hand-edited status or
+      # git mv into executed/ that bypasses `aw ipd finalize`). Best-effort/local only (skippable
+      # with --no-verify); the deterministic backstop is `aw check`/`aw doctor`. No CI enforcement.
+      - id: ipd-executed-transition-gate
+        name: no raw plan->executed commit (use aw ipd finalize)
+        entry: python3 -m agent_workflows ipd-executed-gate
+        language: system
+        pass_filenames: false
+        always_run: true
 """
 
 # The hook block to hand a user who ALREADY has a .pre-commit-config.yaml (we never edit theirs).
@@ -4317,6 +4327,13 @@ _LOCAL_LEAKS_PRECOMMIT_BLOCK = """\
       - id: local-leaks
         name: no local leaks in tracked files
         entry: python3 -m agent_workflows check-local-leaks
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: ipd-executed-transition-gate
+        name: no raw plan->executed commit (use aw ipd finalize)
+        entry: python3 -m agent_workflows ipd-executed-gate
         language: system
         pass_filenames: false
         always_run: true
