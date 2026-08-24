@@ -100,6 +100,8 @@ python3 tools/ipdrunner/ipdrunner.py resume \
   <run-id>
 ```
 
+A plain `resume` also re-queues the single item that was in flight when the run was interrupted (the one left `interrupted` by crash reconciliation), retrying it in recovery mode so that unit of work is not abandoned. It does not, however, retry items that finished in a `partial`, `failed-safely`, `blocked`, or `dependency-blocked` state; use `--retry-incomplete` for those.
+
 Retry interrupted, partial, blocked, dependency-blocked, or safely failed items in recovery mode:
 
 ```bash
