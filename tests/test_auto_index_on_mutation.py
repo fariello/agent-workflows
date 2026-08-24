@@ -166,29 +166,33 @@ Body
         self.assertEqual(data[0]["status"], "to-review")
         self.assertIn("pending", data[0]["path"])
 
-        # Execute aw set executed ab12cd
+        # Execute aw set superseded ab12cd. (ipdgates Order wezhxg removed the raw plan->executed
+        # move - `executed` now delegates into the gated `aw ipd finalize` - so this auto-index
+        # test uses the RETIREMENT transition `superseded`, which the delegation deliberately
+        # PRESERVES on the raw path and which still moves the plan across disposition dirs.)
         rc = status_set.run_set_command(
-            ["executed", "ab12cd"],
+            ["superseded", "ab12cd"],
             repo_root=self.tmp_dir,
             args=argparse.Namespace(dir=str(self.tmp_dir), yes=True),
         )
         self.assertEqual(rc, 0)
 
-        # Verify plan moved to executed/
-        executed_file = self.plans_executed / plan_file.name
-        self.assertTrue(executed_file.exists())
+        # Verify plan moved to superseded/
+        superseded_dir = self.plans_dir / "superseded"
+        superseded_file = superseded_dir / plan_file.name
+        self.assertTrue(superseded_file.exists())
         self.assertFalse(plan_file.exists())
 
         # Verify OQ status was NOT modified
-        executed_text = executed_file.read_text(encoding="utf-8")
-        self.assertIn("- Status: resolved", executed_text)
+        superseded_text = superseded_file.read_text(encoding="utf-8")
+        self.assertIn("- Status: resolved", superseded_text)
 
-        # Verify INDEX.json was AUTOMATICALLY refreshed with executed status and path
+        # Verify INDEX.json was AUTOMATICALLY refreshed with the new status and path
         fresh_data = json.loads(index_json_path.read_text(encoding="utf-8"))
         self.assertEqual(len(fresh_data), 1)
         self.assertEqual(fresh_data[0]["plan_id"], "ab12cd")
-        self.assertEqual(fresh_data[0]["status"], "executed")
-        self.assertIn("executed", fresh_data[0]["path"])
+        self.assertEqual(fresh_data[0]["status"], "superseded")
+        self.assertIn("superseded", fresh_data[0]["path"])
 
         # Verify zero check drift
         drift = plans_index.check_drift(self.tmp_dir, self.plans_dir)
@@ -259,8 +263,10 @@ Body
 
         buf = io.StringIO()
         with redirect_stdout(buf):
+            # `superseded` (retirement) keeps the raw path (plan->executed now delegates into the
+            # gated finalize per Order wezhxg); this still exercises the agent-mode index-in-changes.
             rc = status_set.run_set_command(
-                ["executed", "ag12cd"],
+                ["superseded", "ag12cd"],
                 repo_root=self.tmp_dir,
                 args=argparse.Namespace(dir=str(self.tmp_dir), as_agent=True, yes=True),
             )

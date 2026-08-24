@@ -90,8 +90,30 @@ FAIL-LOUD (a failed refresh aborts the transaction, never a silent stale index),
 path-scoped lifecycle commit (only the plan file + the owned index), runs `post-transition` lint, and
 reports the commit hash plus the captured pre-execution/pre-transition/post-transition gate evidence.
 Preview by default; `--apply` performs the transition. Exit 0 = finalized, 1 = refusal (gate/scope),
-2 = cannot run. This is the supported terminal path; the manual ordered steps below are the contract
-it implements.
+2 = cannot run. This is the ONLY supported terminal path; the manual ordered steps below are the
+contract it implements.
+
+No ungated bypass (Order wezhxg): the raw `aw set executed <plan>` / `aw ipd set executed <plan>` (and
+the `done` alias) no longer perform an ungated move - they TRANSPARENTLY DELEGATE into this gated
+`aw ipd finalize` transaction (keyed on the artifact being a plan and the target being `executed`), so
+`executed` is unreachable without the receipt, scope reconciliation, three gates, attributed history,
+and lifecycle commit. They require an attributed `--actor <agent/model>`; a missing actor fails closed
+naming the exact command (never a fabricated generic actor, never a bare dead-end). Plan RETIREMENT
+(`superseded`/`not-executed`) keeps its separate `RETIRED ...` header + `git mv` flow (finalize does
+not perform retirement), and every non-plan artifact terminal transition (prompt/spec/backlog/release)
+plus every nonterminal plan transition is unchanged. The post-transition attribution lint additionally
+rejects a generic (`aw set`)/empty actor or empty summary on the newest terminal history entry,
+forward-only (the existing executed tree is grandfathered via Order oorry1's `Scope-Paths` cutoff).
+
+Recovery paths (no bypass MUST NOT mean no way forward): each stuck case has an honest, non-fabricating
+recovery. (1) MISSING begin receipt: finalize refuses and points to running `aw ipd begin` (it does NOT
+back-date a start that never happened); a genuinely pre-receipt/grandfathered plan records an honest
+retroactive/advisory acknowledgment rather than a false "verified against a receipt". (2) A legitimate
+mid-stream out-of-scope edit: light-touch - supply `--scope-reason <path>=<why>` (or widen `Scope-Paths`
+and re-review) and proceed; the gate exists to make you NOTICE, not to force a rewrite. (3) Grandfathered
+/ no `Scope-Paths`: the scope check is advisory-only, no lockout. finalize is a double-check gate ("did
+you do what you said, and only that?"), NOT a correctness oracle: it cannot prove completeness or test
+sufficiency - those remain the V-item evidence, a fresh-context verifier, and human review.
 
 Two-way scope reconciliation (DECISIONS.md D141): rather than a bare refusal on any unforeseen edit,
 finalize reconciles the scope delta in BOTH directions at this one unskippable step and RECORDS the

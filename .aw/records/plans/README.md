@@ -99,7 +99,11 @@ safe to hand to any agent from its path alone:
    pre/post-transition gates, verifies the changed paths stayed within the reviewed `Scope-Paths`
    against the `aw ipd begin` receipt's frozen base, writes the attributed history, moves the plan,
    refreshes the owned index fail-loud, and makes the path-scoped lifecycle commit in one atomic
-   transaction (see `.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md`).
+   transaction (see `.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md`). There is NO ungated
+   bypass: `aw set executed <plan>` / `aw ipd set executed <plan>` (and the `done` alias) transparently
+   DELEGATE into `aw ipd finalize` (they require `--actor <agent/model>`), so a plan cannot reach
+   `executed` without the gates. Plan RETIREMENT (`superseded`/`not-executed`) is the separate
+   `RETIRED ...` header + `git mv` flow (unchanged; finalize does not perform retirement).
 
 This restates, at the plan level, the standing `AGENT-WORKFLOWS` execution contract (see the
 managed block in `AGENTS.md` and `CONTRIBUTING.md`); `/plan-review` and `/plan-review-long`

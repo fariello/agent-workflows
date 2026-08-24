@@ -19,6 +19,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
+from agent_workflows import cli
 from agent_workflows import ipd_authoring as A
 from agent_workflows import ipd_lifecycle as LC
 from agent_workflows import ipd_lint as L
@@ -1046,6 +1047,180 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
         self.assertFalse(LC.receipt_path_for(self.root, "abc123").exists())
         # No finalize lock left behind.
         self.assertFalse(LC.finalize_lock_path(self.root).exists())
+
+
+class DelegationAndBypassRemovalTests(unittest.TestCase):
+    """ipdgates Order wezhxg: `aw set executed <plan>` delegates into aw ipd finalize (no raw bypass)."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _init_git(self.root)
+        (self.root / "agent_workflows").mkdir()
+        (self.root / "tests").mkdir()
+        self.plan = _write_plan(
+            self.root,
+            _completed_plan_text(
+                scope_paths="agent_workflows/demo.py, tests/test_demo.py"
+            ),
+            "20260824-demo-01-abc123-demo.ipd.md",
+        )
+        _commit_all(self.root, "init")
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _run_cli(self, argv):
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
+
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            try:
+                rc = cli.main(argv + ["--dir", str(self.root)])
+            except SystemExit as e:
+                rc = int(e.code or 0)
+        return rc, out.getvalue() + err.getvalue()
+
+    def _begin_and_work(self):
+        LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
+        (self.root / "agent_workflows" / "demo.py").write_text("x\n", encoding="utf-8")
+        (self.root / "tests" / "test_demo.py").write_text("x\n", encoding="utf-8")
+        _commit_all(self.root, "in-scope work")
+
+    def _executed_path(self) -> Path:
+        return self.root / ".aw" / "records" / "plans" / "executed" / self.plan.name
+
+    def test_set_executed_plan_without_actor_fails_closed_naming_command(self):
+        # No raw ungated move: aw set executed <plan> without --actor fails closed (exit 2).
+        self._begin_and_work()
+        rc, out = self._run_cli(["set", "executed", "abc123", "--yes"])
+        self.assertEqual(rc, 2)
+        self.assertIn("--actor", out)
+        self.assertTrue(self.plan.is_file())  # not moved
+        self.assertFalse(self._executed_path().exists())
+
+    def test_set_executed_plan_with_actor_delegates_into_finalize(self):
+        self._begin_and_work()
+        rc, out = self._run_cli(
+            [
+                "set",
+                "executed",
+                "abc123",
+                "--actor",
+                "opencode/test",
+                "--message",
+                "did it",
+                "--yes",
+            ]
+        )
+        self.assertEqual(rc, 0, out)
+        self.assertTrue(self._executed_path().is_file())
+        moved = self._executed_path().read_text()
+        self.assertIn("- Status: executed", moved)
+        self.assertIn("opencode/test", moved)
+        self.assertNotIn("executed (aw set)", moved)
+
+    def test_ipd_set_executed_also_delegates(self):
+        self._begin_and_work()
+        rc, out = self._run_cli(
+            [
+                "ipd",
+                "set",
+                "executed",
+                "abc123",
+                "--actor",
+                "opencode/test",
+                "--message",
+                "did it",
+                "--yes",
+            ]
+        )
+        self.assertEqual(rc, 0, out)
+        self.assertTrue(self._executed_path().is_file())
+
+    def test_done_alias_delegates(self):
+        self._begin_and_work()
+        rc, out = self._run_cli(
+            [
+                "set",
+                "done",
+                "abc123",
+                "--actor",
+                "opencode/test",
+                "--message",
+                "did it",
+                "--yes",
+            ]
+        )
+        self.assertEqual(rc, 0, out)
+        self.assertTrue(self._executed_path().is_file())
+
+    def test_prompt_executed_transition_not_diverted(self):
+        # A PROMPT terminal `executed` transition keeps the raw path (proves record_type key).
+        pdir = self.root / ".aw" / "records" / "prompts" / "pending"
+        pdir.mkdir(parents=True)
+        prompt = pdir / "20260824-demoprompt-01-pr0mp7-x.prompt.md"
+        prompt.write_text(
+            "# Prompt\n\n- Status: draft\n- Id: pr0mp7\n\nbody\n", encoding="utf-8"
+        )
+        _commit_all(self.root, "add prompt")
+        rc, out = self._run_cli(["set", "executed", "pr0mp7", "--yes"])
+        self.assertEqual(rc, 0, out)
+        self.assertTrue(
+            (
+                self.root / ".aw" / "records" / "prompts" / "executed" / prompt.name
+            ).is_file()
+        )
+
+    def test_plan_retirement_superseded_not_diverted(self):
+        # Plan RETIREMENT (superseded) keeps the raw RETIRED + git-mv path (not finalize).
+        retire = _write_plan(
+            self.root,
+            _completed_plan_text(plan_id="ret123", scope_paths="grandfathered"),
+            "20260824-demo-02-ret123-retire.ipd.md",
+        )
+        _commit_all(self.root, "add retire plan")
+        rc, out = self._run_cli(["set", "superseded", "ret123", "--yes"])
+        self.assertEqual(rc, 0, out)
+        self.assertTrue(
+            (
+                self.root / ".aw" / "records" / "plans" / "superseded" / retire.name
+            ).is_file()
+        )
+
+    def test_nonterminal_plan_transition_not_diverted(self):
+        # A nonterminal plan transition (to approved) keeps the raw path.
+        draft = _write_plan(
+            self.root,
+            _completed_plan_text(plan_id="drf123", scope_paths="grandfathered")
+            .replace("- Status: approved", "- Status: to-review")
+            .replace("- Approval: 2026-08-24, human: approved\n", ""),
+            "20260824-demo-03-drf123-draft.ipd.md",
+        )
+        _commit_all(self.root, "add draft plan")
+        rc, out = self._run_cli(["set", "approved", "drf123", "--by-human", "--yes"])
+        self.assertEqual(rc, 0, out)
+        self.assertIn("- Status: approved", draft.read_text())
+
+    def test_missing_receipt_delegation_refuses_no_fabrication(self):
+        # Recovery path: delegating with NO begin receipt refuses (finalize's fail-closed), and does
+        # NOT fabricate a back-dated begin or an ungated move.
+        rc, out = self._run_cli(
+            [
+                "set",
+                "executed",
+                "abc123",
+                "--actor",
+                "opencode/test",
+                "--message",
+                "m",
+                "--yes",
+            ]
+        )
+        self.assertEqual(rc, 1)  # finalize findings (no receipt)
+        self.assertTrue(self.plan.is_file())
+        self.assertFalse(self._executed_path().exists())
 
 
 if __name__ == "__main__":

@@ -22,7 +22,7 @@ from __future__ import annotations
 import argparse
 import re
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, FrozenSet, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import ipd_schema as S
 
@@ -63,6 +63,9 @@ C_VALID_STATE = "IPD-S402"
 C_CROSS_STATE = "IPD-S403"
 C_CHECKPOINT = "IPD-S404"
 C_EXEC_HISTORY = "IPD-S405"
+C_EXEC_ATTRIBUTION = (
+    "IPD-S406"  # terminal history actor/summary attribution (Order wezhxg)
+)
 C_OQ = "IPD-Q501"
 C_SIZE = "IPD-Z601"
 C_SIZE_DENSITY = "IPD-Z602"
@@ -167,6 +170,14 @@ _H3_RE = re.compile(r"^### (.+?)\s*$")
 _LEAF_RE = re.compile(r"^- \[([ x])\]\s+(.*)$")
 _SUBFIELD_RE = re.compile(r"^\s+- ([A-Za-z][A-Za-z /-]*?):\s?(.*)$")
 _HISTORY_LINE_RE = re.compile(r"^-\s+(?:\d{4}-\d{2}-\d{2})\s+(\S+)")
+# ipdgates Order wezhxg: parse the full terminal history line `- <date> <status> (<actor>): <msg>`
+# so the post-transition attribution lint can reject a generic/empty actor + empty summary.
+_HISTORY_ATTRIB_RE = re.compile(
+    r"^-\s+(?:\d{4}-\d{2}-\d{2})\s+(?P<status>\S+)\s+\((?P<actor>[^)]*)\)\s*:\s*(?P<msg>.*)$"
+)
+# The generic machine-default actor(s) the attribution lint rejects (pinned narrowly per OQ; do NOT
+# expand to bare tool/human names like `Antigravity`/`maintainer`). Targets ONLY the `aw set` default.
+_GENERIC_ACTORS: FrozenSet[str] = frozenset(("aw set", "aw set, --by-human"))
 
 
 def _structural_lines(text: str) -> List[Tuple[int, str]]:
@@ -727,7 +738,78 @@ def check_checkpoint(
                         "plan with 'Status: executed' must carry an 'executed' ## Workflow history entry at post-transition",
                     )
                 )
+            # ipdgates Order wezhxg: the NEWEST terminal `executed` entry (the one this transition
+            # wrote) MUST carry a non-generic actor AND a nonempty summary. Applied FORWARD-ONLY:
+            # grandfather the existing executed tree by keying on Order 02's cutoff marker - a plan
+            # WITHOUT a real `Scope-Paths` allowlist (absent, or `Scope-Paths: grandfathered`) is
+            # pre-cutoff and is NOT subject to the strict attribution rule (OQ-01).
+            diags.extend(_check_terminal_attribution(doc))
     return diags
+
+
+def _is_grandfathered_for_attribution(doc: ParsedDoc) -> bool:
+    """True when the plan is PRE-CUTOFF for the Order-wezhxg attribution lint (grandfathered).
+
+    Consumes Order oorry1's cutoff marker: a plan with NO real `Scope-Paths` allowlist (the field is
+    absent, or its value is the reserved `grandfathered` sentinel) predates the machinery and is not
+    subject to the strict actor/summary rule. A plan declaring a REAL allowlist is post-cutoff.
+    """
+    sp = doc.meta_fields.get(S.META_SCOPE_PATHS)
+    if not sp:
+        return True
+    _paths, is_grandfathered, _errs = S.parse_scope_paths(sp)
+    return is_grandfathered
+
+
+def _newest_executed_history(doc: ParsedDoc):
+    """Return the parsed (status, actor, msg) of the NEWEST `executed` history entry, or None.
+
+    History entries are appended newest-first (a new line is inserted right after the H2), so the
+    FIRST `executed` line encountered scanning top-down is the newest one - the entry this transition
+    wrote.
+    """
+    for _lineno, line_text in doc.history_lines:
+        m = _HISTORY_ATTRIB_RE.match(line_text.strip())
+        if m and m.group("status").rstrip(":").lower() == "executed":
+            return m.group("actor").strip(), m.group("msg").strip()
+        # A bare `executed` line without the (actor): msg shape also counts as the newest executed
+        # entry but with an empty actor/msg (so the attribution rule flags it).
+        bare = _HISTORY_LINE_RE.match(line_text.strip())
+        if bare and bare.group(1).rstrip(":").lower() == "executed":
+            return "", ""
+    return None
+
+
+def _check_terminal_attribution(doc: ParsedDoc) -> List[Diagnostic]:
+    """Reject a generic/empty actor or empty summary on the newest `executed` entry (Order wezhxg)."""
+    if _is_grandfathered_for_attribution(doc):
+        return []  # pre-cutoff: do not retroactively fail the grandfathered executed tree
+    newest = _newest_executed_history(doc)
+    if newest is None:
+        return []  # the missing-executed-entry case is already covered by C_EXEC_HISTORY
+    actor, msg = newest
+    out: List[Diagnostic] = []
+    if not actor or actor in _GENERIC_ACTORS:
+        out.append(
+            Diagnostic(
+                0,
+                0,
+                C_EXEC_ATTRIBUTION,
+                "the newest 'executed' history entry must name a non-generic actor/model "
+                "(the machine-default 'aw set' / an empty actor is rejected); run the transition "
+                "via `aw ipd finalize --actor <agent/model>`",
+            )
+        )
+    if not msg:
+        out.append(
+            Diagnostic(
+                0,
+                0,
+                C_EXEC_ATTRIBUTION,
+                "the newest 'executed' history entry must carry a nonempty summary",
+            )
+        )
+    return out
 
 
 def _scope_paths_gate_applies(checkpoint: str, status: str) -> bool:

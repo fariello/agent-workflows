@@ -884,6 +884,28 @@ def _build_parser() -> argparse.ArgumentParser:
         "--by-human", action="store_true", help="Attest human approval."
     )
     p_ipd_set.add_argument(
+        "--actor",
+        default=None,
+        help="Executing agent/model identity. REQUIRED when moving a PLAN to 'executed' (that "
+        "transition delegates into the gated `aw ipd finalize`); ignored otherwise.",
+    )
+    p_ipd_set.add_argument(
+        "--scope-reason",
+        dest="scope_reason",
+        action="append",
+        default=None,
+        metavar="PATH=WHY",
+        help="Forwarded to `aw ipd finalize` on a delegated plan->executed transition (repeatable).",
+    )
+    p_ipd_set.add_argument(
+        "--scope-ack",
+        dest="scope_ack",
+        action="append",
+        default=None,
+        metavar="PATH[=NOTE]",
+        help="Forwarded to `aw ipd finalize` on a delegated plan->executed transition (repeatable).",
+    )
+    p_ipd_set.add_argument(
         "--dry-run", action="store_true", help="Preview without writing."
     )
     p_ipd_set.add_argument(
@@ -1827,6 +1849,31 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_set.add_argument("--message", "-m", default=None, help="History record message.")
     p_set.add_argument("--by-human", action="store_true", help="Attest human approval.")
+    p_set.add_argument(
+        "--actor",
+        default=None,
+        help="Executing agent/model identity. REQUIRED when moving a PLAN to 'executed' (that "
+        "transition transparently delegates into the gated `aw ipd finalize`, which needs an "
+        "attributed actor); ignored for other transitions.",
+    )
+    p_set.add_argument(
+        "--scope-reason",
+        dest="scope_reason",
+        action="append",
+        default=None,
+        metavar="PATH=WHY",
+        help="Forwarded to `aw ipd finalize` when a plan->executed transition delegates: reason for "
+        "an out-of-scope changed path (repeatable).",
+    )
+    p_set.add_argument(
+        "--scope-ack",
+        dest="scope_ack",
+        action="append",
+        default=None,
+        metavar="PATH[=NOTE]",
+        help="Forwarded to `aw ipd finalize` on a delegated plan->executed transition: acknowledge a "
+        "declared-but-unmodified Scope-Paths path (repeatable).",
+    )
     p_set.add_argument(
         "--gate-kind",
         dest="gate_kind",

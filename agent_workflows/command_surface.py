@@ -444,6 +444,9 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=(
             "--message",
             "--by-human",
+            "--actor",
+            "--scope-reason",
+            "--scope-ack",
             "--gate-kind",
             "--gate-ref",
             "--gate-summary",
@@ -656,7 +659,16 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         agent_record_kind="result",
         mutation_gate="auth_floor",
         empty_error_renderer="renderer_boundary",
-        legacy_flags=("--message", "--by-human", "--dry-run", "--json", "--agent"),
+        legacy_flags=(
+            "--message",
+            "--by-human",
+            "--actor",
+            "--scope-reason",
+            "--scope-ack",
+            "--dry-run",
+            "--json",
+            "--agent",
+        ),
         exit_contract=(0, 1, 2),
     ),
     # --- Workflow Family ---

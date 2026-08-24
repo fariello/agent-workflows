@@ -149,7 +149,10 @@ class TestStatusSetCommands(StatusSetTestBase):
         self.assertIn("- Status: approved", text)
         self.assertIn("approved (aw set)", text)
 
-    def test_set_plan_status_to_executed_moves_file(self):
+    def test_set_plan_executed_delegates_and_refuses_ungated(self):
+        # ipdgates Order wezhxg: the raw ungated plan->executed move is REMOVED. `aw set executed
+        # <plan>` now delegates into the gated `aw ipd finalize`; without an attributed --actor it
+        # fails closed (exit 2) naming the exact command and does NOT move the plan (no bypass).
         plan = self.create_plan(
             "20260822-testset-01-pl0002-test-plan.ipd.md",
             "pl0002",
@@ -159,8 +162,9 @@ class TestStatusSetCommands(StatusSetTestBase):
         rc = cli.main(
             ["set", "executed", "pl0002", "--yes", "--dir", str(self.repo_root)]
         )
-        self.assertEqual(rc, 0)
-        self.assertFalse(plan.exists())
+        self.assertEqual(rc, 2)
+        # The plan was NOT moved to executed/ via any ungated path.
+        self.assertTrue(plan.exists())
         executed_path = (
             self.repo_root
             / ".aw"
@@ -169,9 +173,9 @@ class TestStatusSetCommands(StatusSetTestBase):
             / "executed"
             / "20260822-testset-01-pl0002-test-plan.ipd.md"
         )
-        self.assertTrue(executed_path.exists())
-        text = executed_path.read_text(encoding="utf-8")
-        self.assertIn("- Status: executed", text)
+        self.assertFalse(executed_path.exists())
+        # And no generic `executed (aw set)` history entry was written.
+        self.assertNotIn("executed (aw set)", plan.read_text(encoding="utf-8"))
 
     def test_set_plan_status_from_executed_to_pending_moves_file_back(self):
         plan = self.create_plan(

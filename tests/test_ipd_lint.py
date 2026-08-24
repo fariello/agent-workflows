@@ -354,6 +354,69 @@ class PostTransitionExecutedHistoryTests(unittest.TestCase):
         self.assertEqual(res.disposition, S.DISPOSITION_LEGACY)
         self.assertEqual(res.diagnostics, [])
 
+    # --- ipdgates Order wezhxg: post-transition attribution lint (IPD-S406) ---
+    def _executed_with(self, actor: str, msg: str, scope_paths: str) -> str:
+        """An executed child whose newest history entry is `executed (<actor>): <msg>` and which
+        declares a real (post-cutoff) or `grandfathered` (pre-cutoff) Scope-Paths."""
+        text = _executed_child(include_executed_history=False)
+        text = text.replace(
+            "- Scope: sample.", f"- Scope: sample.\n- Scope-Paths: {scope_paths}", 1
+        )
+        # Insert the newest executed entry right after the Workflow history heading.
+        text = text.replace(
+            "## Workflow history\n\n- 2026-08-03 to-review (tester): created.",
+            f"## Workflow history\n\n- 2026-08-05 executed ({actor}): {msg}\n"
+            "- 2026-08-03 to-review (tester): created.",
+            1,
+        )
+        return text
+
+    def test_attribution_rejects_generic_actor_post_cutoff(self):
+        text = self._executed_with(
+            "aw set", "status set to executed", "agent_workflows/x.py"
+        )
+        res = L.lint_text(text, checkpoint="post-transition", directory="executed")
+        self.assertIn(L.C_EXEC_ATTRIBUTION, [d.code for d in res.diagnostics])
+
+    def test_attribution_rejects_empty_summary_post_cutoff(self):
+        text = self._executed_with("opencode/model", "", "agent_workflows/x.py")
+        res = L.lint_text(text, checkpoint="post-transition", directory="executed")
+        self.assertIn(L.C_EXEC_ATTRIBUTION, [d.code for d in res.diagnostics])
+
+    def test_attribution_accepts_real_actor_and_summary_post_cutoff(self):
+        text = self._executed_with(
+            "opencode/its_direct/pt3", "did the work", "agent_workflows/x.py"
+        )
+        res = L.lint_text(text, checkpoint="post-transition", directory="executed")
+        self.assertNotIn(L.C_EXEC_ATTRIBUTION, [d.code for d in res.diagnostics])
+
+    def test_attribution_does_not_reject_bare_tool_or_human_names(self):
+        # Only the `aw set` machine default is generic; do NOT balloon to bare names.
+        for actor in ("Antigravity", "maintainer", "codex/gpt-5"):
+            text = self._executed_with(actor, "did it", "agent_workflows/x.py")
+            res = L.lint_text(text, checkpoint="post-transition", directory="executed")
+            self.assertNotIn(
+                L.C_EXEC_ATTRIBUTION, [d.code for d in res.diagnostics], actor
+            )
+
+    def test_attribution_grandfathers_precutoff_generic_actor(self):
+        # A grandfathered plan (Scope-Paths: grandfathered) with the legacy `aw set` actor is NOT
+        # failed - forward-only, keyed on Order 02's cutoff marker.
+        text = self._executed_with("aw set", "status set to executed", "grandfathered")
+        res = L.lint_text(text, checkpoint="post-transition", directory="executed")
+        self.assertNotIn(L.C_EXEC_ATTRIBUTION, [d.code for d in res.diagnostics])
+
+    def test_attribution_grandfathers_when_no_scope_paths(self):
+        # No Scope-Paths field at all (the existing executed tree) is also pre-cutoff.
+        text = _executed_child(include_executed_history=False).replace(
+            "## Workflow history\n\n- 2026-08-03 to-review (tester): created.",
+            "## Workflow history\n\n- 2026-08-05 executed (aw set): status set to executed\n"
+            "- 2026-08-03 to-review (tester): created.",
+            1,
+        )
+        res = L.lint_text(text, checkpoint="post-transition", directory="executed")
+        self.assertNotIn(L.C_EXEC_ATTRIBUTION, [d.code for d in res.diagnostics])
+
     def test_real_executed_plan_at_post_transition(self):
         # Verify against real executed plans in repo
         real_executed = sorted((SOURCE_PLANS / "executed").glob("*.md"))

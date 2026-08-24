@@ -659,6 +659,134 @@ def _auto_index_types(
                 pass
 
 
+def _delegate_plan_executed_to_finalize(
+    plan_recs: list[ArtifactRecord],
+    all_recs: list[ArtifactRecord],
+    repo_root: Path,
+    args: argparse.Namespace,
+    term,
+) -> int:
+    """Route a plan -> `executed` `aw set`/`ipd set` request into the gated `aw ipd finalize` (Order wezhxg).
+
+    The raw ungated plan-terminal move is removed: `executed` is unreachable without the begin
+    receipt, scope reconciliation, three lint gates, attributed history, and lifecycle commit. This
+    delegates transparently (OQ-03) rather than refusing-and-redirecting. A required gate input that
+    is genuinely absent (a non-generic `--actor`) fails closed (exit 2) with the exact command to
+    supply it - honest, never a fabricated actor, never a bare dead-end.
+    """
+    from agent_workflows import ipd_lifecycle as _life
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Diagnostic,
+        NextAction,
+        select_output,
+    )
+
+    ctx = select_output(args)
+
+    # Refuse a mixed batch (plan-executed + others) to keep the transaction one-IPD and unambiguous.
+    others = [r for r in all_recs if r not in plan_recs]
+    if others:
+        msg = (
+            "moving a plan to 'executed' delegates into `aw ipd finalize` and must be run per-plan; "
+            "do not mix it with other targets in one `aw set`."
+        )
+        if ctx.is_agent or ctx.is_json:
+            return get_renderer(ctx).emit(
+                CommandResult(
+                    command="set", status="cannot-run", exit_code=2, summary=msg
+                ),
+                ctx,
+            )
+        term.status("fail", msg)
+        return 2
+
+    actor = (getattr(args, "actor", None) or "").strip()
+    message = (getattr(args, "message", None) or "").strip()
+    apply = not getattr(args, "dry_run", False)
+    scope_reasons = _life._parse_scope_reason_flags(getattr(args, "scope_reason", None))
+    scope_acks = _life._parse_scope_ack_flags(getattr(args, "scope_ack", None))
+
+    overall = 0
+    for rec in plan_recs:
+        selector = rec.id6 or rec.path.name
+        if not actor:
+            hint = (
+                f"aw set executed {selector} --actor <agent/model> --message <summary>"
+                if not message
+                else f"aw set executed {selector} --actor <agent/model> --message {message!r}"
+            )
+            summary = (
+                "moving a plan to 'executed' now delegates into the gated `aw ipd finalize`, which "
+                "REQUIRES an attributed --actor <agent/model> (the machine-default is rejected). "
+                f"Re-run: {hint}"
+            )
+            if ctx.is_agent or ctx.is_json:
+                overall = 2
+                get_renderer(ctx).emit(
+                    CommandResult(
+                        command="set",
+                        status="cannot-run",
+                        exit_code=2,
+                        summary=summary,
+                        next_actions=[
+                            NextAction(command=hint, description="supply the actor")
+                        ],
+                    ),
+                    ctx,
+                )
+                continue
+            term.status("fail", summary)
+            overall = 2
+            continue
+
+        result = _life.finalize(
+            repo_root,
+            rec.path,
+            actor,
+            message or f"finalize {selector} -> executed",
+            apply=apply,
+            scope_reasons=scope_reasons,
+            scope_acks=scope_acks,
+            plan_selector=selector,
+        )
+        if ctx.is_agent or ctx.is_json:
+            status = {0: "clean", 1: "findings", 2: "cannot-run"}.get(
+                result.exit_code, "cannot-run"
+            )
+            diags = [
+                Diagnostic(
+                    location=str(rec.path),
+                    rule="IPD-FINALIZE",
+                    detail=f,
+                    severity="error",
+                )
+                for f in result.findings
+            ]
+            get_renderer(ctx).emit(
+                CommandResult(
+                    command="set",
+                    status=status,
+                    exit_code=result.exit_code,
+                    summary=result.message,
+                    diagnostics=diags,
+                    data={"commit": result.commit},
+                ),
+                ctx,
+            )
+        else:
+            prefix = {0: "", 1: "refused: ", 2: "error: "}.get(
+                result.exit_code, "error: "
+            )
+            term.line(f"aw set -> ipd finalize: {prefix}{result.message}")
+            for f in result.findings:
+                term.line(f"  {f}")
+        if result.exit_code != 0:
+            overall = result.exit_code if overall == 0 else overall
+    return overall
+
+
 def run_set_command(
     raw_args: list[str],
     scoped_type: str | None = None,
@@ -808,6 +936,24 @@ def run_set_command(
                 f"Validation error on {rec.path.name}: {err_msg}. Refusing before making changes.",
             )
             return 1
+
+    # ipdgates Order wezhxg: a request to move a PLAN to `executed` (or its `done` alias) MUST NOT
+    # use the raw ungated move - it transparently DELEGATES into the gated `aw ipd finalize`
+    # transaction (begin receipt + scope reconciliation + three gates + attributed history +
+    # rollback). Keyed on record_type == "plans" AND normalized target `executed` (NOT the status
+    # token alone, because PROMPTS share the `executed`/`done` tokens). All other transitions -
+    # nonterminal plan (draft/to-review/reviewed/approved), plan RETIREMENT (superseded/not-executed),
+    # and every non-plan artifact terminal transition - are UNCHANGED below.
+    _plan_executed = [
+        rec
+        for rec in matched_records
+        if rec.record_type == "plans"
+        and normalize_target_status(target_status, rec.record_type) == "executed"
+    ]
+    if _plan_executed:
+        return _delegate_plan_executed_to_finalize(
+            _plan_executed, matched_records, repo_root, args, term
+        )
 
     is_dry_run = getattr(args, "dry_run", False)
     yes = getattr(args, "yes", False) or getattr(args, "assume_yes", False)
