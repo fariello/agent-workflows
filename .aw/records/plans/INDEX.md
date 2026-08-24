@@ -32,7 +32,7 @@ Showing the 40 most-recent of 124 Sets; the full manifest is INDEX.json.
 
 - `5ahblp` [pending] 00 pending/20260823-execset-00-5ahblp-autonomous-ipd-set-execution-program.ipd.md
 - `iy1a2g` [executed] 01 executed/20260823-execset-01-iy1a2g-ipd-set-graph-compiler-and-execution-manifest.ipd.md
-- `3m4e54` [pending] 02 pending/20260823-execset-02-3m4e54-deferred-questions-autonomous-decisions-and-skip-records.ipd.md
+- `3m4e54` [executed] 02 executed/20260823-execset-02-3m4e54-deferred-questions-autonomous-decisions-and-skip-records.ipd.md
 - `m2wwns` [pending] 03 pending/20260823-execset-03-m2wwns-parallel-scheduler-worktree-integration-and-model-routing.ipd.md
 - `31744f` [pending] 04 pending/20260823-execset-04-31744f-host-session-adapters-and-capability-gated-launchers.ipd.md
 - `2h7777` [pending] 05 pending/20260823-execset-05-2h7777-exec-set-workflow-skill-shims-and-conformance-tests.ipd.md

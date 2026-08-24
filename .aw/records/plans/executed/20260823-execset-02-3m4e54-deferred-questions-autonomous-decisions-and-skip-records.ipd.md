@@ -5,15 +5,15 @@
 - Concern: Prevent needless interruption without hiding decisions or skipped work.
 - Scope: Versioned run events, exact stop/defer classifier, generated projections, durable summaries, and answer/resume linkage.
 - Scope-Paths: grandfathered
-- Status: approved
+- Status: executed
 - Set: execset
 - Order: 2
 - Highest E allocated: 03
 - Author: OpenAI GPT 5.6 Sol
 - Id: 3m4e54
-- Approval: 2026-08-24, human ("approved. go."): status set to approved
 
 ## Workflow history
+- 2026-08-24 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us (ipdrunner run-20260824T150827Z-2301181)): execset Order 02: Set coordination records, no-stop classifier, and separate Set state machine
 - 2026-08-24 approved (aw set, --by-human): status set to approved
 - 2026-08-23 /plan-review focused (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (versioning discipline is net-new, made explicit), PR-002 (per-kind _KIND_FIELDS + value rules, not a frozenset edit), PR-003 (OQ-02 human-resolved: separate Set machine, set_-prefixed names + run_state mapping), PR-004 (OQ-03 human-resolved: reuse append-a-newer-record supersession, no new `supersedes` kind), PR-005 (resume command cannot ride on decision Gate-Ref; close-on-answer is net-new), PR-006 (reconciled dense-vs-standard sizing note), PR-007 (corrected STOP wording + flagged shared always-loaded surface).
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-003 (right-sizing, human-resolved: keep exception-sized E-01, strengthen V-01 to per-event-kind + per-transition evidence; investigator-role divergence noted).
