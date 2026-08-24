@@ -332,5 +332,66 @@ class SelectorErrorTests(unittest.TestCase):
         )
 
 
+class ProgressRendererTests(unittest.TestCase):
+    """The terminal renderer must turn raw child JSON events into concise,
+    human-readable lines (full JSON still goes to the session log), and be a
+    no-op when color is disabled."""
+
+    def setUp(self) -> None:
+        self.plain = driver.Palette(False)  # color disabled -> no escape codes
+
+    def test_text_event_renders_narration(self):
+        line = driver.render_event(
+            '{"type":"text","part":{"type":"text","text":"Reading the plan."}}',
+            self.plain,
+        )
+        assert line is not None
+        self.assertIn("Reading the plan.", line)
+        self.assertNotIn("\033[", line)  # no ANSI when color disabled
+
+    def test_tool_use_renders_tool_and_title(self):
+        line = driver.render_event(
+            '{"type":"tool_use","part":{"tool":"bash",'
+            '"state":{"status":"completed","title":"git status --short"}}}',
+            self.plain,
+        )
+        assert line is not None
+        self.assertIn("bash", line)
+        self.assertIn("git status --short", line)
+
+    def test_step_start_and_blank_are_suppressed(self):
+        self.assertIsNone(driver.render_event('{"type":"step_start"}', self.plain))
+        self.assertIsNone(driver.render_event("   ", self.plain))
+
+    def test_step_finish_summarizes_tokens_and_cost(self):
+        line = driver.render_event(
+            '{"type":"step_finish","part":{"tokens":{"total":1234},"cost":0.0042}}',
+            self.plain,
+        )
+        assert line is not None
+        self.assertIn("1234 tok", line)
+        self.assertIn("$0.0042", line)
+
+    def test_non_json_line_passed_through_dimmed(self):
+        line = driver.render_event("a stray log line", self.plain)
+        assert line is not None
+        self.assertIn("a stray log line", line)
+
+    def test_palette_noop_when_disabled_and_active_when_enabled(self):
+        self.assertEqual(self.plain("x", "green"), "x")
+        colored = driver.Palette(True)("x", "green")
+        self.assertTrue(colored.startswith("\033["))
+        self.assertIn("x", colored)
+
+    def test_long_text_is_clipped_to_single_line(self):
+        long = "word " * 200
+        line = driver.render_event(
+            json.dumps({"type": "text", "part": {"text": long}}), self.plain
+        )
+        assert line is not None
+        self.assertNotIn("\n", line)
+        self.assertLessEqual(len(line), 420)
+
+
 if __name__ == "__main__":
     unittest.main()

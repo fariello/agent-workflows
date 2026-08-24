@@ -20,8 +20,10 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, TextIO
 
 
 SCHEMA_VERSION = 1
@@ -36,6 +38,200 @@ TERMINAL_STATES = {
 }
 SUCCESS_STATES = {"executed"}
 ID6_RE = re.compile(r"^[a-z0-9]{6}$")
+
+# Terminal output verbosity for the streamed child-agent turn.
+#   "clean" (default): render events as concise, colored, human-readable lines.
+#   "quiet": only per-IPD/attempt banners and a periodic heartbeat; no per-event lines.
+#   "raw": the legacy behavior, tee the child's raw JSONL to the terminal.
+OUTPUT_MODES = ("clean", "quiet", "raw")
+
+# ANSI SGR codes. Kept local so this standalone driver has no package dependency.
+_ANSI_RESET = "\033[0m"
+_ANSI_CODES = {
+    "bold": "1",
+    "dim": "2",
+    "red": "31",
+    "green": "32",
+    "yellow": "33",
+    "blue": "34",
+    "magenta": "35",
+    "cyan": "36",
+    "gray": "90",
+}
+_ANSI_STRIP_RE = re.compile(r"\033\[[0-9;]*m")
+
+# Terminal status word -> color, mirroring the toolkit's convention (word first,
+# color a redundant cue). Load-bearing meaning is always in the word.
+_STATUS_COLOR = {
+    "executed": "green",
+    "substantially-complete": "green",
+    "partial": "yellow",
+    "blocked": "yellow",
+    "dependency-blocked": "yellow",
+    "failed-safely": "red",
+    "not-attempted": "gray",
+    "interrupted": "yellow",
+    "running": "cyan",
+    "queued": "gray",
+}
+
+
+def should_color(stream: TextIO | None = None) -> bool:
+    """Decide whether to emit ANSI color for ``stream`` (default stdout).
+
+    Precedence: NO_COLOR disables (unless FORCE_COLOR overrides); otherwise color
+    is on only for a real TTY.
+    """
+    target: TextIO = stream if stream is not None else sys.stdout
+    if os.environ.get("FORCE_COLOR"):
+        return True
+    if os.environ.get("NO_COLOR"):
+        return False
+    try:
+        return bool(target.isatty())
+    except (AttributeError, ValueError):
+        return False
+
+
+class Palette:
+    """Tiny colorizer: no-ops cleanly when color is disabled."""
+
+    def __init__(self, enabled: bool) -> None:
+        self.enabled = enabled
+
+    def __call__(self, text: str, *styles: str) -> str:
+        if not self.enabled or not styles:
+            return text
+        codes = ";".join(_ANSI_CODES[s] for s in styles if s in _ANSI_CODES)
+        if not codes:
+            return text
+        return f"\033[{codes}m{text}{_ANSI_RESET}"
+
+    def status(self, status: str) -> str:
+        return (
+            self(status, self_color)
+            if (self_color := _STATUS_COLOR.get(status))
+            else status
+        )
+
+
+def _strip_ansi(text: str) -> str:
+    return _ANSI_STRIP_RE.sub("", text)
+
+
+def _one_line(text: str, limit: int = 200) -> str:
+    """Collapse whitespace/newlines to a single line and clip to ``limit`` chars."""
+    collapsed = " ".join(text.split())
+    if len(collapsed) > limit:
+        return collapsed[: limit - 1] + "\u2026"
+    return collapsed
+
+
+def render_event(raw_line: str, pal: Palette) -> str | None:
+    """Translate one raw JSONL event from `opencode run --format json` into a
+    concise, colored terminal line. Returns None for events that add no
+    human-facing signal (so the terminal stays readable while the full stream is
+    still written verbatim to the session log).
+    """
+    line = raw_line.rstrip("\n")
+    if not line.strip():
+        return None
+    try:
+        event = json.loads(line)
+    except json.JSONDecodeError:
+        # Non-JSON line (e.g. a stray log line merged from stderr): show dimmed.
+        return pal("  " + _one_line(line), "dim")
+    etype = event.get("type")
+    part = event.get("part") or {}
+    if etype == "text":
+        text = part.get("text") or ""
+        text = _one_line(text, 400)
+        if not text:
+            return None
+        return pal("  \u2022 ", "cyan") + text
+    if etype == "tool_use":
+        state = part.get("state") or {}
+        tool = part.get("tool") or "tool"
+        status = state.get("status") or ""
+        title = state.get("title") or ""
+        # `title` is usually the command/summary; fall back to a compact input.
+        if not title:
+            inp = state.get("input")
+            if isinstance(inp, dict):
+                title = _one_line(json.dumps(inp, sort_keys=True), 120)
+        title = _one_line(title, 160)
+        if status == "completed":
+            glyph = pal("\u2713", "green")
+        elif status in ("error", "failed"):
+            glyph = pal("\u2717", "red")
+        elif status in ("running", "pending", "in_progress"):
+            glyph = pal("\u2026", "yellow")
+        else:
+            glyph = pal("\u2022", "gray")
+        label = pal(f"{tool}", "bold")
+        body = f": {title}" if title else ""
+        return f"    {glyph} {label}{body}"
+    if etype == "step_finish":
+        tokens = (part.get("tokens") or {}).get("total")
+        cost = part.get("cost")
+        bits = []
+        if tokens is not None:
+            bits.append(f"{tokens} tok")
+        if cost is not None:
+            bits.append(f"${cost:.4f}")
+        if not bits:
+            return None
+        return pal("    \u2014 step done (" + ", ".join(bits) + ")", "dim")
+    # step_start and anything else: no dedicated line (keeps the view calm).
+    return None
+
+
+class Heartbeat:
+    """Prints a periodic 'still working' line to stderr when the child stream is
+    quiet, so a long, silent step does not look hung. Thread-based; each rendered
+    event resets the idle timer.
+    """
+
+    def __init__(
+        self, pal: Palette, label: str, stream: TextIO, interval: float = 15.0
+    ) -> None:
+        self.pal = pal
+        self.label = label
+        self.stream = stream
+        self.interval = interval
+        self._last_activity = time.monotonic()
+        self._start = time.monotonic()
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._enabled = interval > 0
+
+    def touch(self) -> None:
+        self._last_activity = time.monotonic()
+
+    def _run(self) -> None:
+        while not self._stop.wait(self.interval):
+            idle = time.monotonic() - self._last_activity
+            if idle >= self.interval:
+                elapsed = int(time.monotonic() - self._start)
+                mins, secs = divmod(elapsed, 60)
+                msg = self.pal(
+                    f"    \u2026 still working on {self.label} "
+                    f"({mins}m{secs:02d}s elapsed, {int(idle)}s since last event)",
+                    "dim",
+                )
+                self.stream.write(msg + "\n")
+                self.stream.flush()
+
+    def __enter__(self) -> Heartbeat:
+        if self._enabled:
+            self._thread = threading.Thread(target=self._run, daemon=True)
+            self._thread.start()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=1.0)
 
 
 class DriverError(RuntimeError):
@@ -310,6 +506,7 @@ def initialize_run(args: argparse.Namespace) -> Path:
             "model": args.model,
             "agent": args.agent,
             "auto": args.auto,
+            "output_mode": getattr(args, "output_mode", "clean"),
         },
         "driver": {
             "path": str(Path(__file__).resolve()),
@@ -414,18 +611,18 @@ def build_prompt(
     return f"""# OpenCode IPD Driver Turn
 
 Mode: {mode}
-Run ID: {state['run_id']}
-Queue position: {item['position']}
-Assigned IPD: {item['id6']}
+Run ID: {state["run_id"]}
+Queue position: {item["position"]}
+Assigned IPD: {item["id6"]}
 Assigned Set: {setid}
 Plan file at launch: {plan_path}
 External run directory: {run_dir}
 Decisions/questions register: {decisions}
 Required JSON outcome: {outcome}
 Driver report: {report}
-Prior attempt: {json.dumps(prior, sort_keys=True) if prior else 'none'}
+Prior attempt: {json.dumps(prior, sort_keys=True) if prior else "none"}
 
-Execute only IPD {item['id6']}. Read the attached driver runbook, every applicable
+Execute only IPD {item["id6"]}. Read the attached driver runbook, every applicable
 repository instruction, the assigned IPD in full, its current orchestrator, current
 repository state, and completed prerequisite artifacts before editing. Do not implement
 another IPD in this turn.
@@ -454,9 +651,9 @@ terminal state and acceptance criteria support it.
 Before exiting, write valid JSON to {outcome} with at least:
 {{
   "schema_version": 1,
-  "run_id": "{state['run_id']}",
-  "position": {item['position']},
-  "id6": "{item['id6']}",
+  "run_id": "{state["run_id"]}",
+  "position": {item["position"]},
+  "id6": "{item["id6"]}",
   "setid": "{setid}",
   "disposition": "executed|substantially-complete|partial|blocked|failed-safely",
   "summary": "...",
@@ -531,6 +728,9 @@ def run_opencode(
             prompt_path.read_text(encoding="utf-8"),
         ]
     )
+    output_mode = options.get("output_mode", "clean")
+    pal = Palette(should_color(sys.stdout))
+    label = pal(f"{item['id6']}", "bold") + f" (attempt {attempt_no})"
     log_path = attempt_log_path(run_dir, item, attempt_no)
     with log_path.open("w", encoding="utf-8") as log:
         process = subprocess.Popen(
@@ -542,12 +742,26 @@ def run_opencode(
             bufsize=1,
         )
         assert process.stdout is not None
+        # In quiet/clean modes a heartbeat reassures during long silent steps; in
+        # raw mode the constant stream is its own liveness signal.
+        interval = 0.0 if output_mode == "raw" else 15.0
+        heartbeat = Heartbeat(pal, label, sys.stderr, interval=interval)
         try:
-            for line in process.stdout:
-                log.write(line)
-                log.flush()
-                sys.stdout.write(line)
-                sys.stdout.flush()
+            with heartbeat:
+                for line in process.stdout:
+                    # The full, verbatim JSONL always goes to the durable session log.
+                    log.write(line)
+                    log.flush()
+                    heartbeat.touch()
+                    if output_mode == "raw":
+                        sys.stdout.write(line)
+                        sys.stdout.flush()
+                    elif output_mode == "clean":
+                        rendered = render_event(line, pal)
+                        if rendered is not None:
+                            sys.stdout.write(rendered + "\n")
+                            sys.stdout.flush()
+                    # "quiet": suppress per-event lines; heartbeat + banners only.
         except KeyboardInterrupt:
             process.send_signal(signal.SIGINT)
             raise
@@ -619,6 +833,16 @@ def execute_item(
             "attempt": attempt_no,
         },
     )
+    total = len(state["queue"])
+    pal = Palette(should_color(sys.stdout))
+    mode_note = " (recovery)" if recovery else ""
+    banner = (
+        pal("\u25b6 ", "cyan")
+        + pal(f"IPD {item['position']:02d}/{total} {item['id6']}", "bold", "cyan")
+        + pal(f"  set={item['setid']}  attempt {attempt_no}{mode_note}", "dim")
+    )
+    print(banner)
+    print(pal(f"  plan: {plan_path}", "dim"))
     try:
         exit_code, session_id, log_path, argv = run_opencode(
             state, run_dir, item, plan_path, prompt_path, attempt_no
@@ -655,6 +879,21 @@ def execute_item(
     item["status"] = disposition
     item["last_outcome"] = outcome
     save_state(run_dir, state)
+    glyph = "\u2713" if disposition in SUCCESS_STATES else "\u25cf"
+    glyph_color = (
+        "green"
+        if disposition in SUCCESS_STATES
+        else (_STATUS_COLOR.get(disposition, "yellow"))
+    )
+    finish = (
+        pal(f"{glyph} ", glyph_color)
+        + pal(f"IPD {item['position']:02d}/{total} {item['id6']}", "bold")
+        + " -> "
+        + pal(disposition, glyph_color)
+        + pal(f"  (exit {exit_code})", "dim")
+    )
+    print(finish)
+    print()
     append_jsonl(
         run_dir / "events.jsonl",
         {
@@ -735,8 +974,15 @@ def requeue_interrupted(run_dir: Path, state: dict[str, Any]) -> list[str]:
     return requeued
 
 
-def run_queue(run_dir: Path, retry_incomplete: bool) -> int:
+def run_queue(
+    run_dir: Path, retry_incomplete: bool, output_mode: str | None = None
+) -> int:
     state = load_state(run_dir)
+    # Terminal verbosity is a per-invocation display preference: let a resume-time
+    # flag override whatever was persisted at `start`.
+    if output_mode is not None:
+        state.setdefault("options", {})["output_mode"] = output_mode
+        save_state(run_dir, state)
     reconcile_interrupted(run_dir, state)
     # A plain resume must not abandon the item that was in flight when the run
     # was interrupted: re-queue only `interrupted` items for a recovery retry.
@@ -825,6 +1071,32 @@ def resolve_run_dir(repo_arg: str, run_id: str) -> Path:
     return run_dir
 
 
+def _add_output_mode_flags(sub_parser: argparse.ArgumentParser) -> None:
+    """Attach the mutually-exclusive terminal-verbosity flags.
+
+    Default is the clean, colored, human-readable progress view. `--quiet` shows
+    only per-IPD banners plus a heartbeat; `--raw` restores the legacy verbatim
+    JSONL stream (useful for piping/debugging). Color honors NO_COLOR/FORCE_COLOR
+    and TTY detection regardless of mode.
+    """
+    group = sub_parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--quiet",
+        dest="output_mode",
+        action="store_const",
+        const="quiet",
+        help="Only per-IPD banners and a periodic heartbeat (no per-event lines)",
+    )
+    group.add_argument(
+        "--raw",
+        dest="output_mode",
+        action="store_const",
+        const="raw",
+        help="Stream the child agent's raw JSON events verbatim (legacy behavior)",
+    )
+    sub_parser.set_defaults(output_mode="clean")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ipdrunner",
@@ -849,6 +1121,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Create and print the durable queue without launching OpenCode",
     )
+    _add_output_mode_flags(start)
 
     resume = sub.add_parser("resume", help="Resume an existing run")
     resume.add_argument("run_id")
@@ -858,6 +1131,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Retry interrupted, partial, failed, or blocked items in recovery mode",
     )
+    _add_output_mode_flags(resume)
 
     status = sub.add_parser("status", help="Show an existing run")
     status.add_argument("run_id")
@@ -882,6 +1156,7 @@ def main(argv: list[str] | None = None) -> int:
             with run_lock(run_dir):
                 return run_queue(run_dir, retry_incomplete=False)
         run_dir = resolve_run_dir(args.repo, args.run_id)
+        output_mode = getattr(args, "output_mode", None)
         if args.command == "status":
             print_status(run_dir)
             return 0
@@ -892,7 +1167,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "resume":
             with run_lock(run_dir):
-                return run_queue(run_dir, retry_incomplete=args.retry_incomplete)
+                return run_queue(
+                    run_dir,
+                    retry_incomplete=args.retry_incomplete,
+                    output_mode=output_mode,
+                )
         raise DriverError(f"Unsupported command: {args.command}")
     except KeyboardInterrupt:
         print("Interrupted; durable run state was preserved.", file=sys.stderr)
