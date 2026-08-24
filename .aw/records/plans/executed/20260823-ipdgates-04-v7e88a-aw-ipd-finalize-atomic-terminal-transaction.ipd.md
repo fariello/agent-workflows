@@ -5,15 +5,15 @@
 - Concern: A plan reaches `executed` today via `aw set executed`, which moves the file and writes a generic `executed (aw set)` actor with no scope comparison and no captured pre/post gate evidence - exactly the p7dqwz failure signature. There is no single command that atomically performs the terminal transition WHILE proving the changed paths stayed within the reviewed `Scope-Paths` and the gates ran.
 - Scope: Add `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply` as the only supported single-IPD terminal transaction (happy path + scope comparison + evidence). Touch: the single-IPD lifecycle module (from Order 03), agent_workflows/cli.py (register `ipd finalize`), agent_workflows/ipd_lint.py (invoke pre/post-transition phases), agent_workflows/status_set.py (reuse the status-write/move + owned-index-refresh helpers), and tests/test_ipd_lifecycle_cli.py. Does NOT implement the two-way scope RECONCILIATION prompt (split out to the new Order 05, D141), the two-phase ROLLBACK/failure semantics (Order 06), or removing the raw bypass (Order 07); this child delivers the forward transaction and the scope-delta COMPUTATION (which Order 05's reconciliation and Order 06's rollback both build on) plus the out-of-scope refusal for the pre-reconciliation baseline.
 - Scope-Paths: grandfathered
-- Status: approved
+- Status: executed
 - Set: ipdgates
 - Order: 4
 - Highest E allocated: 03
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: v7e88a
-- Approval: 2026-08-24, human ("approved. go."): status set to approved
 
 ## Workflow history
+- 2026-08-24 executed (opencode/its_direct/pt3-claude-opus-4.8): Implemented aw ipd finalize atomic terminal transaction; dogfooded on its own plan.
 - 2026-08-24 approved (aw set, --by-human): status set to approved
 - 2026-08-24 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE (no revisions needed); GO - PENDING HUMAN APPROVAL. No findings. Verified all material path:line claims: status_set._auto_index_types swallow at status_set.py:580-581,617-618 (E-02 fail-loud hardening correct); generic 'aw set' actor default at status_set.py:356; verify_roles.procedure_scope_audit fnmatch matcher + VP-SCOPE-UNAUTHORIZED-PATH at verify_roles.py:1310,1343; CHECKPOINTS pre-transition/post-transition at ipd_schema.py:495; run_freeze.freeze_requirements at run_freeze.py:131; test_ipd_lifecycle_cli.py net-new; aw ipd finalize not yet registered. Cross-plan dependency satisfied: Order 03 receipt persists the literal Scope-Paths (03 E-01/E-03), so this plan's E-01 per-path comparison is feasible. OQ-01 resolved + consistent with Order 03 OQ-01. Right-sizing: E-02's density is intrinsic/irreducible (an atomic terminal transaction is one unit by design; reconciliation=Order05, rollback=Order06 correctly deferred); no split warranted. Sibling refs (05/06/07) consistent post-renumber.
 

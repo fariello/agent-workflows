@@ -2714,6 +2714,46 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260823-ipdgates-01-v6zie5-own-and-regression-test-the-p7dqwz-xdg-config-isolation-resi.ipd.md",
+    "plan_id": "v6zie5",
+    "set_id": "ipdgates",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260823-ipdgates-02-oorry1-canonical-scope-paths-allowlist-schema-and-grandfather-polic.ipd.md",
+    "plan_id": "oorry1",
+    "set_id": "ipdgates",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 3,
+    "path": "executed/20260823-ipdgates-03-xjbvu2-aw-ipd-begin-fail-closed-execution-start-receipt.ipd.md",
+    "plan_id": "xjbvu2",
+    "set_id": "ipdgates",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 4,
+    "path": "executed/20260823-ipdgates-04-v7e88a-aw-ipd-finalize-atomic-terminal-transaction.ipd.md",
+    "plan_id": "v7e88a",
+    "set_id": "ipdgates",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260823-renametypes-01-53yczi-universal-artifact-type-support-in-aw-rename.ipd.md",
     "plan_id": "53yczi",
     "set_id": "renametypes",
@@ -2727,6 +2767,66 @@
     "path": "executed/20260823-shardmonth-01-nhbgcc-transition-cold-archival-shards-from-weekly-to-monthly-yyyym.ipd.md",
     "plan_id": "nhbgcc",
     "set_id": "shardmonth",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260823-unifyfileio-00-g6mbht-unify-artifact-file-finding-reference-matching-and-naming-on.ipd.md",
+    "plan_id": "g6mbht",
+    "set_id": "unifyfileio",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260823-unifyfileio-01-o6b8l3-canonical-artifact-naming-and-filename-grammar-authority.ipd.md",
+    "plan_id": "o6b8l3",
+    "set_id": "unifyfileio",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260823-unifyfileio-02-laykok-unified-selector-to-file-resolver.ipd.md",
+    "plan_id": "laykok",
+    "set_id": "unifyfileio",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 3,
+    "path": "executed/20260823-unifyfileio-03-3cmnfc-unified-reference-matcher-rewriter-and-consistent-dangling-c.ipd.md",
+    "plan_id": "3cmnfc",
+    "set_id": "unifyfileio",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 4,
+    "path": "executed/20260823-unifyfileio-04-52zgqr-additive-rename-and-regroup-history-ledger-on-the-workflow-s.ipd.md",
+    "plan_id": "52zgqr",
+    "set_id": "unifyfileio",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 5,
+    "path": "executed/20260823-unifyfileio-05-9a655p-enforce-filename-identity-slot-id6-uniqueness-in-aw-check-an.ipd.md",
+    "plan_id": "9a655p",
+    "set_id": "unifyfileio",
     "status": "executed"
   },
   {
@@ -2843,46 +2943,6 @@
     "date": "2026-08-23",
     "disposition": "pending",
     "kind": "child",
-    "order": 1,
-    "path": "pending/20260823-ipdgates-01-v6zie5-own-and-regression-test-the-p7dqwz-xdg-config-isolation-resi.ipd.md",
-    "plan_id": "v6zie5",
-    "set_id": "ipdgates",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-23",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260823-ipdgates-02-oorry1-canonical-scope-paths-allowlist-schema-and-grandfather-polic.ipd.md",
-    "plan_id": "oorry1",
-    "set_id": "ipdgates",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-23",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 3,
-    "path": "pending/20260823-ipdgates-03-xjbvu2-aw-ipd-begin-fail-closed-execution-start-receipt.ipd.md",
-    "plan_id": "xjbvu2",
-    "set_id": "ipdgates",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-23",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 4,
-    "path": "pending/20260823-ipdgates-04-v7e88a-aw-ipd-finalize-atomic-terminal-transaction.ipd.md",
-    "plan_id": "v7e88a",
-    "set_id": "ipdgates",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-23",
-    "disposition": "pending",
-    "kind": "child",
     "order": 5,
     "path": "pending/20260823-ipdgates-05-qmt3yk-finalize-two-way-scope-reconciliation-unexpected-path-reason.ipd.md",
     "plan_id": "qmt3yk",
@@ -2927,66 +2987,6 @@
     "path": "pending/20260823-proclint-01-79li67-detect-process-violations-in-aw-check-and-aw-doctor-untooled.ipd.md",
     "plan_id": "79li67",
     "set_id": "proclint",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-23",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260823-unifyfileio-00-g6mbht-unify-artifact-file-finding-reference-matching-and-naming-on.ipd.md",
-    "plan_id": "g6mbht",
-    "set_id": "unifyfileio",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-23",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260823-unifyfileio-01-o6b8l3-canonical-artifact-naming-and-filename-grammar-authority.ipd.md",
-    "plan_id": "o6b8l3",
-    "set_id": "unifyfileio",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-23",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260823-unifyfileio-02-laykok-unified-selector-to-file-resolver.ipd.md",
-    "plan_id": "laykok",
-    "set_id": "unifyfileio",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-23",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 3,
-    "path": "pending/20260823-unifyfileio-03-3cmnfc-unified-reference-matcher-rewriter-and-consistent-dangling-c.ipd.md",
-    "plan_id": "3cmnfc",
-    "set_id": "unifyfileio",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-23",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 4,
-    "path": "pending/20260823-unifyfileio-04-52zgqr-additive-rename-and-regroup-history-ledger-on-the-workflow-s.ipd.md",
-    "plan_id": "52zgqr",
-    "set_id": "unifyfileio",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-23",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 5,
-    "path": "pending/20260823-unifyfileio-05-9a655p-enforce-filename-identity-slot-id6-uniqueness-in-aw-check-an.ipd.md",
-    "plan_id": "9a655p",
-    "set_id": "unifyfileio",
     "status": "approved"
   },
   {

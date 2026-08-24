@@ -52,10 +52,10 @@ Showing the 40 most-recent of 124 Sets; the full manifest is INDEX.json.
 ## ipdgates
 
 - `do64fh` [pending] 00 pending/20260823-ipdgates-00-do64fh-enforce-single-ipd-lifecycle-and-scope-gates-fail-closed.ipd.md
-- `v6zie5` [pending] 01 pending/20260823-ipdgates-01-v6zie5-own-and-regression-test-the-p7dqwz-xdg-config-isolation-resi.ipd.md
-- `oorry1` [pending] 02 pending/20260823-ipdgates-02-oorry1-canonical-scope-paths-allowlist-schema-and-grandfather-polic.ipd.md
-- `xjbvu2` [pending] 03 pending/20260823-ipdgates-03-xjbvu2-aw-ipd-begin-fail-closed-execution-start-receipt.ipd.md
-- `v7e88a` [pending] 04 pending/20260823-ipdgates-04-v7e88a-aw-ipd-finalize-atomic-terminal-transaction.ipd.md
+- `v6zie5` [executed] 01 executed/20260823-ipdgates-01-v6zie5-own-and-regression-test-the-p7dqwz-xdg-config-isolation-resi.ipd.md
+- `oorry1` [executed] 02 executed/20260823-ipdgates-02-oorry1-canonical-scope-paths-allowlist-schema-and-grandfather-polic.ipd.md
+- `xjbvu2` [executed] 03 executed/20260823-ipdgates-03-xjbvu2-aw-ipd-begin-fail-closed-execution-start-receipt.ipd.md
+- `v7e88a` [executed] 04 executed/20260823-ipdgates-04-v7e88a-aw-ipd-finalize-atomic-terminal-transaction.ipd.md
 - `qmt3yk` [pending] 05 pending/20260823-ipdgates-05-qmt3yk-finalize-two-way-scope-reconciliation-unexpected-path-reason.ipd.md
 - `3xh53a` [pending] 06 pending/20260823-ipdgates-06-3xh53a-aw-ipd-finalize-rollback-and-failure-semantics.ipd.md
 - `wezhxg` [pending] 07 pending/20260823-ipdgates-07-wezhxg-remove-raw-terminal-transition-bypasses-and-strengthen-histo.ipd.md
@@ -75,12 +75,12 @@ Showing the 40 most-recent of 124 Sets; the full manifest is INDEX.json.
 
 ## unifyfileio
 
-- `g6mbht` [pending] 00 pending/20260823-unifyfileio-00-g6mbht-unify-artifact-file-finding-reference-matching-and-naming-on.ipd.md
-- `o6b8l3` [pending] 01 pending/20260823-unifyfileio-01-o6b8l3-canonical-artifact-naming-and-filename-grammar-authority.ipd.md
-- `laykok` [pending] 02 pending/20260823-unifyfileio-02-laykok-unified-selector-to-file-resolver.ipd.md
-- `3cmnfc` [pending] 03 pending/20260823-unifyfileio-03-3cmnfc-unified-reference-matcher-rewriter-and-consistent-dangling-c.ipd.md
-- `52zgqr` [pending] 04 pending/20260823-unifyfileio-04-52zgqr-additive-rename-and-regroup-history-ledger-on-the-workflow-s.ipd.md
-- `9a655p` [pending] 05 pending/20260823-unifyfileio-05-9a655p-enforce-filename-identity-slot-id6-uniqueness-in-aw-check-an.ipd.md
+- `g6mbht` [executed] 00 executed/20260823-unifyfileio-00-g6mbht-unify-artifact-file-finding-reference-matching-and-naming-on.ipd.md
+- `o6b8l3` [executed] 01 executed/20260823-unifyfileio-01-o6b8l3-canonical-artifact-naming-and-filename-grammar-authority.ipd.md
+- `laykok` [executed] 02 executed/20260823-unifyfileio-02-laykok-unified-selector-to-file-resolver.ipd.md
+- `3cmnfc` [executed] 03 executed/20260823-unifyfileio-03-3cmnfc-unified-reference-matcher-rewriter-and-consistent-dangling-c.ipd.md
+- `52zgqr` [executed] 04 executed/20260823-unifyfileio-04-52zgqr-additive-rename-and-regroup-history-ledger-on-the-workflow-s.ipd.md
+- `9a655p` [executed] 05 executed/20260823-unifyfileio-05-9a655p-enforce-filename-identity-slot-id6-uniqueness-in-aw-check-an.ipd.md
 
 ## awcliux
 
