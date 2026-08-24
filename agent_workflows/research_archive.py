@@ -115,14 +115,37 @@ def plan_transition(
     return Move(id6, p, new_path, new_status), None
 
 
+def _collect_all_citations(repo_root: Path, research_root: Path) -> set[str]:
+    cited_ids: set[str] = set()
+    for f in RF.iter_scan_files(repo_root):
+        try:
+            f.relative_to(research_root)
+            continue
+        except ValueError:
+            pass
+        try:
+            text = f.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for cid in R.iter_id6_citations(text):
+            cited_ids.add(cid)
+    return cited_ids
+
+
 def _is_cited(
-    repo_root: Path, research_root: Path, id6: str, fm: Dict[str, object]
+    repo_root: Path,
+    research_root: Path,
+    id6: str,
+    fm: Dict[str, object],
+    all_cited: Optional[set[str]] = None,
 ) -> bool:
     """True if the doc is cited: a non-empty frontmatter consumed-by, or a resolving citation."""
 
     consumed = fm.get("consumed-by")
     if isinstance(consumed, list) and consumed:
         return True
+    if all_cited is not None:
+        return id6 in all_cited
     # A citation elsewhere whose id resolves to this doc.
     for f in RF.iter_scan_files(repo_root):
         try:
@@ -143,39 +166,73 @@ def find_miscategorized(repo_root: Path, research_root: Path) -> List[str]:
     """Return id6s of docs currently in ``archive/`` that ARE cited (should be reference?)."""
 
     flagged = []
+    all_cited = _collect_all_citations(repo_root, research_root)
     for p, parsed, fm in _all_docs(research_root):
         if str(fm.get("status")) == "archive":
-            if _is_cited(repo_root, research_root, parsed.id6, fm):
+            if _is_cited(repo_root, research_root, parsed.id6, fm, all_cited=all_cited):
                 flagged.append(parsed.id6)
     return flagged
 
 
-def _age_days(created: str, today: Optional[date] = None) -> int:
+def _age_days(created: str, today: Optional[date] = None) -> float:
     t = today or date.today()
-    d = datetime.strptime(created, "%Y%m%d").date()
-    return (t - d).days
+    try:
+        d = datetime.strptime(created, "%Y%m%d").date()
+    except ValueError:
+        try:
+            d = datetime.strptime(created, "%Y-%m-%d").date()
+        except ValueError:
+            return 0.0
+    return float((t - d).days)
 
 
 def sweep_candidates(
     repo_root: Path,
     research_root: Path,
-    older_than_days: int = 14,
+    older_than_days: float = 14.0,
     today: Optional[date] = None,
 ) -> List[str]:
-    """Return id6s eligible for the bare sweep: aged (> older_than_days) AND uncited AND hot."""
+    """Return id6s eligible for the sweep: aged (>= older_than_days) AND uncited, keeping sets together."""
 
-    out = []
-    for p, parsed, fm in _all_docs(research_root):
-        status = str(fm.get("status"))
-        if status not in R.HOT_STATUSES:
+    all_docs = _all_docs(research_root)
+    if not all_docs:
+        return []
+
+    all_cited = _collect_all_citations(repo_root, research_root)
+
+    # Group all docs by set_id (or singleton key)
+    sets: Dict[str, List[Tuple[Path, R.ResearchName, Dict[str, object]]]] = {}
+    for p, parsed, fm in all_docs:
+        set_id = parsed.set_id or str(fm.get("set", "")).strip() or None
+        key = f"set:{set_id}" if set_id else f"doc:{parsed.id6}"
+        sets.setdefault(key, []).append((p, parsed, fm))
+
+    out: List[str] = []
+    for key, members in sets.items():
+        # Compute ages for all members of the set
+        member_ages: List[float] = []
+        for p, parsed, fm in members:
+            created = str(fm.get("created", parsed.date))
+            try:
+                member_ages.append(_age_days(created, today))
+            except Exception:
+                member_ages.append(0.0)
+
+        # Set is only eligible if its newest member is at least older_than_days
+        if not member_ages or min(member_ages) < older_than_days:
             continue
-        created = str(fm.get("created", parsed.date))
-        try:
-            aged = _age_days(created, today) > older_than_days
-        except ValueError:
-            aged = False
-        if aged and not _is_cited(repo_root, research_root, parsed.id6, fm):
-            out.append(parsed.id6)
+
+        # Include un-archived and uncited members of this eligible set
+        for p, parsed, fm in members:
+            status = str(fm.get("status", ""))
+            # If already in archive with archive status, it is already archived
+            if status == "archive" and R.ARCHIVE_DIR in p.parts:
+                continue
+            if not _is_cited(
+                repo_root, research_root, parsed.id6, fm, all_cited=all_cited
+            ):
+                out.append(parsed.id6)
+
     return out
 
 
@@ -225,11 +282,12 @@ def _roots(args: argparse.Namespace) -> Tuple[Path, Path]:
 
 
 def run_archive(args: argparse.Namespace) -> int:
-    """`aw archive [<set-id|doc-id>]`: targeted deep-shelve, or a bare aged-and-uncited sweep."""
+    """`aw archive [<set-id|doc-id>]`: targeted deep-shelve, or a bare aged sweep."""
 
     repo_root, research_root = _roots(args)
     target = getattr(args, "target", None)
     apply = getattr(args, "apply", False)
+    raw_age = getattr(args, "age", None)
 
     if target:
         # Targeted: archive a specific doc (by id6) or a whole set (by set-id).
@@ -266,13 +324,24 @@ def run_archive(args: argparse.Namespace) -> int:
             )
         return 0
 
-    # Bare sweep: aged AND uncited candidates, per-item accept/override, then apply.
-    candidates = sweep_candidates(repo_root, research_root)
+    # Bare sweep: parse age duration and find candidates keeping sets together
+    from agent_workflows.duration import parse_age_duration
+
+    try:
+        older_than_days = parse_age_duration(raw_age, default_days=14.0)
+    except ValueError as e:
+        print(f"error: {e}")
+        return 2
+
+    candidates = sweep_candidates(
+        repo_root, research_root, older_than_days=older_than_days
+    )
     if not candidates:
-        print("no aged-and-uncited candidates to sweep")
+        print("no aged candidates to sweep")
         return 0
+    age_label = str(raw_age) if raw_age else "14d"
     print(
-        "Sweep candidates (aged > 2 weeks AND uncited); default classification = archive:"
+        f"Sweep candidates (aged >= {age_label}, keeping sets together; default classification = archive):"
     )
     for id6 in candidates:
         print(f"  {id6} -> archive (override to 'reference' with --keep {id6})")

@@ -2154,7 +2154,37 @@ def _build_parser() -> argparse.ArgumentParser:
     p_archive = sub.add_parser(
         "archive",
         parents=[common],
-        help="Deliberately deep-shelve artifacts of a TYPE (research or plans); targeted or a bare aged-and-uncited sweep with preview.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Deliberately deep-shelve artifacts of a TYPE (research or plans); targeted or an age-based sweep with preview.",
+        description="Deliberately deep-shelve artifacts of a TYPE (research or plans). Supports targeted "
+        "archiving of specific documents/sets or an automated sweep based on an age threshold (--age/-a). "
+        "Sets of artifacts are kept together: a set is only swept if its most recently created/edited member "
+        "meets the age threshold.",
+        epilog="""
+DURATION FORMATS
+  The --age/-a option accepts human-readable duration strings:
+    1h, 12h   - Hours (1/24 days)
+    5d, 14d   - Days (default unit if omitted, e.g. 14)
+    2w, 10w   - Weeks (7 days per week)
+    1m, 4m    - Months (30 days per month)
+    1y        - Years (365 days per year)
+
+EXAMPLES
+  # Preview sweep of research older than 14 days (default)
+  aw archive research
+
+  # Preview sweep of research older than 30 days
+  aw archive research --age 30d
+
+  # Apply sweep of terminal plans older than 4 weeks
+  aw archive plans -a 4w --apply
+
+  # Targeted archival of a specific research doc or set (immediate)
+  aw archive research <id6|set-id> --apply
+
+  # Apply sweep across both research and plans older than 10 weeks
+  aw archive all -a 10w --apply
+""",
     )
     p_archive.add_argument(
         "type_or_target",
@@ -2167,6 +2197,13 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs="?",
         default=None,
         help="A <set-id> or <id6> to archive (omit for a sweep).",
+    )
+    p_archive.add_argument(
+        "-a",
+        "--age",
+        default=None,
+        help="Minimum age threshold to sweep (e.g. 1h, 5d, 10w, 4m, 1y; default: 14d). "
+        "Sets are kept together based on their newest member.",
     )
     p_archive.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."

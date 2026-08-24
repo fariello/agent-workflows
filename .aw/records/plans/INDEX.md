@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 119 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 120 Sets; the full manifest is INDEX.json.
+
+## archiveage
+
+- `kjdtf5` [executed] 01 executed/20260823-archiveage-01-kjdtf5-support-age-duration-grammar-and-set-cohesive-archiving-swee.ipd.md
 
 ## artifactenginefix
 
@@ -273,10 +277,6 @@ Showing the 40 most-recent of 119 Sets; the full manifest is INDEX.json.
 ## agyrun
 
 - `71ibuy` [executed] 01 executed/20260816-agyrun-01-71ibuy-agy-run-executor-validator.ipd.md
-
-## humanapproval
-
-- `0g0rid` [executed] 01 executed/20260815-humanapproval-01-0g0rid-by-human-attestation.ipd.md
 
 ## (singletons: no Set)
 

@@ -132,6 +132,84 @@ class ArchiveVerbTests(unittest.TestCase):
         self.assertTrue(any("oldddd" in n for n in cands))
         self.assertFalse(any("newwww" in n for n in cands))
 
+    def test_sweep_set_cohesion(self):
+        # Set with 1 old plan and 1 brand new plan -> neither swept
+        recent = date.today().strftime("%Y%m%d")
+        _plan(
+            self.root,
+            "executed",
+            "20260101-mixset-00-mixol1-m1.md",
+            plan_id="mixol1",
+            date_="20260101",
+            set_id="mixset",
+            order="00",
+        )
+        _plan(
+            self.root,
+            "executed",
+            f"{recent}-mixset-01-mixne1-m2.md",
+            plan_id="mixne1",
+            date_=recent,
+            set_id="mixset",
+            order="01",
+        )
+
+        # Set with all old plans -> all swept together
+        _plan(
+            self.root,
+            "executed",
+            "20260101-oldset-00-oldp01-o1.md",
+            plan_id="oldp01",
+            date_="20260101",
+            set_id="oldset",
+            order="00",
+        )
+        _plan(
+            self.root,
+            "executed",
+            "20260105-oldset-01-oldp02-o2.md",
+            plan_id="oldp02",
+            date_="20260105",
+            set_id="oldset",
+            order="01",
+        )
+
+        cands = {p.name for p in A.sweep_candidates(self.pdir)}
+        self.assertFalse(any("mixol1" in n for n in cands))
+        self.assertFalse(any("mixne1" in n for n in cands))
+        self.assertTrue(any("oldp01" in n for n in cands))
+        self.assertTrue(any("oldp02" in n for n in cands))
+
+    def test_sweep_custom_age_duration(self):
+        import argparse
+
+        _plan(
+            self.root,
+            "executed",
+            "20260101-age-00-agedoc-a.md",
+            plan_id="agedoc",
+            date_="20260101",
+        )
+        # --age 1y -> not swept
+        cands_1y = A.sweep_candidates(self.pdir, older_than_days=365.0)
+        self.assertFalse(any("agedoc" in p.name for p in cands_1y))
+
+        # --age 5d -> swept
+        cands_5d = A.sweep_candidates(self.pdir, older_than_days=5.0)
+        self.assertTrue(any("agedoc" in p.name for p in cands_5d))
+
+        # CLI call
+        args = argparse.Namespace(
+            target=None, dir=str(self.root), age="5d", apply=False
+        )
+        self.assertEqual(A.run_archive(args), 0)
+
+        # Invalid age
+        bad_args = argparse.Namespace(
+            target=None, dir=str(self.root), age="invalid", apply=False
+        )
+        self.assertEqual(A.run_archive(bad_args), 2)
+
 
 class DefaultAgeTests(unittest.TestCase):
     def test_default_age(self):

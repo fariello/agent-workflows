@@ -2654,6 +2654,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260823-archiveage-01-kjdtf5-support-age-duration-grammar-and-set-cohesive-archiving-swee.ipd.md",
+    "plan_id": "kjdtf5",
+    "set_id": "archiveage",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260823-artifactenginefix-01-p7dqwz-corrective-parameterized-artifact-engine-stale-research-inde.ipd.md",
     "plan_id": "p7dqwz",
     "set_id": "artifactenginefix",
@@ -2797,7 +2807,7 @@
     "path": "pending/20260823-ipdgates-00-do64fh-enforce-single-ipd-lifecycle-and-scope-gates-fail-closed.ipd.md",
     "plan_id": "do64fh",
     "set_id": "ipdgates",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-23",
@@ -2817,7 +2827,7 @@
     "path": "pending/20260823-ipdgates-02-oorry1-canonical-scope-paths-allowlist-schema-and-grandfather-polic.ipd.md",
     "plan_id": "oorry1",
     "set_id": "ipdgates",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-23",
@@ -2837,7 +2847,7 @@
     "path": "pending/20260823-ipdgates-04-v7e88a-aw-ipd-finalize-atomic-terminal-transaction.ipd.md",
     "plan_id": "v7e88a",
     "set_id": "ipdgates",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-23",
@@ -2867,7 +2877,7 @@
     "path": "pending/20260823-ipdgates-07-wezhxg-remove-raw-terminal-transition-bypasses-and-strengthen-histo.ipd.md",
     "plan_id": "wezhxg",
     "set_id": "ipdgates",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-23",

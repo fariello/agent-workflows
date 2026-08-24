@@ -23,7 +23,7 @@ import argparse
 import re
 from datetime import date, datetime
 from pathlib import Path
-from typing import List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import plans_index as _idx
@@ -92,36 +92,57 @@ def _find_targets(plans_dir: Path, selector: str) -> List[Path]:
     return sorted(out)
 
 
-def _age_days(plan_date: str, today: Optional[date] = None) -> int:
+def _age_days(plan_date: str, today: Optional[date] = None) -> float:
     t = today or date.today()
     try:
         d = datetime.strptime(plan_date, "%Y%m%d").date()
     except ValueError:
-        return 0
-    return (t - d).days
+        try:
+            d = datetime.strptime(plan_date, "%Y-%m-%d").date()
+        except ValueError:
+            return 0.0
+    return float((t - d).days)
 
 
 def sweep_candidates(
     plans_dir: Path,
     *,
-    older_than_days: int = DEFAULT_SWEEP_AGE_DAYS,
+    older_than_days: float = DEFAULT_SWEEP_AGE_DAYS,
     today: Optional[date] = None,
 ) -> List[Path]:
-    """Terminal-root plans older than ``older_than_days`` (eligible for the bare sweep)."""
+    """Terminal-root plans older than ``older_than_days`` (keeping sets together)."""
 
-    out: List[Path] = []
+    all_terminal_root: List[Tuple[Path, str, str]] = []
+    set_ages: Dict[str, List[float]] = {}
+
     for p in sorted(plans_dir.rglob("*.md")):
         if p.name in _idx._EXCLUDE_NAMES:
             continue
-        rel = p.relative_to(plans_dir)
-        if not _at_disposition_root(list(rel.parts)):
+        try:
+            text = p.read_text(encoding="utf-8")
+        except Exception:
             continue
-        if (
-            _age_days(_plan_date(p.read_text(encoding="utf-8")), today)
-            > older_than_days
-        ):
-            out.append(p)
-    return out
+        sm = re.search(r"(?m)^- Set:\s*(.+?)\s*$", text)
+        set_id = sm.group(1).strip() if sm else ""
+        p_date = _plan_date(text)
+        age = _age_days(p_date, today)
+        if set_id:
+            set_ages.setdefault(set_id, []).append(age)
+        rel = p.relative_to(plans_dir)
+        if _at_disposition_root(list(rel.parts)):
+            all_terminal_root.append((p, set_id, p_date))
+
+    out: List[Path] = []
+    for p, set_id, p_date in all_terminal_root:
+        if set_id and set_id in set_ages:
+            # Set is only swept if its newest member is at least older_than_days
+            if min(set_ages[set_id]) >= older_than_days:
+                out.append(p)
+        else:
+            if _age_days(p_date, today) >= older_than_days:
+                out.append(p)
+
+    return sorted(out)
 
 
 def _refresh_index(repo_root: Path, plans_dir: Path) -> None:
@@ -169,6 +190,7 @@ def run_archive(args: argparse.Namespace) -> int:
     repo_root, plans_dir = _dirs(args)
     target = getattr(args, "target", None)
     apply = getattr(args, "apply", False)
+    raw_age = getattr(args, "age", None)
 
     if target:
         paths = _find_targets(plans_dir, target)
@@ -198,8 +220,18 @@ def run_archive(args: argparse.Namespace) -> int:
             )
         return 0
 
-    # Bare sweep.
-    cands = sweep_candidates(plans_dir)
+    # Bare sweep: parse age duration and find candidates keeping sets together
+    from agent_workflows.duration import parse_age_duration
+
+    try:
+        older_than_days = parse_age_duration(
+            raw_age, default_days=DEFAULT_SWEEP_AGE_DAYS
+        )
+    except ValueError as e:
+        print(f"error: {e}")
+        return 2
+
+    cands = sweep_candidates(plans_dir, older_than_days=older_than_days)
     if not cands:
         from agent_workflows.term import Term
         from agent_workflows.result_types import NextAction
@@ -212,7 +244,10 @@ def run_archive(args: argparse.Namespace) -> int:
         return 0
     moves = [mv for mv in (plan_shard_move(plans_dir, p) for p in cands) if mv]
     if not apply:
-        print("Sweep candidates (terminal-root plans older than two weeks):")
+        age_label = str(raw_age) if raw_age else f"{DEFAULT_SWEEP_AGE_DAYS}d"
+        print(
+            f"Sweep candidates (terminal-root plans aged >= {age_label}, keeping sets together):"
+        )
         for mv in moves:
             print(f"  {mv.old_path.name} -> {mv.new_path.parent.name}/")
         print("preview only; re-run with --apply to move")

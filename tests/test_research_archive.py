@@ -169,6 +169,78 @@ class SweepTests(unittest.TestCase):
         self.assertNotIn("newwww", cands)
         self.assertNotIn("citedd", cands)
 
+    def test_sweep_set_cohesion_holds_young_set(self):
+        # A set with one old member and one brand new member
+        _write_doc(
+            self.root,
+            set_id="mixedset",
+            order=0,
+            id6="mixold",
+            slug="m1",
+            status="intake",
+            created="20260101",
+        )
+        recent = date.today().strftime("%Y%m%d")
+        _write_doc(
+            self.root,
+            set_id="mixedset",
+            order=1,
+            id6="mixnew",
+            slug="m2",
+            status="intake",
+            created=recent,
+        )
+        # Another set where all members are old
+        _write_doc(
+            self.root,
+            set_id="alloldset",
+            order=0,
+            id6="allol1",
+            slug="a1",
+            status="intake",
+            created="20260101",
+        )
+        _write_doc(
+            self.root,
+            set_id="alloldset",
+            order=1,
+            id6="allol2",
+            slug="a2",
+            status="intake",
+            created="20260105",
+        )
+
+        cands = A.sweep_candidates(self.root, self.rroot)
+        # mixedset has a new member, so NEITHER member is swept (set cohesion)
+        self.assertNotIn("mixold", cands)
+        self.assertNotIn("mixnew", cands)
+        # alloldset has only old members, so BOTH members are swept together
+        self.assertIn("allol1", cands)
+        self.assertIn("allol2", cands)
+
+    def test_sweep_custom_age_duration(self):
+        import argparse
+
+        # With --age 1y (365d), oldddd (from 20260101, ~235d ago) is excluded
+        cands_1y = A.sweep_candidates(self.root, self.rroot, older_than_days=365.0)
+        self.assertNotIn("oldddd", cands_1y)
+
+        # With --age 5d, oldddd is included
+        cands_5d = A.sweep_candidates(self.root, self.rroot, older_than_days=5.0)
+        self.assertIn("oldddd", cands_5d)
+
+        # CLI args with --age
+        args = argparse.Namespace(
+            target=None, dir=str(self.root), keep=None, age="10w", apply=False
+        )
+        self.assertEqual(A.run_archive(args), 0)
+
+        # Invalid age
+        bad_args = argparse.Namespace(
+            target=None, dir=str(self.root), keep=None, age="invalid-age", apply=False
+        )
+        self.assertEqual(A.run_archive(bad_args), 2)
+
     def test_sweep_per_item_override_records_status(self):
         import argparse
 
