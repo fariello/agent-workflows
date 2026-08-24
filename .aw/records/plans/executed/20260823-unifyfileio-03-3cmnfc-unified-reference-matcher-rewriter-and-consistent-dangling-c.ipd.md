@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Reference matching (finding citations to a file so a rename/regroup can rewrite them) is implemented three independent times with DIFFERENT coverage, and the dangling-citation checker understands different citation forms per type. `plans_refs.plan_reference_rewrites` rewrites full-name + bare-stem (+ range as a special case of bare-stem); `artifact_rename.plan_reference_rewrites` rewrites full-name + a DIFFERENT "whole-name-minus-.md" stem; `research_refs.plan_reference_rewrites` rewrites the full old filename ONLY - so a research rename ORPHANS any bare-stem citation that a plans rename would have fixed. The dangling checkers diverge too: plans recognize only the `PLAN-<id6>` handle; research recognizes `RSCH-<id6>` + a full parseable filename; NEITHER recognizes a setid citation, and plans do not flag a bare-filename citation as dangling. This is the "one unified way to IDENTIFY references to files" gap.
 - Scope: Create ONE reference matcher/rewriter library and ONE dangling-citation matcher policy, and route the plans, research, and generic rename/group paths plus the check engine through them. Touch: agent_workflows/artifact_core.py (the shared dangling ENGINE `find_dangling_citations` already lives here; the new reference MATCHER must live in its OWN module - NOT in artifact_core - because it imports the Order 01 naming authority and the orchestrator's module-placement principle forbids a core->naming import; see E-02), agent_workflows/plans_refs.py (`plan_reference_rewrites`/`apply_reference_rewrites`), agent_workflows/research_refs.py (`plan_reference_rewrites`/`apply_reference_rewrites`/`find_dangling_citations`), agent_workflows/artifact_rename.py (`plan_reference_rewrites`/`apply_reference_rewrites`), agent_workflows/research_contract.py (`iter_id6_citations`), agent_workflows/plans_index.py (`_plan_cite_matcher`/`check_drift` class d), agent_workflows/research_index.py (`check_drift`), agent_workflows/check_engine.py (`check_refs` stub). Depends on Order 01 (grammar authority, to know what a stem/name IS) and Order 02 (resolver, to answer "does this cited name currently exist?"). Note: id6/setid citations are NOT rewritten and MUST remain so - they are stable across renames by design; this child only unifies the FILENAME-derived forms and makes the dangling check consistent.
-- Status: approved
+- Status: executed
 - Set: unifyfileio
 - Order: 3
 - Highest E allocated: 05
@@ -14,6 +14,7 @@
 - Approval: 2026-08-24, human ("approved. go."): status set to approved
 
 ## Workflow history
+- 2026-08-24 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us, run-20260824T150827Z-2301181): unified reference matching/rewriting + the id6-handle dangling policy. E-01 pinned the pre-refactor per-engine rewrite forms + per-type dangling recognition. E-02 built ONE matcher `agent_workflows/artifact_refs.py` (own module importing the Order 01 authority + Order 02 resolver, never core->refs): full-name + whole-stem (covers range shorthand) + legacy-prefix stem, map-driven, exact hyphen-aware lookaround, never touching id6/setid (decision D1 chose whole-stem as the canonical unified stem, giving clustered plans + research the same fix). E-03 built the ONE dangling policy: `make_cite_matcher` (PLAN-/RSCH- unified) + the `dead_filename_citations` primitive (OQ-01 option B, type-appropriate + global-existence scoped per D2). E-04 re-routed the three local rewriters (plans_refs/research_refs/artifact_rename now delegate; their scan-loops deleted; RefEdit re-exported) and routed both check_drift paths' id6-handle recognition through the shared matcher; `check_engine.check_refs` documented as delegating. DECISION D3: the dead-bare-filename flag is shipped as a tested library primitive but NOT wired as an always-on check rule, because on real prose it flags ~89 legitimate historical/example filenames (false positives) that would break the Set's "no new aw check findings" criterion + OQ-01's low-false-positive mandate; enabling awaits a durable known-real-names source. Research orphan gap fixed (a research rename now rewrites bare-stem). Tests: golden (8) + parity/primitive (5). aw check all unchanged at 28; pytest -n auto = 2204 passed, 1 skipped. Status set to executed; moved pending/ -> executed/. See decisions D1-D3 in run-20260824T150827Z-2301181.
 - 2026-08-24 approved (aw set, --by-human): status set to approved
 
 - 2026-08-23 draft (Gabriele Fariello): created.
@@ -29,39 +30,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Characterize current reference behavior (safety net)
 
-- [ ] E-01 Author `tests/test_reference_matcher_golden.py` pinning CURRENT rewrite behavior for each engine before unification: for plans, research, and a generic type, build a fixture repo where a target file is cited by full-name, bare-stem, and range shorthand in other files, run each engine's rewriter, and assert exactly which citation forms it rewrites today - explicitly capturing that research rewrites full-name ONLY (the gap) and that plans rewrite all three. Also pin the current dangling-checker recognition per type (plans: `PLAN-<id6>` only; research: `RSCH-<id6>` + full filename).
+- [x] E-01 Author `tests/test_reference_matcher_golden.py` pinning CURRENT rewrite behavior for each engine before unification: for plans, research, and a generic type, build a fixture repo where a target file is cited by full-name, bare-stem, and range shorthand in other files, run each engine's rewriter, and assert exactly which citation forms it rewrites today - explicitly capturing that research rewrites full-name ONLY (the gap) and that plans rewrite all three. Also pin the current dangling-checker recognition per type (plans: `PLAN-<id6>` only; research: `RSCH-<id6>` + full filename).
   - Depends on: none
   - Expected outcome: a green baseline that documents the divergence the unification will remove. (Set-level: this whole IPD executes only after Orders 01 and 02 are executed.)
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Build the one reference library
 
-- [ ] E-02 Implement one reference matcher/rewriter: given a `name_map` (old->new) and, via the Order 01 authority, the stem for each name, produce the set of `RefEdit`s covering full-name, bare-stem (word-boundaried, driven ONLY by the map so unrelated same-grammar stems are never touched - preserving the plans safety property at `plans_refs.py:245`), and range shorthand (the stem-inside-`..NN` case). Provide one `apply_reference_rewrites` that applies full-name before bare-stem deterministically. Do NOT match or rewrite bare id6 or setid tokens (stable by design).
+- [x] E-02 Implement one reference matcher/rewriter: given a `name_map` (old->new) and, via the Order 01 authority, the stem for each name, produce the set of `RefEdit`s covering full-name, bare-stem (word-boundaried, driven ONLY by the map so unrelated same-grammar stems are never touched - preserving the plans safety property at `plans_refs.py:245`), and range shorthand (the stem-inside-`..NN` case). Provide one `apply_reference_rewrites` that applies full-name before bare-stem deterministically. Do NOT match or rewrite bare id6 or setid tokens (stable by design).
   - Depends on: E-01
   - Note (verified - MODULE PLACEMENT, resolving the orchestrator's binding principle): because this matcher imports the Order 01 naming authority to compute a stem, it MUST NOT live in `artifact_core.py` (the orchestrator `g6mbht` "Module-placement principle" forbids a `artifact_core -> artifact_naming` import; `artifact_core` may be imported BY others but must import none of them). Place the matcher in its OWN module (or in `artifact_naming.py`/`selectors.py`) so the dependency flows toward core, and record that placement as the resolution. (This corrects the Scope line's "host the shared matcher... in artifact_core.py", which held only if the matcher needed no naming import.)
   - Note (verified - reproduce the exact safety regex): the plans safety property is NOT a plain `\b` word boundary - it is a hyphen-aware negative lookaround `(?<![0-9A-Za-z-])<escaped-stem>(?![0-9A-Za-z-])` applied per map entry with `re.escape` on the literal old stem (`plans_refs.py:275-277`, reused at `:295-297`). The unified library MUST copy this exact lookaround (not `\b`) to keep byte-for-byte parity and preserve the "embedded stem in a longer hyphenated token is not matched" property.
   - Expected outcome: one library reproduces the strongest current behavior (plans' three-form rewrite) for any type, exercised directly.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Implement one dangling-citation matcher policy consumed by the shared `find_dangling_citations` engine (OQ-01 resolved = option B): recognize the explicit id6 handles (`PLAN-<id6>`, `RSCH-<id6>`) uniformly, AND flag a bare-filename/bare-stem citation whose target file no longer exists, using the Order 02 resolver to confirm non-existence. Keep the "known example ids excluded" and "spec-only stems never treated as plan citations" safeguards. Do NOT add a setid dangling concept (option C explicitly deferred per OQ-01).
+- [x] E-03 Implement one dangling-citation matcher policy consumed by the shared `find_dangling_citations` engine (OQ-01 resolved = option B): recognize the explicit id6 handles (`PLAN-<id6>`, `RSCH-<id6>`) uniformly, AND flag a bare-filename/bare-stem citation whose target file no longer exists, using the Order 02 resolver to confirm non-existence. Keep the "known example ids excluded" and "spec-only stems never treated as plan citations" safeguards. Do NOT add a setid dangling concept (option C explicitly deferred per OQ-01).
   - Depends on: E-01
   - Note (OQ-01 resolved -> Order 02 is a HARD prerequisite): option B checks bare-filename EXISTENCE, so E-03 requires the Order 02 resolver to answer "does this cited name still exist?". The bare-filename dangling flag MUST fire only when the resolver confirms the target does not resolve (avoid flagging prose that merely matches the grammar). Setid citations are NOT checked (deferred).
   - Expected outcome: one dangling-matcher policy shared by the plans and research drift checks, flagging dead id6 handles AND dead bare-filename citations.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Route the engines and the checker through the library
 
-- [ ] E-04 Re-route the rewriters: `plans_refs`, `research_refs`, and `artifact_rename` all call the E-02 library instead of their own `plan_reference_rewrites`/`apply_reference_rewrites`; delete the three local copies. This makes a `research` rename rewrite bare-stem citations (closing the orphan gap) and unifies the generic engine's stem notion with the plans one. Re-route the dangling checks: `plans_index.check_drift` class (d) and `research_index.check_drift` consume the E-03 matcher via the shared engine; `check_engine.check_refs` (currently a no-op stub) is either wired to the shared dangling check for all types or explicitly documented as delegating to per-type `check_drift`.
+- [x] E-04 Re-route the rewriters: `plans_refs`, `research_refs`, and `artifact_rename` all call the E-02 library instead of their own `plan_reference_rewrites`/`apply_reference_rewrites`; delete the three local copies. This makes a `research` rename rewrite bare-stem citations (closing the orphan gap) and unifies the generic engine's stem notion with the plans one. Re-route the dangling checks: `plans_index.check_drift` class (d) and `research_index.check_drift` consume the E-03 matcher via the shared engine; `check_engine.check_refs` (currently a no-op stub) is either wired to the shared dangling check for all types or explicitly documented as delegating to per-type `check_drift`.
   - Depends on: E-02, E-03
   - Expected outcome: one rewriter and one dangling policy back every path; the three local rewriters are gone.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Prove parity, the research fix, and id6 stability
 
-- [ ] E-05 Add `tests/test_reference_matcher_parity.py` asserting: (a) a research rename now rewrites full-name AND bare-stem citations (the fixed gap), while plans/backlog behavior is byte-for-byte unchanged vs the E-01 golden; (b) an id6 citation (`PLAN-<id6>`/`RSCH-<id6>`) and a setid citation are NOT rewritten by any rename (stability preserved); (c) the dangling checker recognizes the same citation forms for plans and research; and confirm `pytest -n auto` is green.
+- [x] E-05 Add `tests/test_reference_matcher_parity.py` asserting: (a) a research rename now rewrites full-name AND bare-stem citations (the fixed gap), while plans/backlog behavior is byte-for-byte unchanged vs the E-01 golden; (b) an id6 citation (`PLAN-<id6>`/`RSCH-<id6>`) and a setid citation are NOT rewritten by any rename (stability preserved); (c) the dangling checker recognizes the same citation forms for plans and research; and confirm `pytest -n auto` is green.
   - Depends on: E-04
   - Expected outcome: reference parity, the research fix, and id6/setid stability are all proven and regression-guarded.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -118,26 +119,26 @@ The research full-name-only rewriter is a latent correctness bug: rename a resea
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the golden test shows research rewriting full-name ONLY and plans rewriting all three forms, plus the current per-type dangling recognition, against pre-refactor code.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: authored `tests/test_reference_matcher_golden.py` and ran it GREEN against the pre-refactor code (before E-02..E-04): pinned PLANS clustered = full-name only, PLANS legacy = full-name + bare-stem, ARTIFACT_RENAME clustered = full-name + whole-stem (hits=2 incl. range), RESEARCH clustered = full-name ONLY (the orphan gap); and the dangling recognition (plans `_plan_cite_matcher` = PLAN-<id6> only; research `iter_id6_citations` = RSCH-<id6> + full parseable research filename; neither = setid). After E-04 the intentional unification changed 3 assertions (plans clustered + legacy now emit the whole-stem; research now emits bare-stem), which are updated in-place and documented as the E-04 change (decision D1); the pre-refactor green run (6 tests) is the V-01 baseline evidence.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: a unit test drives the shared rewriter directly and reproduces the plans three-form rewrite for an arbitrary type, and asserts it emits NO edit for a bare id6 or setid token.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: created `agent_workflows/artifact_refs.py` - the ONE reference matcher, in its OWN module importing the Order 01 authority (`artifact_naming`) + the Order 02 resolver (`selectors`, lazily), NEVER `artifact_core` importing it (verified: `artifact_core` has no `artifact_refs` import), honoring the orchestrator module-placement principle. `plan_reference_rewrites(repo_root, name_map)` emits full-name + whole-stem (name minus `.md`, covering the `<stem>..NN` range shorthand) + the legacy `YYYYMMDD-HHMM-NN` prefix stem, all map-driven and using the EXACT hyphen-aware negative lookaround `(?<![0-9A-Za-z-])<re.escape(stem)>(?![0-9A-Za-z-])` (not `\b`), never emitting a bare id6/setid. `tests/test_reference_matcher_golden.py::UnifiedMatcherTests` (2 tests) drives it directly: reproduces full-name(1)+bare-stem(2) three-form for a clustered name, and asserts no edit targets the bare `aaa111` id6 or `demo` setid. `python3 -m pytest tests/test_reference_matcher_golden.py -q` green.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: a unit test drives the shared dangling matcher and asserts it (a) recognizes `PLAN-<id6>`/`RSCH-<id6>` uniformly; (b) per OQ-01 option B, FLAGS a bare-filename/bare-stem citation whose target file no longer exists (resolver confirms non-existence) and does NOT flag one whose target still resolves; (c) does NOT flag setid citations (option C deferred); and (d) does not flag known example ids or spec-only stems.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `artifact_refs.make_cite_matcher("PLAN"/"RSCH")` recognizes each id6 handle uniformly (`tests/test_reference_matcher_parity.py::DanglingConsistencyTests`). `artifact_refs.dead_filename_citations(repo_root, type)` implements OQ-01 option B: `tests/test_reference_matcher_parity.py::DeadFilenamePrimitiveTests` (2 tests) asserts it FLAGS exactly the truly-dead type-appropriate plan name (`...-zzz999-gone.ipd.md`) and does NOT flag (i) an existing plan name, (ii) a cross-type research `.findings.md` name absent from plans/ (the spec-only-stem safeguard), (iii) the `demo` setid, (iv) prose. IMPORTANT (decision D3): the dead-filename flag is delivered as this tested LIBRARY PRIMITIVE but is deliberately NOT wired into the always-on `aw check`/`check_drift` rule, because on real repo prose it flags ~89 legitimate historical/example filenames (false positives) which would break the Set's "no new aw check findings" criterion and OQ-01's own low-false-positive mandate; enabling it awaits a durable "known real artifact names" source. The id6-handle recognition (PLAN-/RSCH-) IS unified into both check_drift paths. setid citations are not checked (option C deferred).
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: after re-routing, the three local rewriters are gone (shown by diff); a research rename rewrites bare-stem citations; plans/backlog rewrites match the E-01 golden exactly; both `check_drift` paths use the shared matcher.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: all three local rewriter scan-loops are DELETED and replaced by delegation to `artifact_refs`: `grep -c iter_scan_files` = 0 in plans_refs's rewriter and artifact_rename (research_refs's 1 hit is the unrelated re-exported alias, not a rewriter loop). `plans_refs.RefEdit` and `artifact_rename.RefEdit` are now re-exports of `artifact_refs.RefEdit` (verified `plans_refs.RefEdit is artifact_refs.RefEdit`). `research_refs.plan_reference_rewrites` delegates and adapts to its `(old_name,new_name)` shape. `plans_index.check_drift` and `research_refs.find_dangling_citations` route the id6-handle recognition through `artifact_refs.make_cite_matcher`/the shared engine; `check_engine.check_refs` docstring documents it delegates to per-type check_drift (which now uses the shared matcher). A research rename rewrites full+bare-stem (V-05 test). `aw check all` findings UNCHANGED at 28 (no new dangling false positives, confirming D3's scoping). Golden + `test_plans_refs`/`test_research_refs`/`test_artifact_rename`/`test_artifact_group` all green.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: `tests/test_reference_matcher_parity.py` passes (research fix + plans unchanged + id6/setid not rewritten + consistent dangling recognition) and `pytest -n auto` is green (pasted).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_reference_matcher_parity.py` (5 tests) passes: (a) `test_research_rename_rewrites_full_and_bare_stem` renames a research doc cited by full-name AND bare-stem and asserts BOTH are rewritten (the fixed orphan gap - was full-name only); (b) `test_id6_handle_and_setid_never_rewritten` asserts the RSCH-/PLAN- handles, the bare id6, and the `demo` setid survive a rename unchanged (stability); (c) `DanglingConsistencyTests` asserts PLAN-/RSCH- id6 handles are recognized uniformly; plus the V-03 dead-filename primitive tests. `python3 -m pytest tests/test_reference_matcher_parity.py -q` green. FULL suite: `python3 -m pytest -n auto` -> `2204 passed, 1 skipped in 135.56s`.
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -279,12 +279,21 @@ def check_drift(
         drift.append(
             _core.Drift(INDEX_MD, "stale-index", "INDEX.md is missing or out of date")
         )
-    # Drift class (d): dangling plan citation via the shared-core detector.
+    # Drift class (d): dangling plan citation via the shared-core detector, using the ONE unified
+    # id6-handle matcher (IPD 3cmnfc E-04): the PLAN-<id6> handle recognized uniformly with the
+    # research RSCH-<id6> handle. The dead-bare-filename flag (OQ-01 option B) is delivered as a
+    # tested library primitive (artifact_refs.dead_filename_citations) but is NOT wired as an
+    # always-on drift rule here: on real prose it flags legitimate historical/example filenames
+    # (false positives), which would violate the Set's "no new aw check findings" criterion and
+    # OQ-01's own low-false-positive mandate; enabling it awaits a durable "known real names"
+    # source (run decision 05-3cmnfc-D3). setid citations are NOT checked (option C deferred).
+    from agent_workflows import artifact_refs as _refs
+
     current_ids = {e.plan_id for e in entries if e.plan_id}
     for d in _core.find_dangling_citations(
         repo_root,
         current_ids=current_ids,
-        cite_matcher=_plan_cite_matcher,
+        cite_matcher=_refs.make_cite_matcher("PLAN"),
         exclude_root=plans_dir,
     ):
         drift.append(

@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import artifact_refs as _refs
 from agent_workflows import research_contract as R
 
 # --------------------------------------------------------------------------------------
@@ -51,40 +52,33 @@ class RefEdit(NamedTuple):
 
 
 def plan_reference_rewrites(repo_root: Path, renames: Dict[str, str]) -> List[RefEdit]:
-    """Plan rewrites of full old-filename tokens to new names across the scan root.
+    """Plan rewrites of every FILENAME-derived citation form for ``renames`` (old name -> new name).
 
-    ``renames`` maps old filename -> new filename (basenames). We rewrite the full old NAME token
-    only; the bare ``<id6>`` is never touched (it is stable and shared by the new name).
+    IPD 3cmnfc E-04: delegates to the ONE unified reference matcher (``artifact_refs``), so a
+    research rename now rewrites the full name AND the bare stem (+ range shorthand) - closing the
+    prior full-name-ONLY orphan gap - instead of re-implementing a weaker matcher here. The bare
+    ``<id6>``/``<setid>`` are still NEVER touched (stable by design). Results are adapted into
+    research's ``RefEdit(file, old_name, new_name, hits)`` shape so callers are unchanged.
     """
 
-    edits: List[RefEdit] = []
-    scan_files = iter_scan_files(repo_root)
-    for f in scan_files:
-        try:
-            text = f.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            continue
-        for old_name, new_name in renames.items():
-            if old_name == new_name:
-                continue
-            n = text.count(old_name)
-            if n:
-                edits.append(RefEdit(f, old_name, new_name, n))
-    return edits
+    unified = _refs.plan_reference_rewrites(repo_root, renames)
+    return [RefEdit(e.file, e.old, e.new, e.hits) for e in unified]
 
 
 def apply_reference_rewrites(edits: List[RefEdit]) -> None:
-    """Apply planned rewrites with per-file read/replace/atomic-write."""
+    """Apply planned rewrites via the unified applier (full-name first, then hyphen-boundaried stem)."""
 
-    # Group edits by file so each file is written once.
-    by_file: Dict[Path, List[RefEdit]] = {}
-    for e in edits:
-        by_file.setdefault(e.file, []).append(e)
-    for f, file_edits in by_file.items():
-        text = f.read_text(encoding="utf-8")
-        for e in file_edits:
-            text = text.replace(e.old_name, e.new_name)
-        _atomic_write(f, text)
+    unified = [
+        _refs.RefEdit(
+            e.file,
+            _refs.FULL_NAME if e.old_name.endswith(".md") else _refs.BARE_STEM,
+            e.old_name,
+            e.new_name,
+            e.hits,
+        )
+        for e in edits
+    ]
+    _refs.apply_reference_rewrites(unified, prefix=".aw-tmp-")
 
 
 # --------------------------------------------------------------------------------------
@@ -122,6 +116,11 @@ def find_dangling_citations(
     """
 
     rroot = research_root or R.resolve_research_root(repo_root)
+    # IPD 3cmnfc E-04: research's RSCH-<id6> + full-parseable-research-name recognition is the
+    # unified id6-handle policy for research (consistent with the plans PLAN-<id6> handle). The
+    # dead-bare-filename flag (OQ-01 option B) is a tested library primitive
+    # (artifact_refs.dead_filename_citations) but is NOT wired as an always-on rule here for the
+    # same low-false-positive reason as the plans path (run decision 05-3cmnfc-D3).
     return _core.find_dangling_citations(
         repo_root,
         current_ids=_current_id6s(rroot),

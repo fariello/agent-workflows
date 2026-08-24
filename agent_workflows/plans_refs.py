@@ -24,6 +24,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
+from agent_workflows import artifact_refs as _refs
 from agent_workflows import plans_index as _idx
 
 PLANS_DIR = ".agents/plans"
@@ -205,12 +206,9 @@ def plan_set_assign(
 # --------------------------------------------------------------------------------------
 
 
-class RefEdit(NamedTuple):
-    file: Path
-    kind: str  # full-name | bare-stem
-    old: str
-    new: str
-    hits: int
+# The RefEdit record is defined ONCE in the unified reference library (IPD 3cmnfc); re-export it so
+# this module's API (`RefEdit(file, kind, old, new, hits)`) is unchanged.
+RefEdit = _refs.RefEdit
 
 
 def _old_stem(old_name: str) -> Optional[str]:
@@ -223,64 +221,22 @@ def _old_stem(old_name: str) -> Optional[str]:
 def plan_reference_rewrites(
     repo_root: Path, name_map: Dict[str, str], plans_dir: Path
 ) -> List[RefEdit]:
-    """Plan rewrites of the three citation forms for a PLAN old-name -> new-name ``name_map``.
+    """Plan every FILENAME-derived citation rewrite for a PLAN ``name_map`` (old -> new).
 
-    (a) full old filename -> new filename (exact string);
-    (b) bare stem ``YYYYMMDD-HHMM-NN`` -> the NEW stem, ONLY for stems that belong to a plan in the
-        map (so spec-only stems sharing the grammar are never touched);
-    (c) range shorthand is a special case of (b): the stem inside a range is rewritten by the same
-        stem map, so a ``<oldstem>..NN`` range becomes ``<newstem>..NN``.
+    IPD 3cmnfc E-04: delegates to the ONE unified reference matcher (``artifact_refs``): full name +
+    whole stem (covers the range shorthand ``<stem>..NN``) + the legacy ``YYYYMMDD-HHMM-NN`` prefix
+    stem, all map-driven and hyphen-boundaried, never touching a bare id6/setid. This also gives a
+    CLUSTERED plan rename the whole-stem rewrite it previously lacked (the same fix research gets).
+    ``plans_dir`` is retained for API compatibility (matching scans the pinned SCAN_ROOTS).
     """
 
-    # Build a bare-stem map from ONLY the plan renames (old stem -> new stem, both stemmed).
-    stem_map: Dict[str, str] = {}
-    for old_name, new_name in name_map.items():
-        os_ = _old_stem(old_name)
-        # The "new stem" is the clustered name without its `.md` (used for bare/range cites).
-        if os_ is not None:
-            stem_map[os_] = new_name.removesuffix(".md")
-
-    edits: List[RefEdit] = []
-    for f in _core.iter_scan_files(repo_root):
-        try:
-            text = f.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            continue
-        # (a) full filename
-        for old_name, new_name in name_map.items():
-            if old_name != new_name and old_name in text:
-                edits.append(
-                    RefEdit(f, "full-name", old_name, new_name, text.count(old_name))
-                )
-        # (b)+(c) bare stem (also covers the stem inside a range shorthand), plan-map-driven only.
-        for old_stem, new_stem in stem_map.items():
-            # Count occurrences of the stem as a standalone token (word-boundaried), which also
-            # matches the stem inside a `<stem>`..`NN` range shorthand.
-            pat = re.compile(
-                r"(?<![0-9A-Za-z-])" + re.escape(old_stem) + r"(?![0-9A-Za-z-])"
-            )
-            n = len(pat.findall(text))
-            if n:
-                edits.append(RefEdit(f, "bare-stem", old_stem, new_stem, n))
-    return edits
+    return _refs.plan_reference_rewrites(repo_root, name_map)
 
 
 def apply_reference_rewrites(edits: List[RefEdit]) -> None:
-    by_file: Dict[Path, List[RefEdit]] = {}
-    for e in edits:
-        by_file.setdefault(e.file, []).append(e)
-    for f, file_edits in by_file.items():
-        text = f.read_text(encoding="utf-8")
-        # Apply full-name rewrites first (longest, most specific), then bare-stem (word-boundaried).
-        for e in sorted(file_edits, key=lambda x: 0 if x.kind == "full-name" else 1):
-            if e.kind == "full-name":
-                text = text.replace(e.old, e.new)
-            else:
-                pat = re.compile(
-                    r"(?<![0-9A-Za-z-])" + re.escape(e.old) + r"(?![0-9A-Za-z-])"
-                )
-                text = pat.sub(e.new, text)
-        _core.atomic_write(f, text, prefix=".plans-refs-")
+    """Apply planned rewrites via the unified applier (full-name first, then hyphen-boundaried stem)."""
+
+    _refs.apply_reference_rewrites(edits, prefix=".plans-refs-")
 
 
 # --------------------------------------------------------------------------------------

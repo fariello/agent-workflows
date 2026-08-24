@@ -195,9 +195,12 @@ def check_content(
 
 
 def check_refs(repo_root: Path, record_type: str) -> List[_core.Drift]:
-    """Reference integrity. For plans/research this is already delivered via check_content
-    (their check_drift covers dangling citations), so this returns [] today to avoid
-    double-counting. It is the documented SEAM for future per-type ref checks (e.g. the
+    """Reference integrity. DELEGATES to per-type ``check_drift`` (IPD 3cmnfc E-04): the dangling-
+    citation detection for plans and research is delivered by ``plans_index.check_drift`` /
+    ``research_index.check_drift`` (invoked via ``check_content``), both of which now consume the
+    ONE unified dangling policy in ``artifact_refs`` (id6 handles + dead bare-filename via the
+    resolver, OQ-01 option B; setid citations not checked). This stub returns [] to avoid
+    double-counting and remains the documented SEAM for future per-type ref checks (e.g. the
     awrelease Blocks-Release dangling check folds in here)."""
     return []
 

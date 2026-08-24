@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import argparse
 import re
-from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
+from agent_workflows import artifact_refs as _refs
 from agent_workflows import selectors
 from agent_workflows.project_context import resolve_verb_repo_root
 
@@ -30,13 +30,9 @@ _SET_LINE_RE = re.compile(r"(?m)^- Set:\s*(.+?)\s*$")
 _ORDER_LINE_RE = re.compile(r"(?m)^- Order:\s*(\d+)\s*$")
 
 
-@dataclass
-class RefEdit:
-    file: Path
-    kind: str
-    old: str
-    new: str
-    hits: int
+# RefEdit is defined ONCE in the unified reference library (IPD 3cmnfc); re-export it so this
+# module's API (`RefEdit(file, kind, old, new, hits)`) is unchanged.
+RefEdit = _refs.RefEdit
 
 
 def _resolve_repo_root(args: argparse.Namespace) -> Path:
@@ -134,60 +130,20 @@ def compute_target_name(
 def plan_reference_rewrites(
     repo_root: Path, old_name: str, new_name: str
 ) -> List[RefEdit]:
-    """Find all inbound references across SCAN_ROOTS to rewrite."""
-    edits: List[RefEdit] = []
-    old_stem = old_name.removesuffix(".md")
-    new_stem = new_name.removesuffix(".md")
+    """Find all inbound references to rewrite (IPD 3cmnfc E-04: delegates to the ONE unified matcher).
 
-    for f in _core.iter_scan_files(repo_root):
-        try:
-            text = f.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            continue
+    Full name + whole stem (covers range shorthand) + legacy prefix, map-driven and hyphen-
+    boundaried; a bare id6/setid is never touched. Signature kept (single old->new) by wrapping it
+    into a one-entry name_map.
+    """
 
-        # 1. Full name matches
-        if old_name in text:
-            hits = text.count(old_name)
-            edits.append(RefEdit(f, "full-name", old_name, new_name, hits))
-
-        # 2. Bare stem word-boundary matches (if stem is distinct from full name and not purely generic)
-        if old_stem != old_name and len(old_stem) >= 6:
-            # Avoid duplicate counting if already matched full name
-            pat = re.compile(
-                r"(?<![0-9A-Za-z-])" + re.escape(old_stem) + r"(?![0-9A-Za-z-])"
-            )
-            matches = pat.findall(text)
-            if matches:
-                # Count occurrences that are not part of old_name
-                # Subtract full name occurrences if they overlap
-                edits.append(RefEdit(f, "bare-stem", old_stem, new_stem, len(matches)))
-
-    return edits
+    return _refs.plan_reference_rewrites(repo_root, {old_name: new_name})
 
 
 def apply_reference_rewrites(edits: List[RefEdit]) -> None:
-    """Apply reference rewrites to referencing files."""
-    by_file: dict[Path, list[RefEdit]] = {}
-    for e in edits:
-        by_file.setdefault(e.file, []).append(e)
+    """Apply reference rewrites (unified applier: full-name first, then hyphen-boundaried stem)."""
 
-    for f, file_edits in by_file.items():
-        try:
-            text = f.read_text(encoding="utf-8")
-            # Apply full-name rewrites first, then bare-stem
-            for e in sorted(
-                file_edits, key=lambda x: 0 if x.kind == "full-name" else 1
-            ):
-                if e.kind == "full-name":
-                    text = text.replace(e.old, e.new)
-                else:
-                    pat = re.compile(
-                        r"(?<![0-9A-Za-z-])" + re.escape(e.old) + r"(?![0-9A-Za-z-])"
-                    )
-                    text = pat.sub(e.new, text)
-            _core.atomic_write(f, text, prefix=".aw-ref-")
-        except OSError:
-            pass
+    _refs.apply_reference_rewrites(edits, prefix=".aw-ref-")
 
 
 def _update_frontmatter_metadata(
