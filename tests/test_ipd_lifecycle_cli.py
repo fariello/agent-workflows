@@ -71,6 +71,27 @@ def _ready_plan_text(
     return "\n".join(out) + "\n"
 
 
+def _completed_plan_text(
+    *,
+    plan_id: str = "abc123",
+    scope_paths: str = "agent_workflows/demo.py, tests/test_demo.py",
+) -> str:
+    """A ready-plan whose single E-01/V-01 is marked performed/pass so it lints CONFORMING at
+    the pre-transition checkpoint (finalize requires this)."""
+    t = _ready_plan_text(plan_id=plan_id, scope_paths=scope_paths)
+    t = t.replace("- [ ] E-01 ", "- [x] E-01 ", 1).replace(
+        "  - Execution state: pending", "  - Execution state: performed", 1
+    )
+    t = (
+        t.replace("- [ ] V-01 validates E-01", "- [x] V-01 validates E-01", 1)
+        .replace(
+            "  - Observed evidence:\n", "  - Observed evidence: done, verified.\n", 1
+        )
+        .replace("  - Result: pending", "  - Result: pass", 1)
+    )
+    return t
+
+
 def _write_plan(root: Path, text: str, name: str) -> Path:
     d = root / ".aw" / "records" / "plans" / "pending"
     d.mkdir(parents=True, exist_ok=True)
@@ -302,6 +323,212 @@ class BeginCliTests(unittest.TestCase):
             self.assertNotIn(".aw/records/plans", line)
             self.assertFalse(line.startswith("M "), line)
             self.assertFalse(line.startswith("A "), line)
+
+
+class FinalizeTests(unittest.TestCase):
+    """ipdgates Order v7e88a: the atomic terminal transaction with scope comparison + evidence."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _init_git(self.root)
+        (self.root / "agent_workflows").mkdir()
+        (self.root / "tests").mkdir()
+        self.plan = _write_plan(
+            self.root, _completed_plan_text(), "20260824-demo-01-abc123-demo.ipd.md"
+        )
+        _commit_all(self.root, "init")
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _begin(self):
+        return LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
+
+    def _do_inscope_work_and_commit(self):
+        (self.root / "agent_workflows" / "demo.py").write_text(
+            "print('x')\n", encoding="utf-8"
+        )
+        (self.root / "tests" / "test_demo.py").write_text(
+            "def test():\n    pass\n", encoding="utf-8"
+        )
+        _commit_all(self.root, "in-scope work")
+
+    def test_positive_finalize_succeeds_with_attribution_and_evidence(self):
+        self._begin()
+        self._do_inscope_work_and_commit()
+        result = LC.finalize(
+            self.root, self.plan, "opencode/test", "did the work", apply=True
+        )
+        self.assertEqual(
+            result.exit_code, LC.EXIT_OK, f"{result.message} / {result.findings}"
+        )
+        self.assertIsNotNone(result.commit)
+        # Plan moved to executed/, pending copy gone.
+        self.assertFalse(self.plan.exists())
+        moved = self.root / ".aw" / "records" / "plans" / "executed" / self.plan.name
+        self.assertTrue(moved.is_file())
+        # Attributed history (non-generic actor) + terminal status.
+        moved_text = moved.read_text()
+        self.assertIn("opencode/test", moved_text)
+        self.assertIn("- Status: executed", moved_text)
+        self.assertNotIn("(aw set)", moved_text)
+        # Three-phase gate evidence captured.
+        self.assertIn("pre_execution", result.evidence)
+        self.assertEqual(
+            result.evidence["pre_transition"]["disposition"], S.DISPOSITION_CONFORMING
+        )
+        self.assertEqual(
+            result.evidence["post_transition"]["disposition"], S.DISPOSITION_CONFORMING
+        )
+        # The lifecycle commit is path-scoped: only the plan move + the owned index.
+        proc = subprocess.run(
+            ["git", "show", "--name-only", "--format=", "HEAD"],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        touched = [ln for ln in proc.stdout.splitlines() if ln.strip()]
+        for f in touched:
+            self.assertTrue(
+                f.startswith(".aw/records/plans/"),
+                f"lifecycle commit touched a non-plan path: {f}",
+            )
+
+    def test_p7dqwz_counterexample_refuses_out_of_scope_path(self):
+        # Scope-Paths allows ONLY agent_workflows/demo.py; changing tests/test_empty_state_ux.py
+        # (the p7dqwz signature) must be refused, and the plan must stay pending/unchanged.
+        plan = _write_plan(
+            self.root,
+            _completed_plan_text(
+                plan_id="def456", scope_paths="agent_workflows/demo.py"
+            ),
+            "20260824-demo-02-def456-narrow.ipd.md",
+        )
+        _commit_all(self.root, "add narrow plan")
+        LC.begin(self.root, plan, "opencode/test", timestamp="t")
+        (self.root / "tests" / "test_empty_state_ux.py").write_text(
+            "x\n", encoding="utf-8"
+        )
+        _commit_all(self.root, "out-of-scope edit (p7dqwz signature)")
+        result = LC.finalize(self.root, plan, "opencode/test", "m", apply=True)
+        self.assertEqual(result.exit_code, LC.EXIT_FINDINGS)
+        self.assertTrue(
+            any("tests/test_empty_state_ux.py" in f for f in result.findings),
+            result.findings,
+        )
+        # Plan unmoved, still pending.
+        self.assertTrue(plan.is_file())
+        self.assertFalse(
+            (self.root / ".aw" / "records" / "plans" / "executed" / plan.name).exists()
+        )
+
+    def test_positive_when_extra_path_is_in_scope(self):
+        # The SAME extra path, but declared in Scope-Paths, finalizes successfully.
+        plan = _write_plan(
+            self.root,
+            _completed_plan_text(
+                plan_id="def456",
+                scope_paths="agent_workflows/demo.py, tests/test_empty_state_ux.py",
+            ),
+            "20260824-demo-02-def456-wide.ipd.md",
+        )
+        _commit_all(self.root, "add wide plan")
+        LC.begin(self.root, plan, "opencode/test", timestamp="t")
+        (self.root / "agent_workflows" / "demo.py").write_text("y\n", encoding="utf-8")
+        (self.root / "tests" / "test_empty_state_ux.py").write_text(
+            "z\n", encoding="utf-8"
+        )
+        _commit_all(self.root, "in-scope work incl. the extra declared path")
+        result = LC.finalize(self.root, plan, "opencode/test", "m", apply=True)
+        self.assertEqual(
+            result.exit_code, LC.EXIT_OK, f"{result.message} / {result.findings}"
+        )
+
+    def test_evidence_absent_refuses(self):
+        # No begin receipt -> finalize refuses (no execution authority).
+        result = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+        self.assertEqual(result.exit_code, LC.EXIT_FINDINGS)
+        self.assertTrue(any("receipt" in f.lower() for f in result.findings))
+        self.assertTrue(self.plan.is_file())
+
+    def test_stale_receipt_refuses(self):
+        self._begin()
+        # Edit the plan AFTER begin -> receipt digest no longer matches.
+        self.plan.write_text(
+            self.plan.read_text() + "\n<!-- edit -->\n", encoding="utf-8"
+        )
+        _commit_all(self.root, "edit plan after begin")
+        result = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+        self.assertEqual(result.exit_code, LC.EXIT_FINDINGS)
+        self.assertTrue(
+            any("stale" in f.lower() or "digest" in f.lower() for f in result.findings)
+        )
+
+    def test_pre_transition_nonconforming_refuses(self):
+        # A begin receipt exists, but the plan's checklist is incomplete -> pre-transition fails.
+        plan = _write_plan(
+            self.root,
+            _ready_plan_text(plan_id="def456"),  # E/V still pending
+            "20260824-demo-02-def456-incomplete.ipd.md",
+        )
+        _commit_all(self.root, "add incomplete plan")
+        LC.begin(self.root, plan, "opencode/test", timestamp="t")
+        result = LC.finalize(self.root, plan, "opencode/test", "m", apply=True)
+        self.assertEqual(result.exit_code, LC.EXIT_FINDINGS)
+        self.assertTrue(plan.is_file())
+
+    def test_fail_loud_index_refresh_aborts_transaction(self):
+        # If the owned plans-index refresh fails, finalize must FAIL (not swallow + report success).
+        self._begin()
+        self._do_inscope_work_and_commit()
+        with mock.patch.object(
+            LC, "_refresh_plans_index_fail_loud", side_effect=RuntimeError("index boom")
+        ):
+            result = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+        self.assertEqual(result.exit_code, LC.EXIT_CANNOT_RUN)
+        self.assertIn("index", result.message.lower())
+
+    def test_missing_actor_or_message_cannot_run(self):
+        self._begin()
+        self._do_inscope_work_and_commit()
+        self.assertEqual(
+            LC.finalize(self.root, self.plan, "", "m", apply=True).exit_code,
+            LC.EXIT_CANNOT_RUN,
+        )
+        self.assertEqual(
+            LC.finalize(self.root, self.plan, "a", "", apply=True).exit_code,
+            LC.EXIT_CANNOT_RUN,
+        )
+
+    def test_preview_without_apply_does_not_move(self):
+        self._begin()
+        self._do_inscope_work_and_commit()
+        result = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=False)
+        self.assertEqual(result.exit_code, LC.EXIT_OK)
+        self.assertIsNone(result.commit)
+        self.assertTrue(self.plan.is_file())  # not moved in preview
+
+    def test_intervening_in_scope_commits_are_computed_and_surfaced(self):
+        # OQ-01 (b) COMPUTATION: this Order computes the in-Scope-Paths paths touched by a
+        # commit since base and surfaces them in evidence (authorship-aware collision ENFORCEMENT
+        # is Order 06). The normal single-actor flow (begin -> in-scope commit -> finalize) must
+        # still SUCCEED - the in-scope commit is this execution's own sanctioned work, not a refusal.
+        self._begin()
+        self._do_inscope_work_and_commit()
+        result = LC.finalize(
+            self.root, self.plan, "opencode/test", "did the work", apply=True
+        )
+        self.assertEqual(
+            result.exit_code, LC.EXIT_OK, f"{result.message} / {result.findings}"
+        )
+        audit = result.evidence["scope_audit"]
+        # The in-scope commit paths are computed + surfaced (the substrate Order 06 builds on).
+        self.assertIn("agent_workflows/demo.py", audit["intervening_in_scope_commits"])
+        self.assertIn("tests/test_demo.py", audit["intervening_in_scope_commits"])
+        # But they are NOT unexplained-path refusals (they are inside Scope-Paths).
+        self.assertEqual(audit["unexplained_paths"], [])
 
 
 if __name__ == "__main__":

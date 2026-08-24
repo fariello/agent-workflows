@@ -784,4 +784,4 @@ After the IPD-system Set lands:
 
 ## Workflow history
 
-- 2026-08-24 note (aw specs): Documented aw ipd begin (Section 11): the fail-closed execution-start receipt under .aw/state/ipd-lifecycle/<id6>.receipt.json binding plan Id/content digest/frozen requirement+scope digest/base HEAD/actor/timestamp. Implemented by ipdgates Order xjbvu2 (agent_workflows/ipd_lifecycle.py + aw ipd begin verb).
+- 2026-08-24 note (aw specs): Documented aw ipd finalize (Section 11 terminal transaction): the atomic scope-checked terminal transition consuming the aw ipd begin receipt - validates receipt + pre-transition lint, refuses unexplained out-of-scope paths (p7dqwz signature), writes attributed history, moves the plan, refreshes the owned index fail-loud, path-scoped lifecycle commit, post-transition lint. Implemented by ipdgates Order v7e88a (agent_workflows/ipd_lifecycle.py finalize + aw ipd finalize verb).

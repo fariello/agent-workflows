@@ -94,7 +94,12 @@ safe to hand to any agent from its path alone:
 4. Commit ONLY the plan's own changed files, path-scoped; never `git add -A`/bare/`-a`;
    never push.
 5. The lifecycle move on completion (`git mv` to the terminal directory, set `Status:`,
-   append a `## Workflow history` line).
+   append a `## Workflow history` line). The supported way to perform this terminal transition
+   is `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`, which runs the
+   pre/post-transition gates, verifies the changed paths stayed within the reviewed `Scope-Paths`
+   against the `aw ipd begin` receipt's frozen base, writes the attributed history, moves the plan,
+   refreshes the owned index fail-loud, and makes the path-scoped lifecycle commit in one atomic
+   transaction (see `.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md`).
 
 This restates, at the plan level, the standing `AGENT-WORKFLOWS` execution contract (see the
 managed block in `AGENTS.md` and `CONTRIBUTING.md`); `/plan-review` and `/plan-review-long`

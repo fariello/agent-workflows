@@ -348,6 +348,431 @@ def _repo_relative(repo_root: Path, path: Path) -> str:
 
 
 # --------------------------------------------------------------------------------------
+# The finalize transaction (Order v7e88a): atomic terminal transition + scope comparison
+# --------------------------------------------------------------------------------------
+
+
+class FinalizeResult(NamedTuple):
+    """The outcome of an `aw ipd finalize` attempt.
+
+    ``exit_code`` follows the shared 0/1/2 convention. ``commit`` is the lifecycle commit hash on
+    success. ``evidence`` carries the captured pre-execution/pre-transition/post-transition gate
+    outputs and the scope comparison. ``findings`` lists refusal reasons.
+    """
+
+    exit_code: int
+    commit: Optional[str]
+    message: str
+    evidence: Dict[str, Any] = {}
+    findings: Tuple[str, ...] = ()
+
+
+def _git(repo_root: Path, args: List[str]) -> Tuple[int, str, str]:
+    """Run a git command in ``repo_root``; return (returncode, stdout, stderr)."""
+    import subprocess
+
+    proc = subprocess.run(
+        ["git", *args],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return proc.returncode, proc.stdout, proc.stderr
+
+
+def _paths_changed_by_this_execution(repo_root: Path, base_head: str) -> List[str]:
+    """Repo-relative paths this execution changed: committed since base + current working tree.
+
+    Union of `git diff --name-only <base>..HEAD` (commits made since the frozen base) and
+    `git status --porcelain` (staged + unstaged + untracked working-tree changes). This is the set
+    of paths the CURRENT worktree presents relative to the frozen base - i.e. what THIS execution
+    produced (unrelated concurrent commits on disjoint paths are handled by the intervening-commit
+    collision check, not here).
+    """
+    changed: set = set()
+    rc, out, _err = _git(repo_root, ["diff", "--name-only", f"{base_head}..HEAD"])
+    if rc == 0:
+        changed.update(ln.strip() for ln in out.splitlines() if ln.strip())
+    rc, out, _err = _git(repo_root, ["status", "--porcelain"])
+    if rc == 0:
+        for ln in out.splitlines():
+            # porcelain: 'XY <path>' or 'XY <old> -> <new>' for renames.
+            body = ln[3:] if len(ln) > 3 else ln.strip()
+            if " -> " in body:
+                body = body.split(" -> ", 1)[1]
+            p = body.strip().strip('"')
+            if p:
+                changed.add(p)
+    return sorted(changed)
+
+
+def _intervening_commits_touching(
+    repo_root: Path, base_head: str, scope_paths: List[str]
+) -> List[str]:
+    """Paths inside ``scope_paths`` that an intervening commit (base..HEAD) modified.
+
+    Per OQ-01 rule (b): a commit made SINCE the frozen base that touched a path INSIDE the plan's
+    Scope-Paths is a same-file collision (another actor edited this plan's declared territory), which
+    finalize must refuse. Returns the offending in-scope paths (empty when none / no allowlist).
+    """
+    if not scope_paths:
+        return []
+    rc, out, _err = _git(repo_root, ["diff", "--name-only", f"{base_head}..HEAD"])
+    if rc != 0:
+        return []
+    committed = [ln.strip() for ln in out.splitlines() if ln.strip()]
+    hits = [p for p in committed if any(_scope_match(p, pat) for pat in scope_paths)]
+    return sorted(set(hits))
+
+
+def _scope_match(path: str, pattern: str) -> bool:
+    """fnmatch a repo-relative path against a Scope-Paths entry (literal, dir-bounded, or glob).
+
+    A trailing-slash directory entry (`tests/`) or a bare directory (`agent_workflows`) matches any
+    path beneath it; an entry containing a glob is matched via fnmatch; a literal file matches
+    exactly. This mirrors the Scope-Paths grammar (Order oorry1).
+    """
+    import fnmatch
+
+    p = path.strip().replace("\\", "/")
+    pat = pattern.strip().replace("\\", "/")
+    if not pat:
+        return False
+    # Directory-bounded: `dir/` or `dir/**` matches anything under dir/.
+    if pat.endswith("/"):
+        return p == pat[:-1] or p.startswith(pat)
+    if pat.endswith("/**"):
+        base = pat[:-3]
+        return p == base or p.startswith(base + "/")
+    if "*" in pat or "?" in pat or "[" in pat:
+        # A dir/* style also should match nested files, so try both fnmatch and prefix.
+        if fnmatch.fnmatch(p, pat):
+            return True
+        # `dir/*.py` should not match nested, but `dir/**/*.py` should; fnmatch handles `**` loosely,
+        # so also accept a leading-directory prefix match for `dir/**...`.
+        if "**" in pat:
+            prefix = pat.split("**", 1)[0].rstrip("/")
+            return bool(prefix) and (p == prefix or p.startswith(prefix + "/"))
+        return False
+    # Literal path: exact match, or a directory prefix (a bare `agent_workflows` covers the tree).
+    return p == pat or p.startswith(pat + "/")
+
+
+def _is_implicitly_allowed(path: str, plan_rel: str) -> bool:
+    """True when ``path`` is an implicit lifecycle-artifact allowance (Order oorry1) or the plan file.
+
+    The plan's own file (moving through the lifecycle) and the plans/records index refresh are always
+    in scope and need not be declared.
+    """
+    from agent_workflows import ipd_schema as _schema
+
+    p = path.strip().replace("\\", "/")
+    if p == plan_rel:
+        return True
+    # The plan file's destination (executed/…) and its pending origin both count as the plan itself.
+    if p.startswith(".aw/records/plans/") and p.endswith(Path(plan_rel).name):
+        return True
+    for spec in _schema.scope_paths_implicit_allowances():
+        if _scope_match(p, spec):
+            return True
+    return False
+
+
+def finalize_precheck(
+    repo_root: Path, plan_path: Path
+) -> Tuple[int, str, Dict[str, Any], Tuple[str, ...]]:
+    """E-01: validate the begin receipt + pre-transition lint + scope comparison. No mutation.
+
+    Returns ``(exit_code, message, evidence, findings)``. exit_code 0 means the precheck PASSED and
+    the forward transition may proceed; 1 means a refusal (findings explain it); 2 means cannot-run.
+    Leaves the plan unmoved in every case.
+    """
+    from agent_workflows import ipd_lint as _lint
+
+    evidence: Dict[str, Any] = {}
+
+    plan_text = plan_path.read_text(encoding="utf-8")
+    doc = _lint.parse(plan_text)
+    plan_id = (doc.meta_fields.get("Id") or "").strip()
+    if not plan_id:
+        return EXIT_CANNOT_RUN, f"plan {plan_path} has no '- Id:' handle.", evidence, ()
+
+    # 1. matching begin receipt must exist and still match the plan digest.
+    receipt = read_receipt(repo_root, plan_id)
+    if receipt is None:
+        return (
+            EXIT_FINDINGS,
+            f"no begin receipt for {plan_id}: run `aw ipd begin` first (fail-closed: no receipt = "
+            "no execution authority).",
+            evidence,
+            (f"missing begin receipt at {receipt_path_for(repo_root, plan_id)}",),
+        )
+    if not receipt_is_current(receipt, plan_text):
+        return (
+            EXIT_FINDINGS,
+            f"the begin receipt for {plan_id} is STALE: the plan content changed since begin; "
+            "re-run `aw ipd begin`.",
+            evidence,
+            ("plan content digest no longer matches the receipt",),
+        )
+    evidence["pre_execution"] = receipt.get("pre_execution", {})
+    base_head = str(receipt.get("base_head") or "").strip()
+    if not base_head or base_head == "unversioned":
+        return (
+            EXIT_CANNOT_RUN,
+            f"the begin receipt for {plan_id} has no usable base HEAD; cannot compute a scope delta.",
+            evidence,
+            (),
+        )
+    evidence["base_head"] = base_head
+    scope_paths: List[str] = list(receipt.get("scope_paths") or [])
+    evidence["scope_paths"] = scope_paths
+
+    # 2. pre-transition lint (fail closed).
+    try:
+        lint_res = _lint.lint_file(plan_path, checkpoint="pre-transition")
+    except Exception as exc:
+        return (
+            EXIT_CANNOT_RUN,
+            f"pre-transition lint could not run (fail-closed): {exc}",
+            evidence,
+            (),
+        )
+    evidence["pre_transition"] = {
+        "disposition": lint_res.disposition,
+        "diagnostics": [f"{d.code} {d.message}" for d in lint_res.diagnostics],
+    }
+    if not lint_res.passing:
+        return (
+            EXIT_FINDINGS,
+            f"pre-transition gate did NOT conform ({lint_res.disposition}); plan left unmoved.",
+            evidence,
+            tuple(f"{d.code} {d.message}" for d in lint_res.diagnostics),
+        )
+
+    # 3. scope comparison against the frozen base + literal Scope-Paths (OQ-01 path-overlap rule).
+    plan_rel = _repo_relative(repo_root, plan_path)
+    changed = _paths_changed_by_this_execution(repo_root, base_head)
+    evidence["changed_paths"] = changed
+
+    findings: List[str] = []
+    # (a) unexplained-path refusal: a path THIS execution changed that is outside Scope-Paths.
+    #     A grandfathered plan (empty literal allowlist) has NO machine path fence, so this
+    #     per-path refusal is inapplicable (Order oorry1: grandfathered = advisory, no allowlist);
+    #     only the implicit lifecycle allowances + free-form scope apply. See DECISION register.
+    if scope_paths:
+        for p in changed:
+            if _is_implicitly_allowed(p, plan_rel):
+                continue
+            if not any(_scope_match(p, pat) for pat in scope_paths):
+                findings.append(
+                    f"unexplained path outside Scope-Paths: {p} (declared: {scope_paths})"
+                )
+    # (b) intervening-commit COMPUTATION: which in-Scope-Paths paths were touched by a commit since
+    #     base. This is the substrate Order 06's adversarial concurrency/rollback matrix builds on to
+    #     distinguish a genuine FOREIGN same-file collision from THIS execution's own sanctioned
+    #     in-scope commits (begin -> do work -> commit -> finalize is the normal single-actor flow, in
+    #     which the in-scope commits ARE this execution's work and must NOT be refused). Finalize
+    #     (this Order) therefore COMPUTES + surfaces the candidate set in evidence but does not make it
+    #     a blanket blocking refusal here; authorship-aware enforcement is Order 06 (DECISION register).
+    collisions = _intervening_commits_touching(repo_root, base_head, scope_paths)
+    collisions = [c for c in collisions if not _is_implicitly_allowed(c, plan_rel)]
+
+    evidence["scope_audit"] = {
+        "grandfathered": not scope_paths,
+        "in_scope": bool(scope_paths) and not findings,
+        "unexplained_paths": list(findings),
+        "intervening_in_scope_commits": collisions,
+        "findings": list(findings),
+    }
+    if findings:
+        return (
+            EXIT_FINDINGS,
+            "finalize REFUSED: changed paths did not stay within the reviewed Scope-Paths "
+            "(plan left unmoved).",
+            evidence,
+            tuple(findings),
+        )
+    return (
+        EXIT_OK,
+        "precheck passed (receipt valid, pre-transition conforming, in scope).",
+        evidence,
+        (),
+    )
+
+
+def _refresh_plans_index_fail_loud(repo_root: Path) -> None:
+    """Refresh the owned plans index FAIL-LOUD (never the status_set swallow).
+
+    Regenerates the index, then verifies freshness via `--check`. Raises RuntimeError on any
+    failure so finalize treats a stale/failed index as a TRANSACTION failure, not a silent success.
+    """
+    import argparse
+
+    from agent_workflows import plans_index as _pidx
+
+    # Regenerate (no swallow: any exception propagates).
+    _pidx.run_index(
+        argparse.Namespace(
+            dir=str(repo_root),
+            check=False,
+            as_agent=False,
+            agent=False,
+            json=False,
+            no_color=True,
+            limit=None,
+            quiet=True,
+        )
+    )
+    # Verify it is now fresh.
+    rc = _pidx.run_index(
+        argparse.Namespace(
+            dir=str(repo_root),
+            check=True,
+            agent=False,
+            json=False,
+            no_color=True,
+            limit=None,
+            quiet=True,
+        )
+    )
+    if rc != 0:
+        raise RuntimeError(
+            "owned plans index refresh did not converge (aw index plans --check nonzero); "
+            "finalize fails closed rather than committing a stale index."
+        )
+
+
+def finalize(
+    repo_root: Path,
+    plan_path: Path,
+    actor: str,
+    message: str,
+    *,
+    apply: bool = False,
+) -> FinalizeResult:
+    """The atomic terminal transaction for one IPD (E-01 precheck + E-02 forward transition).
+
+    On the happy path (``apply=True``): validate receipt + pre-transition lint + scope comparison
+    (E-01); then append the attributed history entry, set terminal status, move the plan, refresh the
+    owned index fail-loud, create the path-scoped lifecycle commit, run post-transition lint, and
+    report the commit + captured three-phase gate evidence. Any precheck refusal leaves the plan
+    unmoved. (Two-way reconciliation is Order 05; rollback/failure semantics are Order 06.)
+    """
+    import argparse
+
+    from agent_workflows import ipd_lint as _lint
+    from agent_workflows import status_set as _ss
+
+    if not actor or not actor.strip():
+        return FinalizeResult(
+            EXIT_CANNOT_RUN, None, "finalize requires a non-empty --actor."
+        )
+    if not message or not message.strip():
+        return FinalizeResult(
+            EXIT_CANNOT_RUN, None, "finalize requires a non-empty --message."
+        )
+    if not plan_path.is_file():
+        return FinalizeResult(
+            EXIT_CANNOT_RUN, None, f"plan file not found: {plan_path}"
+        )
+
+    exit_code, msg, evidence, findings = finalize_precheck(repo_root, plan_path)
+    if exit_code != EXIT_OK:
+        return FinalizeResult(exit_code, None, msg, evidence, findings)
+
+    if not apply:
+        return FinalizeResult(
+            EXIT_OK,
+            None,
+            "precheck passed; re-run with --apply to perform the terminal transaction.",
+            evidence,
+            (),
+        )
+
+    # --- E-02 forward transition (precheck passed) ---
+    rec = _ss.read_artifact_record(plan_path, repo_root)
+    if rec is None:
+        return FinalizeResult(
+            EXIT_CANNOT_RUN,
+            None,
+            f"could not read plan record for {plan_path}.",
+            evidence,
+        )
+    ns = argparse.Namespace(actor=actor, message=message, by_human=False)
+    try:
+        dest_path, norm_status = _ss.apply_status_change(rec, "executed", repo_root, ns)
+    except Exception as exc:
+        return FinalizeResult(
+            EXIT_CANNOT_RUN, None, f"terminal status/move failed: {exc}", evidence
+        )
+
+    # Owned-index refresh MUST fail loud (never the status_set swallow).
+    try:
+        _refresh_plans_index_fail_loud(repo_root)
+    except Exception as exc:
+        return FinalizeResult(
+            EXIT_CANNOT_RUN,
+            None,
+            f"owned plans-index refresh FAILED ({exc}); transaction aborted (plan moved on disk but "
+            "NOT committed). Re-run after repair; rollback semantics are Order 06.",
+            evidence,
+        )
+
+    # Path-scoped lifecycle commit: only this plan's own files (old path, new path, index).
+    plans_dir = dest_path.parent.parent
+    commit_paths = [
+        _repo_relative(repo_root, plan_path),
+        _repo_relative(repo_root, dest_path),
+        _repo_relative(repo_root, plans_dir / "INDEX.json"),
+        _repo_relative(repo_root, plans_dir / "INDEX.md"),
+    ]
+    # Stage only the existing ones.
+    stage = [
+        p
+        for p in commit_paths
+        if (repo_root / p).exists() or p == _repo_relative(repo_root, plan_path)
+    ]
+    rc, _out, err = _git(repo_root, ["add", "--", *stage])
+    if rc != 0:
+        return FinalizeResult(
+            EXIT_CANNOT_RUN, None, f"git add failed: {err.strip()}", evidence
+        )
+    commit_msg = f"lifecycle({rec.id6 or 'plan'}): finalize {rec.id6 or plan_path.name} -> executed\n\n{message}\n\nExecuted by {actor} via aw ipd finalize."
+    rc, _out, err = _git(repo_root, ["commit", "-m", commit_msg, "--", *stage])
+    if rc != 0:
+        return FinalizeResult(
+            EXIT_CANNOT_RUN,
+            None,
+            f"lifecycle commit failed: {err.strip()} (plan moved but not committed; rollback is "
+            "Order 06).",
+            evidence,
+        )
+    rc, out, _err = _git(repo_root, ["rev-parse", "HEAD"])
+    commit_hash = out.strip() if rc == 0 else None
+
+    # Post-transition lint on the MOVED file.
+    try:
+        post = _lint.lint_file(dest_path, checkpoint="post-transition")
+        evidence["post_transition"] = {
+            "disposition": post.disposition,
+            "diagnostics": [f"{d.code} {d.message}" for d in post.diagnostics],
+        }
+    except Exception as exc:
+        evidence["post_transition"] = {"error": str(exc)}
+
+    return FinalizeResult(
+        EXIT_OK,
+        commit_hash,
+        f"finalized {rec.id6 or plan_path.name} -> executed at {commit_hash[:12] if commit_hash else '?'} "
+        f"(actor {actor}).",
+        evidence,
+        (),
+    )
+
+
+# --------------------------------------------------------------------------------------
 # CLI entry (`aw ipd begin`)
 # --------------------------------------------------------------------------------------
 
@@ -443,3 +868,82 @@ def _utc_now() -> str:
     from datetime import datetime, timezone
 
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# --------------------------------------------------------------------------------------
+# CLI entry (`aw ipd finalize`)
+# --------------------------------------------------------------------------------------
+
+
+def run_finalize(args) -> int:
+    """Entry point for `aw ipd finalize <plan> --actor --message [--apply]`. Returns 0/1/2."""
+    from agent_workflows import selectors
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Diagnostic as OutDiag,
+        select_output,
+    )
+
+    ctx = select_output(args)
+    selector = getattr(args, "plan", None)
+    actor = getattr(args, "actor", None)
+    message = getattr(args, "message", None)
+    apply = bool(getattr(args, "apply", False))
+    repo_root = _repo_root(Path(getattr(args, "dir", None) or "."))
+
+    def _emit(exit_code: int, status: str, summary: str, diags=None, data=None) -> int:
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="ipd finalize",
+                status=status,
+                exit_code=exit_code,
+                summary=summary,
+                diagnostics=list(diags or []),
+                data=data or {},
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        prefix = {EXIT_OK: "", EXIT_FINDINGS: "refused: ", EXIT_CANNOT_RUN: "error: "}[
+            exit_code
+        ]
+        print(f"{prefix}{summary}")
+        for d in diags or []:
+            print(f"  {d.rule} {d.detail}")
+        return exit_code
+
+    if not selector:
+        return _emit(
+            EXIT_CANNOT_RUN, "cannot-run", "aw ipd finalize requires a <plan> selector."
+        )
+    resolution = selectors.resolve(repo_root, "plans", selector)
+    if not resolution.paths:
+        return _emit(
+            EXIT_CANNOT_RUN, "cannot-run", f"no plan matched selector {selector!r}."
+        )
+    if len(resolution.paths) > 1:
+        cand = ", ".join(p.name for p in resolution.paths)
+        return _emit(
+            EXIT_CANNOT_RUN,
+            "cannot-run",
+            f"selector {selector!r} is ambiguous ({resolution.kind}); matched: {cand}.",
+        )
+    plan_path = resolution.paths[0]
+
+    result = finalize(repo_root, plan_path, actor or "", message or "", apply=apply)
+
+    if result.exit_code == EXIT_OK:
+        return _emit(
+            EXIT_OK,
+            "clean",
+            result.message,
+            data={"commit": result.commit, "evidence": result.evidence},
+        )
+    if result.exit_code == EXIT_FINDINGS:
+        diags = [
+            OutDiag(
+                location=str(plan_path), rule="IPD-FINALIZE", detail=f, severity="error"
+            )
+            for f in result.findings
+        ]
+        return _emit(EXIT_FINDINGS, "findings", result.message, diags=diags)
+    return _emit(EXIT_CANNOT_RUN, "cannot-run", result.message)

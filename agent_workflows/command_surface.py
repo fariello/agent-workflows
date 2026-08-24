@@ -628,6 +628,19 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         exit_contract=(0, 1, 2),
     ),
     CommandDeclaration(
+        # ipdgates Order v7e88a: atomic terminal transaction. A mutation-class verb (moves the plan,
+        # refreshes the owned index, creates a path-scoped lifecycle commit) gated dry-run-by-default
+        # (--apply performs it). Exit 0 ok / 1 refusal (gate/scope) / 2 cannot-run.
+        command="ipd finalize",
+        command_class="mutation",
+        human_recipe="preview",
+        agent_record_kind="result",
+        mutation_gate="dry_run_default",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--actor", "--message", "--apply", "--dir", "--agent", "--json"),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
         command="ipd set",
         command_class="mutation",
         human_recipe="status",

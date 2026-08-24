@@ -918,6 +918,42 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dir", default=None, help="Repo root (default: current directory)."
     )
 
+    # ipdgates Order 04 (v7e88a): `aw ipd finalize` atomic terminal transaction.
+    p_ipd_finalize = ipd_sub.add_parser(
+        "finalize",
+        parents=[common],
+        help="Atomic terminal transition of a single IPD (scope-checked, evidenced, path-scoped commit).",
+        description=(
+            "Finalize an APPROVED, executed IPD in one atomic terminal transaction. Validates the "
+            "matching `aw ipd begin` receipt, runs pre-transition lint, compares the paths this "
+            "execution changed since the frozen base HEAD against the reviewed Scope-Paths (refusing "
+            "any unexplained path or an intervening in-scope collision), then appends the attributed "
+            "history entry, sets terminal status, moves the plan, refreshes the owned plans index "
+            "fail-loud, creates the path-scoped lifecycle commit, and runs post-transition lint. "
+            "Preview by default; pass --apply to perform the transition. Exit 0 = ok, 1 = refusal "
+            "(gate/scope), 2 = cannot run."
+        ),
+    )
+    p_ipd_finalize.add_argument(
+        "plan", help="Plan selector (id6, setid, stem, path, or substring)."
+    )
+    p_ipd_finalize.add_argument(
+        "--actor",
+        required=True,
+        help="The executing agent/model identity for the history entry.",
+    )
+    p_ipd_finalize.add_argument(
+        "--message", "-m", required=True, help="The terminal history-entry summary."
+    )
+    p_ipd_finalize.add_argument(
+        "--apply",
+        action="store_true",
+        help="Perform the transition (default: preview the precheck).",
+    )
+    p_ipd_finalize.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+
     # awoptimize Order 01 E-06: canonical workflow schema/compiler CLI (validate/compile/
     # check-generated). The heavy lifting is in workflow_schema/source/loader/compiler; this only
     # registers the parser. compile is dry-run by default (--apply writes); validate + check-generated
@@ -6616,6 +6652,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import ipd_lifecycle
 
             return ipd_lifecycle.run_begin(args)
+        if ipd_cmd == "finalize":
+            from agent_workflows import ipd_lifecycle
+
+            return ipd_lifecycle.run_finalize(args)
         # awcmdsurf Order 04: `ipd board` and bare `aw ipd` both show the IPD board.
         if ipd_cmd == "board" or ipd_cmd is None:
             return _run_plans(args, term, context=context)

@@ -75,6 +75,24 @@ evidence, run:
 Perform the terminal transaction below ONLY on exit `0` + `conforming`; otherwise apply the same
 fail-closed rules (exit 1 = repair, exit 2 = hard stop).
 
+### `aw ipd finalize`: the atomic terminal transaction
+
+`aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply` performs the entire
+terminal transaction below as ONE scope-checked, evidenced command. It validates the matching
+`aw ipd begin` receipt (refusing if absent or stale), runs `pre-transition` lint, then compares the
+paths this execution changed SINCE the receipt's frozen base HEAD against the reviewed `Scope-Paths`:
+it REFUSES (plan left unmoved) on any unexplained path outside `Scope-Paths` (the exact p7dqwz
+signature: an extra `tests/test_empty_state_ux.py`), and computes+surfaces the in-scope
+intervening-commit set as evidence (authorship-aware collision enforcement is the rollback order's
+adversarial surface). On a clean in-scope precheck it appends the attributed `<agent/model>` history
+entry (never a generic actor), sets terminal status, moves the plan, refreshes the owned plans index
+FAIL-LOUD (a failed refresh aborts the transaction, never a silent stale index), creates the
+path-scoped lifecycle commit (only the plan file + the owned index), runs `post-transition` lint, and
+reports the commit hash plus the captured pre-execution/pre-transition/post-transition gate evidence.
+Preview by default; `--apply` performs the transition. Exit 0 = finalized, 1 = refusal (gate/scope),
+2 = cannot run. This is the supported terminal path; the manual ordered steps below are the contract
+it implements.
+
 ## The terminal transaction (post-gate; ordered, recoverable)
 
 Perform these steps as one finalization transaction, in order:
