@@ -4,6 +4,7 @@
 - Kind: child
 - Concern: Convert approved IPD Sets into deterministic, schedulable work.
 - Scope: Set selection, IPD/E-item parsing, inter-plan dependencies, resource ownership, work classification, and plan-only output.
+- Scope-Paths: grandfathered
 - Status: approved
 - Set: execset
 - Order: 1

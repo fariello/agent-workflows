@@ -4,6 +4,7 @@
 - Kind: child
 - Concern: The finalize transaction (Order 04) performs several steps (history append, status set, file move, index refresh, path-scoped commit, post-transition lint). If a step fails, a partial transition (e.g. plan moved + status set but no commit, or a post-commit lint failure) leaves the repo in an inconsistent, misleading state. Without explicit two-phase failure semantics, a failed finalize could look like a success or strand the plan half-transitioned.
 - Scope: Add crash-safe two-phase failure semantics to `aw ipd finalize` and its adversarial tests. Touch: the single-IPD lifecycle module (from Orders 03/04/05), tests/test_ipd_lifecycle_cli.py, and the lifecycle spec/workflow/help through their managed owners. DEPENDS ON Order 05: rollback wraps the COMPLETE finalize transaction, which by this point includes the forward transition (Order 04) AND the two-way scope reconciliation (Order 05); rollback must therefore preserve or unwind reconciliation-side effects too. Reuse the repository's canonical `.aw/state/runtime/` transaction-journal + lock pattern rather than an in-memory-only snapshot. Does NOT change the forward happy path (Order 04) or the reconciliation policy (Order 05) beyond wrapping them in recovery, and does NOT remove the raw bypass (Order 07).
+- Scope-Paths: grandfathered
 - Status: approved
 - Set: ipdgates
 - Order: 6

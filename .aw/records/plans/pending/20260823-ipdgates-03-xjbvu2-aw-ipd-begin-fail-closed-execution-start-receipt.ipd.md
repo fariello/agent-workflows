@@ -4,6 +4,7 @@
 - Kind: child
 - Concern: There is no durable, inspectable proof that an IPD passed the pre-execution gate at a known base HEAD before work began. p7dqwz's terminal record retained no pre-execution evidence, so scope/lifecycle claims could not be independently checked after the fact. A scope check performed only against the final working tree is insufficient (product changes may already be committed; unrelated concurrent edits may exist), so the allowlist and base MUST be frozen BEFORE execution.
 - Scope: Add `aw ipd begin <plan> --actor <agent/model>` as the authoritative single-IPD execution entry and its receipt. Touch: a new narrowly-named single-IPD lifecycle module (e.g. `agent_workflows/ipd_lifecycle.py`), agent_workflows/cli.py (register the `ipd begin` verb + flags + help), reuse agent_workflows/run_freeze.py (`freeze_requirements`), agent_workflows/ipd_lint.py (invoke the pre-execution phase), and a new tests/test_ipd_lifecycle_cli.py. Does NOT implement finalize (Order 04) or remove bypasses (Order 07); it produces only the receipt that finalize will later require.
+- Scope-Paths: grandfathered
 - Status: approved
 - Set: ipdgates
 - Order: 3

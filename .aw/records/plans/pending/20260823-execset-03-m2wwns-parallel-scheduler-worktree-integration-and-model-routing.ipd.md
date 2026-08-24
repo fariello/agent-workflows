@@ -4,6 +4,7 @@
 - Kind: child
 - Concern: Execute all provably independent Set work concurrently and integrate it safely.
 - Scope: Coordinator, ready queue, path leases, worktrees, model roles, merge/revalidation, lifecycle, and resume.
+- Scope-Paths: grandfathered
 - Status: approved
 - Set: execset
 - Order: 3

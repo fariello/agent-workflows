@@ -4,6 +4,7 @@
 - Kind: orchestrator
 - Concern: Execute complete approved IPD Sets with maximal safe parallelism and almost no interruption.
 - Scope: Set planning, decision/defer records, scheduler, model routing, host launchers, workflow/skill packaging, and conformance.
+- Scope-Paths: grandfathered
 - Status: approved
 - Set: execset
 - Order: 0

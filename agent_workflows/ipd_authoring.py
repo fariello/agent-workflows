@@ -119,6 +119,15 @@ def build_skeleton(
     lines.append(f"- Kind: {kind}")
     lines.append("- Concern: TODO.")
     lines.append("- Scope: TODO.")
+    # Scope-Paths (Order oorry1): the machine-readable allowlist of repo-relative paths this plan
+    # may change. Replace the TODO with a comma-separated list of literal paths or bounded
+    # pathspecs (e.g. `agent_workflows/foo.py, tests/test_foo.py`), or the reserved sentinel
+    # `grandfathered` for a pre-cutoff plan. REQUIRED at the ready-to-execute gate (pre-execution /
+    # approved), OPTIONAL while drafting. Absolute paths, `..` escapes, and repo-wide globs are
+    # rejected; the plan's own lifecycle artifacts under .aw/records/plans/** are implicit.
+    lines.append(
+        "- Scope-Paths: TODO (comma-separated repo-relative paths or pathspecs)"
+    )
     lines.append("- Status: draft")
     lines.append(f"- Set: {set_name}")
     lines.append(f"- Order: {order}")

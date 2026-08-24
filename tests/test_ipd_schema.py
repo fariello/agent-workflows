@@ -468,5 +468,88 @@ class NoDependencyTests(unittest.TestCase):
             )
 
 
+class ScopePathsSchemaTests(unittest.TestCase):
+    """Order oorry1: Scope-Paths is recognized-but-optional, with a safe allowlist grammar."""
+
+    def test_scope_paths_is_recognized_but_not_required(self):
+        # Recognized (so it is not an unknown-field error) but NOT in the always-required set
+        # (so a fieldless plan is not blocked at the always-on metadata check).
+        self.assertIn(S.META_SCOPE_PATHS, S.META_RECOGNIZED)
+        self.assertNotIn(S.META_SCOPE_PATHS, S.META_REQUIRED)
+
+    def test_absent_scope_paths_is_not_a_metadata_error(self):
+        base = {
+            "Date": "2026-08-03",
+            "Kind": "child",
+            "Concern": "x",
+            "Scope": "x",
+            "Status": "to-review",
+            "Author": "x",
+            "Id": "abc123",
+            "Set": "s",
+            "Order": "1",
+        }
+        self.assertEqual(S.validate_metadata(dict(base), directory="pending"), [])
+
+    def test_grandfathered_sentinel_parses(self):
+        paths, is_gf, errors = S.parse_scope_paths("grandfathered")
+        self.assertTrue(is_gf)
+        self.assertEqual(paths, [])
+        self.assertEqual(errors, [])
+
+    def test_valid_literals_and_bounded_pathspecs_accepted(self):
+        for value in (
+            "agent_workflows/foo.py",
+            "agent_workflows/foo.py, tests/test_foo.py",
+            "tests/",
+            "agent_workflows/**",
+            "agent_workflows/*.py",
+            "docs/**/*.md",
+        ):
+            paths, is_gf, errors = S.parse_scope_paths(value)
+            self.assertFalse(is_gf, value)
+            self.assertEqual(
+                errors, [], "unexpected errors for %r: %s" % (value, errors)
+            )
+            self.assertTrue(paths)
+
+    def test_absolute_paths_rejected(self):
+        for value in ("/etc/passwd", "C:\\Windows", "\\\\server\\share"):
+            _paths, _gf, errors = S.parse_scope_paths(value)
+            self.assertTrue(errors, "expected rejection for %r" % value)
+
+    def test_parent_escape_rejected(self):
+        for value in ("../outside", "agent_workflows/../../etc", "a/../../b"):
+            _paths, _gf, errors = S.parse_scope_paths(value)
+            self.assertTrue(errors, "expected rejection for %r" % value)
+
+    def test_repo_wide_globs_rejected(self):
+        for value in ("**", "*", "*.py", ".", "/"):
+            _paths, _gf, errors = S.parse_scope_paths(value)
+            self.assertTrue(errors, "expected rejection for %r" % value)
+
+    def test_grandfathered_may_not_be_mixed_with_real_entries(self):
+        _paths, is_gf, errors = S.parse_scope_paths(
+            "agent_workflows/foo.py, grandfathered"
+        )
+        self.assertFalse(is_gf)
+        self.assertTrue(errors)
+
+    def test_empty_value_is_an_error(self):
+        _paths, is_gf, errors = S.parse_scope_paths("   ")
+        self.assertFalse(is_gf)
+        self.assertTrue(errors)
+
+    def test_implicit_lifecycle_allowances_are_repo_relative_and_plan_scoped(self):
+        allowances = S.scope_paths_implicit_allowances()
+        self.assertTrue(allowances)
+        for spec in allowances:
+            # every implicit allowance is itself a legal (repo-relative, bounded) pathspec
+            _paths, _gf, errors = S.parse_scope_paths(spec)
+            self.assertEqual(errors, [], "implicit allowance %r must be legal" % spec)
+        # the plan file lifecycle path is covered
+        self.assertTrue(any(a.startswith(".aw/records/plans/") for a in allowances))
+
+
 if __name__ == "__main__":
     unittest.main()

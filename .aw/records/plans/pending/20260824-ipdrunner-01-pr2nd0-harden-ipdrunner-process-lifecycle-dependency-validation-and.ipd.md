@@ -4,6 +4,7 @@
 - Kind: child
 - Concern: Assessment of `tools/ipdrunner/*` identified bugs and resilience gaps in child process termination on signals/interrupts, prerequisite validation when dependencies are not included in the active queue, run directory resolution when relative paths are supplied, POSIX directory descriptor modes during atomic JSON writes, attempt timestamp completeness during interrupted recovery, and session ID key extraction.
 - Scope: `tools/ipdrunner/ipdrunner.py`, `tools/ipdrunner/test_ipdrunner.py`, and `tools/ipdrunner/20260823-pending-ipds-overnight-execution-runbook.md`.
+- Scope-Paths: grandfathered
 - Status: reviewed
 - Set: ipdrunner
 - Order: 1

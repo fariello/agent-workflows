@@ -4,6 +4,7 @@
 - Kind: child
 - Concern: A plan reaches `executed` today via `aw set executed`, which moves the file and writes a generic `executed (aw set)` actor with no scope comparison and no captured pre/post gate evidence - exactly the p7dqwz failure signature. There is no single command that atomically performs the terminal transition WHILE proving the changed paths stayed within the reviewed `Scope-Paths` and the gates ran.
 - Scope: Add `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply` as the only supported single-IPD terminal transaction (happy path + scope comparison + evidence). Touch: the single-IPD lifecycle module (from Order 03), agent_workflows/cli.py (register `ipd finalize`), agent_workflows/ipd_lint.py (invoke pre/post-transition phases), agent_workflows/status_set.py (reuse the status-write/move + owned-index-refresh helpers), and tests/test_ipd_lifecycle_cli.py. Does NOT implement the two-way scope RECONCILIATION prompt (split out to the new Order 05, D141), the two-phase ROLLBACK/failure semantics (Order 06), or removing the raw bypass (Order 07); this child delivers the forward transaction and the scope-delta COMPUTATION (which Order 05's reconciliation and Order 06's rollback both build on) plus the out-of-scope refusal for the pre-reconciliation baseline.
+- Scope-Paths: grandfathered
 - Status: approved
 - Set: ipdgates
 - Order: 4

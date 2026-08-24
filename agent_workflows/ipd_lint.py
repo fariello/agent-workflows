@@ -66,6 +66,7 @@ C_EXEC_HISTORY = "IPD-S405"
 C_OQ = "IPD-Q501"
 C_SIZE = "IPD-Z601"
 C_SIZE_DENSITY = "IPD-Z602"
+C_SCOPE_PATHS = "IPD-M106"  # Scope-Paths declared-scope allowlist (Order oorry1)
 C_NAME = "IPD-N001"  # filename does not match the plan grammar (awcheck Order 03)
 
 
@@ -729,6 +730,63 @@ def check_checkpoint(
     return diags
 
 
+def _scope_paths_gate_applies(checkpoint: str, status: str) -> bool:
+    """True when the conditional Scope-Paths requirement is in force (Order oorry1).
+
+    It fires at the `pre-execution` checkpoint AND for any plan whose persisted `Status` is at the
+    ready-to-execute tier (`approved`/`auto-approved`), so an approved plan cannot slip past the
+    gate regardless of the requested checkpoint. It does NOT fire at `author`/`review-finalize`
+    (drafting/review) so a fresh draft and every un-stamped pending plan still lint clean until
+    they reach the gate.
+    """
+    return checkpoint == "pre-execution" or status in S.READY_TO_EXECUTE
+
+
+def check_scope_paths(
+    doc: ParsedDoc, checkpoint: str, directory: Optional[str]
+) -> Tuple[List[Diagnostic], List[Diagnostic]]:
+    """Conditional Scope-Paths enforcement (Order oorry1). Returns (blocking, advisory).
+
+    At the ready-to-execute gate (Section 9.2): a plan with NO `Scope-Paths` field is a BLOCKING
+    error; a plan carrying `Scope-Paths: grandfathered` yields only an ADVISORY diagnostic
+    (non-blocking); a plan declaring a REAL allowlist is validated against the Section 4.5 grammar
+    (malformed = BLOCKING). Terminal-dir records never reach this function (they short-circuit to
+    the `legacy` disposition in `lint_text`), so grandfathered terminal plans are unaffected.
+    """
+    blocking: List[Diagnostic] = []
+    advisory: List[Diagnostic] = []
+    status = doc.meta_fields.get("Status", "")
+    if not _scope_paths_gate_applies(checkpoint, status):
+        return blocking, advisory
+    if S.META_SCOPE_PATHS not in doc.meta_fields:
+        blocking.append(
+            Diagnostic(
+                0,
+                0,
+                C_SCOPE_PATHS,
+                "Scope-Paths is required at the ready-to-execute gate: declare a comma-separated "
+                "allowlist of repo-relative paths/pathspecs, or the sentinel 'grandfathered'",
+            )
+        )
+        return blocking, advisory
+    value = doc.meta_fields.get(S.META_SCOPE_PATHS, "")
+    _paths, is_grandfathered, errors = S.parse_scope_paths(value)
+    if is_grandfathered:
+        advisory.append(
+            Diagnostic(
+                0,
+                0,
+                C_SCOPE_PATHS,
+                "Scope-Paths: grandfathered is advisory-satisfied (pre-cutoff plan); a re-reviewed "
+                "or new plan should declare a real path allowlist",
+            )
+        )
+        return blocking, advisory
+    for err in errors:
+        blocking.append(Diagnostic(0, 0, C_SCOPE_PATHS, "Scope-Paths: {0}".format(err)))
+    return blocking, advisory
+
+
 # --------------------------------------------------------------------------------------
 # Top-level lint
 # --------------------------------------------------------------------------------------
@@ -773,8 +831,10 @@ def lint_text(
     diags += check_open_questions(doc)
     diags += check_size(doc)
     diags += check_checkpoint(doc, checkpoint, directory)
+    scope_blocking, scope_advisory = check_scope_paths(doc, checkpoint, directory)
+    diags += scope_blocking
     disposition = S.DISPOSITION_CONFORMING if not diags else S.DISPOSITION_ERROR
-    advisories = check_density(doc)
+    advisories = check_density(doc) + scope_advisory
     return LintResult(disposition, diags, advisories)
 
 

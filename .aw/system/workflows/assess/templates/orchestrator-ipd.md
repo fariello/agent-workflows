@@ -4,6 +4,7 @@
 - Kind: orchestrator
 - Concern: TODO.
 - Scope: TODO.
+- Scope-Paths: TODO (comma-separated repo-relative paths or pathspecs)
 - Status: draft
 - Set: <set-id>
 - Order: 0

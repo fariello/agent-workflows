@@ -147,11 +147,14 @@ Required fields (all IPDs): `Date`, `Kind`, `Concern`, `Scope`, `Status`, `Autho
 
 Optional field (all IPDs): `Highest E allocated` (the allocation watermark, Section 5.6; REQUIRED once any `E-*` has been assigned).
 
+Recognized-but-optional field (all IPDs): `Scope-Paths` (Section 4.5) is a recognized field that is NOT in the always-required set; its requirement is CONDITIONAL at the ready-to-execute lint gate (Section 9.2), not at the always-on `author` metadata check.
+
 Conditional fields:
 
 - `Set` and `Order` are REQUIRED together when the IPD belongs to an ordered Set and MUST both be absent otherwise; one present without the other is an error.
 - `Approval` is REQUIRED when and only when `Status: approved`; it records the human sign-off (for example `approved by <name> <date>`). It MUST be absent for every other status.
 - `Quarantine`, `Quarantine owner`, and `Quarantine follow-up` are REQUIRED together on a quarantined nonterminal plan (Section 13.3) and MUST all be absent otherwise; any one present without the other two is an error.
+- `Scope-Paths` is REQUIRED at the `pre-execution` checkpoint and for any plan whose `Status` is at the ready-to-execute tier (`approved`/`auto-approved`); it is OPTIONAL at every earlier drafting/review phase and on terminal (grandfathered) records. See Section 4.5 for its grammar and Section 9.2 for the checkpoint rule.
 
 Field rules:
 
@@ -168,6 +171,22 @@ Permitted path/status/kind/order combinations:
 - Any combination of persisted `Status`, directory, kind, and requested lint checkpoint that the schema does not permit MUST be an error (Section 9.1).
 
 The metadata block is validated separately from the H2 order. A metadata-block error and an H2-order error are distinct diagnostics.
+
+### 4.5 The `Scope-Paths` allowlist (machine-readable declared scope)
+
+`Scope-Paths` is a recognized-but-optional metadata field that declares, in a machine-comparable form, the repo-relative paths a plan is permitted to change. Free-form `- Scope:` prose is not comparable against the actually-changed paths, so an executor can silently expand file scope and no deterministic check catches it. `Scope-Paths` is the substrate the finalize transaction (the `aw ipd finalize` two-way scope reconciliation) compares against the real changed paths.
+
+Value grammar. The `Scope-Paths` value is EITHER the reserved sentinel `grandfathered` OR a comma-separated allowlist of repo-relative literal paths and bounded pathspecs:
+
+- Repo-relative only: an absolute path (leading `/` or `\`) or a Windows drive/UNC path is an error.
+- No parent escape: any `..` path segment is an error (a plan cannot scope outside the repo).
+- No repo-wide blast radius: a bare `*` or `**`, a root-level glob (a first segment of `*`/`**`, or a single-segment filename glob such as `*.py` at the repo root), and the repo root itself (`.`, `./`, `/`) are errors.
+- Bounded pathspecs are allowed: an entry whose leading segment is a concrete directory bounds the blast radius, so `tests/`, `agent_workflows/**`, `agent_workflows/*.py`, and `docs/**/*.md` are all legal.
+- The sentinel `grandfathered` is a WHOLE-VALUE marker; it MUST NOT be mixed with real path entries.
+
+Implicit lifecycle-artifact allowances. A plan's own lifecycle artifacts are always in scope and need NOT be listed: the plan file itself under `.aw/records/plans/**` and the manifest/index refresh (`.aw/records/plans/INDEX.md`, `.aw/records/**/index.md`). A GENERATED file the plan produces is NOT implicitly exempt; it MUST be declared like any other path.
+
+The grandfather sentinel. To introduce `Scope-Paths` without retroactively blocking the already-reviewed pending backlog, a pre-cutoff plan carries the explicit per-plan marker `Scope-Paths: grandfathered` (a reserved value of the field). The lint gate treats `grandfathered` as advisory-satisfied (non-blocking); a plan declaring a real allowlist is validated against the grammar above (a malformed allowlist is a blocking error); a plan with NO `Scope-Paths` field at all is hard-required (blocked) at the ready-to-execute gate. The marker is stored in the plan's own metadata block so it travels with the plan and is auditable in git. New or independently re-reviewed plans are expected to declare a real allowlist rather than carry the sentinel.
 
 ## 5. Stable execution and validation identifiers
 
@@ -426,7 +445,7 @@ An incompatible `Status:`, directory, kind, and requested phase combination MUST
 |---|---|
 | `author` | Required structure is present; IDs and mappings are valid for all authored items; execution may remain `pending`; validation results remain `pending`; placeholders are allowed only where the schema explicitly permits them during drafting. |
 | `review-finalize` | No structural placeholders remain; every action has an observable expected outcome; every validation row has nonplaceholder required evidence; the size assessment is consistent; structural question fields are valid. Semantic adequacy is reviewed separately. |
-| `pre-execution` | `review-finalize` passes; no declared blocking question remains unresolved; the persisted lifecycle state authorizes execution; no action has an illegal pre-execution state. |
+| `pre-execution` | `review-finalize` passes; no declared blocking question remains unresolved; the persisted lifecycle state authorizes execution; no action has an illegal pre-execution state; a `Scope-Paths` value is present (Section 4.5) - a plan with NO `Scope-Paths` field is a blocking error, a `Scope-Paths: grandfathered` marker is advisory-satisfied (non-blocking), and a real allowlist is validated against the Section 4.5 grammar (malformed is a blocking error). This same `Scope-Paths` requirement also applies to any plan whose persisted `Status` is at the ready-to-execute tier (`approved`/`auto-approved`), so an approved plan cannot slip through without it. |
 | `pre-transition` | Every current `E-*` is checked with `Execution state: performed`; every `V-*` is checked with `Result: pass`; every `Observed evidence:` is nonempty; no unresolved blocking condition remains; the plan is not already in a terminal directory or status. |
 | `post-transition` | `pre-transition` evidence remains valid; terminal status, workflow-history entry, terminal directory, and lifecycle commit agree under repository conventions. |
 
@@ -762,5 +781,5 @@ After the IPD-system Set lands:
 5. consider the deferred controlled experiment if empirical layout optimization becomes valuable.
 
 ## Workflow history
-- 2026-08-08 migrated (aw specs): normalized status to `implemented` (was: APPROVED (2026-08-03, human maintainer "Approved. Go.") as the working specification for the ipd-structure implementation Set. Originated as a gpt-5.6-revised d)
-- 2026-08-10 note (aw specs): Retired the no-em/en-dash lint rule (IPD-D701): the no-dash convention is user-facing prose only (GUIDING_PRINCIPLES P13); IPDs are internal artifacts so the linter no longer flags dashes. Updated clause 17 and 16.5; removed check_dashes/C_DASH from ipd_lint.py and its test. Spec remains implemented (tool matches amended spec).
+
+- 2026-08-24 note (aw specs): Documented the Scope-Paths recognized-but-optional metadata field (new Section 4.5: grammar, grandfathered sentinel, implicit lifecycle-artifact allowances) and its conditional requirement at the pre-execution/ready-to-execute lint gate (Section 9.2). Implemented by ipdgates Order oorry1 (schema META_RECOGNIZED + parse_scope_paths grammar, scaffold stub, lint check_checkpoint gate).

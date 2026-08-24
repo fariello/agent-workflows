@@ -4,6 +4,7 @@
 - Kind: child
 - Concern: Launch structured fresh workers across coding hosts without duplicating semantics.
 - Scope: Generic runner, OpenCode/Codex/Claude/Antigravity/Kiro/Gemini adapters, capability evidence, structured streams, and fresh verification.
+- Scope-Paths: grandfathered
 - Status: approved
 - Set: execset
 - Order: 4

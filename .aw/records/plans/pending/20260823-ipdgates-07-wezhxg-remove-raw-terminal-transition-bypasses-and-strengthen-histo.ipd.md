@@ -4,6 +4,7 @@
 - Kind: child
 - Concern: Even after `aw ipd finalize` exists (Orders 04-06: forward transaction, scope reconciliation, rollback), the raw `aw set executed` / `aw ipd set executed` plan-terminal path still works - it moves the plan and writes a generic `executed (aw set)` actor with no receipt, no scope comparison, and no captured gate evidence. That is the exact bypass that produced the p7dqwz false-fidelity record. Until it is removed and the history lint rejects generic-actor terminal entries, the gates are optional.
 - Scope: Make raw plan-to-terminal transitions refuse and point to `aw ipd finalize`, and strengthen post-transition history lint. Touch: agent_workflows/status_set.py (refuse plan `executed`/terminal transitions, preserve nonterminal plan transitions and non-plan artifact terminal transitions), agent_workflows/cli.py (the `set`/`ipd set` routing + help), agent_workflows/ipd_lint.py (post-transition: require a non-generic actor/model + nonempty summary), and tests/test_status_set.py + tests/test_ipd_lint.py + tests/test_ipd_lifecycle_cli.py. Does NOT build begin/finalize (Orders 03/04) - it depends on them existing.
+- Scope-Paths: grandfathered
 - Status: approved
 - Set: ipdgates
 - Order: 7

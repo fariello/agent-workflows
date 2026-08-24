@@ -4,6 +4,7 @@
 - Kind: child
 - Concern: Prevent needless interruption without hiding decisions or skipped work.
 - Scope: Versioned run events, exact stop/defer classifier, generated projections, durable summaries, and answer/resume linkage.
+- Scope-Paths: grandfathered
 - Status: approved
 - Set: execset
 - Order: 2

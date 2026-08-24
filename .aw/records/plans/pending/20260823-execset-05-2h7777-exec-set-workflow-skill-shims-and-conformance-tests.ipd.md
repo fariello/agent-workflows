@@ -4,6 +4,7 @@
 - Kind: child
 - Concern: Make autonomous Set execution discoverable, portable, understandable, and regression-proof.
 - Scope: Canonical `/exec-set` workflow, thin skill/shims, CLI UX, examples, lifecycle wording, conformance, security, and release readiness.
+- Scope-Paths: grandfathered
 - Status: approved
 - Set: execset
 - Order: 5

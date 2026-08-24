@@ -89,6 +89,35 @@ class ScaffoldTests(unittest.TestCase):
             [d.message for d in res.diagnostics],
         )
 
+    def test_scaffold_emits_scope_paths_stub(self):
+        # Order oorry1: scaffold emits a Scope-Paths metadata stub, and the stub still lints
+        # clean at the author phase (the field is recognized-but-optional, and the checkpoint
+        # requirement does not fire while drafting).
+        text = A.build_skeleton(
+            kind="child",
+            title="t",
+            author="tester",
+            when="2026-08-24",
+            set_name="x",
+            order=1,
+            plan_id="abc123",
+        )
+        meta_lines = []
+        for ln in text.splitlines():
+            if ln.startswith("## "):
+                break
+            meta_lines.append(ln)
+        self.assertTrue(
+            any(ln.startswith("- Scope-Paths:") for ln in meta_lines),
+            "scaffold must emit a Scope-Paths metadata stub",
+        )
+        res = L.lint_text(text, checkpoint="author", directory="pending")
+        self.assertEqual(
+            res.disposition,
+            S.DISPOSITION_CONFORMING,
+            [d.message for d in res.diagnostics],
+        )
+
     def test_apply_writes_conforming_orchestrator(self):
         target = self.tmp / "orch.md"
         rc, _ = _run(

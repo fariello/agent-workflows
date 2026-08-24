@@ -143,12 +143,23 @@ META_QUARANTINE_TRIO: Tuple[str, ...] = (
 )
 META_WATERMARK = "Highest E allocated"
 META_APPROVAL = "Approval"
+# Scope-Paths (Order oorry1): a machine-readable allowlist of the repo-relative paths a plan may
+# change, so a later finalize transaction (Order v7e88a) can compare declared vs actually-changed
+# paths. Recognized-but-OPTIONAL: it is NOT in META_REQUIRED (adding it there would fail every
+# existing pending plan at the always-on `author` metadata check and defeat the grandfather
+# guarantee). Its requirement is CONDITIONAL and lives in the checkpoint layer (ipd_lint,
+# check_checkpoint) at the ready-to-execute gate, not here.
+META_SCOPE_PATHS = "Scope-Paths"
+# The reserved sentinel value that grandfathers a pre-cutoff plan (OQ-01): a plan carrying
+# `Scope-Paths: grandfathered` is advisory-satisfied at the gate (non-blocking) instead of
+# declaring a real allowlist. It is stored IN the plan's metadata block so it travels with the plan.
+SCOPE_PATHS_GRANDFATHERED = "grandfathered"
 # The full set of recognized field names (unknown fields are errors for new IPDs).
 META_RECOGNIZED: FrozenSet[str] = frozenset(
     META_REQUIRED
     + META_PAIRED_SET_ORDER
     + META_QUARANTINE_TRIO
-    + (META_WATERMARK, META_APPROVAL)
+    + (META_WATERMARK, META_APPROVAL, META_SCOPE_PATHS)
 )
 
 # Readiness vocabulary imported from the existing single source of truth (no fork).
@@ -306,6 +317,121 @@ def _check_path_status(status: str, directory: str) -> List[MetaError]:
                 MetaError("Status", "pre-terminal Status must live under pending/")
             )
     return errors
+
+
+# --------------------------------------------------------------------------------------
+# Scope-Paths allowlist grammar (Order oorry1)
+# --------------------------------------------------------------------------------------
+#
+# A plan's `Scope-Paths` value is EITHER the reserved sentinel `grandfathered` OR a
+# comma-separated allowlist of repo-relative literal paths / bounded pathspecs the plan may
+# change. The grammar is deliberately conservative so a later finalize transaction can compare
+# it against the real changed paths without ambiguity:
+#
+#   * repo-relative only: an absolute path (leading `/`) or a Windows drive/UNC path is rejected;
+#   * no parent escape: any `..` path segment is rejected (a plan cannot scope outside the repo);
+#   * no repo-wide blast radius: a bare `*`/`**`, a root-level `**`/`*` (e.g. `**`, `**/x`,
+#     `*.py` at the root, `*`), or the repo root `.`/`/` is rejected;
+#   * a directory-bounded pathspec IS allowed (e.g. `tests/`, `agent_workflows/**`,
+#     `agent_workflows/*.py`, `docs/**/*.md`) because its blast radius is bounded by a leading
+#     concrete directory segment;
+#   * the plan's OWN lifecycle artifacts are IMPLICIT and need not be listed: the plan file
+#     itself under `.aw/records/plans/**` and its manifest/index refresh
+#     (`.aw/records/plans/INDEX.md`, `.aw/records/**/index.md`) are always allowed (see
+#     `scope_paths_implicit_allowances`);
+#   * a GENERATED file that a plan produces MUST be declared like any other path (there is no
+#     implicit generated-file exception beyond the lifecycle artifacts above).
+#
+# `grandfathered` is a whole-value sentinel: it may not be mixed with real entries.
+
+# Repo-relative lifecycle artifacts every plan may touch without declaring them.
+SCOPE_PATHS_IMPLICIT_ALLOWANCES: Tuple[str, ...] = (
+    ".aw/records/plans/**",  # the plan file itself moving through the lifecycle
+    ".aw/records/plans/INDEX.md",  # the plans index refresh
+    ".aw/records/**/index.md",  # a records-tree manifest/index refresh
+)
+
+# A path SEGMENT that is a bare repo-wide glob (rejected at the ROOT position only).
+_SCOPE_ROOT_GLOB_SEGMENTS: FrozenSet[str] = frozenset(("*", "**"))
+_WINDOWS_DRIVE_RE = re.compile(r"^[A-Za-z]:[\\/]")
+
+
+def scope_paths_implicit_allowances() -> Tuple[str, ...]:
+    """Return the repo-relative lifecycle-artifact pathspecs every plan may touch implicitly."""
+    return SCOPE_PATHS_IMPLICIT_ALLOWANCES
+
+
+def _scope_path_entry_error(entry: str) -> Optional[str]:
+    """Validate ONE Scope-Paths allowlist entry (not the `grandfathered` sentinel).
+
+    Returns an error string, or None when the entry is a legal repo-relative literal path or
+    bounded pathspec. Pure; performs no filesystem access.
+    """
+    raw = entry.strip()
+    if not raw:
+        return "empty path entry"
+    # Reject absolute / drive / UNC paths.
+    if raw.startswith("/") or raw.startswith("\\"):
+        return "absolute paths are not allowed (use a repo-relative path): {0}".format(
+            raw
+        )
+    if _WINDOWS_DRIVE_RE.match(raw):
+        return "absolute paths are not allowed (use a repo-relative path): {0}".format(
+            raw
+        )
+    # Normalize separators for segment analysis (a stored pathspec may use `/`).
+    norm = raw.replace("\\", "/")
+    if norm in (".", "./", "/"):
+        return "the repo root is too broad to be a scope path: {0}".format(raw)
+    segments = [seg for seg in norm.split("/") if seg != ""]
+    if not segments:
+        return "empty path entry"
+    # No parent escape anywhere in the path.
+    if any(seg == ".." for seg in segments):
+        return "parent-directory escape ('..') is not allowed: {0}".format(raw)
+    # No repo-wide blast radius at the ROOT position (first segment). A `**`/`*` deeper in the
+    # path is bounded by the concrete leading directory and is allowed.
+    if segments[0] in _SCOPE_ROOT_GLOB_SEGMENTS:
+        return "repo-wide glob is too broad (bound it under a directory): {0}".format(
+            raw
+        )
+    # A root-level filename glob (e.g. `*.py`, `*.md` at the repo root) is also too broad.
+    if len(segments) == 1 and "*" in segments[0]:
+        return "root-level glob is too broad (bound it under a directory): {0}".format(
+            raw
+        )
+    return None
+
+
+def parse_scope_paths(value: str) -> Tuple[List[str], bool, List[str]]:
+    """Parse a `Scope-Paths` metadata value.
+
+    Returns ``(paths, is_grandfathered, errors)`` where ``paths`` is the list of declared
+    allowlist entries (empty when grandfathered), ``is_grandfathered`` is True iff the value is
+    exactly the reserved sentinel, and ``errors`` lists grammar violations. Pure.
+    """
+    v = value.strip()
+    if v == SCOPE_PATHS_GRANDFATHERED:
+        return [], True, []
+    if v == "":
+        return [], False, ["Scope-Paths must not be empty"]
+    entries = [tok.strip() for tok in v.split(",")]
+    errors: List[str] = []
+    # The sentinel may not be mixed with real entries.
+    if any(tok == SCOPE_PATHS_GRANDFATHERED for tok in entries):
+        errors.append(
+            "the 'grandfathered' sentinel must be the whole Scope-Paths value, not one entry"
+        )
+    paths = [tok for tok in entries if tok]
+    if not paths:
+        errors.append("Scope-Paths must list at least one path")
+    for entry in paths:
+        if entry == SCOPE_PATHS_GRANDFATHERED:
+            continue
+        err = _scope_path_entry_error(entry)
+        if err:
+            errors.append(err)
+    return paths, False, errors
 
 
 # --------------------------------------------------------------------------------------

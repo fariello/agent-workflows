@@ -631,6 +631,12 @@ class DensityAdvisoryLintTests(unittest.TestCase):
         text = text.replace(
             "- Author: tester", "- Author: tester\n- Approval: tester 2026-08-03"
         )
+        # Order oorry1: a ready-to-execute plan now needs a Scope-Paths value; declare a real
+        # allowlist so this test isolates the DENSITY advisory (Z602) it is actually about.
+        text = text.replace(
+            "- Scope: sample.",
+            "- Scope: sample.\n- Scope-Paths: agent_workflows/foo.py",
+        )
         res = L.lint_text(text, checkpoint="pre-execution", directory="pending")
         self.assertEqual(res.disposition, S.DISPOSITION_CONFORMING)
         self.assertTrue(res.passing)
@@ -687,6 +693,131 @@ class DensityAdvisoryLintTests(unittest.TestCase):
             self.assertIn("advisory:", out)
             self.assertIn("IPD-Z602", out)
             self.assertIn("disposition: conforming", out)
+
+
+def _with_scope_paths(text: str, value) -> str:
+    """Return ``text`` with a Scope-Paths metadata line set to ``value`` (or removed if None)."""
+    out = []
+    for ln in text.splitlines():
+        if ln.startswith("- Scope-Paths:"):
+            continue  # drop any existing one first
+        out.append(ln)
+        if value is not None and ln.startswith("- Scope:"):
+            out.append("- Scope-Paths: " + value)
+    return "\n".join(out) + "\n"
+
+
+def _approved(text: str) -> str:
+    """Make a fixture ready-to-execute: Status approved + the required Approval field.
+
+    Only the METADATA-block Status (before the first H2) is changed, so an OQ's own
+    `- Status: open` line later in the document is left intact.
+    """
+    out = []
+    in_meta = True
+    for ln in text.splitlines():
+        if ln.startswith("## "):
+            in_meta = False
+        if in_meta and ln.startswith("- Status:"):
+            out.append("- Status: approved")
+            continue
+        out.append(ln)
+        if in_meta and ln.startswith("- Author:"):
+            out.append("- Approval: 2026-08-24, human: approved")
+    return "\n".join(out) + "\n"
+
+
+class ScopePathsCheckpointTests(unittest.TestCase):
+    """Order oorry1: conditional Scope-Paths enforcement in the checkpoint layer.
+
+    A fieldless plan is BLOCKED at the ready-to-execute gate; a `grandfathered`-marked plan is
+    advisory-only (non-blocking); a real allowlist is grammar-validated; the `author` phase and
+    terminal (grandfathered) records are unaffected.
+    """
+
+    def _scope_diags(self, res):
+        return [d for d in res.diagnostics if d.code == L.C_SCOPE_PATHS]
+
+    def _scope_advisories(self, res):
+        return [d for d in res.advisories if d.code == L.C_SCOPE_PATHS]
+
+    def test_author_phase_does_not_require_scope_paths(self):
+        text = _with_scope_paths(_conforming_child(), None)  # no field at all
+        res = L.lint_text(text, checkpoint="author", directory="pending")
+        self.assertEqual(self._scope_diags(res), [])
+        self.assertEqual(
+            res.disposition,
+            S.DISPOSITION_CONFORMING,
+            [d.message for d in res.diagnostics],
+        )
+
+    def test_pre_execution_fieldless_is_blocked(self):
+        text = _approved(_with_scope_paths(_conforming_child(), None))
+        res = L.lint_text(text, checkpoint="pre-execution", directory="pending")
+        self.assertTrue(
+            self._scope_diags(res), "fieldless plan must be blocked at pre-execution"
+        )
+        self.assertEqual(res.disposition, S.DISPOSITION_ERROR)
+
+    def test_approved_status_fieldless_is_blocked_even_off_gate(self):
+        # The requirement also fires by STATUS, so an approved plan cannot slip past a
+        # non-pre-execution checkpoint without the field.
+        text = _approved(_with_scope_paths(_conforming_child(), None))
+        res = L.lint_text(text, checkpoint="review-finalize", directory="pending")
+        self.assertTrue(self._scope_diags(res))
+
+    def test_grandfathered_marker_is_advisory_not_blocking(self):
+        text = _approved(_with_scope_paths(_conforming_child(), "grandfathered"))
+        res = L.lint_text(text, checkpoint="pre-execution", directory="pending")
+        self.assertEqual(self._scope_diags(res), [], "grandfathered must not block")
+        self.assertTrue(
+            self._scope_advisories(res), "grandfathered should emit an advisory"
+        )
+        self.assertEqual(
+            res.disposition,
+            S.DISPOSITION_CONFORMING,
+            [d.message for d in res.diagnostics],
+        )
+
+    def test_real_allowlist_is_grammar_validated(self):
+        good = _approved(
+            _with_scope_paths(
+                _conforming_child(), "agent_workflows/foo.py, tests/test_foo.py"
+            )
+        )
+        res = L.lint_text(good, checkpoint="pre-execution", directory="pending")
+        self.assertEqual(
+            self._scope_diags(res), [], [d.message for d in res.diagnostics]
+        )
+        self.assertEqual(res.disposition, S.DISPOSITION_CONFORMING)
+
+        bad = _approved(_with_scope_paths(_conforming_child(), "/etc/passwd"))
+        res_bad = L.lint_text(bad, checkpoint="pre-execution", directory="pending")
+        self.assertTrue(self._scope_diags(res_bad), "malformed allowlist must block")
+        self.assertEqual(res_bad.disposition, S.DISPOSITION_ERROR)
+
+    def test_terminal_grandfathered_record_is_unaffected(self):
+        # A terminal-dir plan with NO Scope-Paths short-circuits to legacy (never blocked),
+        # proving the non-retroactivity guarantee for grandfathered terminal records.
+        text = _with_scope_paths(_executed_child(), None)
+        res = L.lint_text(text, checkpoint="pre-execution", directory="executed")
+        self.assertEqual(res.disposition, S.DISPOSITION_LEGACY)
+        self.assertEqual(self._scope_diags(res), [])
+
+    def test_enforcement_lives_in_checkpoint_layer_not_metadata(self):
+        # A fieldless plan produces NO metadata error (check_metadata), only a checkpoint-layer
+        # diagnostic at the gate (check_scope_paths).
+        fieldless = _with_scope_paths(_conforming_child(), None)
+        doc = L.parse(fieldless)
+        meta_diags = L.check_metadata(doc, "pending")
+        self.assertEqual(
+            [d for d in meta_diags if d.code == L.C_SCOPE_PATHS],
+            [],
+            "Scope-Paths must NOT be enforced in check_metadata",
+        )
+        approved_doc = L.parse(_approved(fieldless))
+        block, _adv = L.check_scope_paths(approved_doc, "pre-execution", "pending")
+        self.assertTrue(block, "check_scope_paths must enforce the field at the gate")
 
 
 if __name__ == "__main__":
