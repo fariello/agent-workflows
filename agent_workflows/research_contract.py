@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Dict, FrozenSet, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import artifact_naming as _naming
 
 # --------------------------------------------------------------------------------------
 # Identity: the stable, greppable ``<id6>`` (spec 4.1 / OQ5).
@@ -224,11 +225,10 @@ kebab = _core.kebab
 # --------------------------------------------------------------------------------------
 
 # The stem is split on ``.`` into: <core>[.<model>].<kind>. The core is
-# ``YYYYMMDD-<set-id>-<NN>-<id6>-<slug>``. set-id and slug are kebab (may contain ``-``), so we
-# anchor on the fixed-width date, NN, and id6.
-_CORE_RE = re.compile(
-    r"\A(?P<date>\d{8})-(?P<set>[a-z0-9-]+?)-(?P<nn>\d{2})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9-]+)\Z"
-)
+# ``YYYYMMDD-<set-id>-<NN>-<id6>-<slug>``. The clustered CORE regex is defined ONCE in the naming
+# authority (IPD o6b8l3) and re-exported here; research's `.<model>.<kind>` facet assembly stays in
+# this module (research is a type WITH extra facets, not the plans grammar).
+_CORE_RE = _naming._CORE_RE
 
 # Weekly shard directory grammar (spec 4.9): YYYYMM-Www (e.g. 202607-W30). Re-exported from core.
 SHARD_DIR_RE = _core.SHARD_DIR_RE
@@ -291,7 +291,7 @@ def parse_name(filename: str) -> Tuple[Optional[ResearchName], Optional[NameErro
     m = _CORE_RE.match(core)
     if not m:
         return None, NameError_(
-            "core must be 'YYYYMMDD-<set-id>-<NN>-<id6>-<slug>' " f"(got '{core}')"
+            f"core must be 'YYYYMMDD-<set-id>-<NN>-<id6>-<slug>' (got '{core}')"
         )
 
     kind_res = normalize_kind(kind)

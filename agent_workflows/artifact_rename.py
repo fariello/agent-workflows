@@ -13,29 +13,18 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import artifact_naming as _naming
 from agent_workflows import selectors
 from agent_workflows.project_context import resolve_verb_repo_root
 
-# Regular expression patterns for artifact filenames
-_UNIFORM_RE = re.compile(
-    r"\A(?P<date>\d{8})-(?P<set>[a-z0-9-]+?)-(?P<nn>\d{2})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9-]+)"
-    r"(?:\.(?P<facet>[a-z0-9.-]+))?\.md\Z"
-)
-
-_LEGACY_TIMESTAMP_RE = re.compile(
-    r"\A(?P<date>\d{8})-(?P<hhmm>\d{4})-(?P<nn>\d{2})-(?P<slug>[a-z0-9-]+)"
-    r"(?:\.(?P<facet>[a-z0-9.-]+))?\.md\Z"
-)
-
-_WALKTHROUGH_DATED_RE = re.compile(
-    r"\A(?P<date>\d{8})-(?P<slug>[a-z0-9-]+)-walkthrough\.md\Z"
-)
-
-_WALKTHROUGH_BARE_RE = re.compile(r"\A(?P<slug>[a-z0-9-]+)-walkthrough\.md\Z")
-
-_DATED_SLUG_FACET_RE = re.compile(
-    r"\A(?P<date>\d{8})-(?P<slug>[a-z0-9-]+)(?:\.(?P<facet>[a-z0-9.-]+))?\.md\Z"
-)
+# Filename-grammar regexes are defined ONCE in the naming authority (IPD o6b8l3); re-exported here.
+# The rename builder uses the PERMISSIVE uniform form (open facet) so a pre-existing name with an
+# arbitrary facet still renames (byte-for-byte behavior preservation, pinned by the golden suite).
+_UNIFORM_RE = _naming._UNIFORM_RE
+_LEGACY_TIMESTAMP_RE = _naming._LEGACY_TIMESTAMP_RE
+_WALKTHROUGH_DATED_RE = _naming._WALKTHROUGH_DATED_RE
+_WALKTHROUGH_BARE_RE = _naming._WALKTHROUGH_BARE_RE
+_DATED_SLUG_FACET_RE = _naming._DATED_SLUG_FACET_RE
 
 _SET_LINE_RE = re.compile(r"(?m)^- Set:\s*(.+?)\s*$")
 _ORDER_LINE_RE = re.compile(r"(?m)^- Order:\s*(\d+)\s*$")
@@ -154,8 +143,8 @@ def plan_reference_rewrites(
 ) -> List[RefEdit]:
     """Find all inbound references across SCAN_ROOTS to rewrite."""
     edits: List[RefEdit] = []
-    old_stem = old_name[:-3] if old_name.endswith(".md") else old_name
-    new_stem = new_name[:-3] if new_name.endswith(".md") else new_name
+    old_stem = old_name.removesuffix(".md")
+    new_stem = new_name.removesuffix(".md")
 
     for f in _core.iter_scan_files(repo_root):
         try:

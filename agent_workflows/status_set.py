@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import artifact_naming as _naming
 from agent_workflows import plans as _plans_mod
 from agent_workflows import selectors as _sel
 from agent_workflows.result_types import Change
@@ -137,22 +138,17 @@ def canonical_type(type_token: str | None) -> str | None:
 
 
 def detect_artifact_type(path: Path, repo_root: Path) -> str | None:
-    """Detect the record type of an artifact file based on path facets and location."""
+    """Detect the record type of an artifact file based on path facets and location.
+
+    The facet->type mapping is derived from the single naming authority's ``TYPE_FACET`` (IPD
+    o6b8l3), so there is one facet-enum definition; only the ``comms`` facet is intentionally not
+    resolved to a status-settable type here (no comms status flow)."""
     name = path.name
-    if name.endswith(".ipd.md"):
-        return "plans"
-    if name.endswith(".spec.md"):
-        return "specs"
-    if name.endswith(".prompt.md"):
-        return "prompts"
-    if name.endswith(".backlog.md"):
-        return "backlog"
-    if name.endswith(".release.md"):
-        return "releases"
-    if name.endswith(".walkthrough.md"):
-        return "walkthroughs"
-    if name.endswith(".roadmap.md"):
-        return "roadmaps"
+    for _type, _facet in _naming.TYPE_FACET.items():
+        if _type == "comms":
+            continue
+        if name.endswith(f".{_facet}.md"):
+            return _type
 
     # Location-based detection
     rel_parts = path.resolve().parts
@@ -372,7 +368,7 @@ def apply_status_change(
             if (
                 in_frontmatter
                 and not status_updated
-                and re.match(r"^status:\s*\S+", line, re.I)
+                and re.match(r"^status:\s*\S+", line, re.IGNORECASE)
             ):
                 new_lines.append(f"status: {norm_status}")
                 status_updated = True

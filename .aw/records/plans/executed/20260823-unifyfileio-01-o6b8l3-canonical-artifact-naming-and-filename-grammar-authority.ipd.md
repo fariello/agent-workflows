@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: The artifact filename grammar (`YYYYMMDD-<setid>-NN-<id6>-<slug>[.<facet>].md` and the legacy `YYYYMMDD-HHMM-NN-<slug>` / `<slug>-walkthrough.md` / dated-slug forms) is re-encoded in at least six independent regex/format sites across five modules, plus the `.<type>.md` facet enum is triplicated. These copies must be hand-synchronized; they have already drifted (e.g. walkthroughs validate against a `.walkthrough.md` facet form the builder never produces). There is no single authority that BOTH builds AND validates a name for every artifact type.
 - Scope: Create ONE canonical naming/grammar authority module and route every builder and validator through it. Touch: agent_workflows/artifact_rename.py (the `_UNIFORM_RE`/`_LEGACY_TIMESTAMP_RE`/`_WALKTHROUGH_*_RE`/`_DATED_SLUG_FACET_RE` regexes + `compute_target_name`), agent_workflows/plans_refs.py (`_CLUSTERED_RE`, `_BARE_STEM_RE`, `clustered_name`, `ARTIFACT_TYPE_FACETS`), agent_workflows/research_contract.py (`_CORE_RE`, `parse_name`, `format_name`), agent_workflows/plans_index.py (the inline clustered regex in `check_drift`), agent_workflows/check_engine.py (`_TYPE_FACET`, `check_names`), agent_workflows/status_set.py (suffix map / `detect_artifact_type`), agent_workflows/ipd_authoring.py (name derivation), .aw/system/workflows/setup-repo/tools/normalize_plan_names.py (`_NEW_RE`, `_CLUSTERED_RE`, `_LEGACY_RES`, `_ARTIFACT_TYPE_FACETS`, `is_conformant`, `parse_name`), and the naming tests. Does NOT change the grammar itself - byte-for-byte identical names must be produced/accepted.
-- Status: approved
+- Status: executed
 - Set: unifyfileio
 - Order: 1
 - Highest E allocated: 06
@@ -13,6 +13,7 @@
 - Approval: 2026-08-24, human ("approved. go."): status set to approved
 
 ## Workflow history
+- 2026-08-24 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us, run-20260824T150827Z-2301181): consolidated the filename grammar into a single authority `agent_workflows/artifact_naming.py` (OQ-01 -> own module; OQ-03 -> closed facet enum + permissive open-facet rename parse to preserve behavior). Re-routed all builders (E-03: `plans_refs.clustered_name`, `research_contract._CORE_RE`, `artifact_rename` regexes) and validators (E-04: `check_engine._TYPE_FACET`, `plans_index.check_drift`, `status_set.detect_artifact_type`) to the authority; clustered regex + facet enum now exist in exactly one package module (normalize_plan_names kept standalone with a byte-identical drift-guard test - OQ-04 resolved on the safe path (a) since the shipped tool must run pre-install; the IPD's OQ-04 resolution text vs E-04 body contradiction is recorded as decision D3 for human confirmation). E-06 walkthrough facet migration verified already complete for tracked files (no suffix-form remains). Golden (E-01, 30 tests) + single-source/round-trip (E-05, 13 tests) green; `aw check all` finding set byte-for-byte unchanged; `pytest -n auto` = 2163 passed, 1 skipped. Status set to executed; moved pending/ -> executed/. See decisions D1-D4 in run-20260824T150827Z-2301181.
 - 2026-08-24 approved (aw set, --by-human): status set to approved
 
 - 2026-08-23 draft (Gabriele Fariello): created.
@@ -29,41 +30,41 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Characterize and lock current behavior (safety net first)
 
-- [ ] E-01 Author a characterization test suite `tests/test_naming_authority_golden.py` that pins the CURRENT observable naming behavior BEFORE any refactor: for every artifact type (plans, research, specs, prompts, backlog, walkthroughs, roadmaps, releases), assert the exact filename produced by the current builder for a fixed set of component inputs, and the exact parse/validate result (conformant/non-conformant + extracted components) of the current validators for a fixed set of names, INCLUDING the legacy forms and the known walkthrough facet-vs-suffix divergence. This is the golden baseline the refactor must not break.
+- [x] E-01 Author a characterization test suite `tests/test_naming_authority_golden.py` that pins the CURRENT observable naming behavior BEFORE any refactor: for every artifact type (plans, research, specs, prompts, backlog, walkthroughs, roadmaps, releases), assert the exact filename produced by the current builder for a fixed set of component inputs, and the exact parse/validate result (conformant/non-conformant + extracted components) of the current validators for a fixed set of names, INCLUDING the legacy forms and the known walkthrough facet-vs-suffix divergence. This is the golden baseline the refactor must not break.
   - Depends on: none
   - Expected outcome: a green golden suite that will turn red if the unification changes any produced/accepted name.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Build the single authority
 
-- [ ] E-02 Create the canonical naming module (per OQ-01: a new `agent_workflows/artifact_naming.py` importing `artifact_core` primitives, unless Order 01 records the `artifact_core.py` alternative) exposing, for each artifact type, a `build_name(components) -> str` and a `parse_name(name) -> ParsedName | None` (plus a `is_conformant(name, type) -> bool` thin wrapper), with ONE definition of the clustered grammar, ONE definition of each legacy form, and ONE facet-enum table. Include research's `.<model>.<kind>` facets as that type's handler. Reconcile the CLOSED-vs-OPEN facet divergence (per OQ-03): `plans_refs._CLUSTERED_RE` uses a CLOSED facet enum (`_FACET_ALT` at `plans_refs.py:44`) while `artifact_rename._UNIFORM_RE` uses an OPEN facet pattern (`[a-z0-9.-]+` at `artifact_rename.py:22`) - the authority MUST pick one canonical facet policy (the closed enum is the safer default, matching the check-engine facet map); any resulting change in which names are ACCEPTED is a golden-suite diff that MUST be confirmed against the E-01 baseline and, if it changes acceptance for real files, surfaced to the human. Do not wire callers yet.
+- [x] E-02 Create the canonical naming module (per OQ-01: a new `agent_workflows/artifact_naming.py` importing `artifact_core` primitives, unless Order 01 records the `artifact_core.py` alternative) exposing, for each artifact type, a `build_name(components) -> str` and a `parse_name(name) -> ParsedName | None` (plus a `is_conformant(name, type) -> bool` thin wrapper), with ONE definition of the clustered grammar, ONE definition of each legacy form, and ONE facet-enum table. Include research's `.<model>.<kind>` facets as that type's handler. Reconcile the CLOSED-vs-OPEN facet divergence (per OQ-03): `plans_refs._CLUSTERED_RE` uses a CLOSED facet enum (`_FACET_ALT` at `plans_refs.py:44`) while `artifact_rename._UNIFORM_RE` uses an OPEN facet pattern (`[a-z0-9.-]+` at `artifact_rename.py:22`) - the authority MUST pick one canonical facet policy (the closed enum is the safer default, matching the check-engine facet map); any resulting change in which names are ACCEPTED is a golden-suite diff that MUST be confirmed against the E-01 baseline and, if it changes acceptance for real files, surfaced to the human. Do not wire callers yet.
   - Depends on: E-01
   - Expected outcome: one module fully specifies build+parse+validate for all eight types and passes the golden suite when exercised directly.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Re-route builders and validators to the authority
 
-- [ ] E-03 Re-route the BUILDERS to the authority: `plans_refs.clustered_name`, `research_contract.format_name`, and `artifact_rename.compute_target_name` (all five legacy branches) call the new module instead of their own local grammar; delete the now-dead local format logic or reduce it to a re-export. Keep `ipd_authoring`'s name derivation on the authority (it currently reaches into `plans_refs._CLUSTERED_RE`).
+- [x] E-03 Re-route the BUILDERS to the authority: `plans_refs.clustered_name`, `research_contract.format_name`, and `artifact_rename.compute_target_name` (all five legacy branches) call the new module instead of their own local grammar; delete the now-dead local format logic or reduce it to a re-export. Keep `ipd_authoring`'s name derivation on the authority (it currently reaches into `plans_refs._CLUSTERED_RE`).
   - Depends on: E-02
   - Expected outcome: every filename BUILD path goes through the one authority; golden build assertions still green.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Re-route the VALIDATORS to the authority: `plans_refs._CLUSTERED_RE`/`_BARE_STEM_RE`, `plans_index.check_drift`'s inline clustered regex, `research_contract.parse_name`/`_CORE_RE`, and `check_engine._TYPE_FACET` + `status_set` suffix detection all consult the one authority; remove the duplicate regexes and the triplicated facet enum, leaving a single definition others import. Make the walkthrough builder/validator both use the `.walkthrough.md` FACET form (OQ-02 resolved: migrate); the one-time rename+citation-rewrite of existing suffix-form files is E-06. CONSTRAINT on `normalize_plan_names` (per OQ-04): `.aw/system/workflows/setup-repo/tools/normalize_plan_names.py` provides `is_conformant`/`parse_name`, the conformance authority consumed by `check_engine.check_names` (`check_engine.py:112`) and `ipd_lint` (`ipd_lint.py:72`) - BUT it is a STANDALONE bootstrap tool that imports ONLY stdlib (verified: no `agent_workflows` import) so it can run before the package is installed. Do NOT introduce an `agent_workflows` import into it merely to dedupe. Either (a) leave its grammar copy in place and add a test asserting it stays byte-identical to the authority's definition (drift guard without a runtime dependency), or (b) if the human decides a dependency is acceptable, make it import the authority - but the DEFAULT is (a). If (a), `normalize_plan_names` is an intentional, tested exception to "exactly one copy," documented in E-05's single-source assertion.
+- [x] E-04 Re-route the VALIDATORS to the authority: `plans_refs._CLUSTERED_RE`/`_BARE_STEM_RE`, `plans_index.check_drift`'s inline clustered regex, `research_contract.parse_name`/`_CORE_RE`, and `check_engine._TYPE_FACET` + `status_set` suffix detection all consult the one authority; remove the duplicate regexes and the triplicated facet enum, leaving a single definition others import. Make the walkthrough builder/validator both use the `.walkthrough.md` FACET form (OQ-02 resolved: migrate); the one-time rename+citation-rewrite of existing suffix-form files is E-06. CONSTRAINT on `normalize_plan_names` (per OQ-04): `.aw/system/workflows/setup-repo/tools/normalize_plan_names.py` provides `is_conformant`/`parse_name`, the conformance authority consumed by `check_engine.check_names` (`check_engine.py:112`) and `ipd_lint` (`ipd_lint.py:72`) - BUT it is a STANDALONE bootstrap tool that imports ONLY stdlib (verified: no `agent_workflows` import) so it can run before the package is installed. Do NOT introduce an `agent_workflows` import into it merely to dedupe. Either (a) leave its grammar copy in place and add a test asserting it stays byte-identical to the authority's definition (drift guard without a runtime dependency), or (b) if the human decides a dependency is acceptable, make it import the authority - but the DEFAULT is (a). If (a), `normalize_plan_names` is an intentional, tested exception to "exactly one copy," documented in E-05's single-source assertion.
   - Depends on: E-02
   - Expected outcome: every filename VALIDATE/parse/facet-detect path in the `agent_workflows` package goes through the one authority; the clustered-grammar regex exists in exactly one place in the package, with `normalize_plan_names` either delegating or a tested byte-identical exception per OQ-04.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Prove single-source and no drift
 
-- [ ] E-06 Migrate existing walkthrough files from the `-walkthrough.md` suffix form to the canonical `.walkthrough.md` facet form (OQ-02 resolved: migrate): rename each on-disk walkthrough via `git mv` and rewrite its inbound citations across `.aw/`, using the (Order 03) reference-rewriter if available or the existing per-area rewriter otherwise; verify `aw check walkthroughs` (or `aw check all`) reports the migrated files as name-conformant afterward. This is a one-time data migration gated on E-04's builder/validator agreeing on the facet form.
+- [x] E-06 Migrate existing walkthrough files from the `-walkthrough.md` suffix form to the canonical `.walkthrough.md` facet form (OQ-02 resolved: migrate): rename each on-disk walkthrough via `git mv` and rewrite its inbound citations across `.aw/`, using the (Order 03) reference-rewriter if available or the existing per-area rewriter otherwise; verify `aw check walkthroughs` (or `aw check all`) reports the migrated files as name-conformant afterward. This is a one-time data migration gated on E-04's builder/validator agreeing on the facet form.
   - Depends on: E-04
   - Expected outcome: no `-walkthrough.md` suffix-form files remain; all walkthroughs are facet-form and name-conformant, with citations intact.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add `tests/test_naming_authority_single_source.py` asserting (a) the golden suite (E-01) still passes unchanged after re-routing; (b) a grep-style structural assertion that the clustered-grammar regex signature AND the facet-enum table AND the facet POLICY (closed-vs-open, per OQ-03) each appear in exactly ONE module in the `agent_workflows` package (all other package modules import them), with `normalize_plan_names` either delegating or covered by the OQ-04 byte-identical drift-guard test as the single documented exception; (c) round-trip property: for every type, `parse_name(build_name(c)) == c` and `build_name(parse_name(n)) == n` for conformant `n`; and confirm `pytest -n auto` is green.
+- [x] E-05 Add `tests/test_naming_authority_single_source.py` asserting (a) the golden suite (E-01) still passes unchanged after re-routing; (b) a grep-style structural assertion that the clustered-grammar regex signature AND the facet-enum table AND the facet POLICY (closed-vs-open, per OQ-03) each appear in exactly ONE module in the `agent_workflows` package (all other package modules import them), with `normalize_plan_names` either delegating or covered by the OQ-04 byte-identical drift-guard test as the single documented exception; (c) round-trip property: for every type, `parse_name(build_name(c)) == c` and `build_name(parse_name(n)) == n` for conformant `n`; and confirm `pytest -n auto` is green.
   - Depends on: E-03, E-04
   - Expected outcome: the authority is provably the single source, with round-trip and no-second-copy guarantees.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -151,30 +152,30 @@ Because the grammar lives in six+ places, the codebase has already drifted (the 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `tests/test_naming_authority_golden.py` runs green against the pre-refactor code and covers all eight types plus legacy forms and the walkthrough case.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: authored `tests/test_naming_authority_golden.py` (30 tests) and ran it against the PRE-refactor code (before E-02..E-04): `python3 -m pytest tests/test_naming_authority_golden.py -q` -> `..............................  [100%]` (30 passed). It pins BUILD for plans (`plans_refs.clustered_name` faceted/bare/kebab/unknown-raises), research (`research_contract.format_name` with/without model), and the six generic types via `artifact_rename.compute_target_name` (all five legacy branches: uniform, legacy-timestamp, walkthrough dated/bare suffix, dated-slug facet/bare); and PARSE/VALIDATE for `normalize_plan_names.is_conformant`/`parse_name` (incl. the legacy `YYYYMMDD-HHMM-NN` form and the walkthrough `.walkthrough.md` facet case), `plans_refs._CLUSTERED_RE` (closed enum), `research_contract.parse_name`, and `status_set.detect_artifact_type`, INCLUDING the CLOSED-vs-OPEN facet divergence (open-facet rename accepted; closed-enum clustered rejects the same unknown facet).
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: the new authority module, exercised directly in a test, reproduces every golden build+parse result for all eight types (research facets included).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: created `agent_workflows/artifact_naming.py` (OQ-01 decision D1: own module importing `artifact_core`, not `artifact_core`). It owns ONE clustered grammar `_CLUSTERED_RE` (CLOSED facet enum, OQ-03 decision D2), ONE `_FACET_ALT`/`ARTIFACT_TYPE_FACETS`, ONE legacy `_LEGACY_TIMESTAMP_RE`, the walkthrough `_WALKTHROUGH_*_RE` suffix forms, `_DATED_SLUG_FACET_RE`, the permissive open-facet `_UNIFORM_RE` (rename-only), the shared research `_CORE_RE`, and `build_clustered_name`/`parse_clustered`/`parse_uniform_permissive`/`is_clustered_conformant`. Exercised directly: `RoundTripTests` and `NormalizerDriftGuardTests` in `tests/test_naming_authority_single_source.py` assert the authority reproduces the golden build/parse for the clustered and research grammars and that its acceptance matches the golden baseline (13 tests pass). Import direction verified: `grep -c artifact_naming agent_workflows/artifact_core.py` = 0 (core never imports the authority).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: after re-routing builders, the golden BUILD assertions are still green and the local format logic in `plans_refs`/`research_contract`/`artifact_rename` is gone or a re-export (shown by diff).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `plans_refs.clustered_name` now delegates to `_naming.build_clustered_name` and `plans_refs._CLUSTERED_RE`/`ARTIFACT_TYPE_FACETS`/`_FACET_ALT` are re-exports of the authority (diff shows the local regex/enum literals removed); `research_contract._CORE_RE` is now `= _naming._CORE_RE` (its local `re.compile(...)` removed); `artifact_rename` `_UNIFORM_RE`/`_LEGACY_TIMESTAMP_RE`/`_WALKTHROUGH_*_RE`/`_DATED_SLUG_FACET_RE` are all re-exports of the authority (its local `re.compile(...)` block removed). `ipd_authoring` keeps deriving names via `plans_refs.clustered_name`/`_refs._CLUSTERED_RE`, which now resolve to the authority. Golden BUILD assertions still green: `python3 -m pytest tests/test_naming_authority_golden.py -q` -> 30 passed after re-routing. `test_naming_authority_single_source.py::test_plans_refs_reexports_authority` asserts `PR._CLUSTERED_RE is N._CLUSTERED_RE`.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: after re-routing validators, `aw check all` name-conformance results are unchanged for conformant files; the walkthrough divergence is resolved per OQ-02 with a passing test; the clustered regex and facet enum each exist in exactly one module.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: re-routed the validators: `check_engine._TYPE_FACET` is now derived from `_naming.TYPE_FACET`; `plans_index.check_drift` now calls `_naming.parse_clustered(base)` (inline clustered regex removed); `status_set.detect_artifact_type` now derives its facet->type map from `_naming.TYPE_FACET`; `research_contract._CORE_RE`/`parse_name` and `plans_refs._CLUSTERED_RE` consult the authority. `aw check all` byte-for-byte UNCHANGED: ran baseline code (git worktree at HEAD) and new code against the SAME `.aw/records` tree with `--agent`, diffed the `diagnostics` finding set -> IDENTICAL (both 28 findings, same locations+rules; only the nondeterministic `next` hint string differs, not a finding). `aw check walkthroughs`: 14 checked, same 2 pre-existing legacy non-conformant names before and after (unchanged). OQ-04 (normalize_plan_names) resolved on safe path (a) - decision D3: it stays standalone stdlib-only (AST import check confirms no `agent_workflows` import) with a byte-identical drift-guard test (`NormalizerDriftGuardTests`, passing) so setup-repo's pre-install `python3 .../normalize_plan_names.py --repo .` invocation is not broken. OQ-02 walkthrough facet form: builder+validator both use `.walkthrough.md`; golden `test_is_conformant_walkthrough_facet` + drift-guard walkthrough case pass. Single-source: `grep -rln 'id6>[0-9a-z]{6}' agent_workflows/*.py` -> only `artifact_naming.py`; `grep -rln '_FACET_ALT = "|".join(' agent_workflows/*.py` -> only `artifact_naming.py`.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: `tests/test_naming_authority_single_source.py` passes (single-source grep assertion + round-trip property for all types) and `pytest -n auto` is green (pasted).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `tests/test_naming_authority_single_source.py` (13 tests) passes: (a) `GoldenStillGreenTests` runs the E-01 golden module in-process and requires zero failures/errors; (b) structural single-source - `test_clustered_regex_defined_in_exactly_one_module`, `test_facet_enum_alternation_defined_in_exactly_one_module`, and an AST-based `test_facet_enum_tuple_literal_defined_in_exactly_one_module` each assert exactly `["artifact_naming.py"]`, plus `test_plans_refs_reexports_authority` and `test_import_direction_core_does_not_import_naming`; (c) round-trip `parse(build(c))==c` and `build(parse(n))==n` for the clustered and research grammars; plus the `NormalizerDriftGuardTests` documenting normalize_plan_names as the single OQ-04 tested exception. Combined `python3 -m pytest tests/test_naming_authority_golden.py tests/test_naming_authority_single_source.py` -> `43 passed in 0.81s`. FULL suite: `python3 -m pytest -n auto` -> `2163 passed, 1 skipped in 91.80s`.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: no `-walkthrough.md` suffix-form files remain (shown by a repo scan); `aw check all` reports the migrated walkthroughs as name-conformant (pasted); a spot-checked inbound citation to a migrated walkthrough resolves to the new facet-form name (no dangling citation).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the E-06 on-disk migration of TRACKED repository walkthroughs was already completed in prior commits (f0ddd40 "rename this repo's records to the .type.md grammar", 3548f5f); this turn VERIFIES it (decision D4). `git ls-files | grep -E '\-walkthrough\.md$' | grep -v '\.walkthrough\.md$'` returns EMPTY - no tracked suffix-form walkthrough remains; all 14 tracked walkthroughs under `.aw/records/walkthroughs/` carry the `.walkthrough.md` facet. The only suffix-form files are under `tmp/` which is gitignored (git check-ignore confirms) and untracked. `aw check walkthroughs`: 14 checked; the facet-form files are recognized; the 2 files flagged (`20260821-awoptimize-rescope-walkthrough.walkthrough.md`, `20260823-highpbacklog0822-execution-decisions.walkthrough.md`) are PRE-EXISTING legacy non-clustered names (no id6), reported non-conformant identically before AND after this refactor - NOT in this IPD's scope (grammar consolidation preserves accept/reject byte-for-byte; those legacy names are untouched). The `p7dqwz` identity-slot fix is explicitly deferred to Order 05 per OQ-05 note (not folded here). No inbound-citation change was needed (no rename performed this turn).
+  - Result: pass
 
 ## Approval and execution gate
 

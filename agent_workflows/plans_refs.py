@@ -23,32 +23,16 @@ from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import artifact_naming as _naming
 from agent_workflows import plans_index as _idx
 
 PLANS_DIR = ".agents/plans"
 
-# The uniform artifact-type facets (spec 20260817-2147-01): the TYPE signal moved into the filename
-# as `<...>.<type>.md`. A CLOSED enum so a dotted slug is never mis-parsed as a facet. Research keeps
-# its own richer `.<model>.<kind>.md` naming and is not in this set.
-ARTIFACT_TYPE_FACETS = (
-    "ipd",
-    "prompt",
-    "spec",
-    "walkthrough",
-    "roadmap",
-    "backlog",
-    "comms",
-    "release",
-)
-_FACET_ALT = "|".join(ARTIFACT_TYPE_FACETS)
-
-# The clustering grammar target: YYYYMMDD-<set-id>-<NN>-<id6>-<slug>[.<type>].md . The optional
-# `.<type>` facet is accepted (uniform grammar) AND a bare `.md` remains valid (permanent dual-read,
-# since readers are front-matter-driven).
-_CLUSTERED_RE = re.compile(
-    r"\A(?P<date>\d{8})-(?P<set>[a-z0-9-]+?)-(?P<nn>\d{2})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9-]+)"
-    r"(?:\.(?P<type>" + _FACET_ALT + r"))?\.md\Z"
-)
+# The uniform artifact-type facets and the clustered grammar are defined ONCE in the naming
+# authority (IPD o6b8l3); re-exported here so this module's public API is unchanged.
+ARTIFACT_TYPE_FACETS = _naming.ARTIFACT_TYPE_FACETS
+_FACET_ALT = _naming._FACET_ALT
+_CLUSTERED_RE = _naming._CLUSTERED_RE
 # An old-style plan stem: YYYYMMDD-HHMM-NN (bare, no slug/.md). Shared with specs, so a bare-stem
 # rewrite is driven by an explicit plan map, never by this pattern alone.
 _BARE_STEM_RE = re.compile(r"\b(\d{8}-\d{4}-\d{2})\b")
@@ -155,22 +139,22 @@ def clustered_name(
 ) -> str:
     """Build a clustered name. When ``artifact_type`` is one of ``ARTIFACT_TYPE_FACETS`` the uniform
     ``<...>.<type>.md`` facet is appended; when None (or empty) the bare ``.md`` form is produced
-    (backward-compatible)."""
+    (backward-compatible). Delegates to the single naming authority (IPD o6b8l3)."""
 
-    facet = ""
-    if artifact_type:
-        if artifact_type not in ARTIFACT_TYPE_FACETS:
-            raise ValueError(f"unknown artifact_type {artifact_type!r}")
-        facet = f".{artifact_type}"
-    return (
-        f"{date}-{_core.kebab(set_id)}-{order:02d}-{id6}-{_core.kebab(slug)}{facet}.md"
+    return _naming.build_clustered_name(
+        date=date,
+        set_id=set_id,
+        order=order,
+        id6=id6,
+        slug=slug,
+        artifact_type=artifact_type,
     )
 
 
 def _slug_of(old_name: str, id6: str) -> str:
     """Derive a slug for the clustered name from an old filename."""
 
-    base = old_name[:-3] if old_name.endswith(".md") else old_name
+    base = old_name.removesuffix(".md")
     base = base.split(".")[0]  # drop any dotted facets
     parts = [p for p in base.split("-") if p and p != id6]
     # Drop leading date/time/nn numeric tokens.
@@ -254,7 +238,7 @@ def plan_reference_rewrites(
         os_ = _old_stem(old_name)
         # The "new stem" is the clustered name without its `.md` (used for bare/range cites).
         if os_ is not None:
-            stem_map[os_] = new_name[:-3] if new_name.endswith(".md") else new_name
+            stem_map[os_] = new_name.removesuffix(".md")
 
     edits: List[RefEdit] = []
     for f in _core.iter_scan_files(repo_root):

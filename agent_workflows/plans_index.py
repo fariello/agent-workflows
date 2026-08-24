@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import artifact_naming as _naming
 
 DEFAULT_INDEX_LIMIT = 40  # OQ5: browse-by-Set view bounded to the N most-recent Sets.
 # (The former module-level `PLANS_DIR = ".agents/plans"` was dead - resolution is via `_dirs()` /
@@ -243,10 +244,8 @@ def check_drift(
     # clustered only when the regex matches AND the second segment is not a bare 4-digit HHMM.
     for e in entries:
         base = Path(e.path).name
-        m = re.match(
-            r"\A\d{8}-(?P<set>[a-z0-9-]+?)-(?P<nn>\d{2})-(?P<id6>[0-9a-z]{6})-[a-z0-9-]+\.md\Z",
-            base,
-        )
+        # The clustered grammar is parsed by the single naming authority (IPD o6b8l3).
+        m = _naming.parse_clustered(base)
         if not m or re.fullmatch(r"\d{4}", m.group("set")):
             continue  # not clustered (or an old-style HHMM name)
         if e.plan_id and m.group("id6") != e.plan_id:
@@ -398,8 +397,8 @@ def run_find(args: argparse.Namespace) -> int:
         disposition=getattr(args, "disposition", None),
     )
     if not results:
-        from agent_workflows.term import Term
         from agent_workflows.result_types import NextAction
+        from agent_workflows.term import Term
 
         filters_dict = {}
         for k in ("id", "set", "status", "disposition"):

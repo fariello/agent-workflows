@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import artifact_naming as _naming
 from agent_workflows import engine as _engine
 from agent_workflows import record_producers as _rp
 
@@ -26,14 +27,19 @@ SUPPORTED: Dict[str, tuple] = {
 }
 
 _SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}
+# The type->facet map is defined ONCE in the naming authority (IPD o6b8l3). check_names only checks
+# clustered-facet types, so `comms` (no clustered check today) is intentionally omitted here.
 _TYPE_FACET = {
-    "plans": "ipd",
-    "specs": "spec",
-    "backlog": "backlog",
-    "prompts": "prompt",
-    "walkthroughs": "walkthrough",
-    "roadmaps": "roadmap",
-    "releases": "release",
+    t: _naming.TYPE_FACET[t]
+    for t in (
+        "plans",
+        "specs",
+        "backlog",
+        "prompts",
+        "walkthroughs",
+        "roadmaps",
+        "releases",
+    )
 }
 
 
