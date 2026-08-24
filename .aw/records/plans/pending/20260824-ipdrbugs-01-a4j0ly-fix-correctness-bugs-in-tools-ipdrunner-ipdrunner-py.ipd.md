@@ -1,0 +1,210 @@
+# IPD: Fix correctness bugs in tools/ipdrunner/ipdrunner.py
+
+- Date: 2026-08-24
+- Kind: child
+- Concern: bugs
+- Scope: tools/ipdrunner/ipdrunner.py (and its test module tools/ipdrunner/test_ipdrunner.py)
+- Status: to-review
+- Set: ipdrbugs
+- Order: 1
+- Highest E allocated: 06
+- Author: assess/its_direct/pt3-claude-opus-4.8
+- Id: a4j0ly
+
+## Workflow history
+
+- 2026-08-24 draft (assess/its_direct/pt3-claude-opus-4.8): created.
+- 2026-08-24 /assess bugs (assess/its_direct/pt3-claude-opus-4.8): assessed tools/ipdrunner/ipdrunner.py; proposed 6 changes (4 fixes acted, 2 down-scoped/deferred).
+
+## Goal
+
+Fix confirmed correctness defects in the restartable OpenCode IPD driver so that (a) a plain
+`resume` no longer silently abandons the unit of work that was in flight when the run was
+interrupted, (b) the "not a Git repository" precondition reports its intended diagnostic
+instead of a raw `git` failure, (c) selecting an empty Set reports an accurate error, and
+(d) each fix is pinned by a regression test. These paths govern durable multi-hour autonomous
+execution, so a lost or mis-reported unit of work is a data-integrity concern, not cosmetic.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: Resume must not abandon an interrupted item (B-01)
+
+- [ ] E-01 In `run_queue` (tools/ipdrunner/ipdrunner.py:696), make a plain `resume` re-queue the single item left `interrupted` by `reconcile_interrupted` so it is retried in recovery mode, without touching terminal/other items. Concretely: after `reconcile_interrupted` (line 698), before the `retry_incomplete` block, re-queue items whose status is `interrupted` by setting `status = "queued"` and `recovery_next = True`, and emit an `interrupted-requeued` event. Leave the broader `--retry-incomplete` behavior (line 699-711) unchanged for the other nonterminal states.
+  - Depends on: none
+  - Expected outcome: after an interruption, `resume <run_id>` (no flags) picks the interrupted item back up as attempt N+1 in recovery mode, reusing the Set session; only `--retry-incomplete` additionally re-queues `partial`/`failed-safely`/`blocked`/`substantially-complete`.
+  - Execution state: pending
+
+### Task group 2: Correct precondition and selector diagnostics (B-02, B-03)
+
+- [ ] E-02 In `initialize_run` (tools/ipdrunner/ipdrunner.py:251), fix the "Not a Git repository" guard so it reports that message on a non-git directory instead of letting `git_common_dir` raise a raw `Command failed (128): git rev-parse --git-common-dir` DriverError. Wrap the `git_common_dir(repo)` probe so a failed `git rev-parse` is treated as "not a repository" and re-raised as the intended `DriverError(f"Not a Git repository: {repo}")`. Do not change the happy path for a real repo or worktree.
+  - Depends on: none
+  - Expected outcome: running `start`/driver init against a directory that is not a Git repository fails with `ipdrunner: Not a Git repository: <path>` (exit 2), not the raw git-plumbing error.
+  - Execution state: pending
+
+- [ ] E-03 In `expand_selectors` (tools/ipdrunner/ipdrunner.py:184), distinguish "no selector given" from "the given selector(s) resolved to zero plans". When a selector matches a known Set (or Set prefix) whose `order` is empty, raise a specific `DriverError` naming that Set (e.g. `Set '<setid>' has an empty order (no plans to run)`) instead of the misleading terminal `At least one id6 or Set selector is required`, which currently fires even though a selector WAS supplied.
+  - Depends on: none
+  - Expected outcome: `expand_selectors(manifest, ["<empty-set>"])` raises an error that names the empty Set; `expand_selectors(manifest, [])` (truly no selectors) still raises the "At least one id6 or Set selector is required" message.
+  - Execution state: pending
+
+### Task group 3: Regression tests pinning the three fixes
+
+- [ ] E-04 Add a regression test that a plain `resume` retries an item that was left `interrupted` (drive `run_queue`/`reconcile_interrupted` with a state whose in-flight item is `running` with no `executed` bucket move, assert it becomes `queued` with `recovery_next` then is attempted). Follow the existing style in tools/ipdrunner/test_ipdrunner.py (unittest, tempdir, fake `opencode` script where a subprocess is needed).
+  - Depends on: E-01
+  - Expected outcome: a test that fails against the current code (bare resume leaves the item `interrupted`) and passes after E-01.
+  - Execution state: pending
+
+- [ ] E-05 Add a regression test for the non-git-directory diagnostic: invoking init against a fresh non-git tempdir yields the `Not a Git repository` DriverError (assert on the message), not a `Command failed (128)` message.
+  - Depends on: E-02
+  - Expected outcome: a test asserting the intended precondition message; fails on current code, passes after the guard fix.
+  - Execution state: pending
+
+- [ ] E-06 Add a regression test that `expand_selectors` on a manifest whose selected Set has an empty `order` raises an error naming that Set, and that `expand_selectors(manifest, [])` still raises the generic "At least one ..." message.
+  - Depends on: E-03
+  - Expected outcome: two assertions distinguishing the empty-Set and no-selector cases; fails on current code, passes after the selector fix.
+  - Execution state: pending
+
+Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
+
+## Project conventions discovered (Step 0)
+
+- Plan lifecycle: `.aw/records/plans/{pending,executed,superseded,not-executed,reusable}/`. IPDs are
+  named by the uniform grammar `YYYYMMDD-<setid>-NN-<id6>-<slug>.ipd.md` and are scaffolded (not
+  hand-named) with `aw ipd scaffold`; ids are assigned by `aw ipd sync`; structure is checked by
+  `aw ipd lint`. This IPD was born via `aw ipd scaffold` and set to `Status: to-review`.
+- Contributor contract (AGENTS.md / CONTRIBUTING.md): commit ONLY changed files, path-scoped
+  (`git commit -m msg -- <path>`); never `git add -A`/`-a`; never push. When reporting tests passed,
+  paste the ACTUAL runner output. Do not add commits to a plan already in `executed/`. No em/en dashes
+  in USER-FACING prose; internal/AI-facing artifacts (this IPD included) are exempt.
+- Tests: `tools/ipdrunner/test_ipdrunner.py` is a `unittest` module importing `ipdrunner as driver`;
+  run with `python3 -m pytest tools/ipdrunner/test_ipdrunner.py -q` (or `python3 test_ipdrunner.py`
+  from that dir). Current suite (3 tests) passes on baseline.
+- The driver's own design goal is durable restartability: state.json is written atomically
+  (`atomic_write_json` fsyncs file + parent dir), events are appended to `events.jsonl` with fsync,
+  and a `driver.lock` (`fcntl.LOCK_EX|LOCK_NB`) serializes control of a run. Fixes must preserve
+  this restartability contract.
+- Review-scope exclusions honored: the framework dir `.aw/system/workflows/` and
+  `workflow-artifacts/` run records were NOT assessed as project code.
+
+## Findings
+
+Verified by reading the actual code paths and, where cheap, reproducing (see run record
+`evidence.md`). Severity = impact if left alone; Remediation Risk gates whether to act now.
+
+| ID | Severity | Remediation Risk | Persona | Area | Finding | Evidence |
+|----|----------|------------------|---------|------|---------|----------|
+| B-01 | High | Low | QA / data-integrity | resume/idempotency | Plain `resume` (no `--retry-incomplete`) never retries the item left in flight at interruption. `reconcile_interrupted` sets that item to `interrupted` (line 688); the main loop only runs items with status `queued` (line 714); only `--retry-incomplete` re-queues `interrupted` (line 701-710). So a bare `resume` silently abandons that unit of work (its partial progress and Set-session continuity) while still running later `queued` items, contradicting the `resume` help text "Resume an existing run". | ipdrunner.py:688, 699-711, 712-714; resume help ipdrunner.py:807-814 |
+| B-02 | Medium | Low | software engineer | error handling / diagnostics | The "Not a Git repository" guard cannot emit its own message. `not (repo/".git").exists() and not git_common_dir(repo).exists()` calls `git_common_dir`, whose `run_checked` raises `DriverError("Command failed (128): git rev-parse --git-common-dir ... fatal: not a git repository")` BEFORE `.exists()` is evaluated, so line 252's intended clear message is unreachable on the exact case it targets. | ipdrunner.py:251-252, 64-67, 49-61; reproduced (see evidence) |
+| B-03 | Low | Low | novice / software engineer | error handling / diagnostics | `expand_selectors` reports "At least one id6 or Set selector is required" even when a selector WAS given but resolved to zero plans (a known Set with an empty `order`). Misleading diagnostic sends the user to fix the wrong thing. | ipdrunner.py:192-193, 204-209; reproduced (see evidence) |
+| B-04 | Low | Medium-Low | software engineer | concurrency / TOCTOU | `initialize_run` checks `run_dir.exists()` (line 260) and creates state BEFORE `run_lock` is acquired (main: line 830 init, line 836 lock). Two concurrent `start --run-id X` race the existence check (`mkdir(..., exist_ok=True)` will not fail), so both could initialize the same run dir before either locks it. Auto-generated run ids include the pid so are effectively collision-free; the race needs an explicit duplicate `--run-id`. | ipdrunner.py:258-263, 826-837 |
+| B-05 | Low | Low | QA | reporting accuracy | `execute_item` seeds `attempt["session_id"]` with the prior/None Set session (line 589) and only overwrites it when a NEW session id is extracted (line 618-625). If a launch produces no parseable `ses_` id, the attempt (and the report's "Last session" column) can show a stale/`null` session that does not correspond to that attempt. Cosmetic, not a control-flow bug. | ipdrunner.py:589, 618-625, 342-348 |
+
+## Proposed changes (ordered, validatable)
+
+1. B-01 (E-01): re-queue an `interrupted` item on a plain `resume` in recovery mode. Remediation Risk:
+   Low. This is the highest-value fix: it closes a silent abandonment of in-flight work in the durable
+   restart path. Down-scoped to only the `interrupted` state so `resume` semantics for terminal states
+   are unchanged and `--retry-incomplete` remains the broader knob.
+2. B-02 (E-02): make the non-git precondition report `Not a Git repository: <path>`.
+   Remediation Risk: Low. Wrap the `git_common_dir` probe; do not alter real-repo/worktree behavior.
+3. B-03 (E-03): raise an accurate error for a selected-but-empty Set; keep the generic
+   message only for the truly-no-selector case. Remediation Risk: Low.
+4. Regression tests (E-04 pins B-01, E-05 pins B-02, E-06 pins B-03). Each new test must FAIL on current
+   code and PASS after its fix (demonstrate both when executing).
+
+## Deferred / out of scope (with reason)
+
+- B-04 (init-before-lock TOCTOU): DEFERRED. Remediation Risk Medium on the Functionality/Complexity
+  axis: correctly closing it means acquiring the lock (or an equivalent atomic create) BEFORE
+  `initialize_run` writes state, which reorders the `start` control flow and the lock lifetime and
+  risks regressing the atomic-state/lock design that the existing test
+  `test_atomic_state_and_set_session_continuity` guards. The exposure is narrow (only concurrent
+  `start` with the SAME explicit `--run-id`; auto ids embed the pid). Recommend a follow-up IPD that
+  redesigns the create-then-lock ordering with its own dedicated test, rather than bolting it onto this
+  bug-fix pass.
+- B-05 (stale session in report): DEFERRED as low-value polish. Remediation Risk Low but Severity Low
+  and purely a display-accuracy nit in a rare no-session-parsed case; not worth expanding this focused
+  correctness pass. Fold into a future reporting cleanup if one is opened.
+
+## Scope check
+
+- Over-scope: none. Each proposed fix traces to a confirmed defect on a reachable path; no gold-plating.
+- Under-scope: the driver has no test exercising the interrupted-resume path at all (the gap that hid
+  B-01); E-items add that missing regression coverage. Broader hardening (B-04 concurrency, B-05
+  reporting) is intentionally left to named follow-ups rather than silently dropped.
+
+## Required tests / validation
+
+- Run the full suite and paste actual output: `python3 -m pytest tools/ipdrunner/test_ipdrunner.py -q`
+  (baseline: 3 passing). After the fixes + new tests, all tests (existing 3 + 3 new) must pass.
+- For B-01 and each new test, first demonstrate the test FAILS on the pre-fix code (temporarily, or by
+  reasoning shown in the walkthrough), then PASSES after the fix, to prove the test actually pins the
+  bug rather than tautologically passing.
+- Manual smoke (optional, cheap): invoke driver init against a fresh non-git tempdir and confirm the
+  message is `ipdrunner: Not a Git repository: <path>` with exit code 2.
+
+## Spec / documentation sync
+
+- No user-facing behavior spec changes required: the fixes make actual behavior match the documented
+  `resume` help text and the intended precondition message, so they align code to existing docs. If the
+  overnight-execution runbook (`tools/ipdrunner/20260823-pending-ipds-overnight-execution-runbook.md`)
+  documents `resume` vs `resume --retry-incomplete`, update it only if it currently implies bare
+  `resume` retries in-flight work incorrectly; verify during execution and note the result. N/A
+  otherwise.
+
+## Open questions
+
+### OQ-01: Should a bare `resume` also emit a one-line notice when it re-queues an interrupted item?
+
+- Blocking: no
+- Status: open
+- Owner: none
+- Resolution or deferral rationale: E-01 already emits an `interrupted-requeued` event to
+  `events.jsonl`; a stdout notice is a nice-to-have. Recommended default: emit the JSONL event only
+  (consistent with other lifecycle transitions) and let the report/status surface it. Executor may add
+  a stderr line if trivial; not required for acceptance.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [ ] V-01 validates E-01
+  - Required evidence: pasted test output showing the new interrupted-resume test passing after E-01, plus a demonstration (pre-fix run or reasoning) that a bare `resume` left the item `interrupted` before the fix. Confirm terminal-state items and `--retry-incomplete` behavior are unchanged (existing tests still green).
+  - Observed evidence:
+  - Result: pending
+- [ ] V-02 validates E-02
+  - Required evidence: reading of the edited `initialize_run` guard showing the `git_common_dir` probe is wrapped so a non-repo yields `DriverError("Not a Git repository: <path>")`; plus a demonstration (pasted output or the V-05 test) that a fresh non-git dir now produces that message, not `Command failed (128)`. Confirm the real-repo happy path still initializes (existing subprocess test still green).
+  - Observed evidence:
+  - Result: pending
+- [ ] V-03 validates E-03
+  - Required evidence: reading of the edited `expand_selectors` showing a selected-but-empty Set raises an error naming that Set, while the empty-selector case still raises "At least one id6 or Set selector is required"; plus the V-06 test output demonstrating both branches.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-04 validates E-04
+  - Required evidence: pasted `python3 -m pytest tools/ipdrunner/test_ipdrunner.py -q` output showing the new interrupted-resume test present and passing; and evidence it FAILED on pre-fix code (temporary run or documented reasoning) so it genuinely pins B-01.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-05 validates E-05
+  - Required evidence: pasted test output showing the non-git-diagnostic test passing after E-02, and that it FAILED (asserted on the wrong `Command failed` message) on pre-fix code.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-06 validates E-06
+  - Required evidence: pasted test output showing the empty-Set/no-selector test passing after E-03, and that it FAILED on pre-fix code (the empty-Set case previously got the generic message).
+  - Observed evidence:
+  - Result: pending
+
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This IPD is a proposal only. Per the assess workflow it must be human-approved before execution
+(`aw spec`/plan approval; optionally run `/plan-review` first); it is NOT auto-run. On execution, the
+executor MUST: run `aw ipd sync` to assign ids to the `E-NEW`/`V-NEW` leaves and build the E/V
+bijection; commit ONLY the files changed, path-scoped (`git commit -m ... -- tools/ipdrunner/...`),
+never `git add -A`/`-a`, never push; paste ACTUAL test-runner output as evidence (no claimed passes);
+and only after `aw ipd lint --phase pre-transition` conforms and every `V-*` item is verified with
+concrete evidence, move this IPD to `.aw/records/plans/executed/`. If validation does not pass, STOP
+and report; do not mark executed.
