@@ -204,6 +204,31 @@ def check_refs(repo_root: Path, record_type: str) -> List[_core.Drift]:
 
 _ID_LINE_RE = _re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
 _SET_LINE_RE = _re.compile(r"(?m)^- Set:\s*(.+?)\s*$")
+_HHMM_RE = _re.compile(r"\A\d{4}\Z")
+_HAS_DIGIT_RE = _re.compile(r"\d")
+
+
+def _identity_slot_token(filename: str) -> "str | None":
+    """Return the raw ``<id6>`` token in a filename's identity slot, or None.
+
+    Uses the naming authority's clustered parse (single source, IPD o6b8l3). Excludes the legacy
+    ``YYYYMMDD-HHMM-NN-<slug>`` shape, whose 4-digit HHMM coincidentally matches the ``<setid>``
+    segment (mirrors ``plans_index.check_drift``): a real clustered set-id is kebab, never exactly
+    4 digits. The returned token may still be a slug word (e.g. ``assess``); the caller applies the
+    real-id6 discriminator once the global set of declared ids is known."""
+
+    m = _naming.parse_clustered(filename)
+    if not m or _HHMM_RE.match(m.group("set")):
+        return None
+    return m.group("id6")
+
+
+def _is_real_id6(token: str, declared_ids: set) -> bool:
+    """A slot token is a REAL id6 (not a slug's first word) iff it is declared as some file's
+    frontmatter Id, OR it visibly mixes digits and letters (mirrors ``tmp/find_id6_dupes.py``'s
+    oracle: slug words like ``assess``/``agents`` are all-letters, so this excludes them)."""
+
+    return token in declared_ids or bool(_HAS_DIGIT_RE.search(token))
 
 
 def _parse_setid(text: str):
@@ -223,15 +248,34 @@ def _parse_setid(text: str):
 
 
 def check_collisions(repo_root: Path) -> List[_core.Drift]:
-    """Cross-tree id6 AND setid uniqueness. Runs ONCE over every SUPPORTED type (collisions are
-    global, not per-type). id6: a valid id6 appearing on two different resolved files.
-    setid: the same setid under two different types, or the same setid with two different
-    non-None descriptives."""
+    """Cross-tree id6 AND setid uniqueness, PLUS the filename identity-slot invariant (D140).
+
+    Runs ONCE over every SUPPORTED type (collisions are global, not per-type):
+
+    * frontmatter ``- Id:`` id6: a valid id6 declared on two different resolved files
+      (``check.id6-collision``);
+    * setid: the same setid under two different types, or the same setid with two different
+      non-None descriptives (``check.setid-collision``);
+    * filename IDENTITY-SLOT id6 (DECISIONS.md D140): the ``<id6>`` in a file's
+      ``YYYYMMDD-<setid>-NN-<id6>-<slug>`` filename slot is that file's UNIQUE IDENTITY. It is
+      validated by the precise rule (so it flags a foreign id6 in the slot but never mass-flags
+      conformant files): (a) if the file DECLARES a frontmatter ``- Id:``, its slot id6 MUST EQUAL
+      that declared ``- Id:``; (b) if the file declares NO ``- Id:``, its slot id6 MUST NOT equal
+      any OTHER file's declared ``- Id:`` NOR any other file's slot id6 (it must be the sole holder
+      of that id6). A violation emits ``check.id6-identity-slot`` naming the offending path AND the
+      file that actually owns that id6. Legacy ``YYYYMMDD-HHMM-NN-<slug>`` names (no id6 slot) are
+      exempt - only a filename whose slot parses as a real id6 via the naming authority is checked.
+    """
     repo_root = Path(repo_root)
     drift: List[_core.Drift] = []
     seen_ids: Dict[str, str] = {}
     # setid -> (type, descriptive-or-None, first-path)
     seen_sets: Dict[str, tuple] = {}
+
+    # First gather, for every file, its declared frontmatter Id and its filename identity-slot id6,
+    # so the identity-slot rule (below) can be evaluated with global knowledge of who OWNS each id6.
+    # A file "record": (path-str, declared_id-or-None, slot_id6-or-None).
+    records: List[tuple] = []
     for record_type in SUPPORTED:
         for p in _iter_type_files(
             repo_root, record_type
@@ -241,8 +285,12 @@ def check_collisions(repo_root: Path) -> List[_core.Drift]:
             except OSError:
                 continue
             m = _ID_LINE_RE.search(text)
-            if m:
-                id6 = m.group(1)
+            declared_id = m.group(1) if m else None
+            slot_id6 = _identity_slot_token(p.name)
+            records.append((str(p), declared_id, slot_id6))
+
+            if declared_id:
+                id6 = declared_id
                 if id6 in seen_ids:
                     drift.append(
                         _core.Drift(
@@ -277,6 +325,83 @@ def check_collisions(repo_root: Path) -> List[_core.Drift]:
                         )
                 else:
                     seen_sets[sid] = (record_type, desc, str(p))
+
+    drift.extend(_check_identity_slots(records))
+    return drift
+
+
+def _check_identity_slots(records: List[tuple]) -> List[_core.Drift]:
+    """Validate the filename identity-slot id6 invariant (D140) over pre-gathered file records.
+
+    ``records`` is a list of ``(path_str, declared_id_or_None, slot_id6_or_None)``. Returns
+    ``check.id6-identity-slot`` Drift for each file whose filename identity slot holds an id6 that
+    is not that file's own unique identity. See ``check_collisions`` for the precise (a)/(b) rule.
+    """
+    drift: List[_core.Drift] = []
+    # The set of all frontmatter-declared ids drives the real-id6 discriminator (a slot token that
+    # is some file's declared Id is definitely a real id6; a slug word like "assess" is not).
+    declared_ids = {declared_id for _p, declared_id, _s in records if declared_id}
+
+    # Who OWNS each REAL id6? A file owns an id6 if it DECLARES it in frontmatter (declared_id), or -
+    # for the sole-holder test - carries it as a REAL id6 in its own identity slot. Build both.
+    declared_owner: Dict[str, str] = {}
+    slot_holders: Dict[str, List[str]] = {}
+    for path_str, declared_id, slot_id6 in records:
+        if declared_id:
+            # First declarer wins as the canonical owner (the id6-collision check above already
+            # flags a second declarer); we only need one owner name for the message.
+            declared_owner.setdefault(declared_id, path_str)
+        if slot_id6 and _is_real_id6(slot_id6, declared_ids):
+            slot_holders.setdefault(slot_id6, []).append(path_str)
+
+    for path_str, declared_id, slot_id6 in records:
+        if slot_id6 is None:
+            continue  # legacy / no identity slot -> exempt
+        if declared_id is not None:
+            # Rule (a): the slot must equal the file's own declared identity. A file that DECLARES
+            # an Id asserts a clustered identity, so its slot is compared unconditionally (the slot
+            # token need not independently "look like" a real id6 - the declared Id proves intent).
+            if slot_id6 != declared_id:
+                owner = declared_owner.get(slot_id6)
+                owner_str = (
+                    f"; id6 {slot_id6} is owned by {owner}"
+                    if owner and owner != path_str
+                    else ""
+                )
+                drift.append(
+                    _core.Drift(
+                        path_str,
+                        "check.id6-identity-slot",
+                        f"filename identity-slot id6 {slot_id6} != this file's declared Id {declared_id}{owner_str}",
+                    )
+                )
+        else:
+            # Rule (b): no declared Id -> the slot id6 must be owned by NO ONE else (neither another
+            # file's declared Id nor another file's slot). This is the p7dqwz reuse case. Guard with
+            # the real-id6 discriminator so a legacy name whose slug's first word happens to match
+            # [0-9a-z]{6} (e.g. "assess"/"agents") is NOT mass-flagged.
+            if not _is_real_id6(slot_id6, declared_ids):
+                continue
+            owner = declared_owner.get(slot_id6)
+            other_slot_holders = [
+                h for h in slot_holders.get(slot_id6, []) if h != path_str
+            ]
+            if owner is not None and owner != path_str:
+                drift.append(
+                    _core.Drift(
+                        path_str,
+                        "check.id6-identity-slot",
+                        f"filename identity-slot id6 {slot_id6} is another file's identity (declared by {owner}); this file declares no Id",
+                    )
+                )
+            elif other_slot_holders:
+                drift.append(
+                    _core.Drift(
+                        path_str,
+                        "check.id6-identity-slot",
+                        f"filename identity-slot id6 {slot_id6} is also in the identity slot of {other_slot_holders[0]}; this file declares no Id",
+                    )
+                )
     return drift
 
 

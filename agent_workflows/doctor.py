@@ -701,6 +701,19 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
     loc = _normalize_rel_path(d.location, repo_root)
     art_type = _infer_artifact_type(loc)
 
+    if "id6-identity-slot" in rule:
+        title = "Filename identity-slot id6 is not this file's own identity (D140)"
+        return Remediation(
+            title=title,
+            summary_fix="give this file its own id6 in its filename identity slot and reference the source artifact via a typed frontmatter field (e.g. 'Target-Id: <id6>') per DECISIONS.md D140.",
+            detailed_fix=(
+                f"this file's identity slot holds another artifact's id6; give {loc} its own newly-minted id6 "
+                "and reference the source via a typed frontmatter field (e.g. 'Target-Id: <id6>') per DECISIONS.md D140."
+            ),
+            command=None,
+            file_path=loc,
+        )
+
     if "setid-collision" in rule:
         title = "Set ID collision across artifact records"
         target_type = art_type or "plans"

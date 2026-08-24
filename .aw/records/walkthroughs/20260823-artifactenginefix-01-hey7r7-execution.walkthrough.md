@@ -2,6 +2,8 @@
 
 - Date: 2026-08-23
 - Author: Antigravity
+- Id: hey7r7
+- Target-Id: p7dqwz
 - Target IPD: `.aw/records/plans/executed/20260823-artifactenginefix-01-p7dqwz-corrective-parameterized-artifact-engine-stale-research-inde.ipd.md`
 
 ## Summary

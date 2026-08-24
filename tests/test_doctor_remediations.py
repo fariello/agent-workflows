@@ -103,6 +103,20 @@ class DoctorRemediationTests(unittest.TestCase):
         self.assertNotIn("<type>", rem.command)
         self.assertNotIn("<file>", rem.command)
 
+    def test_id6_identity_slot_remediation(self) -> None:
+        # IPD 9a655p E-02/V-02: the identity-slot rule renders a D140 remediation with a
+        # Target-Id hint, not a bare failure.
+        d = core.Drift(
+            ".aw/records/walkthroughs/20260823-artifactenginefix-01-p7dqwz-execution.walkthrough.md",
+            "check.id6-identity-slot",
+            "filename identity-slot id6 p7dqwz is another file's identity",
+        )
+        rem = doctor.build_remediation(d, self.repo_root)
+        self.assertIn("identity-slot", rem.title)
+        self.assertIn("D140", rem.detailed_fix)
+        self.assertIn("Target-Id", rem.detailed_fix)
+        self.assertIn("own", rem.summary_fix)
+
     def test_blocks_release_dangling_remediation(self) -> None:
         d = core.Drift(
             ".aw/records/specs/my_spec.spec.md",
