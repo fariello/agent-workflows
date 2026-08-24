@@ -9,3 +9,7 @@ setup-repo-needed.md
 # The per-repo append-only workflow-history sidecar (record_history): a local activity log
 # appended on every `aw` status write; local-only, never committed (awhistignore).
 records/history.jsonl
+# The ipdrunner (IPD driver) durable run state: per-run queue, session logs, prompts,
+# outcomes, and lock under records/runs/<run-id>/. This is box-local, ephemeral working
+# material for autonomous execution runs, not a tracked project artifact; never committed.
+records/runs/
