@@ -52,7 +52,7 @@ The change itself is correct test hygiene, but it was a silent scope expansion i
 
 - Editing p7dqwz or any terminal IPD: prohibited.
 - Any application-code change: out of scope; this is test-ownership only.
-- The broader lifecycle/scope-gate machinery: sibling Orders 02-06.
+- The broader lifecycle/scope-gate machinery: sibling Orders 02-07.
 
 ## Scope check
 

@@ -121,7 +121,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 ### Execution contract
 
-1. Open questions RESOLVED: OQ-01 (what "this execution's changes" means vs concurrent edits) MUST be resolved by a human before E-01.
+1. Open questions RESOLVED: OQ-01 (what "this execution's changes" means vs concurrent edits) RESOLVED by human (2026-08-23) = the Order-03-consistent path-overlap rule (diff restricted to `Scope-Paths` since base; refuse on out-of-scope change or in-scope intervening-commit collision; ignore disjoint concurrent edits). Re-verify it has not reverted before executing E-01.
 2. Scope fence: touch ONLY the single-IPD lifecycle module, `cli.py` (finalize verb), `ipd_lint.py` (invoke pre/post-transition), `status_set.py` (reuse move/index helpers behind the gated path), `tests/test_ipd_lifecycle_cli.py`, and the lifecycle doc/spec/README/CONTRIBUTING via managed verbs. Do NOT implement the reconciliation prompt (Order 05), rollback (Order 06), or remove the raw bypass (Order 07). If it seems to need more, STOP and report.
 3. Honesty rule (hard MUST): when reporting tests/gates passed, paste the ACTUAL runner output and the receipt path/digest; never claim a pass from narration or an unchecked box.
 4. Commit ONLY this plan's own changed files, path-scoped; never `git add -A`/bare/`-a`; never push. Before each commit, compare the intended path list with `git diff --name-only` and leave concurrent user/agent edits untouched.
