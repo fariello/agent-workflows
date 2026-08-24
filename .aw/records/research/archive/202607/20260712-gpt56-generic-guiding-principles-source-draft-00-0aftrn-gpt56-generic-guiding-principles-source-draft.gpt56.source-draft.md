@@ -6,7 +6,7 @@ order: 00
 topic: []
 model: gpt56
 kind: source-draft
-status: reference
+status: archive
 outcome: informational
 summary: Migrated from 20260712-gpt56-generic-guiding-principles-source-draft-00-0aftrn-gpt56-generic-guiding-principles-source-draft.gpt56.source-draft.md.
 consumed-by: []

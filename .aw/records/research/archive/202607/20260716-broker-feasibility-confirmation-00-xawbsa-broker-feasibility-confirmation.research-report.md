@@ -6,7 +6,7 @@ order: 00
 topic: []
 model:
 kind: research-report
-status: reference
+status: archive
 outcome: informational
 summary: Migrated from 20260716-broker-feasibility-confirmation-00-xawbsa-broker-feasibility-confirmation.research-report.md.
 consumed-by: []

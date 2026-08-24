@@ -6,7 +6,7 @@ order: 00
 topic: []
 model:
 kind: concept
-status: reference
+status: archive
 outcome: informational
 summary: Migrated from 20260712-filesystem-inter-project-agent-comms-concept-00-dw4wrj-filesystem-inter-project-agent-comms-concept.concept.md.
 consumed-by: []

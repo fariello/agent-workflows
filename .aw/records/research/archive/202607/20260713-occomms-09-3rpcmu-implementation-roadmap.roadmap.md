@@ -6,7 +6,7 @@ order: 09
 topic: []
 model:
 kind: roadmap
-status: reference
+status: archive
 outcome: adopted
 summary: Migrated from 20260713-occomms-09-3rpcmu-implementation-roadmap.roadmap.md.
 consumed-by: []

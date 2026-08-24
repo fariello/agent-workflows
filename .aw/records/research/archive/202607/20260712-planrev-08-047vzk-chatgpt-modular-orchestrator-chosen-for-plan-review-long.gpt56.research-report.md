@@ -6,7 +6,7 @@ order: 08
 topic: []
 model: gpt56
 kind: research-report
-status: reference
+status: archive
 outcome: adopted
 summary: Migrated from 20260712-planrev-08-047vzk-chatgpt-modular-orchestrator-chosen-for-plan-review-long.gpt56.research-report.md.
 consumed-by: []

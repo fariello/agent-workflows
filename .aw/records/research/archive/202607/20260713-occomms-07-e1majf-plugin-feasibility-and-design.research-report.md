@@ -6,7 +6,7 @@ order: 07
 topic: []
 model:
 kind: research-report
-status: reference
+status: archive
 outcome: adopted
 summary: Migrated from 20260713-occomms-07-e1majf-plugin-feasibility-and-design.research-report.md.
 consumed-by: []

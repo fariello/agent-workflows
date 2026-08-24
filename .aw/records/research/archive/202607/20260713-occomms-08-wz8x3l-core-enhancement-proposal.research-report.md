@@ -6,7 +6,7 @@ order: 08
 topic: []
 model:
 kind: research-report
-status: reference
+status: archive
 outcome: adopted
 summary: Migrated from 20260713-occomms-08-wz8x3l-core-enhancement-proposal.research-report.md.
 consumed-by: []

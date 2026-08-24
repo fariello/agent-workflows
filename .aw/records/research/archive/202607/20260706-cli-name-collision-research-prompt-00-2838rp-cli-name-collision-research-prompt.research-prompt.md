@@ -6,7 +6,7 @@ order: 00
 topic: []
 model:
 kind: research-prompt
-status: reference
+status: archive
 outcome: informational
 summary: Migrated from 20260706-cli-name-collision-research-prompt-00-2838rp-cli-name-collision-research-prompt.research-prompt.md.
 consumed-by: []

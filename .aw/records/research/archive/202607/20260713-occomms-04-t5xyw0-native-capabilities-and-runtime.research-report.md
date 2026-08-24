@@ -6,7 +6,7 @@ order: 04
 topic: []
 model:
 kind: research-report
-status: reference
+status: archive
 outcome: adopted
 summary: Migrated from 20260713-occomms-04-t5xyw0-native-capabilities-and-runtime.research-report.md.
 consumed-by: []

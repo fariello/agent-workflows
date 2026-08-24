@@ -6,7 +6,7 @@ order: 04
 topic: []
 model:
 kind: research-report
-status: reference
+status: archive
 outcome: adopted
 summary: Migrated from 20260716-ocsec-04-zhkhky-provenance-and-cross-validation.research-report.md.
 consumed-by: []

@@ -6,7 +6,7 @@ order: 00
 topic: []
 model:
 kind: research-prompt
-status: reference
+status: archive
 outcome: adopted
 summary: Migrated from 20260712-planrev-00-75iqeg-prompt-improve-plan-review.research-prompt.md.
 consumed-by: []

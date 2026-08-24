@@ -6,7 +6,7 @@ order: 10
 topic: []
 model: gpt56
 kind: reference-research
-status: reference
+status: archive
 outcome: adopted
 summary: Migrated from 20260713-occomms-10-bgb5hd-gpt56-opencode-filesystem-runtime-artifacts-reference-research.gpt56.reference-research.md.
 consumed-by: []

@@ -6,7 +6,7 @@ order: 00
 topic: []
 model:
 kind: research-prompt
-status: reference
+status: archive
 outcome: adopted
 summary: Migrated from 20260713-occomms-00-uke9sw-opencode-inter-instance-agent-communication-research-prompt.research-prompt.md.
 consumed-by: []

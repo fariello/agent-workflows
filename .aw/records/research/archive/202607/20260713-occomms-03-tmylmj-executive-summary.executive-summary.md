@@ -6,7 +6,7 @@ order: 03
 topic: []
 model:
 kind: executive-summary
-status: reference
+status: archive
 outcome: adopted
 summary: Migrated from 20260713-occomms-03-tmylmj-executive-summary.executive-summary.md.
 consumed-by: []

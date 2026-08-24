@@ -6,7 +6,7 @@ order: 06
 topic: []
 model: gpt56
 kind: research-report
-status: reference
+status: archive
 outcome: adopted
 summary: Migrated from 20260712-planrev-06-tpha7i-chatgpt-improved-tight-417-lines-chosen-for-plan-review.gpt56.research-report.md.
 consumed-by: []

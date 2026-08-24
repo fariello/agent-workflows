@@ -6,7 +6,7 @@ order: 11
 topic: []
 model:
 kind: research-report
-status: reference
+status: archive
 outcome: adopted
 summary: Migrated from 20260713-occomms-11-8xgwvm-sources.research-report.md.
 consumed-by: []

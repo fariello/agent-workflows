@@ -6,7 +6,7 @@ order: 06
 topic: []
 model:
 kind: research-report
-status: reference
+status: archive
 outcome: adopted
 summary: Migrated from 20260713-occomms-06-fl4bfm-provenance-and-security.research-report.md.
 consumed-by: []

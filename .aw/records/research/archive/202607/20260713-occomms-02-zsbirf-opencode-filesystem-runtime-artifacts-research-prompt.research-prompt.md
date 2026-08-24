@@ -6,7 +6,7 @@ order: 02
 topic: []
 model:
 kind: research-prompt
-status: reference
+status: archive
 outcome: adopted
 summary: Migrated from 20260713-occomms-02-zsbirf-opencode-filesystem-runtime-artifacts-research-prompt.research-prompt.md.
 consumed-by: []

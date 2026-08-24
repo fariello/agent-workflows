@@ -2,7 +2,7 @@
 
 # Research index
 
-Showing the most-recent 40 of 75 hot docs (archive excluded).
+Showing the most-recent 40 of 54 hot docs (archive excluded).
 
 ## Needs addressing (intake)
 

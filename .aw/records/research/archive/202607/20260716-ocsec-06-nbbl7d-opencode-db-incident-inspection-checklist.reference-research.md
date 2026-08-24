@@ -6,7 +6,7 @@ order: 06
 topic: []
 model:
 kind: reference-research
-status: reference
+status: archive
 outcome: adopted
 summary: Migrated from 20260716-ocsec-06-nbbl7d-opencode-db-incident-inspection-checklist.reference-research.md.
 consumed-by: []
