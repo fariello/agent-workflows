@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: IPD scope is expressed only in free-form `Scope:` prose, which tooling cannot compare against the actually-changed paths - so an executor can expand file scope (as p7dqwz did with `tests/test_empty_state_ux.py`) and nothing deterministic catches it. There is no machine-readable declared-path contract on an IPD.
 - Scope: Add a canonical `Scope-Paths` allowlist to the IPD schema and its build/validate surfaces, with a grandfather policy for already-reviewed pending plans. Touch: agent_workflows/ipd_schema.py (the metadata contract), agent_workflows/ipd_authoring.py (scaffold emits a `Scope-Paths` stub), agent_workflows/ipd_lint.py (parse + validate + checkpoint diagnostics), the implemented IPD structure/lifecycle spec (via `aw specs note` / the managed spec verb), and focused tests/test_ipd_schema.py + tests/test_ipd_authoring.py + tests/test_ipd_lint.py. Does NOT implement begin/finalize (Orders 03/04) or compare paths at runtime (that is finalize, Order 04); this child only defines and validates the declared contract.
-- Status: draft
+- Status: reviewed
 - Set: ipdgates
 - Order: 2
 - Highest E allocated: 03
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-23 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created (decomposition of 39fz2x E-02).
+- 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Verified cited modules exist and check_engine.check_names consumes npn.is_conformant (check_engine.py:125) / ipd_lint._name_conformant (:72); both sibling Sets exist. OQ-01 resolved by human: explicit per-plan `Scope-Paths: grandfathered` sentinel marker (immune to the re-review flip that the rejected lifecycle-state option would suffer). PR-001 (the ipdgates Set's OWN plans were omitted from the grandfather set though the orchestrator Self-bootstrap requires them - added ipdgates to Step-0/E-02, ~19 total); PR-002 (resolved via OQ-01); PR-003 (marker stored in each plan's metadata block, not a separate config). Scope-fence expanded to permit adding ONLY the single `Scope-Paths: grandfathered` line to the ~19 pre-cutoff plans (a bounded metadata migration), with re-resolve/STOP-on-ambiguity; E-01/E-02/V-02/V-03 updated for the marker predicate + stamping.
 
 ## Goal
 
@@ -25,16 +26,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Define the contract
 
-- [ ] E-01 Add `Scope-Paths` to the canonical IPD metadata contract in `agent_workflows/ipd_schema.py` and emit a `Scope-Paths` stub from `aw ipd scaffold` (`ipd_authoring.py`): a list of repo-relative literal paths or bounded pathspecs. Define the safe grammar - reject absolute paths, `..` parent escapes, and repo-wide/`**`-at-root globs; allow directory-bounded pathspecs; define implicit exceptions (the plan's own file + its manifest/index refresh are always allowed) and how generated files are declared. Document the field in the spec via the managed spec verb.
+- [ ] E-01 Add `Scope-Paths` to the canonical IPD metadata contract in `agent_workflows/ipd_schema.py` and emit a `Scope-Paths` stub from `aw ipd scaffold` (`ipd_authoring.py`): a list of repo-relative literal paths or bounded pathspecs, OR the reserved sentinel value `grandfathered` (per OQ-01). Define the safe grammar - reject absolute paths, `..` parent escapes, and repo-wide/`**`-at-root globs; allow directory-bounded pathspecs; accept the `grandfathered` sentinel as a distinct legal value; define implicit exceptions (the plan's own file + its manifest/index refresh are always allowed) and how generated files are declared. Document the field (including the `grandfathered` sentinel) in the spec via the managed spec verb.
   - Depends on: none
   - Expected outcome: the schema and scaffold know `Scope-Paths`, its grammar is specified, and the spec documents it.
   - Execution state: pending
 
 ### Task group 2: Validate + grandfather
 
-- [ ] E-02 Add `Scope-Paths` parsing and validation to `ipd_lint.py`: at the approval / pre-execution checkpoints, a POST-cutoff plan MUST carry a valid `Scope-Paths` (missing or malformed = a blocking diagnostic with actionable text); a PRE-cutoff reviewed pending plan (the `unifyfileio` and `execset` Sets, and any plan whose review predates this Set's ship date) lacking `Scope-Paths` emits an ADVISORY (non-blocking) migration diagnostic; existing TERMINAL records are unaffected (never claimed conformant, never blocked). Implement the cutoff as an explicit, testable predicate (e.g. a recorded cutoff date/marker), not an open-ended guess.
+- [ ] E-02 Add `Scope-Paths` parsing and validation to `ipd_lint.py` using the OQ-01 marker predicate: at the approval / pre-execution checkpoints, a plan with NO `Scope-Paths` field at all is HARD-REQUIRED (blocking diagnostic with actionable text); a plan carrying `Scope-Paths: grandfathered` is advisory-satisfied (non-blocking); a plan declaring a REAL allowlist is validated against the E-01 grammar (malformed = blocking); existing TERMINAL records are unaffected (never claimed conformant, never blocked). As an explicit sub-step, STAMP `Scope-Paths: grandfathered` onto every pre-cutoff pending plan: the `unifyfileio` Set (g6mbht/o6b8l3/laykok/3cmnfc/52zgqr/9a655p), the `execset` Set (5ahblp/iy1a2g/3m4e54/m2wwns/31744f/2h7777), and the `ipdgates` Set's OWN plans (do64fh + v6zie5/oorry1/xjbvu2/v7e88a/3xh53a/wezhxg - the ipdgates Set predates its own requirement, per the orchestrator Self-bootstrap section). Do this via each plan's metadata block; commit them path-scoped with this plan's own changes.
   - Depends on: E-01
-  - Expected outcome: post-cutoff plans are hard-required to declare `Scope-Paths`; pre-cutoff reviewed plans and terminal records are not blocked.
+  - Expected outcome: a fieldless plan is blocked; a `grandfathered`-marked plan is advisory-only; a real-allowlist plan is grammar-validated; and all ~19 pre-cutoff pending plans (unifyfileio + execset + ipdgates) carry the `grandfathered` marker so none is retroactively blocked.
   - Execution state: pending
 
 ### Task group 3: Prove it
@@ -49,7 +50,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ## Project conventions discovered (Step 0)
 
 - The IPD metadata contract and its required/optional fields are defined in `agent_workflows/ipd_schema.py`; the structural linter is `agent_workflows/ipd_lint.py`; the scaffold that emits a conformant skeleton is `agent_workflows/ipd_authoring.py`. The canonical structure/lint spec is `.aw/records/specs/20260802-1904-01-ipd-structure-and-linting.spec.md` (implemented).
-- ~11 already-reviewed pending sibling plans exist (`unifyfileio` g6mbht/o6b8l3/laykok/3cmnfc/52zgqr; `execset` 5ahblp/iy1a2g/3m4e54/m2wwns/31744f/2h7777) that MUST NOT be retroactively blocked (39fz2x OQ-03, human-resolved).
+- ~19 already-reviewed/in-flight pending plans exist that MUST NOT be retroactively blocked (39fz2x OQ-03 + ipdgates orchestrator Self-bootstrap, human-resolved): the `unifyfileio` Set (g6mbht/o6b8l3/laykok/3cmnfc/52zgqr/9a655p), the `execset` Set (5ahblp/iy1a2g/3m4e54/m2wwns/31744f/2h7777), AND the `ipdgates` Set's own plans (do64fh/v6zie5/oorry1/xjbvu2/v7e88a/3xh53a/wezhxg - this Set predates its own requirement). All are grandfathered via the OQ-01 marker.
 
 ## Findings
 
@@ -87,9 +88,9 @@ Free-form `Scope:` prose is not machine-comparable, so scope expansion is undete
 ### OQ-01: How is the grandfather cutoff represented so it is testable and unambiguous?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: human
-- Resolution or deferral rationale: TODO (human). Options: (A) a fixed cutoff DATE recorded in the schema/lint (plans with a review/creation date before it are advisory) - simple and testable, but date-based edges can be fuzzy; (B) an explicit per-plan `Scope-Paths: grandfathered` opt-out marker the pre-cutoff plans carry - unambiguous per plan but requires touching those plans once; (C) grandfather any plan already `Status: reviewed`/`approved` at ship time (advisory), require it only for plans entering review afterward - no plan edits, keys on lifecycle state. The executor MUST get a human decision before E-02 implements the predicate.
+- Resolution or deferral rationale: RESOLVED by human (2026-08-23, /plan-review): an EXPLICIT per-plan marker `Scope-Paths: grandfathered` (a reserved sentinel value of the `Scope-Paths` field). Lint treats `Scope-Paths: grandfathered` as advisory-satisfied (non-blocking); a plan that declares a REAL `Scope-Paths` allowlist is validated against the grammar; a plan with NEITHER (no `Scope-Paths` at all) is hard-required/blocked at approval/pre-execution. This is unambiguous per plan, auditable in git, and immune to the re-review flip that a lifecycle-state cutoff (rejected option C) would suffer. The one-time cost - stamping `Scope-Paths: grandfathered` onto the pre-cutoff plans - is done by E-02 as an explicit sub-step over the ~17 pre-cutoff plans: the `unifyfileio` Set (6), the `execset` Set (6), and the `ipdgates` Set's own plans (its orchestrator + children, per the ipdgates orchestrator Self-bootstrap section - the ipdgates Set predates its own requirement and MUST be grandfathered too). The marker is stored IN each plan's metadata block (the `Scope-Paths:` field itself), not in a separate config, so it travels with the plan.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -100,11 +101,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: lint tests show a post-cutoff plan without `Scope-Paths` is BLOCKED at approval/pre-execution while a pre-cutoff fixture gets only an ADVISORY diagnostic and a terminal record is unaffected; the cutoff predicate is exercised per OQ-01's resolution.
+  - Required evidence: lint tests show a plan with NO `Scope-Paths` field is BLOCKED at approval/pre-execution, a plan carrying `Scope-Paths: grandfathered` is advisory-satisfied (non-blocking), a real-allowlist plan is grammar-validated, and a terminal record is unaffected; AND every enumerated pre-cutoff plan (unifyfileio + execset + ipdgates Sets) now carries `Scope-Paths: grandfathered` (shown by a scan) and consequently is NOT blocked, with no other content changed in those files (diff shows only the added line).
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: `tests/test_ipd_schema.py`/`test_ipd_authoring.py`/`test_ipd_lint.py` pass including the non-retroactivity guarantee (a unifyfileio/execset-like fixture is not blocked); `pytest -n auto` is green (pasted).
+  - Required evidence: `tests/test_ipd_schema.py`/`test_ipd_authoring.py`/`test_ipd_lint.py` pass including the marker predicate (fieldless=blocked, `grandfathered`=advisory, real-allowlist=validated) and the non-retroactivity guarantee (a `grandfathered`-marked fixture is not blocked); `pytest -n auto` is green (pasted).
   - Observed evidence:
   - Result: pending
 
@@ -115,8 +116,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 ### Execution contract
 
-1. Open questions RESOLVED: OQ-01 (cutoff representation) MUST be resolved by a human before E-02.
-2. Scope fence: touch ONLY `ipd_schema.py`, `ipd_authoring.py`, `ipd_lint.py`, the IPD structure/lint spec (via its managed verb), and the three named test files. Do NOT implement begin/finalize or runtime path comparison (Orders 03/04). If it seems to need more, STOP and report.
+1. Open questions RESOLVED: OQ-01 (cutoff representation) resolved by human (2026-08-23) - an explicit per-plan `Scope-Paths: grandfathered` sentinel marker; E-02 stamps it onto the ~19 pre-cutoff pending plans.
+2. Scope fence: touch ONLY `ipd_schema.py`, `ipd_authoring.py`, `ipd_lint.py`, the IPD structure/lint spec (via its managed verb), the three named test files, AND - solely to add the single `Scope-Paths: grandfathered` metadata line (nothing else) - the ~19 pre-cutoff pending plan files enumerated in E-02 (the `unifyfileio`, `execset`, and `ipdgates` Sets). Do NOT otherwise edit those sibling plans, and do NOT implement begin/finalize or runtime path comparison (Orders 03/04). If a sibling plan has meanwhile changed status/location, re-resolve it via `aw find` and STOP-and-report on any ambiguity rather than force-stamping.
 3. Honesty rule (hard MUST): when reporting tests passed, paste the ACTUAL runner output; never claim a pass without running the actual command.
 4. Commit ONLY this plan's own changed files, path-scoped (`git commit -m msg -- <paths>`); never `git add -A`/bare/`-a`; never push.
 5. Lifecycle move: on completion, after every E item is performed and every V item verified with pasted evidence, append the `## Workflow history` line, set `Status: executed`, `git mv` this file from `pending/` to `executed/`, and make the path-scoped lifecycle commit (via the existing lifecycle workflow, since `aw ipd finalize` does not exist until Order 04).
