@@ -93,6 +93,20 @@ Preview by default; `--apply` performs the transition. Exit 0 = finalized, 1 = r
 2 = cannot run. This is the supported terminal path; the manual ordered steps below are the contract
 it implements.
 
+Two-way scope reconciliation (DECISIONS.md D141): rather than a bare refusal on any unforeseen edit,
+finalize reconciles the scope delta in BOTH directions at this one unskippable step and RECORDS the
+answers verbatim into the terminal history (it SURFACES + ATTRIBUTES deviations; it does not judge
+their legitimacy). For each path this execution changed that is OUTSIDE the frozen `Scope-Paths`, a
+short RECORDED REASON is required (reason given -> record + proceed; empty/missing -> do not finalize).
+For each path DECLARED in `Scope-Paths` but NOT modified (the only check that catches MISSING work), a
+one-word ACKNOWLEDGMENT is required (e.g. `not-needed`; acknowledge-and-proceed). On a TTY these are
+collected in ONE batched prompt; headless (the normal agent context) they are supplied as repeatable
+`--scope-reason <path>=<why>` and `--scope-ack <path>[=<note>]` flags. A headless run with a non-empty
+delta and MISSING answers FAILS CLOSED (exit 1) naming each unanswered path and the exact
+`aw ipd finalize ... --scope-reason/--scope-ack ...` re-invocation - it never hangs on a prompt and
+never silently skips. A clean delta (nothing out-of-scope, nothing declared-but-unmodified) is a
+frictionless no-op.
+
 ## The terminal transaction (post-gate; ordered, recoverable)
 
 Perform these steps as one finalization transaction, in order:

@@ -951,6 +951,25 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Perform the transition (default: preview the precheck).",
     )
     p_ipd_finalize.add_argument(
+        "--scope-reason",
+        dest="scope_reason",
+        action="append",
+        default=None,
+        metavar="PATH=WHY",
+        help="Record a reason for an out-of-scope changed path (repeatable). Headless answer to the "
+        "two-way scope reconciliation; required to finalize when this execution changed a path "
+        "outside the reviewed Scope-Paths.",
+    )
+    p_ipd_finalize.add_argument(
+        "--scope-ack",
+        dest="scope_ack",
+        action="append",
+        default=None,
+        metavar="PATH[=NOTE]",
+        help="Acknowledge a Scope-Paths path declared but not modified (repeatable; note defaults to "
+        "'acknowledged', e.g. --scope-ack tests/=not-needed).",
+    )
+    p_ipd_finalize.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
     )
 

@@ -527,8 +527,228 @@ class FinalizeTests(unittest.TestCase):
         # The in-scope commit paths are computed + surfaced (the substrate Order 06 builds on).
         self.assertIn("agent_workflows/demo.py", audit["intervening_in_scope_commits"])
         self.assertIn("tests/test_demo.py", audit["intervening_in_scope_commits"])
-        # But they are NOT unexplained-path refusals (they are inside Scope-Paths).
-        self.assertEqual(audit["unexplained_paths"], [])
+        # But they are NOT out-of-scope (they are inside Scope-Paths).
+        self.assertEqual(audit["out_of_scope_paths"], [])
+
+
+class ReconciliationTests(unittest.TestCase):
+    """ipdgates Order qmt3yk: the finalize two-way scope reconciliation (surface + attribute)."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _init_git(self.root)
+        (self.root / "agent_workflows").mkdir()
+        (self.root / "tests").mkdir()
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _plan(self, scope_paths: str, plan_id: str = "abc123") -> Path:
+        plan = _write_plan(
+            self.root,
+            _completed_plan_text(plan_id=plan_id, scope_paths=scope_paths),
+            f"20260824-demo-01-{plan_id}-demo.ipd.md",
+        )
+        _commit_all(self.root, f"add plan {plan_id}")
+        return plan
+
+    def _begin(self, plan: Path):
+        return LC.begin(self.root, plan, "opencode/test", timestamp="t")
+
+    def _write(self, rel: str, content: str = "x\n"):
+        (self.root / rel).write_text(content, encoding="utf-8")
+
+    def test_out_of_scope_headless_missing_reason_fails_closed_naming_command(self):
+        plan = self._plan("agent_workflows/demo.py")  # tests/extra.py is out of scope
+        self._begin(plan)
+        self._write("agent_workflows/demo.py")
+        self._write("tests/extra.py")
+        _commit_all(self.root, "work incl. out-of-scope")
+        result = LC.finalize(self.root, plan, "opencode/test", "m", apply=True)
+        self.assertEqual(result.exit_code, LC.EXIT_FINDINGS)
+        # Fail-closed: names the missing path and the exact --scope-reason re-invocation.
+        self.assertIn("--scope-reason", result.message)
+        self.assertTrue(any("tests/extra.py" in f for f in result.findings))
+        self.assertTrue(plan.is_file())  # unmoved
+
+    def test_out_of_scope_headless_with_reason_records_and_proceeds(self):
+        plan = self._plan("agent_workflows/demo.py")
+        self._begin(plan)
+        self._write("agent_workflows/demo.py")
+        self._write("tests/extra.py")
+        _commit_all(self.root, "work incl. out-of-scope")
+        result = LC.finalize(
+            self.root,
+            plan,
+            "opencode/test",
+            "did the work",
+            apply=True,
+            scope_reasons={"tests/extra.py": "needed mid-stream"},
+        )
+        self.assertEqual(
+            result.exit_code, LC.EXIT_OK, f"{result.message} / {result.findings}"
+        )
+        moved = self.root / ".aw" / "records" / "plans" / "executed" / plan.name
+        self.assertTrue(moved.is_file())
+        # Reason recorded verbatim in the terminal history.
+        self.assertIn("needed mid-stream", moved.read_text())
+        self.assertIn("out-of-scope tests/extra.py", moved.read_text())
+
+    def test_out_of_scope_empty_reason_does_not_finalize(self):
+        plan = self._plan("agent_workflows/demo.py")
+        self._begin(plan)
+        self._write("tests/extra.py")
+        _commit_all(self.root, "out of scope only")
+        # An empty reason is treated as no reason -> refuse.
+        result = LC.finalize(
+            self.root,
+            plan,
+            "opencode/test",
+            "m",
+            apply=True,
+            scope_reasons={"tests/extra.py": "   "},
+        )
+        self.assertEqual(result.exit_code, LC.EXIT_FINDINGS)
+        self.assertTrue(plan.is_file())
+
+    def test_in_scope_unmodified_headless_ack_records_and_proceeds(self):
+        # demo.py touched; tests/declared.py declared but NOT touched -> needs an ack.
+        plan = self._plan("agent_workflows/demo.py, tests/declared.py")
+        self._begin(plan)
+        self._write("agent_workflows/demo.py")
+        _commit_all(self.root, "touch only demo.py")
+        # Missing ack -> fail closed.
+        r_missing = LC.finalize(self.root, plan, "opencode/test", "m", apply=True)
+        self.assertEqual(r_missing.exit_code, LC.EXIT_FINDINGS)
+        self.assertTrue(any("tests/declared.py" in f for f in r_missing.findings))
+        # Ack supplied -> proceeds and records.
+        result = LC.finalize(
+            self.root,
+            plan,
+            "opencode/test",
+            "did it",
+            apply=True,
+            scope_acks={"tests/declared.py": "not-needed"},
+        )
+        self.assertEqual(
+            result.exit_code, LC.EXIT_OK, f"{result.message} / {result.findings}"
+        )
+        moved = self.root / ".aw" / "records" / "plans" / "executed" / plan.name
+        self.assertIn(
+            "in-scope-unmodified tests/declared.py: not-needed", moved.read_text()
+        )
+
+    def test_both_directions_at_once(self):
+        # out-of-scope (tests/extra.py) AND in-scope-unmodified (tests/declared.py) in one finalize.
+        plan = self._plan("agent_workflows/demo.py, tests/declared.py")
+        self._begin(plan)
+        self._write("agent_workflows/demo.py")
+        self._write("tests/extra.py")
+        _commit_all(self.root, "in-scope + out-of-scope, declared untouched")
+        result = LC.finalize(
+            self.root,
+            plan,
+            "opencode/test",
+            "m",
+            apply=True,
+            scope_reasons={"tests/extra.py": "discovered mid-stream"},
+            scope_acks={"tests/declared.py": "not-needed"},
+        )
+        self.assertEqual(
+            result.exit_code, LC.EXIT_OK, f"{result.message} / {result.findings}"
+        )
+        moved_text = (
+            self.root / ".aw" / "records" / "plans" / "executed" / plan.name
+        ).read_text()
+        self.assertIn("out-of-scope tests/extra.py: discovered mid-stream", moved_text)
+        self.assertIn("in-scope-unmodified tests/declared.py: not-needed", moved_text)
+
+    def test_clean_delta_is_frictionless_no_reconciliation_note(self):
+        plan = self._plan("agent_workflows/demo.py, tests/test_demo.py")
+        self._begin(plan)
+        self._write("agent_workflows/demo.py")
+        self._write("tests/test_demo.py")
+        _commit_all(self.root, "clean in-scope work")
+        result = LC.finalize(self.root, plan, "opencode/test", "clean", apply=True)
+        self.assertEqual(
+            result.exit_code, LC.EXIT_OK, f"{result.message} / {result.findings}"
+        )
+        moved_text = (
+            self.root / ".aw" / "records" / "plans" / "executed" / plan.name
+        ).read_text()
+        self.assertNotIn("Scope reconciliation", moved_text)
+
+    def test_tty_batched_prompt_collects_both_directions(self):
+        # Simulate a TTY: ONE batched prompt returns reasons + acks for both directions.
+        plan = self._plan("agent_workflows/demo.py, tests/declared.py")
+        self._begin(plan)
+        self._write("agent_workflows/demo.py")
+        self._write("tests/extra.py")
+        _commit_all(self.root, "both directions")
+        calls = {"n": 0}
+
+        def fake_prompt(out_of_scope, in_scope_unmodified):
+            calls["n"] += 1
+            # ONE call covering BOTH directions.
+            self.assertIn("tests/extra.py", out_of_scope)
+            self.assertIn("tests/declared.py", in_scope_unmodified)
+            return {
+                "reasons": {p: "prompted reason" for p in out_of_scope},
+                "acks": {p: "prompted-ack" for p in in_scope_unmodified},
+            }
+
+        result = LC.finalize(
+            self.root,
+            plan,
+            "opencode/test",
+            "m",
+            apply=True,
+            interactive=True,
+            prompt=fake_prompt,
+        )
+        self.assertEqual(
+            result.exit_code, LC.EXIT_OK, f"{result.message} / {result.findings}"
+        )
+        self.assertEqual(calls["n"], 1, "reconciliation must use ONE batched prompt")
+        moved_text = (
+            self.root / ".aw" / "records" / "plans" / "executed" / plan.name
+        ).read_text()
+        self.assertIn("prompted reason", moved_text)
+        self.assertIn("prompted-ack", moved_text)
+
+    def test_tty_empty_reason_from_prompt_does_not_finalize(self):
+        plan = self._plan("agent_workflows/demo.py")
+        self._begin(plan)
+        self._write("tests/extra.py")
+        _commit_all(self.root, "out of scope")
+
+        def refusing_prompt(out_of_scope, in_scope_unmodified):
+            return {"reasons": {p: "" for p in out_of_scope}, "acks": {}}
+
+        result = LC.finalize(
+            self.root,
+            plan,
+            "opencode/test",
+            "m",
+            apply=True,
+            interactive=True,
+            prompt=refusing_prompt,
+        )
+        self.assertEqual(result.exit_code, LC.EXIT_FINDINGS)
+        self.assertTrue(plan.is_file())
+
+    def test_cli_scope_flag_parsing(self):
+        self.assertEqual(
+            LC._parse_scope_reason_flags(
+                ["a/b.py=why one", "c/d.py=why two", "bad-no-eq"]
+            ),
+            {"a/b.py": "why one", "c/d.py": "why two"},
+        )
+        self.assertEqual(
+            LC._parse_scope_ack_flags(["tests/", "docs/=not-needed"]),
+            {"tests/": "acknowledged", "docs/": "not-needed"},
+        )
 
 
 if __name__ == "__main__":

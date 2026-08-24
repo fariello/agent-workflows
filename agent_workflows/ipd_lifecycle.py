@@ -556,47 +556,47 @@ def finalize_precheck(
     changed = _paths_changed_by_this_execution(repo_root, base_head)
     evidence["changed_paths"] = changed
 
-    findings: List[str] = []
-    # (a) unexplained-path refusal: a path THIS execution changed that is outside Scope-Paths.
-    #     A grandfathered plan (empty literal allowlist) has NO machine path fence, so this
-    #     per-path refusal is inapplicable (Order oorry1: grandfathered = advisory, no allowlist);
-    #     only the implicit lifecycle allowances + free-form scope apply. See DECISION register.
+    # (a) OUT-OF-SCOPE paths: paths THIS execution changed that are outside Scope-Paths. Order 04
+    #     refused these outright; Order 05 (qmt3yk) turns that into two-way RECONCILIATION - a
+    #     recorded per-path REASON legitimizes the edit (proceed), an empty/missing reason refuses.
+    #     A grandfathered plan (empty literal allowlist) has NO machine path fence, so there is no
+    #     out-of-scope set (Order oorry1: grandfathered = advisory); only implicit lifecycle
+    #     allowances + free-form scope apply.
+    out_of_scope: List[str] = []
     if scope_paths:
         for p in changed:
             if _is_implicitly_allowed(p, plan_rel):
                 continue
             if not any(_scope_match(p, pat) for pat in scope_paths):
-                findings.append(
-                    f"unexplained path outside Scope-Paths: {p} (declared: {scope_paths})"
-                )
+                out_of_scope.append(p)
+    # (b') IN-SCOPE-UNMODIFIED paths (Order 05, the MISSING-work direction): a Scope-Paths entry the
+    #      execution did NOT touch. Requires the receipt's LITERAL declared Scope-Paths (Order 03/04).
+    #      Acknowledge-and-proceed (a declared-but-unneeded file is normal, not a failure).
+    in_scope_unmodified: List[str] = []
+    if scope_paths:
+        for pat in scope_paths:
+            if not any(_scope_match(c, pat) for c in changed):
+                in_scope_unmodified.append(pat)
     # (b) intervening-commit COMPUTATION: which in-Scope-Paths paths were touched by a commit since
-    #     base. This is the substrate Order 06's adversarial concurrency/rollback matrix builds on to
-    #     distinguish a genuine FOREIGN same-file collision from THIS execution's own sanctioned
-    #     in-scope commits (begin -> do work -> commit -> finalize is the normal single-actor flow, in
-    #     which the in-scope commits ARE this execution's work and must NOT be refused). Finalize
-    #     (this Order) therefore COMPUTES + surfaces the candidate set in evidence but does not make it
-    #     a blanket blocking refusal here; authorship-aware enforcement is Order 06 (DECISION register).
+    #     base. Substrate for Order 06's authorship-aware collision enforcement; COMPUTED + surfaced
+    #     here (not a blanket refusal, so the normal single-actor begin->commit->finalize flow works).
     collisions = _intervening_commits_touching(repo_root, base_head, scope_paths)
     collisions = [c for c in collisions if not _is_implicitly_allowed(c, plan_rel)]
 
     evidence["scope_audit"] = {
         "grandfathered": not scope_paths,
-        "in_scope": bool(scope_paths) and not findings,
-        "unexplained_paths": list(findings),
+        "in_scope": bool(scope_paths) and not out_of_scope,
+        "out_of_scope_paths": list(out_of_scope),
+        "in_scope_unmodified": list(in_scope_unmodified),
         "intervening_in_scope_commits": collisions,
-        "findings": list(findings),
     }
-    if findings:
-        return (
-            EXIT_FINDINGS,
-            "finalize REFUSED: changed paths did not stay within the reviewed Scope-Paths "
-            "(plan left unmoved).",
-            evidence,
-            tuple(findings),
-        )
+    # The precheck itself no longer REFUSES on out-of-scope paths; that decision now belongs to the
+    # two-way reconciliation in `finalize` (Order 05), which legitimizes an out-of-scope edit with a
+    # recorded reason and refuses only a MISSING reason. The precheck returns EXIT_OK with the
+    # computed two-way delta in evidence so `finalize` can reconcile it.
     return (
         EXIT_OK,
-        "precheck passed (receipt valid, pre-transition conforming, in scope).",
+        "precheck passed (receipt valid, pre-transition conforming; scope delta computed).",
         evidence,
         (),
     )
@@ -644,6 +644,97 @@ def _refresh_plans_index_fail_loud(repo_root: Path) -> None:
         )
 
 
+class ReconcileOutcome(NamedTuple):
+    """The result of the two-way scope reconciliation (Order 05, qmt3yk).
+
+    ``ok`` is True when every out-of-scope path has a recorded reason and every in-scope-unmodified
+    path has an acknowledgment (so finalize may proceed). ``reasons``/``acks`` are the collected
+    answers to write verbatim into the terminal record. ``missing`` lists the unanswered items when
+    ``ok`` is False (headless fail-closed). ``needs_input_command`` is the exact re-invocation to
+    supply them.
+    """
+
+    ok: bool
+    reasons: Dict[str, str]
+    acks: Dict[str, str]
+    missing_reasons: Tuple[str, ...]
+    missing_acks: Tuple[str, ...]
+    needs_input_command: str
+
+
+def _reconcile_scope(
+    plan_selector: str,
+    actor: str,
+    message: str,
+    out_of_scope: List[str],
+    in_scope_unmodified: List[str],
+    *,
+    scope_reasons: Optional[Dict[str, str]] = None,
+    scope_acks: Optional[Dict[str, str]] = None,
+    interactive: bool = False,
+    prompt=None,
+) -> ReconcileOutcome:
+    """Reconcile the two-way scope delta (Order 05 qmt3yk). SURFACES + ATTRIBUTES; does not judge.
+
+    For each OUT-OF-SCOPE changed path a non-empty REASON is required (recorded -> proceed; empty ->
+    refuse). For each IN-SCOPE-UNMODIFIED declared path a one-word ACKNOWLEDGMENT is required
+    (acknowledge -> proceed). Answers come from the ``--scope-reason``/``--scope-ack`` flag maps
+    (headless) or, on a TTY, from ONE batched ``prompt`` callback. A headless run with a non-empty
+    delta and MISSING answers is fail-closed (``ok=False``) and names the exact re-invocation.
+    """
+    reasons: Dict[str, str] = dict(scope_reasons or {})
+    acks: Dict[str, str] = dict(scope_acks or {})
+
+    # Clean delta: nothing to reconcile.
+    if not out_of_scope and not in_scope_unmodified:
+        return ReconcileOutcome(True, {}, {}, (), (), "")
+
+    # Interactive: collect any missing answers via ONE batched prompt (TTY).
+    if interactive and prompt is not None:
+        collected = prompt(list(out_of_scope), list(in_scope_unmodified))
+        # prompt returns ({path: reason}, {path: ack}); empty/None reason means "not given".
+        for p, why in (collected.get("reasons") or {}).items():
+            if why is not None and str(why).strip():
+                reasons[p] = str(why).strip()
+        for p, note in (collected.get("acks") or {}).items():
+            acks[p] = (
+                str(note).strip()
+                if note is not None and str(note).strip()
+                else "acknowledged"
+            )
+
+    missing_reasons = tuple(p for p in out_of_scope if not reasons.get(p, "").strip())
+    # An in-scope-unmodified path is acknowledge-and-proceed; a missing ack in headless mode is
+    # still surfaced (fail-closed) so the deviation cannot be silently skipped, but any non-empty
+    # note (default "not-needed"/"acknowledged") satisfies it.
+    missing_acks = tuple(p for p in in_scope_unmodified if p not in acks)
+
+    # Build the exact re-invocation to supply the missing answers headlessly.
+    parts = [
+        f"aw ipd finalize {plan_selector} --actor {actor!r} --message {message!r} --apply"
+    ]
+    for p in missing_reasons:
+        parts.append(f"--scope-reason {p}=<why-this-out-of-scope-edit-was-needed>")
+    for p in missing_acks:
+        parts.append(f"--scope-ack {p}[=not-needed]")
+    needs_cmd = " ".join(parts)
+
+    ok = not missing_reasons and not missing_acks
+    return ReconcileOutcome(ok, reasons, acks, missing_reasons, missing_acks, needs_cmd)
+
+
+def _reconciliation_history_note(reasons: Dict[str, str], acks: Dict[str, str]) -> str:
+    """Render the reconciliation answers as a compact, verbatim note for the terminal record."""
+    bits: List[str] = []
+    for p in sorted(reasons):
+        bits.append(f"out-of-scope {p}: {reasons[p]}")
+    for p in sorted(acks):
+        bits.append(f"in-scope-unmodified {p}: {acks[p]}")
+    if not bits:
+        return ""
+    return "Scope reconciliation - " + "; ".join(bits)
+
+
 def finalize(
     repo_root: Path,
     plan_path: Path,
@@ -651,14 +742,22 @@ def finalize(
     message: str,
     *,
     apply: bool = False,
+    scope_reasons: Optional[Dict[str, str]] = None,
+    scope_acks: Optional[Dict[str, str]] = None,
+    interactive: bool = False,
+    prompt=None,
+    plan_selector: Optional[str] = None,
 ) -> FinalizeResult:
-    """The atomic terminal transaction for one IPD (E-01 precheck + E-02 forward transition).
+    """The atomic terminal transaction for one IPD (precheck + two-way reconciliation + transition).
 
-    On the happy path (``apply=True``): validate receipt + pre-transition lint + scope comparison
-    (E-01); then append the attributed history entry, set terminal status, move the plan, refresh the
-    owned index fail-loud, create the path-scoped lifecycle commit, run post-transition lint, and
-    report the commit + captured three-phase gate evidence. Any precheck refusal leaves the plan
-    unmoved. (Two-way reconciliation is Order 05; rollback/failure semantics are Order 06.)
+    On the happy path (``apply=True``): validate receipt + pre-transition lint + scope-delta
+    computation (Order 04); reconcile the two-way scope delta (Order 05: out-of-scope edits need a
+    recorded reason, in-scope-unmodified declared paths need an acknowledgment - via ``scope_reasons``
+    / ``scope_acks`` or the TTY ``prompt``); then append the attributed history entry (INCLUDING the
+    verbatim reconciliation note), set terminal status, move the plan, refresh the owned index
+    fail-loud, create the path-scoped lifecycle commit, run post-transition lint, and report the
+    commit + three-phase gate evidence. A missing reason/ack fails closed naming the exact
+    re-invocation. (Rollback/failure semantics are Order 06.)
     """
     import argparse
 
@@ -682,14 +781,57 @@ def finalize(
     if exit_code != EXIT_OK:
         return FinalizeResult(exit_code, None, msg, evidence, findings)
 
+    # --- Order 05: two-way scope reconciliation (surfaces + attributes both deltas) ---
+    audit = evidence.get("scope_audit", {})
+    out_of_scope = list(audit.get("out_of_scope_paths", []))
+    in_scope_unmodified = list(audit.get("in_scope_unmodified", []))
+    reconcile = _reconcile_scope(
+        plan_selector or (plan_path.name),
+        actor,
+        message,
+        out_of_scope,
+        in_scope_unmodified,
+        scope_reasons=scope_reasons,
+        scope_acks=scope_acks,
+        interactive=interactive,
+        prompt=prompt,
+    )
+    evidence["scope_reconciliation"] = {
+        "reasons": reconcile.reasons,
+        "acks": reconcile.acks,
+        "resolved": reconcile.ok,
+    }
+    if not reconcile.ok:
+        findings_list: List[str] = []
+        for p in reconcile.missing_reasons:
+            findings_list.append(f"out-of-scope path needs a --scope-reason: {p}")
+        for p in reconcile.missing_acks:
+            findings_list.append(
+                f"declared-but-unmodified path needs a --scope-ack: {p}"
+            )
+        return FinalizeResult(
+            EXIT_FINDINGS,
+            None,
+            "finalize needs scope reconciliation answers (plan left unmoved). Supply them with:\n  "
+            + reconcile.needs_input_command,
+            evidence,
+            tuple(findings_list),
+        )
+
     if not apply:
         return FinalizeResult(
             EXIT_OK,
             None,
-            "precheck passed; re-run with --apply to perform the terminal transaction.",
+            "precheck + reconciliation passed; re-run with --apply to perform the terminal transaction.",
             evidence,
             (),
         )
+
+    # Fold the verbatim reconciliation note into the attributed history message so the deviation is
+    # permanently on the record and attributable.
+    recon_note = _reconciliation_history_note(reconcile.reasons, reconcile.acks)
+    if recon_note:
+        message = f"{message} [{recon_note}]"
 
     # --- E-02 forward transition (precheck passed) ---
     rec = _ss.read_artifact_record(plan_path, repo_root)
@@ -875,6 +1017,68 @@ def _utc_now() -> str:
 # --------------------------------------------------------------------------------------
 
 
+def _parse_scope_reason_flags(values: Optional[List[str]]) -> Dict[str, str]:
+    """Parse repeatable ``--scope-reason <path>=<why>`` flags into {path: why}."""
+    out: Dict[str, str] = {}
+    for raw in values or []:
+        if "=" not in raw:
+            continue
+        path, why = raw.split("=", 1)
+        path = path.strip()
+        why = why.strip()
+        if path and why:
+            out[path] = why
+    return out
+
+
+def _parse_scope_ack_flags(values: Optional[List[str]]) -> Dict[str, str]:
+    """Parse repeatable ``--scope-ack <path>[=<note>]`` flags into {path: note-or-'acknowledged'}."""
+    out: Dict[str, str] = {}
+    for raw in values or []:
+        if "=" in raw:
+            path, note = raw.split("=", 1)
+            path = path.strip()
+            note = note.strip() or "acknowledged"
+        else:
+            path = raw.strip()
+            note = "acknowledged"
+        if path:
+            out[path] = note
+    return out
+
+
+def _tty_scope_prompt(
+    out_of_scope: List[str], in_scope_unmodified: List[str]
+) -> Dict[str, Any]:
+    """ONE batched TTY prompt collecting all reasons (out-of-scope) + acks (in-scope-unmodified)."""
+    reasons: Dict[str, str] = {}
+    acks: Dict[str, str] = {}
+    if out_of_scope:
+        print(
+            "Scope reconciliation - these paths were changed but are OUTSIDE the reviewed "
+            "Scope-Paths. Give a short reason for each (empty = refuse):"
+        )
+        for p in out_of_scope:
+            try:
+                why = input(f"  reason for {p}: ").strip()
+            except EOFError:
+                why = ""
+            if why:
+                reasons[p] = why
+    if in_scope_unmodified:
+        print(
+            "These paths were DECLARED in Scope-Paths but NOT modified. Acknowledge each "
+            "(e.g. 'not-needed'; blank = 'acknowledged'):"
+        )
+        for p in in_scope_unmodified:
+            try:
+                note = input(f"  acknowledge {p}: ").strip()
+            except EOFError:
+                note = ""
+            acks[p] = note or "acknowledged"
+    return {"reasons": reasons, "acks": acks}
+
+
 def run_finalize(args) -> int:
     """Entry point for `aw ipd finalize <plan> --actor --message [--apply]`. Returns 0/1/2."""
     from agent_workflows import selectors
@@ -929,7 +1133,31 @@ def run_finalize(args) -> int:
         )
     plan_path = resolution.paths[0]
 
-    result = finalize(repo_root, plan_path, actor or "", message or "", apply=apply)
+    # Order 05: collect the non-interactive reconciliation answers from repeatable flags.
+    scope_reasons = _parse_scope_reason_flags(getattr(args, "scope_reason", None))
+    scope_acks = _parse_scope_ack_flags(getattr(args, "scope_ack", None))
+    # Interactive ONLY on a real TTY in the human (non-agent/json) output mode.
+    import sys as _sys
+
+    interactive = (
+        not (ctx.is_agent or ctx.is_json)
+        and hasattr(_sys.stdin, "isatty")
+        and _sys.stdin.isatty()
+    )
+    prompt = _tty_scope_prompt if interactive else None
+
+    result = finalize(
+        repo_root,
+        plan_path,
+        actor or "",
+        message or "",
+        apply=apply,
+        scope_reasons=scope_reasons,
+        scope_acks=scope_acks,
+        interactive=interactive,
+        prompt=prompt,
+        plan_selector=selector,
+    )
 
     if result.exit_code == EXIT_OK:
         return _emit(

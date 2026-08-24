@@ -784,4 +784,4 @@ After the IPD-system Set lands:
 
 ## Workflow history
 
-- 2026-08-24 note (aw specs): Documented aw ipd finalize (Section 11 terminal transaction): the atomic scope-checked terminal transition consuming the aw ipd begin receipt - validates receipt + pre-transition lint, refuses unexplained out-of-scope paths (p7dqwz signature), writes attributed history, moves the plan, refreshes the owned index fail-loud, path-scoped lifecycle commit, post-transition lint. Implemented by ipdgates Order v7e88a (agent_workflows/ipd_lifecycle.py finalize + aw ipd finalize verb).
+- 2026-08-24 note (aw specs): Documented the aw ipd finalize two-way scope reconciliation (DECISIONS.md D141): out-of-scope changed paths require a recorded --scope-reason, declared-but-unmodified Scope-Paths require a --scope-ack; batched TTY prompt or headless flags; missing answers fail closed naming the exact command; answers recorded verbatim in the terminal history (surfaces + attributes, does not judge). Implemented by ipdgates Order qmt3yk.

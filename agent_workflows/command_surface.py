@@ -637,7 +637,16 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         agent_record_kind="result",
         mutation_gate="dry_run_default",
         empty_error_renderer="renderer_boundary",
-        legacy_flags=("--actor", "--message", "--apply", "--dir", "--agent", "--json"),
+        legacy_flags=(
+            "--actor",
+            "--message",
+            "--apply",
+            "--scope-reason",
+            "--scope-ack",
+            "--dir",
+            "--agent",
+            "--json",
+        ),
         exit_contract=(0, 1, 2),
     ),
     CommandDeclaration(
