@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: bugs
 - Scope: tools/ipdrunner/ipdrunner.py (and its test module tools/ipdrunner/test_ipdrunner.py)
-- Status: reviewed
+- Status: approved
 - Set: ipdrbugs
 - Order: 1
 - Highest E allocated: 07
@@ -12,6 +12,7 @@
 - Id: a4j0ly
 
 ## Workflow history
+- 2026-08-24 approved (aw set, --by-human): Human approved via plan-review GO in chat; proceeding to execution.
 
 - 2026-08-24 draft (assess/its_direct/pt3-claude-opus-4.8): created.
 - 2026-08-24 /assess bugs (assess/its_direct/pt3-claude-opus-4.8): assessed tools/ipdrunner/ipdrunner.py; proposed 6 changes (4 fixes acted, 2 down-scoped/deferred).
