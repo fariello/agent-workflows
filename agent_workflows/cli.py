@@ -890,6 +890,34 @@ def _build_parser() -> argparse.ArgumentParser:
         "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
     )
 
+    # ipdgates Order 03 (xjbvu2): `aw ipd begin` fail-closed execution-start receipt.
+    p_ipd_begin = ipd_sub.add_parser(
+        "begin",
+        parents=[common],
+        help="Fail-closed start of single-IPD execution: pre-execution gate + a local frozen receipt.",
+        description=(
+            "Begin execution of an APPROVED IPD. Runs the pre-execution lint gate, then freezes the "
+            "plan's requirements and Scope-Paths and writes a LOCAL, gitignored receipt under "
+            ".aw/state/ipd-lifecycle/<id6>.receipt.json binding {plan Id, plan content digest, "
+            "frozen requirement/scope digest, base HEAD, actor/model, timestamp}. Fail-closed: a "
+            "non-conforming or unrunnable lint, a dirty/ambiguous baseline, a missing --actor, or an "
+            "interrupted write leaves NO valid receipt (and thus NO execution authority). Mutates no "
+            "tracked file; the receipt is never committed. Exit 0 = receipt written, 1 = gate "
+            "findings, 2 = cannot run."
+        ),
+    )
+    p_ipd_begin.add_argument(
+        "plan", help="Plan selector (id6, setid, stem, path, or substring)."
+    )
+    p_ipd_begin.add_argument(
+        "--actor",
+        required=True,
+        help="The executing agent/model identity to bind into the receipt (required, non-empty).",
+    )
+    p_ipd_begin.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+
     # awoptimize Order 01 E-06: canonical workflow schema/compiler CLI (validate/compile/
     # check-generated). The heavy lifting is in workflow_schema/source/loader/compiler; this only
     # registers the parser. compile is dry-run by default (--apply writes); validate + check-generated
@@ -6584,6 +6612,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import ipd_authoring
 
             return ipd_authoring.run_sync(args)
+        if ipd_cmd == "begin":
+            from agent_workflows import ipd_lifecycle
+
+            return ipd_lifecycle.run_begin(args)
         # awcmdsurf Order 04: `ipd board` and bare `aw ipd` both show the IPD board.
         if ipd_cmd == "board" or ipd_cmd is None:
             return _run_plans(args, term, context=context)

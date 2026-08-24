@@ -504,6 +504,8 @@ A passing lint means only that the document conforms to the modeled structural a
 
 ## 11. Lifecycle gate and terminal transaction
 
+At execution START, the authoritative single-IPD entry `aw ipd begin <plan> --actor <agent/model>` runs the `pre-execution` gate and, on conformance, freezes the plan's requirements and `Scope-Paths` and writes a LOCAL, gitignored execution-start receipt under `.aw/state/ipd-lifecycle/<id6>.receipt.json` binding `{plan Id, plan content digest, frozen requirement/scope digest, base HEAD, actor/model, timestamp}`. The receipt is the durable, independently-inspectable proof that the approved plan and its scope passed the gate at a specific base HEAD; it is fail-closed (any non-conforming/unrunnable gate, dirty-or-ambiguous baseline, missing actor, or interrupted write leaves NO valid receipt and therefore NO execution authority), atomic, and resumable. It PERSISTS across unrelated intervening commits and is invalidated only by a change to the plan's own content digest or by an intervening commit that touched a path inside the plan's `Scope-Paths` (that path-overlap collision check is enforced by the finalize transaction, not by `begin`). The receipt mutates no tracked file and is never committed.
+
 Terminal `Status:` change, workflow-history update, `git mv`, and lifecycle commit MUST NOT be `E-*` or `V-*` items whose completion is required before transition.
 
 The executor MUST run `aw ipd lint --phase pre-transition FILE`. Only after it exits `0` may the workflow perform the terminal transaction:
@@ -782,4 +784,4 @@ After the IPD-system Set lands:
 
 ## Workflow history
 
-- 2026-08-24 note (aw specs): Documented the Scope-Paths recognized-but-optional metadata field (new Section 4.5: grammar, grandfathered sentinel, implicit lifecycle-artifact allowances) and its conditional requirement at the pre-execution/ready-to-execute lint gate (Section 9.2). Implemented by ipdgates Order oorry1 (schema META_RECOGNIZED + parse_scope_paths grammar, scaffold stub, lint check_checkpoint gate).
+- 2026-08-24 note (aw specs): Documented aw ipd begin (Section 11): the fail-closed execution-start receipt under .aw/state/ipd-lifecycle/<id6>.receipt.json binding plan Id/content digest/frozen requirement+scope digest/base HEAD/actor/timestamp. Implemented by ipdgates Order xjbvu2 (agent_workflows/ipd_lifecycle.py + aw ipd begin verb).

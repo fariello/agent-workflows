@@ -27,6 +27,25 @@ Run, on the plan file:
 
 Proceed to execute ONLY when the process exits `0` AND the disposition is `conforming`.
 
+### `aw ipd begin`: the durable, fail-closed start receipt
+
+`aw ipd begin <plan> --actor <agent/model>` is the authoritative single-IPD execution entry. It runs
+the `pre-execution` gate above and, on conformance, FREEZES the plan's requirements and `Scope-Paths`
+and writes a LOCAL, gitignored receipt under `.aw/state/ipd-lifecycle/<id6>.receipt.json` binding
+`{plan Id, plan content digest, frozen requirement/scope digest, base HEAD, actor/model, timestamp}`.
+This is the durable proof - retained even after the fact - that the approved plan and its scope passed
+the gate at a specific base HEAD, which Order 04's `aw ipd finalize` later requires.
+
+It is fail-closed: a non-conforming lint (exit 1), an unrunnable lint / missing `--actor` /
+dirty-or-ambiguous baseline / unresolvable-or-ambiguous plan selector / interrupted write (exit 2) all
+leave NO valid receipt and therefore NO execution authority. The receipt is written atomically (an
+interrupted write never leaves a partial receipt) and is resumable (a re-read returns the same
+receipt). It PERSISTS across unrelated intervening commits on disjoint paths (HEAD movement alone does
+not invalidate it, preserving a concurrent multi-agent workflow); it is invalidated only by a change
+to the plan's own content digest or an intervening commit that touched a path inside the plan's
+`Scope-Paths` (that path-overlap collision is enforced by `aw ipd finalize`, Order 04). It mutates no
+tracked file and the receipt is never committed.
+
 Fail-closed rules (identical at every checkpoint here):
 
 - Exit `1` (a conformance error): a STRUCTURAL finding to repair; do NOT proceed. Fix the plan (or

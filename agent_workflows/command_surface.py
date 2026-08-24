@@ -615,6 +615,19 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         exit_contract=(0, 2),
     ),
     CommandDeclaration(
+        # ipdgates Order xjbvu2: fail-closed execution-start receipt. A check-class gate: it
+        # runs pre-execution lint and writes only a LOCAL, gitignored receipt (mutates no tracked
+        # file), so it carries no tracked-tree mutation gate. Exit 0 ok / 1 findings / 2 cannot-run.
+        command="ipd begin",
+        command_class="check",
+        human_recipe="check",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--actor", "--dir", "--agent", "--json"),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
         command="ipd set",
         command_class="mutation",
         human_recipe="status",
