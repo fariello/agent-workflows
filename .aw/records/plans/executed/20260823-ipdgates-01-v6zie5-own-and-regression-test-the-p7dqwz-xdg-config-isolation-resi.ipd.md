@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: When the executed IPD p7dqwz shipped its E-02/E-03 (commit 57a70b0), it ALSO edited `tests/test_empty_state_ux.py` (added `XDG_CONFIG_HOME` isolation to `ReadListVerbsEmptyStateSurfaceTests` setUp/tearDown) - OUTSIDE p7dqwz's `touch ONLY` scope fence, which named only `artifact_types.py`, `artifact_rename.py` output, the research index, docs, and `tests/test_artifact_group.py`. The change is useful (host-global Agent Workflows config can contaminate an isolation test) but was committed without authority and is currently unowned by any plan.
 - Scope: Own that change prospectively and prove its necessity. Touch ONLY `tests/test_empty_state_ux.py`. Do NOT alter any application file, and do NOT edit the executed p7dqwz record.
-- Status: approved
+- Status: executed
 - Set: ipdgates
 - Order: 1
 - Highest E allocated: 01
@@ -13,6 +13,7 @@
 - Approval: 2026-08-24, human ("approved. go."): status set to approved
 
 ## Workflow history
+- 2026-08-24 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us, ipdrunner run-20260824T150827Z-2301181): E-01 performed and V-01 verified; owned the XDG isolation in tests/test_empty_state_ux.py (helpers isolate_xdg_config/restore_xdg_config + regression test_isolation_boundary_blocks_hostile_external_config citing p7dqwz + 57a70b0); pytest tests/test_empty_state_ux.py = 26 passed, pytest -n auto = 2120 passed, 1 skipped; scope = tests/test_empty_state_ux.py only; status set to executed and git mv pending -> executed.
 - 2026-08-24 approved (aw set, --by-human): status set to approved
 
 - 2026-08-23 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created (decomposition of 39fz2x E-01).
@@ -28,11 +29,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Own and prove the isolation
 
-- [ ] E-01 In `tests/test_empty_state_ux.py`, name/extract the `XDG_CONFIG_HOME` isolation clearly (a helper or documented setUp/tearDown block) and add a regression test that asserts a hostile external Agent Workflows config CANNOT influence `ReadListVerbsEmptyStateSurfaceTests` when the isolation is present, and that the surface WOULD be contaminated without it. Add a docstring/comment citing p7dqwz and commit 57a70b0 as the origin of the change. Change no application file.
+- [x] E-01 In `tests/test_empty_state_ux.py`, name/extract the `XDG_CONFIG_HOME` isolation clearly (a helper or documented setUp/tearDown block) and add a regression test that asserts a hostile external Agent Workflows config CANNOT influence `ReadListVerbsEmptyStateSurfaceTests` when the isolation is present, and that the surface WOULD be contaminated without it. Add a docstring/comment citing p7dqwz and commit 57a70b0 as the origin of the change. Change no application file.
   - Depends on: none
   - Determinism requirement (hard MUST): the "without-isolation" branch MUST point `XDG_CONFIG_HOME` at a PLANTED, POPULATED fake config directory that the read/list verbs would pick up (so contamination is demonstrated deterministically), and MUST NOT merely unset `XDG_CONFIG_HOME` or fall back to the real `~/.config` - that would make the "fails-without" outcome depend on the host machine's actual global config (flaky: only "fails" where contaminating config happens to exist, passes spuriously in a clean CI), which does NOT prove the isolation is load-bearing. Restore/clean `XDG_CONFIG_HOME` with try/finally or `mock.patch.dict(os.environ, ...)` so a mid-test repoint cannot leak into sibling tests even on assertion failure.
   - Expected outcome: the isolation is owned by this IPD and its necessity is demonstrated by a DETERMINISTIC regression - contaminated with a planted fake config when the boundary is absent, clean when present - independent of the host machine's real config.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution notes: extracted the isolation into documented module helpers `isolate_xdg_config`/`restore_xdg_config` (docstrings cite p7dqwz + commit 57a70b0 as the origin/owner), rewired `ReadListVerbsEmptyStateSurfaceTests.setUp/tearDown` to use them, and added regression `test_isolation_boundary_blocks_hostile_external_config`. The without-branch repoints `XDG_CONFIG_HOME` at a PLANTED, POPULATED fake `agent-workflows/config.json` (with an `exclude` entry) and asserts `config exclude list` is contaminated (lists the planted entry; the "empty" message is absent); the with-branch (empty test-owned cfg dir) asserts clean. `XDG_CONFIG_HOME` is restored in a `try/finally`. No application file changed.
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -83,10 +85,10 @@ The change itself is correct test hygiene, but it was a silent scope expansion i
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the regression demonstrates contamination WITHOUT the isolation boundary (with `XDG_CONFIG_HOME` pointed at a PLANTED, POPULATED fake config - NOT unset and NOT the real `~/.config`, so the failure is deterministic and host-independent) and none WITH it; a reviewer can confirm the without-branch would fail on a CLEAN machine too (i.e. it does not rely on the host's real global config); `XDG_CONFIG_HOME` is restored via try/finally or `mock.patch.dict` so no sibling test is affected on failure; the test docstring/comment cites p7dqwz and 57a70b0; `git diff --name-only` for this IPD's commit shows ONLY `tests/test_empty_state_ux.py` (no application file); `pytest tests/test_empty_state_ux.py` and `pytest -n auto` are green (pasted).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Regression `test_isolation_boundary_blocks_hostile_external_config` (tests/test_empty_state_ux.py) demonstrates contamination WITHOUT the boundary by pointing `XDG_CONFIG_HOME` at a PLANTED, POPULATED fake config (`hostile-xdg/agent-workflows/config.json` with `exclude: ["*/hostile-never-install/*"]`) - NOT unset and NOT the real `~/.config` - and asserting `config exclude list` prints the planted `*/hostile-never-install/*` and does NOT print "never-install exclude list is empty"; WITH the boundary (empty test-owned cfg dir) it asserts the clean/empty message and absence of the planted entry. Manually confirmed host-independent: planted-config run printed `Never-install exclude list\n  */hostile-never-install/*`, empty-cfg run printed `CLEAN never-install exclude list is empty`. `XDG_CONFIG_HOME` restored via `try/finally` (and setUp/tearDown via `restore_xdg_config`) so no sibling test is affected on failure. Docstrings on the helpers and the regression cite p7dqwz and 57a70b0. `git diff --name-only` shows ONLY `tests/test_empty_state_ux.py` (no application file). Runners: `pytest tests/test_empty_state_ux.py` -> `26 passed`; `pytest -n auto` -> `2120 passed, 1 skipped in 123.74s`.
+  - Result: pass
 
 ## Approval and execution gate
 

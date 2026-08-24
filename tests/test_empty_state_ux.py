@@ -23,6 +23,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from typing import Optional
 
 from agent_workflows import cli
 from agent_workflows import agent_schema as schema
@@ -215,6 +216,39 @@ class FindReferenceVerbEmptyStateTests(unittest.TestCase):
         self.assertNotIn("no matching", out)
 
 
+def isolate_xdg_config(root: Path) -> Optional[str]:
+    """Point ``XDG_CONFIG_HOME`` at an empty, test-owned config dir under ``root``.
+
+    Origin/ownership: the host-global Agent Workflows config lives at
+    ``$XDG_CONFIG_HOME/agent-workflows/config.json`` (see ``agent_workflows.config``),
+    and its ``repos`` / ``exclude`` entries are read by read/list verbs such as
+    ``list-repos`` and ``config exclude list``. Without this isolation those empty-state
+    surfaces are contaminated by whatever real config exists on the developer's or CI
+    host, so the "empty/clean" assertions here would be non-hermetic.
+
+    This isolation boundary was first introduced (outside its declared scope fence) by
+    the executed IPD ``p7dqwz`` in commit ``57a70b0``. It is now OWNED and justified by
+    the corrective IPD ``v6zie5`` (Set ``ipdgates``, Order 1), whose regression
+    ``test_isolation_boundary_blocks_hostile_external_config`` proves it is load-bearing.
+
+    Returns the previous ``XDG_CONFIG_HOME`` value (or ``None`` if it was unset) so the
+    caller can restore it deterministically; see ``restore_xdg_config``.
+    """
+
+    prev = os.environ.get("XDG_CONFIG_HOME")
+    os.environ["XDG_CONFIG_HOME"] = str(root / "cfg")
+    return prev
+
+
+def restore_xdg_config(prev: Optional[str]) -> None:
+    """Restore ``XDG_CONFIG_HOME`` to ``prev`` (unset it when ``prev`` is ``None``)."""
+
+    if prev is None:
+        os.environ.pop("XDG_CONFIG_HOME", None)
+    else:
+        os.environ["XDG_CONFIG_HOME"] = prev
+
+
 class ReadListVerbsEmptyStateSurfaceTests(unittest.TestCase):
     """V-01: Surface-wide read/list verbs empty-state UX across Human TTY and Agent modes."""
 
@@ -222,8 +256,9 @@ class ReadListVerbsEmptyStateSurfaceTests(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         self._old_cwd = os.getcwd()
-        self._old_xdg = os.environ.get("XDG_CONFIG_HOME")
-        os.environ["XDG_CONFIG_HOME"] = str(self.root / "cfg")
+        # Hermetic config isolation (owned by IPD v6zie5; origin p7dqwz / commit 57a70b0):
+        # keep read/list verbs from reading the host's real Agent Workflows config.
+        self._old_xdg = isolate_xdg_config(self.root)
         os.chdir(self.root)
         # Create minimal .aw layout with records dirs
         (self.root / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
@@ -232,10 +267,7 @@ class ReadListVerbsEmptyStateSurfaceTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         os.chdir(self._old_cwd)
-        if self._old_xdg is None:
-            os.environ.pop("XDG_CONFIG_HOME", None)
-        else:
-            os.environ["XDG_CONFIG_HOME"] = self._old_xdg
+        restore_xdg_config(self._old_xdg)
         self._tmp.cleanup()
 
     def _run_cli(self, argv: list[str]) -> tuple[int, str, str]:
@@ -302,6 +334,79 @@ class ReadListVerbsEmptyStateSurfaceTests(unittest.TestCase):
         self.assertIn("CLEAN", out)
         self.assertIn("never-install exclude list is empty", out)
         self.assertIn("Next  aw config exclude add", out)
+
+    def test_isolation_boundary_blocks_hostile_external_config(self):
+        """Regression: prove the ``XDG_CONFIG_HOME`` isolation is load-bearing.
+
+        Origin/ownership: the isolation boundary applied in ``setUp`` (via
+        ``isolate_xdg_config``) was first introduced, outside its declared scope fence,
+        by executed IPD ``p7dqwz`` in commit ``57a70b0``, and is now OWNED and justified
+        by corrective IPD ``v6zie5`` (Set ``ipdgates``, Order 1). This test makes that
+        necessity falsifiable and DETERMINISTIC, independent of the host's real config:
+
+        - WITHOUT the boundary (``XDG_CONFIG_HOME`` repointed at a PLANTED, POPULATED
+          fake Agent Workflows config with a ``exclude`` entry), the empty-state surface
+          of ``config exclude list`` is CONTAMINATED - it lists the planted entry instead
+          of reporting the clean/empty state. The fake config is planted here, so a
+          reviewer can confirm the without-branch would fail on a CLEAN machine too; it
+          never falls back to (nor depends on) the real ``~/.config``.
+        - WITH the boundary (the empty, test-owned dir from ``setUp``), the surface is
+          clean.
+
+        ``XDG_CONFIG_HOME`` is restored with try/finally so a mid-test repoint cannot
+        leak into sibling tests even if an assertion below fails.
+        """
+
+        # --- Baseline: WITH the isolation boundary from setUp, the surface is clean. ---
+        rc, out, err = self._run_cli(["config", "exclude", "list"])
+        self.assertEqual(rc, 0)
+        self.assertIn("never-install exclude list is empty", out)
+
+        # --- Plant a POPULATED fake config that the read/list verb would pick up. ---
+        # This is a deliberately hostile external config: pointing XDG_CONFIG_HOME here
+        # (i.e. dropping the isolation boundary) must contaminate the empty-state surface.
+        hostile_root = self.root / "hostile-xdg"
+        hostile_cfg_dir = hostile_root / "agent-workflows"
+        hostile_cfg_dir.mkdir(parents=True)
+        planted_exclude = "*/hostile-never-install/*"
+        (hostile_cfg_dir / "config.json").write_text(
+            json.dumps(
+                {
+                    "config_version": 1,
+                    "search_roots": [],
+                    "repos": [],
+                    "ignore": [],
+                    "exclude": [planted_exclude],
+                    "defaults": {"backup": True, "prune": True},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        # --- WITHOUT the boundary: repoint at the planted config; expect contamination. ---
+        saved_xdg = os.environ.get("XDG_CONFIG_HOME")
+        try:
+            os.environ["XDG_CONFIG_HOME"] = str(hostile_root)
+            rc, out, err = self._run_cli(["config", "exclude", "list"])
+            self.assertEqual(rc, 0)
+            # Contaminated: the planted hostile entry surfaces, and the clean/empty
+            # message does NOT. This would fail identically on a pristine CI host, which
+            # is exactly what makes the isolation boundary provably load-bearing.
+            self.assertIn(planted_exclude, out)
+            self.assertNotIn("never-install exclude list is empty", out)
+        finally:
+            # Deterministic restore so no sibling test inherits the hostile config, even
+            # if an assertion above raised.
+            if saved_xdg is None:
+                os.environ.pop("XDG_CONFIG_HOME", None)
+            else:
+                os.environ["XDG_CONFIG_HOME"] = saved_xdg
+
+        # --- WITH the boundary restored: the surface is clean again. ---
+        rc, out, err = self._run_cli(["config", "exclude", "list"])
+        self.assertEqual(rc, 0)
+        self.assertIn("never-install exclude list is empty", out)
+        self.assertNotIn(planted_exclude, out)
 
     def test_ipd_board_empty_human_and_agent_modes(self):
         # Human mode on empty plans dir
