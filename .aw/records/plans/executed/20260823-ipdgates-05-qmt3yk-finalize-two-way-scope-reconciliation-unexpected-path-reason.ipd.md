@@ -5,15 +5,15 @@
 - Concern: `aw ipd finalize` (Order 04) computes the scope delta - files this execution changed vs the frozen `Scope-Paths` - but only REFUSES on an out-of-scope path. In real complex work, discovering mid-stream that you must touch an unforeseen file is common (often the rule), and agents are NOT trained to update `Scope-Paths` en route or even to run `aw ipd finalize` at all. A hard refusal on every unforeseen edit trains agents to treat the gate as noise (which then misses the real p7dqwz violation), and a refusal alone catches only EXTRA work, never MISSING work (a file declared in scope but silently never touched - the "went off the rails / didn't do what it said" failure). This IPD turns finalize's one-directional refusal into a low-friction, unskippable TWO-WAY reconciliation that SURFACES and ATTRIBUTES both deltas without relying on the agent to remember anything mid-stream. (DECISIONS.md D141.)
 - Scope: Add the two-way scope reconciliation to `aw ipd finalize` (the finalize path from Order 04), with both an interactive batched prompt and a non-interactive `--scope-reason`/`--scope-ack` flag channel. Touch: the single-IPD lifecycle module (from Orders 03/04), agent_workflows/cli.py (the finalize prompt/flags + help), and tests/test_ipd_lifecycle_cli.py. Does NOT change how `aw ipd begin` freezes `Scope-Paths` (unchanged by human decision), does NOT alter the Order 04 refusal-vs-proceed decision beyond replacing bare refusal with reconciliation, does NOT build rollback (Order 06) or remove the bypass (Order 07), and (per /plan-review 2026-08-24) does NOT add an en-route `aw ipd scope add` convenience verb (dropped as over-scope: the reason is captured at finalize via `--scope-reason`, and the plan itself judged the en-route verb unreliable).
 - Scope-Paths: grandfathered
-- Status: approved
+- Status: executed
 - Set: ipdgates
 - Order: 5
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: qmt3yk
-- Approval: 2026-08-24, human ("approved. go."): status set to approved
 
 ## Workflow history
+- 2026-08-24 executed (opencode/its_direct/pt3-claude-opus-4.8): Implemented aw ipd finalize two-way scope reconciliation; dogfooded via begin/finalize.
 - 2026-08-24 approved (aw set, --by-human): status set to approved
 - 2026-08-24 reviewed (aw set): plan-review self-review (author); revisions applied - see workflow history
 - 2026-08-24 /plan-review SELF-REVIEW (opencode its_direct/pt3-claude-opus-4.8-1m-us - NOTE: same agent that AUTHORED this plan; an independent reviewer is preferable): APPROVE WITH REVISIONS APPLIED. PR-001 (HIGH: the reconciliation was prompt-only, which would permanently lock autonomous/headless finalize of any plan with an unforeseen edit - added a non-interactive `--scope-reason <path>=<why>` / `--scope-ack <path>` channel + a fail-closed "names the exact command" headless-missing result, per the repo's status_set/run_gates convention); PR-002/PR-003 (human-resolved: DROPPED the en-route `aw ipd scope add` verb as over-scope/gold-plating - unreliable per the plan's own text, fully covered by `--scope-reason`, and needed an unspecified run-state store; removed E-02/V-02, renumbered E-03->E-02/V-03->V-02); PR-004 (made the in-scope-unmodified direction's dependency on the receipt's LITERAL declared Scope-Paths explicit). Verified Order 04 delivers the scope-delta computation this reuses. No blocking OQ.
