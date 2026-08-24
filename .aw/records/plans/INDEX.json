@@ -2960,6 +2960,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-24",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260824-ipdrunner-01-pr2nd0-harden-ipdrunner-process-lifecycle-dependency-validation-and.ipd.md",
+    "plan_id": "pr2nd0",
+    "set_id": "ipdrunner",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -2988,16 +2998,6 @@
     "plan_id": "pprchd",
     "set_id": "awhistignore",
     "status": "not-executed"
-  },
-  {
-    "date": "2026-08-24",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260824-ipdrunner-01-pr2nd0-harden-ipdrunner-process-lifecycle-dependency-validation-and.ipd.md",
-    "plan_id": "pr2nd0",
-    "set_id": "ipdrunner",
-    "status": "reviewed"
   },
   {
     "date": "2026-08-07",

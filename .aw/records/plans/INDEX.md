@@ -10,7 +10,7 @@ Showing the 40 most-recent of 124 Sets; the full manifest is INDEX.json.
 
 ## ipdrunner
 
-- `pr2nd0` [pending] 01 pending/20260824-ipdrunner-01-pr2nd0-harden-ipdrunner-process-lifecycle-dependency-validation-and.ipd.md
+- `pr2nd0` [executed] 01 executed/20260824-ipdrunner-01-pr2nd0-harden-ipdrunner-process-lifecycle-dependency-validation-and.ipd.md
 
 ## archiveage
 

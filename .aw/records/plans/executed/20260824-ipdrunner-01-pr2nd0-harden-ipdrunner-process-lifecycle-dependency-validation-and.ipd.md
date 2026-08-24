@@ -5,15 +5,15 @@
 - Concern: Assessment of `tools/ipdrunner/*` identified bugs and resilience gaps in child process termination on signals/interrupts, prerequisite validation when dependencies are not included in the active queue, run directory resolution when relative paths are supplied, POSIX directory descriptor modes during atomic JSON writes, attempt timestamp completeness during interrupted recovery, and session ID key extraction.
 - Scope: `tools/ipdrunner/ipdrunner.py`, `tools/ipdrunner/test_ipdrunner.py`, and `tools/ipdrunner/20260823-pending-ipds-overnight-execution-runbook.md`.
 - Scope-Paths: grandfathered
-- Status: approved
+- Status: executed
 - Set: ipdrunner
 - Order: 1
 - Highest E allocated: 05
 - Author: Antigravity
 - Id: pr2nd0
-- Approval: 2026-08-24, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-24 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): E-01..E-05 performed, V-01..V-05 pass; product fixes 1dade05; python3 tools/ipdrunner/test_ipdrunner.py = 26 OK.
 - 2026-08-24 approved (aw set): status set to approved
 - 2026-08-24 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. All 6 findings (F-01..F-06) VERIFIED accurate against tools/ipdrunner/ipdrunner.py: F-01 run_opencode:537-539 (SIGINT+raise, no wait/escalate = orphan risk); F-02 dependency_status:382 (unqueued dep silently satisfied = fail-open); F-03 resolve_run_dir:774-779 (state_root/run_id only); F-04 atomic_write_json os.open O_DIRECTORY w/o O_RDONLY; F-05 reconcile_interrupted:688 (no interrupted_at); F-06 extract_session_id:361 (sessionID+ses_ only). PR-001 (MEDIUM): removed the spurious linear Depends-on chain - E-01..E-04 are independent single-function fixes, only E-05/tests depends on all four. PR-002 (LOW): added the missing execution contract (scope fence/honesty/path-scoped-never-push/lifecycle). PR-003 (LOW): documented the E-03/E-04 two-fix bundling rationale. PR-004 (LOW): real cohesion rationale + OQ-01 open->deferred (non-blocking). Baseline test suite green (3 tests).
 
