@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: There is no durable, inspectable proof that an IPD passed the pre-execution gate at a known base HEAD before work began. p7dqwz's terminal record retained no pre-execution evidence, so scope/lifecycle claims could not be independently checked after the fact. A scope check performed only against the final working tree is insufficient (product changes may already be committed; unrelated concurrent edits may exist), so the allowlist and base MUST be frozen BEFORE execution.
 - Scope: Add `aw ipd begin <plan> --actor <agent/model>` as the authoritative single-IPD execution entry and its receipt. Touch: a new narrowly-named single-IPD lifecycle module (e.g. `agent_workflows/ipd_lifecycle.py`), agent_workflows/cli.py (register the `ipd begin` verb + flags + help), reuse agent_workflows/run_freeze.py (`freeze_requirements`), agent_workflows/ipd_lint.py (invoke the pre-execution phase), and a new tests/test_ipd_lifecycle_cli.py. Does NOT implement finalize (Order 04) or remove bypasses (Order 06); it produces only the receipt that finalize will later require.
-- Status: draft
+- Status: reviewed
 - Set: ipdgates
 - Order: 3
 - Highest E allocated: 03
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-23 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created (decomposition of 39fz2x E-03).
+- 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Verified run_freeze.freeze_requirements (run_freeze.py:131, fail-closed) and the ipd_lint pre-execution checkpoint (ipd_lint.py:668). PR-001/PR-002 (resolved OQ-01's LOCATION half from repo evidence - `.aw/state/` is the documented gitignored home for "transaction journals/receipts", .gitignore:55-60 - rather than asking the human; corrected Step-0 which cited only workflow-artifacts/). PR-003 + OQ-01 lifetime resolved by human after a good challenge ("why the anchor? won't it thrash my multi-agent workflow?"): the base-HEAD anchor is needed to attribute changes to THIS execution in a multi-plan concurrent worktree, but my initial "stale when HEAD moved" rec WOULD have thrashed concurrent agents - so the resolved rule is PERSIST with a PATH-OVERLAP collision guard (HEAD movement never invalidates; only a plan-digest change or an intervening commit touching this plan's Scope-Paths does). This preserves the concurrent multi-agent workflow and feeds Order 04 OQ-01 ("this execution's changes" = diff restricted to Scope-Paths since base). E-01/V-01/gate updated.
 
 ## Goal
 
@@ -25,7 +26,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: The receipt and its binding
 
-- [ ] E-01 In a new single-IPD lifecycle module, implement the begin receipt: run the pre-execution lint phase; if it does not conform, write nothing and exit nonzero. On conformance, freeze the plan requirements and `Scope-Paths` via `run_freeze.freeze_requirements`, capture the base HEAD (refusing a dirty or ambiguous worktree/baseline with an actionable diagnostic), require a non-empty `--actor <agent/model>`, and build a receipt record binding {plan Id, plan content digest, frozen requirement/scope digest, base HEAD, actor/model, timestamp}. Write it ATOMICALLY to a local (uncommitted, gitignored) lifecycle-receipt location so an interrupted write leaves no partial/valid receipt; make it resumable (a re-read returns the same receipt deterministically).
+- [ ] E-01 In a new single-IPD lifecycle module, implement the begin receipt: run the pre-execution lint phase; if it does not conform, write nothing and exit nonzero. On conformance, freeze the plan requirements and `Scope-Paths` via `run_freeze.freeze_requirements`, capture the base HEAD (refusing a dirty or ambiguous worktree/baseline with an actionable diagnostic), require a non-empty `--actor <agent/model>`, and build a receipt record binding {plan Id, plan content digest, frozen requirement/scope digest, base HEAD, actor/model, timestamp}. Write it ATOMICALLY to the gitignored `.aw/state/` tree (location resolved per OQ-01, e.g. `.aw/state/ipd-lifecycle/<id6>.receipt.json`) so an interrupted write leaves no partial/valid receipt; make it resumable (a re-read returns the same receipt deterministically). LIFETIME (OQ-01 resolved): the receipt PERSISTS across unrelated intervening commits (HEAD movement does NOT invalidate it, preserving the concurrent multi-agent workflow); it is invalidated only by a plan-digest change or an intervening commit that touched a path inside this plan's `Scope-Paths`. Order 04's finalize enforces the path-overlap collision check; `begin` only needs to record the base HEAD + frozen `Scope-Paths` that make that check possible.
   - Depends on: none
   - Expected outcome: a conforming pre-execution run yields exactly one atomic, resumable receipt bound to the plan+scope+base; any failure yields none.
   - Execution state: pending
@@ -50,7 +51,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 - `run_freeze.freeze_requirements()` (`agent_workflows/run_freeze.py:131`) supplies stable requirement digests; reuse it rather than inventing a second digest engine.
 - `aw ipd lint` already owns the phase checkpoints (`--phase pre-execution`); this command INVOKES it, it does not reimplement lint.
-- Run records / receipts that carry machine-specific paths or session detail are LOCAL-ONLY by convention (see `.gitignore` for `workflow-artifacts/`); the receipt MUST be local-only and gitignored, never committed.
+- The repo already has a gitignored home for exactly this kind of artifact: `.aw/state/` (`.gitignore:55-60`), whose comment explicitly names "runtime scratch, migration transaction journals/**receipts**". The begin receipt MUST live there (local-only, never committed) - see OQ-01 (location resolved from this evidence; only lifetime remains a human decision).
 - `Scope-Paths` is defined by Order 02 (dependency); begin freezes whatever the approved plan declares.
 
 ## Findings
@@ -85,19 +86,19 @@ Freezing the scope+base BEFORE work is what makes a later scope comparison meani
 
 ## Open questions
 
-### OQ-01: Where does the local receipt live, and what is its lifetime?
+### OQ-01: What is the begin receipt's LIFETIME / staleness rule? (location resolved from evidence)
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: human
-- Resolution or deferral rationale: TODO (human). The receipt must be local-only (never committed, may carry base HEAD + actor). Options: (A) under `.aw/` in a gitignored subdir (e.g. `.aw/state/ipd-lifecycle/<id6>.receipt.json`) - discoverable, co-located; (B) under the existing `workflow-artifacts/` local tree; (C) an OS-level per-repo cache dir. Also: does a receipt expire (e.g. invalid if base HEAD moved) or persist until finalize consumes it? The executor MUST get a human decision on location + lifetime before E-01 fixes the path.
+- Resolution or deferral rationale: LOCATION resolved from repository evidence: the receipt lives under the existing gitignored `.aw/state/` tree (`.gitignore:55-60` names it the home for "migration transaction journals/receipts"), e.g. `.aw/state/ipd-lifecycle/<id6>.receipt.json`, local-only, never committed. LIFETIME resolved by human (2026-08-23, /plan-review): the receipt PERSISTS across unrelated intervening commits - HEAD moving does NOT invalidate it - so the maintainer's concurrent multi-agent workflow (multiple agents committing on the same branch on DISJOINT file sets) never triggers a needless re-`begin`. The validity rule is PATH-OVERLAP-scoped, not HEAD-identity-scoped: a receipt is invalidated only by (a) a change to the plan's own content digest (already required), or (b) an intervening commit since the frozen base that modified a path INSIDE this plan's `Scope-Paths` (a genuine same-file collision - rare, worth flagging). Unrelated intervening commits on disjoint paths are ignored. This directly informs Order 04's OQ-01 ("this execution's changes" = the diff restricted to this plan's `Scope-Paths` since base): finalize refuses on (a) this execution touching a path OUTSIDE `Scope-Paths`, or (b) another commit touching a path INSIDE `Scope-Paths` since base.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: a test shows a conforming run writes exactly one atomic receipt binding plan Id/digest/scope/base HEAD/actor/timestamp; lint-nonconform, dirty/ambiguous baseline, missing actor, and interrupted write each leave no valid receipt; a re-read is deterministic (resume).
+  - Required evidence: a test shows a conforming run writes exactly one atomic receipt (under `.aw/state/`) binding plan Id/digest/frozen `Scope-Paths`/base HEAD/actor/timestamp; lint-nonconform, dirty/ambiguous baseline, missing actor, and interrupted write each leave no valid receipt; a re-read is deterministic (resume); and the receipt PERSISTS (remains valid + resumable) after an unrelated intervening commit on DISJOINT paths (proving HEAD movement alone does not invalidate it - the path-overlap collision enforcement itself is Order 04's finalize test).
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
@@ -116,7 +117,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 ### Execution contract
 
-1. Open questions RESOLVED: OQ-01 (receipt location + lifetime) MUST be resolved by a human before E-01.
+1. Open questions RESOLVED: OQ-01 resolved - receipt location is `.aw/state/ipd-lifecycle/` (from repo evidence); lifetime PERSISTS with a path-overlap collision guard (human, 2026-08-23), preserving the concurrent multi-agent workflow.
 2. Scope fence: touch ONLY the new single-IPD lifecycle module, `cli.py` (begin verb), `ipd_lint.py` (invoke pre-execution phase), reuse `run_freeze.py`, and `tests/test_ipd_lifecycle_cli.py`, plus the lifecycle doc/spec via managed verbs. Do NOT implement finalize or remove bypasses. If it seems to need more, STOP and report.
 3. Honesty rule (hard MUST): when reporting tests passed, paste the ACTUAL runner output and the receipt path/digest; never claim a pass without running the actual command.
 4. Commit ONLY this plan's own changed files, path-scoped (`git commit -m msg -- <paths>`); never `git add -A`/bare/`-a`; never push. The receipt is local-only and MUST NOT be committed (confirm it is gitignored).
