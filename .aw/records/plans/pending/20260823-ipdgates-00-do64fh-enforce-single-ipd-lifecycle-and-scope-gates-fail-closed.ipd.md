@@ -4,7 +4,7 @@
 - Kind: orchestrator
 - Concern: Verification of the executed IPD p7dqwz found that the executor delivered the requested product work but (a) committed an out-of-scope `tests/test_empty_state_ux.py` change in commit 57a70b0, outside p7dqwz's hard scope fence, and (b) left a terminal record carrying the generic `executed (aw set)` actor with no durable pre-execution / pre-transition gate evidence. Prose-only STOP rules did not contain the behavior, and `aw set executed` still provides an ungated terminal-transition bypass. This Set replaces the prose safeguards with machine-checkable, fail-closed lifecycle gates for the ordinary single-IPD path.
 - Scope: Orchestrates a six-child Set that (1) owns the concrete p7dqwz test-scope residue, (2) adds a machine-readable `Scope-Paths` allowlist to the IPD schema with a grandfather policy, (3) adds a fail-closed `aw ipd begin` execution-start receipt, (4) adds an atomic `aw ipd finalize` terminal transaction, (5) adds finalize rollback/failure semantics, and (6) removes the raw terminal-transition bypasses and strengthens history-attribution lint. Touches agent_workflows/{ipd_schema.py,ipd_lint.py,ipd_authoring.py,status_set.py,cli.py,run_freeze.py} plus one narrowly-named new single-IPD lifecycle module, tests/test_empty_state_ux.py, focused tests/test_ipd_*.py + tests/test_status_set.py + a new lifecycle test file, the implemented IPD lifecycle spec (via its managed verb), .aw/system/workflows/ipd-lifecycle/, .aw/records/plans/README.md, CONTRIBUTING.md, and required CLI/help/installer parity surfaces. Does NOT implement autonomous Set execution (that is the reviewed execset Set), retrofit or edit any terminal IPD (including p7dqwz), rewrite the run ledger, or change product behavior unrelated to IPD execution fidelity.
-- Status: draft
+- Status: reviewed
 - Set: ipdgates
 - Order: 0
 - Highest E allocated: 02
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-23 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created as the decomposition of the REJECT-NEEDS-REPLAN single IPD 39fz2x (ipdfidelity-01), per its OQ-05 blueprint and the human's /plan-review decision to decompose into an orchestrated Set.
+- 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Verified all six child-table filenames resolve to real (truncated) on-disk files and match cited Ids/orders. PR-001/PR-002 (HIGH-value self-bootstrap gap: the orchestrator self-finalizes via `aw ipd finalize`, which requires a begin receipt + `Scope-Paths` comparison that Order 02 makes hard-required for post-cutoff plans - but NO ipdgates plan carries `Scope-Paths`, and the Set is authored before Order 02 ships, so the Set would circularly block its own gates; added a `## Self-bootstrap` section grandfathering the ipdgates Set's own plans as Scope-Paths-advisory, tying the cutoff to Order 02's OQ-01, and requiring the finalize grammar to allow a grandfathered plan to finalize via the implicit lifecycle-artifact exception; added matching completion + cross-IPD criteria); PR-003 (E-01 now enumerates the Set-wide blocking-OQ ledger: Order 02/03/04/06 OQ-01, currently OPEN pending per-child review). Verified Order 02 (Scope-Paths required post-cutoff) and Order 04 (finalize requires receipt+comparison) against their files.
 
 ## Goal
 
@@ -27,9 +28,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Orchestrate the six-child lifecycle-gate Set
 
-- [ ] E-01 Confirm the six child IPDs (Orders 01-06) are authored, `aw ipd lint`-conforming, and their dependency order is recorded in the child table below; do not execute a child until its `Depends on` predecessors are executed with clean manifests and its own blocking open questions are human-resolved.
+- [ ] E-01 Confirm the six child IPDs (Orders 01-06) are authored, `aw ipd lint`-conforming, and their dependency order is recorded in the child table below; do not execute a child until (a) its `Depends on` predecessors are executed with clean manifests, AND (b) every BLOCKING open question it carries is human-resolved. The blocking-OQ ledger across this Set (each is per-child and, since the children have NOT yet been individually reviewed, currently OPEN pending per-child `/aw plan-review`): Order 02 OQ-01 (grandfather-cutoff representation), Order 03 OQ-01 (begin-receipt location + lifetime), Order 04 OQ-01 (what "this execution's changes" means vs concurrent edits), Order 06 OQ-01 (attribution-lint forward-only vs repo-wide). Orders 01 and 05 carry no blocking OQ. A child with any unresolved blocking OQ is NO-GO and MUST NOT be executed.
   - Depends on: none
-  - Expected outcome: the Set is coherent and each child is ready for per-child human approval and sequential execution.
+  - Expected outcome: the Set is coherent and each child is ready for per-child human approval, blocking-OQ resolution, and sequential execution.
   - Execution state: pending
 
 - [ ] E-02 After all six children are executed, run the Cross-IPD validation below (one lifecycle module, three gates enforced, no raw terminal bypass remains, grandfather policy holds, self-finalize dogfood succeeded) and confirm the full suite is green; then transition this orchestrator to executed via `aw ipd finalize` (dogfooding the primitive the Set built).
@@ -59,7 +60,8 @@ Execution order: 01 and 02 have no dependency and may run first in either order;
 - `aw ipd begin` produces a fail-closed receipt bound to plan Id + digest + base HEAD + actor/model + timestamp; nonconforming lint, dirty/ambiguous baseline, or missing actor yields NO valid receipt.
 - `aw ipd finalize` is the ONLY supported single-IPD terminal transaction; it refuses the exact p7dqwz failure signatures (an extra `tests/test_empty_state_ux.py` path; absent pre-execution/pre-transition evidence), emits captured gate evidence, and is rollback-safe.
 - No public CLI path (`aw set executed`, `aw ipd set executed`, or an alias) can move an IPD to `executed` without the receipt, scope comparison, three lint gates, attributed history, and lifecycle commit; post-transition lint rejects `executed (aw set)`-style generic-actor entries.
-- This orchestrator was itself finalized via `aw ipd finalize` (self-dogfood), and `pytest -n auto` is green with `aw check all` showing no new Set-attributable findings.
+- The `ipdgates` Set's own plans were treated as grandfathered `Scope-Paths`-advisory (per the Self-bootstrap section), so the Set could build and then pass its own gates without circular blocking.
+- This orchestrator was itself finalized via `aw ipd finalize` (self-dogfood) as a grandfathered plan using the implicit lifecycle-artifact exception, and `pytest -n auto` is green with `aw check all` showing no new Set-attributable findings.
 
 ## Cross-IPD validation
 
@@ -67,8 +69,16 @@ Execution order: 01 and 02 have no dependency and may run first in either order;
 - **Three gates enforced end-to-end:** an integration test drives begin -> work -> finalize and asserts all three lint phases (pre-execution, pre-transition, post-transition) ran and their outputs are captured in the receipt/report.
 - **No raw bypass remains:** a test enumerates the plan-terminal CLI aliases and asserts every one refuses and points to `aw ipd finalize`.
 - **Grandfather holds:** a fixture standing in for a pre-cutoff reviewed sibling (unifyfileio/execset) is NOT blocked from approval by the missing `Scope-Paths`; a post-cutoff fixture IS.
-- **Self-dogfood:** the orchestrator's own terminal transition used `aw ipd finalize` (recorded in its workflow history and the finalize evidence), not a raw transition.
+- **Self-dogfood + grandfather:** the orchestrator's own terminal transition used `aw ipd finalize` (recorded in its workflow history and the finalize evidence), not a raw transition, AND it succeeded as a grandfathered `Scope-Paths`-advisory plan via the implicit lifecycle-artifact exception (proving the Set's own plans are not circularly blocked by the requirement they introduce).
 - **Whole-suite regression:** `pytest -n auto` green; pasted in E-02 here and in each child's V-items.
+
+## Self-bootstrap (this Set creates the very gates it must pass)
+
+This Set BUILDS the `Scope-Paths` requirement (Order 02) and the `aw ipd begin`/`aw ipd finalize` commands (Orders 03/04), then requires its own later members AND this orchestrator to finalize through them (self-dogfood). That is circular unless the bootstrap order is explicit:
+
+- **The `ipdgates` Set's own plans are GRANDFATHERED** with respect to the `Scope-Paths` hard-requirement: they were authored BEFORE Order 02 ships the requirement, so - exactly like the `unifyfileio`/`execset` siblings (OQ-01) - they are `Scope-Paths`-advisory, not blocked. A plan cannot be hard-gated by a field its own Set is still introducing. This grandfathering is governed by Order 02's OQ-01 cutoff decision (still OPEN, human-owned); whichever cutoff representation Order 02 adopts MUST classify the `ipdgates` plans as pre-cutoff/advisory.
+- **Bootstrap execution order for the self-dogfood:** Orders 01, 02, 03 are transitioned with the EXISTING lifecycle workflow (the new commands do not exist yet). Order 04 is the FIRST plan that MAY finalize via the just-built `aw ipd finalize`. Orders 05, 06, and THIS orchestrator finalize via `aw ipd finalize`. For the orchestrator's own self-finalize to work while it is grandfathered (no `Scope-Paths`), Order 02's grammar MUST allow a grandfathered plan to finalize with the implicit lifecycle-artifact exception (its own plan file + index refresh) rather than requiring a declared allowlist. If `aw ipd finalize` cannot finalize a grandfathered plan, STOP and report - do not fall back to a raw transition.
+- If, when Order 04/06 land, self-finalizing a grandfathered `ipdgates` plan is not yet supported by the finalize grammar, that is a real gap to fix in Order 02/04 (or a corrective), NOT a reason to hand-edit status.
 
 ## Deferred / out of scope (with reason)
 
