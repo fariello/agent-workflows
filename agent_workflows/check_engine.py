@@ -408,6 +408,139 @@ def _check_identity_slots(records: List[tuple]) -> List[_core.Drift]:
     return drift
 
 
+_STATUS_META_RE = _re.compile(r"(?m)^- Status:\s*(\S+)\s*$")
+_PLANS_PREFIX = ".aw/records/plans/"
+_EXECUTED_SEGMENT = "/executed/"
+
+
+def _git_capture(repo_root: Path, args: List[str]):
+    """Run a git command in ``repo_root``; return (returncode, stdout, stderr)."""
+    import subprocess
+
+    proc = subprocess.run(
+        ["git", *args],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return proc.returncode, proc.stdout, proc.stderr
+
+
+def _blob_text(repo_root: Path, ref: str, path: str) -> "str | None":
+    """Content of ``path`` at ``ref`` (HEAD or the staged index ``:0:``), or None if absent."""
+    spec = f":0:{path}" if ref == ":0:" else f"{ref}:{path}"
+    rc, out, _err = _git_capture(repo_root, ["show", spec])
+    return out if rc == 0 else None
+
+
+def _status_meta(text: "str | None") -> "str | None":
+    """The metadata ``- Status: <value>`` value (lowercased), or None."""
+    if not text:
+        return None
+    m = _STATUS_META_RE.search(text)
+    return m.group(1).strip().lower() if m else None
+
+
+def _is_plan_ipd_path(path: str) -> bool:
+    """True for a plan IPD record path under .aw/records/plans/** (a ``.ipd.md``)."""
+    p = path.strip().replace("\\", "/")
+    return p.startswith(_PLANS_PREFIX) and p.endswith(".ipd.md")
+
+
+def _has_matching_history_line(text: "str | None", status: str) -> bool:
+    """True iff the plan's ``## Workflow history`` carries a tool-authored transition line for
+    ``status`` (predicate A, per OQ-01): a ``- <date> <status> (<actor>): ...`` line whose status
+    token equals ``status``. Reuses ipd_lint's history parser + ``_HISTORY_LINE_RE`` (no 2nd parser).
+
+    This catches the CARELESS hand-edit (a `- Status:` flip with NO note added). It does NOT catch a
+    hand-edit that also writes a plausible line - that limit is accepted (safety net; see the IPD's
+    efficacy ceiling). `aw set`/`aw ipd set` always append such a line on every transition."""
+    if not text:
+        return False
+    from agent_workflows import ipd_lint as _lint
+
+    want = status.strip().lower()
+    doc = _lint.parse(text)
+    for _lineno, line_text in doc.history_lines:
+        m = _lint._HISTORY_LINE_RE.match(line_text.strip())
+        if m and m.group(1).rstrip(":").lower() == want:
+            return True
+    return False
+
+
+def check_status_untooled(repo_root: Path) -> List[_core.Drift]:
+    """COMMIT-SCOPED detector for the careless UNTOOLED intermediate status change (proclint 79li67).
+
+    Compares the STAGED index (``:0:``) against HEAD and flags each PLAN whose ``- Status:`` changed in
+    THIS commit with NO matching tool-authored ``## Workflow history`` transition line for the new
+    status value - the fingerprint of a hand-edited (non-``aw set``) status flip. ``aw set``/``aw ipd
+    set`` append ``- <date> <status> (<actor>): <message>`` on every transition (status_set.py:504);
+    a staged status change with no such matching line looks hand-edited. Emits ``check.status-untooled``
+    naming the plan and the tool fix.
+
+    Commit-scoping is the key simplification: ONLY files changed in the commit are examined, so
+    historical records are never touched (NO grandfathering, NO whole-tree scan). ``executed/`` records
+    are EXCLUDED (terminal; a move OUT of ``executed/`` is itself a staged change and IS checked - it
+    gains a status delta). History-less types (prompts/releases) are never examined (plan IPDs only).
+
+    Fast no-op when no plan status change is staged (e.g. ordinary ``aw check`` on a clean tree).
+    """
+    repo_root = Path(repo_root)
+    rc, out, _err = _git_capture(
+        repo_root, ["diff", "--cached", "--name-status", "-M", "--", _PLANS_PREFIX]
+    )
+    if rc != 0 or not out.strip():
+        return []  # fast no-op: nothing staged under plans/
+    drift: List[_core.Drift] = []
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if not parts:
+            continue
+        code = parts[0].strip()
+        if code.startswith("D"):
+            continue  # a pure deletion carries no new status to attribute
+        if code.startswith("R") and len(parts) >= 3:
+            old_path, new_path = parts[1].strip(), parts[2].strip()
+        elif len(parts) >= 2:
+            new_path = parts[-1].strip()
+            old_path = parts[1].strip() if code in ("C",) else None
+            if code in ("M",):
+                old_path = new_path  # same path, compare staged vs HEAD content
+        else:
+            continue
+        if not _is_plan_ipd_path(new_path):
+            continue
+        # Exclude records already terminal in executed/. A move OUT of executed/ has a non-executed
+        # new_path (so this guard passes) and IS checked; a plan inside executed/ is skipped.
+        if _EXECUTED_SEGMENT in ("/" + new_path):
+            continue
+        staged_text = _blob_text(repo_root, ":0:", new_path)
+        staged_status = _status_meta(staged_text)
+        if staged_status is None:
+            continue  # no status metadata staged -> nothing to attribute
+        head_text = _blob_text(repo_root, "HEAD", old_path) if old_path else None
+        head_status = _status_meta(head_text)
+        if staged_status == head_status:
+            continue  # status did not change in this commit
+        # The status changed (or a new plan was added with a status): require a matching
+        # tool-authored history line for the NEW status. Missing -> looks hand-edited.
+        if not _has_matching_history_line(staged_text, staged_status):
+            drift.append(
+                _core.Drift(
+                    new_path,
+                    "check.status-untooled",
+                    (
+                        f"'- Status:' changed to '{staged_status}' in this commit with no matching "
+                        f"tool-authored '## Workflow history' line; apply it via "
+                        f"`aw set {staged_status} <id6>` (or `aw ipd set {staged_status} <id6>`) so "
+                        f"the transition is attributed"
+                    ),
+                )
+            )
+    return drift
+
+
 def check_type(
     repo_root: Path,
     record_type: str,
@@ -469,6 +602,13 @@ def check_types(
             from agent_workflows import releases as _releases
 
             drift.extend(_releases.check_blocks_release(repo_root))
+        except Exception:
+            pass
+        # proclint 79li67: the COMMIT-SCOPED untooled-status detector rides `aw check`/`aw check all`
+        # (a fast no-op when no plan status change is staged), the intermediate-transition sibling of
+        # the dulzpy pre-commit gate. It examines only commit-changed plan files (no whole-tree scan).
+        try:
+            drift.extend(check_status_untooled(repo_root))
         except Exception:
             pass
     return drift

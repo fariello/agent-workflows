@@ -383,6 +383,17 @@ _DESCRIPTIONS = {
         "(--no-verify bypasses it; 'aw check'/'aw doctor' proclint is the backstop); no CI. Exit 0 "
         "= ok/no-op, 1 = refused. Invoked by the repo:local pre-commit hook, not typically by hand."
     ),
+    "ipd-status-untooled-gate": (
+        "Local pre-commit gate (proclint 79li67): flag a raw (untooled) INTERMEDIATE plan status "
+        "change - the sibling of the dulzpy terminal gate. Inspects the staged diff and, for each "
+        "plan whose '- Status:' changed in this commit with NO matching tool-authored "
+        "'## Workflow history' transition line for the new status (the fingerprint of a hand-edit), "
+        "refuses the commit naming 'aw set <status> <id6>'. Commit-scoped (only changed plan files; "
+        "executed/ and history-less types excluded; no whole-tree scan, no grandfathering). LOCAL "
+        "best-effort only (--no-verify bypasses it; a hand-edit that also adds a plausible line "
+        "evades it; 'aw check'/'aw doctor' is the backstop); no CI. Exit 0 = ok/no-op, 1 = refused. "
+        "Invoked by the repo:local pre-commit hook, not typically by hand."
+    ),
 }
 
 
@@ -2442,6 +2453,16 @@ EXAMPLES
         parents=[common],
         help="Local pre-commit gate: refuse a raw (non-finalize) plan->executed commit "
         "(verifies aw ipd finalize evidence; LOCAL prevention, no CI).",
+    )
+
+    # proclint 79li67: local pre-commit gate on raw (untooled) INTERMEDIATE plan status changes. The
+    # sibling of ipd-executed-gate; refuses a staged plan whose `- Status:` changed with no matching
+    # tool-authored `## Workflow history` line. Commit-scoped, LOCAL best-effort only (no CI).
+    sub.add_parser(
+        "ipd-status-untooled-gate",
+        parents=[common],
+        help="Local pre-commit gate: flag a raw (untooled) intermediate plan status change "
+        "(no attributed history line; use aw set <status> <id6>; LOCAL prevention, no CI).",
     )
 
     _apply_descriptions(parser)
@@ -6881,6 +6902,11 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         from agent_workflows.hooks import executed_transition_gate as _gate
 
         return _gate.main([])
+
+    if args.command == "ipd-status-untooled-gate":
+        from agent_workflows.hooks import status_untooled_gate as _sgate
+
+        return _sgate.main([])
 
     parser.print_help()
     return 2

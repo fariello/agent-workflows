@@ -118,6 +118,24 @@ the deterministic backstop is the `proclint` detector via `aw check`/`aw doctor`
 NO remote/CI enforcement. It does NOT fire on prompts (which share the `executed` token), non-plan
 artifacts, nonterminal plan changes, or ordinary commits.
 
+Untooled INTERMEDIATE status detector (proclint Order 79li67, the sibling of Order dulzpy): the dulzpy
+gate covers the TERMINAL `->executed` commit, but nothing catches a hand-edited INTERMEDIATE transition
+(`draft`->`to-review`->`reviewed`->`approved`, and `approved` is a trust boundary). Lifecycle status is
+meant to change via `aw set`/`aw ipd set`, which append an attributed `- <date> <status> (<actor>): <msg>`
+line to `## Workflow history` on every transition; a hand-edited `- Status:` produces no such line. A
+COMMIT-SCOPED detector (`check.status-untooled`) compares the STAGED plan content against HEAD and flags
+each plan whose `- Status:` changed in this commit with NO matching tool-authored history line for the new
+status, surfaced BOTH through `aw check`/`aw doctor` (over changed files - a fast no-op when nothing is
+staged) AND, primarily, a LOCAL `repo: local` pre-commit hook (`python3 -m agent_workflows
+ipd-status-untooled-gate`, installed into `.pre-commit-config.yaml` by `aw install`/`setup-repo`) that
+refuses the commit naming `aw set <status> <id6>`. It is commit-scoped: only files changed in the commit
+are examined (so historical records are NEVER scanned - no grandfathering), `executed/` records are
+excluded (terminal; a move OUT of `executed/` is a staged change and IS checked), and history-less types
+(prompts/releases carry no `## Workflow history`) are excluded. Honest limits: this is predicate A
+(textual) - it catches the CARELESS omission (a status flip with no note) but is EVADABLE by a hand-edit
+that also writes a plausible line, and `--no-verify` bypasses the hook; it is a safety net, not a proof
+(the preventive layer is the `aw set` delegation + the `ipdgates` gates). There is deliberately NO CI.
+
 Recovery paths (no bypass MUST NOT mean no way forward): each stuck case has an honest, non-fabricating
 recovery. (1) MISSING begin receipt: finalize refuses and points to running `aw ipd begin` (it does NOT
 back-date a start that never happened); a genuinely pre-receipt/grandfathered plan records an honest

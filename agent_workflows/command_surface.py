@@ -579,6 +579,19 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=("--agent", "--json"),
         exit_contract=(0, 1),
     ),
+    CommandDeclaration(
+        # proclint 79li67: local pre-commit gate on raw (untooled) INTERMEDIATE plan status changes.
+        # The sibling of ipd-executed-gate; a check-class, read-only gate (reads the staged diff;
+        # makes no changes). Exit 0 ok/no-op, 1 refused. Invoked by the repo:local pre-commit hook.
+        command="ipd-status-untooled-gate",
+        command_class="check",
+        human_recipe="check",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--agent", "--json"),
+        exit_contract=(0, 1),
+    ),
     # --- IPD / Plans Family ---
     CommandDeclaration(
         command="ipd board",

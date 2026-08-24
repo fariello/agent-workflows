@@ -454,8 +454,14 @@ def probe_artifacts(
                             res.type_drift.setdefault(t, []).append(drift_item)
                             res.all_drift.append(drift_item)
 
-        # Global setid collisions across types
-        collisions = check_engine.check_collisions(repo_root)
+        # Global setid collisions across types, PLUS the proclint 79li67 COMMIT-SCOPED untooled-status
+        # detector (a fast no-op unless a plan `- Status:` change is staged). Both are cross-tree /
+        # commit-wide rules keyed off git state rather than a single record file.
+        collisions = list(check_engine.check_collisions(repo_root))
+        try:
+            collisions.extend(check_engine.check_status_untooled(repo_root))
+        except Exception:
+            pass
         if collisions:
             for d in collisions:
                 loc = d.location
@@ -711,6 +717,31 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
                 "and reference the source via a typed frontmatter field (e.g. 'Target-Id: <id6>') per DECISIONS.md D140."
             ),
             command=None,
+            file_path=loc,
+        )
+
+    if "status-untooled" in rule:
+        import re as _re
+
+        title = "Plan status changed without an attributed history entry (looks hand-edited)"
+        # Best-effort extraction of the new status word from the detail for a precise command.
+        m_status = _re.search(r"changed to '([a-z-]+)'", detail)
+        status_word = m_status.group(1) if m_status else "<status>"
+        cmd = f"aw set {status_word} <id6>"
+        return Remediation(
+            title=title,
+            summary_fix=(
+                f"apply this status change via '{cmd}' (or 'aw ipd set {status_word} <id6>') so it "
+                "carries an attributed '## Workflow history' line, instead of hand-editing '- Status:'."
+            ),
+            detailed_fix=(
+                f"the '- Status:' of {loc} changed in this commit with no matching tool-authored "
+                f"'## Workflow history' transition line; revert the hand edit and apply the change via "
+                f"'{cmd}' (or 'aw ipd set {status_word} <id6>') so an attributed history entry is "
+                "appended. This is the intermediate-transition sibling of the terminal 'aw ipd finalize' "
+                "gate; it is a LOCAL commit-scoped detector (--no-verify bypasses the hook)."
+            ),
+            command=cmd,
             file_path=loc,
         )
 

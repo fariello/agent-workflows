@@ -4318,6 +4318,16 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+
+      # Local prevention: flag a raw (untooled) INTERMEDIATE plan status change (a `- Status:` flip
+      # with no matching `## Workflow history` line). Sibling of the executed-transition gate above.
+      # Best-effort/local only (--no-verify bypasses it); the backstop is `aw check`/`aw doctor`. No CI.
+      - id: ipd-status-untooled-gate
+        name: no untooled plan status change (use aw set)
+        entry: python3 -m agent_workflows ipd-status-untooled-gate
+        language: system
+        pass_filenames: false
+        always_run: true
 """
 
 # The hook block to hand a user who ALREADY has a .pre-commit-config.yaml (we never edit theirs).
@@ -4334,6 +4344,13 @@ _LOCAL_LEAKS_PRECOMMIT_BLOCK = """\
       - id: ipd-executed-transition-gate
         name: no raw plan->executed commit (use aw ipd finalize)
         entry: python3 -m agent_workflows ipd-executed-gate
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: ipd-status-untooled-gate
+        name: no untooled plan status change (use aw set)
+        entry: python3 -m agent_workflows ipd-status-untooled-gate
         language: system
         pass_filenames: false
         always_run: true

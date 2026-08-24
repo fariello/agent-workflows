@@ -58,3 +58,17 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+
+      # proclint 79li67: LOCAL prevention of a raw (untooled) INTERMEDIATE plan status change - the
+      # sibling of the dulzpy terminal gate above. Inspects the staged diff and, for each plan whose
+      # `- Status:` changed in this commit with NO matching tool-authored `## Workflow history` line
+      # (the fingerprint of a hand-edit), refuses naming `aw set <status> <id6>`. Commit-scoped (only
+      # changed plan files; executed/ and history-less types excluded). Best-effort/local only
+      # (skippable with --no-verify; a hand-edit that also adds a plausible line evades it); the
+      # deterministic backstop is `aw check`/`aw doctor`. No CI enforcement.
+      - id: ipd-status-untooled-gate
+        name: no untooled plan status change (use aw set)
+        entry: python3 -m agent_workflows ipd-status-untooled-gate
+        language: system
+        pass_filenames: false
+        always_run: true
