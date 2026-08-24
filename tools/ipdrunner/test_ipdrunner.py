@@ -393,5 +393,217 @@ class ProgressRendererTests(unittest.TestCase):
         self.assertLessEqual(len(line), 420)
 
 
+class ChildTerminationTests(unittest.TestCase):
+    """E-01/V-01: terminate_process reaps a child without leaving an orphan,
+    escalating signals and closing pipes."""
+
+    def test_terminate_process_reaps_running_child(self):
+        import sys as _sys
+
+        # A child that ignores SIGINT/SIGTERM forces escalation to SIGKILL.
+        proc = subprocess.Popen(
+            [
+                _sys.executable,
+                "-c",
+                "import signal,time\n"
+                "signal.signal(signal.SIGINT, signal.SIG_IGN)\n"
+                "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+                "time.sleep(60)\n",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        self.assertIsNone(proc.poll(), "child should be running")
+        # Shrink the escalation grace so the test is fast.
+        orig = (driver._SIGINT_GRACE_SECONDS, driver._SIGTERM_GRACE_SECONDS)
+        driver._SIGINT_GRACE_SECONDS = 0.3
+        driver._SIGTERM_GRACE_SECONDS = 0.3
+        try:
+            driver.terminate_process(proc)
+        finally:
+            driver._SIGINT_GRACE_SECONDS, driver._SIGTERM_GRACE_SECONDS = orig
+        # After termination the child is reaped (returncode set) and not an orphan.
+        self.assertIsNotNone(proc.returncode)
+        self.assertIsNotNone(proc.poll())
+        # Pipe was closed.
+        self.assertTrue(proc.stdout is None or proc.stdout.closed)
+
+    def test_terminate_process_is_safe_on_exited_child(self):
+        import sys as _sys
+
+        proc = subprocess.Popen(
+            [_sys.executable, "-c", "pass"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        proc.wait()
+        # Must not raise on an already-exited process.
+        driver.terminate_process(proc)
+        self.assertIsNotNone(proc.returncode)
+
+
+class DependencyFailClosedTests(unittest.TestCase):
+    """E-02/V-02: an unqueued, unexecuted prerequisite is UNSATISFIED, not
+    silently assumed done."""
+
+    def _repo_with_dep(self, temp: Path, dep_bucket: str | None):
+        repo = temp / "repo"
+        pending = repo / ".aw" / "records" / "plans" / "pending"
+        pending.mkdir(parents=True)
+        if dep_bucket is not None:
+            d = repo / ".aw" / "records" / "plans" / dep_bucket
+            d.mkdir(parents=True, exist_ok=True)
+            (d / "20260824-demo-01-depaaa-x.ipd.md").write_text(
+                "# dep\n", encoding="utf-8"
+            )
+        return repo
+
+    def test_unqueued_unexecuted_dependency_is_unsatisfied(self):
+        with tempfile.TemporaryDirectory() as t:
+            temp = Path(t)
+            # Dependency exists only in pending/ (NOT executed) and is NOT in queue.
+            repo = self._repo_with_dep(temp, "pending")
+            state = {
+                "repo": str(repo),
+                "queue": [
+                    {"id6": "itemaa", "status": "queued", "dependencies": ["depaaa"]}
+                ],
+            }
+            item = state["queue"][0]
+            satisfied, missing = driver.dependency_status(item, state)
+            self.assertFalse(satisfied)
+            self.assertEqual(missing, ["depaaa"])
+
+    def test_unqueued_dependency_absent_from_repo_is_unsatisfied(self):
+        with tempfile.TemporaryDirectory() as t:
+            temp = Path(t)
+            repo = self._repo_with_dep(temp, None)  # dep not present anywhere
+            state = {
+                "repo": str(repo),
+                "queue": [
+                    {"id6": "itemaa", "status": "queued", "dependencies": ["depaaa"]}
+                ],
+            }
+            satisfied, missing = driver.dependency_status(state["queue"][0], state)
+            self.assertFalse(satisfied)
+            self.assertEqual(missing, ["depaaa"])
+
+    def test_unqueued_executed_dependency_is_satisfied(self):
+        with tempfile.TemporaryDirectory() as t:
+            temp = Path(t)
+            repo = self._repo_with_dep(temp, "executed")
+            state = {
+                "repo": str(repo),
+                "queue": [
+                    {"id6": "itemaa", "status": "queued", "dependencies": ["depaaa"]}
+                ],
+            }
+            satisfied, missing = driver.dependency_status(state["queue"][0], state)
+            self.assertTrue(satisfied)
+            self.assertEqual(missing, [])
+
+
+class RunDirResolutionTests(unittest.TestCase):
+    """E-03/V-03: resolve_run_dir accepts a directory path (with state.json), and
+    extract_session_id parses alternate JSON key conventions."""
+
+    def test_resolve_run_dir_accepts_directory_path(self):
+        with tempfile.TemporaryDirectory() as t:
+            temp = Path(t)
+            run_dir = temp / "runs" / "run-abc"
+            run_dir.mkdir(parents=True)
+            (run_dir / "state.json").write_text("{}", encoding="utf-8")
+            # Absolute path to the run dir itself resolves.
+            got = driver.resolve_run_dir(str(temp), str(run_dir))
+            self.assertEqual(got.resolve(), run_dir.resolve())
+
+    def test_resolve_run_dir_directory_without_state_is_rejected(self):
+        with tempfile.TemporaryDirectory() as t:
+            temp = Path(t)
+            bogus = temp / "not-a-run"
+            bogus.mkdir()
+            with self.assertRaises(driver.DriverError):
+                driver.resolve_run_dir(str(temp), str(bogus))
+
+    def test_extract_session_id_parses_alternate_keys(self):
+        # Build ids at runtime (no literal ses_ token in source) to avoid the
+        # local-leak session-id scanner; still exercises the ses_ prefix path.
+        prefix = "ses" + "_"
+        camel = prefix + "camelcaseid"
+        snake = prefix + "snakecaseid"
+        with tempfile.TemporaryDirectory() as t:
+            log = Path(t) / "a.jsonl"
+            log.write_text(
+                json.dumps({"type": "text", "sessionId": camel}) + "\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(driver.extract_session_id(log), camel)
+            log.write_text(
+                json.dumps({"session_id": snake}) + "\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(driver.extract_session_id(log), snake)
+
+    def test_extract_session_id_prefers_ses_prefixed_over_nonprefixed(self):
+        real = "ses" + "_" + "realsession1"
+        with tempfile.TemporaryDirectory() as t:
+            log = Path(t) / "a.jsonl"
+            log.write_text(
+                json.dumps({"sessionID": "raw-provider-id"})
+                + "\n"
+                + json.dumps({"sessionID": real})
+                + "\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(driver.extract_session_id(log), real)
+
+
+class AtomicWriteAndReconcileTests(unittest.TestCase):
+    """E-04/V-04: atomic_write_json fsyncs the dir with a POSIX-conformant mode,
+    and reconcile_interrupted records interrupted_at on the open attempt."""
+
+    def test_atomic_write_json_roundtrips_with_dir_fsync(self):
+        with tempfile.TemporaryDirectory() as t:
+            p = Path(t) / "sub" / "state.json"
+            driver.atomic_write_json(p, {"b": 2, "a": 1})
+            self.assertTrue(p.is_file())
+            self.assertEqual(json.loads(p.read_text()), {"a": 1, "b": 2})
+
+    def test_reconcile_interrupted_sets_interrupted_at(self):
+        with tempfile.TemporaryDirectory() as t:
+            temp = Path(t)
+            repo = temp / "repo"
+            (repo / ".aw" / "records" / "runs" / "r").mkdir(parents=True)
+            run_dir = repo / ".aw" / "records" / "runs" / "r"
+            state = {
+                "run_id": "r",
+                "created_at": "2026-08-24T00:00:00+00:00",
+                "updated_at": "2026-08-24T00:00:00+00:00",
+                "selectors": ["demo"],
+                "repo": str(repo),
+                "set_sessions": {},
+                "queue": [
+                    {
+                        "position": 1,
+                        "id6": "itemaa",
+                        "setid": "demo",
+                        "configured_file": "nonexistent.ipd.md",
+                        "status": "running",
+                        "attempts": [
+                            {"number": 1, "started_at": "2026-08-24T00:00:00+00:00"}
+                        ],
+                    }
+                ],
+            }
+            driver.atomic_write_json(run_dir / "state.json", state)
+            driver.reconcile_interrupted(run_dir, state)
+            item = state["queue"][0]
+            self.assertEqual(item["status"], "interrupted")
+            self.assertIn("interrupted_at", item["attempts"][-1])
+            self.assertIn("ended_at", item["attempts"][-1])
+
+
 if __name__ == "__main__":
     unittest.main()

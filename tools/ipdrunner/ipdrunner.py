@@ -309,7 +309,9 @@ def atomic_write_json(path: Path, data: dict[str, Any]) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temp_name, path)
-        dir_fd = os.open(path.parent, os.O_DIRECTORY)
+        # POSIX open(2) requires an access mode; O_DIRECTORY alone is non-conformant.
+        # O_RDONLY is the correct mode for a directory fd used only to fsync it.
+        dir_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
         try:
             os.fsync(dir_fd)
         finally:
@@ -569,28 +571,61 @@ def write_report(run_dir: Path, state: dict[str, Any]) -> None:
     (run_dir / "execution-report.md").write_text("\n".join(lines), encoding="utf-8")
 
 
+# Recognized session-id JSON keys, in preference order. OpenCode emits `sessionID`;
+# accept camelCase/snake_case variants too so a provider dialect change does not drop
+# session continuity.
+_SESSION_ID_KEYS = ("sessionID", "sessionId", "session_id")
+
+
 def extract_session_id(log_path: Path) -> str | None:
+    """Return the session id from a streamed JSONL log.
+
+    Prefer a canonical `ses_`-prefixed value (across any recognized key); fall back
+    to the first non-empty string id under a recognized key so a non-prefixed
+    provider id is still captured rather than silently lost.
+    """
     if not log_path.exists():
         return None
+    fallback: str | None = None
     with log_path.open("r", encoding="utf-8", errors="replace") as handle:
         for line in handle:
             try:
                 event = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            value = event.get("sessionID")
-            if isinstance(value, str) and value.startswith("ses_"):
-                return value
-    return None
+            for key in _SESSION_ID_KEYS:
+                value = event.get(key)
+                if not isinstance(value, str) or not value.strip():
+                    continue
+                if value.startswith("ses_"):
+                    return value
+                if fallback is None:
+                    fallback = value
+    return fallback
 
 
 def dependency_status(
     item: dict[str, Any], state: dict[str, Any]
 ) -> tuple[bool, list[str]]:
     by_id = {entry["id6"]: entry for entry in state["queue"]}
+    repo = Path(state["repo"])
     unsatisfied: list[str] = []
     for dep in item.get("dependencies", []):
-        if dep in by_id and by_id[dep]["status"] not in SUCCESS_STATES:
+        if dep in by_id:
+            # Dependency is in this run's queue: satisfied only once it succeeds here.
+            if by_id[dep]["status"] not in SUCCESS_STATES:
+                unsatisfied.append(dep)
+            continue
+        # Fail-closed for a dependency NOT in the active queue: it is satisfied only
+        # if the repository shows that IPD already executed. A dep that cannot be
+        # located, or is located outside executed/, is treated as UNSATISFIED rather
+        # than silently assumed done (the old fail-open behavior).
+        try:
+            dep_path = resolve_plan_path(repo, "", dep)
+        except DriverError:
+            unsatisfied.append(dep)
+            continue
+        if plan_bucket(dep_path) != "executed":
             unsatisfied.append(dep)
     return not unsatisfied, unsatisfied
 
@@ -695,6 +730,51 @@ def attempt_log_path(run_dir: Path, item: dict[str, Any], attempt_no: int) -> Pa
     )
 
 
+# Child-termination escalation timeouts (seconds). Fixed, safe defaults for an
+# interactive/headless CLI driver; OQ-01 deferred making these CLI-configurable.
+_SIGINT_GRACE_SECONDS = 5.0
+_SIGTERM_GRACE_SECONDS = 2.0
+
+
+def terminate_process(process: subprocess.Popen) -> None:
+    """Reap a child OpenCode process without leaving orphans.
+
+    Escalate SIGINT -> (wait) -> SIGTERM -> (wait) -> SIGKILL, then close its
+    standard stream pipes and ensure `process.wait()` completes. Safe to call when
+    the process has already exited (returns immediately).
+    """
+    if process.poll() is not None:
+        _close_process_streams(process)
+        return
+    for sig, grace in (
+        (signal.SIGINT, _SIGINT_GRACE_SECONDS),
+        (signal.SIGTERM, _SIGTERM_GRACE_SECONDS),
+    ):
+        try:
+            process.send_signal(sig)
+        except (ProcessLookupError, OSError):
+            break
+        try:
+            process.wait(timeout=grace)
+            _close_process_streams(process)
+            return
+        except subprocess.TimeoutExpired:
+            continue
+    # Still alive after SIGINT and SIGTERM: force-kill and reap.
+    with contextlib.suppress(ProcessLookupError, OSError):
+        process.kill()
+    with contextlib.suppress(Exception):
+        process.wait(timeout=_SIGTERM_GRACE_SECONDS)
+    _close_process_streams(process)
+
+
+def _close_process_streams(process: subprocess.Popen) -> None:
+    for stream in (process.stdout, process.stderr, process.stdin):
+        if stream is not None:
+            with contextlib.suppress(Exception):
+                stream.close()
+
+
 def run_opencode(
     state: dict[str, Any],
     run_dir: Path,
@@ -762,8 +842,14 @@ def run_opencode(
                             sys.stdout.write(rendered + "\n")
                             sys.stdout.flush()
                     # "quiet": suppress per-event lines; heartbeat + banners only.
-        except KeyboardInterrupt:
-            process.send_signal(signal.SIGINT)
+        except BaseException:
+            # KeyboardInterrupt or any error mid-stream: reap the child (escalating
+            # SIGINT -> SIGTERM -> SIGKILL) so no orphaned agent process survives,
+            # then re-raise. BaseException covers KeyboardInterrupt/SystemExit too.
+            terminate_process(process)
+            log.flush()
+            with contextlib.suppress(OSError):
+                os.fsync(log.fileno())
             raise
         returncode = process.wait()
         log.flush()
@@ -942,6 +1028,12 @@ def reconcile_interrupted(run_dir: Path, state: dict[str, Any]) -> None:
         except DriverError:
             pass
         item["status"] = "interrupted"
+        # Complete the crash-recovered attempt's timestamps so the record is not
+        # left open (started_at with no ended_at/interrupted_at).
+        if attempts:
+            now = utc_now()
+            attempts[-1].setdefault("interrupted_at", now)
+            attempts[-1].setdefault("ended_at", now)
         append_jsonl(
             run_dir / "events.jsonl",
             {"at": utc_now(), "event": "interrupted-detected", "id6": item["id6"]},
@@ -1064,11 +1156,27 @@ def print_status(run_dir: Path) -> None:
 
 
 def resolve_run_dir(repo_arg: str, run_id: str) -> Path:
+    # Accept either a bare run id (resolved under state_root(repo)) or an existing
+    # run-directory PATH (relative or absolute) that the driver printed - as long as
+    # it contains a state.json. This lets a user paste the "State directory: ..."
+    # line directly into `status`/`resume`.
+    looks_like_path = (
+        os.sep in run_id
+        or (os.altsep and os.altsep in run_id)
+        or run_id.startswith("~")
+    )
+    if looks_like_path:
+        candidate = Path(run_id).expanduser()
+        for run_dir in (candidate, Path.cwd() / candidate):
+            if run_dir.is_dir() and (run_dir / "state.json").is_file():
+                return run_dir.resolve()
+        raise DriverError(f"Run not found: {run_id}")
+    # Bare run id: resolve under the repo's run-state root.
     repo = Path(repo_arg).expanduser().resolve()
     run_dir = state_root(repo) / run_id
-    if not run_dir.is_dir():
-        raise DriverError(f"Run not found: {run_id}")
-    return run_dir
+    if run_dir.is_dir():
+        return run_dir
+    raise DriverError(f"Run not found: {run_id}")
 
 
 def _add_output_mode_flags(sub_parser: argparse.ArgumentParser) -> None:
