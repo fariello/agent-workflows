@@ -1,0 +1,11 @@
+- Id: 61qk4a
+- Status: open
+- Set: awrenamebug
+- Priority: high
+- Kind: bug
+- Summary: aw backlog set --blocks-release does not persist the Blocks-Release field on a no-op (same-status) transition
+
+## Workflow history
+- 2026-08-23 created (aw backlog): aw backlog set --blocks-release does not persist the Blocks-Release field on a no-op (same-status) transition
+
+BUG: 'aw backlog set open <id6> --blocks-release next --yes' on an item ALREADY in 'open' reports outcome:clean/complete:true but never writes the '- Blocks-Release:' line. Observed 2026-08-23 trying to gate the 2.0.0 release (f33nrj) on the rename-slug-mangle bug (item dcla4g): repeated invocations (human + --agent, with --yes, with 'next' and explicit 'f33nrj') all succeeded yet the field stayed absent. ROOT CAUSE (likely): the Blocks-Release write lives inside apply_status_change's status-change branch (status_set.py:447-453), which is skipped when the target status equals the current status (a no-op transition), so --blocks-release is silently dropped unless the status actually changes. IMPACT: release-gating (AGENTS.md 'Blocks-Release' convention) silently fails for any item already at the target status - a caller believes they gated a release when they did not. FIX: apply --blocks-release/--clear regardless of whether the status value changes (make the field mutation independent of the status-transition branch), and add a regression test: 'backlog set <same-status> <id> --blocks-release next' persists the field. RELATED: filed while attaching the release-blocker to dcla4g (rename --order slug-mangle); dcla4g SHOULD block release f33nrj/2.0.0 but the field could not be set via the tool because of THIS bug.
