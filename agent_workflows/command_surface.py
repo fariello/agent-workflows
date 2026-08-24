@@ -614,6 +614,20 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         exit_contract=(0, 1, 2),
     ),
     CommandDeclaration(
+        # execset Order iy1a2g: compile an approved IPD Set into a plan-only execution manifest.
+        # Read/check-class: it never launches a worker or mutates a tracked file; it compiles the
+        # Set graph and inspects it. Exit 0 ok / 1 invalid Set (SetPlanError) / 2 cannot-run
+        # (missing set-id or --plan-only). --agent emits byte-stable JSON.
+        command="ipd execute-set",
+        command_class="check",
+        human_recipe="check",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--plan-only", "--dir", "--agent"),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
         command="ipd scaffold",
         command_class="mutation",
         human_recipe="preview",

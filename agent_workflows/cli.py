@@ -866,6 +866,32 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Write the change (default is preview only).",
     )
 
+    # execset Order 01 (iy1a2g): compile an approved Set into a plan-only execution manifest.
+    p_ipd_execset = ipd_sub.add_parser(
+        "execute-set",
+        parents=[common],
+        help="Compile an approved IPD Set into a plan-only execution manifest (launches no worker).",
+        description=(
+            "Compile an approved IPD Set's children and E-items into a validated cross-IPD "
+            "dependency graph and an immutable execution manifest, then inspect it. v1 supports "
+            "ONLY --plan-only: it never launches a model or worktree, never mutates an authoritative "
+            "record, and never grants execution authority (scheduling is a later Order). Unapproved "
+            "children are classified deferred_gate and block ONLY their descendants; independent "
+            "approved siblings remain runnable. Ambiguous ownership serializes conservatively. "
+            "--agent emits byte-stable JSON; the default is a compact human snapshot."
+        ),
+    )
+    p_ipd_execset.add_argument("set_id", help="The Set id to compile (e.g. execset).")
+    p_ipd_execset.add_argument(
+        "--plan-only",
+        dest="plan_only",
+        action="store_true",
+        help="Compile and inspect only; launch no worker (required in this build).",
+    )
+    p_ipd_execset.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+
     # awcmdsurf Order 04 (OQ-1: bare `ipd` = board): the IPD board (pending+reusable by default).
     p_ipd_board = ipd_sub.add_parser(
         "board",
@@ -6754,6 +6780,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import ipd_authoring
 
             return ipd_authoring.run_sync(args)
+        if ipd_cmd == "execute-set":
+            from agent_workflows import ipd_set_plan
+
+            return ipd_set_plan.run_execute_set(args)
         if ipd_cmd == "begin":
             from agent_workflows import ipd_lifecycle
 
