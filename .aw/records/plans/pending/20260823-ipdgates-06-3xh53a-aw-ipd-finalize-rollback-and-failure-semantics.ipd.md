@@ -3,7 +3,7 @@
 - Date: 2026-08-23
 - Kind: child
 - Concern: The finalize transaction (Order 04) performs several steps (history append, status set, file move, index refresh, path-scoped commit, post-transition lint). If a step fails, a partial transition (e.g. plan moved + status set but no commit, or a post-commit lint failure) leaves the repo in an inconsistent, misleading state. Without explicit two-phase failure semantics, a failed finalize could look like a success or strand the plan half-transitioned.
-- Scope: Add the two-phase failure semantics to `aw ipd finalize` and its adversarial tests. Touch: the single-IPD lifecycle module (from Orders 03/04) and tests/test_ipd_lifecycle_cli.py. Does NOT change the forward happy path (Order 04) beyond wrapping it in rollback, and does NOT remove the raw bypass (Order 06).
+- Scope: Add the two-phase failure semantics to `aw ipd finalize` and its adversarial tests. Touch: the single-IPD lifecycle module (from Orders 03/04/05) and tests/test_ipd_lifecycle_cli.py. DEPENDS ON Order 05: rollback wraps the COMPLETE finalize transaction, which by this point includes the forward transition (Order 04) AND the two-way scope reconciliation (Order 05); rollback must therefore be able to unwind reconciliation-side effects too. Does NOT change the forward happy path (Order 04) or the reconciliation (Order 05) beyond wrapping them in rollback, and does NOT remove the raw bypass (Order 07).
 - Status: to-review
 - Set: ipdgates
 - Order: 6
@@ -16,6 +16,7 @@
 - 2026-08-23 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created (split from 39fz2x E-04, the rollback/failure-semantics portion, per the reviewer's density finding).
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Verified artifact_core.git_mv (artifact_core.py:136), Order 04 exists and its OQ-01 is resolved consistently (path-overlap policy, commit 8fd5454 by a concurrent agent). PR-001 (rollback mechanism was underspecified - "track each mutation" doesn't restore in-place status/history edits; added explicit SNAPSHOT-and-restore of the plan's original bytes/path + the INDEX bytes, plus the ordering invariant that all mutations are working-tree-only before the single last commit, so rollback = discard this plan's own working-tree changes without touching concurrent agents' files); PR-002 (index must be restored on rollback, not just the plan file - E-01/V-01/E-02 now assert INDEX byte-restore, including a failure injected AFTER the index rewrite); PR-003 (post-commit INCOMPLETE must be durably detectable, not just printed - finalize leaves the begin receipt UNCONSUMED so a later query distinguishes committed-but-incomplete from cleanly-executed). Step-0 records the inherited concurrency policy. No blocking OQ.
 - 2026-08-23 renumber (opencode its_direct/pt3-claude-opus-4.8-1m-us): Order 05 -> 06 to make room for a new Order 05 (finalize two-way scope reconciliation, per DECISIONS.md D141). Filename + front-matter Order updated via `aw rename`; reset to `to-review` because the rollback now wraps a finalize that includes the new reconciliation step (a later child), and the numbering context changed.
+- 2026-08-23 consistency-fix (opencode its_direct/pt3-claude-opus-4.8-1m-us): post-renumber Set audit - declared the explicit dependency on Order 05 in Scope (body previously named only Order 04, contradicting orchestrator 00's table which says 06 depends on 05); corrected the Deferred line "Removing the raw bypass: Order 06" -> "Order 07".
 
 ## Goal
 
@@ -59,8 +60,8 @@ A multi-step terminal transaction without a defined failure boundary is the clas
 
 ## Deferred / out of scope (with reason)
 
-- The forward happy path and scope comparison: Order 04 (dependency).
-- Removing the raw bypass: Order 06.
+- The forward happy path and scope comparison: Order 04; the two-way scope reconciliation: Order 05 (both dependencies, wrapped by this rollback).
+- Removing the raw bypass: Order 07.
 
 ## Scope check
 
