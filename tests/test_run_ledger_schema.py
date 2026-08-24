@@ -26,7 +26,7 @@ _SHA = "a" * 64
 
 
 def _fixture(kind):
-    """A minimal conforming record for each of the 12 kinds."""
+    """A minimal conforming record for each of the 21 kinds (12 v1 + 9 v2 coordination kinds)."""
     rec = _envelope(kind)
     extras = {
         "run": {
@@ -66,22 +66,57 @@ def _fixture(kind):
             "failure_class": "flaky",
             "idempotency_key": "k1",
         },
-        "human_approval": {"gate": "pre-execution", "approver": "Gabriele Fariello"},
+        "human_approval": {"gate": "pre-execution", "approver": "a maintainer"},
         "terminal_transaction": {
             "terminal_status": "executed",
             "moved_to": "executed/",
         },
+        # ---- v2 Set-coordination kinds (3m4e54 E-01) ----
+        "question_raised": {
+            "question_id": "Q1",
+            "context": "ambiguous target repo",
+            "affected_nodes": ["abc123:E-02"],
+        },
+        "question_disposition": {
+            "question_id": "Q1",
+            "disposition": "decided_autonomously",
+            "prev": "",
+        },
+        "human_answer": {"question_id": "Q1", "answer": "use repo X"},
+        "autonomous_decision": {
+            "decision_id": "D1",
+            "selected_option": "reuse existing primitive",
+            "confidence": "high",
+            "consultation_preferred": False,
+            "reversible": True,
+            "prev": "",
+        },
+        "scope_deferred": {
+            "scope": "abc123:E-03",
+            "reason": "no robust default",
+            "blocks": ["abc123:E-03"],
+        },
+        "work_claim": {"lane_id": "abc123:E-01", "node": "abc123:E-01"},
+        "lane_outcome": {"lane_id": "abc123:E-01", "outcome": "performed"},
+        "integration_result": {"lane_id": "abc123:E-01", "result": "integrated"},
+        "set_checkpoint": {"set_id": "execset", "set_state": "set_running"},
     }[kind]
     rec.update(extras)
     # verifier_decision must be authored by the verifier role.
     if kind == "verifier_decision":
         rec["actor"] = "verifier"
+    # human_answer must be authored by the human role.
+    if kind == "human_answer":
+        rec["actor"] = "human"
+    # coordination kinds with coordinator-only authority.
+    if kind in ("set_checkpoint", "integration_result", "autonomous_decision"):
+        rec["actor"] = "coordinator"
     return rec
 
 
 class RoundTripPerKindTest(unittest.TestCase):
     def test_every_kind_has_a_conforming_fixture(self):
-        self.assertEqual(len(S.RECORD_KINDS), 12)
+        self.assertEqual(len(S.RECORD_KINDS), 21)
         for kind in sorted(S.RECORD_KINDS):
             res = S.validate_record(_fixture(kind))
             self.assertTrue(

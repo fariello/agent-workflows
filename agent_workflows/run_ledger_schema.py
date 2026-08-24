@@ -32,19 +32,39 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, FrozenSet, List, Mapping, NamedTuple, Tuple
 
-LEDGER_SCHEMA_VERSION = 1
+# The CURRENT ledger schema version emitted for new ledgers. Bumped 1 -> 2 by execset Order 02
+# (3m4e54) to add the Set-coordination event kinds (question/decision/skip/lane/checkpoint) and the
+# `investigator` role WITHOUT breaking existing v1 ledgers.
+LEDGER_SCHEMA_VERSION = 2
+
+# Version-compatibility rule (net-new per 3m4e54 E-01): a ledger record is ACCEPTED when its
+# schema_version is any of the supported versions. A v1 ledger still validates (backward compatible);
+# a v2 ledger additionally admits the new coordination kinds below. The new kinds require v2 (a v1
+# record carrying a v2-only kind is rejected), so an old reader that only knows v1 never sees a kind
+# it cannot interpret. This is an ADD-ONLY, monotonic compatibility discipline: no v1 record shape
+# changed, and no previously-valid ledger becomes invalid.
+SUPPORTED_SCHEMA_VERSIONS: FrozenSet[int] = frozenset((1, 2))
 
 # ---- enumerated vocabularies ---------------------------------------------------------------------
 
 # Actor ROLES. The role that authored a record; used by E-05/E-06 to enforce that an executor cannot
 # author a verifier decision (identity-collision refusal) and that only a coordinator holds terminal
-# authority.
+# authority. `investigator` (added by 3m4e54 E-01, reconciling the prior divergence where
+# verify_roles.ROLE_INVESTIGATOR existed but this ledger omitted it) is a READ-ONLY diagnostic role.
 ROLES: FrozenSet[str] = frozenset(
-    ("coordinator", "executor", "verifier", "corrector", "human", "runtime")
+    (
+        "coordinator",
+        "executor",
+        "investigator",
+        "verifier",
+        "corrector",
+        "human",
+        "runtime",
+    )
 )
 
-# Record KINDS (the closed set above).
-RECORD_KINDS: FrozenSet[str] = frozenset(
+# The v1 (original awoptimize Order 02) record kinds. These validate at BOTH v1 and v2.
+RECORD_KINDS_V1: FrozenSet[str] = frozenset(
     (
         "run",
         "requirement_set",
@@ -59,6 +79,42 @@ RECORD_KINDS: FrozenSet[str] = frozenset(
         "human_approval",
         "terminal_transaction",
     )
+)
+
+# The v2-only Set-coordination kinds (3m4e54 E-01). Each makes a decision, skip, lane, or checkpoint
+# attributable and hash-chained. A record carrying one of these MUST declare schema_version 2.
+RECORD_KINDS_V2_ONLY: FrozenSet[str] = frozenset(
+    (
+        "question_raised",
+        "question_disposition",
+        "human_answer",
+        "autonomous_decision",
+        "scope_deferred",
+        "work_claim",
+        "lane_outcome",
+        "integration_result",
+        "set_checkpoint",
+    )
+)
+
+# Record KINDS (the closed set: v1 kinds + v2-only kinds).
+RECORD_KINDS: FrozenSet[str] = RECORD_KINDS_V1 | RECORD_KINDS_V2_ONLY
+
+# ---- v2 coordination-kind value vocabularies -----------------------------------------------------
+
+# A question's disposition: how an autonomously-raised question was resolved.
+QUESTION_DISPOSITIONS: FrozenSet[str] = frozenset(
+    ("decided_autonomously", "deferred_subgraph", "deferred_ipd", "answered_by_human")
+)
+
+# The outcome of a single scheduled lane (one unit of scheduled work).
+LANE_OUTCOMES: FrozenSet[str] = frozenset(
+    ("performed", "blocked", "failed", "deferred", "unknown_outcome", "skipped")
+)
+
+# The result of integrating a completed lane's work into the main worktree.
+INTEGRATION_RESULTS: FrozenSet[str] = frozenset(
+    ("integrated", "conflict", "rolled_back", "skipped")
 )
 
 # Execution-attempt states (mirror the IPD execution-state vocabulary).
@@ -160,7 +216,49 @@ _KIND_FIELDS: Dict[str, Tuple[Tuple[str, type], ...]] = {
     "retry": (("retries_step", str), ("failure_class", str), ("idempotency_key", str)),
     "human_approval": (("gate", str), ("approver", str)),
     "terminal_transaction": (("terminal_status", str), ("moved_to", str)),
+    # ---- v2 Set-coordination kinds (3m4e54 E-01) ----
+    # A question the coordinator raised at runtime (never appended to the approved IPD's authoring
+    # Open Questions). `question_id` is a stable per-run D<number>/Q<number>-style handle.
+    "question_raised": (
+        ("question_id", str),
+        ("context", str),
+        ("affected_nodes", list),
+    ),
+    # How a raised question was resolved. `prev` optionally points to a record this supersedes
+    # (reusing the append-a-newer-record idiom per OQ-03; empty string = not a supersession).
+    "question_disposition": (
+        ("question_id", str),
+        ("disposition", str),
+        ("prev", str),
+    ),
+    # A recorded human answer to a raised question (only ever authored by the human role).
+    "human_answer": (("question_id", str), ("answer", str)),
+    # An autonomous decision made in lieu of prompting. `consultation_preferred` marks a choice the
+    # coordinator would have preferred to consult a human on but proceeded with a robust default.
+    # `prev` supersedes an earlier decision (reversal) per OQ-03.
+    "autonomous_decision": (
+        ("decision_id", str),
+        ("selected_option", str),
+        ("confidence", str),
+        ("consultation_preferred", bool),
+        ("reversible", bool),
+        ("prev", str),
+    ),
+    # A skipped/deferred scope unit. `scope` = the subgraph/IPD id deferred; `blocks` = the node ids
+    # blocked as a consequence (descendants), so independent work is provably NOT blocked.
+    "scope_deferred": (("scope", str), ("reason", str), ("blocks", list)),
+    # A single-writer claim on a schedulable node (a lane). `lane_id` is the manifest node id.
+    "work_claim": (("lane_id", str), ("node", str)),
+    # The outcome of one scheduled lane.
+    "lane_outcome": (("lane_id", str), ("outcome", str)),
+    # The result of integrating a lane's work into the main worktree.
+    "integration_result": (("lane_id", str), ("result", str)),
+    # A durable Set-level checkpoint binding the Set state to the coordinator's timestamped position.
+    "set_checkpoint": (("set_id", str), ("set_state", str)),
 }
+
+# The v1 kinds whose per-kind fields are part of the v1 contract (used to gate v2-only kinds).
+_V2_ONLY_KINDS: FrozenSet[str] = RECORD_KINDS_V2_ONLY
 
 
 def _type_ok(val: Any, typ: type) -> bool:
@@ -194,13 +292,15 @@ def validate_record(rec: Any) -> ValidationResult:
     if (
         isinstance(ver, int)
         and not isinstance(ver, bool)
-        and ver != LEDGER_SCHEMA_VERSION
+        and ver not in SUPPORTED_SCHEMA_VERSIONS
     ):
         findings.append(
             Finding(
                 "RL-E012",
                 "schema_version",
-                "unsupported schema_version {0}".format(ver),
+                "unsupported schema_version {0} (supported: {1})".format(
+                    ver, sorted(SUPPORTED_SCHEMA_VERSIONS)
+                ),
             )
         )
 
@@ -208,6 +308,23 @@ def validate_record(rec: Any) -> ValidationResult:
     if kind not in RECORD_KINDS:
         findings.append(
             Finding("RL-E013", "kind", "unknown record kind '{0}'".format(kind))
+        )
+    # Version gate: a v2-only coordination kind requires schema_version >= 2, so a v1 reader never
+    # encounters a kind it cannot interpret (add-only forward compatibility).
+    elif (
+        kind in _V2_ONLY_KINDS
+        and isinstance(ver, int)
+        and not isinstance(ver, bool)
+        and ver < 2
+    ):
+        findings.append(
+            Finding(
+                "RL-E018",
+                "kind",
+                "record kind '{0}' requires schema_version >= 2 (got {1})".format(
+                    kind, ver
+                ),
+            )
         )
 
     if "actor" in rec and rec.get("actor") not in ROLES:
@@ -309,6 +426,91 @@ def validate_record(rec: Any) -> ValidationResult:
                     "RL-E035",
                     "actor",
                     "terminal_transaction must be authored by coordinator/runtime/human, not the executor",
+                )
+            )
+
+    # ---- v2 Set-coordination value + authority rules (3m4e54 E-01) ----
+    if (
+        kind == "question_disposition"
+        and rec.get("disposition") not in QUESTION_DISPOSITIONS
+    ):
+        findings.append(
+            Finding(
+                "RL-E050",
+                "disposition",
+                "question disposition must be one of {0}".format(
+                    sorted(QUESTION_DISPOSITIONS)
+                ),
+            )
+        )
+    if kind == "human_answer" and rec.get("actor") != "human":
+        # A human answer can ONLY be authored by the human role; consent is never synthesized.
+        findings.append(
+            Finding(
+                "RL-E051",
+                "actor",
+                "human_answer must be authored by the 'human' role",
+            )
+        )
+    if kind == "lane_outcome" and rec.get("outcome") not in LANE_OUTCOMES:
+        findings.append(
+            Finding(
+                "RL-E052",
+                "outcome",
+                "lane outcome must be one of {0}".format(sorted(LANE_OUTCOMES)),
+            )
+        )
+    if kind == "integration_result":
+        if rec.get("result") not in INTEGRATION_RESULTS:
+            findings.append(
+                Finding(
+                    "RL-E053",
+                    "result",
+                    "integration result must be one of {0}".format(
+                        sorted(INTEGRATION_RESULTS)
+                    ),
+                )
+            )
+        # Integration into the authoritative main worktree is a coordinator-only act.
+        if rec.get("actor") not in ("coordinator", "runtime"):
+            findings.append(
+                Finding(
+                    "RL-E054",
+                    "actor",
+                    "integration_result must be authored by coordinator/runtime, not the executor",
+                )
+            )
+    if kind == "set_checkpoint":
+        # Import locally to avoid a module import cycle (set_state imports nothing from here).
+        from agent_workflows import set_state as _ss
+
+        if rec.get("set_state") not in _ss.ALL_SET_STATES:
+            findings.append(
+                Finding(
+                    "RL-E055",
+                    "set_state",
+                    "set_checkpoint set_state must be a set_-prefixed Set state ({0})".format(
+                        sorted(_ss.ALL_SET_STATES)
+                    ),
+                )
+            )
+        # Only the coordinator (or runtime) may checkpoint the Set state (coordinator-only authority).
+        if rec.get("actor") not in ("coordinator", "runtime"):
+            findings.append(
+                Finding(
+                    "RL-E056",
+                    "actor",
+                    "set_checkpoint must be authored by coordinator/runtime",
+                )
+            )
+    if kind == "autonomous_decision":
+        # An autonomous decision is the coordinator/executor's to record; it is NEVER a human_answer.
+        if rec.get("actor") not in ("coordinator", "executor", "runtime"):
+            findings.append(
+                Finding(
+                    "RL-E057",
+                    "actor",
+                    "autonomous_decision must be authored by coordinator/executor/runtime",
                 )
             )
 

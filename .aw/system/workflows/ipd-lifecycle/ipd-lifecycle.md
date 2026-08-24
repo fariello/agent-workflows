@@ -19,6 +19,14 @@ pasted evidence real) remains the executor's and reviewer's responsibility.
    workflow nor any agent may self-approve a plan it authored.
 3. If either is missing, STOP and report; do not begin execution.
 
+> Scope of `STOP and report` (additive clarification; execset Order 02): when a single IPD is run on
+> its own, `STOP and report` means what it always has - halt and surface the situation to the human.
+> When the same IPD runs as a CHILD under a Set coordinator (`aw ipd execute-set`), a child's `STOP
+> and report` is CHILD-scoped: it returns control to the Set coordinator, which applies the exact
+> two-condition stop rule (`hard_stop = needs_human AND no_robust_decision AND cannot_defer_subgraph
+> AND cannot_defer_ipd`) after draining independent work, rather than terminating the whole Set. This
+> is backward compatible: nothing changes for non-Set execution.
+
 ## Checkpoint 1: pre-execution gate
 
 Run, on the plan file:
