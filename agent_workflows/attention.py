@@ -645,8 +645,11 @@ def render_board(
                         it.priority, 244
                     )
                     prio = "  " + term.color256(f"[{it.priority}]", pcode, bold=True)
+                blocking = ""
+                if it.blocks_release:
+                    blocking = "  " + term.color256("[blocking]", 196, bold=True)
                 lines.append(
-                    f"- {lead}{status_padded}  {type_prefix}{path_txt}{prio}{inline_gate}"
+                    f"- {lead}{status_padded}  {type_prefix}{path_txt}{prio}{blocking}{inline_gate}"
                 )
             else:
                 suffix = ""

@@ -47,11 +47,18 @@ class AttentionPriorityBlockerTests(unittest.TestCase):
         self.assertIn("[high]", out)
 
     def test_release_blocker_marker(self):
-        out = self._colored(
-            [_item(".aw/records/backlog/open/a.backlog.md", blocks_release="next")]
-        )
-        # the '>' release-blocker glyph leads the item line
+        item = _item(".aw/records/backlog/open/a.backlog.md", blocks_release="next")
+        out = self._colored([item])
+        # the '>' release-blocker glyph leads the item line and [blocking] tag is present
         self.assertRegex(out, r"- [!?#]*>\s+open\s+backlog\s+a")
+        self.assertIn("[blocking]", out)
+
+        raw = attention.render_board([item], [], show_all=True, term=T.Term(color=True))
+        # [blocking] is styled in red (256-color code 196, bold)
+        self.assertIn("\033[1;38;5;196m[blocking]\033[0m", raw)
+
+        out_noblock = self._colored([_item(".aw/records/backlog/open/a.backlog.md")])
+        self.assertNotIn("[blocking]", out_noblock)
 
     def test_legend_present_colored(self):
         out = self._colored([_item(".aw/records/backlog/open/a.backlog.md")])
@@ -70,6 +77,7 @@ class AttentionPriorityBlockerTests(unittest.TestCase):
         )
         self.assertNotIn("legend:", out)
         self.assertNotIn("[high]", out)
+        self.assertNotIn("[blocking]", out)
         self.assertIn("- [backlog] .aw/records/backlog/open/a.backlog.md (open)", out)
 
     def test_schema_version_and_json_keys(self):
