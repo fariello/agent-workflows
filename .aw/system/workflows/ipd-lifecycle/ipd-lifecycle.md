@@ -244,6 +244,14 @@ and change nothing for single-IPD execution.
 - Model roles: each lane is classified `coding | human_prose | mixed | verifier` and routed to an
   operator/host-configured model binding. A missing binding FAILS CLOSED (no silent default). The
   verifier lane is always a fresh context.
+- Host launchers: a lane runs through ONE generic worker runner (argv + `shell=False`; bounded
+  timeout + cancellation; a timed-out/cancelled worker is a FAILURE, never completion) plus thin
+  per-host adapters. A launcher advertises a native host capability (subagents, model flags, resume,
+  JSON, worktrees, permissions) ONLY with CURRENT positive probe evidence in the capability registry;
+  otherwise it selects the documented safe external-process fallback or an explicit refusal. Captured
+  worker output is redacted + leak-scanned before it enters the ledger, and a host exit 0 with no
+  verified side effect can never finalize (the support matrix is generated from unexpired evidence,
+  never aspirational capability).
 - Decision handshake: a worker mutation is permitted only AFTER the coordinator durably records an
   authorization (write-ahead `decision_proposal -> coordinator record -> decision_authorized`); a
   consultation-preferred choice pauses as a proposal until the coordinator records its disposition.
