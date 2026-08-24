@@ -3,8 +3,8 @@
 - Date: 2026-08-23
 - Kind: child
 - Concern: A plan reaches `executed` today via `aw set executed`, which moves the file and writes a generic `executed (aw set)` actor with no scope comparison and no captured pre/post gate evidence - exactly the p7dqwz failure signature. There is no single command that atomically performs the terminal transition WHILE proving the changed paths stayed within the reviewed `Scope-Paths` and the gates ran.
-- Scope: Add `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply` as the only supported single-IPD terminal transaction (happy path + scope comparison + evidence). Touch: the single-IPD lifecycle module (from Order 03), agent_workflows/cli.py (register `ipd finalize`), agent_workflows/ipd_lint.py (invoke pre/post-transition phases), agent_workflows/status_set.py (reuse the status-write/move + owned-index-refresh helpers), and tests/test_ipd_lifecycle_cli.py. Does NOT implement the two-phase ROLLBACK/failure semantics (Order 05) or remove the raw bypass (Order 06); this child delivers the forward transaction and the scope-comparison refusal.
-- Status: reviewed
+- Scope: Add `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply` as the only supported single-IPD terminal transaction (happy path + scope comparison + evidence). Touch: the single-IPD lifecycle module (from Order 03), agent_workflows/cli.py (register `ipd finalize`), agent_workflows/ipd_lint.py (invoke pre/post-transition phases), agent_workflows/status_set.py (reuse the status-write/move + owned-index-refresh helpers), and tests/test_ipd_lifecycle_cli.py. Does NOT implement the two-way scope RECONCILIATION prompt (split out to the new Order 05, D141), the two-phase ROLLBACK/failure semantics (Order 06), or removing the raw bypass (Order 07); this child delivers the forward transaction and the scope-delta COMPUTATION (which Order 05's reconciliation and Order 06's rollback both build on) plus the out-of-scope refusal for the pre-reconciliation baseline.
+- Status: to-review
 - Set: ipdgates
 - Order: 4
 - Highest E allocated: 03
@@ -13,8 +13,9 @@
 
 ## Workflow history
 
-- 2026-08-23 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created (decomposition of 39fz2x E-04, forward-transaction portion; rollback split to Order 05).
+- 2026-08-23 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created (decomposition of 39fz2x E-04, forward-transaction portion; rollback split to a later order).
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH: `status_set._auto_index_types` swallows index-refresh failures at status_set.py:544,580-581 - finalize MUST refresh fail-LOUD, not reuse the swallow; E-02/V-02 hardened with a fault-injection test), PR-002 (receipt must persist the LITERAL Scope-Paths not just the Order 03 digest; cross-ref Order 03), PR-003 (reuse verify_roles.procedure_scope_audit fnmatch matcher, verify_roles.py:1310-1340), OQ-01 human-resolved = Order-03-consistent path-overlap rule (this execution's changes = diff restricted to Scope-Paths since base; refuse on out-of-scope change or in-scope intervening-commit collision; ignore disjoint concurrent edits). Verified: finalize/begin net-new, `aw set executed` ungated for plans + generic actor (status_set.py:356,463), lint phases pre-transition/post-transition exist (ipd_schema.py:495-501), Orders 02+03 deliver Scope-Paths schema + receipt (both still pending).
+- 2026-08-23 rescope+renumber (opencode its_direct/pt3-claude-opus-4.8-1m-us): the two-way scope RECONCILIATION was SPLIT OUT of this order into a new Order 05 (`qmt3yk`, D141) at human direction (density: distinct deliverable + test surface); rollback moved 05 -> 06 and remove-bypass 06 -> 07. This order now delivers the forward transaction + scope-delta COMPUTATION + baseline out-of-scope refusal; Order 05 turns that refusal into the low-friction two-way reconciliation. Updated all sibling number references (reconciliation=05, rollback=06, remove-bypass=07). Reset to `to-review` because the deliverable boundary changed (reconciliation removed) and re-review-in-context is warranted.
 
 ## Goal
 
@@ -34,9 +35,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: The atomic forward transition
 
-- [ ] E-02 Implement the forward transition (only reached when E-01's precheck passes): append the attributed `<agent/model>` + `<summary>` history entry (never a generic actor), set terminal status, move the plan file, refresh ONLY the owned plan-index state (reuse `status_set` helpers), create the path-scoped lifecycle commit (only this plan's own files), run post-transition lint, and report the commit hash plus the captured pre-execution (from the receipt), pre-transition, and post-transition gate outputs. Register `aw ipd finalize <plan> --actor --message --apply` in `cli.py` with help and the 0/1/2 exit convention. (Failure/rollback handling is Order 05; this item implements the success path and its evidence report.)
+- [ ] E-02 Implement the forward transition (only reached when E-01's precheck passes): append the attributed `<agent/model>` + `<summary>` history entry (never a generic actor), set terminal status, move the plan file, refresh ONLY the owned plan-index state (reuse `status_set` helpers), create the path-scoped lifecycle commit (only this plan's own files), run post-transition lint, and report the commit hash plus the captured pre-execution (from the receipt), pre-transition, and post-transition gate outputs. Register `aw ipd finalize <plan> --actor --message --apply` in `cli.py` with help and the 0/1/2 exit convention. (The two-way scope reconciliation prompt is Order 05; failure/rollback handling is Order 06; this item implements the success path and its evidence report.)
   - Depends on: E-01
-  - Note (verified - the owned-index refresh MUST fail loudly here): `status_set._auto_index_types` refreshes the plans index but wraps it in a bare `except Exception: pass` (`status_set.py:544,580-581`), silently swallowing a failed refresh. That is acceptable for the convenience `aw set` path but INCOMPATIBLE with a fail-closed atomic finalize: reused as-is, finalize could move the plan to `executed/`, commit, and report success with a STALE index. finalize MUST invoke the index refresh in a fail-LOUD manner (a non-swallowing variant, or verify the index is fresh after refresh via `aw index plans --check` and refuse/hand to Order 05 rollback on failure) - do NOT reuse the swallowing wrapper for the terminal transaction. Any index-refresh failure is a transaction failure, not a silent success.
+  - Note (verified - the owned-index refresh MUST fail loudly here): `status_set._auto_index_types` refreshes the plans index but wraps it in a bare `except Exception: pass` (`status_set.py:544,580-581`), silently swallowing a failed refresh. That is acceptable for the convenience `aw set` path but INCOMPATIBLE with a fail-closed atomic finalize: reused as-is, finalize could move the plan to `executed/`, commit, and report success with a STALE index. finalize MUST invoke the index refresh in a fail-LOUD manner (a non-swallowing variant, or verify the index is fresh after refresh via `aw index plans --check` and refuse/hand to Order 06 rollback on failure) - do NOT reuse the swallowing wrapper for the terminal transaction. Any index-refresh failure is a transaction failure, not a silent success.
   - Expected outcome: on a clean, in-scope execution, one command performs the whole terminal transition and reports commit + three-phase gate evidence with attributed history; a failed owned-index refresh fails the transaction rather than being swallowed.
   - Execution state: pending
 
@@ -68,14 +69,15 @@ The terminal transition must be one transaction so scope comparison, attributed 
 
 ## Deferred / out of scope (with reason)
 
-- Two-phase ROLLBACK and post-commit incomplete-reporting: Order 05 (its own adversarial test surface).
-- Removing raw `aw set executed`: Order 06.
-- Concurrency/ambiguous-baseline edge exhaustiveness: the core refusal is here; the adversarial concurrency matrix is Order 05.
+- Two-way scope RECONCILIATION prompt (out-of-scope reason + in-scope-unmodified acknowledgment): Order 05 (D141).
+- Two-phase ROLLBACK and post-commit incomplete-reporting: Order 06 (its own adversarial test surface).
+- Removing raw `aw set executed`: Order 07.
+- Concurrency/ambiguous-baseline edge exhaustiveness: the core refusal is here; the adversarial concurrency matrix is Order 06.
 
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none for the forward transaction; rollback is deliberately Order 05.
+- Under-scope: none for the forward transaction; scope reconciliation is deliberately Order 05 and rollback is deliberately Order 06.
 
 ## Required tests / validation
 
@@ -84,7 +86,7 @@ The terminal transition must be one transaction so scope comparison, attributed 
 
 ## Spec / documentation sync
 
-- Amend the IPD lifecycle spec (managed verb) and `.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md` with the finalize transaction contract; update CLI `--help`. Update `.aw/records/plans/README.md` and `CONTRIBUTING.md` to point terminal transition at `aw ipd finalize` (the raw-path removal itself is Order 06).
+- Amend the IPD lifecycle spec (managed verb) and `.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md` with the finalize transaction contract; update CLI `--help`. Update `.aw/records/plans/README.md` and `CONTRIBUTING.md` to point terminal transition at `aw ipd finalize` (the raw-path removal itself is Order 07).
 
 ## Open questions
 
@@ -115,12 +117,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 ## Approval and execution gate
 
 - Size assessment: standard
-- Cohesion rationale: one concern - the forward atomic terminal transaction with scope comparison and evidence (rollback is Order 05).
+- Cohesion rationale: one concern - the forward atomic terminal transaction with scope-delta computation and evidence (the reconciliation prompt is Order 05; rollback is Order 06).
 
 ### Execution contract
 
 1. Open questions RESOLVED: OQ-01 (what "this execution's changes" means vs concurrent edits) MUST be resolved by a human before E-01.
-2. Scope fence: touch ONLY the single-IPD lifecycle module, `cli.py` (finalize verb), `ipd_lint.py` (invoke pre/post-transition), `status_set.py` (reuse move/index helpers behind the gated path), `tests/test_ipd_lifecycle_cli.py`, and the lifecycle doc/spec/README/CONTRIBUTING via managed verbs. Do NOT implement rollback (Order 05) or remove the raw bypass (Order 06). If it seems to need more, STOP and report.
+2. Scope fence: touch ONLY the single-IPD lifecycle module, `cli.py` (finalize verb), `ipd_lint.py` (invoke pre/post-transition), `status_set.py` (reuse move/index helpers behind the gated path), `tests/test_ipd_lifecycle_cli.py`, and the lifecycle doc/spec/README/CONTRIBUTING via managed verbs. Do NOT implement the reconciliation prompt (Order 05), rollback (Order 06), or remove the raw bypass (Order 07). If it seems to need more, STOP and report.
 3. Honesty rule (hard MUST): when reporting tests/gates passed, paste the ACTUAL runner output and the receipt path/digest; never claim a pass from narration or an unchecked box.
 4. Commit ONLY this plan's own changed files, path-scoped; never `git add -A`/bare/`-a`; never push. Before each commit, compare the intended path list with `git diff --name-only` and leave concurrent user/agent edits untouched.
 5. Lifecycle move: on completion, after every E item is performed and every V item verified with pasted evidence, append the `## Workflow history` line, set `Status: executed`, `git mv` this file from `pending/` to `executed/`, and make the path-scoped lifecycle commit. This is the FIRST plan that MAY dogfood its own `aw ipd finalize` once E-02 lands; if it does and the finalizer cannot finalize it, STOP and report (do not fall back to a raw transition).

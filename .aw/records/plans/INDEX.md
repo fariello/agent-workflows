@@ -40,8 +40,9 @@ Showing the 40 most-recent of 118 Sets; the full manifest is INDEX.json.
 - `oorry1` [pending] 02 pending/20260823-ipdgates-02-oorry1-canonical-scope-paths-allowlist-schema-and-grandfather-polic.ipd.md
 - `xjbvu2` [pending] 03 pending/20260823-ipdgates-03-xjbvu2-aw-ipd-begin-fail-closed-execution-start-receipt.ipd.md
 - `v7e88a` [pending] 04 pending/20260823-ipdgates-04-v7e88a-aw-ipd-finalize-atomic-terminal-transaction.ipd.md
-- `3xh53a` [pending] 05 pending/20260823-ipdgates-05-3xh53a-aw-ipd-finalize-rollback-and-failure-semantics.ipd.md
-- `wezhxg` [pending] 06 pending/20260823-ipdgates-06-wezhxg-remove-raw-terminal-transition-bypasses-and-strengthen-histo.ipd.md
+- `qmt3yk` [pending] 05 pending/20260823-ipdgates-05-qmt3yk-finalize-two-way-scope-reconciliation-unexpected-path-reason.ipd.md
+- `3xh53a` [pending] 06 pending/20260823-ipdgates-06-3xh53a-aw-ipd-finalize-rollback-and-failure-semantics.ipd.md
+- `wezhxg` [pending] 07 pending/20260823-ipdgates-07-wezhxg-remove-raw-terminal-transition-bypasses-and-strengthen-histo.ipd.md
 
 ## renametypes
 
@@ -54,6 +55,7 @@ Showing the 40 most-recent of 118 Sets; the full manifest is INDEX.json.
 - `laykok` [pending] 02 pending/20260823-unifyfileio-02-laykok-unified-selector-to-file-resolver.ipd.md
 - `3cmnfc` [pending] 03 pending/20260823-unifyfileio-03-3cmnfc-unified-reference-matcher-rewriter-and-consistent-dangling-c.ipd.md
 - `52zgqr` [pending] 04 pending/20260823-unifyfileio-04-52zgqr-additive-rename-and-regroup-history-ledger-on-the-workflow-s.ipd.md
+- `9a655p` [pending] 05 pending/20260823-unifyfileio-05-9a655p-enforce-filename-identity-slot-id6-uniqueness-in-aw-check-an.ipd.md
 
 ## awcliux
 

@@ -2,11 +2,11 @@
 
 - Date: 2026-08-23
 - Kind: child
-- Concern: Even after `aw ipd finalize` exists (Orders 04/05), the raw `aw set executed` / `aw ipd set executed` plan-terminal path still works - it moves the plan and writes a generic `executed (aw set)` actor with no receipt, no scope comparison, and no captured gate evidence. That is the exact bypass that produced the p7dqwz false-fidelity record. Until it is removed and the history lint rejects generic-actor terminal entries, the gates are optional.
+- Concern: Even after `aw ipd finalize` exists (Orders 04-06: forward transaction, scope reconciliation, rollback), the raw `aw set executed` / `aw ipd set executed` plan-terminal path still works - it moves the plan and writes a generic `executed (aw set)` actor with no receipt, no scope comparison, and no captured gate evidence. That is the exact bypass that produced the p7dqwz false-fidelity record. Until it is removed and the history lint rejects generic-actor terminal entries, the gates are optional.
 - Scope: Make raw plan-to-terminal transitions refuse and point to `aw ipd finalize`, and strengthen post-transition history lint. Touch: agent_workflows/status_set.py (refuse plan `executed`/terminal transitions, preserve nonterminal plan transitions and non-plan artifact terminal transitions), agent_workflows/cli.py (the `set`/`ipd set` routing + help), agent_workflows/ipd_lint.py (post-transition: require a non-generic actor/model + nonempty summary), and tests/test_status_set.py + tests/test_ipd_lint.py + tests/test_ipd_lifecycle_cli.py. Does NOT build begin/finalize (Orders 03/04) - it depends on them existing.
-- Status: reviewed
+- Status: to-review
 - Set: ipdgates
-- Order: 6
+- Order: 7
 - Highest E allocated: 03
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: wezhxg
@@ -15,6 +15,7 @@
 
 - 2026-08-23 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created (decomposition of 39fz2x E-05).
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (discriminate on record_type not the `executed` token - prompts share it), PR-002/OQ-02 (human: gate only executed/done, preserve superseded/not-executed retirement), PR-003 (grandfather cutoff is a hard dependency on Order 02's open OQ-01), PR-004 (pin the generic-actor predicate to the literal `aw set`, not bare tool/human names - keeps blast radius ~5 not 50+), PR-005 (hard lockout gate: do not execute until Orders 04/05 executed + finalize proven), PR-006 (validate the NEWEST terminal entry). OQ-01 human-resolved forward-only; OQ-03 human-resolved = DELEGATE `aw set executed` into finalize (not refuse-and-redirect). Added honest-limits (finalize catches out-of-scope + attribution, NOT completeness/test-sufficiency) and a Recovery-paths section (missing-receipt -> honest advisory acknowledgment NOT a back-dated begin; legitimate out-of-scope -> light-touch acknowledge-and-proceed; grandfathered -> advisory, no lockout) per human direction, plus the mid-stream-scope design tension for Orders 02/03. Verified: aw ipd finalize/begin absent, `aw set executed` ungated for plans + generic `aw set` actor (status_set.py:356,463), prompts share the executed token (status_set.py:47-59), 4 existing `(aw set)` executed records.
+- 2026-08-23 renumber (opencode its_direct/pt3-claude-opus-4.8-1m-us): Order 06 -> 07 to make room for a new Order 05 (finalize two-way scope reconciliation, per DECISIONS.md D141); the prior Order 05 rollback became 06. Filename + front-matter Order updated via `aw rename`; internal "Orders 04/05" / "Order 06 itself" number references corrected to "Orders 04-06" / "Order 07"; reset to `to-review` since its lockout gate and dependency set now span the finalize orders 04-06.
 
 ## Goal
 
@@ -54,7 +55,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 - `status_set.py` currently accepts plan `executed`, writes/moves the file, auto-refreshes indexes, and swallows index exceptions (`status_set.py:580,617`); it is the exact bypass. The p7dqwz executed record carries `- 2026-08-23 executed (aw set): status set to executed`.
 - `aw set` is untyped (transitions plans/specs/prompts/backlog); only the PLAN terminal transition is being removed - the others stay.
 - 39fz2x OQ-02 (human-inherited): no raw terminal escape hatch.
-- Depends on `aw ipd finalize` (Orders 04/05) existing, since the refusal message and the only-supported path point at it.
+- Depends on `aw ipd finalize` (Orders 04-06: forward transaction, scope reconciliation, rollback) existing, since the delegated/only-supported path routes into it.
 
 ## Findings
 
@@ -73,7 +74,7 @@ Removing the bypass is a DOUBLE-CHECK gate ("did you do what you said, and only 
 
 1. MISSING begin receipt (executed without ever running `aw ipd begin` - the common pre-cutoff/grandfathered case, or a forgotten `begin`): DO NOT retroactively run `begin` (back-dating a start that never happened is a lie). Instead finalize records an HONEST terminal-history acknowledgment (e.g. "executed without a pre-execution receipt; scope checked retroactively against current state on <date>, NO frozen baseline") and proceeds, running whatever checks it can, LABELED "retroactive/advisory" - never labeled "verified against a receipt". The misstep is captured, not erased.
 2. REAL out-of-scope edit that is legitimate (mid-stream you had to touch a file the plan did not foresee - which in complex work is often the RULE, not the exception): LIGHT TOUCH. The gate exists to make you NOTICE and CONFIRM, not to force a rewrite. Acknowledge/own it - widen `Scope-Paths` with a note (re-review if the plan is approved), or record an accepted deviation in the terminal history - and move on. Only REVERT if the change is genuinely wrong. A clean in-scope diff passes silently.
-3. GRANDFATHERED / no `Scope-Paths` declared (this Set's own plans and all pre-existing pending plans predate the machinery): the scope check is ADVISORY-ONLY, recorded as such; finalize proceeds. No lockout of the grandfathered tree (including this Order 06 itself).
+3. GRANDFATHERED / no `Scope-Paths` declared (this Set's own plans and all pre-existing pending plans predate the machinery): the scope check is ADVISORY-ONLY, recorded as such; finalize proceeds. No lockout of the grandfathered tree (including this Order 07 itself).
 
 Design tension to carry into Orders 02 (`Scope-Paths` schema) and 03 (`begin`): because unforeseen-but-legitimate mid-stream edits are common in complex work, the `Scope-Paths` allowlist and the begin/finalize ergonomics MUST make owning such an edit LIGHT-TOUCH (acknowledge + proceed), not a straitjacket that punishes normal development. The gate's purpose is a double-check, not a barrier to mid-stream discovery.
 
@@ -150,7 +151,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 ### Execution contract
 
 1. Open questions RESOLVED (all human-resolved 2026-08-23, /plan-review): OQ-01 forward-only attribution lint; OQ-02 gate only `executed`/`done` (retirement `superseded`/`not-executed` preserved); OQ-03 DELEGATE `aw set executed` into finalize (not refuse-and-redirect). The Recovery paths + honest-limits are specified above.
-1a. LOCKOUT GATE (hard MUST): this plan removes the ONLY working plan-terminal path, so it MUST NOT execute until Orders 04 AND 05 are EXECUTED and `aw ipd finalize` is proven to work end-to-end (there is NO escape hatch by design - 39fz2x OQ-02). Executing Order 06 before finalize exists/works is an UNRECOVERABLE lockout (no way to finalize any plan). Confirm finalize works on a real plan before removing the bypass; if it does not, STOP and report.
+1a. LOCKOUT GATE (hard MUST): this plan removes the ONLY working plan-terminal path, so it MUST NOT execute until Orders 04, 05 AND 06 are EXECUTED and `aw ipd finalize` (forward transaction + scope reconciliation + rollback) is proven to work end-to-end (there is NO escape hatch by design - 39fz2x OQ-02). Executing this order before finalize exists/works is an UNRECOVERABLE lockout (no way to finalize any plan). Confirm finalize works on a real plan before removing the bypass; if it does not, STOP and report.
 2. Scope fence: touch ONLY `status_set.py`, `cli.py` (set/ipd set routing + help), `ipd_lint.py` (post-transition attribution), the three named test files, and the lifecycle doc/spec/README/CONTRIBUTING via managed verbs. Do NOT build begin/finalize. Preserve nonterminal plan transitions and non-plan artifact terminal transitions. If it seems to need more, STOP and report.
 3. Honesty rule (hard MUST): when reporting tests passed, paste the ACTUAL runner output; never claim a pass without running the actual command.
 4. Commit ONLY this plan's own changed files, path-scoped; never `git add -A`/bare/`-a`; never push.

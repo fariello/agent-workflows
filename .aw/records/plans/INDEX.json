@@ -2797,7 +2797,7 @@
     "path": "pending/20260823-ipdgates-00-do64fh-enforce-single-ipd-lifecycle-and-scope-gates-fail-closed.ipd.md",
     "plan_id": "do64fh",
     "set_id": "ipdgates",
-    "status": "draft"
+    "status": "to-review"
   },
   {
     "date": "2026-08-23",
@@ -2807,7 +2807,7 @@
     "path": "pending/20260823-ipdgates-01-v6zie5-own-and-regression-test-the-p7dqwz-xdg-config-isolation-resi.ipd.md",
     "plan_id": "v6zie5",
     "set_id": "ipdgates",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-23",
@@ -2817,7 +2817,7 @@
     "path": "pending/20260823-ipdgates-02-oorry1-canonical-scope-paths-allowlist-schema-and-grandfather-polic.ipd.md",
     "plan_id": "oorry1",
     "set_id": "ipdgates",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-23",
@@ -2827,7 +2827,7 @@
     "path": "pending/20260823-ipdgates-03-xjbvu2-aw-ipd-begin-fail-closed-execution-start-receipt.ipd.md",
     "plan_id": "xjbvu2",
     "set_id": "ipdgates",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-23",
@@ -2837,15 +2837,15 @@
     "path": "pending/20260823-ipdgates-04-v7e88a-aw-ipd-finalize-atomic-terminal-transaction.ipd.md",
     "plan_id": "v7e88a",
     "set_id": "ipdgates",
-    "status": "draft"
+    "status": "to-review"
   },
   {
     "date": "2026-08-23",
     "disposition": "pending",
     "kind": "child",
     "order": 5,
-    "path": "pending/20260823-ipdgates-05-3xh53a-aw-ipd-finalize-rollback-and-failure-semantics.ipd.md",
-    "plan_id": "3xh53a",
+    "path": "pending/20260823-ipdgates-05-qmt3yk-finalize-two-way-scope-reconciliation-unexpected-path-reason.ipd.md",
+    "plan_id": "qmt3yk",
     "set_id": "ipdgates",
     "status": "draft"
   },
@@ -2854,10 +2854,20 @@
     "disposition": "pending",
     "kind": "child",
     "order": 6,
-    "path": "pending/20260823-ipdgates-06-wezhxg-remove-raw-terminal-transition-bypasses-and-strengthen-histo.ipd.md",
+    "path": "pending/20260823-ipdgates-06-3xh53a-aw-ipd-finalize-rollback-and-failure-semantics.ipd.md",
+    "plan_id": "3xh53a",
+    "set_id": "ipdgates",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 7,
+    "path": "pending/20260823-ipdgates-07-wezhxg-remove-raw-terminal-transition-bypasses-and-strengthen-histo.ipd.md",
     "plan_id": "wezhxg",
     "set_id": "ipdgates",
-    "status": "draft"
+    "status": "to-review"
   },
   {
     "date": "2026-08-23",
@@ -2906,6 +2916,16 @@
     "order": 4,
     "path": "pending/20260823-unifyfileio-04-52zgqr-additive-rename-and-regroup-history-ledger-on-the-workflow-s.ipd.md",
     "plan_id": "52zgqr",
+    "set_id": "unifyfileio",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 5,
+    "path": "pending/20260823-unifyfileio-05-9a655p-enforce-filename-identity-slot-id6-uniqueness-in-aw-check-an.ipd.md",
+    "plan_id": "9a655p",
     "set_id": "unifyfileio",
     "status": "reviewed"
   },
