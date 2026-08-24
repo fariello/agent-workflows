@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""Restartable non-interactive OpenCode driver for executing approved IPDs.
+"""Restartable non-interactive OpenCode driver for reviewing and executing IPDs (runipd).
 
-This driver manages execution queues for approved IPDs and Sets, storing durable
-run records under the repository's `.aw/records/runs/` directory.
+This driver manages execution and review queues for IPDs, Sets, and plan files:
+- For plans with status 'to-review', it invokes OpenCode with `/plan-review <path>`
+  sharing the same session across all reviews.
+- For plans with status 'approved', it executes them step-by-step using the durable
+  driver runbook and records outcome state.
+- Stores durable run records under the repository's `.aw/records/runs/` directory.
 """
 
 from __future__ import annotations
@@ -23,12 +27,14 @@ import tempfile
 import threading
 import time
 from pathlib import Path
-from typing import Any, Iterable, TextIO
+from typing import Any, Iterable, NamedTuple, TextIO
 
 
 SCHEMA_VERSION = 1
 TERMINAL_STATES = {
     "executed",
+    "reviewed",
+    "approved",
     "substantially-complete",
     "partial",
     "blocked",
@@ -36,13 +42,20 @@ TERMINAL_STATES = {
     "failed-safely",
     "not-attempted",
 }
-SUCCESS_STATES = {"executed"}
+SUCCESS_STATES = {"executed", "reviewed", "approved"}
 ID6_RE = re.compile(r"^[a-z0-9]{6}$")
 
+# Frontmatter and filename extraction regexes
+_ID_RE = re.compile(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$")
+_STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
+_SET_RE = re.compile(r"(?m)^-\s*Set:\s*(.+?)\s*$")
+_ORDER_RE = re.compile(r"(?m)^-\s*Order:\s*(\d+)\s*$")
+_DEPS_RE = re.compile(r"(?m)^-\s*(?:Dependencies|Depends-on):\s*(.+?)\s*$")
+_PLAN_FILENAME_RE = re.compile(
+    r"^\d{8}-([a-z0-9_-]+)-(\d{1,3})-([a-z0-9]{6})-(.+)\.(ipd|draft|plan)\.md$"
+)
+
 # Terminal output verbosity for the streamed child-agent turn.
-#   "clean" (default): render events as concise, colored, human-readable lines.
-#   "quiet": only per-IPD/attempt banners and a periodic heartbeat; no per-event lines.
-#   "raw": the legacy behavior, tee the child's raw JSONL to the terminal.
 OUTPUT_MODES = ("clean", "quiet", "raw")
 
 # ANSI SGR codes. Kept local so this standalone driver has no package dependency.
@@ -60,10 +73,11 @@ _ANSI_CODES = {
 }
 _ANSI_STRIP_RE = re.compile(r"\033\[[0-9;]*m")
 
-# Terminal status word -> color, mirroring the toolkit's convention (word first,
-# color a redundant cue). Load-bearing meaning is always in the word.
+# Terminal status word -> color, mirroring the toolkit's convention.
 _STATUS_COLOR = {
     "executed": "green",
+    "reviewed": "green",
+    "approved": "green",
     "substantially-complete": "green",
     "partial": "yellow",
     "blocked": "yellow",
@@ -77,11 +91,7 @@ _STATUS_COLOR = {
 
 
 def should_color(stream: TextIO | None = None) -> bool:
-    """Decide whether to emit ANSI color for ``stream`` (default stdout).
-
-    Precedence: NO_COLOR disables (unless FORCE_COLOR overrides); otherwise color
-    is on only for a real TTY.
-    """
+    """Decide whether to emit ANSI color for ``stream`` (default stdout)."""
     target: TextIO = stream if stream is not None else sys.stdout
     if os.environ.get("FORCE_COLOR"):
         return True
@@ -129,9 +139,7 @@ def _one_line(text: str, limit: int = 200) -> str:
 
 def render_event(raw_line: str, pal: Palette) -> str | None:
     """Translate one raw JSONL event from `opencode run --format json` into a
-    concise, colored terminal line. Returns None for events that add no
-    human-facing signal (so the terminal stays readable while the full stream is
-    still written verbatim to the session log).
+    concise, colored terminal line.
     """
     line = raw_line.rstrip("\n")
     if not line.strip():
@@ -139,7 +147,6 @@ def render_event(raw_line: str, pal: Palette) -> str | None:
     try:
         event = json.loads(line)
     except json.JSONDecodeError:
-        # Non-JSON line (e.g. a stray log line merged from stderr): show dimmed.
         return pal("  " + _one_line(line), "dim")
     etype = event.get("type")
     part = event.get("part") or {}
@@ -154,7 +161,6 @@ def render_event(raw_line: str, pal: Palette) -> str | None:
         tool = part.get("tool") or "tool"
         status = state.get("status") or ""
         title = state.get("title") or ""
-        # `title` is usually the command/summary; fall back to a compact input.
         if not title:
             inp = state.get("input")
             if isinstance(inp, dict):
@@ -182,15 +188,11 @@ def render_event(raw_line: str, pal: Palette) -> str | None:
         if not bits:
             return None
         return pal("    \u2014 step done (" + ", ".join(bits) + ")", "dim")
-    # step_start and anything else: no dedicated line (keeps the view calm).
     return None
 
 
 class Heartbeat:
-    """Prints a periodic 'still working' line to stderr when the child stream is
-    quiet, so a long, silent step does not look hung. Thread-based; each rendered
-    event resets the idle timer.
-    """
+    """Prints a periodic 'still working' line to stderr when the child stream is quiet."""
 
     def __init__(
         self, pal: Palette, label: str, stream: TextIO, interval: float = 15.0
@@ -309,8 +311,6 @@ def atomic_write_json(path: Path, data: dict[str, Any]) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temp_name, path)
-        # POSIX open(2) requires an access mode; O_DIRECTORY alone is non-conformant.
-        # O_RDONLY is the correct mode for a directory fd used only to fsync it.
         dir_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
         try:
             os.fsync(dir_fd)
@@ -350,6 +350,150 @@ def run_lock(run_dir: Path):
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
+def _read_id(text: str) -> str | None:
+    m = _ID_RE.search(text)
+    return m.group(1) if m else None
+
+
+def _read_status(text: str) -> str | None:
+    m = _STATUS_RE.search(text)
+    return m.group(1) if m else None
+
+
+def _read_set(text: str) -> str | None:
+    m = _SET_RE.search(text)
+    if not m:
+        return None
+    return m.group(1).split("(")[0].strip().split()[0] if m.group(1).strip() else None
+
+
+def _read_order(text: str) -> int | None:
+    m = _ORDER_RE.search(text)
+    return int(m.group(1)) if m else None
+
+
+def _read_deps(text: str) -> list[str]:
+    m = _DEPS_RE.search(text)
+    if not m:
+        return []
+    raw = m.group(1).strip()
+    if not raw or raw.lower() in ("none", "none.", "n/a"):
+        return []
+    tokens = re.split(r"[,;\s]+", raw)
+    return [tok.strip() for tok in tokens if ID6_RE.fullmatch(tok.strip())]
+
+
+class PlanRecord(NamedTuple):
+    id6: str
+    setid: str
+    status: str
+    order: int
+    path: Path
+    rel_path: str
+    dependencies: list[str]
+
+
+def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    id6 = _read_id(text)
+    setid = _read_set(text)
+    status = _read_status(text)
+    order = _read_order(text)
+    deps = _read_deps(text)
+    m = _PLAN_FILENAME_RE.match(path.name)
+    if m:
+        if not setid:
+            setid = m.group(1)
+        if order is None:
+            order = int(m.group(2))
+        if not id6:
+            id6 = m.group(3)
+    if not id6:
+        for part in path.name.split("-"):
+            if ID6_RE.fullmatch(part):
+                id6 = part
+                break
+    if not id6:
+        try:
+            rel = str(path.relative_to(repo))
+        except ValueError:
+            rel = str(path)
+        id6 = hashlib.sha256(rel.encode("utf-8")).hexdigest()[:6]
+    if not setid:
+        setid = "standalone"
+    if order is None:
+        order = 99
+    if not status:
+        bucket = plan_bucket(path)
+        status = bucket or "to-review"
+    try:
+        rel = str(path.relative_to(repo))
+    except ValueError:
+        rel = str(path)
+    return PlanRecord(
+        id6=id6,
+        setid=setid,
+        status=status,
+        order=order,
+        path=path.resolve(),
+        rel_path=rel,
+        dependencies=deps,
+    )
+
+
+def discover_plans(repo: Path) -> dict[str, PlanRecord]:
+    """Scan the repository for all IPD files, returning id6 -> PlanRecord."""
+    plans: dict[str, PlanRecord] = {}
+    search_dirs = [
+        repo / ".aw" / "records" / "plans",
+        repo / ".agents" / "plans",
+    ]
+    seen: set[Path] = set()
+    for sdir in search_dirs:
+        if not sdir.exists():
+            continue
+        for path in sdir.rglob("*.md"):
+            if path.name in {"README.md", "INDEX.md", "STATUS.md"}:
+                continue
+            resolved = path.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            rec = parse_plan_file(resolved, repo)
+            if rec:
+                plans[rec.id6] = rec
+    return plans
+
+
+def build_dynamic_manifest(
+    repo: Path, discovered: dict[str, PlanRecord]
+) -> dict[str, Any]:
+    """Compile discovered plans into a manifest dictionary."""
+    plans_dict: dict[str, Any] = {}
+    sets_dict: dict[str, list[PlanRecord]] = {}
+    for id6, rec in discovered.items():
+        plans_dict[id6] = {
+            "set": rec.setid,
+            "file": rec.rel_path,
+            "status": rec.status,
+            "order": rec.order,
+            "dependencies": rec.dependencies,
+        }
+        sets_dict.setdefault(rec.setid, []).append(rec)
+    sorted_sets: dict[str, Any] = {}
+    for setid, plist in sets_dict.items():
+        plist_sorted = sorted(plist, key=lambda x: (x.order, x.path.name))
+        sorted_sets[setid] = {"order": [x.id6 for x in plist_sorted]}
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "plans": plans_dict,
+        "sets": sorted_sets,
+    }
+
+
 def validate_manifest(manifest: dict[str, Any]) -> None:
     if manifest.get("schema_version") != SCHEMA_VERSION:
         raise DriverError("Unsupported manifest schema_version")
@@ -379,29 +523,79 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
             raise DriverError(f"Set {setid} contains plans assigned elsewhere: {wrong}")
 
 
-def expand_selectors(manifest: dict[str, Any], selectors: Iterable[str]) -> list[str]:
-    plans = manifest["plans"]
-    sets = manifest["sets"]
+def expand_selectors(
+    manifest: dict[str, Any],
+    selectors: Iterable[str],
+    repo: Path | None = None,
+) -> list[str]:
+    """Resolve selector tokens (id6, setid, or file paths) against the manifest and repo."""
+    plans = manifest.get("plans", {})
+    sets = manifest.get("sets", {})
     expanded: list[str] = []
     seen: set[str] = set()
+
     for selector in selectors:
+        sel_str = str(selector).strip()
         matched_set: str | None = None
-        if selector in plans:
-            candidates = [selector]
-        elif selector in sets:
-            matched_set = selector
-            candidates = sets[selector]["order"]
+        candidates: list[str] = []
+
+        file_cand = Path(sel_str)
+        if repo and not file_cand.is_absolute():
+            repo_file_cand = repo / sel_str
         else:
-            prefix_matches = [s for s in sets if s.startswith(selector)]
+            repo_file_cand = file_cand
+
+        matched_file_id: str | None = None
+        for fc in (file_cand, repo_file_cand):
+            try:
+                if fc.is_file():
+                    rec = parse_plan_file(fc.resolve(), repo or Path.cwd())
+                    if rec:
+                        matched_file_id = rec.id6
+                        if rec.id6 not in plans:
+                            plans[rec.id6] = {
+                                "set": rec.setid,
+                                "file": rec.rel_path,
+                                "status": rec.status,
+                                "order": rec.order,
+                                "dependencies": rec.dependencies,
+                            }
+                        break
+            except OSError:
+                pass
+
+        if matched_file_id:
+            candidates = [matched_file_id]
+        elif sel_str in plans:
+            candidates = [sel_str]
+        elif sel_str in sets:
+            matched_set = sel_str
+            candidates = sets[sel_str]["order"]
+        else:
+            prefix_matches = [s for s in sets if s.startswith(sel_str)]
             if len(prefix_matches) == 1:
                 matched_set = prefix_matches[0]
                 candidates = sets[prefix_matches[0]]["order"]
             elif len(prefix_matches) > 1:
                 raise DriverError(
-                    f"Ambiguous Set selector prefix: {selector} matches {prefix_matches}"
+                    f"Ambiguous Set selector prefix: {sel_str} matches {prefix_matches}"
                 )
             else:
-                raise DriverError(f"Unknown id6/Set selector: {selector}")
+                matching_plans = [
+                    id6
+                    for id6, p in plans.items()
+                    if sel_str in p.get("file", "")
+                    or sel_str in Path(p.get("file", "")).name
+                ]
+                if len(matching_plans) == 1:
+                    candidates = matching_plans
+                elif len(matching_plans) > 1:
+                    raise DriverError(
+                        f"Ambiguous filename selector: {sel_str} matches multiple plans: {matching_plans}"
+                    )
+                else:
+                    raise DriverError(f"Unknown id6/Set/file selector: {sel_str}")
+
         if matched_set is not None and not candidates:
             raise DriverError(
                 f"Set '{matched_set}' has an empty order (no plans to run)"
@@ -410,15 +604,17 @@ def expand_selectors(manifest: dict[str, Any], selectors: Iterable[str]) -> list
             if id6 not in seen:
                 expanded.append(id6)
                 seen.add(id6)
+
     if not expanded:
         raise DriverError("At least one id6 or Set selector is required")
     return expanded
 
 
 def resolve_plan_path(repo: Path, configured: str, id6: str) -> Path:
-    direct = (repo / configured).resolve()
-    if direct.is_file():
-        return direct
+    if configured:
+        direct = (repo / configured).resolve()
+        if direct.is_file():
+            return direct
     roots = [repo / ".aw" / "records" / "plans", repo]
     matches: list[Path] = []
     for root in roots:
@@ -442,6 +638,14 @@ def plan_bucket(path: Path) -> str | None:
     return None
 
 
+def determine_action(status: str) -> str:
+    """Return 'review' for to-review plans; 'execute' for approved/ready plans."""
+    norm = (status or "").lower().strip()
+    if norm in ("to-review", "draft"):
+        return "review"
+    return "execute"
+
+
 def new_run_id() -> str:
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     return f"run-{stamp}-{os.getpid()}"
@@ -451,23 +655,56 @@ def state_root(repo: Path) -> Path:
     return repo / ".aw" / "records" / "runs"
 
 
+DEFAULT_RUNBOOK_TEXT = """# IPD Autonomous Execution Runbook
+
+This runbook guides autonomous non-interactive execution of approved Implementation
+Plan Documents (IPDs) in this repository.
+
+## Execution Directives
+1. Execute only the assigned IPD in this turn.
+2. Read the assigned IPD in full, its current orchestrator, repository guidelines, and tests.
+3. Make safe, verifiable forward progress. Do not weaken checks or fabricate evidence.
+4. Commit only files you changed with path-scoped git commits (`git commit -m msg -- <path>`).
+5. Never push to remote.
+6. Write valid outcome JSON before exiting.
+"""
+
+
 def initialize_run(args: argparse.Namespace) -> Path:
     repo = Path(args.repo).expanduser().resolve()
     if not (repo / ".git").exists():
         try:
             common_dir_exists = git_common_dir(repo).exists()
         except DriverError:
-            # `git rev-parse` fails on a non-repository; treat that as the
-            # intended precondition rather than surfacing the raw git error.
             common_dir_exists = False
         if not common_dir_exists:
             raise DriverError(f"Not a Git repository: {repo}")
-    manifest_path = Path(args.manifest).expanduser().resolve()
-    runbook_path = Path(args.runbook).expanduser().resolve()
-    manifest = load_json(manifest_path)
-    validate_manifest(manifest)
-    queue_ids = expand_selectors(manifest, args.selectors)
-    run_id = args.run_id or new_run_id()
+
+    if getattr(args, "manifest", None):
+        manifest_path = Path(args.manifest).expanduser().resolve()
+        manifest = load_json(manifest_path)
+        validate_manifest(manifest)
+    else:
+        discovered = discover_plans(repo)
+        manifest = build_dynamic_manifest(repo, discovered)
+        manifest_path = None
+
+    if getattr(args, "runbook", None):
+        runbook_path = Path(args.runbook).expanduser().resolve()
+    else:
+        default_rb = (
+            repo
+            / "tools"
+            / "ipdrunner"
+            / "20260823-pending-ipds-overnight-execution-runbook.md"
+        )
+        if default_rb.is_file():
+            runbook_path = default_rb.resolve()
+        else:
+            runbook_path = None
+
+    queue_ids = expand_selectors(manifest, args.selectors, repo=repo)
+    run_id = getattr(args, "run_id", None) or new_run_id()
     run_dir = state_root(repo) / run_id
     if run_dir.exists():
         raise DriverError(f"Run already exists: {run_id}")
@@ -476,20 +713,49 @@ def initialize_run(args: argparse.Namespace) -> Path:
     (run_dir / "decisions-and-questions.md").write_text(
         f"# Decisions and Questions for {run_id}\n\n", encoding="utf-8"
     )
+
+    if manifest_path is None:
+        manifest_path = run_dir / "manifest.json"
+        atomic_write_json(manifest_path, manifest)
+
+    if runbook_path is None:
+        runbook_path = run_dir / "runbook.md"
+        runbook_path.write_text(DEFAULT_RUNBOOK_TEXT, encoding="utf-8")
+
+    initial_session = getattr(args, "session", None)
+    set_sessions: dict[str, str] = {}
     queue: list[dict[str, Any]] = []
     for position, id6 in enumerate(queue_ids, start=1):
         plan = manifest["plans"][id6]
+        setid = plan["set"]
+        if initial_session:
+            set_sessions[setid] = initial_session
+
+        status = plan.get("status")
+        if not status:
+            try:
+                p_path = resolve_plan_path(repo, plan.get("file", ""), id6)
+                rec = parse_plan_file(p_path, repo)
+                if rec:
+                    status = rec.status
+            except Exception:
+                status = "approved"
+
+        action = determine_action(status or "approved")
         queue.append(
             {
                 "position": position,
                 "id6": id6,
-                "setid": plan["set"],
+                "setid": setid,
                 "configured_file": plan["file"],
                 "dependencies": plan.get("dependencies", []),
+                "initial_status": status or "approved",
+                "action": action,
                 "status": "queued",
                 "attempts": [],
             }
         )
+
     state = {
         "schema_version": SCHEMA_VERSION,
         "run_id": run_id,
@@ -502,12 +768,14 @@ def initialize_run(args: argparse.Namespace) -> Path:
         "runbook_sha256": sha256_file(runbook_path),
         "selectors": list(args.selectors),
         "queue": queue,
-        "set_sessions": {},
+        "session_id": initial_session,
+        "set_sessions": set_sessions,
         "options": {
-            "opencode": args.opencode,
-            "model": args.model,
-            "agent": args.agent,
-            "auto": args.auto,
+            "opencode": getattr(args, "opencode", "opencode"),
+            "model": getattr(args, "model", None),
+            "agent": getattr(args, "agent", None),
+            "auto": getattr(args, "auto", True),
+            "session": initial_session,
             "output_mode": getattr(args, "output_mode", "clean"),
         },
         "driver": {
@@ -549,14 +817,15 @@ def write_report(run_dir: Path, state: dict[str, Any]) -> None:
         f"- Counts: `{json.dumps(counts, sort_keys=True)}`",
         "- Pushed: no (required; verify independently in outcomes)",
         "",
-        "| # | id6 | Set | Status | Attempts | Last session |",
-        "|---:|---|---|---|---:|---|",
+        "| # | id6 | Set | Action | Status | Attempts | Last session |",
+        "|---:|---|---|---|---|---:|---|",
     ]
     for item in state["queue"]:
         attempts = item.get("attempts", [])
         session = attempts[-1].get("session_id", "") if attempts else ""
+        action = item.get("action", "execute")
         lines.append(
-            f"| {item['position']} | `{item['id6']}` | `{item['setid']}` | "
+            f"| {item['position']} | `{item['id6']}` | `{item['setid']}` | `{action}` | "
             f"{item['status']} | {len(attempts)} | `{session}` |"
         )
     lines.extend(
@@ -571,19 +840,11 @@ def write_report(run_dir: Path, state: dict[str, Any]) -> None:
     (run_dir / "execution-report.md").write_text("\n".join(lines), encoding="utf-8")
 
 
-# Recognized session-id JSON keys, in preference order. OpenCode emits `sessionID`;
-# accept camelCase/snake_case variants too so a provider dialect change does not drop
-# session continuity.
 _SESSION_ID_KEYS = ("sessionID", "sessionId", "session_id")
 
 
 def extract_session_id(log_path: Path) -> str | None:
-    """Return the session id from a streamed JSONL log.
-
-    Prefer a canonical `ses_`-prefixed value (across any recognized key); fall back
-    to the first non-empty string id under a recognized key so a non-prefixed
-    provider id is still captured rather than silently lost.
-    """
+    """Return the session id from a streamed JSONL log."""
     if not log_path.exists():
         return None
     fallback: str | None = None
@@ -612,14 +873,9 @@ def dependency_status(
     unsatisfied: list[str] = []
     for dep in item.get("dependencies", []):
         if dep in by_id:
-            # Dependency is in this run's queue: satisfied only once it succeeds here.
             if by_id[dep]["status"] not in SUCCESS_STATES:
                 unsatisfied.append(dep)
             continue
-        # Fail-closed for a dependency NOT in the active queue: it is satisfied only
-        # if the repository shows that IPD already executed. A dep that cannot be
-        # located, or is located outside executed/, is treated as UNSATISFIED rather
-        # than silently assumed done (the old fail-open behavior).
         try:
             dep_path = resolve_plan_path(repo, "", dep)
         except DriverError:
@@ -628,6 +884,20 @@ def dependency_status(
         if plan_bucket(dep_path) != "executed":
             unsatisfied.append(dep)
     return not unsatisfied, unsatisfied
+
+
+def build_review_prompt(
+    item: dict[str, Any],
+    state: dict[str, Any],
+    run_dir: Path,
+    plan_path: Path,
+    repo: Path,
+) -> str:
+    try:
+        rel_path = str(plan_path.relative_to(repo))
+    except ValueError:
+        rel_path = str(plan_path)
+    return f"/plan-review {rel_path}"
 
 
 def build_prompt(
@@ -713,10 +983,11 @@ material question arose, say so in the summary. Explicitly confirm pushed=false.
 def write_prompt(
     run_dir: Path, item: dict[str, Any], prompt: str, attempt_no: int
 ) -> Path:
+    prefix = "review" if item.get("action") == "review" else "exec"
     path = (
         run_dir
         / "prompts"
-        / f"{item['position']:02d}-{item['id6']}-attempt-{attempt_no}.md"
+        / f"{item['position']:02d}-{item['id6']}-{prefix}-attempt-{attempt_no}.md"
     )
     path.write_text(prompt, encoding="utf-8")
     return path
@@ -730,19 +1001,12 @@ def attempt_log_path(run_dir: Path, item: dict[str, Any], attempt_no: int) -> Pa
     )
 
 
-# Child-termination escalation timeouts (seconds). Fixed, safe defaults for an
-# interactive/headless CLI driver; OQ-01 deferred making these CLI-configurable.
 _SIGINT_GRACE_SECONDS = 5.0
 _SIGTERM_GRACE_SECONDS = 2.0
 
 
 def terminate_process(process: subprocess.Popen) -> None:
-    """Reap a child OpenCode process without leaving orphans.
-
-    Escalate SIGINT -> (wait) -> SIGTERM -> (wait) -> SIGKILL, then close its
-    standard stream pipes and ensure `process.wait()` completes. Safe to call when
-    the process has already exited (returns immediately).
-    """
+    """Reap a child OpenCode process without leaving orphans."""
     if process.poll() is not None:
         _close_process_streams(process)
         return
@@ -760,7 +1024,6 @@ def terminate_process(process: subprocess.Popen) -> None:
             return
         except subprocess.TimeoutExpired:
             continue
-    # Still alive after SIGINT and SIGTERM: force-kill and reap.
     with contextlib.suppress(ProcessLookupError, OSError):
         process.kill()
     with contextlib.suppress(Exception):
@@ -783,12 +1046,18 @@ def run_opencode(
     prompt_path: Path,
     attempt_no: int,
 ) -> tuple[int, str | None, Path, list[str]]:
-    options = state["options"]
+    options = state.get("options", {})
     opencode = options.get("opencode") or "opencode"
     argv = [opencode, "run"]
-    set_session = state.get("set_sessions", {}).get(item["setid"])
-    if set_session:
-        argv.extend(["--session", set_session])
+
+    session = (
+        state.get("session_id")
+        or state.get("set_sessions", {}).get(item["setid"])
+        or options.get("session")
+    )
+    if session:
+        argv.extend(["--session", session])
+
     argv.extend(["--dir", state["repo"], "--format", "json"])
     if options.get("model"):
         argv.extend(["--model", options["model"]])
@@ -796,22 +1065,33 @@ def run_opencode(
         argv.extend(["--agent", options["agent"]])
     if options.get("auto", True):
         argv.append("--auto")
+
+    is_review = item.get("action") == "review"
+    action_label = "review" if is_review else "exec"
     argv.extend(
         [
             "--title",
-            f"aw-{state['run_id']}-{item['setid']}",
-            "--file",
-            state["runbook"],
+            f"aw-{action_label}-{state['run_id']}-{item['setid']}-{item['id6']}",
+        ]
+    )
+
+    if not is_review and state.get("runbook") and Path(state["runbook"]).exists():
+        argv.extend(["--file", state["runbook"]])
+
+    argv.extend(
+        [
             "--file",
             str(plan_path),
             "--",
             prompt_path.read_text(encoding="utf-8"),
         ]
     )
+
     output_mode = options.get("output_mode", "clean")
     pal = Palette(should_color(sys.stdout))
-    label = pal(f"{item['id6']}", "bold") + f" (attempt {attempt_no})"
+    label = pal(f"{item['id6']}", "bold") + f" ({action_label} attempt {attempt_no})"
     log_path = attempt_log_path(run_dir, item, attempt_no)
+
     with log_path.open("w", encoding="utf-8") as log:
         process = subprocess.Popen(
             argv,
@@ -822,14 +1102,11 @@ def run_opencode(
             bufsize=1,
         )
         assert process.stdout is not None
-        # In quiet/clean modes a heartbeat reassures during long silent steps; in
-        # raw mode the constant stream is its own liveness signal.
         interval = 0.0 if output_mode == "raw" else 15.0
         heartbeat = Heartbeat(pal, label, sys.stderr, interval=interval)
         try:
             with heartbeat:
                 for line in process.stdout:
-                    # The full, verbatim JSONL always goes to the durable session log.
                     log.write(line)
                     log.flush()
                     heartbeat.touch()
@@ -841,11 +1118,7 @@ def run_opencode(
                         if rendered is not None:
                             sys.stdout.write(rendered + "\n")
                             sys.stdout.flush()
-                    # "quiet": suppress per-event lines; heartbeat + banners only.
         except BaseException:
-            # KeyboardInterrupt or any error mid-stream: reap the child (escalating
-            # SIGINT -> SIGTERM -> SIGKILL) so no orphaned agent process survives,
-            # then re-raise. BaseException covers KeyboardInterrupt/SystemExit too.
             terminate_process(process)
             log.flush()
             with contextlib.suppress(OSError):
@@ -860,6 +1133,19 @@ def run_opencode(
 def reconcile_disposition(
     repo: Path, item: dict[str, Any], run_dir: Path, exit_code: int
 ) -> tuple[str, dict[str, Any] | None]:
+    if item.get("action") == "review":
+        try:
+            current_plan = resolve_plan_path(repo, item["configured_file"], item["id6"])
+            text = current_plan.read_text(encoding="utf-8")
+            status = _read_status(text)
+        except Exception:
+            status = None
+        if exit_code == 0:
+            if status in ("reviewed", "approved"):
+                return status, None
+            return "reviewed", None
+        return "failed-safely", None
+
     outcome_path = run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
     outcome: dict[str, Any] | None = None
     if outcome_path.exists():
@@ -877,7 +1163,6 @@ def reconcile_disposition(
     if outcome:
         disposition = outcome.get("disposition")
         if disposition == "executed":
-            # A model-authored outcome is a claim, not the lifecycle authority.
             return "substantially-complete", outcome
         if disposition in TERMINAL_STATES - {"dependency-blocked", "not-attempted"}:
             return disposition, outcome
@@ -890,7 +1175,13 @@ def execute_item(
     repo = Path(state["repo"])
     plan_path = resolve_plan_path(repo, item["configured_file"], item["id6"])
     attempt_no = len(item.get("attempts", [])) + 1
-    prompt = build_prompt(item, state, run_dir, plan_path, recovery)
+
+    is_review = item.get("action") == "review"
+    if is_review:
+        prompt = build_review_prompt(item, state, run_dir, plan_path, repo)
+    else:
+        prompt = build_prompt(item, state, run_dir, plan_path, recovery)
+
     prompt_path = write_prompt(run_dir, item, prompt, attempt_no)
     attempt = {
         "number": attempt_no,
@@ -900,12 +1191,10 @@ def execute_item(
         "starting_status": git_status(repo),
         "prompt": str(prompt_path),
         "prompt_sha256": sha256_file(prompt_path),
-        # Record the session actually observed for THIS attempt (set below from
-        # the launch's extracted id), not one inherited from the prior Set
-        # session; leave null until/unless a ses_ id is parsed for this attempt.
         "session_id": None,
         "log": str(attempt_log_path(run_dir, item, attempt_no)),
         "recovery": recovery,
+        "action": item.get("action", "execute"),
     }
     item.setdefault("attempts", []).append(attempt)
     item["status"] = "running"
@@ -916,16 +1205,21 @@ def execute_item(
             "at": utc_now(),
             "event": "ipd-started",
             "id6": item["id6"],
+            "action": item.get("action", "execute"),
             "attempt": attempt_no,
         },
     )
     total = len(state["queue"])
     pal = Palette(should_color(sys.stdout))
     mode_note = " (recovery)" if recovery else ""
+    action_str = f"action={item.get('action', 'execute')}"
     banner = (
         pal("\u25b6 ", "cyan")
         + pal(f"IPD {item['position']:02d}/{total} {item['id6']}", "bold", "cyan")
-        + pal(f"  set={item['setid']}  attempt {attempt_no}{mode_note}", "dim")
+        + pal(
+            f"  set={item['setid']}  {action_str}  attempt {attempt_no}{mode_note}",
+            "dim",
+        )
     )
     print(banner)
     print(pal(f"  plan: {plan_path}", "dim"))
@@ -942,6 +1236,7 @@ def execute_item(
             {"at": utc_now(), "event": "ipd-interrupted", "id6": item["id6"]},
         )
         raise
+
     if session_id:
         existing = state.setdefault("set_sessions", {}).get(item["setid"])
         if existing and existing != session_id:
@@ -949,7 +1244,9 @@ def execute_item(
                 f"Set {item['setid']} changed session unexpectedly: {existing} -> {session_id}"
             )
         state["set_sessions"][item["setid"]] = session_id
+        state["session_id"] = session_id
         attempt["session_id"] = session_id
+
     attempt.update(
         {
             "ended_at": utc_now(),
@@ -965,6 +1262,7 @@ def execute_item(
     item["status"] = disposition
     item["last_outcome"] = outcome
     save_state(run_dir, state)
+
     glyph = "\u2713" if disposition in SUCCESS_STATES else "\u25cf"
     glyph_color = (
         "green"
@@ -974,6 +1272,7 @@ def execute_item(
     finish = (
         pal(f"{glyph} ", glyph_color)
         + pal(f"IPD {item['position']:02d}/{total} {item['id6']}", "bold")
+        + pal(f" ({item.get('action', 'execute')})", "dim")
         + " -> "
         + pal(disposition, glyph_color)
         + pal(f"  (exit {exit_code})", "dim")
@@ -986,6 +1285,7 @@ def execute_item(
             "at": utc_now(),
             "event": "ipd-finished",
             "id6": item["id6"],
+            "action": item.get("action", "execute"),
             "attempt": attempt_no,
             "exit_code": exit_code,
             "status": disposition,
@@ -1007,6 +1307,7 @@ def reconcile_interrupted(run_dir: Path, state: dict[str, Any]) -> None:
                 existing = state.setdefault("set_sessions", {}).get(item["setid"])
                 if existing in (None, session_id):
                     state["set_sessions"][item["setid"]] = session_id
+                    state["session_id"] = session_id
                     attempts[-1]["session_id"] = session_id
                 else:
                     attempts[-1]["session_reconciliation_error"] = (
@@ -1028,8 +1329,6 @@ def reconcile_interrupted(run_dir: Path, state: dict[str, Any]) -> None:
         except DriverError:
             pass
         item["status"] = "interrupted"
-        # Complete the crash-recovered attempt's timestamps so the record is not
-        # left open (started_at with no ended_at/interrupted_at).
         if attempts:
             now = utc_now()
             attempts[-1].setdefault("interrupted_at", now)
@@ -1042,13 +1341,7 @@ def reconcile_interrupted(run_dir: Path, state: dict[str, Any]) -> None:
 
 
 def requeue_interrupted(run_dir: Path, state: dict[str, Any]) -> list[str]:
-    """Re-queue items left `interrupted` by an interruption so a plain `resume`
-    retries the in-flight unit of work in recovery mode.
-
-    Scope is deliberately narrow: ONLY `interrupted` items are re-queued here, so
-    a bare `resume` does not broaden into the `--retry-incomplete` set (partial,
-    failed-safely, blocked, substantially-complete). Returns the id6s re-queued.
-    """
+    """Re-queue items left `interrupted` so resume retries in recovery mode."""
     requeued: list[str] = []
     for item in state["queue"]:
         if item["status"] == "interrupted":
@@ -1070,14 +1363,10 @@ def run_queue(
     run_dir: Path, retry_incomplete: bool, output_mode: str | None = None
 ) -> int:
     state = load_state(run_dir)
-    # Terminal verbosity is a per-invocation display preference: let a resume-time
-    # flag override whatever was persisted at `start`.
     if output_mode is not None:
         state.setdefault("options", {})["output_mode"] = output_mode
         save_state(run_dir, state)
     reconcile_interrupted(run_dir, state)
-    # A plain resume must not abandon the item that was in flight when the run
-    # was interrupted: re-queue only `interrupted` items for a recovery retry.
     if requeue_interrupted(run_dir, state):
         save_state(run_dir, state)
     if retry_incomplete:
@@ -1139,7 +1428,7 @@ def run_queue(
             print(f"IPD {runnable['id6']} failed safely: {exc}", file=sys.stderr)
     state = load_state(run_dir)
     write_report(run_dir, state)
-    return 0 if all(item["status"] == "executed" for item in state["queue"]) else 1
+    return 0 if all(item["status"] in SUCCESS_STATES for item in state["queue"]) else 1
 
 
 def print_status(run_dir: Path) -> None:
@@ -1149,17 +1438,14 @@ def print_status(run_dir: Path) -> None:
     print(f"Updated: {state['updated_at']}")
     print(f"State directory: {run_dir}")
     for item in state["queue"]:
+        action = item.get("action", "execute")
         print(
             f"{item['position']:02d} {item['id6']} {item['setid']:<12} "
-            f"{item['status']:<24} attempts={len(item.get('attempts', []))}"
+            f"{action:<8} {item['status']:<20} attempts={len(item.get('attempts', []))}"
         )
 
 
 def resolve_run_dir(repo_arg: str, run_id: str) -> Path:
-    # Accept either a bare run id (resolved under state_root(repo)) or an existing
-    # run-directory PATH (relative or absolute) that the driver printed - as long as
-    # it contains a state.json. This lets a user paste the "State directory: ..."
-    # line directly into `status`/`resume`.
     looks_like_path = (
         os.sep in run_id
         or (os.altsep and os.altsep in run_id)
@@ -1171,7 +1457,6 @@ def resolve_run_dir(repo_arg: str, run_id: str) -> Path:
             if run_dir.is_dir() and (run_dir / "state.json").is_file():
                 return run_dir.resolve()
         raise DriverError(f"Run not found: {run_id}")
-    # Bare run id: resolve under the repo's run-state root.
     repo = Path(repo_arg).expanduser().resolve()
     run_dir = state_root(repo) / run_id
     if run_dir.is_dir():
@@ -1180,13 +1465,6 @@ def resolve_run_dir(repo_arg: str, run_id: str) -> Path:
 
 
 def _add_output_mode_flags(sub_parser: argparse.ArgumentParser) -> None:
-    """Attach the mutually-exclusive terminal-verbosity flags.
-
-    Default is the clean, colored, human-readable progress view. `--quiet` shows
-    only per-IPD banners plus a heartbeat; `--raw` restores the legacy verbatim
-    JSONL stream (useful for piping/debugging). Color honors NO_COLOR/FORCE_COLOR
-    and TTY detection regardless of mode.
-    """
     group = sub_parser.add_mutually_exclusive_group()
     group.add_argument(
         "--quiet",
@@ -1207,33 +1485,113 @@ def _add_output_mode_flags(sub_parser: argparse.ArgumentParser) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="ipdrunner",
-        description="Restartable OpenCode driver for approved IPD and Set selectors.",
-    )
-    sub = parser.add_subparsers(dest="command", required=True)
+        prog="runipd",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="""Autonomous OpenCode driver for Implementation Plan Documents (IPDs).
 
-    start = sub.add_parser("start", help="Create a run and execute its queue")
-    start.add_argument("selectors", nargs="+", help="One or more id6 or Set IDs")
-    start.add_argument("--repo", default=".", help="Target Git repository")
-    start.add_argument("--manifest", required=True, help="Driver manifest JSON")
-    start.add_argument(
-        "--runbook", required=True, help="Driver prompt/runbook Markdown"
+Drives pre-execution plan reviews for to-review IPDs and full non-interactive
+execution for approved IPDs, persisting durable run state, session logs,
+prompts, decisions, and outcomes under `.aw/records/runs/<run-id>/`.
+
+SELECTOR TYPES:
+  - id6:      6-character unique ID (e.g. 'pr2nd0', '5ahblp')
+  - setid:    IPD Set identifier (e.g. 'ipdrunner', 'execset')
+  - filename: Path or filename of an IPD file (e.g. '.aw/records/plans/pending/...ipd.md')
+
+AUTOMATIC STATUS ROUTING:
+  - to-review: Runs OpenCode with `/plan-review <plan_path>` to review and improve the plan.
+               All reviews in a run share the same OpenCode session for continuity.
+  - approved:  Executes the plan step-by-step according to the execution runbook.
+""",
+        epilog="""EXAMPLES:
+  # Review a single pending plan:
+  runipd 20260824-ipdrunner-01-pr2nd0-harden.ipd.md
+
+  # Review all to-review plans in a set using an existing session:
+  runipd ipdrunner --session <session_id>
+
+  # Execute an approved plan:
+  runipd 5ahblp
+
+  # Execute multiple sets and plans in sequence:
+  runipd v6zie5 unifyfileio ipdgates execset
+
+  # Resume an interrupted run:
+  runipd resume run-20260824T150827Z-2301181
+
+  # Check status of a run:
+  runipd status run-20260824T150827Z-2301181
+""",
     )
-    start.add_argument("--run-id", help="Explicit unique run ID")
-    start.add_argument("--opencode", default="opencode", help="OpenCode executable")
-    start.add_argument("--model", help="Exact provider/model identifier")
+    sub = parser.add_subparsers(dest="command", required=False)
+
+    start = sub.add_parser(
+        "start",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Create a run and execute its queue (default)",
+        description="Create a durable queue of IPDs and execute or review them.",
+    )
+    start.add_argument(
+        "selectors",
+        nargs="+",
+        help="One or more target selectors: id6 (e.g. 5ahblp), setid (e.g. execset), or plan filenames/paths",
+    )
+    start.add_argument(
+        "--repo",
+        default=".",
+        help="Target Git repository root (default: current directory)",
+    )
+    start.add_argument(
+        "--session",
+        help="OpenCode session ID to attach/reuse across turns for multi-plan continuity",
+    )
+    start.add_argument(
+        "--manifest",
+        default=None,
+        help="Optional pre-compiled driver manifest JSON (auto-discovered from repository if omitted)",
+    )
+    start.add_argument(
+        "--runbook",
+        default=None,
+        help="Optional custom driver execution runbook Markdown (uses repo default if omitted)",
+    )
+    start.add_argument(
+        "--run-id",
+        help="Explicit unique run ID (default: auto-generated timestamped ID)",
+    )
+    start.add_argument(
+        "--opencode",
+        default="opencode",
+        help="OpenCode executable name/path (default: 'opencode')",
+    )
+    start.add_argument(
+        "--model",
+        help="Exact provider/model identifier for OpenCode (e.g. 'anthropic/claude-3-7-sonnet')",
+    )
     start.add_argument("--agent", help="Primary OpenCode agent name")
-    start.add_argument("--auto", action=argparse.BooleanOptionalAction, default=True)
+    start.add_argument(
+        "--auto",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable OpenCode auto mode",
+    )
     start.add_argument(
         "--prepare-only",
         action="store_true",
-        help="Create and print the durable queue without launching OpenCode",
+        help="Create and display the durable queue without launching OpenCode",
     )
     _add_output_mode_flags(start)
 
-    resume = sub.add_parser("resume", help="Resume an existing run")
-    resume.add_argument("run_id")
-    resume.add_argument("--repo", default=".")
+    resume = sub.add_parser(
+        "resume",
+        help="Resume an existing run",
+        description="Resume an interrupted run or retry incomplete items in recovery mode.",
+    )
+    resume.add_argument(
+        "run_id",
+        help="Run ID (e.g. 'run-20260824T150827Z-2301181') or state directory path",
+    )
+    resume.add_argument("--repo", default=".", help="Target Git repository root")
     resume.add_argument(
         "--retry-incomplete",
         action="store_true",
@@ -1241,18 +1599,49 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_output_mode_flags(resume)
 
-    status = sub.add_parser("status", help="Show an existing run")
-    status.add_argument("run_id")
-    status.add_argument("--repo", default=".")
+    status = sub.add_parser(
+        "status",
+        help="Show status of an existing run",
+        description="Inspect queue positions, attempt counts, actions, and statuses for a run.",
+    )
+    status.add_argument("run_id", help="Run ID or state directory path")
+    status.add_argument("--repo", default=".", help="Target Git repository root")
 
-    report = sub.add_parser("report", help="Regenerate and print report path")
-    report.add_argument("run_id")
-    report.add_argument("--repo", default=".")
+    report = sub.add_parser(
+        "report",
+        help="Regenerate and print execution report path",
+        description="Rebuild execution-report.md from latest state and print its file path.",
+    )
+    report.add_argument("run_id", help="Run ID or state directory path")
+    report.add_argument("--repo", default=".", help="Target Git repository root")
+
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    if argv is None:
+        argv = sys.argv[1:]
+
+    subcommands = {
+        "start",
+        "resume",
+        "status",
+        "report",
+        "-h",
+        "--help",
+        "-v",
+        "--version",
+    }
+    if argv and argv[0] not in subcommands:
+        argv = ["start"] + argv
+
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    if not getattr(args, "command", None):
+        parser.print_help()
+        return 0
+
     try:
         if args.command == "start":
             run_dir = initialize_run(args)
@@ -1285,10 +1674,10 @@ def main(argv: list[str] | None = None) -> int:
         print("Interrupted; durable run state was preserved.", file=sys.stderr)
         return 130
     except DriverError as exc:
-        print(f"ipdrunner: {exc}", file=sys.stderr)
+        print(f"runipd: {exc}", file=sys.stderr)
         return 2
-    except Exception as exc:  # Preserve a distinct driver-failure code and traceback.
-        print(f"ipdrunner: unexpected failure: {exc}", file=sys.stderr)
+    except Exception as exc:
+        print(f"runipd: unexpected failure: {exc}", file=sys.stderr)
         raise
 
 

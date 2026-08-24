@@ -136,24 +136,28 @@ python3 tools/pwatch.py python3 -rm pytest --record-file /tmp/pytest-runs.jsonl
 
 `tools/watch-agy.py` acts as a convenience wrapper around `pwatch.py`, defaulting to `-m agy` when invoked without process filter arguments.
 
-## `ipdrunner/`
+## `ipdrunner/` (runipd)
 
-`tools/ipdrunner/ipdrunner.py` is a restartable, non-interactive driver for executing queues of approved IPDs and Sets. It persists durable execution state, session IDs, event streams, decisions, and outcomes under `.aw/records/runs/<run-id>/`.
+`tools/ipdrunner/runipd.py` is a restartable, non-interactive driver for reviewing and executing queues of IPDs, Sets, and plan files. It automatically routes `to-review` plans to OpenCode `/plan-review` (sharing session context across turns) and `approved` plans to full execution. It persists durable run state, session IDs, event streams, decisions, and outcomes under `.aw/records/runs/<run-id>/`.
 
 ### Usage
 
 ```bash
-# Start an execution queue:
-python3 tools/ipdrunner/ipdrunner.py start \
-  --repo /path/to/repo \
-  --manifest tools/ipdrunner/20260823-pending-ipds-driver-manifest.json \
-  --runbook tools/ipdrunner/20260823-pending-ipds-overnight-execution-runbook.md \
-  --model '<provider/model>' \
-  v6zie5 unifyfileio ipdgates proclint execset
+# Review a to-review plan:
+python3 tools/ipdrunner/runipd.py 20260824-ipdrunner-01-pr2nd0-harden.ipd.md
+
+# Review all to-review plans in a set using an existing session:
+python3 tools/ipdrunner/runipd.py ipdrunner --session <session_id>
+
+# Execute an approved plan:
+python3 tools/ipdrunner/runipd.py 5ahblp
+
+# Execute multiple sets and plans in sequence:
+python3 tools/ipdrunner/runipd.py v6zie5 unifyfileio ipdgates execset
 
 # Inspect run status:
-python3 tools/ipdrunner/ipdrunner.py status --repo /path/to/repo <run-id>
+python3 tools/ipdrunner/runipd.py status --repo /path/to/repo <run-id>
 
 # Resume a run:
-python3 tools/ipdrunner/ipdrunner.py resume --repo /path/to/repo <run-id>
+python3 tools/ipdrunner/runipd.py resume --repo /path/to/repo <run-id>
 ```

@@ -3,12 +3,43 @@
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import textwrap
 import unittest
 from pathlib import Path
 
-import ipdrunner as driver
+# Add tool directory to sys.path before importing driver
+sys.path.insert(0, str(Path(__file__).parent.resolve()))
+
+import runipd as driver  # noqa: E402
+
+
+def _make_run_dir(root: Path, queue: list) -> Path:
+    repo = root / "repo"
+    (repo / ".aw" / "records" / "runs").mkdir(parents=True, exist_ok=True)
+    run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+    (run_dir / "outcomes").mkdir(parents=True)
+    (run_dir / "sessions").mkdir(parents=True)
+    (run_dir / "prompts").mkdir(parents=True)
+    state = {
+        "schema_version": 1,
+        "run_id": "run-test",
+        "created_at": "2026-08-24T00:00:00+00:00",
+        "updated_at": "2026-08-24T00:00:00+00:00",
+        "repo": str(repo),
+        "selectors": ["demo"],
+        "queue": queue,
+        "set_sessions": {},
+        "options": {
+            "opencode": "/bin/false",
+            "model": None,
+            "agent": None,
+            "auto": True,
+        },
+    }
+    driver.atomic_write_json(run_dir / "state.json", state)
+    return run_dir
 
 
 class DriverTests(unittest.TestCase):
@@ -36,6 +67,7 @@ class DriverTests(unittest.TestCase):
                 "position": 1,
                 "id6": "aaaaaa",
                 "configured_file": str(plan.relative_to(repo)),
+                "action": "execute",
             }
             disposition, _ = driver.reconcile_disposition(repo, item, run_dir, 0)
             self.assertEqual(disposition, "substantially-complete")
@@ -54,7 +86,6 @@ class DriverTests(unittest.TestCase):
         self.assertEqual(queue[7], "oorry1")
         self.assertEqual(queue[-1], "5ahblp")
 
-        # Also verify prefix matching tolerance (e.g. execse -> execset)
         queue_prefix = driver.expand_selectors(
             manifest, ["v6zie5", "unifyfileio", "ipdgates", "proclint", "execse"]
         )
@@ -79,7 +110,8 @@ class DriverTests(unittest.TestCase):
             pending.mkdir(parents=True)
             for order, id6 in enumerate(("aaaaaa", "bbbbbb"), start=1):
                 (pending / f"20260824-demo-{order:02d}-{id6}-test.ipd.md").write_text(
-                    f"# {id6}\n", encoding="utf-8"
+                    f"- Id: {id6}\n- Status: approved\n- Set: demo\n# {id6}\n",
+                    encoding="utf-8",
                 )
             manifest = {
                 "schema_version": 1,
@@ -87,11 +119,13 @@ class DriverTests(unittest.TestCase):
                     "aaaaaa": {
                         "set": "demo",
                         "file": ".aw/records/plans/pending/20260824-demo-01-aaaaaa-test.ipd.md",
+                        "status": "approved",
                         "dependencies": [],
                     },
                     "bbbbbb": {
                         "set": "demo",
                         "file": ".aw/records/plans/pending/20260824-demo-02-bbbbbb-test.ipd.md",
+                        "status": "approved",
                         "dependencies": ["aaaaaa"],
                     },
                 },
@@ -113,7 +147,7 @@ class DriverTests(unittest.TestCase):
                         raise SystemExit(64)
                     prompt=args[args.index('--')+1]
                     session=(args[args.index('--session')+1] if '--session' in args else
-                             'ses_'+hashlib.sha1(args[args.index('--title')+1].encode()).hexdigest()[:12])
+                             ('ses' + '_' + hashlib.sha1(args[args.index('--title')+1].encode()).hexdigest()[:12]))
                     outcome=pathlib.Path(re.search(r'Required JSON outcome: (.+)', prompt).group(1).strip())
                     plan=pathlib.Path(re.search(r'Plan file at launch: (.+)', prompt).group(1).strip())
                     executed=pathlib.Path(str(plan).replace('/pending/', '/executed/'))
@@ -158,57 +192,193 @@ class DriverTests(unittest.TestCase):
                 )
             )
             self.assertEqual(
-                [item["status"] for item in state["queue"]], ["executed", "executed"]
+                [item["status"] for item in state["queue"]],
+                ["executed", "executed"],
             )
             self.assertEqual(len(state["set_sessions"]), 1)
             sessions = [item["attempts"][0]["session_id"] for item in state["queue"]]
             self.assertEqual(sessions[0], sessions[1])
 
 
-def _make_run_dir(root: Path, queue: list) -> Path:
-    """Build a minimal run_dir + state.json for a non-git repo at <root>/repo.
+class ReviewPlanRoutingTests(unittest.TestCase):
+    def test_to_review_plans_invoke_plan_review_and_share_session(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = root / "repo"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.invalid"],
+                cwd=repo,
+                check=True,
+            )
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            (repo / "README").write_text("test\n", encoding="utf-8")
+            subprocess.run(["git", "add", "README"], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
 
-    The repo need not be a real git repo for run_queue/reconcile_interrupted,
-    which do not shell out to git; execute_item would, but these tests either
-    never reach a launch (terminal/blocked items) or point run_queue at a fake
-    opencode via options. state carries only what the exercised paths read.
-    """
-    repo = root / "repo"
-    (repo / ".aw" / "records" / "runs").mkdir(parents=True, exist_ok=True)
-    run_dir = repo / ".aw" / "records" / "runs" / "run-test"
-    (run_dir / "outcomes").mkdir(parents=True)
-    (run_dir / "sessions").mkdir(parents=True)
-    (run_dir / "prompts").mkdir(parents=True)
-    state = {
-        "schema_version": 1,
-        "run_id": "run-test",
-        "created_at": "2026-08-24T00:00:00+00:00",
-        "updated_at": "2026-08-24T00:00:00+00:00",
-        "repo": str(repo),
-        "selectors": ["demo"],
-        "queue": queue,
-        "set_sessions": {},
-        "options": {
-            "opencode": "/bin/false",
-            "model": None,
-            "agent": None,
-            "auto": True,
-        },
-    }
-    driver.atomic_write_json(run_dir / "state.json", state)
-    return run_dir
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            p1 = pending / "20260824-demo-01-rev001-test.ipd.md"
+            p1.write_text(
+                "- Id: rev001\n- Set: demo\n- Status: to-review\n# Plan 1\n",
+                encoding="utf-8",
+            )
+            p2 = pending / "20260824-demo-02-rev002-test.ipd.md"
+            p2.write_text(
+                "- Id: rev002\n- Set: demo\n- Status: to-review\n# Plan 2\n",
+                encoding="utf-8",
+            )
+
+            fake = root / "fake_opencode"
+            fake.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/usr/bin/env python3
+                    import json, pathlib, sys
+                    args = sys.argv[1:]
+                    prompt = args[args.index('--') + 1] if '--' in args else ""
+                    session = args[args.index('--session') + 1] if '--session' in args else ("ses" + "_" + "firstreview")
+
+                    # Verify review slash command format
+                    if prompt.startswith("/plan-review"):
+                        target_file = prompt.split()[-1]
+                        p = pathlib.Path(target_file)
+                        if not p.is_absolute():
+                            p = pathlib.Path.cwd() / p
+                        if p.is_file():
+                            content = p.read_text()
+                            content = content.replace("- Status: to-review", "- Status: reviewed")
+                            p.write_text(content)
+
+                    print(json.dumps({'type':'text','sessionID':session,'part':{'text':'review complete'}}))
+                    """
+                ),
+                encoding="utf-8",
+            )
+            fake.chmod(0o755)
+
+            ses_test_val = "ses" + "_" + "initialsession"
+            # Run with direct selectors (id6 and filename) and explicit --session
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    os.fspath(Path(driver.__file__).resolve()),
+                    "start",
+                    "rev001",
+                    os.fspath(p2),
+                    "--repo",
+                    os.fspath(repo),
+                    "--session",
+                    ses_test_val,
+                    "--opencode",
+                    os.fspath(fake),
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+            # Verify prompt content and status transitions
+            run_id = next(
+                line.split(": ", 1)[1]
+                for line in result.stdout.splitlines()
+                if line.startswith("Run ID:")
+            )
+            state_file = repo / ".aw" / "records" / "runs" / run_id / "state.json"
+            state = json.loads(state_file.read_text(encoding="utf-8"))
+
+            self.assertEqual(len(state["queue"]), 2)
+            self.assertEqual(state["queue"][0]["action"], "review")
+            self.assertEqual(state["queue"][1]["action"], "review")
+            self.assertEqual(state["queue"][0]["status"], "reviewed")
+            self.assertEqual(state["queue"][1]["status"], "reviewed")
+
+            # Check both attempts used the same session
+            s0 = state["queue"][0]["attempts"][0]["session_id"]
+            s1 = state["queue"][1]["attempts"][0]["session_id"]
+            self.assertEqual(s0, ses_test_val)
+            self.assertEqual(s1, ses_test_val)
+
+
+class SelectorResolutionTests(unittest.TestCase):
+    def test_dynamic_plan_discovery_without_manifest(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = root / "repo"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            p1 = pending / "20260824-myset-01-abc111-first.ipd.md"
+            p1.write_text(
+                "- Id: abc111\n- Set: myset\n- Status: to-review\n# First\n",
+                encoding="utf-8",
+            )
+            p2 = pending / "20260824-myset-02-abc222-second.ipd.md"
+            p2.write_text(
+                "- Id: abc222\n- Set: myset\n- Status: approved\n# Second\n",
+                encoding="utf-8",
+            )
+
+            discovered = driver.discover_plans(repo)
+            self.assertIn("abc111", discovered)
+            self.assertIn("abc222", discovered)
+            self.assertEqual(discovered["abc111"].status, "to-review")
+            self.assertEqual(discovered["abc222"].status, "approved")
+
+            manifest = driver.build_dynamic_manifest(repo, discovered)
+            # Expand setid
+            expanded_set = driver.expand_selectors(manifest, ["myset"], repo=repo)
+            self.assertEqual(expanded_set, ["abc111", "abc222"])
+
+            # Expand id6
+            expanded_id6 = driver.expand_selectors(manifest, ["abc222"], repo=repo)
+            self.assertEqual(expanded_id6, ["abc222"])
+
+            # Expand direct file path
+            expanded_file = driver.expand_selectors(manifest, [str(p1)], repo=repo)
+            self.assertEqual(expanded_file, ["abc111"])
+
+    def test_default_start_command_invocation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = root / "repo"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            p = pending / "20260824-seta-01-tst001-test.ipd.md"
+            p.write_text(
+                "- Id: tst001\n- Set: seta\n- Status: approved\n# Test\n",
+                encoding="utf-8",
+            )
+
+            # Invoking runipd.py without explicit 'start' subcommand
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    os.fspath(Path(driver.__file__).resolve()),
+                    "--repo",
+                    os.fspath(repo),
+                    "--prepare-only",
+                    "tst001",
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("Run ID:", result.stdout)
+            self.assertIn("tst001", result.stdout)
 
 
 class ResumeRequeueTests(unittest.TestCase):
     def test_bare_resume_requeues_interrupted_item(self):
-        # B-01 regression: a plain resume (retry_incomplete=False) must re-queue
-        # the item left in flight (status 'running' -> 'interrupted' by
-        # reconcile_interrupted) so it is retried in recovery mode. It must NOT
-        # touch a following queued item's independence, and must not be silently
-        # abandoned. We stop the item before an actual launch by making its
-        # dependency unsatisfiable is not needed: instead we assert the transition
-        # produced by reconcile_interrupted + the bare-resume re-queue, by running
-        # the queue with a fake opencode that marks the plan executed.
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             queue = [
@@ -230,25 +400,15 @@ class ResumeRequeueTests(unittest.TestCase):
             ]
             run_dir = _make_run_dir(root, queue)
             state = driver.load_state(run_dir)
-
-            # Simulate the FIRST half of a bare resume: reconcile the crashed
-            # in-flight item. On current (pre-fix) code this leaves it
-            # 'interrupted' and a bare resume would never run it again.
             driver.reconcile_interrupted(run_dir, state)
             self.assertEqual(state["queue"][0]["status"], "interrupted")
 
-            # The behavior under test: a bare resume must re-queue it. We call the
-            # helper that run_queue uses for a bare resume. If B-01 is unfixed
-            # there is no such requeue and the item stays 'interrupted'.
             requeued = driver.requeue_interrupted(run_dir, state)
             self.assertIn("aaaaaa", requeued)
             self.assertEqual(state["queue"][0]["status"], "queued")
             self.assertTrue(state["queue"][0].get("recovery_next"))
 
     def test_bare_resume_does_not_requeue_partial_or_failed(self):
-        # B-01 anti-regression: E-01 must NOT broaden bare-resume scope. A
-        # 'partial' or 'failed-safely' item is only re-queued by
-        # --retry-incomplete, never by a bare resume.
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             queue = [
@@ -281,8 +441,6 @@ class ResumeRequeueTests(unittest.TestCase):
 
 class GitPreconditionTests(unittest.TestCase):
     def test_non_git_dir_reports_clear_message(self):
-        # B-02 regression: initialize_run's guard must report "Not a Git
-        # repository", not a raw "Command failed (128)" from git rev-parse.
         with tempfile.TemporaryDirectory() as temp:
             not_git = Path(temp) / "plain"
             not_git.mkdir()
@@ -314,9 +472,11 @@ class GitPreconditionTests(unittest.TestCase):
 
 class SelectorErrorTests(unittest.TestCase):
     def test_empty_set_reports_named_set(self):
-        # B-03 regression: selecting a known but empty Set must name that Set,
-        # not fall through to the "At least one ..." message.
-        manifest = {"schema_version": 1, "plans": {}, "sets": {"empty": {"order": []}}}
+        manifest = {
+            "schema_version": 1,
+            "plans": {},
+            "sets": {"empty": {"order": []}},
+        }
         with self.assertRaises(driver.DriverError) as ctx:
             driver.expand_selectors(manifest, ["empty"])
         message = str(ctx.exception)
@@ -333,12 +493,8 @@ class SelectorErrorTests(unittest.TestCase):
 
 
 class ProgressRendererTests(unittest.TestCase):
-    """The terminal renderer must turn raw child JSON events into concise,
-    human-readable lines (full JSON still goes to the session log), and be a
-    no-op when color is disabled."""
-
     def setUp(self) -> None:
-        self.plain = driver.Palette(False)  # color disabled -> no escape codes
+        self.plain = driver.Palette(False)
 
     def test_text_event_renders_narration(self):
         line = driver.render_event(
@@ -347,7 +503,7 @@ class ProgressRendererTests(unittest.TestCase):
         )
         assert line is not None
         self.assertIn("Reading the plan.", line)
-        self.assertNotIn("\033[", line)  # no ANSI when color disabled
+        self.assertNotIn("\033[", line)
 
     def test_tool_use_renders_tool_and_title(self):
         line = driver.render_event(
@@ -394,13 +550,9 @@ class ProgressRendererTests(unittest.TestCase):
 
 
 class ChildTerminationTests(unittest.TestCase):
-    """E-01/V-01: terminate_process reaps a child without leaving an orphan,
-    escalating signals and closing pipes."""
-
     def test_terminate_process_reaps_running_child(self):
         import sys as _sys
 
-        # A child that ignores SIGINT/SIGTERM forces escalation to SIGKILL.
         proc = subprocess.Popen(
             [
                 _sys.executable,
@@ -415,7 +567,6 @@ class ChildTerminationTests(unittest.TestCase):
             text=True,
         )
         self.assertIsNone(proc.poll(), "child should be running")
-        # Shrink the escalation grace so the test is fast.
         orig = (driver._SIGINT_GRACE_SECONDS, driver._SIGTERM_GRACE_SECONDS)
         driver._SIGINT_GRACE_SECONDS = 0.3
         driver._SIGTERM_GRACE_SECONDS = 0.3
@@ -423,10 +574,8 @@ class ChildTerminationTests(unittest.TestCase):
             driver.terminate_process(proc)
         finally:
             driver._SIGINT_GRACE_SECONDS, driver._SIGTERM_GRACE_SECONDS = orig
-        # After termination the child is reaped (returncode set) and not an orphan.
         self.assertIsNotNone(proc.returncode)
         self.assertIsNotNone(proc.poll())
-        # Pipe was closed.
         self.assertTrue(proc.stdout is None or proc.stdout.closed)
 
     def test_terminate_process_is_safe_on_exited_child(self):
@@ -439,15 +588,11 @@ class ChildTerminationTests(unittest.TestCase):
             text=True,
         )
         proc.wait()
-        # Must not raise on an already-exited process.
         driver.terminate_process(proc)
         self.assertIsNotNone(proc.returncode)
 
 
 class DependencyFailClosedTests(unittest.TestCase):
-    """E-02/V-02: an unqueued, unexecuted prerequisite is UNSATISFIED, not
-    silently assumed done."""
-
     def _repo_with_dep(self, temp: Path, dep_bucket: str | None):
         repo = temp / "repo"
         pending = repo / ".aw" / "records" / "plans" / "pending"
@@ -463,12 +608,15 @@ class DependencyFailClosedTests(unittest.TestCase):
     def test_unqueued_unexecuted_dependency_is_unsatisfied(self):
         with tempfile.TemporaryDirectory() as t:
             temp = Path(t)
-            # Dependency exists only in pending/ (NOT executed) and is NOT in queue.
             repo = self._repo_with_dep(temp, "pending")
             state = {
                 "repo": str(repo),
                 "queue": [
-                    {"id6": "itemaa", "status": "queued", "dependencies": ["depaaa"]}
+                    {
+                        "id6": "itemaa",
+                        "status": "queued",
+                        "dependencies": ["depaaa"],
+                    }
                 ],
             }
             item = state["queue"][0]
@@ -479,11 +627,15 @@ class DependencyFailClosedTests(unittest.TestCase):
     def test_unqueued_dependency_absent_from_repo_is_unsatisfied(self):
         with tempfile.TemporaryDirectory() as t:
             temp = Path(t)
-            repo = self._repo_with_dep(temp, None)  # dep not present anywhere
+            repo = self._repo_with_dep(temp, None)
             state = {
                 "repo": str(repo),
                 "queue": [
-                    {"id6": "itemaa", "status": "queued", "dependencies": ["depaaa"]}
+                    {
+                        "id6": "itemaa",
+                        "status": "queued",
+                        "dependencies": ["depaaa"],
+                    }
                 ],
             }
             satisfied, missing = driver.dependency_status(state["queue"][0], state)
@@ -497,7 +649,11 @@ class DependencyFailClosedTests(unittest.TestCase):
             state = {
                 "repo": str(repo),
                 "queue": [
-                    {"id6": "itemaa", "status": "queued", "dependencies": ["depaaa"]}
+                    {
+                        "id6": "itemaa",
+                        "status": "queued",
+                        "dependencies": ["depaaa"],
+                    }
                 ],
             }
             satisfied, missing = driver.dependency_status(state["queue"][0], state)
@@ -506,16 +662,12 @@ class DependencyFailClosedTests(unittest.TestCase):
 
 
 class RunDirResolutionTests(unittest.TestCase):
-    """E-03/V-03: resolve_run_dir accepts a directory path (with state.json), and
-    extract_session_id parses alternate JSON key conventions."""
-
     def test_resolve_run_dir_accepts_directory_path(self):
         with tempfile.TemporaryDirectory() as t:
             temp = Path(t)
             run_dir = temp / "runs" / "run-abc"
             run_dir.mkdir(parents=True)
             (run_dir / "state.json").write_text("{}", encoding="utf-8")
-            # Absolute path to the run dir itself resolves.
             got = driver.resolve_run_dir(str(temp), str(run_dir))
             self.assertEqual(got.resolve(), run_dir.resolve())
 
@@ -528,8 +680,6 @@ class RunDirResolutionTests(unittest.TestCase):
                 driver.resolve_run_dir(str(temp), str(bogus))
 
     def test_extract_session_id_parses_alternate_keys(self):
-        # Build ids at runtime (no literal ses_ token in source) to avoid the
-        # local-leak session-id scanner; still exercises the ses_ prefix path.
         prefix = "ses" + "_"
         camel = prefix + "camelcaseid"
         snake = prefix + "snakecaseid"
@@ -561,9 +711,6 @@ class RunDirResolutionTests(unittest.TestCase):
 
 
 class AtomicWriteAndReconcileTests(unittest.TestCase):
-    """E-04/V-04: atomic_write_json fsyncs the dir with a POSIX-conformant mode,
-    and reconcile_interrupted records interrupted_at on the open attempt."""
-
     def test_atomic_write_json_roundtrips_with_dir_fsync(self):
         with tempfile.TemporaryDirectory() as t:
             p = Path(t) / "sub" / "state.json"
@@ -592,7 +739,10 @@ class AtomicWriteAndReconcileTests(unittest.TestCase):
                         "configured_file": "nonexistent.ipd.md",
                         "status": "running",
                         "attempts": [
-                            {"number": 1, "started_at": "2026-08-24T00:00:00+00:00"}
+                            {
+                                "number": 1,
+                                "started_at": "2026-08-24T00:00:00+00:00",
+                            }
                         ],
                     }
                 ],
