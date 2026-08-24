@@ -889,6 +889,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Compile and inspect only; launch no worker (required in this build).",
     )
     p_ipd_execset.add_argument(
+        "--resume",
+        dest="resume_run_id",
+        default=None,
+        metavar="RUN-ID",
+        help="Reconstruct and continue a prior run without replaying completed side effects "
+        "(fails closed on an unreconciled unknown outcome). Requires the executed scheduler.",
+    )
+    p_ipd_execset.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
     )
 
@@ -1186,6 +1194,21 @@ def _build_parser() -> argparse.ArgumentParser:
             "terminal completion. Requires coordinator authority. Exit 0 complete, 1 incomplete, "
             "4 invalid evidence, 6 unauthorized/operational.",
         ),
+        # execset Order 05 (2h7777): read-only inspection of a Set run's durable projections.
+        (
+            "decisions",
+            "Show a Set run's recorded autonomous decisions (read-only).",
+            "Print the autonomous decisions recorded for a Set run, read from the run's durable "
+            "decisions projection under .aw/workflow-artifacts/<workflow>/<run-id>/. Read-only. "
+            "Exit 0 found, 1 none recorded, 2 no such run projection.",
+        ),
+        (
+            "questions",
+            "Show a Set run's unresolved deferred questions (read-only).",
+            "Print the unresolved questions recorded for a Set run, read from the run's durable "
+            "open-questions projection under .aw/workflow-artifacts/<workflow>/<run-id>/. Read-only. "
+            "Exit 0 found, 1 none open, 2 no such run projection.",
+        ),
     ):
         _pr = run_sub.add_parser(
             _r_sub, parents=[common], help=_r_help, description=_r_desc
@@ -1198,6 +1221,13 @@ def _build_parser() -> argparse.ArgumentParser:
             default=None,
             help="Repo root directory (default: current directory).",
         )
+        # The projection inspectors need the workflow name that owns the run-artifacts subdir.
+        if _r_sub in ("decisions", "questions"):
+            _pr.add_argument(
+                "--workflow",
+                default="exec-set",
+                help="Workflow that owns the run-artifacts dir (default: exec-set).",
+            )
 
         if _r_sub in (
             "start",

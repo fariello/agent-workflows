@@ -720,28 +720,77 @@ def _current_head(repo_root: Path) -> str:
     return "unknown"
 
 
-def run_execute_set(args: object) -> int:
-    """CLI entry for ``aw ipd execute-set <set-id> --plan-only [--agent]``.
+def _run_resume_report(args: object, run_id: str, *, agent: bool = False) -> int:
+    """Reconstruct a prior run's ledger and report resumable steps (read-only; fails closed on an
+    unreconciled unknown outcome, never replaying completed side effects). Returns 0 resumable /
+    1 nothing resumable-or-terminal / 2 cannot locate the ledger / 3 unknown outcome pending."""
+    import json as _json
+    from pathlib import Path as _Path
 
-    v1 supports ONLY ``--plan-only`` (compile + inspect; launches no worker). Without ``--plan-only``
-    the command refuses, because scheduling/execution is Order 03 (not this plan's scope). Emits a
-    compact human snapshot by default, or stable byte-stable JSON with ``--agent``.
+    repo_root, _plans_dir = _resolve_repo_and_plans(args)
+    ledger = _Path(repo_root) / ".aw" / "records" / "runs" / run_id / "events.jsonl"
+    if not ledger.is_file():
+        print(
+            "error: no run ledger found for {0} ({1})".format(run_id, ledger),
+            flush=True,
+        )
+        return 2
+    try:
+        from agent_workflows import run_ledger_store, run_engine, set_lifecycle
+    except Exception as exc:  # pragma: no cover - import guard
+        print("error: cannot load recovery runtime: {0}".format(exc), flush=True)
+        return 2
+    store = run_ledger_store.RunLedgerStore(ledger)
+    engine = run_engine.RunEngine(
+        {"workflow_id": "exec-set", "steps": []}, store, run_id=run_id
+    )
+    ok, report = set_lifecycle.resume_or_report(engine)
+    if agent:
+        print(
+            _json.dumps(
+                {"run_id": run_id, "resumable": bool(ok), "detail": str(report)},
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
+    else:
+        if ok:
+            print("resumable: {0} -> {1}".format(run_id, report))
+        else:
+            print("cannot resume {0}: {1}".format(run_id, report))
+    return 0 if ok else 3
+
+
+def run_execute_set(args: object) -> int:
+    """CLI entry for ``aw ipd execute-set <set-id> [--plan-only] [--resume RUN-ID] [--agent]``.
+
+    ``--plan-only`` compiles + inspects the manifest (launches no worker). ``--resume RUN-ID``
+    reconstructs a prior run's state from its ledger and reports resumable steps, failing closed on
+    an unreconciled unknown outcome (no replay). A bare ``execute-set`` with neither flag still
+    refuses to auto-launch workers in this build (the coordinator primitives exist, but this run
+    bootstraps the scheduler serially); it points the operator at ``--plan-only``/``--resume``.
     """
     set_id = getattr(args, "set_id", None)
     plan_only = getattr(args, "plan_only", False)
+    resume_run_id = getattr(args, "resume_run_id", None)
     agent = getattr(args, "agent", False)
-    if not set_id:
+    if not set_id and not resume_run_id:
         print("error: a <set-id> is required", flush=True)
         return 2
+
+    if resume_run_id:
+        return _run_resume_report(args, resume_run_id, agent=agent)
+
     if not plan_only:
         print(
-            "error: only --plan-only is supported in this build "
-            "(scheduling/execution is a later Order); pass --plan-only to inspect.",
+            "error: pass --plan-only to compile and inspect the Set, or --resume <run-id> to "
+            "reconstruct a prior run; automatic worker launch is not enabled in this build.",
             flush=True,
         )
         return 2
 
     repo_root, plans_dir = _resolve_repo_and_plans(args)
+    assert set_id is not None  # guarded above (set_id required unless --resume)
     try:
         inventory = resolve_set(plans_dir, set_id)
     except SetPlanError as exc:

@@ -624,8 +624,8 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         agent_record_kind="result",
         mutation_gate="none",
         empty_error_renderer="renderer_boundary",
-        legacy_flags=("--plan-only", "--dir", "--agent"),
-        exit_contract=(0, 1, 2),
+        legacy_flags=("--plan-only", "--resume", "--dir", "--agent"),
+        exit_contract=(0, 1, 2, 3),
     ),
     CommandDeclaration(
         command="ipd scaffold",
@@ -849,6 +849,30 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         empty_error_renderer="renderer_boundary",
         legacy_flags=("--workflow", "--actor", "--agent", "--json"),
         exit_contract=(0, 1, 4, 6),
+    ),
+    CommandDeclaration(
+        # execset Order 05 (2h7777): read-only inspection of a Set run's durable decisions
+        # projection under .aw/workflow-artifacts/<workflow>/<run-id>/. Exit 0 found / 1 none / 2 missing.
+        command="run decisions",
+        command_class="read",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--workflow", "--agent", "--json"),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        # execset Order 05 (2h7777): read-only inspection of a Set run's unresolved-questions
+        # projection. Exit 0 open / 1 none / 2 missing.
+        command="run questions",
+        command_class="read",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--workflow", "--agent", "--json"),
+        exit_contract=(0, 1, 2),
     ),
     # --- Research Family ---
     CommandDeclaration(

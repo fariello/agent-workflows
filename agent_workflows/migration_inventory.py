@@ -210,6 +210,7 @@ _COMMAND_FAMILY: Dict[str, str] = {
     "plan-review-long": "plan review aliases",
     "verify-execution": "verification/lifecycle",
     "ipd-lifecycle": "verification/lifecycle",
+    "exec-set": "verification/lifecycle",
     "verify": "list-workflows/verify",
     "list-workflows": "list-workflows/verify",
     "assess": "assess + lenses",

@@ -66,11 +66,57 @@ def run_cli(args: argparse.Namespace) -> int:
         return _run_status(args)
     if sub == "finalize":
         return _run_finalize(args)
+    if sub == "decisions":
+        return _run_decisions(args)
+    if sub == "questions":
+        return _run_questions(args)
     print(
-        "usage: aw run {show|evidence|verify-ledger|start|next|record|resume|cancel|status|finalize}"
+        "usage: aw run {show|evidence|verify-ledger|start|next|record|resume|cancel|status|"
+        "finalize|decisions|questions}"
         " <run-id-or-path> [--agent|--json] [--dir <dir>]"
     )
     return EXIT_INVALID_INVOCATION
+
+
+def _projection_dir(args: argparse.Namespace):
+    """Resolve the run-artifacts dir for a Set run's durable projections (read-only)."""
+    from pathlib import Path
+
+    from agent_workflows import set_records
+    from agent_workflows.project_context import resolve_verb_repo_root
+
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    run_id = getattr(args, "target", None) or ""
+    workflow = getattr(args, "workflow", None) or "exec-set"
+    return set_records.run_artifacts_dir(Path(repo_root), workflow, run_id)
+
+
+def _run_decisions(args: argparse.Namespace) -> int:
+    """Print a Set run's recorded autonomous decisions (read-only). Exit 0 found / 1 none / 2 missing."""
+    from agent_workflows import set_records
+
+    base = _projection_dir(args)
+    path = base / set_records.DECISIONS_FILE
+    if not path.is_file():
+        print("no decisions projection found for this run ({0})".format(path))
+        return 2
+    text = path.read_text(encoding="utf-8")
+    print(text, end="" if text.endswith("\n") else "\n")
+    return 1 if "_No autonomous decisions recorded._" in text else 0
+
+
+def _run_questions(args: argparse.Namespace) -> int:
+    """Print a Set run's unresolved questions (read-only). Exit 0 open / 1 none / 2 missing."""
+    from agent_workflows import set_records
+
+    base = _projection_dir(args)
+    path = base / set_records.OPEN_QUESTIONS_FILE
+    if not path.is_file():
+        print("no open-questions projection found for this run ({0})".format(path))
+        return 2
+    text = path.read_text(encoding="utf-8")
+    print(text, end="" if text.endswith("\n") else "\n")
+    return 1 if "_No unresolved questions._" in text else 0
 
 
 def _machine(args: argparse.Namespace) -> bool:
