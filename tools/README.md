@@ -135,3 +135,25 @@ python3 tools/pwatch.py python3 -rm pytest --record-file /tmp/pytest-runs.jsonl
 ### Backwards Compatibility
 
 `tools/watch-agy.py` acts as a convenience wrapper around `pwatch.py`, defaulting to `-m agy` when invoked without process filter arguments.
+
+## `ipdrunner/`
+
+`tools/ipdrunner/ipdrunner.py` is a restartable, non-interactive driver for executing queues of approved IPDs and Sets. It persists durable execution state, session IDs, event streams, decisions, and outcomes under `.aw/records/runs/<run-id>/`.
+
+### Usage
+
+```bash
+# Start an execution queue:
+python3 tools/ipdrunner/ipdrunner.py start \
+  --repo /path/to/repo \
+  --manifest tools/ipdrunner/20260823-pending-ipds-driver-manifest.json \
+  --runbook tools/ipdrunner/20260823-pending-ipds-overnight-execution-runbook.md \
+  --model '<provider/model>' \
+  v6zie5 unifyfileio ipdgates proclint execset
+
+# Inspect run status:
+python3 tools/ipdrunner/ipdrunner.py status --repo /path/to/repo <run-id>
+
+# Resume a run:
+python3 tools/ipdrunner/ipdrunner.py resume --repo /path/to/repo <run-id>
+```

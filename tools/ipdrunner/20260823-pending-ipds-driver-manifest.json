@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "name": "2026-08-23 approved IPD bootstrap program",
+  "plans": {
+    "v6zie5": {
+      "set": "ipdgates",
+      "file": ".aw/records/plans/pending/20260823-ipdgates-01-v6zie5-own-and-regression-test-the-p7dqwz-xdg-config-isolation-resi.ipd.md",
+      "dependencies": []
+    },
+    "oorry1": {
+      "set": "ipdgates",
+      "file": ".aw/records/plans/pending/20260823-ipdgates-02-oorry1-canonical-scope-paths-allowlist-schema-and-grandfather-polic.ipd.md",
+      "dependencies": []
+    },
+    "xjbvu2": {
+      "set": "ipdgates",
+      "file": ".aw/records/plans/pending/20260823-ipdgates-03-xjbvu2-aw-ipd-begin-fail-closed-execution-start-receipt.ipd.md",
+      "dependencies": ["oorry1"]
+    },
+    "v7e88a": {
+      "set": "ipdgates",
+      "file": ".aw/records/plans/pending/20260823-ipdgates-04-v7e88a-aw-ipd-finalize-atomic-terminal-transaction.ipd.md",
+      "dependencies": ["xjbvu2"]
+    },
+    "qmt3yk": {
+      "set": "ipdgates",
+      "file": ".aw/records/plans/pending/20260823-ipdgates-05-qmt3yk-finalize-two-way-scope-reconciliation-unexpected-path-reason.ipd.md",
+      "dependencies": ["v7e88a"]
+    },
+    "3xh53a": {
+      "set": "ipdgates",
+      "file": ".aw/records/plans/pending/20260823-ipdgates-06-3xh53a-aw-ipd-finalize-rollback-and-failure-semantics.ipd.md",
+      "dependencies": ["qmt3yk"]
+    },
+    "wezhxg": {
+      "set": "ipdgates",
+      "file": ".aw/records/plans/pending/20260823-ipdgates-07-wezhxg-remove-raw-terminal-transition-bypasses-and-strengthen-histo.ipd.md",
+      "dependencies": ["v7e88a", "qmt3yk", "3xh53a"]
+    },
+    "dulzpy": {
+      "set": "ipdgates",
+      "file": ".aw/records/plans/pending/20260823-ipdgates-08-dulzpy-local-pre-commit-gate-on-plan-executed-transitions-verify-fi.ipd.md",
+      "dependencies": ["xjbvu2", "v7e88a", "qmt3yk", "3xh53a", "wezhxg"]
+    },
+    "do64fh": {
+      "set": "ipdgates",
+      "file": ".aw/records/plans/pending/20260823-ipdgates-00-do64fh-enforce-single-ipd-lifecycle-and-scope-gates-fail-closed.ipd.md",
+      "dependencies": ["v6zie5", "oorry1", "xjbvu2", "v7e88a", "qmt3yk", "3xh53a", "wezhxg", "dulzpy"]
+    },
+    "o6b8l3": {
+      "set": "unifyfileio",
+      "file": ".aw/records/plans/pending/20260823-unifyfileio-01-o6b8l3-canonical-artifact-naming-and-filename-grammar-authority.ipd.md",
+      "dependencies": []
+    },
+    "9a655p": {
+      "set": "unifyfileio",
+      "file": ".aw/records/plans/pending/20260823-unifyfileio-05-9a655p-enforce-filename-identity-slot-id6-uniqueness-in-aw-check-an.ipd.md",
+      "dependencies": ["o6b8l3"]
+    },
+    "laykok": {
+      "set": "unifyfileio",
+      "file": ".aw/records/plans/pending/20260823-unifyfileio-02-laykok-unified-selector-to-file-resolver.ipd.md",
+      "dependencies": ["o6b8l3"]
+    },
+    "3cmnfc": {
+      "set": "unifyfileio",
+      "file": ".aw/records/plans/pending/20260823-unifyfileio-03-3cmnfc-unified-reference-matcher-rewriter-and-consistent-dangling-c.ipd.md",
+      "dependencies": ["o6b8l3", "laykok"]
+    },
+    "52zgqr": {
+      "set": "unifyfileio",
+      "file": ".aw/records/plans/pending/20260823-unifyfileio-04-52zgqr-additive-rename-and-regroup-history-ledger-on-the-workflow-s.ipd.md",
+      "dependencies": ["o6b8l3", "laykok", "3cmnfc"]
+    },
+    "g6mbht": {
+      "set": "unifyfileio",
+      "file": ".aw/records/plans/pending/20260823-unifyfileio-00-g6mbht-unify-artifact-file-finding-reference-matching-and-naming-on.ipd.md",
+      "dependencies": ["o6b8l3", "9a655p", "laykok", "3cmnfc", "52zgqr"]
+    },
+    "79li67": {
+      "set": "proclint",
+      "file": ".aw/records/plans/pending/20260823-proclint-01-79li67-detect-process-violations-in-aw-check-and-aw-doctor-untooled.ipd.md",
+      "dependencies": ["g6mbht", "dulzpy"]
+    },
+    "iy1a2g": {
+      "set": "execset",
+      "file": ".aw/records/plans/pending/20260823-execset-01-iy1a2g-ipd-set-graph-compiler-and-execution-manifest.ipd.md",
+      "dependencies": ["g6mbht", "do64fh"]
+    },
+    "3m4e54": {
+      "set": "execset",
+      "file": ".aw/records/plans/pending/20260823-execset-02-3m4e54-deferred-questions-autonomous-decisions-and-skip-records.ipd.md",
+      "dependencies": ["g6mbht", "do64fh"]
+    },
+    "m2wwns": {
+      "set": "execset",
+      "file": ".aw/records/plans/pending/20260823-execset-03-m2wwns-parallel-scheduler-worktree-integration-and-model-routing.ipd.md",
+      "dependencies": ["iy1a2g", "3m4e54"]
+    },
+    "31744f": {
+      "set": "execset",
+      "file": ".aw/records/plans/pending/20260823-execset-04-31744f-host-session-adapters-and-capability-gated-launchers.ipd.md",
+      "dependencies": ["m2wwns"]
+    },
+    "2h7777": {
+      "set": "execset",
+      "file": ".aw/records/plans/pending/20260823-execset-05-2h7777-exec-set-workflow-skill-shims-and-conformance-tests.ipd.md",
+      "dependencies": ["31744f"]
+    },
+    "5ahblp": {
+      "set": "execset",
+      "file": ".aw/records/plans/pending/20260823-execset-00-5ahblp-autonomous-ipd-set-execution-program.ipd.md",
+      "dependencies": ["iy1a2g", "3m4e54", "m2wwns", "31744f", "2h7777"]
+    }
+  },
+  "sets": {
+    "ipdgates": {
+      "order": ["v6zie5", "oorry1", "xjbvu2", "v7e88a", "qmt3yk", "3xh53a", "wezhxg", "dulzpy", "do64fh"]
+    },
+    "unifyfileio": {
+      "order": ["o6b8l3", "9a655p", "laykok", "3cmnfc", "52zgqr", "g6mbht"]
+    },
+    "proclint": {
+      "order": ["79li67"]
+    },
+    "execset": {
+      "order": ["iy1a2g", "3m4e54", "m2wwns", "31744f", "2h7777", "5ahblp"]
+    }
+  }
+}
