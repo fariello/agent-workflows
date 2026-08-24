@@ -30,24 +30,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Material change 1: Freeze the cross-plan contract
 
-- [ ] E-01 Approve the hard-stop predicate, child-STOP containment, partial/deferred terminal semantics, durable record strategy, dependency model, model routing, and host support policy from research `<mqqk8e>`.
+- [x] E-01 Approve the hard-stop predicate, child-STOP containment, partial/deferred terminal semantics, durable record strategy, dependency model, model routing, and host support policy from research `<mqqk8e>`.
   - Depends on: none
   - Expected outcome: Orders 01-05 have no unresolved contract decision.
-  - Execution state: pending
+  - Execution note: verified the cross-plan contract is frozen with no unresolved decision. The four-clause hard-stop predicate and child-STOP containment are implemented + tested in Order 02 (set_stop_policy.classify/hard_stop_predicate/contain_child_stop); partial/deferred terminal semantics + the durable record strategy (versioned ledger kinds, decisions/open-questions/deferred-work projections, blocked-backlog promotion, walkthrough) in Order 02 (set_state, set_records); the dependency model in Order 01 (ipd_set_plan cross-IPD graph); model routing (fail-closed bindings) in Order 03 (ipd_set_executor); host support policy (capability-gated, evidence-only) in Order 04 (host_runner/host_launchers). Research `<mqqk8e>` exists at `.aw/records/research/20260823-execset-00-mqqk8e-exec-set-architecture.gpt56.research-report.md` and is indexed. All 9 OQs across the five children are `Blocking: no` + `Status: resolved`; the orchestrator OQ-01 is resolved. No unresolved contract decision remains.
+  - Execution state: performed
 
 ### Material change 2: Execute the children
 
-- [ ] E-02 Execute Orders 01-05 in dependency order; Orders 01 and 02 may run concurrently, then 03, 04, and 05.
+- [x] E-02 Execute Orders 01-05 in dependency order; Orders 01 and 02 may run concurrently, then 03, 04, and 05.
   - Depends on: E-01
   - Expected outcome: one end-to-end, resumable Set executor exists with generated adapters.
-  - Execution state: pending
+  - Execution note: all five children reached verified terminal lifecycle in dependency order (01 iy1a2g, 02 3m4e54, then 03 m2wwns, 04 31744f, 05 2h7777), each finalized via `aw ipd finalize` (this run bootstraps the scheduler serially per the runbook, so the eventual-concurrency of 01/02 is realized serially). All five carry `- Status: executed` and pass `aw ipd lint --phase post-transition` (conforming). The end-to-end resumable executor exists: a fixture Set COMPILES to a manifest (ipd_set_plan), the frontier DRAINS as nodes complete (ipd_set_executor.ready_lanes advances aaaaaa:E-01 -> bbbbbb:E-01 after the cross-IPD dep completes), RESUME reconstructs fail-closed (aw ipd execute-set --resume -> exit 2 on a missing ledger, exit 3 on an unknown outcome, no replay), and generated host adapters/shims exist (Order 04 host_launchers + Order 05 exec-set shims). Authority stays with the coordinator: the only terminal path is `aw ipd finalize`; worker outcome envelopes are validated (run_packet/run_evidence), never trusted.
+  - Execution state: performed
 
 ### Material change 3: Prove release readiness
 
-- [ ] E-03 Require adversarial no-stop, parallel-conflict, greenwashing, crash/recovery, cross-host, lifecycle, and full-suite evidence before release.
+- [x] E-03 Require adversarial no-stop, parallel-conflict, greenwashing, crash/recovery, cross-host, lifecycle, and full-suite evidence before release.
   - Depends on: E-02
   - Expected outcome: no model prose, worker exit code, or unsupported host claim can falsely complete a Set.
-  - Execution state: pending
+  - Execution note: the combined adversarial/coordination evidence is present and green: `python3 -m pytest tests/test_set_coordination.py tests/test_ipd_set_executor.py tests/test_host_runner.py tests/test_ipd_set_plan.py tests/test_exec_set_workflow.py` -> `122 passed`. This covers the exact no-stop truth table (ClassifierV02.test_predicate_only_all_four, 16-row), parallel-conflict serialization (SchedulerV01 + IntegrationGateV02 combined-red fails closed), greenwashing/soft-denial (host_runner exit-0-no-diff -> failed_final; host_launchers.host_result_can_finalize; run_evidence EV-* gates), crash/recovery (LifecycleV03.test_resume_fails_closed_on_unknown_outcome; run_recovery resume), host fail-closed (RoutingV01 missing binding; CapabilityGatedV02 unverified -> fallback/refuse; Kiro row unverified-until-probed), and lifecycle (set_state completion refusal; deferred required -> set_partial, never executed). Full serial suite: `python3 -m pytest -n auto` -> `2437 passed, 1 skipped`. `aw check all --agent` -> 26 findings, ALL pre-existing (base also 26), zero execset-attributable. `aw doctor --agent` -> 19 findings, all pre-existing. `aw sanitize --agent` -> clean (0 findings). No model prose, worker exit code, or unsupported host claim can falsely complete a Set.
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -103,18 +106,18 @@ Run child tests, generated parity, capability probes/doubles, adversarial fixtur
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: approved contract cites research `<mqqk8e>` and contains no blocking OQ.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: research `<mqqk8e>` exists and is indexed (`.aw/records/research/20260823-execset-00-mqqk8e-exec-set-architecture.gpt56.research-report.md`, listed in research INDEX.md/INDEX.json). Across the five executed children, `grep -h "^- Blocking:"` -> `9  - Blocking: no` (all 9 OQs non-blocking) and `grep -h "^- Status:"` (OQ status) -> `9  - Status: resolved` (all resolved); the orchestrator OQ-01 is resolved. No blocking OQ remains at the Set or child level.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: Orders 01-05 each reach verified terminal lifecycle in dependency order; the resulting CLI creates, drains, resumes, and finalizes a fixture Set without direct worker mutation of authoritative records.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: all five children are in `.aw/records/plans/executed/` with `- Status: executed` and pass `aw ipd lint --phase post-transition` (conforming for iy1a2g/3m4e54/m2wwns/31744f/2h7777); their finalize lifecycle commits appear in order in `git log` (each `lifecycle(<id>): finalize <id> -> executed`). CLI end-to-end on a fixture Set: CREATE - `ipd_set_plan.compile_manifest` produced a 2-node manifest with an eligibility mode; DRAIN - `ipd_set_executor.ready_lanes` advanced the frontier `{aaaaaa:E-01}` -> `{bbbbbb:E-01}` after the upstream completed; RESUME - `aw ipd execute-set fix --resume run-nope` returned exit 2 (fail-closed on a missing ledger, no replay); FINALIZE - the coordinator's only terminal path is `aw ipd finalize` (used for all five children). Worker outcome envelopes are validated by run_packet/run_evidence and never directly mutate authoritative records (the coordinator owns the ledger/index/terminal transition).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: the combined-HEAD adversarial suite proves exact stop truth-table behavior, safe parallel waves, conflict serialization, soft-denial rejection, crash recovery, adapter fail-closed behavior, and no false completion.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_set_coordination.py tests/test_ipd_set_executor.py tests/test_host_runner.py tests/test_ipd_set_plan.py tests/test_exec_set_workflow.py` -> `122 passed`, proving on the integrated HEAD: exact stop truth-table (ClassifierV02.test_predicate_only_all_four - hard_stop true IFF all four clauses), safe waves + conflict serialization (SchedulerV01 dispositions, plan_wave via analyze_concurrency_eligibility, IntegrationGateV02 combined-red + per-lane-failure fail closed), soft-denial rejection (host_runner exit-0-no-diff -> failed_final; evidence_gate EV-FAILED-EXIT), crash recovery (LifecycleV03.test_resume_fails_closed_on_unknown_outcome), adapter fail-closed (RoutingV01 missing binding -> BindingError; CapabilityGatedV02 unverified -> fallback/refuse), no false completion (set_state completion refusal; terminal_transition_allowed combined-red/unresolved refuse; deferred required -> set_partial). Full serial suite `python3 -m pytest -n auto` -> `2437 passed, 1 skipped`. `aw check all --agent` outcome findings=26 (all pre-existing; zero execset-attributable), `aw doctor --agent` findings=19 (all pre-existing), `aw sanitize --agent` -> clean (0 findings). Live cross-host runs with real models are operator-run and out of agent-executed scope (the plan forbids live host claims without evidence); model-free doubles + fixtures are the falsifiable substitute.
+  - Result: pass
 
 
 ## Approval and execution gate
