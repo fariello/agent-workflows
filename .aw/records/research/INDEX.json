@@ -268,6 +268,26 @@
     "topic": []
   },
   {
+    "created": "20260823",
+    "date": "20260823",
+    "id6": "9bd3j8",
+    "kind": "research-prompt",
+    "model": "",
+    "order": "00",
+    "outcome": "none-yet",
+    "path": "20260823-agentadhere-00-9bd3j8-ensuring-agent-process-adherence-across-heterogeneous-coding-agents.research-prompt.md",
+    "set_id": "agentadhere",
+    "status": "intake",
+    "summary": "How to make agent-workflow process steps (aw set, aw ipd begin/finalize, IPD authoring, path-scoped commits) reliably adhered-to by untrained heterogeneous coding agents",
+    "topic": [
+      "workflow-reliability",
+      "process-adherence",
+      "agent-harness",
+      "enforcement",
+      "tooling-ergonomics"
+    ]
+  },
+  {
     "created": "20260712",
     "date": "20260712",
     "id6": "9fohzo",

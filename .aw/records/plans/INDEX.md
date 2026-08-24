@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 118 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 119 Sets; the full manifest is INDEX.json.
 
 ## artifactenginefix
 
@@ -43,6 +43,10 @@ Showing the 40 most-recent of 118 Sets; the full manifest is INDEX.json.
 - `qmt3yk` [pending] 05 pending/20260823-ipdgates-05-qmt3yk-finalize-two-way-scope-reconciliation-unexpected-path-reason.ipd.md
 - `3xh53a` [pending] 06 pending/20260823-ipdgates-06-3xh53a-aw-ipd-finalize-rollback-and-failure-semantics.ipd.md
 - `wezhxg` [pending] 07 pending/20260823-ipdgates-07-wezhxg-remove-raw-terminal-transition-bypasses-and-strengthen-histo.ipd.md
+
+## proclint
+
+- `79li67` [pending] 01 pending/20260823-proclint-01-79li67-detect-process-violations-in-aw-check-and-aw-doctor-untooled.ipd.md
 
 ## renametypes
 
@@ -272,10 +276,6 @@ Showing the 40 most-recent of 118 Sets; the full manifest is INDEX.json.
 ## humanapproval
 
 - `0g0rid` [executed] 01 executed/20260815-humanapproval-01-0g0rid-by-human-attestation.ipd.md
-
-## backlogtier
-
-- `crv40v` [executed] 01 executed/20260813-backlogtier-01-crv40v-attention-visible-backlog-tier.ipd.md
 
 ## (singletons: no Set)
 

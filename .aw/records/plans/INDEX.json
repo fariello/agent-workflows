@@ -2872,6 +2872,16 @@
   {
     "date": "2026-08-23",
     "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260823-proclint-01-79li67-detect-process-violations-in-aw-check-and-aw-doctor-untooled.ipd.md",
+    "plan_id": "79li67",
+    "set_id": "proclint",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260823-unifyfileio-00-g6mbht-unify-artifact-file-finding-reference-matching-and-naming-on.ipd.md",
