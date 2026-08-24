@@ -5,15 +5,15 @@
 - Concern: Make autonomous Set execution discoverable, portable, understandable, and regression-proof.
 - Scope: Canonical `/exec-set` workflow, thin skill/shims, CLI UX, examples, lifecycle wording, conformance, security, and release readiness.
 - Scope-Paths: grandfathered
-- Status: approved
+- Status: executed
 - Set: execset
 - Order: 5
 - Highest E allocated: 03
 - Author: OpenAI GPT 5.6 Sol
 - Id: 2h7777
-- Approval: 2026-08-24, human ("approved. go."): status set to approved
 
 ## Workflow history
+- 2026-08-24 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us (ipdrunner run-20260824T150827Z-2301181)): execset Order 05: /exec-set workflow, run inspection commands (decisions/questions), execute-set --resume, and conformance tests
 - 2026-08-24 approved (aw set, --by-human): status set to approved
 - 2026-08-23 /plan-review focused (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (help advertised nonexistent commands - aw run questions/decisions, --max-parallel, execute-set --resume; E-02 must own or trim), PR-002 (lifecycle-wording overlap with Order 02 - inherit, do not re-author the shared always-loaded surface), PR-003 (skill-generation-into-installer wiring is net-new), PR-004 (manifest-row registration mechanism clarified). V-02 strengthened.
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; no plan-specific finding (reviewed as Set evidence; conforms).
