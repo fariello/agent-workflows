@@ -2887,7 +2887,7 @@
     "path": "pending/20260823-ipdgates-08-dulzpy-local-pre-commit-gate-on-plan-executed-transitions-verify-fi.ipd.md",
     "plan_id": "dulzpy",
     "set_id": "ipdgates",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-23",
@@ -2897,7 +2897,7 @@
     "path": "pending/20260823-proclint-01-79li67-detect-process-violations-in-aw-check-and-aw-doctor-untooled.ipd.md",
     "plan_id": "79li67",
     "set_id": "proclint",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-23",
