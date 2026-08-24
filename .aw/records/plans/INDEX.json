@@ -2712,6 +2712,16 @@
   {
     "date": "2026-08-23",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260823-ipdgates-00-do64fh-enforce-single-ipd-lifecycle-and-scope-gates-fail-closed.ipd.md",
+    "plan_id": "do64fh",
+    "set_id": "ipdgates",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260823-ipdgates-01-v6zie5-own-and-regression-test-the-p7dqwz-xdg-config-isolation-resi.ipd.md",
@@ -2967,16 +2977,6 @@
     "path": "pending/20260823-execset-05-2h7777-exec-set-workflow-skill-shims-and-conformance-tests.ipd.md",
     "plan_id": "2h7777",
     "set_id": "execset",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-23",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260823-ipdgates-00-do64fh-enforce-single-ipd-lifecycle-and-scope-gates-fail-closed.ipd.md",
-    "plan_id": "do64fh",
-    "set_id": "ipdgates",
     "status": "approved"
   },
   {

@@ -51,7 +51,7 @@ Showing the 40 most-recent of 124 Sets; the full manifest is INDEX.json.
 
 ## ipdgates
 
-- `do64fh` [pending] 00 pending/20260823-ipdgates-00-do64fh-enforce-single-ipd-lifecycle-and-scope-gates-fail-closed.ipd.md
+- `do64fh` [executed] 00 executed/20260823-ipdgates-00-do64fh-enforce-single-ipd-lifecycle-and-scope-gates-fail-closed.ipd.md
 - `v6zie5` [executed] 01 executed/20260823-ipdgates-01-v6zie5-own-and-regression-test-the-p7dqwz-xdg-config-isolation-resi.ipd.md
 - `oorry1` [executed] 02 executed/20260823-ipdgates-02-oorry1-canonical-scope-paths-allowlist-schema-and-grandfather-polic.ipd.md
 - `xjbvu2` [executed] 03 executed/20260823-ipdgates-03-xjbvu2-aw-ipd-begin-fail-closed-execution-start-receipt.ipd.md
