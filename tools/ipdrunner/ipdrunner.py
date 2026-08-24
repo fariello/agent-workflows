@@ -187,13 +187,16 @@ def expand_selectors(manifest: dict[str, Any], selectors: Iterable[str]) -> list
     expanded: list[str] = []
     seen: set[str] = set()
     for selector in selectors:
+        matched_set: str | None = None
         if selector in plans:
             candidates = [selector]
         elif selector in sets:
+            matched_set = selector
             candidates = sets[selector]["order"]
         else:
             prefix_matches = [s for s in sets if s.startswith(selector)]
             if len(prefix_matches) == 1:
+                matched_set = prefix_matches[0]
                 candidates = sets[prefix_matches[0]]["order"]
             elif len(prefix_matches) > 1:
                 raise DriverError(
@@ -201,6 +204,10 @@ def expand_selectors(manifest: dict[str, Any], selectors: Iterable[str]) -> list
                 )
             else:
                 raise DriverError(f"Unknown id6/Set selector: {selector}")
+        if matched_set is not None and not candidates:
+            raise DriverError(
+                f"Set '{matched_set}' has an empty order (no plans to run)"
+            )
         for id6 in candidates:
             if id6 not in seen:
                 expanded.append(id6)
@@ -248,8 +255,15 @@ def state_root(repo: Path) -> Path:
 
 def initialize_run(args: argparse.Namespace) -> Path:
     repo = Path(args.repo).expanduser().resolve()
-    if not (repo / ".git").exists() and not git_common_dir(repo).exists():
-        raise DriverError(f"Not a Git repository: {repo}")
+    if not (repo / ".git").exists():
+        try:
+            common_dir_exists = git_common_dir(repo).exists()
+        except DriverError:
+            # `git rev-parse` fails on a non-repository; treat that as the
+            # intended precondition rather than surfacing the raw git error.
+            common_dir_exists = False
+        if not common_dir_exists:
+            raise DriverError(f"Not a Git repository: {repo}")
     manifest_path = Path(args.manifest).expanduser().resolve()
     runbook_path = Path(args.runbook).expanduser().resolve()
     manifest = load_json(manifest_path)
@@ -586,7 +600,10 @@ def execute_item(
         "starting_status": git_status(repo),
         "prompt": str(prompt_path),
         "prompt_sha256": sha256_file(prompt_path),
-        "session_id": state.get("set_sessions", {}).get(item["setid"]),
+        # Record the session actually observed for THIS attempt (set below from
+        # the launch's extracted id), not one inherited from the prior Set
+        # session; leave null until/unless a ses_ id is parsed for this attempt.
+        "session_id": None,
         "log": str(attempt_log_path(run_dir, item, attempt_no)),
         "recovery": recovery,
     }
@@ -693,9 +710,38 @@ def reconcile_interrupted(run_dir: Path, state: dict[str, Any]) -> None:
     save_state(run_dir, state)
 
 
+def requeue_interrupted(run_dir: Path, state: dict[str, Any]) -> list[str]:
+    """Re-queue items left `interrupted` by an interruption so a plain `resume`
+    retries the in-flight unit of work in recovery mode.
+
+    Scope is deliberately narrow: ONLY `interrupted` items are re-queued here, so
+    a bare `resume` does not broaden into the `--retry-incomplete` set (partial,
+    failed-safely, blocked, substantially-complete). Returns the id6s re-queued.
+    """
+    requeued: list[str] = []
+    for item in state["queue"]:
+        if item["status"] == "interrupted":
+            item["status"] = "queued"
+            item["recovery_next"] = True
+            requeued.append(item["id6"])
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "interrupted-requeued",
+                    "id6": item["id6"],
+                },
+            )
+    return requeued
+
+
 def run_queue(run_dir: Path, retry_incomplete: bool) -> int:
     state = load_state(run_dir)
     reconcile_interrupted(run_dir, state)
+    # A plain resume must not abandon the item that was in flight when the run
+    # was interrupted: re-queue only `interrupted` items for a recovery retry.
+    if requeue_interrupted(run_dir, state):
+        save_state(run_dir, state)
     if retry_incomplete:
         for item in state["queue"]:
             if item["status"] in {

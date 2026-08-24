@@ -165,5 +165,172 @@ class DriverTests(unittest.TestCase):
             self.assertEqual(sessions[0], sessions[1])
 
 
+def _make_run_dir(root: Path, queue: list) -> Path:
+    """Build a minimal run_dir + state.json for a non-git repo at <root>/repo.
+
+    The repo need not be a real git repo for run_queue/reconcile_interrupted,
+    which do not shell out to git; execute_item would, but these tests either
+    never reach a launch (terminal/blocked items) or point run_queue at a fake
+    opencode via options. state carries only what the exercised paths read.
+    """
+    repo = root / "repo"
+    (repo / ".aw" / "records" / "runs").mkdir(parents=True, exist_ok=True)
+    run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+    (run_dir / "outcomes").mkdir(parents=True)
+    (run_dir / "sessions").mkdir(parents=True)
+    (run_dir / "prompts").mkdir(parents=True)
+    state = {
+        "schema_version": 1,
+        "run_id": "run-test",
+        "created_at": "2026-08-24T00:00:00+00:00",
+        "updated_at": "2026-08-24T00:00:00+00:00",
+        "repo": str(repo),
+        "selectors": ["demo"],
+        "queue": queue,
+        "set_sessions": {},
+        "options": {
+            "opencode": "/bin/false",
+            "model": None,
+            "agent": None,
+            "auto": True,
+        },
+    }
+    driver.atomic_write_json(run_dir / "state.json", state)
+    return run_dir
+
+
+class ResumeRequeueTests(unittest.TestCase):
+    def test_bare_resume_requeues_interrupted_item(self):
+        # B-01 regression: a plain resume (retry_incomplete=False) must re-queue
+        # the item left in flight (status 'running' -> 'interrupted' by
+        # reconcile_interrupted) so it is retried in recovery mode. It must NOT
+        # touch a following queued item's independence, and must not be silently
+        # abandoned. We stop the item before an actual launch by making its
+        # dependency unsatisfiable is not needed: instead we assert the transition
+        # produced by reconcile_interrupted + the bare-resume re-queue, by running
+        # the queue with a fake opencode that marks the plan executed.
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            queue = [
+                {
+                    "position": 1,
+                    "id6": "aaaaaa",
+                    "setid": "demo",
+                    "configured_file": ".aw/records/plans/pending/20260824-demo-01-aaaaaa-test.ipd.md",
+                    "dependencies": [],
+                    "status": "running",
+                    "attempts": [
+                        {
+                            "number": 1,
+                            "started_at": "2026-08-24T00:00:00+00:00",
+                            "log": None,
+                        }
+                    ],
+                }
+            ]
+            run_dir = _make_run_dir(root, queue)
+            state = driver.load_state(run_dir)
+
+            # Simulate the FIRST half of a bare resume: reconcile the crashed
+            # in-flight item. On current (pre-fix) code this leaves it
+            # 'interrupted' and a bare resume would never run it again.
+            driver.reconcile_interrupted(run_dir, state)
+            self.assertEqual(state["queue"][0]["status"], "interrupted")
+
+            # The behavior under test: a bare resume must re-queue it. We call the
+            # helper that run_queue uses for a bare resume. If B-01 is unfixed
+            # there is no such requeue and the item stays 'interrupted'.
+            requeued = driver.requeue_interrupted(run_dir, state)
+            self.assertIn("aaaaaa", requeued)
+            self.assertEqual(state["queue"][0]["status"], "queued")
+            self.assertTrue(state["queue"][0].get("recovery_next"))
+
+    def test_bare_resume_does_not_requeue_partial_or_failed(self):
+        # B-01 anti-regression: E-01 must NOT broaden bare-resume scope. A
+        # 'partial' or 'failed-safely' item is only re-queued by
+        # --retry-incomplete, never by a bare resume.
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            queue = [
+                {
+                    "position": 1,
+                    "id6": "aaaaaa",
+                    "setid": "demo",
+                    "configured_file": "x",
+                    "dependencies": [],
+                    "status": "partial",
+                    "attempts": [],
+                },
+                {
+                    "position": 2,
+                    "id6": "bbbbbb",
+                    "setid": "demo",
+                    "configured_file": "y",
+                    "dependencies": [],
+                    "status": "failed-safely",
+                    "attempts": [],
+                },
+            ]
+            run_dir = _make_run_dir(root, queue)
+            state = driver.load_state(run_dir)
+            requeued = driver.requeue_interrupted(run_dir, state)
+            self.assertEqual(requeued, [])
+            self.assertEqual(state["queue"][0]["status"], "partial")
+            self.assertEqual(state["queue"][1]["status"], "failed-safely")
+
+
+class GitPreconditionTests(unittest.TestCase):
+    def test_non_git_dir_reports_clear_message(self):
+        # B-02 regression: initialize_run's guard must report "Not a Git
+        # repository", not a raw "Command failed (128)" from git rev-parse.
+        with tempfile.TemporaryDirectory() as temp:
+            not_git = Path(temp) / "plain"
+            not_git.mkdir()
+            manifest = Path(temp) / "m.json"
+            manifest.write_text(
+                json.dumps({"schema_version": 1, "plans": {}, "sets": {}}),
+                encoding="utf-8",
+            )
+            runbook = Path(temp) / "r.md"
+            runbook.write_text("rb\n", encoding="utf-8")
+            args = driver.build_parser().parse_args(
+                [
+                    "start",
+                    "demo",
+                    "--repo",
+                    str(not_git),
+                    "--manifest",
+                    str(manifest),
+                    "--runbook",
+                    str(runbook),
+                ]
+            )
+            with self.assertRaises(driver.DriverError) as ctx:
+                driver.initialize_run(args)
+            message = str(ctx.exception)
+            self.assertIn("Not a Git repository", message)
+            self.assertNotIn("Command failed", message)
+
+
+class SelectorErrorTests(unittest.TestCase):
+    def test_empty_set_reports_named_set(self):
+        # B-03 regression: selecting a known but empty Set must name that Set,
+        # not fall through to the "At least one ..." message.
+        manifest = {"schema_version": 1, "plans": {}, "sets": {"empty": {"order": []}}}
+        with self.assertRaises(driver.DriverError) as ctx:
+            driver.expand_selectors(manifest, ["empty"])
+        message = str(ctx.exception)
+        self.assertIn("empty", message)
+        self.assertNotIn("At least one id6 or Set selector is required", message)
+
+    def test_no_selector_still_reports_generic_message(self):
+        manifest = {"schema_version": 1, "plans": {}, "sets": {}}
+        with self.assertRaises(driver.DriverError) as ctx:
+            driver.expand_selectors(manifest, [])
+        self.assertIn(
+            "At least one id6 or Set selector is required", str(ctx.exception)
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
