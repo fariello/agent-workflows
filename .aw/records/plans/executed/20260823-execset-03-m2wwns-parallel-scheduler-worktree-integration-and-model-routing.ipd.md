@@ -5,15 +5,15 @@
 - Concern: Execute all provably independent Set work concurrently and integrate it safely.
 - Scope: Coordinator, ready queue, path leases, worktrees, model roles, merge/revalidation, lifecycle, and resume.
 - Scope-Paths: grandfathered
-- Status: approved
+- Status: executed
 - Set: execset
 - Order: 3
 - Highest E allocated: 03
 - Author: OpenAI GPT 5.6 Sol
 - Id: m2wwns
-- Approval: 2026-08-24, human ("approved. go."): status set to approved
 
 ## Workflow history
+- 2026-08-24 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us (ipdrunner run-20260824T150827Z-2301181)): execset Order 03: parallel Set scheduler, worktree/lease isolation, and lifecycle+recovery driving
 - 2026-08-24 approved (aw set, --by-human): status set to approved
 - 2026-08-23 /plan-review focused (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (worktree/session allocation + per-path lease are net-new, not isolation-module reuse), PR-002 (ready queue must compose RunEngine.get_runnable_steps, not re-derive), PR-003 (integration-triggered evidence invalidation is net-new; reuse correction/invalidates_seq primitive), PR-004 (decision-handshake record kinds are Order 02's; consume not redefine), PR-005 (verifier fresh-context already exists; work-class classifier + bindings net-new), PR-006 (worker path-fencing enforcement is net-new). V-02/V-03 strengthened.
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-003 (OQ-02 human-resolved: keep exception-sized E-01, strengthen V-01 to independently verify scheduler, classifier, model routing, and decision handshake).

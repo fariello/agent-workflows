@@ -2713,6 +2713,16 @@
     "date": "2026-08-23",
     "disposition": "executed",
     "kind": "child",
+    "order": 3,
+    "path": "executed/20260823-execset-03-m2wwns-parallel-scheduler-worktree-integration-and-model-routing.ipd.md",
+    "plan_id": "m2wwns",
+    "set_id": "execset",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "executed",
+    "kind": "child",
     "order": 1,
     "path": "executed/20260823-grouptypes-01-o2ygf3-universal-artifact-type-support-in-aw-group.ipd.md",
     "plan_id": "o2ygf3",
@@ -2956,16 +2966,6 @@
     "order": 0,
     "path": "pending/20260823-execset-00-5ahblp-autonomous-ipd-set-execution-program.ipd.md",
     "plan_id": "5ahblp",
-    "set_id": "execset",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-23",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 3,
-    "path": "pending/20260823-execset-03-m2wwns-parallel-scheduler-worktree-integration-and-model-routing.ipd.md",
-    "plan_id": "m2wwns",
     "set_id": "execset",
     "status": "approved"
   },
