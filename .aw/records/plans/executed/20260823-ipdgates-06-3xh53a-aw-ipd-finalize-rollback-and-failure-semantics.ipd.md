@@ -5,15 +5,15 @@
 - Concern: The finalize transaction (Order 04) performs several steps (history append, status set, file move, index refresh, path-scoped commit, post-transition lint). If a step fails, a partial transition (e.g. plan moved + status set but no commit, or a post-commit lint failure) leaves the repo in an inconsistent, misleading state. Without explicit two-phase failure semantics, a failed finalize could look like a success or strand the plan half-transitioned.
 - Scope: Add crash-safe two-phase failure semantics to `aw ipd finalize` and its adversarial tests. Touch: the single-IPD lifecycle module (from Orders 03/04/05), tests/test_ipd_lifecycle_cli.py, and the lifecycle spec/workflow/help through their managed owners. DEPENDS ON Order 05: rollback wraps the COMPLETE finalize transaction, which by this point includes the forward transition (Order 04) AND the two-way scope reconciliation (Order 05); rollback must therefore preserve or unwind reconciliation-side effects too. Reuse the repository's canonical `.aw/state/runtime/` transaction-journal + lock pattern rather than an in-memory-only snapshot. Does NOT change the forward happy path (Order 04) or the reconciliation policy (Order 05) beyond wrapping them in recovery, and does NOT remove the raw bypass (Order 07).
 - Scope-Paths: grandfathered
-- Status: approved
+- Status: executed
 - Set: ipdgates
 - Order: 6
 - Highest E allocated: 04
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: 3xh53a
-- Approval: 2026-08-24, human ("approved. go."): status set to approved
 
 ## Workflow history
+- 2026-08-24 executed (opencode/its_direct/pt3-claude-opus-4.8): Implemented aw ipd finalize crash-safe two-phase failure semantics; dogfooded via begin/finalize.
 - 2026-08-24 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us, ipdrunner run-20260824T150827Z-2301181): E-01..E-04 performed, V-01..V-04 verified. Added crash-safe two-phase failure semantics to aw ipd finalize (agent_workflows/ipd_lifecycle.py): exclusive writer lock + durable phase-journal under .aw/state/runtime/ (reusing the layout_migration.MigrationManager pattern), idempotent journal-driven pre-commit rollback (restore plan bytes/path + exact owned Git-index entries, regenerate index, preserve disjoint dirty/staged work, unknown-outcome on incompatible concurrent change), observed-state commit-boundary classification (committed-incomplete/unknown-outcome), and same-command post-commit resume that reruns only post-transition with no history rewrite; receipt consumed only on COMPLETE. Added 12 RollbackFailureSemanticsTests. Documented in the ipd-lifecycle workflow doc + spec Section 11 (aw specs note). No new CLI flag/verb was needed (same-command resume; fault-injection is a test-only kwarg) so scope stayed within the fence. No material question required a decision. pytest -n auto = 2280 passed, 1 skipped. Status set to executed and finalized via aw ipd finalize (dogfood).
 - 2026-08-24 approved (aw set, --by-human): status set to approved
 
