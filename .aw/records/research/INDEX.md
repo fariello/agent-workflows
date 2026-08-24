@@ -2,10 +2,11 @@
 
 # Research index
 
-Showing the most-recent 40 of 70 hot docs (archive excluded).
+Showing the most-recent 40 of 71 hot docs (archive excluded).
 
 ## Needs addressing (intake)
 
+- `8it88r` 20260823-actorenv-00-8it88r-deriving-actor-identity-host-and-model-from-coding-agent-environments.research-prompt.md - How to auto-derive a trustworthy actor (host + model) from the environment across coding hosts so aw attribution does not depend on the agent remembering --actor
 - `9bd3j8` 20260823-agentadhere-00-9bd3j8-ensuring-agent-process-adherence-across-heterogeneous-coding-agents.research-prompt.md - How to make agent-workflow process steps (aw set, aw ipd begin/finalize, IPD authoring, path-scoped commits) reliably adhered-to by untrained heterogeneous coding agents
 - `yq6aub` 20260821-awoptimize-00-yq6aub-agent-workflows-optimal-architecture-research-and-ipd.research-prompt.md - Originating prompt: optimal-architecture research + conformant IPD Set for the reusable coding-agent workflows (run on GPT 5.6 Sol Extra High)
 - `y1eb0q` 20260821-awoptimize-01-y1eb0q-agent-workflows-optimal-architecture.research-report.md - Optimal architecture research, workflow inventory, false-completion threat model, matrices, and recommendation
@@ -15,6 +16,7 @@ Showing the most-recent 40 of 70 hot docs (archive excluded).
 
 ## Most recent
 
+- `8it88r` [intake] 20260823-actorenv-00-8it88r-deriving-actor-identity-host-and-model-from-coding-agent-environments.research-prompt.md - How to auto-derive a trustworthy actor (host + model) from the environment across coding hosts so aw attribution does not depend on the agent remembering --actor
 - `9bd3j8` [intake] 20260823-agentadhere-00-9bd3j8-ensuring-agent-process-adherence-across-heterogeneous-coding-agents.research-prompt.md - How to make agent-workflow process steps (aw set, aw ipd begin/finalize, IPD authoring, path-scoped commits) reliably adhered-to by untrained heterogeneous coding agents
 - `mqqk8e` [reference] 20260823-execset-00-mqqk8e-exec-set-architecture.gpt56.research-report.md - Architecture for autonomous parallel execution of approved IPD sets across supported coding hosts.
 - `effzzi` [intake] 20260821-awoptimize-03-effzzi-agent-workflows-optimal-architecture-ipd-index.roadmap.md - Dependency-ordered IPD index, critical path, execution guidance, and human gates for the awoptimize plan Set
@@ -54,4 +56,3 @@ Showing the most-recent 40 of 70 hot docs (archive excluded).
 - `36rfym` [reference] 20260726-hostprobe-04-36rfym-external-delivery-host-probe.reconciliation.reconciliation-report.md - Migrated from 20260726-hostprobe-04-36rfym-external-delivery-host-probe.reconciliation.reconciliation-report.md.
 - `8i9py4` [reference] 20260726-hostprobe-01-8i9py4-external-delivery-host-probe.gemini36flash.research-report.md - Migrated from 20260726-hostprobe-01-8i9py4-external-delivery-host-probe.gemini36flash.research-report.md.
 - `dkxesq` [reference] 20260726-hostprobe-02-dkxesq-external-delivery-host-probe.gemini31pro.research-report.md - Migrated from 20260726-hostprobe-02-dkxesq-external-delivery-host-probe.gemini31pro.research-report.md.
-- `ibl5kt` [reference] 20260726-hostprobe-00-ibl5kt-external-delivery-host-probe.gpt56.research-report.md - Migrated from 20260726-hostprobe-00-ibl5kt-external-delivery-host-probe.gpt56.research-report.md.

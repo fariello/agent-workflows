@@ -254,6 +254,27 @@
     "topic": []
   },
   {
+    "created": "20260823",
+    "date": "20260823",
+    "id6": "8it88r",
+    "kind": "research-prompt",
+    "model": "",
+    "order": "00",
+    "outcome": "none-yet",
+    "path": "20260823-actorenv-00-8it88r-deriving-actor-identity-host-and-model-from-coding-agent-environments.research-prompt.md",
+    "set_id": "actorenv",
+    "status": "intake",
+    "summary": "How to auto-derive a trustworthy actor (host + model) from the environment across coding hosts so aw attribution does not depend on the agent remembering --actor",
+    "topic": [
+      "actor-attribution",
+      "environment-detection",
+      "host-identity",
+      "model-identity",
+      "provenance",
+      "workflow-reliability"
+    ]
+  },
+  {
     "created": "20260713",
     "date": "20260713",
     "id6": "8xgwvm",
