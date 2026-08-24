@@ -2773,6 +2773,16 @@
     "date": "2026-08-23",
     "disposition": "executed",
     "kind": "child",
+    "order": 7,
+    "path": "executed/20260823-ipdgates-07-wezhxg-remove-raw-terminal-transition-bypasses-and-strengthen-histo.ipd.md",
+    "plan_id": "wezhxg",
+    "set_id": "ipdgates",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "executed",
+    "kind": "child",
     "order": 1,
     "path": "executed/20260823-renametypes-01-53yczi-universal-artifact-type-support-in-aw-rename.ipd.md",
     "plan_id": "53yczi",
@@ -2956,16 +2966,6 @@
     "order": 0,
     "path": "pending/20260823-ipdgates-00-do64fh-enforce-single-ipd-lifecycle-and-scope-gates-fail-closed.ipd.md",
     "plan_id": "do64fh",
-    "set_id": "ipdgates",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-23",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 7,
-    "path": "pending/20260823-ipdgates-07-wezhxg-remove-raw-terminal-transition-bypasses-and-strengthen-histo.ipd.md",
-    "plan_id": "wezhxg",
     "set_id": "ipdgates",
     "status": "approved"
   },
