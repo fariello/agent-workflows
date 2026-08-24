@@ -63,7 +63,7 @@ Showing the 40 most-recent of 124 Sets; the full manifest is INDEX.json.
 
 ## proclint
 
-- `79li67` [pending] 01 pending/20260823-proclint-01-79li67-detect-process-violations-in-aw-check-and-aw-doctor-untooled.ipd.md
+- `79li67` [executed] 01 executed/20260823-proclint-01-79li67-detect-process-violations-in-aw-check-and-aw-doctor-untooled.ipd.md
 
 ## renametypes
 

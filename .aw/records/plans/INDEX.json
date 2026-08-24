@@ -2804,6 +2804,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260823-proclint-01-79li67-detect-process-violations-in-aw-check-and-aw-doctor-untooled.ipd.md",
+    "plan_id": "79li67",
+    "set_id": "proclint",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260823-renametypes-01-53yczi-universal-artifact-type-support-in-aw-rename.ipd.md",
     "plan_id": "53yczi",
     "set_id": "renametypes",
@@ -2977,16 +2987,6 @@
     "path": "pending/20260823-execset-05-2h7777-exec-set-workflow-skill-shims-and-conformance-tests.ipd.md",
     "plan_id": "2h7777",
     "set_id": "execset",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-23",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260823-proclint-01-79li67-detect-process-violations-in-aw-check-and-aw-doctor-untooled.ipd.md",
-    "plan_id": "79li67",
-    "set_id": "proclint",
     "status": "approved"
   },
   {

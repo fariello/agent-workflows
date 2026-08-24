@@ -5,15 +5,15 @@
 - Concern: This toolkit requires lifecycle status to change via `aw set`/`aw ipd set` (which append an attributed `## Workflow history` line), not by hand-editing the `- Status:` field - but that is enforced only by soft prose in AGENTS.md and is consistently dropped by ALL current agents (cross-vendor, observed repeatedly - including a reviewer that hand-edited `- Status:` on several plans in this repo). The `ipdgates` Set gates the high-stakes TERMINAL transition (a plan -> `executed`, via finalize + Order 07 delegation + Order 08's pre-commit receipt gate). Nothing catches a hand-edited INTERMEDIATE transition (`draft`->`to-review`->`reviewed`->`approved`), and `approved` is a trust boundary. This IPD adds a COMMIT-SCOPED detector for that gap: when a commit changes a plan's `- Status:` with no matching tool-authored history line, flag it - so the careless untooled intermediate transition becomes visible.
 - Scope: Add a deterministic, COMMIT-SCOPED check (over the STAGED/changed files in the commit, NOT a scan of the whole tree) that flags a plan whose `- Status:` changed in this commit without a matching tool-authored `## Workflow history` transition line, surfaced through `aw check` (over changed files) and, primarily, a local pre-commit hook - the intermediate-transition sibling of ipdgates Order 08. `executed/` records are EXCLUDED (terminal/immutable; a plan moved OUT of `executed/` is itself a staged change and IS checked). Touch: agent_workflows/check_engine.py (the changed-file status-vs-history rule), a local pre-commit hook + its `.pre-commit-config.yaml` wiring (mirroring Order 08's pattern), agent_workflows/doctor.py (remediation mapping), and tests. Explicitly does NOT re-implement the id6-identity-slot check (unifyfileio Order 05 `9a655p`), the terminal-history generic-actor lint (ipdgates Order 07 `wezhxg`), or the terminal executed-transition gate (ipdgates Order 08 `dulzpy`); it covers the DISTINCT "an INTERMEDIATE status changed in THIS commit with no tool-authored transition line" violation. NO grandfathering (unchanged/historical records are never examined) and NO GitHub CI (local only, mirroring Order 08's human decision).
 - Scope-Paths: grandfathered
-- Status: approved
+- Status: executed
 - Set: proclint
 - Order: 1
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 79li67
-- Approval: 2026-08-24, human ("approved. go."): status set to approved
 
 ## Workflow history
+- 2026-08-24 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): proclint 79li67: commit-scoped untooled-status detector (check.status-untooled) + local pre-commit gate (ipd-status-untooled-gate) + doctor remediation; the intermediate-transition sibling of ipdgates Order dulzpy. E-01..E-03 performed, V-01..V-03 verified; pytest -n auto 2315 passed, 1 skipped.
 - 2026-08-24 approved (aw set, --by-human): status set to approved
 - 2026-08-24 reviewed (aw set): plan-review self-review (author); commit-scoped rescope + predicate A applied - see workflow history
 
