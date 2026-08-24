@@ -10,6 +10,7 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: qmt3yk
+- Approval: 2026-08-24, human ("approved. go."): status set to approved
 
 ## Workflow history
 - 2026-08-24 approved (aw set, --by-human): status set to approved

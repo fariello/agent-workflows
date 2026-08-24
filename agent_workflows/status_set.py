@@ -459,6 +459,45 @@ def apply_status_change(
             if not re.match(r"^- Approval:\s*", line_item)
         ]
 
+    # The IPD schema REQUIRES an `- Approval:` field exactly when Status is `approved`
+    # (ipd_schema.APPROVAL_STATUSES; enforced as IPD-M104). `auto-approved` is a
+    # sibling tier that records an automated clear and must NOT carry it. So when a
+    # plan transitions to `approved` and has no Approval field yet, write a
+    # conformant one here, so the setter never produces a plan that fails lint.
+    if rec.record_type == "plans" and norm_status == "approved":
+        has_approval = any(
+            re.match(r"^- Approval:\s*", line_item) for line_item in new_lines
+        )
+        if not has_approval:
+            attn = (
+                'human ("approved")'
+                if getattr(args, "by_human", False)
+                else "recorded via aw ipd set"
+            )
+            approval_line = f"- Approval: {today}, {attn}: {message}"
+            # Insert as the last front-matter bullet: after `- Id:` if present, else
+            # after `- Status:`, else before the first `## ` heading.
+            insert_idx = None
+            for i, line_item in enumerate(new_lines):
+                if line_item.startswith("## "):
+                    break
+                if re.match(r"^- Id:\s*", line_item):
+                    insert_idx = i + 1
+            if insert_idx is None:
+                for i, line_item in enumerate(new_lines):
+                    if line_item.startswith("## "):
+                        break
+                    if _STATUS_RE.match(line_item):
+                        insert_idx = i + 1
+            if insert_idx is None:
+                for i, line_item in enumerate(new_lines):
+                    if line_item.startswith("## "):
+                        insert_idx = i
+                        break
+                if insert_idx is None:
+                    insert_idx = len(new_lines)
+            new_lines.insert(insert_idx, approval_line)
+
     # Append Workflow history
     hist_entry = f"- {today} {norm_status} ({actor}): {message}"
     has_hist_section = False

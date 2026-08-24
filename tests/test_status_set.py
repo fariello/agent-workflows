@@ -558,5 +558,138 @@ class TestStatusSetCommands(StatusSetTestBase):
         self.assertEqual(rec2["outcome"], "clean")
 
 
+class TestApprovedWritesApprovalField(StatusSetTestBase):
+    """w6mqc0: 'aw ipd set approved' must write the schema-required Approval field
+    so an approved plan does not fail 'aw ipd lint' (IPD-M104)."""
+
+    def test_set_approved_inserts_approval_field(self):
+        plan = self.create_plan(
+            "20260822-apxset-01-ap0001-test-plan.ipd.md", "ap0001", "apxset", "reviewed"
+        )
+        rc = cli.main(
+            [
+                "set",
+                "approved",
+                "ap0001",
+                "--by-human",
+                "-m",
+                "approved. go.",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 0)
+        text = plan.read_text(encoding="utf-8")
+        self.assertIn("- Status: approved", text)
+        # The required Approval field is present and non-empty (IPD-M104 satisfied).
+        approval = [ln for ln in text.splitlines() if ln.startswith("- Approval:")]
+        self.assertEqual(len(approval), 1, "exactly one Approval field expected")
+        self.assertTrue(approval[0][len("- Approval:") :].strip(), "Approval non-empty")
+        # It sits in the front matter (before the first H2), right after Id.
+        head = text.split("\n## ", 1)[0].splitlines()
+        self.assertIn("- Approval:", "\n".join(head))
+
+    def test_approval_field_stripped_when_leaving_approved(self):
+        plan = self.create_plan(
+            "20260822-apxset-01-ap0002-test-plan.ipd.md", "ap0002", "apxset", "reviewed"
+        )
+        cli.main(
+            [
+                "set",
+                "approved",
+                "ap0002",
+                "--by-human",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertIn("- Approval:", plan.read_text(encoding="utf-8"))
+        rc = cli.main(
+            ["set", "reviewed", "ap0002", "--yes", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc, 0)
+        self.assertNotIn("- Approval:", plan.read_text(encoding="utf-8"))
+
+    def test_auto_approved_does_not_get_approval_field(self):
+        plan = self.create_plan(
+            "20260822-apxset-01-ap0003-test-plan.ipd.md", "ap0003", "apxset", "reviewed"
+        )
+        rc = cli.main(
+            ["set", "auto-approved", "ap0003", "--yes", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc, 0)
+        text = plan.read_text(encoding="utf-8")
+        self.assertIn("- Status: auto-approved", text)
+        self.assertNotIn("- Approval:", text)
+
+    def test_scaffolded_ipd_set_approved_lints_conforming(self):
+        """End-to-end: a real scaffolded IPD set to approved must lint conforming
+        (no IPD-M104), proving the setter no longer produces an unexecutable plan.
+
+        `ipd scaffold`/`ipd lint` resolve the repo root from cwd, so run from the
+        temp repo; `set` takes --dir explicitly.
+        """
+        import os
+
+        plan = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20260822-apxlint-01-apxlnt-approval-lint-probe.ipd.md"
+        )
+        old_cwd = os.getcwd()
+        os.chdir(self.repo_root)
+        try:
+            rc_scaffold = cli.main(
+                [
+                    "ipd",
+                    "scaffold",
+                    "--kind",
+                    "child",
+                    "--title",
+                    "Approval lint probe",
+                    "--set",
+                    "apxlint",
+                    "--order",
+                    "1",
+                    "--author",
+                    "tester",
+                    "--path",
+                    str(plan),
+                    "--apply",
+                ]
+            )
+            self.assertEqual(rc_scaffold, 0)
+            id6 = "apxlnt"
+            cli.main(["set", "reviewed", id6, "--yes", "--dir", str(self.repo_root)])
+            rc_appr = cli.main(
+                [
+                    "set",
+                    "approved",
+                    id6,
+                    "--by-human",
+                    "-m",
+                    "approved. go.",
+                    "--yes",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+            self.assertEqual(rc_appr, 0)
+            self.assertIn("- Approval:", plan.read_text(encoding="utf-8"))
+            buf = io.StringIO()
+            with patch("sys.stdout", buf):
+                rc_lint = cli.main(["ipd", "lint", "--agent", str(plan)])
+            out = buf.getvalue()
+        finally:
+            os.chdir(old_cwd)
+        self.assertNotIn("IPD-M104", out)
+        self.assertEqual(rc_lint, 0, out)
+
+
 if __name__ == "__main__":
     unittest.main()

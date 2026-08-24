@@ -10,6 +10,7 @@
 - Highest E allocated: 06
 - Author: Gabriele Fariello
 - Id: 52zgqr
+- Approval: 2026-08-24, human ("approved. go."): status set to approved
 
 ## Workflow history
 - 2026-08-24 approved (aw set, --by-human): status set to approved
