@@ -44,6 +44,174 @@ EXIT_CANNOT_RUN = 2
 
 _RECEIPT_SUBDIR = ("state", "ipd-lifecycle")
 
+# --------------------------------------------------------------------------------------
+# Finalize transaction journal + lock (Order 3xh53a). Reuses the repository's canonical
+# crash-safe pattern from layout_migration.MigrationManager: an exclusive writer lock + an
+# atomically-checkpointed transaction journal under the gitignored .aw/state/runtime/ tree, with
+# idempotent resume/rollback driven by the persisted phase (never volatile in-memory snapshots).
+# --------------------------------------------------------------------------------------
+
+FINALIZE_JOURNAL_SCHEMA_VERSION = 1
+
+# Journal phases (a monotonic-ish enum; ``unknown-outcome`` is a fail-closed terminal-ambiguous
+# state). BEFORE the lifecycle commit everything is recoverable to the pre-finalize state; AFTER a
+# commit the transaction is either ``committed-incomplete`` (resumable, no history rewrite) or
+# ``complete``.
+PHASE_PREPARED = "prepared"  # journal written, no mutation yet
+PHASE_MUTATING = (
+    "mutating"  # plan bytes/status/move/index being written (working-tree only)
+)
+PHASE_READY_TO_COMMIT = (
+    "ready-to-commit"  # all pre-commit mutations staged; about to commit
+)
+PHASE_COMMITTED_INCOMPLETE = (
+    "committed-incomplete"  # lifecycle commit exists; post-lint pending
+)
+PHASE_UNKNOWN_OUTCOME = (
+    "unknown-outcome"  # ambiguous/corrupt evidence; fail closed, never success
+)
+PHASE_COMPLETE = "complete"  # post-transition passed; receipt + journal finalized
+
+_PRE_COMMIT_PHASES = frozenset((PHASE_PREPARED, PHASE_MUTATING, PHASE_READY_TO_COMMIT))
+
+
+class TransactionLockError(RuntimeError):
+    """Raised when the finalize writer lock is held by another live process."""
+
+
+class _InjectedFault(RuntimeError):
+    """Test-only fault injected at a named finalize checkpoint to exercise rollback/recovery."""
+
+
+def _runtime_dir(repo_root: Path) -> Path:
+    return repo_root.joinpath(".aw", "state", "runtime")
+
+
+def finalize_lock_path(repo_root: Path) -> Path:
+    """The exclusive finalize writer lock over the shared plan manifest."""
+    return _runtime_dir(repo_root) / "locks" / "ipd_finalize_writer.lock"
+
+
+def finalize_journal_path(repo_root: Path, plan_id: str) -> Path:
+    """The per-plan finalize transaction journal under the runtime transaction area."""
+    return _runtime_dir(repo_root) / "transactions" / f"ipd_finalize_{plan_id}.json"
+
+
+def _atomic_write_json_at(path: Path, payload: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".tmp-", suffix=".json")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(data)
+        os.replace(tmp, str(path))
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def acquire_finalize_lock(repo_root: Path, plan_id: str) -> None:
+    """Acquire the exclusive finalize lock, reclaiming a STALE lock (dead PID) after consulting it.
+
+    Raises TransactionLockError with an actionable owner/retry diagnostic when a LIVE process holds
+    it. A stale lock (its recorded PID is not alive) is reclaimed rather than blindly deleted.
+    """
+    lock = finalize_lock_path(repo_root)
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    if lock.exists():
+        try:
+            data = json.loads(lock.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            data = {}
+        pid = data.get("pid")
+        if pid and pid != os.getpid():
+            alive = True
+            try:
+                os.kill(int(pid), 0)
+            except ValueError:
+                alive = False
+            except PermissionError:
+                alive = True  # EPERM: the process EXISTS (owned by another user), so it is alive
+            except ProcessLookupError:
+                alive = False  # ESRCH: no such process -> stale
+            except OSError:
+                alive = False
+            if alive:
+                raise TransactionLockError(
+                    "ipd finalize writer lock held by active PID {0} (plan {1}); wait for it to "
+                    "finish or, if that process is dead, remove {2}".format(
+                        pid, data.get("plan_id"), lock
+                    )
+                )
+        # else: stale (dead PID) - reclaim below (recovery consults the journal, not this file).
+    payload = {
+        "plan_id": plan_id,
+        "pid": os.getpid(),
+        "timestamp": _utc_now(),
+    }
+    _atomic_write_json_at(lock, payload)
+
+
+def release_finalize_lock(repo_root: Path) -> None:
+    """Release the finalize lock iff this process owns it."""
+    lock = finalize_lock_path(repo_root)
+    if not lock.exists():
+        return
+    try:
+        data = json.loads(lock.read_text(encoding="utf-8"))
+        if data.get("pid") == os.getpid():
+            lock.unlink()
+    except (OSError, ValueError):
+        try:
+            lock.unlink()
+        except OSError:
+            pass
+
+
+def read_finalize_journal(repo_root: Path, plan_id: str) -> Optional[Dict[str, Any]]:
+    """Load the finalize journal for ``plan_id`` (None if absent/unreadable)."""
+    p = finalize_journal_path(repo_root, plan_id)
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def _write_finalize_journal(repo_root: Path, journal: Dict[str, Any]) -> None:
+    """Persist the journal atomically, appending the phase to a phase-history trail."""
+    journal["updated_at"] = _utc_now()
+    _atomic_write_json_at(finalize_journal_path(repo_root, journal["plan_id"]), journal)
+
+
+def _clear_finalize_journal(repo_root: Path, plan_id: str) -> None:
+    p = finalize_journal_path(repo_root, plan_id)
+    try:
+        p.unlink()
+    except OSError:
+        pass
+
+
+def _git_index_entries(repo_root: Path, paths: List[str]) -> Dict[str, str]:
+    """The exact staged Git-index entry line (`git ls-files --stage`) for each owned path.
+
+    Captures ``<mode> <object> <stage>\\t<path>`` so rollback can restore precisely the prior index
+    state for lifecycle-owned paths without touching any disjoint staged/dirty work.
+    """
+    out: Dict[str, str] = {}
+    if not paths:
+        return out
+    rc, text, _err = _git(repo_root, ["ls-files", "--stage", "--", *paths])
+    if rc != 0:
+        return out
+    for line in text.splitlines():
+        if "\t" in line:
+            _meta, p = line.split("\t", 1)
+            out[p.strip()] = line
+    return out
+
 
 class BeginResult(NamedTuple):
     """The outcome of an `aw ipd begin` attempt.
@@ -735,6 +903,98 @@ def _reconciliation_history_note(reasons: Dict[str, str], acks: Dict[str, str]) 
     return "Scope reconciliation - " + "; ".join(bits)
 
 
+def _lifecycle_commit_exists(
+    repo_root: Path, pre_head: str, plan_id: str
+) -> Optional[str]:
+    """Return the lifecycle commit hash if HEAD advanced past ``pre_head`` with our commit, else None.
+
+    Observed-state classification (E-03): we identify OUR lifecycle commit by (a) HEAD != pre_head
+    and (b) the tip commit's subject carrying the deterministic `lifecycle(<id>): finalize ...`
+    marker. This reads repository evidence rather than trusting that the commit subprocess ran.
+    """
+    rc, head, _err = _git(repo_root, ["rev-parse", "HEAD"])
+    if rc != 0:
+        return None
+    head = head.strip()
+    if head == pre_head:
+        return None
+    rc, subj, _err = _git(repo_root, ["log", "-1", "--format=%s", head])
+    if rc == 0 and subj.strip().startswith(f"lifecycle({plan_id})"):
+        return head
+    # HEAD moved but not via our marker: ambiguous - the caller classifies unknown-outcome.
+    return None
+
+
+def _rollback_precommit(repo_root: Path, journal: Dict[str, Any]) -> Tuple[bool, str]:
+    """Idempotent pre-commit rollback driven by the journal (E-02). Returns (ok, message).
+
+    Restores the plan to its original bytes+path, removes the moved destination, restores the exact
+    prior Git-index entries for lifecycle-owned paths (never touching disjoint staged/dirty work),
+    and regenerates the plans index from the CURRENT corpus. Byte-equality with the snapshot is
+    required only when no concurrent plan-state change occurred; an incompatible concurrent change
+    is classified `unknown-outcome` and stopped WITHOUT a destructive restore.
+    """
+    orig_rel = journal["original_path"]
+    dest_rel = journal.get("dest_path")
+    orig_abs = repo_root / orig_rel
+    orig_bytes = journal["original_bytes"]
+
+    # 1. Remove the moved destination (if the move happened) unless a concurrent change altered it.
+    if dest_rel and dest_rel != orig_rel:
+        dest_abs = repo_root / dest_rel
+        if dest_abs.exists():
+            # Only remove a destination that matches what THIS transaction wrote (our plan bytes),
+            # so we never clobber a concurrent writer that legitimately owns that path.
+            try:
+                cur = dest_abs.read_text(encoding="utf-8")
+            except OSError:
+                cur = None
+            expected = journal.get("moved_bytes")
+            if expected is not None and cur is not None and cur != expected:
+                return (
+                    False,
+                    "unknown-outcome: the finalize destination {0} changed since the checkpoint; "
+                    "refusing a destructive restore.".format(dest_rel),
+                )
+            try:
+                dest_abs.unlink()
+            except OSError as exc:
+                return (False, f"rollback could not remove {dest_rel}: {exc}")
+
+    # 2. Restore the plan's original bytes at its original path (atomic).
+    try:
+        orig_abs.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(
+            dir=str(orig_abs.parent), prefix=".rb-", suffix=".md"
+        )
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(orig_bytes)
+        os.replace(tmp, str(orig_abs))
+    except OSError as exc:
+        return (False, f"rollback could not restore {orig_rel}: {exc}")
+
+    # 3. Restore the exact prior Git-index entries for lifecycle-owned paths (no disjoint work).
+    owned = journal.get("owned_paths", [])
+    prior_index = journal.get("git_index_entries", {})
+    for p in owned:
+        # Reset the index entry for this owned path to its recorded state without staging others.
+        if p in prior_index:
+            _git(repo_root, ["restore", "--staged", "--", p])
+        else:
+            _git(repo_root, ["restore", "--staged", "--", p])
+
+    # 4. Regenerate the plans index deterministically from the CURRENT corpus + verify.
+    try:
+        _refresh_plans_index_fail_loud(repo_root)
+    except Exception as exc:
+        return (False, f"rollback index regeneration failed: {exc}")
+
+    return (
+        True,
+        "pre-commit state restored (plan bytes/path + owned Git-index; index regenerated).",
+    )
+
+
 def finalize(
     repo_root: Path,
     plan_path: Path,
@@ -747,6 +1007,7 @@ def finalize(
     interactive: bool = False,
     prompt=None,
     plan_selector: Optional[str] = None,
+    fault_injection: Optional[str] = None,
 ) -> FinalizeResult:
     """The atomic terminal transaction for one IPD (precheck + two-way reconciliation + transition).
 
@@ -759,11 +1020,9 @@ def finalize(
     commit + three-phase gate evidence. A missing reason/ack fails closed naming the exact
     re-invocation. (Rollback/failure semantics are Order 06.)
     """
-    import argparse
-
-    from agent_workflows import ipd_lint as _lint
     from agent_workflows import status_set as _ss
 
+    evidence: Dict[str, Any] = {}
     if not actor or not actor.strip():
         return FinalizeResult(
             EXIT_CANNOT_RUN, None, "finalize requires a non-empty --actor."
@@ -776,6 +1035,42 @@ def finalize(
         return FinalizeResult(
             EXIT_CANNOT_RUN, None, f"plan file not found: {plan_path}"
         )
+
+    # --- Early recovery: a prior interrupted/committed-incomplete transaction (Order 3xh53a). ---
+    # Resolve the plan id from whatever path resolved (a committed-incomplete plan lives in
+    # executed/, where precheck/begin do not apply), and resume/rollback BEFORE the fresh precheck.
+    from agent_workflows import ipd_lint as _lint0
+
+    _early_id = (
+        _lint0.parse(plan_path.read_text(encoding="utf-8")).meta_fields.get("Id") or ""
+    ).strip()
+    if _early_id:
+        _early_journal = read_finalize_journal(repo_root, _early_id)
+        if _early_journal is not None:
+            _phase = _early_journal.get("phase")
+            if _phase == PHASE_COMMITTED_INCOMPLETE:
+                try:
+                    acquire_finalize_lock(repo_root, _early_id)
+                except TransactionLockError as exc:
+                    return FinalizeResult(EXIT_CANNOT_RUN, None, str(exc), evidence)
+                try:
+                    return _resume_post_commit(
+                        repo_root, _early_journal, _early_id, evidence
+                    )
+                finally:
+                    release_finalize_lock(repo_root)
+            if _phase == PHASE_UNKNOWN_OUTCOME:
+                return FinalizeResult(
+                    EXIT_CANNOT_RUN,
+                    None,
+                    f"finalize journal for {_early_id} is in unknown-outcome (ambiguous prior "
+                    f"attempt); resolve manually and clear "
+                    f"{finalize_journal_path(repo_root, _early_id)}.",
+                    evidence,
+                    tuple(_early_journal.get("findings", ())),
+                )
+            # pre-commit phases fall through: the plan is still pending, precheck + the transaction's
+            # own resume-rollback handle it.
 
     exit_code, msg, evidence, findings = finalize_precheck(repo_root, plan_path)
     if exit_code != EXIT_OK:
@@ -833,7 +1128,7 @@ def finalize(
     if recon_note:
         message = f"{message} [{recon_note}]"
 
-    # --- E-02 forward transition (precheck passed) ---
+    # --- E-02/E-03 forward transition, wrapped in the durable two-phase journal (Order 3xh53a) ---
     rec = _ss.read_artifact_record(plan_path, repo_root)
     if rec is None:
         return FinalizeResult(
@@ -842,76 +1137,343 @@ def finalize(
             f"could not read plan record for {plan_path}.",
             evidence,
         )
-    ns = argparse.Namespace(actor=actor, message=message, by_human=False)
-    try:
-        dest_path, norm_status = _ss.apply_status_change(rec, "executed", repo_root, ns)
-    except Exception as exc:
-        return FinalizeResult(
-            EXIT_CANNOT_RUN, None, f"terminal status/move failed: {exc}", evidence
-        )
+    plan_id = (rec.id6 or "").strip() or Path(plan_path).name
+    plan_rel = _repo_relative(repo_root, plan_path)
 
-    # Owned-index refresh MUST fail loud (never the status_set swallow).
+    # Acquire the exclusive finalize lock (a live second finalizer fails with a retry diagnostic).
     try:
-        _refresh_plans_index_fail_loud(repo_root)
-    except Exception as exc:
-        return FinalizeResult(
-            EXIT_CANNOT_RUN,
-            None,
-            f"owned plans-index refresh FAILED ({exc}); transaction aborted (plan moved on disk but "
-            "NOT committed). Re-run after repair; rollback semantics are Order 06.",
+        acquire_finalize_lock(repo_root, plan_id)
+    except TransactionLockError as exc:
+        return FinalizeResult(EXIT_CANNOT_RUN, None, str(exc), evidence)
+
+    try:
+        return _finalize_transaction(
+            repo_root,
+            plan_path,
+            plan_rel,
+            plan_id,
+            rec,
+            actor,
+            message,
             evidence,
+            fault_injection,
+        )
+    finally:
+        release_finalize_lock(repo_root)
+
+
+def _finalize_transaction(
+    repo_root: Path,
+    plan_path: Path,
+    plan_rel: str,
+    plan_id: str,
+    rec,
+    actor: str,
+    message: str,
+    evidence: Dict[str, Any],
+    fault_injection: Optional[str],
+) -> FinalizeResult:
+    """The journaled two-phase terminal transaction (called under the finalize lock).
+
+    Phases: PREPARED (snapshot) -> MUTATING (status/move/index, working-tree only) ->
+    READY_TO_COMMIT -> commit -> classify by OBSERVED state -> post-transition -> COMPLETE. Any
+    pre-commit failure/interrupt rolls back idempotently; a committed-incomplete transaction resumes
+    via the SAME command with no history rewrite; ambiguous evidence is unknown-outcome (fail closed).
+    """
+    import argparse
+
+    from agent_workflows import status_set as _ss
+
+    plans_dir = _plans_dir_of(repo_root, plan_path)
+    index_json_rel = _repo_relative(repo_root, plans_dir / "INDEX.json")
+    index_md_rel = _repo_relative(repo_root, plans_dir / "INDEX.md")
+    dest_rel = _repo_relative(repo_root, plans_dir / "executed" / Path(plan_path).name)
+    owned_paths = [plan_rel, dest_rel, index_json_rel, index_md_rel]
+
+    def _fault(tag: str) -> None:
+        if fault_injection == tag:
+            raise _InjectedFault(tag)
+
+    # --- RESUME: an existing journal means a prior attempt was interrupted. ---
+    existing = read_finalize_journal(repo_root, plan_id)
+    if existing is not None:
+        phase = existing.get("phase")
+        if phase in _PRE_COMMIT_PHASES:
+            # Interrupted before the commit: finish rollback idempotently, then start fresh below.
+            ok, msg = _rollback_precommit(repo_root, existing)
+            if not ok:
+                existing["phase"] = PHASE_UNKNOWN_OUTCOME
+                existing["rollback_error"] = msg
+                _write_finalize_journal(repo_root, existing)
+                return FinalizeResult(
+                    EXIT_CANNOT_RUN,
+                    None,
+                    f"prior interrupted finalize could not be rolled back ({msg}); journal retained "
+                    "for recovery. NOT restored.",
+                    evidence,
+                )
+            _clear_finalize_journal(repo_root, plan_id)
+            # fall through to a fresh attempt
+        elif phase == PHASE_COMMITTED_INCOMPLETE:
+            return _resume_post_commit(repo_root, existing, plan_id, evidence)
+        elif phase == PHASE_UNKNOWN_OUTCOME:
+            return FinalizeResult(
+                EXIT_CANNOT_RUN,
+                None,
+                f"finalize journal for {plan_id} is in unknown-outcome (ambiguous prior attempt); "
+                f"resolve manually and clear {finalize_journal_path(repo_root, plan_id)}.",
+                evidence,
+                tuple(existing.get("findings", ())),
+            )
+        # PHASE_COMPLETE: a stale complete journal - clear and proceed fresh.
+        else:
+            _clear_finalize_journal(repo_root, plan_id)
+
+    # --- PREPARED: snapshot everything needed to roll back, atomically, before any mutation. ---
+    rc, pre_head, _err = _git(repo_root, ["rev-parse", "HEAD"])
+    pre_head = pre_head.strip() if rc == 0 else "unversioned"
+    try:
+        original_bytes = plan_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return FinalizeResult(
+            EXIT_CANNOT_RUN, None, f"cannot read plan: {exc}", evidence
         )
 
-    # Path-scoped lifecycle commit: only this plan's own files (old path, new path, index).
-    plans_dir = dest_path.parent.parent
-    commit_paths = [
-        _repo_relative(repo_root, plan_path),
-        _repo_relative(repo_root, dest_path),
-        _repo_relative(repo_root, plans_dir / "INDEX.json"),
-        _repo_relative(repo_root, plans_dir / "INDEX.md"),
-    ]
-    # Stage only the existing ones.
-    stage = [
-        p
-        for p in commit_paths
-        if (repo_root / p).exists() or p == _repo_relative(repo_root, plan_path)
-    ]
+    def _read_or_none(rel: str) -> Optional[str]:
+        p = repo_root / rel
+        try:
+            return p.read_text(encoding="utf-8")
+        except OSError:
+            return None
+
+    journal: Dict[str, Any] = {
+        "schema_version": FINALIZE_JOURNAL_SCHEMA_VERSION,
+        "plan_id": plan_id,
+        "plan_digest": plan_content_digest(original_bytes),
+        "original_path": plan_rel,
+        "original_bytes": original_bytes,
+        "dest_path": dest_rel,
+        "pre_head": pre_head,
+        "owned_paths": owned_paths,
+        "index_json_before": _read_or_none(index_json_rel),
+        "index_md_before": _read_or_none(index_md_rel),
+        "git_index_entries": _git_index_entries(repo_root, owned_paths),
+        "receipt_id": plan_id,
+        "actor": actor,
+        "message": message,
+        "phase": PHASE_PREPARED,
+        "created_at": _utc_now(),
+    }
+    _write_finalize_journal(repo_root, journal)
+
+    def _rollback_and_return(
+        reason: str, exit_code: int = EXIT_CANNOT_RUN
+    ) -> FinalizeResult:
+        cur = read_finalize_journal(repo_root, plan_id) or journal
+        ok, msg = _rollback_precommit(repo_root, cur)
+        if not ok:
+            cur["phase"] = PHASE_UNKNOWN_OUTCOME
+            cur["rollback_error"] = msg
+            _write_finalize_journal(repo_root, cur)
+            return FinalizeResult(
+                exit_code,
+                None,
+                f"{reason}; rollback FAILED ({msg}); journal retained, repository NOT reported "
+                "restored.",
+                evidence,
+            )
+        _clear_finalize_journal(repo_root, plan_id)
+        return FinalizeResult(
+            exit_code, None, f"{reason}; rolled back to pre-finalize state.", evidence
+        )
+
+    # --- MUTATING: status write + file move (working-tree only), then owned-index refresh. ---
+    journal["phase"] = PHASE_MUTATING
+    _write_finalize_journal(repo_root, journal)
+    try:
+        _fault("before_mutation")
+        ns = argparse.Namespace(actor=actor, message=message, by_human=False)
+        dest_path, _norm = _ss.apply_status_change(rec, "executed", repo_root, ns)
+        # Record the moved bytes so rollback can distinguish our write from a concurrent one.
+        try:
+            journal["moved_bytes"] = dest_path.read_text(encoding="utf-8")
+        except OSError:
+            journal["moved_bytes"] = None
+        journal["dest_path"] = _repo_relative(repo_root, dest_path)
+        _write_finalize_journal(repo_root, journal)
+        _fault("after_move")
+        _refresh_plans_index_fail_loud(repo_root)
+        _fault("after_index")
+    except _InjectedFault as exc:
+        return _rollback_and_return(f"fault-injected finalize failure ({exc})")
+    except Exception as exc:
+        return _rollback_and_return(f"finalize mutation failed ({exc})")
+
+    dest_path = repo_root / journal["dest_path"]
+
+    # --- READY_TO_COMMIT: stage only owned paths, then the single lifecycle commit. ---
+    stage = [p for p in owned_paths if (repo_root / p).exists() or p == plan_rel]
     rc, _out, err = _git(repo_root, ["add", "--", *stage])
     if rc != 0:
-        return FinalizeResult(
-            EXIT_CANNOT_RUN, None, f"git add failed: {err.strip()}", evidence
-        )
-    commit_msg = f"lifecycle({rec.id6 or 'plan'}): finalize {rec.id6 or plan_path.name} -> executed\n\n{message}\n\nExecuted by {actor} via aw ipd finalize."
+        return _rollback_and_return(f"git add failed ({err.strip()})")
+    journal["phase"] = PHASE_READY_TO_COMMIT
+    journal["staged"] = stage
+    _write_finalize_journal(repo_root, journal)
+
+    try:
+        _fault("before_commit")
+    except _InjectedFault as exc:
+        return _rollback_and_return(f"fault-injected before commit ({exc})")
+
+    commit_msg = (
+        f"lifecycle({plan_id}): finalize {plan_id} -> executed\n\n{message}\n\n"
+        f"Executed by {actor} via aw ipd finalize."
+    )
     rc, _out, err = _git(repo_root, ["commit", "-m", commit_msg, "--", *stage])
-    if rc != 0:
+
+    # --- CLASSIFY the commit boundary by OBSERVED repository state (E-03). ---
+    lifecycle_commit = _lifecycle_commit_exists(repo_root, pre_head, plan_id)
+    rc_head, cur_head, _e = _git(repo_root, ["rev-parse", "HEAD"])
+    cur_head = cur_head.strip() if rc_head == 0 else pre_head
+    if lifecycle_commit is None:
+        if cur_head == pre_head:
+            # No lifecycle commit: pure pre-commit failure -> rollback.
+            return _rollback_and_return(
+                f"lifecycle commit did not happen (git rc={rc}: {err.strip()})",
+                EXIT_CANNOT_RUN,
+            )
+        # HEAD moved but not via our marker: ambiguous -> unknown-outcome (fail closed).
+        journal["phase"] = PHASE_UNKNOWN_OUTCOME
+        journal["observed_head"] = cur_head
+        _write_finalize_journal(repo_root, journal)
         return FinalizeResult(
             EXIT_CANNOT_RUN,
             None,
-            f"lifecycle commit failed: {err.strip()} (plan moved but not committed; rollback is "
-            "Order 06).",
+            f"unknown-outcome: HEAD moved to {cur_head[:12]} but not via this finalize's lifecycle "
+            f"commit; journal retained at {finalize_journal_path(repo_root, plan_id)}.",
             evidence,
         )
-    rc, out, _err = _git(repo_root, ["rev-parse", "HEAD"])
-    commit_hash = out.strip() if rc == 0 else None
 
-    # Post-transition lint on the MOVED file.
+    # The lifecycle commit exists -> committed-incomplete until post-transition passes.
+    journal["phase"] = PHASE_COMMITTED_INCOMPLETE
+    journal["lifecycle_commit"] = lifecycle_commit
+    _write_finalize_journal(repo_root, journal)
+
+    return _complete_after_commit(
+        repo_root, dest_path, plan_id, lifecycle_commit, actor, evidence
+    )
+
+
+def _complete_after_commit(
+    repo_root: Path,
+    dest_path: Path,
+    plan_id: str,
+    commit_hash: str,
+    actor: str,
+    evidence: Dict[str, Any],
+) -> FinalizeResult:
+    """Run post-transition lint on the committed plan; mark COMPLETE on pass, else committed-incomplete."""
+    from agent_workflows import ipd_lint as _lint
+
     try:
         post = _lint.lint_file(dest_path, checkpoint="post-transition")
         evidence["post_transition"] = {
             "disposition": post.disposition,
             "diagnostics": [f"{d.code} {d.message}" for d in post.diagnostics],
         }
+        post_ok = post.passing
     except Exception as exc:
         evidence["post_transition"] = {"error": str(exc)}
+        post_ok = False
+
+    if not post_ok:
+        # committed-incomplete: do NOT amend/reset/re-commit; report the same-command resume.
+        return FinalizeResult(
+            EXIT_FINDINGS,
+            commit_hash,
+            f"finalize is COMMITTED-INCOMPLETE for {plan_id}: the lifecycle commit {commit_hash[:12]} "
+            "exists but post-transition validation failed. Re-run the SAME command "
+            f"`aw ipd finalize {plan_id} --actor <a> --message <m> --apply` to resume (no second "
+            "commit); if it still fails, open a corrective follow-up IPD citing it.",
+            evidence,
+            tuple(evidence.get("post_transition", {}).get("diagnostics", ())),
+        )
+
+    # COMPLETE: post-transition passed. Finalize the journal + consume the receipt.
+    journal = read_finalize_journal(repo_root, plan_id)
+    if journal is not None:
+        journal["phase"] = PHASE_COMPLETE
+        _write_finalize_journal(repo_root, journal)
+    _clear_finalize_journal(repo_root, plan_id)
+    # Consume the begin receipt (the transaction is cleanly complete).
+    try:
+        receipt_path_for(repo_root, plan_id).unlink()
+    except OSError:
+        pass
 
     return FinalizeResult(
         EXIT_OK,
         commit_hash,
-        f"finalized {rec.id6 or plan_path.name} -> executed at {commit_hash[:12] if commit_hash else '?'} "
-        f"(actor {actor}).",
+        f"finalized {plan_id} -> executed at {commit_hash[:12]} (actor {actor}).",
         evidence,
         (),
     )
+
+
+def _resume_post_commit(
+    repo_root: Path, journal: Dict[str, Any], plan_id: str, evidence: Dict[str, Any]
+) -> FinalizeResult:
+    """Resume a COMMITTED-INCOMPLETE transaction by the SAME command: verify + re-run post-transition.
+
+    Performs NO second lifecycle mutation/commit. Verifies the recorded commit still exists, then
+    reruns only post-transition validation on the executed plan; marks complete on pass.
+    """
+    commit_hash = journal.get("lifecycle_commit")
+    dest_rel = journal.get("dest_path")
+    if not commit_hash or not dest_rel:
+        journal["phase"] = PHASE_UNKNOWN_OUTCOME
+        _write_finalize_journal(repo_root, journal)
+        return FinalizeResult(
+            EXIT_CANNOT_RUN,
+            None,
+            f"committed-incomplete journal for {plan_id} is missing commit/dest evidence; "
+            "unknown-outcome (fail closed).",
+            evidence,
+        )
+    # Verify the recorded lifecycle commit still exists in history.
+    rc, _out, _err = _git(repo_root, ["cat-file", "-e", f"{commit_hash}^{{commit}}"])
+    if rc != 0:
+        journal["phase"] = PHASE_UNKNOWN_OUTCOME
+        _write_finalize_journal(repo_root, journal)
+        return FinalizeResult(
+            EXIT_CANNOT_RUN,
+            None,
+            f"recorded lifecycle commit {commit_hash[:12]} for {plan_id} not found; unknown-outcome.",
+            evidence,
+        )
+    dest_path = repo_root / dest_rel
+    if not dest_path.is_file():
+        journal["phase"] = PHASE_UNKNOWN_OUTCOME
+        _write_finalize_journal(repo_root, journal)
+        return FinalizeResult(
+            EXIT_CANNOT_RUN,
+            None,
+            f"executed plan {dest_rel} not found on resume; unknown-outcome.",
+            evidence,
+        )
+    return _complete_after_commit(
+        repo_root,
+        dest_path,
+        plan_id,
+        commit_hash,
+        journal.get("actor", "unknown"),
+        evidence,
+    )
+
+
+def _plans_dir_of(repo_root: Path, plan_path: Path) -> Path:
+    """The plans root (parent of the disposition dir) for ``plan_path``."""
+    return plan_path.parent.parent
 
 
 # --------------------------------------------------------------------------------------

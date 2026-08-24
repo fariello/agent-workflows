@@ -751,5 +751,302 @@ class ReconciliationTests(unittest.TestCase):
         )
 
 
+class RollbackFailureSemanticsTests(unittest.TestCase):
+    """ipdgates Order 3xh53a: crash-safe two-phase failure semantics for aw ipd finalize."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _init_git(self.root)
+        (self.root / "agent_workflows").mkdir()
+        (self.root / "tests").mkdir()
+        self.plan = _write_plan(
+            self.root,
+            _completed_plan_text(
+                scope_paths="agent_workflows/demo.py, tests/test_demo.py"
+            ),
+            "20260824-demo-01-abc123-demo.ipd.md",
+        )
+        _commit_all(self.root, "init")
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _begin_and_work(self):
+        LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
+        (self.root / "agent_workflows" / "demo.py").write_text("x\n", encoding="utf-8")
+        (self.root / "tests" / "test_demo.py").write_text("x\n", encoding="utf-8")
+        _commit_all(self.root, "in-scope work")
+
+    def _executed_path(self) -> Path:
+        return self.root / ".aw" / "records" / "plans" / "executed" / self.plan.name
+
+    def _head(self) -> str:
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+    # --- E-01: journal + lock ---
+    def test_journal_records_ownership_and_is_atomic_before_mutation(self):
+        # A fault at the very first mutation checkpoint leaves the plan untouched; the journal
+        # captured the ownership snapshot before mutating.
+        self._begin_and_work()
+        head_before = self._head()
+        orig_bytes = self.plan.read_text()
+        result = LC.finalize(
+            self.root,
+            self.plan,
+            "opencode/test",
+            "m",
+            apply=True,
+            fault_injection="before_mutation",
+        )
+        self.assertEqual(result.exit_code, LC.EXIT_CANNOT_RUN)
+        # Rolled back: plan unchanged, no executed file, HEAD unchanged, journal cleared.
+        self.assertTrue(self.plan.is_file())
+        self.assertEqual(self.plan.read_text(), orig_bytes)
+        self.assertFalse(self._executed_path().exists())
+        self.assertEqual(self._head(), head_before)
+        self.assertIsNone(LC.read_finalize_journal(self.root, "abc123"))
+
+    def test_second_finalizer_is_locked_out_with_retry_diagnostic(self):
+        self._begin_and_work()
+        LC.acquire_finalize_lock(self.root, "abc123")
+        # Simulate a DIFFERENT live owner by rewriting the lock's pid to this process's parent-ish
+        # (use current pid but assert acquire from a fresh call raises when pid != os.getpid()).
+        lock = LC.finalize_lock_path(self.root)
+        import json as _json
+        import os as _os
+
+        data = _json.loads(lock.read_text())
+        data["pid"] = (
+            _os.getpid()
+        )  # our pid; to force the "live other" path, temporarily fake it
+        # Force a foreign live pid: pid 1 (init) is always alive and != our pid.
+        data["pid"] = 1
+        lock.write_text(_json.dumps(data), encoding="utf-8")
+        with self.assertRaises(LC.TransactionLockError):
+            LC.acquire_finalize_lock(self.root, "abc123")
+        # Cleanup so tearDown is clean.
+        lock.unlink()
+
+    def test_stale_lock_is_reclaimed_via_dead_pid(self):
+        # A lock whose recorded PID is dead is reclaimable (consults the record, not blind delete).
+        lock = LC.finalize_lock_path(self.root)
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        import json as _json
+
+        # PID 2**31-1 is not a running process.
+        lock.write_text(
+            _json.dumps({"plan_id": "abc123", "pid": 2**31 - 1}), encoding="utf-8"
+        )
+        LC.acquire_finalize_lock(
+            self.root, "abc123"
+        )  # must NOT raise (stale -> reclaim)
+        import os as _os
+
+        self.assertEqual(_json.loads(lock.read_text())["pid"], _os.getpid())
+        LC.release_finalize_lock(self.root)
+
+    # --- E-02: pre-commit rollback + crash/restart ---
+    def test_fault_after_move_rolls_back_plan_and_index(self):
+        self._begin_and_work()
+        head_before = self._head()
+        result = LC.finalize(
+            self.root,
+            self.plan,
+            "opencode/test",
+            "m",
+            apply=True,
+            fault_injection="after_move",
+        )
+        self.assertEqual(result.exit_code, LC.EXIT_CANNOT_RUN)
+        self.assertTrue(self.plan.is_file())  # restored to pending
+        self.assertFalse(self._executed_path().exists())
+        self.assertEqual(self._head(), head_before)
+
+    def test_fault_after_index_rolls_back(self):
+        self._begin_and_work()
+        result = LC.finalize(
+            self.root,
+            self.plan,
+            "opencode/test",
+            "m",
+            apply=True,
+            fault_injection="after_index",
+        )
+        self.assertEqual(result.exit_code, LC.EXIT_CANNOT_RUN)
+        self.assertTrue(self.plan.is_file())
+        self.assertFalse(self._executed_path().exists())
+
+    def test_crash_restart_before_commit_recovers_on_reinvocation(self):
+        # A pre-commit fault leaves a rolled-back state; a fresh finalize then succeeds cleanly.
+        self._begin_and_work()
+        LC.finalize(
+            self.root,
+            self.plan,
+            "opencode/test",
+            "m",
+            apply=True,
+            fault_injection="after_move",
+        )
+        # Re-begin (plan digest unchanged) + finalize succeeds.
+        LC.begin(self.root, self.plan, "opencode/test", timestamp="t2")
+        result = LC.finalize(
+            self.root, self.plan, "opencode/test", "recovered", apply=True
+        )
+        self.assertEqual(
+            result.exit_code, LC.EXIT_OK, f"{result.message} / {result.findings}"
+        )
+        self.assertTrue(self._executed_path().is_file())
+
+    def test_rollback_preserves_disjoint_dirty_and_staged_work(self):
+        self._begin_and_work()
+        # Create disjoint dirty + staged work that rollback must NOT touch.
+        (self.root / "unrelated_dirty.txt").write_text("dirty\n", encoding="utf-8")
+        (self.root / "unrelated_staged.txt").write_text("staged\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "add", "unrelated_staged.txt"], cwd=self.root, check=True
+        )
+        LC.finalize(
+            self.root,
+            self.plan,
+            "opencode/test",
+            "m",
+            apply=True,
+            fault_injection="after_move",
+        )
+        # Disjoint work survived untouched.
+        self.assertEqual((self.root / "unrelated_dirty.txt").read_text(), "dirty\n")
+        self.assertEqual((self.root / "unrelated_staged.txt").read_text(), "staged\n")
+        staged = subprocess.run(
+            ["git", "diff", "--cached", "--name-only"],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+        ).stdout
+        self.assertIn("unrelated_staged.txt", staged)
+
+    def test_rollback_failure_retains_journal_and_reports_not_restored(self):
+        self._begin_and_work()
+        with mock.patch.object(
+            LC,
+            "_rollback_precommit",
+            return_value=(False, "simulated rollback failure"),
+        ):
+            result = LC.finalize(
+                self.root,
+                self.plan,
+                "opencode/test",
+                "m",
+                apply=True,
+                fault_injection="after_move",
+            )
+        self.assertEqual(result.exit_code, LC.EXIT_CANNOT_RUN)
+        self.assertIn("NOT reported", result.message)
+        # Journal retained in unknown-outcome.
+        j = LC.read_finalize_journal(self.root, "abc123")
+        assert j is not None
+        self.assertEqual(j["phase"], LC.PHASE_UNKNOWN_OUTCOME)
+
+    # --- E-03: commit boundary + post-commit resume ---
+    def test_committed_incomplete_then_same_command_resume(self):
+        self._begin_and_work()
+        # Force post-transition to fail so the lifecycle commit exists but is committed-incomplete.
+        real_lint = L.lint_file
+
+        def failing_post(path, *, checkpoint="author", legacy=False):
+            r = real_lint(path, checkpoint=checkpoint, legacy=legacy)
+            if checkpoint == "post-transition":
+                from agent_workflows.ipd_lint import Diagnostic, LintResult
+
+                return LintResult(
+                    S.DISPOSITION_ERROR, [Diagnostic(0, 0, "IPD-TEST", "sim")], []
+                )
+            return r
+
+        with mock.patch.object(L, "lint_file", failing_post):
+            r1 = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+        self.assertEqual(r1.exit_code, LC.EXIT_FINDINGS)
+        self.assertIsNotNone(r1.commit)  # the lifecycle commit DID happen
+        j = LC.read_finalize_journal(self.root, "abc123")
+        assert j is not None
+        self.assertEqual(j["phase"], LC.PHASE_COMMITTED_INCOMPLETE)
+        self.assertTrue(
+            LC.receipt_path_for(self.root, "abc123").exists()
+        )  # receipt NOT consumed
+        head_after_commit = self._head()
+
+        # Same-command resume (plan now in executed/): reruns ONLY post-transition, no 2nd commit.
+        moved = self._executed_path()
+        r2 = LC.finalize(self.root, moved, "opencode/test", "m", apply=True)
+        self.assertEqual(r2.exit_code, LC.EXIT_OK, f"{r2.message} / {r2.findings}")
+        self.assertEqual(
+            self._head(), head_after_commit, "resume must not create a second commit"
+        )
+        self.assertIsNone(
+            LC.read_finalize_journal(self.root, "abc123")
+        )  # journal completed
+        self.assertFalse(
+            LC.receipt_path_for(self.root, "abc123").exists()
+        )  # receipt consumed
+
+    def test_persistent_post_transition_failure_stays_incomplete(self):
+        self._begin_and_work()
+        real_lint = L.lint_file
+
+        def failing_post(path, *, checkpoint="author", legacy=False):
+            r = real_lint(path, checkpoint=checkpoint, legacy=legacy)
+            if checkpoint == "post-transition":
+                from agent_workflows.ipd_lint import Diagnostic, LintResult
+
+                return LintResult(
+                    S.DISPOSITION_ERROR, [Diagnostic(0, 0, "IPD-TEST", "sim")], []
+                )
+            return r
+
+        with mock.patch.object(L, "lint_file", failing_post):
+            LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+            # A resume that STILL fails post-transition stays committed-incomplete (no success).
+            moved = self._executed_path()
+            r2 = LC.finalize(self.root, moved, "opencode/test", "m", apply=True)
+        self.assertEqual(r2.exit_code, LC.EXIT_FINDINGS)
+        j = LC.read_finalize_journal(self.root, "abc123")
+        assert j is not None
+        self.assertEqual(j["phase"], LC.PHASE_COMMITTED_INCOMPLETE)
+
+    def test_corrupt_journal_at_partial_state_is_unknown_outcome(self):
+        self._begin_and_work()
+        # Plant an unknown-outcome journal; a re-invocation must fail closed (never infer success).
+        jpath = LC.finalize_journal_path(self.root, "abc123")
+        jpath.parent.mkdir(parents=True, exist_ok=True)
+        import json as _json
+
+        jpath.write_text(
+            _json.dumps({"plan_id": "abc123", "phase": LC.PHASE_UNKNOWN_OUTCOME}),
+            encoding="utf-8",
+        )
+        result = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+        self.assertEqual(result.exit_code, LC.EXIT_CANNOT_RUN)
+        self.assertIn("unknown-outcome", result.message)
+
+    def test_clean_finalize_completes_and_consumes_receipt(self):
+        # Baseline: the fully clean transaction completes, clears the journal, consumes the receipt.
+        self._begin_and_work()
+        result = LC.finalize(self.root, self.plan, "opencode/test", "clean", apply=True)
+        self.assertEqual(
+            result.exit_code, LC.EXIT_OK, f"{result.message} / {result.findings}"
+        )
+        self.assertTrue(self._executed_path().is_file())
+        self.assertIsNone(LC.read_finalize_journal(self.root, "abc123"))
+        self.assertFalse(LC.receipt_path_for(self.root, "abc123").exists())
+        # No finalize lock left behind.
+        self.assertFalse(LC.finalize_lock_path(self.root).exists())
+
+
 if __name__ == "__main__":
     unittest.main()

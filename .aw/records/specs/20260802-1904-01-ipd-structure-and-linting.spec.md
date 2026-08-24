@@ -784,4 +784,4 @@ After the IPD-system Set lands:
 
 ## Workflow history
 
-- 2026-08-24 note (aw specs): Documented the aw ipd finalize two-way scope reconciliation (DECISIONS.md D141): out-of-scope changed paths require a recorded --scope-reason, declared-but-unmodified Scope-Paths require a --scope-ack; batched TTY prompt or headless flags; missing answers fail closed naming the exact command; answers recorded verbatim in the terminal history (surfaces + attributes, does not judge). Implemented by ipdgates Order qmt3yk.
+- 2026-08-24 note (aw specs): Documented aw ipd finalize crash-safe two-phase failure semantics (Order 3xh53a): a durable journal + exclusive writer lock under .aw/state/runtime/ (reusing layout_migration pattern) with phases prepared/mutating/ready-to-commit/committed-incomplete/unknown-outcome/complete; idempotent pre-commit rollback preserving disjoint work; commit boundary classified by observed state; same-command post-commit resume (no history rewrite) reruns only post-transition; unknown-outcome fails closed; only complete consumes the receipt.

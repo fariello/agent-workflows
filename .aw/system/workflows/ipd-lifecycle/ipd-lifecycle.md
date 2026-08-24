@@ -107,6 +107,26 @@ delta and MISSING answers FAILS CLOSED (exit 1) naming each unanswered path and 
 never silently skips. A clean delta (nothing out-of-scope, nothing declared-but-unmodified) is a
 frictionless no-op.
 
+Crash-safe two-phase failure semantics (Order 3xh53a): the whole finalize transaction is wrapped in a
+durable journal + exclusive writer lock under the gitignored `.aw/state/runtime/` tree (reusing the
+`layout_migration.MigrationManager` pattern), with a two-phase boundary at the lifecycle commit. The
+journal moves through phases `prepared` -> `mutating` -> `ready-to-commit` -> (`committed-incomplete` |
+`complete`), with `unknown-outcome` as a fail-closed terminal-ambiguous state. BEFORE the commit, any
+failed or interrupted step (status set, move, index refresh, staging) rolls back idempotently to the
+pre-finalize plan bytes/path and the exact prior Git-index entries for lifecycle-owned paths, WITHOUT
+touching disjoint dirty or staged work, then regenerates the plans index from the current corpus. A
+second finalizer for the same shared manifest fails with an actionable lock-owner/retry diagnostic; a
+stale lock (dead PID) is reclaimed after consulting the journal. The commit boundary is classified by
+OBSERVED repository state (the lifecycle commit's marker), never by whether the commit subprocess was
+merely invoked: HEAD moved via our commit -> `committed-incomplete` until post-transition passes; HEAD
+moved otherwise, or a corrupt/missing journal at a partial state -> `unknown-outcome` (fail closed,
+never inferred success). A `committed-incomplete` transaction NEVER amends/resets or creates a second
+lifecycle commit: re-running the SAME `aw ipd finalize <plan>` (the plan now lives in `executed/`)
+resumes by re-running ONLY post-transition validation and marks the receipt + journal complete on
+pass; a persistent failure stays `committed-incomplete` and requires a corrective follow-up IPD. Only a
+`complete` transaction reports finalize success and consumes the begin receipt. On process restart, a
+pre-commit journal is rolled back idempotently before a fresh attempt.
+
 ## The terminal transaction (post-gate; ordered, recoverable)
 
 Perform these steps as one finalization transaction, in order:
