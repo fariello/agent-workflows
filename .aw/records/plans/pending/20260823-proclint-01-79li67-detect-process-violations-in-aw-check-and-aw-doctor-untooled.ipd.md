@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Process steps this toolkit requires (change lifecycle status via `aw set`, not by hand-editing the `- Status:` line) are enforced only by soft prose in AGENTS.md and are consistently dropped by ALL current agents (cross-vendor, observed repeatedly - including a reviewer that hand-edited `- Status: reviewed -> to-review` on five plans in this very repo instead of using `aw set`). There is today NO deterministic DETECTION of a status that changed without a corresponding tool-authored `## Workflow history` transition entry, so a hand-edited status is invisible to `aw check`/`aw doctor`. This is the DETECTIVE half of the reliability problem (the preventive half - hard gates, delegation, hooks - is the subject of research prompt `9bd3j8` and the `ipdgates` Set); this IPD adds the low-false-positive post-hoc detector.
 - Scope: Add a deterministic checker that flags an artifact whose current `- Status:` has no matching tool-authored `## Workflow history` transition line (the signature of a hand-edited status), surfaced through `aw check` and `aw doctor` with an actionable, self-documenting remediation. Touch: agent_workflows/check_engine.py (new rule), agent_workflows/doctor.py (remediation mapping), and tests. Explicitly does NOT re-implement the id6-identity-slot check (unifyfileio Order 05 `9a655p`) nor the terminal-history generic-actor lint (ipdgates Order 07 `wezhxg`); it cross-references them and covers the DISTINCT "status changed without a tool-authored transition record" violation.
-- Status: draft
+- Status: to-review
 - Set: proclint
 - Order: 1
 - Highest E allocated: 03
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-23 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created at maintainer direction, as the DETECTIVE counterpart to research prompt `9bd3j8` (preventive/how-to-make-adherence-stick) - "aw check/aw doctor should flag things done improperly if possible."
+- 2026-08-23 reviewed (Antigravity): plan-review completed; clarified detection predicate, grandfather heuristic, and doctor remediation mapping; set to-review per human instruction.
 
 ## Goal
 
