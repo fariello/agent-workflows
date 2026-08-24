@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: `aw ipd finalize` (Order 04) computes the scope delta - files this execution changed vs the frozen `Scope-Paths` - but only REFUSES on an out-of-scope path. In real complex work, discovering mid-stream that you must touch an unforeseen file is common (often the rule), and agents are NOT trained to update `Scope-Paths` en route or even to run `aw ipd finalize` at all. A hard refusal on every unforeseen edit trains agents to treat the gate as noise (which then misses the real p7dqwz violation), and a refusal alone catches only EXTRA work, never MISSING work (a file declared in scope but silently never touched - the "went off the rails / didn't do what it said" failure). This IPD turns finalize's one-directional refusal into a low-friction, unskippable TWO-WAY reconciliation that SURFACES and ATTRIBUTES both deltas without relying on the agent to remember anything mid-stream. (DECISIONS.md D141.)
 - Scope: Add the two-way scope reconciliation to `aw ipd finalize` (the finalize path from Order 04) plus an OPTIONAL convenience en-route `aw ipd scope add`. Touch: the single-IPD lifecycle module (from Orders 03/04), agent_workflows/cli.py (the finalize prompt/flags + the optional `ipd scope add` verb + help), and tests/test_ipd_lifecycle_cli.py. Does NOT change how `aw ipd begin` freezes `Scope-Paths` (unchanged by human decision), does NOT alter the Order 04 refusal-vs-proceed decision beyond replacing bare refusal with reconciliation, and does NOT build rollback (Order 06) or remove the bypass (Order 07).
-- Status: draft
+- Status: to-review
 - Set: ipdgates
 - Order: 5
 - Highest E allocated: 03
@@ -12,6 +12,7 @@
 - Id: qmt3yk
 
 ## Workflow history
+- 2026-08-24 to-review (aw set): authored as new Order 05 (D141 finalize scope reconciliation); ready for review
 
 - 2026-08-23 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created - decomposed out of Order 04 at human direction (density: reconciliation is a distinct deliverable + test surface) and inserted as Order 05 (rollback -> 06, remove-bypass -> 07). Design per DECISIONS.md D141.
 
