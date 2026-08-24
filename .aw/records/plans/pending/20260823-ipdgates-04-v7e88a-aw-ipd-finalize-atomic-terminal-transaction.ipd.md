@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: A plan reaches `executed` today via `aw set executed`, which moves the file and writes a generic `executed (aw set)` actor with no scope comparison and no captured pre/post gate evidence - exactly the p7dqwz failure signature. There is no single command that atomically performs the terminal transition WHILE proving the changed paths stayed within the reviewed `Scope-Paths` and the gates ran.
 - Scope: Add `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply` as the only supported single-IPD terminal transaction (happy path + scope comparison + evidence). Touch: the single-IPD lifecycle module (from Order 03), agent_workflows/cli.py (register `ipd finalize`), agent_workflows/ipd_lint.py (invoke pre/post-transition phases), agent_workflows/status_set.py (reuse the status-write/move + owned-index-refresh helpers), and tests/test_ipd_lifecycle_cli.py. Does NOT implement the two-phase ROLLBACK/failure semantics (Order 05) or remove the raw bypass (Order 06); this child delivers the forward transaction and the scope-comparison refusal.
-- Status: draft
+- Status: reviewed
 - Set: ipdgates
 - Order: 4
 - Highest E allocated: 03
@@ -14,6 +14,7 @@
 ## Workflow history
 
 - 2026-08-23 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created (decomposition of 39fz2x E-04, forward-transaction portion; rollback split to Order 05).
+- 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH: `status_set._auto_index_types` swallows index-refresh failures at status_set.py:544,580-581 - finalize MUST refresh fail-LOUD, not reuse the swallow; E-02/V-02 hardened with a fault-injection test), PR-002 (receipt must persist the LITERAL Scope-Paths not just the Order 03 digest; cross-ref Order 03), PR-003 (reuse verify_roles.procedure_scope_audit fnmatch matcher, verify_roles.py:1310-1340), OQ-01 human-resolved = Order-03-consistent path-overlap rule (this execution's changes = diff restricted to Scope-Paths since base; refuse on out-of-scope change or in-scope intervening-commit collision; ignore disjoint concurrent edits). Verified: finalize/begin net-new, `aw set executed` ungated for plans + generic actor (status_set.py:356,463), lint phases pre-transition/post-transition exist (ipd_schema.py:495-501), Orders 02+03 deliver Scope-Paths schema + receipt (both still pending).
 
 ## Goal
 
@@ -25,16 +26,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Scope comparison against the frozen receipt
 
-- [ ] E-01 In the single-IPD lifecycle module, implement the finalize precheck: load and validate the matching begin receipt (fail if absent, or if the plan digest no longer matches the receipt); run pre-transition lint (fail closed on nonconform); compute the changed-path set SINCE the receipt's frozen base HEAD - the union of paths in commits made since the base AND current uncommitted changes attributable to this execution - and compare it against the frozen `Scope-Paths` (honoring the implicit lifecycle/generated exceptions from Order 02). Any path NOT in the allowlist is an unexplained-path REFUSAL with an actionable diagnostic naming the path; leave the plan unmoved on refusal.
+- [ ] E-01 In the single-IPD lifecycle module, implement the finalize precheck: load and validate the matching begin receipt (fail if absent, or if the plan digest no longer matches the receipt); run pre-transition lint (fail closed on nonconform); compute the changed-path set SINCE the receipt's frozen base HEAD (per OQ-01, the path-overlap rule shared with Order 03: the diff restricted to this plan's frozen `Scope-Paths` since base - unrelated concurrent dirty files and disjoint intervening commits are IGNORED), and (a) REFUSE on any path THIS execution changed that is OUTSIDE `Scope-Paths` (unexplained-path refusal), and (b) REFUSE on any INTERVENING commit since base that touched a path INSIDE `Scope-Paths` (same-file collision, fail closed), honoring the implicit lifecycle/generated exceptions from Order 02. Emit an actionable diagnostic naming the path; leave the plan unmoved on refusal.
   - Depends on: none
-  - Expected outcome: finalize can decide, from the frozen receipt + real changed paths, whether execution stayed in scope, and refuses (plan unmoved) on any unexplained path.
+  - Note (verified - receipt must persist the LITERAL Scope-Paths, and reuse the existing matcher): (1) path comparison needs the literal `Scope-Paths` allowlist, but Order 03's receipt binding names a frozen DIGEST (`run_freeze.freeze_requirements`) - a digest proves tamper-detection, not the list to fnmatch against. This plan's precheck therefore REQUIRES the Order 03 receipt to persist the RESOLVED LITERAL `Scope-Paths` (plus the digest), not a digest alone; if the receipt carries only a digest, finalize cannot compare per path and MUST STOP and report rather than guess. (Cross-reference Order 03: its receipt must store the literal allowlist.) (2) Reuse the existing fnmatch path-scope matcher `verify_roles.procedure_scope_audit` (`verify_roles.py:1310-1340`, which already does `allowed_paths`/`forbidden_paths` fnmatch and emits `VP-SCOPE-UNAUTHORIZED-PATH`) and its diff-path extractor - do NOT build a second path-matching engine.
+  - Expected outcome: finalize can decide, from the frozen receipt (literal Scope-Paths) + real changed paths, whether execution stayed in scope, and refuses (plan unmoved) on any unexplained path.
   - Execution state: pending
 
 ### Task group 2: The atomic forward transition
 
 - [ ] E-02 Implement the forward transition (only reached when E-01's precheck passes): append the attributed `<agent/model>` + `<summary>` history entry (never a generic actor), set terminal status, move the plan file, refresh ONLY the owned plan-index state (reuse `status_set` helpers), create the path-scoped lifecycle commit (only this plan's own files), run post-transition lint, and report the commit hash plus the captured pre-execution (from the receipt), pre-transition, and post-transition gate outputs. Register `aw ipd finalize <plan> --actor --message --apply` in `cli.py` with help and the 0/1/2 exit convention. (Failure/rollback handling is Order 05; this item implements the success path and its evidence report.)
   - Depends on: E-01
-  - Expected outcome: on a clean, in-scope execution, one command performs the whole terminal transition and reports commit + three-phase gate evidence with attributed history.
+  - Note (verified - the owned-index refresh MUST fail loudly here): `status_set._auto_index_types` refreshes the plans index but wraps it in a bare `except Exception: pass` (`status_set.py:544,580-581`), silently swallowing a failed refresh. That is acceptable for the convenience `aw set` path but INCOMPATIBLE with a fail-closed atomic finalize: reused as-is, finalize could move the plan to `executed/`, commit, and report success with a STALE index. finalize MUST invoke the index refresh in a fail-LOUD manner (a non-swallowing variant, or verify the index is fresh after refresh via `aw index plans --check` and refuse/hand to Order 05 rollback on failure) - do NOT reuse the swallowing wrapper for the terminal transaction. Any index-refresh failure is a transaction failure, not a silent success.
+  - Expected outcome: on a clean, in-scope execution, one command performs the whole terminal transition and reports commit + three-phase gate evidence with attributed history; a failed owned-index refresh fails the transaction rather than being swallowed.
   - Execution state: pending
 
 ### Task group 3: Prove the p7dqwz counterexample and positive fixture
@@ -88,20 +91,20 @@ The terminal transition must be one transaction so scope comparison, attributed 
 ### OQ-01: How is "changed since base HEAD attributable to THIS execution" computed when unrelated concurrent commits/edits exist?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: human
-- Resolution or deferral rationale: TODO (human). The worktree may contain concurrent unrelated edits (as it does now with `unifyfileio`/`execset` changes) and there may be intervening commits by other work. Options: (A) compare ONLY the paths this execution's own commits touched (diff base..HEAD limited to commits authored under this receipt) plus staged/working changes the executor is about to commit - ignore unrelated dirty files entirely; (B) require a clean baseline and treat ANY change since base as in-scope-or-refuse (simplest, but hostile to the current multi-plan worktree reality); (C) an ambiguous intervening state (e.g. commits by another actor since base) fails closed with an actionable diagnostic. The executor MUST get a human decision, since it defines what finalize considers "this execution's changes".
+- Resolution or deferral rationale: RESOLVED by human decision (2026-08-23, /plan-review), consistent with the ALREADY-RESOLVED Order 03 OQ-01 (the receipt is PATH-OVERLAP-scoped, not HEAD-identity-scoped): "this execution's changes" = the diff restricted to this plan's frozen `Scope-Paths` SINCE the frozen base HEAD. finalize REFUSES on (a) this execution touching a path OUTSIDE `Scope-Paths` (unexplained-path refusal), or (b) any intervening commit since base that touched a path INSIDE `Scope-Paths` (a genuine same-file collision - fail closed with an actionable diagnostic). Unrelated concurrent dirty files and intervening commits on DISJOINT paths are IGNORED (this preserves the maintainer's multi-agent same-branch workflow). This is one attribution concept - `Scope-Paths` membership - shared with the Order 03 receipt validity rule, so begin and finalize cannot disagree.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: a test shows finalize loads+validates the receipt, runs pre-transition lint, computes changed paths since the frozen base per OQ-01's resolution, and REFUSES an unexplained path (plan unmoved), while accepting an in-`Scope-Paths` change; a stale/mismatched receipt is rejected.
+  - Required evidence: a test shows finalize loads+validates the receipt, runs pre-transition lint, computes changed paths since the frozen base per OQ-01's path-overlap rule, REFUSES a path THIS execution changed outside `Scope-Paths` (plan unmoved), REFUSES an intervening commit that touched an IN-`Scope-Paths` path since base (same-file collision), IGNORES an unrelated concurrent dirty file / disjoint intervening commit, accepts an in-`Scope-Paths` change, and rejects a stale/mismatched receipt.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: on a clean in-scope run, finalize appends an attributed (non-generic) history entry, sets terminal status, moves the plan, refreshes only the owned index, creates a path-scoped lifecycle commit of only this plan's files, runs post-transition lint, and reports the commit + three-phase gate evidence; `--help` documents it with 0/1/2 exit codes.
+  - Required evidence: on a clean in-scope run, finalize appends an attributed (non-generic) history entry, sets terminal status, moves the plan, refreshes only the owned index, creates a path-scoped lifecycle commit of only this plan's files, runs post-transition lint, and reports the commit + three-phase gate evidence; `--help` documents it with 0/1/2 exit codes. ADDITIONALLY: a fault-injection test proves a FAILED owned-index refresh causes finalize to FAIL (non-zero, plan not reported executed) rather than being swallowed - i.e. finalize does not reuse the `status_set._auto_index_types` `except Exception: pass` behavior for the terminal transaction.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
