@@ -57,20 +57,13 @@ def find_target_record(
     if candidate_rel.is_file():
         return candidate_rel.resolve()
 
-    # 2. Use selectors resolver
-    hits = selectors.resolve_one(repo_root, artifact_type, selector)
-    if hits:
-        return hits[0].resolve()
-
-    # 3. Direct scan of record directories
-    for d in selectors.record_dirs(repo_root, artifact_type):
-        if not d.is_dir():
-            continue
-        for f in d.rglob("*.md"):
-            if f.name in {"README.md", "INDEX.md", "STATUS.md"}:
-                continue
-            if selector in f.name or selector == f.stem:
-                return f.resolve()
+    # 2. Unified resolver (IPD laykok E-03): the full vocabulary (path/id6/setid/status/stem/
+    # substring). find_target_record returns a SINGLE path (first, deterministic), preserving its
+    # historical single-target contract; the kind-aware ambiguity policy for the MUTATING verbs is
+    # applied by their run_* engines via resolve() directly (E-07).
+    res = selectors.resolve(repo_root, artifact_type, selector)
+    if res.paths:
+        return res.paths[0].resolve()
     return None
 
 
@@ -329,8 +322,25 @@ def run_rename_generic(args: argparse.Namespace, artifact_type: str) -> int:
         print("error: at least one <id6>, <setid>, or <path> is required")
         return 2
 
-    src = find_target_record(repo_root, artifact_type, selector)
-    if src is None or not src.exists():
+    # IPD laykok E-07: apply the kind-aware ambiguity policy through the unified resolver. `rename`
+    # mutates ONE file, so a UNIQUE-id collision or an unforced substring multi-match REFUSES with
+    # the candidate list; a setid selecting several is unusual for rename and, absent --force, also
+    # refuses rather than silently renaming an arbitrary member.
+    paths, amb_err = selectors.resolve_for_mutation(
+        repo_root, artifact_type, selector, force=bool(getattr(args, "force", False))
+    )
+    if amb_err:
+        print(f"error: {amb_err}")
+        return 2
+    if len(paths) > 1 and not bool(getattr(args, "force", False)):
+        cand = "\n  ".join(str(p) for p in paths)
+        print(
+            f"error: selector '{selector}' matched multiple files; rename targets one "
+            f"(pass --force to rename the first, or use a unique id6):\n  {cand}"
+        )
+        return 2
+    src = paths[0].resolve()
+    if not src.exists():
         print(f"error: no {artifact_type} artifact matched '{selector}'")
         return 2
 

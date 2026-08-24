@@ -1706,6 +1706,15 @@ def _build_parser() -> argparse.ArgumentParser:
             action="store_true",
             help="rename/group: rename the file only; do NOT rewrite citing documents.",
         )
+        # IPD laykok E-07: --force overrides a filename-substring multi-match on mutating verbs
+        # (rename/group). It does NOT override a unique-id (id6/path/stem) collision; a setid
+        # multi-target needs no force.
+        _p.add_argument(
+            "--force",
+            action="store_true",
+            help="rename/group: act on ALL matches when a filename-substring selector is ambiguous "
+            "(does not override a unique-id collision).",
+        )
         if _verb == "check":
             _p.formatter_class = _AlphaHelpFormatter
             _p.epilog = (
@@ -1758,6 +1767,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_set.add_argument(
         "--dry-run", action="store_true", help="Preview without writing."
+    )
+    p_set.add_argument(
+        "--force",
+        action="store_true",
+        help="Act on ALL matches when a filename-substring selector is ambiguous "
+        "(does not override a unique-id collision; a setid multi-target needs no force).",
     )
     p_set.add_argument(
         "--yes", "-y", action="store_true", help="Confirm execution without prompt."

@@ -239,50 +239,56 @@ def match_selector(
     all_records: list[ArtifactRecord],
     repo_root: Path,
 ) -> list[ArtifactRecord]:
-    """Match a single selector token against the inventory.
+    """Match a single selector token against the inventory (IPD laykok E-03: thin shim over the ONE
+    unified resolver ``selectors.resolve``).
 
-    Selector matching strategy:
-    1. Exact / relative file path to an existing file.
-    2. Exact id6 match.
-    3. Exact set_id match.
-    4. Exact filename or filename-substring match.
+    Resolution covers the full vocabulary with one documented precedence: direct path -> exact id6
+    -> exact setid -> exact status -> exact stem -> filename substring. This ADDS the previously
+    missing status and bare-stem kinds to `aw set` while preserving every prior successful
+    resolution (path/id6/setid/substring). The resolved paths are mapped back to `ArtifactRecord`s
+    (from ``all_records`` when known, else read on demand) so the caller's record-based flow is
+    unchanged.
     """
     tok = selector.strip()
     if not tok:
         return []
 
-    # 1. Direct path check
-    direct_path = Path(tok)
-    if not direct_path.is_absolute():
-        direct_path = (repo_root / tok).resolve()
-    else:
-        direct_path = direct_path.resolve()
+    # Resolve across ALL record types (the caller's inventory is cross-type; scope enforcement is
+    # applied by run_set_command after matching). Union the per-type resolutions, dedup by path.
+    from agent_workflows import selectors as _sel
 
-    if direct_path.is_file():
-        for r in all_records:
-            if r.path.resolve() == direct_path:
-                return [r]
-        rec = read_artifact_record(direct_path, repo_root)
+    record_types = (
+        "plans",
+        "specs",
+        "prompts",
+        "backlog",
+        "releases",
+        "research",
+        "walkthroughs",
+        "roadmaps",
+    )
+    matched_paths: dict[str, Path] = {}
+    for rt in record_types:
+        res = _sel.resolve(repo_root, rt, tok)
+        for p in res.paths:
+            matched_paths[str(p.resolve())] = p.resolve()
+
+    if not matched_paths:
+        return []
+
+    by_path = {str(r.path.resolve()): r for r in all_records}
+    out: list[ArtifactRecord] = []
+    seen: set[str] = set()
+    for key in sorted(matched_paths):
+        if key in seen:
+            continue
+        seen.add(key)
+        rec = by_path.get(key)
+        if rec is None:
+            rec = read_artifact_record(matched_paths[key], repo_root)
         if rec:
-            return [rec]
-
-    # 2. Exact id6 match
-    if _core.ID6_RE.match(tok):
-        hits = [r for r in all_records if r.id6 == tok]
-        if hits:
-            return hits
-
-    # 3. Exact set_id match
-    hits = [r for r in all_records if r.set_id == tok]
-    if hits:
-        return hits
-
-    # 4. Filename substring match
-    hits = [r for r in all_records if tok in r.path.name]
-    if hits:
-        return hits
-
-    return []
+            out.append(rec)
+    return out
 
 
 def normalize_target_status(raw_status: str, record_type: str) -> str:
@@ -706,6 +712,7 @@ def run_set_command(
     matched_records: list[ArtifactRecord] = []
     seen_paths: set[str] = set()
 
+    force = bool(getattr(args, "force", False))
     for tok in selector_tokens:
         matches = match_selector(tok, all_records, repo_root)
         if not matches:
@@ -716,6 +723,38 @@ def run_set_command(
             else:
                 term.status("fail", f"No artifact matched '{tok}'.")
             return 2
+
+        # IPD laykok E-07: kind-aware ambiguity for the MUTATING `set` verb. A setid legitimately
+        # transitions a whole Set (act on all, no --force); a UNIQUE-id collision (id6/path/stem)
+        # ALWAYS refuses; a filename SUBSTRING multi-match refuses unless --force. Determine the
+        # winning kind via the unified resolver (scoped to the matched type when known).
+        if len(matches) > 1:
+            from agent_workflows import selectors as _sel
+
+            _kind = None
+            _probe_type = scoped_type_canonical or (
+                matches[0].record_type if matches else None
+            )
+            if _probe_type:
+                _kind = _sel.resolve(repo_root, _probe_type, tok).kind
+            if _kind == _sel.MATCH_SETID:
+                pass  # intentional multi-target
+            elif _kind in _sel.UNIQUE_KINDS:
+                cand = "\n  ".join(str(m.path) for m in matches)
+                term.status(
+                    "fail",
+                    f"Selector '{tok}' is a {_kind} collision matching multiple files "
+                    f"(a data bug to fix, not overridable by --force):\n  {cand}",
+                )
+                return 2
+            elif not force:
+                cand = "\n  ".join(str(m.path) for m in matches)
+                term.status(
+                    "fail",
+                    f"Selector '{tok}' is ambiguous ({_kind or 'substring'}) matching multiple "
+                    f"files; pass --force to act on all:\n  {cand}",
+                )
+                return 2
 
         if scoped_type_canonical:
             mismatches = [m for m in matches if m.record_type != scoped_type_canonical]

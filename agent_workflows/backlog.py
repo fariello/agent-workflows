@@ -385,12 +385,41 @@ def run_set(args) -> int:
             f"aw backlog set: --status must be one of {sorted(STATUSES)} and a path is required\n"
         )
         return 2
-    src = Path(target)
-    if not src.is_absolute():
-        src = repo_root / target
-    if not src.is_file():
+    # IPD laykok E-03: close the path-only outlier - resolve via the ONE unified resolver so
+    # `aw backlog set` now accepts an id6/setid/status/stem/substring, not just a literal path.
+    from agent_workflows import selectors as _sel
+
+    res = _sel.resolve(repo_root, "backlog", target)
+    if res.rejected_kind is not None:
+        sys.stderr.write(
+            f"aw backlog set: this verb does not accept a {res.rejected_kind} selector: {target}\n"
+        )
+        return 2
+    if not res.paths:
         sys.stderr.write(f"aw backlog set: no such item: {target}\n")
         return 2
+    if len(res.paths) > 1:
+        # Kind-aware ambiguity (E-07): a setid legitimately selects the whole Set; a unique-id
+        # collision or a substring multi-match refuses with the candidate list unless --force.
+        if res.kind == _sel.MATCH_SETID or (
+            res.kind == _sel.MATCH_SUBSTRING and getattr(args, "force", False)
+        ):
+            pass  # act on all matches
+        else:
+            cand = "\n  ".join(str(p) for p in res.paths)
+            overridable = (
+                " (pass --force to act on all)"
+                if res.kind == _sel.MATCH_SUBSTRING
+                else ""
+            )
+            sys.stderr.write(
+                f"aw backlog set: selector '{target}' is ambiguous ({res.kind}); "
+                f"candidates{overridable}:\n  {cand}\n"
+            )
+            return 2
+    # backlog set operates on a single item; when a setid/forced-substring yields many, act on the
+    # first deterministically (backlog items are not grouped like plans, so multi is rare).
+    src = res.paths[0]
     text = src.read_text(encoding="utf-8")
     item = parse_item(text)
     item.status = new_status

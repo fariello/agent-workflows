@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: There are three independent selector-to-file resolvers plus a path-only outlier, so the SAME `<selector>` (a path, id6, setid, status, bare stem, or filename substring) can resolve under one `aw` verb and fail (or resolve differently) under another. `selectors.resolve_one` matches id6/status/setid/substring but NOT a direct path or an exact stem; `artifact_rename.find_target_record` wraps `resolve_one` and adds path + exact-stem; `status_set.match_selector` reimplements path/id6/setid/substring with EXACT id6/setid and no status; `aw backlog set` accepts a literal path ONLY. This is the "one unified way to FIND files" gap.
 - Scope: Create ONE selector resolver and route every verb through it. Touch: agent_workflows/selectors.py (`resolve_one`, `resolve_selectors`, `record_dirs`), agent_workflows/artifact_rename.py (`find_target_record` -> thin shim), agent_workflows/status_set.py (`match_selector` -> thin shim), agent_workflows/backlog.py (`run_set` path-only branch -> use the resolver), and the per-area id6-only finders (`plans_refs._find_plan_by_id`, `research_refs._find_by_id6`, `plans_archive._find_targets`) which should delegate to the unified resolver's id6/setid path. Also the CLI call sites (`cli.py:4979,5211,5262,5304`). Depends on the Order 01 naming authority for stem/name parsing.
-- Status: approved
+- Status: executed
 - Set: unifyfileio
 - Order: 2
 - Highest E allocated: 07
@@ -13,6 +13,7 @@
 - Approval: 2026-08-24, human ("approved. go."): status set to approved
 
 ## Workflow history
+- 2026-08-24 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us, run-20260824T150827Z-2301181): unified selector-to-file resolution. E-01 pinned the pre-refactor 3-resolver x 6-kind matrix (exact-vs-substring semantics + documented gaps). E-02 built the ONE `selectors.resolve()` (precedence path->id6->setid->status->stem->substring, exact for kinds 2-5, substring last-resort; structured `Resolution` carrying the match KIND + rejected_kind; allow/deny with clear denied-kind rejection). E-03 re-routed `artifact_rename.find_target_record`, `status_set.match_selector` (now adds status+stem), and `backlog.run_set` (closed the path-only outlier; `aw backlog set <id6>` now works) through it; the per-area id6 finders were intentionally left with their area-specific semantics (decision D1, scope-fence). E-04 proved cross-verb parity + uniform ambiguity shape. E-07 added the kind-aware ambiguity policy (`resolve_for_mutation`) + `--force` on rename/group/set: setid multi-target acts on all (no force), unique-id collision always refuses, substring refuses unless --force, read-only verbs list. Doc-sync: canonical precedence/policy in the `resolve` docstring + `--force` CLI help (no selector spec exists = N/A). Tests: matrix (14) + parity/policy (8) added; `aw check all` unchanged at 28; `pytest -n auto` = 2191 passed, 1 skipped. Status set to executed; moved pending/ -> executed/. See decision D1 in run-20260824T150827Z-2301181.
 - 2026-08-24 approved (aw set, --by-human): status set to approved
 
 - 2026-08-23 draft (Gabriele Fariello): created.
@@ -28,38 +29,38 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Characterize current resolver behavior (safety net)
 
-- [ ] E-01 Author `tests/test_selector_resolver_matrix.py` pinning the CURRENT behavior of all three resolvers before unification: a matrix of {resolver} x {selector kind: path, id6, setid, status, exact-stem, substring} asserting exactly which kinds each resolver resolves, fails, or over-matches today (documenting the known gaps: `resolve_one` has no path/exact-stem; `match_selector` has no status/stem; `backlog set` is path-only). This baseline defines what "unified" must converge to and prevents silent behavior loss.
+- [x] E-01 Author `tests/test_selector_resolver_matrix.py` pinning the CURRENT behavior of all three resolvers before unification: a matrix of {resolver} x {selector kind: path, id6, setid, status, exact-stem, substring} asserting exactly which kinds each resolver resolves, fails, or over-matches today (documenting the known gaps: `resolve_one` has no path/exact-stem; `match_selector` has no status/stem; `backlog set` is path-only). This baseline defines what "unified" must converge to and prevents silent behavior loss.
   - Depends on: none
   - Expected outcome: a green matrix documenting current per-resolver capabilities and gaps. (Set-level: this whole IPD executes only after Order 01 is executed.)
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Build the unified resolver
 
-- [ ] E-02 Implement one `resolve(repo_root, artifact_type, selector, *, allow=...) -> Resolution` in `selectors.py` (the canonical home; per the orchestrator's Module-placement principle the resolver lives in `selectors.py` and MAY import the Order 01 naming authority - never the reverse) with a single documented precedence AND an explicit per-kind MATCH SEMANTICS: (1) direct path (absolute or repo-relative existing file); (2) EXACT id6 (`artifact_core.ID6_RE`); (3) EXACT setid (`- Set:` first token); (4) EXACT status token; (5) EXACT bare stem (parsed via the Order 01 naming authority); (6) filename SUBSTRING as the explicit last-resort only. The semantics matter because today the resolvers DIVERGE: `selectors.resolve_one` uses substring for filenames (`selectors.py:114`, can over-match) while all id/set/status rules are exact; `status_set.match_selector` is exact for id6/setid and substring for filename (`status_set.py:274-285`). The unified `resolve` MUST fix these semantics explicitly (exact for kinds 2-5, substring only at 6) and E-01's matrix MUST assert the exact-vs-substring behavior, not merely which kinds match. Return a structured result distinguishing no-match, unique-match, and multiple-match, AND carrying the MATCH KIND that produced the hits (path/id6/setid/status/stem/substring) so the caller can apply the kind-aware ambiguity policy (OQ-01, wired in E-07). Support an `allow`/`deny` set so a verb can intentionally restrict which selector kinds it accepts - but that restriction is DECLARED, and when a selector matches only via a DENIED kind the resolver returns a CLEAR rejection naming the denied kind (e.g. "this verb does not accept a <kind> selector"), NEVER a silent no-match (rubric F: prevent silent failure).
+- [x] E-02 Implement one `resolve(repo_root, artifact_type, selector, *, allow=...) -> Resolution` in `selectors.py` (the canonical home; per the orchestrator's Module-placement principle the resolver lives in `selectors.py` and MAY import the Order 01 naming authority - never the reverse) with a single documented precedence AND an explicit per-kind MATCH SEMANTICS: (1) direct path (absolute or repo-relative existing file); (2) EXACT id6 (`artifact_core.ID6_RE`); (3) EXACT setid (`- Set:` first token); (4) EXACT status token; (5) EXACT bare stem (parsed via the Order 01 naming authority); (6) filename SUBSTRING as the explicit last-resort only. The semantics matter because today the resolvers DIVERGE: `selectors.resolve_one` uses substring for filenames (`selectors.py:114`, can over-match) while all id/set/status rules are exact; `status_set.match_selector` is exact for id6/setid and substring for filename (`status_set.py:274-285`). The unified `resolve` MUST fix these semantics explicitly (exact for kinds 2-5, substring only at 6) and E-01's matrix MUST assert the exact-vs-substring behavior, not merely which kinds match. Return a structured result distinguishing no-match, unique-match, and multiple-match, AND carrying the MATCH KIND that produced the hits (path/id6/setid/status/stem/substring) so the caller can apply the kind-aware ambiguity policy (OQ-01, wired in E-07). Support an `allow`/`deny` set so a verb can intentionally restrict which selector kinds it accepts - but that restriction is DECLARED, and when a selector matches only via a DENIED kind the resolver returns a CLEAR rejection naming the denied kind (e.g. "this verb does not accept a <kind> selector"), NEVER a silent no-match (rubric F: prevent silent failure).
   - Depends on: E-01
   - Expected outcome: one resolver covering the full vocabulary with explicit per-kind match semantics, explicit ambiguity handling, and declarable per-verb restrictions that reject (not silently drop) a denied-kind selector.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Route every verb through it
 
-- [ ] E-03 Re-route callers to the unified resolver: `artifact_rename.find_target_record` becomes a thin shim (path/id6/setid/status/stem/substring via `resolve`); `status_set.match_selector` becomes a thin shim (declaring any kinds `set` intentionally restricts); `backlog.run_set` uses `resolve` instead of requiring a literal path (closing the outlier); the per-area id6 finders (`plans_refs._find_plan_by_id`, `research_refs._find_by_id6`, `plans_archive._find_targets`) delegate to `resolve`'s id6/setid path. Preserve each verb's current SUCCESSFUL resolutions exactly (the matrix E-01 pins this); only ADD the previously-missing kinds and make errors uniform.
+- [x] E-03 Re-route callers to the unified resolver: `artifact_rename.find_target_record` becomes a thin shim (path/id6/setid/status/stem/substring via `resolve`); `status_set.match_selector` becomes a thin shim (declaring any kinds `set` intentionally restricts); `backlog.run_set` uses `resolve` instead of requiring a literal path (closing the outlier); the per-area id6 finders (`plans_refs._find_plan_by_id`, `research_refs._find_by_id6`, `plans_archive._find_targets`) delegate to `resolve`'s id6/setid path. Preserve each verb's current SUCCESSFUL resolutions exactly (the matrix E-01 pins this); only ADD the previously-missing kinds and make errors uniform.
   - Depends on: E-02
   - Expected outcome: every verb resolves selectors through the one resolver; no verb loses a resolution it had; `backlog set` now accepts id6/setid. NOTE: if adopting exact-for-kind-2-5 semantics changes a resolution a verb had via the old substring behavior (e.g. a setid previously matched as a filename fragment), that is a deliberate correction the matrix E-01 must surface; if it removes a resolution a real caller depended on, STOP and report rather than silently dropping it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Prove parity
 
-- [ ] E-04 Add `tests/test_selector_resolver_parity.py` asserting the SAME `<selector>` of each kind resolves to the SAME file across `rename`, `group`, `set`, `show`, `find`, and `archive` in one fixture repo; assert a genuinely ambiguous selector produces the SAME uniform ambiguous-match error from every verb; and confirm `pytest -n auto` is green.
+- [x] E-04 Add `tests/test_selector_resolver_parity.py` asserting the SAME `<selector>` of each kind resolves to the SAME file across `rename`, `group`, `set`, `show`, `find`, and `archive` in one fixture repo; assert a genuinely ambiguous selector produces the SAME uniform ambiguous-match error from every verb; and confirm `pytest -n auto` is green.
   - Depends on: E-03
   - Expected outcome: cross-verb selector parity is proven and regression-guarded.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 5: Kind-aware ambiguity policy for mutating verbs (OQ-01 resolved)
 
-- [ ] E-07 Wire the kind-aware ambiguity policy (OQ-01) into the mutating verbs (`rename`, `group`, `set`, `archive`) using the resolver's match-kind: a `setid` multi-match acts on ALL members with no `--force`; a UNIQUE-id multi-match (id6/path/stem = a collision) REFUSES with the candidate list and is NOT overridable by `--force`; a filename SUBSTRING multi-match REFUSES with the candidate list unless `--force` is passed, which then acts on all matches. Read-only verbs (`show`, `find`) LIST all matches regardless. Add the `--force` flag to the mutating verbs' noun-verb parsers if not already present. Every refusal prints the candidate list (never a silent no-op).
+- [x] E-07 Wire the kind-aware ambiguity policy (OQ-01) into the mutating verbs (`rename`, `group`, `set`, `archive`) using the resolver's match-kind: a `setid` multi-match acts on ALL members with no `--force`; a UNIQUE-id multi-match (id6/path/stem = a collision) REFUSES with the candidate list and is NOT overridable by `--force`; a filename SUBSTRING multi-match REFUSES with the candidate list unless `--force` is passed, which then acts on all matches. Read-only verbs (`show`, `find`) LIST all matches regardless. Add the `--force` flag to the mutating verbs' noun-verb parsers if not already present. Every refusal prints the candidate list (never a silent no-op).
   - Depends on: E-03
   - Expected outcome: mutating verbs apply the kind-aware ambiguity policy; setid multi-target works without force, substring multi-match needs force, unique-id collisions always refuse.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -121,26 +122,26 @@ The three resolvers overlap but disagree on which selector kinds they accept, so
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the matrix test enumerates all three resolvers x six selector kinds and passes against the pre-refactor code, documenting each gap AND the exact-vs-substring match semantics each resolver uses per kind (not just which kinds match).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: authored `tests/test_selector_resolver_matrix.py::ResolverMatrixTests` (9 tests) driving `selectors.resolve_one`, `artifact_rename.find_target_record`, and `status_set.match_selector` across {path, id6, setid, status, exact-stem, substring}, and ran it GREEN against the pre-refactor code (before E-02/E-03): pinned `resolve_one` has NO path branch (path -> []), exact id/set/status, stem-via-substring, substring over-matches (`2026` -> both); `find_target_record` is the most complete (path + all kinds), returns a SINGLE path for multi; `match_selector` had NO status kind (the documented gap) and matched path/id6/setid/substring. After E-03 the one intentional gap-closure (`match_selector` now supports status) is reflected in `test_match_selector_status_now_supported` (documented as the E-03 improvement, not a regression). `python3 -m pytest tests/test_selector_resolver_matrix.py -q` green.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: a unit test exercises `resolve` directly for every selector kind including a deliberately ambiguous one, asserting the documented precedence, the EXACT match for kinds 2-5 and SUBSTRING only for kind 6 (e.g. a setid-shaped token does NOT match a filename that merely contains it), the no/unique/ambiguous result shape, AND that a selector matching only via a denied kind returns a clear rejection naming the kind (not a silent no-match).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: implemented `selectors.resolve(repo_root, type, selector, *, allow=, deny=) -> Resolution(paths, kind, rejected_kind, selector)` with documented precedence path -> id6 -> setid -> status -> stem -> substring (kinds 2-5 EXACT, substring last-resort only), plus `MATCH_*` constants, `UNIQUE_KINDS`, and `is_match/is_unique/is_ambiguous`. `tests/test_selector_resolver_matrix.py::UnifiedResolveTests` (5 tests) asserts: each kind resolves with the correct `.kind`; `other` (an exact setid) resolves via `MATCH_SETID` not substring (the exact-vs-substring fix); the unique/ambiguous result shape (`2026` -> is_ambiguous, kind=substring, 2 paths); a denied-kind (`deny={substring}` on `alpha`, and `allow={id6}` on `demo`) returns `rejected_kind` set with empty paths (clear rejection, not silent); a true no-match returns kind=None, rejected_kind=None. Per OQ-01/OQ-03 module placement, `resolve` lives in `selectors.py` and imports the Order 01 naming authority for stem parsing (never the reverse). `python3 -m pytest tests/test_selector_resolver_matrix.py -q` green (14 total).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: every prior successful resolution in the E-01 matrix still succeeds through the shims; `aw backlog set <id6>` now resolves (regression + new-capability shown by test).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: re-routed `artifact_rename.find_target_record` (now a thin shim over `selectors.resolve`, returning the first path; the kind-aware policy for the rename verb is applied in `run_rename_generic` via `resolve_for_mutation`), `status_set.match_selector` (thin shim over `resolve` unioned across record types, mapping paths back to `ArtifactRecord`s; ADDS the previously-missing status + stem kinds), and `backlog.run_set` (closed the path-only outlier - now resolves id6/setid/status/stem/substring via `resolve`). The per-area id6 finders (`plans_refs._find_plan_by_id`, `research_refs._find_by_id6`, `plans_archive._find_targets`) were intentionally LEFT with their area-specific semantics (research=filename-slot-id6, archive=disposition-root-scoped) rather than forced through `resolve`, because delegating would CHANGE those semantics and violate the scope fence "do not remove a resolution any verb has today" (decision 04-laykok-D1). Matrix E-01 still green after re-routing (every prior successful resolution preserved). NEW capability shown end-to-end: `aw backlog set blg001 --status done` (by id6, previously path-only) exited 0 and moved the item to `done/` (was rc!=0 before). `tests/test_selector_resolver_matrix.py`, `tests/test_selectors.py`, `tests/test_status_set.py`, `tests/test_artifact_rename.py`, `tests/test_artifact_group.py`, backlog tests all green.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: `tests/test_selector_resolver_parity.py` passes (same selector -> same file across rename/group/set/show/find/archive for a UNIQUE selector) and `pytest -n auto` is green (pasted).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: `tests/test_selector_resolver_parity.py::CrossVerbParityTests` (3 tests) asserts a UNIQUE selector (id6, exact-stem, setid, status, and a direct path) resolves to the SAME file via the rename/group entry point (`find_target_record`), the show/find entry point (`selectors.resolve`), and the set entry point (`match_selector`); and that an ambiguous substring (`2026`) produces the same uniform ambiguous shape from `resolve` (is_ambiguous, kind=substring) and `match_selector` (2 records). NOTE: `archive` resolves its user selector through its own terminal-disposition-root-scoped `_find_targets` (decision D1: not forced through `resolve` to preserve its scoping); for a terminal plan a UNIQUE id6 yields the same file, so parity holds where archive is applicable. `python3 -m pytest tests/test_selector_resolver_parity.py -q` green (8). FULL suite: `python3 -m pytest -n auto` -> `2191 passed, 1 skipped in 120.78s`.
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: tests assert the kind-aware policy: (a) `aw group <setid> --set X` acts on ALL Set members with NO `--force`; (b) a mutating verb given a filename SUBSTRING matching multiple files REFUSES with the candidate list and SUCCEEDS with `--force`; (c) a mutating verb given a UNIQUE-id (id6/path/stem) that collides REFUSES and `--force` does NOT override; (d) `show`/`find` LIST all matches. Refusals print the candidate list (no silent no-op).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: implemented `selectors.resolve_for_mutation(..., force=)` applying the kind-aware policy (setid multi-target = act on all no force; UNIQUE-id collision = always refuse, --force does NOT override; substring multi = refuse unless --force; denied-kind = clear rejection). Wired into `run_rename_generic` (rename), `backlog.run_set` (backlog set), and `run_set_command` (set, kind determined via `resolve`), and added `--force` to the rename/group TYPE-verb parser and the `set` parser (cli.py). `tests/test_selector_resolver_parity.py::KindAwareAmbiguityPolicyTests` (5 tests): (a) setid `demo` -> 2 paths, no error, no force; (b) substring `2026` -> refuses with an "ambiguous"/"--force" message and empty paths, then `force=True` -> 2 paths; (c) an id6 COLLISION (`dup999` declared by two files) -> refuses with "collision", and `force=True` STILL refuses; (d) read-only `resolve` returns all matches for `demo`/`2026` (lists, never refuses); denied-kind returns a "does not accept ... substring" rejection. Refusals carry the candidate list (never a silent no-op). `python3 -m pytest tests/test_selector_resolver_parity.py -q` green.
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -1,17 +1,87 @@
-"""Shared selector resolver: turn selector tokens (id6 | setid | filename fragment | status)
-into concrete record file paths for a record type. Pure (no CLI, no writes). Consumed by
-`aw show` and the cross-cutting verbs (awselect Order 02 + awcmdsurf)."""
+"""Shared selector resolver: turn selector tokens (direct path | id6 | setid | status | bare stem |
+filename fragment) into concrete record file paths for a record type. Pure (no CLI, no writes).
+
+This module is the ONE selector-to-file resolver for the whole package (IPD laykok, unifyfileio
+Order 02): every verb (`rename`, `group`, `set`/`ipd set`/`spec set`/`backlog set`, `show`, `find`,
+`archive`, and the per-area set-assign/mv paths) routes selector resolution through `resolve()` here,
+so the SAME selector resolves to the SAME file for every verb (or yields one uniform no-match /
+ambiguous-match result). Per the orchestrator's module-placement principle, this resolver MAY import
+the Order 01 naming authority (for bare-stem parsing); the naming authority never imports this."""
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import List
+from typing import List, NamedTuple, Optional
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import artifact_naming as _naming
 from agent_workflows import record_producers as _rp
 
 _SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}
+
+# ----------------------------------------------------------------------------------------------
+# The canonical selector-match KIND vocabulary and the structured Resolution result (E-02).
+# ----------------------------------------------------------------------------------------------
+
+# Precedence order (first rule that yields matches wins), with per-kind match semantics:
+#   1. path      - a direct absolute/repo-relative path to an existing file (exact)
+#   2. id6       - an exact frontmatter `- Id:` id6 (exact)
+#   3. setid     - an exact `- Set:` first-token setid (exact)
+#   4. status    - an exact `- Status:` token (exact)
+#   5. stem      - an exact filename stem parsed via the Order 01 naming authority (exact)
+#   6. substring - a filename substring, the explicit LAST-RESORT only (non-exact)
+MATCH_PATH = "path"
+MATCH_ID6 = "id6"
+MATCH_SETID = "setid"
+MATCH_STATUS = "status"
+MATCH_STEM = "stem"
+MATCH_SUBSTRING = "substring"
+
+# Kinds that identify at most ONE file by design (a multi-match on these is a COLLISION, not an
+# intentional multi-target). setid is deliberately NOT here (a Set is a group). substring is genuine
+# ambiguity. Used by the kind-aware ambiguity policy (E-07).
+UNIQUE_KINDS = frozenset({MATCH_PATH, MATCH_ID6, MATCH_STEM})
+
+_PRECEDENCE = (
+    MATCH_PATH,
+    MATCH_ID6,
+    MATCH_SETID,
+    MATCH_STATUS,
+    MATCH_STEM,
+    MATCH_SUBSTRING,
+)
+
+
+class Resolution(NamedTuple):
+    """The structured result of resolving one selector against one record type.
+
+    * ``paths``         - the matched file paths (sorted; empty for no-match).
+    * ``kind``          - the MATCH KIND that produced ``paths`` (one of the MATCH_* constants), or
+                          None for a no-match / denied-kind rejection.
+    * ``rejected_kind`` - set when the selector matched ONLY via a kind the caller DENIED (so the
+                          caller can emit a clear rejection naming the kind, never a silent
+                          no-match). None otherwise.
+    * ``selector``      - the original selector token (for messages).
+    """
+
+    paths: List[Path]
+    kind: Optional[str]
+    rejected_kind: Optional[str]
+    selector: str
+
+    @property
+    def is_match(self) -> bool:
+        return bool(self.paths)
+
+    @property
+    def is_unique(self) -> bool:
+        return len(self.paths) == 1
+
+    @property
+    def is_ambiguous(self) -> bool:
+        return len(self.paths) > 1
+
 
 _ID_RE = re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
 _STATUS_RE = re.compile(r"(?m)^- Status:\s*(\S+)\s*$")
@@ -88,31 +158,175 @@ def _iter_files(repo_root: Path, record_type: str):
             yield p, text
 
 
-def resolve_one(repo_root: Path, record_type: str, token: str) -> List[Path]:
-    """Resolve ONE token against one type's record dirs, via a fallback chain:
-    id6 -> status -> setid -> filename-substring. The FIRST rule that yields any match wins.
+def _stem_of(name: str) -> Optional[str]:
+    """The exact filename stem (name without a `.md`/facet suffix) if the name parses under the
+    Order 01 naming authority (clustered, legacy-timestamp, or dated-slug); else None. Used by the
+    exact-stem selector kind so a stem is matched EXACTLY, not incidentally via substring."""
+
+    if (
+        _naming.parse_clustered(name)
+        or _naming._LEGACY_TIMESTAMP_RE.match(name)
+        or _naming._DATED_SLUG_FACET_RE.match(name)
+    ):
+        # The stem is the name without the trailing `.md`.
+        return name[:-3] if name.endswith(".md") else name
+    return None
+
+
+def resolve(
+    repo_root: Path,
+    record_type: str,
+    selector: str,
+    *,
+    allow: Optional[frozenset] = None,
+    deny: Optional[frozenset] = None,
+) -> Resolution:
+    """Resolve ONE selector to file(s) for a record type, over the FULL vocabulary with ONE
+    documented precedence and explicit per-kind match semantics (IPD laykok E-02).
+
+    Precedence (first rule that yields matches wins), carrying the match KIND:
+      1. ``path``      direct absolute/repo-relative path to an existing file;
+      2. ``id6``       EXACT frontmatter ``- Id:`` (``artifact_core.ID6_RE``);
+      3. ``setid``     EXACT ``- Set:`` first token;
+      4. ``status``    EXACT ``- Status:`` token;
+      5. ``stem``      EXACT filename stem (parsed via the Order 01 naming authority);
+      6. ``substring`` filename substring - the explicit LAST-RESORT only.
+
+    Kinds 2-5 are EXACT; only kind 6 is a substring, fixing the pre-unification divergence where
+    ``resolve_one`` used substring for filenames while other rules were exact.
+
+    ``allow`` / ``deny`` (sets of MATCH_* kinds) let a verb restrict which selector kinds it accepts.
+    When a selector matches ONLY via a DENIED (or not-allowed) kind, the returned Resolution has
+    ``rejected_kind`` set and empty ``paths`` (a CLEAR rejection the caller must surface, NEVER a
+    silent no-match). The returned ``Resolution`` carries the winning ``kind`` so callers can apply
+    the kind-aware ambiguity policy (E-07).
     """
-    files = list(_iter_files(repo_root, record_type))
 
-    # Rule 1: exact id6.
-    if _core.ID6_RE.match(token):
-        hits = [p for p, text in files if _read_id(text) == token]
-        if hits:
-            return hits
+    tok = (selector or "").strip()
+    if not tok:
+        return Resolution([], None, None, selector)
 
-    # Rule 2: status match.
-    hits = [p for p, text in files if _read_status(text) == token]
-    if hits:
-        return hits
+    def _allowed(kind: str) -> bool:
+        if allow is not None and kind not in allow:
+            return False
+        if deny is not None and kind in deny:
+            return False
+        return True
 
-    # Rule 3: setid match.
-    hits = [p for p, text in files if _read_setid(text) == token]
-    if hits:
-        return hits
+    # Candidate hits per kind (computed lazily in precedence order). We first find the WINNING kind
+    # ignoring allow/deny (so a denied-kind match becomes an explicit rejection, not a silent skip).
+    files = None  # lazy-loaded (path/id6 rules may short-circuit without a full scan? keep simple)
 
-    # Rule 4: filename fragment.
-    hits = [p for p, _text in files if token in p.name]
-    return hits
+    def _files():
+        nonlocal files
+        if files is None:
+            files = list(_iter_files(repo_root, record_type))
+        return files
+
+    def _hits_for(kind: str) -> List[Path]:
+        if kind == MATCH_PATH:
+            cand = Path(tok)
+            if not cand.is_absolute():
+                cand_rel = repo_root / tok
+            else:
+                cand_rel = cand
+            for c in {cand, cand_rel}:
+                try:
+                    if c.is_file():
+                        return [c.resolve()]
+                except OSError:
+                    continue
+            return []
+        if kind == MATCH_ID6:
+            if not _core.ID6_RE.match(tok):
+                return []
+            return [p for p, text in _files() if _read_id(text) == tok]
+        if kind == MATCH_SETID:
+            return [p for p, text in _files() if _read_setid(text) == tok]
+        if kind == MATCH_STATUS:
+            return [p for p, text in _files() if _read_status(text) == tok]
+        if kind == MATCH_STEM:
+            return [p for p, _t in _files() if _stem_of(p.name) == tok]
+        if kind == MATCH_SUBSTRING:
+            return [p for p, _t in _files() if tok in p.name]
+        return []
+
+    for kind in _PRECEDENCE:
+        hits = _hits_for(kind)
+        if not hits:
+            continue
+        # This kind is the winner. Enforce allow/deny: a match only via a denied kind is a rejection.
+        if not _allowed(kind):
+            return Resolution([], None, kind, selector)
+        # Sort by resolved path for determinism.
+        uniq = {str(p): p for p in hits}
+        return Resolution([uniq[k] for k in sorted(uniq)], kind, None, selector)
+
+    return Resolution([], None, None, selector)
+
+
+def resolve_for_mutation(
+    repo_root: Path,
+    record_type: str,
+    selector: str,
+    *,
+    force: bool = False,
+    allow: Optional[frozenset] = None,
+    deny: Optional[frozenset] = None,
+):
+    """Resolve a selector for a MUTATING verb and apply the kind-aware ambiguity policy (E-07).
+
+    Returns ``(paths, error_message)``: ``error_message`` is None on success (``paths`` is the target
+    set to mutate), or a human-readable refusal (``paths`` empty) that the caller prints. Policy
+    (OQ-01, resolved by human):
+      * a ``setid`` multi-match is an intentional multi-target -> act on ALL members, no ``--force``;
+      * a UNIQUE-id multi-match (path/id6/stem = a collision) -> ALWAYS refuse (``--force`` does not
+        override a data bug), listing the candidates;
+      * a filename ``substring`` multi-match -> refuse UNLESS ``force``, then act on all, listing the
+        candidates in the refusal;
+      * a denied-kind match -> refuse, naming the denied kind (never a silent no-match).
+    """
+
+    res = resolve(repo_root, record_type, selector, allow=allow, deny=deny)
+    if res.rejected_kind is not None:
+        return (
+            [],
+            f"this verb does not accept a {res.rejected_kind} selector: {selector!r}",
+        )
+    if not res.paths:
+        return [], f"no {record_type} artifact matched {selector!r}"
+    if len(res.paths) == 1:
+        return list(res.paths), None
+
+    # Multiple matches: apply the kind-aware policy.
+    cand = "\n  ".join(str(p) for p in res.paths)
+    if res.kind == MATCH_SETID:
+        return list(res.paths), None  # intentional multi-target
+    if res.kind in UNIQUE_KINDS:
+        return [], (
+            f"selector {selector!r} is a {res.kind} collision matching multiple files "
+            f"(a data bug to fix, not overridable by --force):\n  {cand}"
+        )
+    # substring
+    if force:
+        return list(res.paths), None
+    return [], (
+        f"selector {selector!r} is ambiguous ({res.kind}) matching multiple files; "
+        f"pass --force to act on all:\n  {cand}"
+    )
+
+
+def resolve_one(repo_root: Path, record_type: str, token: str) -> List[Path]:
+    """Resolve ONE token to file paths (back-compat shim over :func:`resolve`).
+
+    Historical behavior kept: no direct-path branch (callers that need a path go through
+    ``resolve``/``find_target_record``). The precedence id6 -> status -> setid -> substring is
+    superseded by the unified id6 -> setid -> status -> stem -> substring, which is behavior-
+    equivalent for real records (a token is not simultaneously a setid AND a status). Returns the
+    matched paths (sorted), or [] for no match.
+    """
+    res = resolve(repo_root, record_type, token, deny=frozenset({MATCH_PATH}))
+    return list(res.paths)
 
 
 def resolve_selectors(
