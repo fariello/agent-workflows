@@ -5,15 +5,15 @@
 - Concern: Convert approved IPD Sets into deterministic, schedulable work.
 - Scope: Set selection, IPD/E-item parsing, inter-plan dependencies, resource ownership, work classification, and plan-only output.
 - Scope-Paths: grandfathered
-- Status: approved
+- Status: executed
 - Set: execset
 - Order: 1
 - Highest E allocated: 03
 - Author: OpenAI GPT 5.6 Sol
 - Id: iy1a2g
-- Approval: 2026-08-24, human ("approved. go."): status set to approved
 
 ## Workflow history
+- 2026-08-24 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us (ipdrunner run-20260824T150827Z-2301181)): execset Order 01: IPD Set graph compiler + plan-only execution manifest
 - 2026-08-24 approved (aw set, --by-human): status set to approved
 - 2026-08-23 /plan-review focused (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (LaneRequest adapter/mapping + compiler-side serial-on-uncertainty made explicit in E-02/V-02), PR-002 (deferred_gate is net-new), PR-003 (cross-IPD child-table Depends-on parsing is net-new, compiler-owned), PR-004 (cite reuse: run_freeze/run ledger head/workflow_compiler), PR-005 (OQ-02: plan approval has no --by-human gate; documented trust boundary).
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-002 (corrected `ipd_lint.parse()` API claim: Depends-on graph is derived in the lint pass, not returned by parse()).
