@@ -14,6 +14,7 @@ from typing import List, Optional, Tuple
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
 from agent_workflows import artifact_refs as _refs
+from agent_workflows import record_history as _rh
 from agent_workflows import selectors
 from agent_workflows.project_context import resolve_verb_repo_root
 
@@ -350,6 +351,15 @@ def run_rename_generic(args: argparse.Namespace, artifact_type: str) -> int:
         dst_rel = dst.relative_to(repo_root).as_posix()
         _core.git_mv(repo_root, src_rel, dst_rel)
         print(f"renamed {src_rel} -> {dst_rel}")
+        # IPD 52zgqr: additive, failure-isolated rename ledger record (never breaks the rename).
+        _rh.record_rename(
+            repo_root,
+            tree=artifact_type,
+            verb="rename",
+            actor="aw",
+            from_name=src.name,
+            to_name=dst.name,
+        )
 
     if new_set is not None or new_order is not None:
         _update_frontmatter_metadata(
@@ -482,6 +492,15 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> int:
             dst_rel = dst.relative_to(repo_root).as_posix()
             _core.git_mv(repo_root, src_rel, dst_rel)
             print(f"renamed {src_rel} -> {dst_rel}")
+            # IPD 52zgqr: additive, failure-isolated rename ledger record.
+            _rh.record_rename(
+                repo_root,
+                tree=artifact_type,
+                verb="group",
+                actor="aw",
+                from_name=src.name,
+                to_name=dst.name,
+            )
         _update_or_inject_set_metadata(dst, set_id=set_k, order=order_val)
         dst_rel = dst.relative_to(repo_root).as_posix()
         print(f"set metadata Set: {set_k} in {dst_rel}")

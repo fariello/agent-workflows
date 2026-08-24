@@ -26,6 +26,7 @@ from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
 from agent_workflows import artifact_refs as _refs
 from agent_workflows import plans_index as _idx
+from agent_workflows import record_history as _rh
 
 PLANS_DIR = ".agents/plans"
 
@@ -253,6 +254,7 @@ def apply_renames(
     apply: bool,
     descriptive: Optional[str] = None,
     update_refs: bool = True,
+    verb: str = "group",
 ) -> None:
     """Set metadata + (optional) clustering rename + citation rewrite. Preview when not apply.
     update_refs=False (from `--no-refs`, awcmdsurf Order 03) renames the file only, leaving citing
@@ -295,6 +297,15 @@ def apply_renames(
             dst_rel = p.new_path.relative_to(repo_root).as_posix()
             _core.git_mv(repo_root, src_rel, dst_rel)
             print(f"renamed {src_rel} -> {dst_rel}")
+            # IPD 52zgqr: additive, failure-isolated rename ledger record (never breaks the rename).
+            _rh.record_rename(
+                repo_root,
+                tree="plans",
+                verb=verb,
+                actor="aw",
+                from_name=p.old_path.name,
+                to_name=p.new_path.name,
+            )
     apply_reference_rewrites(ref_edits)
     for e in ref_edits:
         print(f"rewrote {e.hits}x [{e.kind}] in {e.file}")
@@ -407,5 +418,6 @@ def run_mv(args: argparse.Namespace) -> int:
         set_id,
         apply=getattr(args, "apply", False),
         update_refs=not getattr(args, "no_refs", False),
+        verb="rename",
     )
     return 0

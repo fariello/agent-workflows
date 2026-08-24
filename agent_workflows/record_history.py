@@ -3,7 +3,18 @@
 ONE file per repo: `.aw/records/history.jsonl`, keyed by id6. Each line is a JSON object
 `{id6, date, tree, workflow, actor, message}`. Append-only, so line order is irrelevant and
 concurrent-append git merges rarely conflict. Pure (no CLI, no argparse). Consumed by the status
-writers (Order 02) and the migration + read verb (Order 03)."""
+writers (Order 02) and the migration + read verb (Order 03).
+
+The sidecar ALSO carries an additive, non-authoritative RENAME/regroup ledger (IPD 52zgqr,
+unifyfileio Order 04): every applied `aw rename`/`aw group` that changes a name appends ONE record
+via `record_rename`/`append_rename`. A rename record is a SUPERSET of a status record - it reuses the
+same key order/shape and adds `verb` (rename|group), `from_name`/`to_name` (basenames), and
+`key_kind` (id6|synthetic). Status readers/migration key only on id6/date/message and ignore the
+extra keys, so the addition is backward-compatible. The ledger is NON-AUTHORITATIVE: no aw command's
+correctness depends on it (deleting the sidecar changes only what an audit query can report), and the
+emit is failure-isolated so a ledger problem never breaks a rename. Endpoint cases (OQ-01): id6->id6
+and id6-less->id6 key on the (new) id6; both-id6-less uses a deterministic synthetic key tagged
+`key_kind:"synthetic"` for a future id6-rollout to reconcile."""
 
 from __future__ import annotations
 
@@ -82,6 +93,180 @@ def read_all(repo_root) -> List[dict]:
         except json.JSONDecodeError:
             continue
     return out
+
+
+# --------------------------------------------------------------------------------------
+# Additive rename/regroup ledger (IPD 52zgqr, unifyfileio Order 04).
+#
+# A RENAME record is a SUPERSET of a status record: it reuses the exact {id6,date,tree,workflow,
+# actor,message} key order/shape and adds optional `verb` (rename|group), `from_name`/`to_name`
+# (basenames), and `key_kind` (id6|synthetic). Status records carry none of the extra keys, so
+# `read_all`/`read_for`/`migrate_inline_history` (which key only on id6/date/message and ignore
+# unknown keys) are unaffected. The ledger is strictly ADDITIVE and NON-AUTHORITATIVE: no aw
+# command's correctness depends on it (deleting the sidecar changes only what an audit query can
+# report, never whether a rename/citation-rewrite/check succeeds), so every writer here is
+# failure-isolated by its callers.
+#
+# Endpoint cases (OQ-01, human-resolved): Case 1 (id6->id6) and Case 2 (id6-less->id6) key on the
+# real (new) id6 via append_rename's id6 path; Case 3 (id6-less->id6-less) uses a deterministic
+# SYNTHETIC key (a normalized earliest-known-name token) tagged `key_kind:"synthetic"` so a future
+# id6-rollout can reconcile it.
+# --------------------------------------------------------------------------------------
+
+# A synthetic key normalizes an id6-less name to a stable token: strip a trailing `.md`/facet and any
+# leading date, lowercase-kebab the remainder. Deterministic for the same artifact's earliest name.
+_SYNTH_STRIP_RE = _re.compile(r"[^a-z0-9]+")
+
+
+def _synthetic_key(name: str) -> str:
+    """A deterministic synthetic key for an id6-less artifact, derived from a filename basename.
+
+    Drops a trailing `.md` and any `.<facet>`, drops a leading `YYYYMMDD-` (or `YYYYMMDD-HHMM-NN-`)
+    date/order prefix, then lowercase-kebabs the slug remainder. Prefixed `synthetic:` so it can
+    never collide with a real 6-char id6 key. Stable for the same slug across re-slugs is NOT
+    guaranteed (a re-slug changes the slug); the key is stable for a GIVEN name, which is what
+    ``read_renames_for`` needs to retrieve a specific synthetic record."""
+
+    base = name[:-3] if name.endswith(".md") else name
+    base = base.split(".")[0]  # drop any dotted facet(s)
+    # Drop a leading date (YYYYMMDD) and an optional -HHMM-NN.
+    base = _re.sub(r"\A\d{8}(?:-\d{4}-\d{2})?-", "", base)
+    slug = _SYNTH_STRIP_RE.sub("-", base.lower()).strip("-")
+    return "synthetic:" + (slug or "unknown")
+
+
+def append_rename(
+    repo_root,
+    *,
+    id6: str,
+    tree: str,
+    verb: str,
+    actor: str,
+    from_name: str,
+    to_name: str,
+    message: Optional[str] = None,
+    date: Optional[str] = None,
+    key_kind: str = "id6",
+) -> None:
+    """Append ONE rename/regroup record to the global sidecar (additive, non-authoritative).
+
+    `id6` is the record key. For the default ``key_kind="id6"`` it MUST match ``artifact_core.ID6_RE``
+    (else ValueError - identical to ``append``'s contract; never silently write a malformed record).
+    ``key_kind="synthetic"`` (Case 3 ONLY) accepts a synthetic key token (produced by
+    :func:`_synthetic_key`) and skips the id6 validation, tagging the record so it is distinguishable
+    from real-id6 records. `verb` is ``rename`` or ``group``; `from_name`/`to_name` are basenames.
+    """
+
+    if key_kind == "id6":
+        if not _core.ID6_RE.match(id6 or ""):
+            raise ValueError(
+                f"record_history.append_rename: {id6!r} is not a valid id6"
+            )
+    elif key_kind != "synthetic":
+        raise ValueError(f"record_history.append_rename: bad key_kind {key_kind!r}")
+    if date is None:
+        date = _date.today().strftime("%Y%m%d")
+    # Preserve the status-record key order, then append the rename-only keys (superset).
+    rec = {
+        "id6": id6,
+        "date": date,
+        "tree": tree,
+        "workflow": f"aw {verb}",
+        "actor": actor,
+        "message": message or f"{verb} {from_name} -> {to_name}",
+        "verb": verb,
+        "from_name": from_name,
+        "to_name": to_name,
+    }
+    if key_kind != "id6":
+        rec["key_kind"] = key_kind
+    p = history_path(repo_root)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with open(p, "a", encoding="utf-8") as f:
+        f.write(json.dumps(rec, ensure_ascii=True) + "\n")
+
+
+def read_renames_for(repo_root, key: str) -> List[dict]:
+    """Every RENAME record (has a `from_name`) for `key` (a real id6 OR a synthetic key), in file
+    order. Status records (no `from_name`) are excluded."""
+    return [r for r in read_all(repo_root) if r.get("id6") == key and "from_name" in r]
+
+
+def _endpoint_id6(name: str) -> Optional[str]:
+    """The id6 of an artifact filename endpoint via the Order 01 naming authority (clustered slot)
+    or research grammar, else None (an id6-less legacy name)."""
+
+    from agent_workflows import artifact_naming as _naming
+
+    m = _naming.parse_clustered(name)
+    if m is not None:
+        return m.group("id6")
+    # Research names carry the id6 in the same core position but with `.<model>.<kind>` facets.
+    try:
+        from agent_workflows import research_contract as _rc
+
+        parsed, _err = _rc.parse_name(name)
+        if parsed is not None:
+            return parsed.id6
+    except Exception:
+        pass
+    return None
+
+
+def record_rename(
+    repo_root,
+    *,
+    tree: str,
+    verb: str,
+    actor: str,
+    from_name: str,
+    to_name: str,
+    message: Optional[str] = None,
+    date: Optional[str] = None,
+) -> None:
+    """Record a rename/regroup by endpoint case (OQ-01), FAILURE-ISOLATED (never raises to the
+    caller, so a ledger problem can never fail or roll back the rename).
+
+    Case 1 (id6 -> id6) and Case 2 (id6-less -> id6): key on the NEW id6 (Case 2 preserves the old
+    id6-less name in `from_name` - the highest-value migration record). Case 3 (both id6-less): a
+    deterministic synthetic key tagged `key_kind:"synthetic"`. A no-op (from==to) records nothing.
+    """
+
+    try:
+        if from_name == to_name:
+            return
+        new_id6 = _endpoint_id6(to_name)
+        if new_id6 is not None:
+            # Case 1 or 2: the new name has an id6 -> key on it.
+            append_rename(
+                repo_root,
+                id6=new_id6,
+                tree=tree,
+                verb=verb,
+                actor=actor,
+                from_name=from_name,
+                to_name=to_name,
+                message=message,
+                date=date,
+                key_kind="id6",
+            )
+            return
+        # Case 3: both endpoints id6-less -> synthetic key from the EARLIEST known name (from_name).
+        append_rename(
+            repo_root,
+            id6=_synthetic_key(from_name),
+            tree=tree,
+            verb=verb,
+            actor=actor,
+            from_name=from_name,
+            to_name=to_name,
+            message=message,
+            date=date,
+            key_kind="synthetic",
+        )
+    except Exception:
+        # Additive, non-authoritative: a ledger failure must NEVER break the rename.
+        pass
 
 
 # --------------------------------------------------------------------------------------

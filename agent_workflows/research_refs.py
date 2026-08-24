@@ -24,6 +24,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_refs as _refs
+from agent_workflows import record_history as _rh
 from agent_workflows import research_contract as R
 
 # --------------------------------------------------------------------------------------
@@ -234,7 +235,9 @@ def _repo_root(args: argparse.Namespace) -> Path:
     return resolve_verb_repo_root(getattr(args, "dir", None))
 
 
-def _apply_renames(repo_root: Path, plans: List[RenamePlan], apply: bool) -> None:
+def _apply_renames(
+    repo_root: Path, plans: List[RenamePlan], apply: bool, verb: str = "group"
+) -> None:
     """Apply the file renames as tracked git moves plus the reference rewrites."""
 
     renames = {p.old_path.name: p.new_path.name for p in plans}
@@ -252,6 +255,15 @@ def _apply_renames(repo_root: Path, plans: List[RenamePlan], apply: bool) -> Non
         dst_rel = p.new_path.relative_to(repo_root).as_posix()
         _git_mv(repo_root, src_rel, dst_rel)
         print(f"renamed {src_rel} -> {dst_rel}")
+        # IPD 52zgqr: additive, failure-isolated rename ledger record (never breaks the rename).
+        _rh.record_rename(
+            repo_root,
+            tree="research",
+            verb=verb,
+            actor="aw",
+            from_name=p.old_path.name,
+            to_name=p.new_path.name,
+        )
     apply_reference_rewrites(ref_edits)
     for e in ref_edits:
         print(f"rewrote {e.hits}x '{e.old_name}' -> '{e.new_name}' in {e.file}")
@@ -308,7 +320,9 @@ def run_mv(args: argparse.Namespace) -> int:
     if err:
         print(f"error: {err}")
         return 2
-    _apply_renames(repo_root, [plan] if plan else [], getattr(args, "apply", False))
+    _apply_renames(
+        repo_root, [plan] if plan else [], getattr(args, "apply", False), verb="rename"
+    )
     return 0
 
 
