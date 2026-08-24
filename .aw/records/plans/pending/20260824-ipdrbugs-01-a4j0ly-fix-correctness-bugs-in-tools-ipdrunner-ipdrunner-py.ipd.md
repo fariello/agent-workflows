@@ -10,6 +10,7 @@
 - Highest E allocated: 07
 - Author: assess/its_direct/pt3-claude-opus-4.8
 - Id: a4j0ly
+- Approval: 2026-08-24, human ("approved. go.") after /plan-review (APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed; OQ-01 resolved event-log-only).
 
 ## Workflow history
 - 2026-08-24 approved (aw set, --by-human): Human approved via plan-review GO in chat; proceeding to execution.
