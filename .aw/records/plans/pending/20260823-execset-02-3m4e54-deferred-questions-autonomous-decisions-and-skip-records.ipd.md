@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Prevent needless interruption without hiding decisions or skipped work.
 - Scope: Versioned run events, exact stop/defer classifier, generated projections, durable summaries, and answer/resume linkage.
-- Status: reviewed
+- Status: approved
 - Set: execset
 - Order: 2
 - Highest E allocated: 03
@@ -12,6 +12,7 @@
 - Id: 3m4e54
 
 ## Workflow history
+- 2026-08-24 approved (aw set, --by-human): status set to approved
 - 2026-08-23 /plan-review focused (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (versioning discipline is net-new, made explicit), PR-002 (per-kind _KIND_FIELDS + value rules, not a frozenset edit), PR-003 (OQ-02 human-resolved: separate Set machine, set_-prefixed names + run_state mapping), PR-004 (OQ-03 human-resolved: reuse append-a-newer-record supersession, no new `supersedes` kind), PR-005 (resume command cannot ride on decision Gate-Ref; close-on-answer is net-new), PR-006 (reconciled dense-vs-standard sizing note), PR-007 (corrected STOP wording + flagged shared always-loaded surface).
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-003 (right-sizing, human-resolved: keep exception-sized E-01, strengthen V-01 to per-event-kind + per-transition evidence; investigator-role divergence noted).
 - 2026-08-23 to-review (aw set): Authored from current runtime, lifecycle, isolation, and cross-host capability research; ready for plan review.

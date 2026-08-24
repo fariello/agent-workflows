@@ -2730,6 +2730,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-24",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260824-ipdrbugs-01-a4j0ly-fix-correctness-bugs-in-tools-ipdrunner-ipdrunner-py.ipd.md",
+    "plan_id": "a4j0ly",
+    "set_id": "ipdrbugs",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -2767,7 +2777,7 @@
     "path": "pending/20260823-execset-00-5ahblp-autonomous-ipd-set-execution-program.ipd.md",
     "plan_id": "5ahblp",
     "set_id": "execset",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-23",
@@ -2777,7 +2787,7 @@
     "path": "pending/20260823-execset-01-iy1a2g-ipd-set-graph-compiler-and-execution-manifest.ipd.md",
     "plan_id": "iy1a2g",
     "set_id": "execset",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-23",
@@ -2787,7 +2797,7 @@
     "path": "pending/20260823-execset-02-3m4e54-deferred-questions-autonomous-decisions-and-skip-records.ipd.md",
     "plan_id": "3m4e54",
     "set_id": "execset",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-23",
@@ -2797,7 +2807,7 @@
     "path": "pending/20260823-execset-03-m2wwns-parallel-scheduler-worktree-integration-and-model-routing.ipd.md",
     "plan_id": "m2wwns",
     "set_id": "execset",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-23",
@@ -2807,7 +2817,7 @@
     "path": "pending/20260823-execset-04-31744f-host-session-adapters-and-capability-gated-launchers.ipd.md",
     "plan_id": "31744f",
     "set_id": "execset",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-23",
@@ -2817,7 +2827,7 @@
     "path": "pending/20260823-execset-05-2h7777-exec-set-workflow-skill-shims-and-conformance-tests.ipd.md",
     "plan_id": "2h7777",
     "set_id": "execset",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-23",
@@ -2827,7 +2837,7 @@
     "path": "pending/20260823-ipdgates-00-do64fh-enforce-single-ipd-lifecycle-and-scope-gates-fail-closed.ipd.md",
     "plan_id": "do64fh",
     "set_id": "ipdgates",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-23",
@@ -2837,7 +2847,7 @@
     "path": "pending/20260823-ipdgates-01-v6zie5-own-and-regression-test-the-p7dqwz-xdg-config-isolation-resi.ipd.md",
     "plan_id": "v6zie5",
     "set_id": "ipdgates",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-23",
@@ -2847,7 +2857,7 @@
     "path": "pending/20260823-ipdgates-02-oorry1-canonical-scope-paths-allowlist-schema-and-grandfather-polic.ipd.md",
     "plan_id": "oorry1",
     "set_id": "ipdgates",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-23",
@@ -2857,7 +2867,7 @@
     "path": "pending/20260823-ipdgates-03-xjbvu2-aw-ipd-begin-fail-closed-execution-start-receipt.ipd.md",
     "plan_id": "xjbvu2",
     "set_id": "ipdgates",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-23",
@@ -2867,7 +2877,7 @@
     "path": "pending/20260823-ipdgates-04-v7e88a-aw-ipd-finalize-atomic-terminal-transaction.ipd.md",
     "plan_id": "v7e88a",
     "set_id": "ipdgates",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-23",
@@ -2877,7 +2887,7 @@
     "path": "pending/20260823-ipdgates-05-qmt3yk-finalize-two-way-scope-reconciliation-unexpected-path-reason.ipd.md",
     "plan_id": "qmt3yk",
     "set_id": "ipdgates",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-23",
@@ -2887,7 +2897,7 @@
     "path": "pending/20260823-ipdgates-06-3xh53a-aw-ipd-finalize-rollback-and-failure-semantics.ipd.md",
     "plan_id": "3xh53a",
     "set_id": "ipdgates",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-23",
@@ -2897,7 +2907,7 @@
     "path": "pending/20260823-ipdgates-07-wezhxg-remove-raw-terminal-transition-bypasses-and-strengthen-histo.ipd.md",
     "plan_id": "wezhxg",
     "set_id": "ipdgates",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-23",
@@ -2907,7 +2917,7 @@
     "path": "pending/20260823-ipdgates-08-dulzpy-local-pre-commit-gate-on-plan-executed-transitions-verify-fi.ipd.md",
     "plan_id": "dulzpy",
     "set_id": "ipdgates",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-23",
@@ -2917,7 +2927,7 @@
     "path": "pending/20260823-proclint-01-79li67-detect-process-violations-in-aw-check-and-aw-doctor-untooled.ipd.md",
     "plan_id": "79li67",
     "set_id": "proclint",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-23",
@@ -2927,7 +2937,7 @@
     "path": "pending/20260823-unifyfileio-00-g6mbht-unify-artifact-file-finding-reference-matching-and-naming-on.ipd.md",
     "plan_id": "g6mbht",
     "set_id": "unifyfileio",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-23",
@@ -2937,7 +2947,7 @@
     "path": "pending/20260823-unifyfileio-01-o6b8l3-canonical-artifact-naming-and-filename-grammar-authority.ipd.md",
     "plan_id": "o6b8l3",
     "set_id": "unifyfileio",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-23",
@@ -2947,7 +2957,7 @@
     "path": "pending/20260823-unifyfileio-02-laykok-unified-selector-to-file-resolver.ipd.md",
     "plan_id": "laykok",
     "set_id": "unifyfileio",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-23",
@@ -2957,7 +2967,7 @@
     "path": "pending/20260823-unifyfileio-03-3cmnfc-unified-reference-matcher-rewriter-and-consistent-dangling-c.ipd.md",
     "plan_id": "3cmnfc",
     "set_id": "unifyfileio",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-23",
@@ -2967,7 +2977,7 @@
     "path": "pending/20260823-unifyfileio-04-52zgqr-additive-rename-and-regroup-history-ledger-on-the-workflow-s.ipd.md",
     "plan_id": "52zgqr",
     "set_id": "unifyfileio",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-23",
@@ -2977,6 +2987,16 @@
     "path": "pending/20260823-unifyfileio-05-9a655p-enforce-filename-identity-slot-id6-uniqueness-in-aw-check-an.ipd.md",
     "plan_id": "9a655p",
     "set_id": "unifyfileio",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-24",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260824-ipdrunner-01-pr2nd0-harden-ipdrunner-process-lifecycle-dependency-validation-and.ipd.md",
+    "plan_id": "pr2nd0",
+    "set_id": "ipdrunner",
     "status": "reviewed"
   },
   {

@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Reference matching (finding citations to a file so a rename/regroup can rewrite them) is implemented three independent times with DIFFERENT coverage, and the dangling-citation checker understands different citation forms per type. `plans_refs.plan_reference_rewrites` rewrites full-name + bare-stem (+ range as a special case of bare-stem); `artifact_rename.plan_reference_rewrites` rewrites full-name + a DIFFERENT "whole-name-minus-.md" stem; `research_refs.plan_reference_rewrites` rewrites the full old filename ONLY - so a research rename ORPHANS any bare-stem citation that a plans rename would have fixed. The dangling checkers diverge too: plans recognize only the `PLAN-<id6>` handle; research recognizes `RSCH-<id6>` + a full parseable filename; NEITHER recognizes a setid citation, and plans do not flag a bare-filename citation as dangling. This is the "one unified way to IDENTIFY references to files" gap.
 - Scope: Create ONE reference matcher/rewriter library and ONE dangling-citation matcher policy, and route the plans, research, and generic rename/group paths plus the check engine through them. Touch: agent_workflows/artifact_core.py (the shared dangling ENGINE `find_dangling_citations` already lives here; the new reference MATCHER must live in its OWN module - NOT in artifact_core - because it imports the Order 01 naming authority and the orchestrator's module-placement principle forbids a core->naming import; see E-02), agent_workflows/plans_refs.py (`plan_reference_rewrites`/`apply_reference_rewrites`), agent_workflows/research_refs.py (`plan_reference_rewrites`/`apply_reference_rewrites`/`find_dangling_citations`), agent_workflows/artifact_rename.py (`plan_reference_rewrites`/`apply_reference_rewrites`), agent_workflows/research_contract.py (`iter_id6_citations`), agent_workflows/plans_index.py (`_plan_cite_matcher`/`check_drift` class d), agent_workflows/research_index.py (`check_drift`), agent_workflows/check_engine.py (`check_refs` stub). Depends on Order 01 (grammar authority, to know what a stem/name IS) and Order 02 (resolver, to answer "does this cited name currently exist?"). Note: id6/setid citations are NOT rewritten and MUST remain so - they are stable across renames by design; this child only unifies the FILENAME-derived forms and makes the dangling check consistent.
-- Status: reviewed
+- Status: approved
 - Set: unifyfileio
 - Order: 3
 - Highest E allocated: 05
@@ -13,6 +13,7 @@
 - Id: 3cmnfc
 
 ## Workflow history
+- 2026-08-24 approved (aw set, --by-human): status set to approved
 
 - 2026-08-23 draft (Gabriele Fariello): created.
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (module-placement: matcher must NOT live in artifact_core since it imports the Order 01 authority - per orchestrator binding principle), PR-002/PR-003 (corrected apply_ ordering + id6 docstring citation overstatements), PR-004 (Order 02 dependency), OQ-01 human-resolved = option B (dead bare-filename citations flagged via Order 02 resolver; setid-dangling deferred), which makes Order 02 an unconditional hard prerequisite. Core path:line claims verified TRUE.

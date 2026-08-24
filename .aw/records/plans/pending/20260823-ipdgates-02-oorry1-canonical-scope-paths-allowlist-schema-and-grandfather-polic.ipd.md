@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: IPD scope is expressed only in free-form `Scope:` prose, which tooling cannot compare against the actually-changed paths - so an executor can expand file scope (as p7dqwz did with `tests/test_empty_state_ux.py`) and nothing deterministic catches it. There is no machine-readable declared-path contract on an IPD.
 - Scope: Add a canonical `Scope-Paths` allowlist to the IPD schema and its build/validate surfaces, with a grandfather policy for already-reviewed pending plans. Touch: agent_workflows/ipd_schema.py (the metadata contract), agent_workflows/ipd_authoring.py (scaffold emits a `Scope-Paths` stub), agent_workflows/ipd_lint.py (parse + validate + checkpoint diagnostics), the implemented IPD structure/lifecycle spec (via `aw specs note` / the managed spec verb), and focused tests/test_ipd_schema.py + tests/test_ipd_authoring.py + tests/test_ipd_lint.py. Does NOT implement begin/finalize (Orders 03/04) or compare paths at runtime (that is finalize, Order 04); this child only defines and validates the declared contract.
-- Status: reviewed
+- Status: approved
 - Set: ipdgates
 - Order: 2
 - Highest E allocated: 04
@@ -12,6 +12,7 @@
 - Id: oorry1
 
 ## Workflow history
+- 2026-08-24 approved (aw set, --by-human): status set to approved
 - 2026-08-24 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. PR-001 (MEDIUM, correctness): E-01 now specifies Scope-Paths goes in META_RECOGNIZED only, NOT META_REQUIRED (adding to required would fail every pending plan at author phase and defeat the grandfather guarantee - verified ipd_schema.py:128,147 + check_metadata runs all phases). PR-002 (LOW, clarity): there is no 'approval' lint phase (CHECKPOINTS = author/pre-execution/pre-transition/post-transition/review-finalize); E-02 now fires at pre-execution + for approved/auto-approved status, in check_checkpoint not check_metadata. PR-003 (MEDIUM, UNDER-SCOPE right-sizing): split the old E-02 into E-02 (lint conditional gate) + E-03 (bulk 21-file cross-Set grandfathered stamping); tests renumbered to E-04; V-items re-bijected; watermark 03->04. PR-004 (LOW density): IPD-Z602 advisory on E-01 investigated and kept atomic (define-the-field is one coherent unit) with recorded rationale. Verified all 3 Set memberships (unifyfileio 6 + execset 6 + ipdgates 9 = 21) resolve to real on-disk plans; modules/tests/spec exist; OQ-01 resolved.
 
 - 2026-08-23 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created (decomposition of 39fz2x E-02).

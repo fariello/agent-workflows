@@ -2,7 +2,15 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 122 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 124 Sets; the full manifest is INDEX.json.
+
+## ipdrbugs
+
+- `a4j0ly` [executed] 01 executed/20260824-ipdrbugs-01-a4j0ly-fix-correctness-bugs-in-tools-ipdrunner-ipdrunner-py.ipd.md
+
+## ipdrunner
+
+- `pr2nd0` [pending] 01 pending/20260824-ipdrunner-01-pr2nd0-harden-ipdrunner-process-lifecycle-dependency-validation-and.ipd.md
 
 ## archiveage
 
@@ -250,16 +258,6 @@ Showing the 40 most-recent of 122 Sets; the full manifest is INDEX.json.
 - `ksim8l` [executed] 08 executed/20260817-awretrofit-08-ksim8l-install-scaffolder-flat.ipd.md
 - `7m458z` [executed] 09 executed/20260818-awretrofit-09-7m458z-managed-sections-regen.ipd.md
 - `oznad0` [executed] 10 executed/20260818-awretrofit-10-oznad0-install-selfheal-and-shims.ipd.md
-
-## awselect
-
-- `1qe40j` [executed] 00 executed/20260818-awselect-00-1qe40j-universal-selectors-and-multi-target-and-aw-show-id6-resolut.ipd.md
-- `axkviw` [executed] 01 executed/20260818-awselect-01-axkviw-shared-selector-resolver-module.ipd.md
-- `miggho` [executed] 02 executed/20260818-awselect-02-miggho-aw-show-resolves-records-id6-and-status-selection.ipd.md
-
-## awuntracked
-
-- `c32roo` [executed] 01 executed/20260818-awuntracked-01-c32roo-rename-local-lanes-to-untracked-with-catch-all-gitignore.ipd.md
 
 ## (singletons: no Set)
 

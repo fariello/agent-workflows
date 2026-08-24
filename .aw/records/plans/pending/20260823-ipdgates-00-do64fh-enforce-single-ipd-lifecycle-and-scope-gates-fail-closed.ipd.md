@@ -4,7 +4,7 @@
 - Kind: orchestrator
 - Concern: Verification of the executed IPD p7dqwz found that the executor delivered the requested product work but (a) committed an out-of-scope `tests/test_empty_state_ux.py` change in commit 57a70b0, outside p7dqwz's hard scope fence, and (b) left a terminal record carrying the generic `executed (aw set)` actor with no durable pre-execution / pre-transition gate evidence. Prose-only STOP rules did not contain the behavior, and `aw set executed` still provides an ungated terminal-transition bypass. This Set replaces the prose safeguards with machine-checkable, fail-closed lifecycle gates for the ordinary single-IPD path.
 - Scope: Orchestrates an eight-child Set that (1) owns the concrete p7dqwz test-scope residue, (2) adds a machine-readable `Scope-Paths` allowlist to the IPD schema with a grandfather policy, (3) adds a fail-closed `aw ipd begin` execution-start receipt, (4) adds an atomic `aw ipd finalize` terminal transaction, (5) adds finalize's two-way scope reconciliation (out-of-scope changed path -> recorded reason; in-scope-unmodified path -> acknowledgment; DECISIONS.md D141), (6) adds finalize rollback/failure semantics, (7) removes the raw CLI terminal-transition bypasses (delegating into finalize) and strengthens history-attribution lint, and (8) adds a LOCAL pre-commit gate that refuses a raw `git commit` of a plan-to-`executed` transition lacking a finalize receipt (defense-in-depth for the editor hand-edit / raw-commit path; local only, no CI). Touches agent_workflows/{ipd_schema.py,ipd_lint.py,ipd_authoring.py,status_set.py,cli.py,run_freeze.py} plus one narrowly-named new single-IPD lifecycle module, tests/test_empty_state_ux.py, focused tests/test_ipd_*.py + tests/test_status_set.py + a new lifecycle test file, the implemented IPD lifecycle spec (via its managed verb), .aw/system/workflows/ipd-lifecycle/, .aw/records/plans/README.md, CONTRIBUTING.md, and required CLI/help/installer parity surfaces. Does NOT implement autonomous Set execution (that is the reviewed execset Set), retrofit or edit any terminal IPD (including p7dqwz), rewrite the run ledger, or change product behavior unrelated to IPD execution fidelity.
-- Status: reviewed
+- Status: approved
 - Set: ipdgates
 - Order: 0
 - Highest E allocated: 02
@@ -12,6 +12,7 @@
 - Id: do64fh
 
 ## Workflow history
+- 2026-08-24 approved (aw set, --by-human): status set to approved
 - 2026-08-24 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL. PR-001 (HIGH, UNDER-SCOPE) fixed - the execution-contract lifecycle-move (gate item 5) still read the stale seven-child sequence 03->04->05->06->07, omitting Order 08; aligned it to the eight-child 03->04->05->06->07->08 sequence used everywhere else in the plan and added Order 08's local-hook + OQ-01 constraint. Verified p7dqwz commit 57a70b0 touches tests/test_empty_state_ux.py, DECISIONS D141, all 9 Set files on disk, and each child's blocking-OQ ledger state (Order 08 OQ-01 correctly OPEN).
 
 - 2026-08-23 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created as the decomposition of the REJECT-NEEDS-REPLAN single IPD 39fz2x (ipdfidelity-01), per its OQ-05 blueprint and the human's /plan-review decision to decompose into an orchestrated Set.

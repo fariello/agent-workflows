@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: The finalize transaction (Order 04) performs several steps (history append, status set, file move, index refresh, path-scoped commit, post-transition lint). If a step fails, a partial transition (e.g. plan moved + status set but no commit, or a post-commit lint failure) leaves the repo in an inconsistent, misleading state. Without explicit two-phase failure semantics, a failed finalize could look like a success or strand the plan half-transitioned.
 - Scope: Add crash-safe two-phase failure semantics to `aw ipd finalize` and its adversarial tests. Touch: the single-IPD lifecycle module (from Orders 03/04/05), tests/test_ipd_lifecycle_cli.py, and the lifecycle spec/workflow/help through their managed owners. DEPENDS ON Order 05: rollback wraps the COMPLETE finalize transaction, which by this point includes the forward transition (Order 04) AND the two-way scope reconciliation (Order 05); rollback must therefore preserve or unwind reconciliation-side effects too. Reuse the repository's canonical `.aw/state/runtime/` transaction-journal + lock pattern rather than an in-memory-only snapshot. Does NOT change the forward happy path (Order 04) or the reconciliation policy (Order 05) beyond wrapping them in recovery, and does NOT remove the raw bypass (Order 07).
-- Status: reviewed
+- Status: approved
 - Set: ipdgates
 - Order: 6
 - Highest E allocated: 04
@@ -12,6 +12,7 @@
 - Id: 3xh53a
 
 ## Workflow history
+- 2026-08-24 approved (aw set, --by-human): status set to approved
 
 - 2026-08-23 /plan-review (codex/gpt-5.6-sol): APPROVE WITH REVISIONS APPLIED. PR-001 (HIGH: the snapshot existed only conceptually/in memory and could not recover a crash or interruption; added an atomic runtime journal, finalize lock, idempotent recovery, and crash fault injection, reusing the layout-migration transaction pattern); PR-002 (HIGH: blindly restoring INDEX bytes and merely unstaging could clobber concurrent index/staging work; added exact owned-path Git-index preservation, deterministic index regeneration after plan restore, collision checks, and staged/disjoint concurrency tests); PR-003 (HIGH: post-commit INCOMPLETE had no executable resume contract and the receipt alone did not define commit-outcome ambiguity; added journal phases, commit-outcome classification, same-command post-commit resume, and fail-closed unknown-outcome handling); PR-004 (MEDIUM: E-01 bundled journal ownership, rollback, post-commit recovery, and observability into one pass; decomposed them into focused E/V items). No blocking OQ.
 - 2026-08-23 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created (split from 39fz2x E-04, the rollback/failure-semantics portion, per the reviewer's density finding).

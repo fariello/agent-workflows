@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Even after `aw ipd finalize` exists (Orders 04-06: forward transaction, scope reconciliation, rollback), the raw `aw set executed` / `aw ipd set executed` plan-terminal path still works - it moves the plan and writes a generic `executed (aw set)` actor with no receipt, no scope comparison, and no captured gate evidence. That is the exact bypass that produced the p7dqwz false-fidelity record. Until it is removed and the history lint rejects generic-actor terminal entries, the gates are optional.
 - Scope: Make raw plan-to-terminal transitions refuse and point to `aw ipd finalize`, and strengthen post-transition history lint. Touch: agent_workflows/status_set.py (refuse plan `executed`/terminal transitions, preserve nonterminal plan transitions and non-plan artifact terminal transitions), agent_workflows/cli.py (the `set`/`ipd set` routing + help), agent_workflows/ipd_lint.py (post-transition: require a non-generic actor/model + nonempty summary), and tests/test_status_set.py + tests/test_ipd_lint.py + tests/test_ipd_lifecycle_cli.py. Does NOT build begin/finalize (Orders 03/04) - it depends on them existing.
-- Status: reviewed
+- Status: approved
 - Set: ipdgates
 - Order: 7
 - Highest E allocated: 03
@@ -12,6 +12,7 @@
 - Id: wezhxg
 
 ## Workflow history
+- 2026-08-24 approved (aw set, --by-human): status set to approved
 - 2026-08-24 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE (no revisions needed); GO - PENDING HUMAN APPROVAL. No findings. Verified all material path:line claims: prompts share the executed/done tokens (status_set.py:47-59) so the record_type==plans discriminator is essential; validate_transition_allowed/apply_status_change with specs/backlog/plans branches (status_set.py:303,346,414,455,517) is the right delegation insertion point; detect_artifact_type (status_set.py:139); both 'aw set' and 'aw ipd set' route through status_set.run_set_command (cli.py:6537,6551) so one insertion covers both; _HISTORY_LINE_RE captures only the status token (ipd_lint.py:168) so actor/summary parsing is net-new; post-transition check only asserts an 'executed' history line exists (ipd_lint.py:712-728); exactly 4 existing 'executed (aw set)' records + p7dqwz's verbatim generic-actor line. OQ-01/02/03 resolved (human) and consistent with D141 (delegate). Lockout gate (contract 1a) correctly hard-MUSTs execution only after Orders 04/05/06 executed + finalize proven end-to-end. Right-sizing sound (E-01 delegation, E-02 attribution lint are distinct independent concerns; correctly separated). Sibling refs consistent post 06->07 renumber.
 
 - 2026-08-23 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created (decomposition of 39fz2x E-05).

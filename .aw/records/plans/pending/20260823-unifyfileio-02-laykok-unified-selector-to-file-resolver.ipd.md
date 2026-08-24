@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: There are three independent selector-to-file resolvers plus a path-only outlier, so the SAME `<selector>` (a path, id6, setid, status, bare stem, or filename substring) can resolve under one `aw` verb and fail (or resolve differently) under another. `selectors.resolve_one` matches id6/status/setid/substring but NOT a direct path or an exact stem; `artifact_rename.find_target_record` wraps `resolve_one` and adds path + exact-stem; `status_set.match_selector` reimplements path/id6/setid/substring with EXACT id6/setid and no status; `aw backlog set` accepts a literal path ONLY. This is the "one unified way to FIND files" gap.
 - Scope: Create ONE selector resolver and route every verb through it. Touch: agent_workflows/selectors.py (`resolve_one`, `resolve_selectors`, `record_dirs`), agent_workflows/artifact_rename.py (`find_target_record` -> thin shim), agent_workflows/status_set.py (`match_selector` -> thin shim), agent_workflows/backlog.py (`run_set` path-only branch -> use the resolver), and the per-area id6-only finders (`plans_refs._find_plan_by_id`, `research_refs._find_by_id6`, `plans_archive._find_targets`) which should delegate to the unified resolver's id6/setid path. Also the CLI call sites (`cli.py:4979,5211,5262,5304`). Depends on the Order 01 naming authority for stem/name parsing.
-- Status: reviewed
+- Status: approved
 - Set: unifyfileio
 - Order: 2
 - Highest E allocated: 07
@@ -12,6 +12,7 @@
 - Id: laykok
 
 ## Workflow history
+- 2026-08-24 approved (aw set, --by-human): status set to approved
 
 - 2026-08-23 draft (Gabriele Fariello): created.
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. PR-001 (resolvers diverge in exact-vs-substring match semantics per kind, not just kind coverage - E-02 now specifies exact for kinds 2-5, substring only at 6; E-01/V-01/V-02 assert semantics); PR-002 (cited orchestrator Module-placement principle: resolver in selectors.py may import naming authority, not the reverse); PR-003 (denied-kind selector must return a clear rejection, never silent no-match - rubric F). OQ-01 resolved by human with a kind-aware refinement: read-only verbs list; mutating verbs treat a setid multi-match as an intentional multi-target (no --force), a filename-substring multi-match as ambiguous (refuse unless --force), and a unique-id (id6/path/stem) multi-match as a collision (always refuse); added E-07/V-07 + --force. Verified resolver claims at selectors.py:91-114, status_set.py:241-289, backlog.py:381-393.

@@ -4,7 +4,7 @@
 - Kind: orchestrator
 - Concern: Execute complete approved IPD Sets with maximal safe parallelism and almost no interruption.
 - Scope: Set planning, decision/defer records, scheduler, model routing, host launchers, workflow/skill packaging, and conformance.
-- Status: reviewed
+- Status: approved
 - Set: execset
 - Order: 0
 - Highest E allocated: 03
@@ -12,6 +12,7 @@
 - Id: 5ahblp
 
 ## Workflow history
+- 2026-08-24 approved (aw set, --by-human): status set to approved
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-005 (added full execution contract to orchestrator gate). Reuse premise verified: awoptimize Orders 00-18 present in executed/.
 - 2026-08-23 to-review (aw set): Authored from current runtime, lifecycle, isolation, and cross-host capability research; ready for plan review.
 

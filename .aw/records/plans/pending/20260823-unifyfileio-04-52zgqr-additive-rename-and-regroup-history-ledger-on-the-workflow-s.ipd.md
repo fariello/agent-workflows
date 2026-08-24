@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: The `aw` rename/regroup engines keep NO durable application-level from->to filename history; the only rename history is git's own (`git mv` + `git log --follow`). A repo-wide grep for `from_name|to_name|rename_ledger|previous_name` returns zero matches. This means a future `aw` audit/undo verb, or a "which Sets did this artifact move through" query, must reconstruct everything from git, which records moves only as opaque path changes and cannot see external/uncommitted references. There IS already a durable, git-tracked, id6-keyed, append-only sidecar (`.aw/records/history.jsonl`) - but it records status/workflow events only, never renames.
 - Scope: Add an ADDITIVE rename/regroup record type to the existing sidecar and emit it from the (by then unified) rename path. Touch: agent_workflows/record_history.py (the `append`/schema + a small `append_rename` helper and a reader filter), and ONE call site on the unified rename/regroup engine delivered by Order 03 (or, if executed before the engine is unified, the current `plans_refs.apply_renames`, `research_refs._apply_renames`, and `artifact_rename.run_rename_generic`/`run_group_generic`). Plus tests. Does NOT make the ledger authoritative for anything: id6 already guarantees citation stability and git already records moves, so the ledger is a query/audit convenience only.
-- Status: reviewed
+- Status: approved
 - Set: unifyfileio
 - Order: 4
 - Highest E allocated: 06
@@ -12,6 +12,7 @@
 - Id: 52zgqr
 
 ## Workflow history
+- 2026-08-24 approved (aw set, --by-human): status set to approved
 
 - 2026-08-23 draft (Gabriele Fariello): created.
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. PR-001 (HIGH: `record_history.append` RAISES on non-id6 - E-01 now honors that contract and confines the synthetic-key relaxation to Case 3); PR-002 (HIGH: `plans` is excluded from sidecar inline-history MIGRATION, but rename records are distinct - E-02 now records plans too and requires confirming no migration/lint interaction); PR-003 (schema/reader backward-compat: V-01 asserts readers + migration dedup tolerate the new keys). OQ-01 resolved by human after reviewer correction (I initially wrongly recommended skipping id6-less): RECORD EVERY rename by endpoint case - id6->id6 and id6-less->id6 (the valuable migration record) key on the real id6; both-id6-less uses a synthetic `key_kind:"synthetic"` key. Split the two id6-less mechanisms into E-03 (Case 2, no writer change) and E-05 (Case 3, synthetic key), clearing an IPD-Z602 density advisory. Verified record_history.py:45-56 (id6 required), :94-106 (plans excluded), :199 (migration dedup key), and git_mv sites plans_refs.py:356/research_refs.py:254/artifact_rename.py:396,528.

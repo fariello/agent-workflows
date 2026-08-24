@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: When the executed IPD p7dqwz shipped its E-02/E-03 (commit 57a70b0), it ALSO edited `tests/test_empty_state_ux.py` (added `XDG_CONFIG_HOME` isolation to `ReadListVerbsEmptyStateSurfaceTests` setUp/tearDown) - OUTSIDE p7dqwz's `touch ONLY` scope fence, which named only `artifact_types.py`, `artifact_rename.py` output, the research index, docs, and `tests/test_artifact_group.py`. The change is useful (host-global Agent Workflows config can contaminate an isolation test) but was committed without authority and is currently unowned by any plan.
 - Scope: Own that change prospectively and prove its necessity. Touch ONLY `tests/test_empty_state_ux.py`. Do NOT alter any application file, and do NOT edit the executed p7dqwz record.
-- Status: reviewed
+- Status: approved
 - Set: ipdgates
 - Order: 1
 - Highest E allocated: 01
@@ -12,6 +12,7 @@
 - Id: v6zie5
 
 ## Workflow history
+- 2026-08-24 approved (aw set, --by-human): status set to approved
 
 - 2026-08-23 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created (decomposition of 39fz2x E-01).
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (made the without-isolation branch a DETERMINISTIC planted-fake-config test - not unset/real-HOME - so the regression is host-independent and truly load-bearing; strengthened E-01 + V-01), PR-002 (require try/finally or mock.patch.dict so XDG_CONFIG_HOME cannot leak into sibling tests on failure). All factual claims verified: commit 57a70b0 added the XDG isolation to ReadListVerbsEmptyStateSurfaceTests outside p7dqwz's scope fence, the isolation is still present (tests/test_empty_state_ux.py:225-238), and it is unowned by any executed plan.

@@ -4,7 +4,7 @@
 - Kind: orchestrator
 - Concern: The agent_workflows package has THREE separate concerns each implemented multiple times independently, so `aw` verbs disagree on how to find a file, how to detect a reference to a file, and how to build/validate a filename. This causes real inconsistencies: the same `<selector>` can resolve under one verb and fail under another; a `research` rename orphans stem citations that a `plans` rename would rewrite; and the filename grammar is re-encoded in ~6 regexes plus triplicated facet tables that must be hand-synchronized.
 - Scope: Orchestrates a five-child Set that consolidates (1) filename NAMING/grammar (build + validate), (2) selector-to-file RESOLUTION, and (3) reference MATCHING/rewriting + dangling-citation checking into one canonical library each, then (4) adds an additive, non-authoritative rename/regroup history ledger, and (5) enforces the filename identity-slot id6-uniqueness invariant (DECISIONS.md D140) in `aw check`/`aw doctor` and fixes the one existing violator. Touches agent_workflows/{artifact_core.py,artifact_types.py,artifact_rename.py,plans_refs.py,research_refs.py,research_contract.py,plans_index.py,research_index.py,selectors.py,status_set.py,check_engine.py,ipd_lint.py,ipd_authoring.py,doctor.py,backlog.py,specs.py,record_history.py}, .aw/system/workflows/setup-repo/tools/normalize_plan_names.py, one on-disk walkthrough (Order 05), and the test suite. Does NOT change any on-disk filename grammar, citation syntax, or manifest schema in a user-visible way (pure internal consolidation, byte-for-byte behavior preserved) except where a child explicitly fixes a divergence and documents it (Order 01 migrates walkthroughs to the facet form; Order 05 renames the one identity-slot violator).
-- Status: reviewed
+- Status: approved
 - Set: unifyfileio
 - Order: 0
 - Highest E allocated: 04
@@ -12,6 +12,7 @@
 - Id: g6mbht
 
 ## Workflow history
+- 2026-08-24 approved (aw set, --by-human): status set to approved
 
 - 2026-08-23 draft (Gabriele Fariello): created.
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED (orchestrator only; the four children were read as evidence, not individually reviewed - use /aw plan-review-long for the full 5-plan batch). PR-002 (added a binding Module-placement principle + import-direction cross-IPD test, resolving the core-vs-naming placement inconsistency between Order 01 and Order 03); PR-003 (E-01 + completion criteria now require each child's single blocking OQ be human-resolved before that child executes); PR-001 (review-completeness: children not individually reviewed here - recommended next step). Verified all four children exist with cited Ids/orders and lint conforming.

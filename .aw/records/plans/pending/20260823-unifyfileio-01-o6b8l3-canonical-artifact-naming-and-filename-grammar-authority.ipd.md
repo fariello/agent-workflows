@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: The artifact filename grammar (`YYYYMMDD-<setid>-NN-<id6>-<slug>[.<facet>].md` and the legacy `YYYYMMDD-HHMM-NN-<slug>` / `<slug>-walkthrough.md` / dated-slug forms) is re-encoded in at least six independent regex/format sites across five modules, plus the `.<type>.md` facet enum is triplicated. These copies must be hand-synchronized; they have already drifted (e.g. walkthroughs validate against a `.walkthrough.md` facet form the builder never produces). There is no single authority that BOTH builds AND validates a name for every artifact type.
 - Scope: Create ONE canonical naming/grammar authority module and route every builder and validator through it. Touch: agent_workflows/artifact_rename.py (the `_UNIFORM_RE`/`_LEGACY_TIMESTAMP_RE`/`_WALKTHROUGH_*_RE`/`_DATED_SLUG_FACET_RE` regexes + `compute_target_name`), agent_workflows/plans_refs.py (`_CLUSTERED_RE`, `_BARE_STEM_RE`, `clustered_name`, `ARTIFACT_TYPE_FACETS`), agent_workflows/research_contract.py (`_CORE_RE`, `parse_name`, `format_name`), agent_workflows/plans_index.py (the inline clustered regex in `check_drift`), agent_workflows/check_engine.py (`_TYPE_FACET`, `check_names`), agent_workflows/status_set.py (suffix map / `detect_artifact_type`), agent_workflows/ipd_authoring.py (name derivation), .aw/system/workflows/setup-repo/tools/normalize_plan_names.py (`_NEW_RE`, `_CLUSTERED_RE`, `_LEGACY_RES`, `_ARTIFACT_TYPE_FACETS`, `is_conformant`, `parse_name`), and the naming tests. Does NOT change the grammar itself - byte-for-byte identical names must be produced/accepted.
-- Status: reviewed
+- Status: approved
 - Set: unifyfileio
 - Order: 1
 - Highest E allocated: 06
@@ -12,6 +12,7 @@
 - Id: o6b8l3
 
 ## Workflow history
+- 2026-08-24 approved (aw set, --by-human): status set to approved
 
 - 2026-08-23 draft (Gabriele Fariello): created.
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. PR-001 (closed-vs-open facet policy divergence between plans_refs._CLUSTERED_RE and artifact_rename._UNIFORM_RE - added OQ-03 + E-02 guidance); PR-002 (normalize_plan_names is a stdlib-only standalone bootstrap tool - added OQ-04 + E-04 constraint); PR-003 (strengthened V-05 single-source to include facet policy). OQ-02 resolved by human: MIGRATE walkthroughs to .walkthrough.md facet form (added E-06/V-06 migration). OQ-04 resolved by human: normalize_plan_names imports the authority (E-04 must verify setup-repo pre-install import path). Accepted advisory IPD-Z602 on E-04 (single cohesive concern - validator re-routing - with two OQ-gated constraints, not independent deliverables). Verified grammar-site claims at artifact_rename.py:20-38, plans_refs.py:44-55, check_engine.py:29-37, normalize_plan_names.py:107-114.

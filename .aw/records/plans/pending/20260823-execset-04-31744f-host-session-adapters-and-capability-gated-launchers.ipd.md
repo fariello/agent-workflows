@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Launch structured fresh workers across coding hosts without duplicating semantics.
 - Scope: Generic runner, OpenCode/Codex/Claude/Antigravity/Kiro/Gemini adapters, capability evidence, structured streams, and fresh verification.
-- Status: reviewed
+- Status: approved
 - Set: execset
 - Order: 4
 - Highest E allocated: 03
@@ -12,6 +12,7 @@
 - Id: 31744f
 
 ## Workflow history
+- 2026-08-24 approved (aw set, --by-human): status set to approved
 - 2026-08-23 /plan-review focused security (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH: mandate shell=False/argv worker spawn - avoid the shell=True probe pattern), PR-002 (reuse security_hardening.py boundaries, not net-new), PR-003 (map 6 net-new worker states to ledger performed|blocked|failed), PR-004 (timeout/cancellation is net-new), PR-005 (name reused anti-greenwashing + distinct-session validators to wire host output into). V-01 strengthened.
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (agy_run.py does not exist -> use agy_verifier.py), PR-004 (corrected host matrix facts: 7 rows incl. Copilot/Cursor, Kiro row missing).
 - 2026-08-23 to-review (aw set): Authored from current runtime, lifecycle, isolation, and cross-host capability research; ready for plan review.

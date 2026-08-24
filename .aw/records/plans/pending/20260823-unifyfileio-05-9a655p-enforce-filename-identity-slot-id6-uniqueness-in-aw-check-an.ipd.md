@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: `aw check`/`aw doctor` cannot detect a foreign id6 sitting in a file's FILENAME identity slot. `check_engine.check_collisions` reads only the frontmatter `- Id:` line (`_ID_LINE_RE`, `check_engine.py:199,237`) and never inspects the `YYYYMMDD-<setid>-NN-<id6>` slot, so a walkthrough (or any artifact) that reuses another artifact's id6 in its own identity slot AND declares no `- Id:` is invisible to the check. That is exactly how `20260823-artifactenginefix-01-p7dqwz-execution.walkthrough.md` shipped with the plan `p7dqwz`'s id6 in its slot while `aw check` reported clean. DECISIONS.md D140 establishes that the identity-slot id6 is the unique identity of exactly one file; this plan makes the tooling enforce that invariant, and fixes the one existing violation.
 - Scope: Extend the collision check so the id6 in a file's identity-slot MUST equal that file's own declared identity and MUST be globally unique across all record files, mirroring `tmp/find_id6_dupes.py`; surface it in `aw check` and `aw doctor` with a remediation; and rename the one offending `p7dqwz` walkthrough to its own id6 with a typed source-plan reference. Touch: `agent_workflows/check_engine.py` (`check_collisions`), `agent_workflows/doctor.py` (remediation mapping for the new rule), `tests/` (new coverage), and the one on-disk walkthrough. Depends on Order 01 (grammar authority: to parse the identity slot from a filename) - do not re-implement slot parsing here.
-- Status: reviewed
+- Status: approved
 - Set: unifyfileio
 - Order: 5
 - Highest E allocated: 03
@@ -12,6 +12,7 @@
 - Id: 9a655p
 
 ## Workflow history
+- 2026-08-24 approved (aw set, --by-human): status set to approved
 
 - 2026-08-23 draft (Gabriele Fariello): created (per DECISIONS.md D140; closes the enforcement gap that let a foreign id6 in a filename slot pass `aw check`).
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Verified all material claims: check_engine.check_collisions reads id6 only from `_ID_LINE_RE` (check_engine.py:199,237, no slot inspection); the p7dqwz walkthrough exists sharing p7dqwz's slot id6 (aw find shows two files); DECISIONS.md D140 exists and mandates this; tmp/find_id6_dupes.py exists (gitignored); doctor.build_remediation is the extension point. PR-001 (E-03 double-touch with Order 01 E-06 walkthrough migration - added explicit sequencing: E-03 runs after E-06, re-resolves the path, STOPs if E-06 hasn't run); PR-002 (tightened E-01 to a precise (a)/(b) rule so it flags the reuse case but never mass-flags conformant files; V-01 asserts no-mass-flag); PR-003 (marked tmp/ script disposable; durable enforcement is the check+tests); PR-004 (canonical typed field `Target-Id:` chosen by human, OQ-02; spec-sync records it).

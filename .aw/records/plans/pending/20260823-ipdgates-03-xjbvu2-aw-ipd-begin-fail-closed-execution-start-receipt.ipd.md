@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: There is no durable, inspectable proof that an IPD passed the pre-execution gate at a known base HEAD before work began. p7dqwz's terminal record retained no pre-execution evidence, so scope/lifecycle claims could not be independently checked after the fact. A scope check performed only against the final working tree is insufficient (product changes may already be committed; unrelated concurrent edits may exist), so the allowlist and base MUST be frozen BEFORE execution.
 - Scope: Add `aw ipd begin <plan> --actor <agent/model>` as the authoritative single-IPD execution entry and its receipt. Touch: a new narrowly-named single-IPD lifecycle module (e.g. `agent_workflows/ipd_lifecycle.py`), agent_workflows/cli.py (register the `ipd begin` verb + flags + help), reuse agent_workflows/run_freeze.py (`freeze_requirements`), agent_workflows/ipd_lint.py (invoke the pre-execution phase), and a new tests/test_ipd_lifecycle_cli.py. Does NOT implement finalize (Order 04) or remove bypasses (Order 07); it produces only the receipt that finalize will later require.
-- Status: reviewed
+- Status: approved
 - Set: ipdgates
 - Order: 3
 - Highest E allocated: 03
@@ -12,6 +12,7 @@
 - Id: xjbvu2
 
 ## Workflow history
+- 2026-08-24 approved (aw set, --by-human): status set to approved
 
 - 2026-08-23 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created (decomposition of 39fz2x E-03).
 - 2026-08-23 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED. Verified run_freeze.freeze_requirements (run_freeze.py:131, fail-closed) and the ipd_lint pre-execution checkpoint (ipd_lint.py:668). PR-001/PR-002 (resolved OQ-01's LOCATION half from repo evidence - `.aw/state/` is the documented gitignored home for "transaction journals/receipts", .gitignore:55-60 - rather than asking the human; corrected Step-0 which cited only workflow-artifacts/). PR-003 + OQ-01 lifetime resolved by human after a good challenge ("why the anchor? won't it thrash my multi-agent workflow?"): the base-HEAD anchor is needed to attribute changes to THIS execution in a multi-plan concurrent worktree, but my initial "stale when HEAD moved" rec WOULD have thrashed concurrent agents - so the resolved rule is PERSIST with a PATH-OVERLAP collision guard (HEAD movement never invalidates; only a plan-digest change or an intervening commit touching this plan's Scope-Paths does). This preserves the concurrent multi-agent workflow and feeds Order 04 OQ-01 ("this execution's changes" = diff restricted to Scope-Paths since base). E-01/V-01/gate updated.
