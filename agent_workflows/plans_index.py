@@ -8,7 +8,7 @@ name-vs-metadata mismatch on a clustered name, stale generated view, dangling pl
 
 Consumes the shared core (Order 01: id6, Drift shape, dangling detector) and the required plan
 ``Id`` (Order 02). The scan is RECURSIVE so plans that Order 05 moves into
-``<disposition>/YYYYMM-Www/`` shards remain visible; disposition is the TOP-LEVEL directory even
+``<disposition>/YYYYMM/`` shards remain visible; disposition is the TOP-LEVEL directory even
 when a plan sits in a shard subdir. Complements (does not replace) the disposition-grouped
 ``STATUS.md`` from ``plans.py``.
 """
@@ -79,7 +79,7 @@ def scan_plans(plans_dir: Path) -> Tuple[List[PlanEntry], List[_core.Drift]]:
     """Recursively scan every plan under ``plans_dir``; return (entries, drift).
 
     Disposition is the first path component under ``plans_dir`` (so a plan inside a
-    ``<disposition>/YYYYMM-Www/`` shard keeps its top-level disposition). Drift here covers the
+    ``<disposition>/YYYYMM/`` shard keeps its top-level disposition). Drift here covers the
     metadata classes (missing/invalid Id); name-vs-metadata and stale-view/dangling are added by
     ``check_drift``.
     """

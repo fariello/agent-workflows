@@ -2,12 +2,16 @@
 
 # Research index
 
-Showing the most-recent 40 of 71 hot docs (archive excluded).
+Showing the most-recent 40 of 75 hot docs (archive excluded).
 
 ## Needs addressing (intake)
 
 - `8it88r` 20260823-actorenv-00-8it88r-deriving-actor-identity-host-and-model-from-coding-agent-environments.research-prompt.md - How to auto-derive a trustworthy actor (host + model) from the environment across coding hosts so aw attribution does not depend on the agent remembering --actor
 - `9bd3j8` 20260823-agentadhere-00-9bd3j8-ensuring-agent-process-adherence-across-heterogeneous-coding-agents.research-prompt.md - How to make agent-workflow process steps (aw set, aw ipd begin/finalize, IPD authoring, path-scoped commits) reliably adhered-to by untrained heterogeneous coding agents
+- `rtq2vh` 20260823-agentadhere-01-rtq2vh-ensuring-agent-process-adherence-across-heterogeneous-coding-agents.gemini31pro.research-report.md - Why soft prose fails; defense-in-depth for heterogeneous coding agents (Gemini 3.1 Pro)
+- `2mpcqb` 20260823-agentadhere-02-2mpcqb-ensuring-agent-process-adherence-across-heterogeneous-coding-agents.gpt56medium.research-report.md - Why soft prose fails; defense-in-depth for heterogeneous coding agents (ChatGPT 5.6 Sol Medium)
+- `ieyftv` 20260823-agentadhere-03-ieyftv-ensuring-agent-process-adherence-across-heterogeneous-coding-agents.sonnet5.research-report.md - Why soft prose fails; defense-in-depth for heterogeneous coding agents (Sonnet 5)
+- `bu9yij` 20260823-agentadhere-04-bu9yij-ensuring-agent-process-adherence-across-heterogeneous-coding-agents.reconciliation.findings.md - Aggregate finding: layered defense-in-depth for reliable process adherence (definitive synthesis of the 3 model reports)
 - `yq6aub` 20260821-awoptimize-00-yq6aub-agent-workflows-optimal-architecture-research-and-ipd.research-prompt.md - Originating prompt: optimal-architecture research + conformant IPD Set for the reusable coding-agent workflows (run on GPT 5.6 Sol Extra High)
 - `y1eb0q` 20260821-awoptimize-01-y1eb0q-agent-workflows-optimal-architecture.research-report.md - Optimal architecture research, workflow inventory, false-completion threat model, matrices, and recommendation
 - `f6i3z2` 20260821-awoptimize-02-f6i3z2-agent-workflows-optimal-architecture-evidence.reference-research.md - Evidence and source appendix: source ledger, repository evidence, experiment ledger, unverified claims, and probes
@@ -17,24 +21,29 @@ Showing the most-recent 40 of 71 hot docs (archive excluded).
 ## Most recent
 
 - `8it88r` [intake] 20260823-actorenv-00-8it88r-deriving-actor-identity-host-and-model-from-coding-agent-environments.research-prompt.md - How to auto-derive a trustworthy actor (host + model) from the environment across coding hosts so aw attribution does not depend on the agent remembering --actor
+- `2mpcqb` [intake] 20260823-agentadhere-02-2mpcqb-ensuring-agent-process-adherence-across-heterogeneous-coding-agents.gpt56medium.research-report.md - Why soft prose fails; defense-in-depth for heterogeneous coding agents (ChatGPT 5.6 Sol Medium)
 - `9bd3j8` [intake] 20260823-agentadhere-00-9bd3j8-ensuring-agent-process-adherence-across-heterogeneous-coding-agents.research-prompt.md - How to make agent-workflow process steps (aw set, aw ipd begin/finalize, IPD authoring, path-scoped commits) reliably adhered-to by untrained heterogeneous coding agents
+- `bu9yij` [intake] 20260823-agentadhere-04-bu9yij-ensuring-agent-process-adherence-across-heterogeneous-coding-agents.reconciliation.findings.md - Aggregate finding: layered defense-in-depth for reliable process adherence (definitive synthesis of the 3 model reports)
+- `ieyftv` [intake] 20260823-agentadhere-03-ieyftv-ensuring-agent-process-adherence-across-heterogeneous-coding-agents.sonnet5.research-report.md - Why soft prose fails; defense-in-depth for heterogeneous coding agents (Sonnet 5)
+- `rtq2vh` [intake] 20260823-agentadhere-01-rtq2vh-ensuring-agent-process-adherence-across-heterogeneous-coding-agents.gemini31pro.research-report.md - Why soft prose fails; defense-in-depth for heterogeneous coding agents (Gemini 3.1 Pro)
 - `mqqk8e` [reference] 20260823-execset-00-mqqk8e-exec-set-architecture.gpt56.research-report.md - Architecture for autonomous parallel execution of approved IPD sets across supported coding hosts.
 - `effzzi` [intake] 20260821-awoptimize-03-effzzi-agent-workflows-optimal-architecture-ipd-index.roadmap.md - Dependency-ordered IPD index, critical path, execution guidance, and human gates for the awoptimize plan Set
 - `f6i3z2` [intake] 20260821-awoptimize-02-f6i3z2-agent-workflows-optimal-architecture-evidence.reference-research.md - Evidence and source appendix: source ledger, repository evidence, experiment ledger, unverified claims, and probes
 - `y1eb0q` [intake] 20260821-awoptimize-01-y1eb0q-agent-workflows-optimal-architecture.research-report.md - Optimal architecture research, workflow inventory, false-completion threat model, matrices, and recommendation
 - `yq6aub` [intake] 20260821-awoptimize-00-yq6aub-agent-workflows-optimal-architecture-research-and-ipd.research-prompt.md - Originating prompt: optimal-architecture research + conformant IPD Set for the reusable coding-agent workflows (run on GPT 5.6 Sol Extra High)
-- `032jgo` [reference] reference/202608-W33/20260813-awnamespace-00-032jgo-aw-slash-command-namespace.research-prompt.md - Originating prompt for the comparison set.
+- `032jgo` [reference] reference/202608/20260813-awnamespace-00-032jgo-aw-slash-command-namespace.research-prompt.md - Originating prompt for the comparison set.
 - `2bodwq` [active] 20260813-awnamespace-04-2bodwq-aw-slash-command-namespace.reconciliation.reconciliation-report.md - Deciding doc. Adopt a single /aw dispatcher fed by one host-neutral verb registry (public syntax /aw <verb> [args...]); do not install /aw-<verb> flat commands by default, offer them only per selected compatibility-risk host.
-- `jc105r` [reference] reference/202608-W33/20260813-awnamespace-03-jc105r-aw-slash-command-namespace.gemini31pro.research-report.md - gemini31pro report.
-- `obveju` [reference] reference/202608-W33/20260813-awnamespace-01-obveju-aw-slash-command-namespace.gpt56medium.research-report.md - gpt56medium report.
-- `og3el1` [reference] reference/202608-W33/20260813-awnamespace-02-og3el1-aw-slash-command-namespace.sonnet5.research-report.md - sonnet5 report.
+- `jc105r` [reference] reference/202608/20260813-awnamespace-03-jc105r-aw-slash-command-namespace.gemini31pro.research-report.md - gemini31pro report.
+- `obveju` [reference] reference/202608/20260813-awnamespace-01-obveju-aw-slash-command-namespace.gpt56medium.research-report.md - gpt56medium report.
+- `og3el1` [reference] reference/202608/20260813-awnamespace-02-og3el1-aw-slash-command-namespace.sonnet5.research-report.md - sonnet5 report.
 - `6zf5av` [intake] 20260810-gemini-actually-validate-playbook-00-6zf5av-gemini-actually-validate-playbook.gpt56medium.research-report.md - Gemini/agy-specific controls to make headless Gemini actually run validation and stop green-washing
-- `bv6n38` [reference] reference/202608-W32/20260808-attention-registry-cross-tree-status-and-whatnext-00-bv6n38-attention-registry-cross-tree-status-and-whatnext.survey.md - Design survey for a cross-tree attention registry: standardized status vocabulary, deterministic aw attention scanner+writer, and whatnext-as-reader
-- `b1msgn` [reference] reference/202608-W32/20260808-attention-registry-spec-review-03-b1msgn-attention-registry-spec-review.reconciliation.reconciliation-report.md - Consolidated reconciliation of the gpt-5.6/Gemini/Sonnet-5 reviews of the attention-registry spec
-- `fc2n5j` [reference] reference/202608-W32/20260808-attention-registry-spec-review-02-fc2n5j-attention-registry-spec-review.sonnet5.assessment.md - Sonnet-5 review of the attention-registry spec
-- `krgxp6` [reference] reference/202608-W32/20260808-attention-registry-spec-review-00-krgxp6-attention-registry-spec-review.gpt56.assessment.md - gpt-5.6 (Codex) review of the attention-registry spec
-- `tgmqnb` [reference] reference/202608-W32/20260808-attention-registry-spec-review-01-tgmqnb-attention-registry-spec-review.gemini31pro.assessment.md - Gemini 3.1 Pro review of the attention-registry spec
-- `w0ilhj` [reference] reference/202608-W32/20260808-attention-registry-spec-review-04-w0ilhj-attention-view-spec-plan-review.gpt56high.assessment.md - gpt-5.6-high plan-review of the revised attention-view spec (REVIEWED - OPEN QUESTIONS; PR-001..PR-005)
+- `bv6n38` [reference] reference/202608/20260808-attention-registry-cross-tree-status-and-whatnext-00-bv6n38-attention-registry-cross-tree-status-and-whatnext.survey.md - Design survey for a cross-tree attention registry: standardized status vocabulary, deterministic aw attention scanner+writer, and whatnext-as-reader
+- `b1msgn` [reference] reference/202608/20260808-attention-registry-spec-review-03-b1msgn-attention-registry-spec-review.reconciliation.reconciliation-report.md - Consolidated reconciliation of the gpt-5.6/Gemini/Sonnet-5 reviews of the attention-registry spec
+- `fc2n5j` [reference] reference/202608/20260808-attention-registry-spec-review-02-fc2n5j-attention-registry-spec-review.sonnet5.assessment.md - Sonnet-5 review of the attention-registry spec
+- `krgxp6` [reference] reference/202608/20260808-attention-registry-spec-review-00-krgxp6-attention-registry-spec-review.gpt56.assessment.md - gpt-5.6 (Codex) review of the attention-registry spec
+- `tgmqnb` [reference] reference/202608/20260808-attention-registry-spec-review-01-tgmqnb-attention-registry-spec-review.gemini31pro.assessment.md - Gemini 3.1 Pro review of the attention-registry spec
+- `w0ilhj` [reference] reference/202608/20260808-attention-registry-spec-review-04-w0ilhj-attention-view-spec-plan-review.gpt56high.assessment.md - gpt-5.6-high plan-review of the revised attention-view spec (REVIEWED - OPEN QUESTIONS; PR-001..PR-005)
+- `qcxc6c` [reference] 20260807-codexfit-00-qcxc6c-codex-cli-gpt-5.findings.md - Migrated from 20260807-2053-01-20260726-skills-00-vdz4ui-codex-cli-gpt-5.findings.md.
 - `5zczmo` [reference] 20260731-chkplace-04-5zczmo-checklist-placement-and-instruction-audit.findings.md - Migrated from 20260731-chkplace-04-5zczmo-checklist-placement-and-instruction-audit.findings.md.
 - `72n26s` [reference] 20260731-chkplace-02-72n26s-checklist-placement-and-instruction-audit-report.gpt56medium.research-report.md - Migrated from 20260731-chkplace-02-72n26s-checklist-placement-and-instruction-audit-report.gpt56medium.research-report.md.
 - `80eqy0` [reference] 20260731-chkplace-03-80eqy0-checklist-placement-and-instruction-audit-report.sonnet5.research-report.md - Migrated from 20260731-chkplace-03-80eqy0-checklist-placement-and-instruction-audit-report.sonnet5.research-report.md.
@@ -51,8 +60,3 @@ Showing the most-recent 40 of 71 hot docs (archive excluded).
 - `cnkyvn` [reference] 20260726-awdeliv-00-cnkyvn-aw-delivery-and-clean-delta.gpt56.research-report.md - Migrated from 20260726-awdeliv-00-cnkyvn-aw-delivery-and-clean-delta.gpt56.research-report.md.
 - `lc6898` [reference] 20260726-awdeliv-03-lc6898-aw-delivery-and-clean-delta.sonnet5.research-report.md - Migrated from 20260726-awdeliv-03-lc6898-aw-delivery-and-clean-delta.sonnet5.research-report.md.
 - `uxq2tt` [reference] 20260726-awdeliv-04-uxq2tt-aw-delivery-and-clean-delta.reconciliation.reconciliation-report.md - Migrated from 20260726-awdeliv-04-uxq2tt-aw-delivery-and-clean-delta.reconciliation.reconciliation-report.md.
-- `ypmm6z` [reference] 20260726-awdeliv-01-ypmm6z-aw-delivery-and-clean-delta.gemini36flash.research-report.md - Migrated from 20260726-awdeliv-01-ypmm6z-aw-delivery-and-clean-delta.gemini36flash.research-report.md.
-- `z0wxwa` [reference] 20260726-awdeliv-02-z0wxwa-aw-delivery-and-clean-delta.gemini31pro.research-report.md - Migrated from 20260726-awdeliv-02-z0wxwa-aw-delivery-and-clean-delta.gemini31pro.research-report.md.
-- `36rfym` [reference] 20260726-hostprobe-04-36rfym-external-delivery-host-probe.reconciliation.reconciliation-report.md - Migrated from 20260726-hostprobe-04-36rfym-external-delivery-host-probe.reconciliation.reconciliation-report.md.
-- `8i9py4` [reference] 20260726-hostprobe-01-8i9py4-external-delivery-host-probe.gemini36flash.research-report.md - Migrated from 20260726-hostprobe-01-8i9py4-external-delivery-host-probe.gemini36flash.research-report.md.
-- `dkxesq` [reference] 20260726-hostprobe-02-dkxesq-external-delivery-host-probe.gemini31pro.research-report.md - Migrated from 20260726-hostprobe-02-dkxesq-external-delivery-host-probe.gemini31pro.research-report.md.

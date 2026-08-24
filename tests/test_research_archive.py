@@ -80,8 +80,8 @@ class TransitionTests(unittest.TestCase):
     def test_promote_to_reference_moves_to_weekly_shard_keeps_id(self):
         mv, err = A.plan_transition(self.rroot, "aaaaaa", "reference")
         self.assertIsNone(err)
-        # 20260701 -> ISO week 27 -> shard 202607-W27
-        self.assertIn("reference/202607-W", mv.new_path.as_posix())
+        # 20260701 -> monthly shard 202607
+        self.assertIn("reference/202607", mv.new_path.as_posix())
         A.apply_moves(self.root, self.rroot, [mv])
         # File now lives in the shard, id unchanged, status rewritten.
         moved = list((self.rroot / R.REFERENCE_DIR).rglob("*aaaaaa*.md"))
@@ -325,7 +325,7 @@ class IndexRefreshTests(unittest.TestCase):
 
 class ShardDateTests(unittest.TestCase):
     def test_shard_for_date(self):
-        self.assertEqual(R.shard_for_date("20260701"), "202607-W27")
+        self.assertEqual(R.shard_for_date("20260701"), "202607")
 
 
 if __name__ == "__main__":

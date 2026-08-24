@@ -4015,7 +4015,7 @@ DOCS_SUBDIRS = (
     "prompts",
     "releases",
 )
-# Research cold-shard parents (research-org Order 07). Weekly `YYYYMM-Www/` shards are created on
+# Research cold-shard parents (research-org Order 07). Monthly `YYYYMM/` shards are created on
 # demand by `aw archive`; the installer only scaffolds the two parent dirs so the layout is
 # discoverable in a fresh repo.
 RESEARCH_SHARD_SUBDIRS = (

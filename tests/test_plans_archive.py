@@ -57,11 +57,11 @@ class ShardMoveTests(unittest.TestCase):
     def test_shard_move_correct_week_keeps_name_and_id(self):
         mv = A.plan_shard_move(self.pdir, self.p)
         self.assertIsNotNone(mv)
-        # 20260701 -> ISO week 27
-        self.assertIn("executed/202607-W27/", mv.new_path.as_posix())
+        # 20260701 -> monthly shard 202607
+        self.assertIn("executed/202607/", mv.new_path.as_posix())
         self.assertEqual(mv.new_path.name, self.p.name)  # filename unchanged
         A.apply_shard_moves(self.root, self.pdir, [mv])
-        moved = list((self.pdir / "executed" / "202607-W27").glob("*aaaaaa*.md"))
+        moved = list((self.pdir / "executed" / "202607").glob("*aaaaaa*.md"))
         self.assertEqual(len(moved), 1)
         self.assertIn("- Id: aaaaaa", moved[0].read_text())
 
@@ -74,7 +74,7 @@ class ShardMoveTests(unittest.TestCase):
             text=True,
         ).stdout
         # The move is staged (git mv), so the tree is not showing an untracked add for it.
-        self.assertNotIn("?? .agents/plans/executed/202607-W27", out)
+        self.assertNotIn("?? .agents/plans/executed/202607", out)
 
     def test_pending_not_eligible(self):
         p2 = _plan(
@@ -108,9 +108,7 @@ class ArchiveVerbTests(unittest.TestCase):
         )
         self.assertEqual(rc, 0)
         self.assertEqual(len(list((self.pdir / "executed").rglob("*aaaaaa*.md"))), 1)
-        self.assertTrue(
-            list((self.pdir / "executed" / "202607-W27").glob("*aaaaaa*.md"))
-        )
+        self.assertTrue(list((self.pdir / "executed" / "202607").glob("*aaaaaa*.md")))
 
     def test_sweep_selects_aged_only(self):
         _plan(

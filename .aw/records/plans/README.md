@@ -76,7 +76,7 @@ only the name/grouping is mutable via the stable `Id`).
   manifest. This complements the disposition-grouped `STATUS.md`.
 - `aw plans set-assign`/`mv` (re)assign a plan's Set/Order and optionally rename it to the clustering
   grammar, keeping the `Id` and rewriting citations.
-- `aw plans archive` deep-shelves aged terminal plans into weekly `YYYYMM-Www/` shards INSIDE their
+- `aw plans archive` deep-shelves aged terminal plans into monthly `YYYYMM/` shards INSIDE their
   disposition dir (`executed/`, `superseded/`, `not-executed/`); `pending/` and `reusable/` stay
   flat. Shards are created on demand by this deliberate verb (never a background side effect); the
   manifest scan is recursive so sharded plans stay visible.

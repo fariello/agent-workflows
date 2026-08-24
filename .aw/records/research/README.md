@@ -37,11 +37,11 @@ generated `INDEX.json`/`INDEX.md`.
 |-------|---------|---------|
 | `intake` | landed, not yet triaged | hot root |
 | `active` | informing in-flight work | hot root |
-| `reference` | cold but it mattered (durable provenance) | `reference/YYYYMM-Www/` weekly shard |
-| `archive` | cold and just-in-case (dead-end, rejected) | `archive/YYYYMM-Www/` weekly shard |
+| `reference` | cold but it mattered (durable provenance) | `reference/YYYYMM/` monthly shard |
+| `archive` | cold and just-in-case (dead-end, rejected) | `archive/YYYYMM/` monthly shard |
 
 Hot states (`intake`/`active`) stay flat at this directory's root and cluster by name. Cold states
-live in weekly `YYYYMM-Www` shards. `INDEX.md` shows the most-recent-N plus intake and includes
+live in monthly `YYYYMM` shards. `INDEX.md` shows the most-recent-N plus intake and includes
 `reference`; `archive` is excluded from the hot glance but present in `INDEX.json`.
 
 ## The index

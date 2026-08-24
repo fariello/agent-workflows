@@ -42,12 +42,16 @@ class KebabTests(unittest.TestCase):
 
 class ShardTests(unittest.TestCase):
     def test_shard_for_date(self):
-        self.assertEqual(C.shard_for_date("20260701"), "202607-W27")
+        self.assertEqual(C.shard_for_date("20260701"), "202607")
 
     def test_shard_dirname_and_valid(self):
-        self.assertEqual(C.shard_dirname("202607", 30), "202607-W30")
-        self.assertTrue(C.is_valid_shard_dirname("202607-W30"))
-        self.assertFalse(C.is_valid_shard_dirname("2026-W30"))
+        self.assertEqual(C.shard_dirname("202607"), "202607")
+        self.assertTrue(C.is_valid_shard_dirname("202607"))
+        self.assertTrue(
+            C.is_valid_shard_dirname("202607-W30")
+        )  # legacy weekly tolerance
+        self.assertFalse(C.is_valid_shard_dirname("2026-07"))
+        self.assertFalse(C.is_valid_shard_dirname("2026"))
 
 
 class ScanRootTests(unittest.TestCase):

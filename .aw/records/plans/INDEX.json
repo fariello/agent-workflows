@@ -2710,6 +2710,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-23",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260823-shardmonth-01-nhbgcc-transition-cold-archival-shards-from-weekly-to-monthly-yyyym.ipd.md",
+    "plan_id": "nhbgcc",
+    "set_id": "shardmonth",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -2898,16 +2908,6 @@
     "plan_id": "79li67",
     "set_id": "proclint",
     "status": "reviewed"
-  },
-  {
-    "date": "2026-08-23",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260823-shardmonth-01-nhbgcc-transition-cold-archival-shards-from-weekly-to-monthly-yyyym.ipd.md",
-    "plan_id": "nhbgcc",
-    "set_id": "shardmonth",
-    "status": "approved"
   },
   {
     "date": "2026-08-23",

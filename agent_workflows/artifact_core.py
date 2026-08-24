@@ -79,36 +79,34 @@ def kebab(text: str) -> str:
 
 
 # --------------------------------------------------------------------------------------
-# Weekly-shard date math (YYYYMM-Www)
+# Monthly-shard date math (YYYYMM)
 # --------------------------------------------------------------------------------------
 
-SHARD_DIR_RE = re.compile(r"\A(?P<yyyymm>\d{6})-W(?P<week>\d{2})\Z")
+SHARD_DIR_RE = re.compile(r"\A(?P<yyyymm>\d{6})\Z")
+_LEGACY_WEEKLY_SHARD_RE = re.compile(r"\A\d{6}-W\d{2}\Z")
 
 
-def shard_dirname(yyyymm: str, week: int) -> str:
-    """Return a weekly shard directory name ``YYYYMM-Www`` (e.g. ``202607-W30``)."""
+def shard_dirname(yyyymm: str, week: int = 0) -> str:
+    """Return a monthly shard directory name ``YYYYMM`` (e.g. ``202607``)."""
 
-    return f"{yyyymm}-W{week:02d}"
+    cleaned = yyyymm.replace("-", "").strip()
+    return cleaned[:6]
 
 
 def is_valid_shard_dirname(name: str) -> bool:
-    """True iff ``name`` is a valid weekly shard directory name."""
+    """True iff ``name`` is a valid monthly shard directory name ``YYYYMM`` (or legacy weekly)."""
 
-    return bool(SHARD_DIR_RE.match(name))
+    return bool(SHARD_DIR_RE.match(name) or _LEGACY_WEEKLY_SHARD_RE.match(name))
 
 
 def shard_for_date(yyyymmdd: str) -> str:
-    """Map a ``YYYYMMDD`` date to its weekly shard name ``YYYYMM-Www`` (ISO week).
+    """Map a ``YYYYMMDD`` date to its monthly shard name ``YYYYMM``.
 
-    The week number is the ISO calendar week; the ``YYYYMM`` prefix is the date's own year-month, so
-    shards sort chronologically in a name-sorted tree. Deterministic and dependency-free.
+    Deterministic, dependency-free, and aligns with the project's ``YYYYMMDD`` naming grammar.
     """
 
-    import datetime
-
-    d = datetime.date(int(yyyymmdd[0:4]), int(yyyymmdd[4:6]), int(yyyymmdd[6:8]))
-    week = d.isocalendar()[1]
-    return shard_dirname(yyyymmdd[0:6], week)
+    cleaned = yyyymmdd.replace("-", "").strip()
+    return cleaned[:6]
 
 
 # --------------------------------------------------------------------------------------

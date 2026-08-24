@@ -1,12 +1,12 @@
-"""Plans weekly shards + archival (Set plans-adopter, Order 05).
+"""Plans monthly shards + archival (Set plans-adopter, Order 05).
 
-Tames the flat, unbounded terminal disposition dirs by moving cold plans into weekly
-``YYYYMM-Www/`` shards INSIDE each terminal dir (``executed/``/``superseded/``/``not-executed/``),
+Tames the flat, unbounded terminal disposition dirs by moving cold plans into monthly
+``YYYYMM/`` shards INSIDE each terminal dir (``executed/``/``superseded/``/``not-executed/``),
 via deliberate, tool-invoked verbs only (never a background side effect). ``pending/`` and
 ``reusable/`` (hot/standing) stay flat.
 
 * ``aw plans archive <id6|set-id>``: deep-shelve a plan (or a whole Set) into its disposition dir's
-  weekly shard; preview by default, ``--apply`` to move.
+  monthly shard; preview by default, ``--apply`` to move.
 * bare ``aw plans archive``: a deliberate sweep of terminal plans still at a disposition-dir root
   older than a default age, with a preview before any move.
 

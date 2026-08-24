@@ -1,14 +1,14 @@
-"""Research state lifecycle + weekly archival shards (Set research-org, Order 05).
+"""Research state lifecycle + monthly archival shards (Set research-org, Order 05).
 
-Implements the four-state lifecycle (intake/active/reference/archive) and the weekly `YYYYMM-Www`
+Implements the four-state lifecycle (intake/active/reference/archive) and the monthly `YYYYMM`
 cold shards for reference and archive, with DELIBERATE, tool-invoked archival verbs (never a
 background or index-time side effect, spec 4.10):
 
 * a ``status`` transition helper that sets frontmatter ``status`` AND moves the file to the matching
-  location (hot root for intake/active; ``reference/YYYYMM-Www/`` or ``archive/YYYYMM-Www/`` for the
+  location (hot root for intake/active; ``reference/YYYYMM/`` or ``archive/YYYYMM/`` for the
   cold states) as an atomic tracked rename, reusing Order 04's reference-updater on move.
 * ``aw archive <set-id|doc-id>``: deep-shelve target(s), preview then ``--apply``.
-* bare ``aw archive``: a sweep of candidates that are BOTH older than two weeks AND uncited, with a
+* bare ``aw archive``: a sweep of candidates that are BOTH older than the age threshold AND uncited, with a
   per-item accept/override (reference vs archive) before applying, recording the resulting status.
 * a miscategorization flag: a doc in ``archive/`` that IS cited (via ``consumed-by`` or Order 04's
   detector) is reported ("should be reference?").

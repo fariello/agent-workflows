@@ -86,10 +86,10 @@ class ScanTests(unittest.TestCase):
         self.assertEqual({e.plan_id for e in entries}, {"aaaaaa", "bbbbbb", "cccccc"})
 
     def test_recursive_scan_sees_sharded_plan(self):
-        # A plan inside executed/YYYYMM-Www/ keeps its top-level disposition and is included.
+        # A plan inside executed/YYYYMM/ keeps its top-level disposition and is included.
         _plan(
             self.root,
-            "executed/202606-W23",
+            "executed/202606",
             "20260601-set-a-02-dddddd-old.md",
             plan_id="dddddd",
             set_id="set-a",

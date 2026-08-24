@@ -59,7 +59,7 @@ Showing the 40 most-recent of 121 Sets; the full manifest is INDEX.json.
 
 ## shardmonth
 
-- `nhbgcc` [pending] 01 pending/20260823-shardmonth-01-nhbgcc-transition-cold-archival-shards-from-weekly-to-monthly-yyyym.ipd.md
+- `nhbgcc` [executed] 01 executed/20260823-shardmonth-01-nhbgcc-transition-cold-archival-shards-from-weekly-to-monthly-yyyym.ipd.md
 
 ## unifyfileio
 

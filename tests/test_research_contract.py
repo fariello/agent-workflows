@@ -152,11 +152,14 @@ class NameParseFormatTests(unittest.TestCase):
 
 class ShardTests(unittest.TestCase):
     def test_shard_dirname(self):
-        self.assertEqual(R.shard_dirname("202607", 30), "202607-W30")
+        self.assertEqual(R.shard_dirname("202607"), "202607")
 
     def test_valid_shard(self):
-        self.assertTrue(R.is_valid_shard_dirname("202607-W30"))
-        self.assertFalse(R.is_valid_shard_dirname("202607-30"))
+        self.assertTrue(R.is_valid_shard_dirname("202607"))
+        self.assertTrue(
+            R.is_valid_shard_dirname("202607-W30")
+        )  # legacy weekly tolerance
+        self.assertFalse(R.is_valid_shard_dirname("2026-07"))
         self.assertFalse(R.is_valid_shard_dirname("2026-W30"))
 
 
