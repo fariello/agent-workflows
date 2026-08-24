@@ -2704,6 +2704,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260823-indexoutput-01-3br8p0-enhance-aw-index-cli-output-with-path-location-change-awaren.ipd.md",
+    "plan_id": "3br8p0",
+    "set_id": "indexoutput",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-23",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260823-renametypes-01-53yczi-universal-artifact-type-support-in-aw-rename.ipd.md",
     "plan_id": "53yczi",
     "set_id": "renametypes",

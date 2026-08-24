@@ -245,6 +245,46 @@ class CheckDriftTests(unittest.TestCase):
         self.assertTrue(any(d.rule == "dangling-citation" for d in drift))
 
 
+class RunIndexOutputTests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.pdir = self.root / ".agents" / "plans"
+        _plan(
+            self.root,
+            "executed",
+            "20260701-set-a-00-aaaaaa-x.md",
+            plan_id="aaaaaa",
+            set_id="set-a",
+            order=0,
+        )
+
+    def test_run_index_change_detection_and_output(self):
+        import argparse
+        import io
+        from contextlib import redirect_stdout
+
+        args = argparse.Namespace(
+            dir=str(self.root), limit=None, check=False, quiet=False, no_color=True
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = I.run_index(args)
+        self.assertEqual(rc, 0)
+        out = buf.getvalue()
+        self.assertIn("wrote", out)
+        self.assertIn(".agents/plans/INDEX.json, INDEX.md", out)
+        self.assertIn("(1 plans)", out)
+
+        # Second run: up to date
+        buf2 = io.StringIO()
+        with redirect_stdout(buf2):
+            rc2 = I.run_index(args)
+        self.assertEqual(rc2, 0)
+        out2 = buf2.getvalue()
+        self.assertIn("up to date", out2)
+        self.assertIn(".agents/plans/INDEX.json, INDEX.md", out2)
+
+
 class DefaultLimitTests(unittest.TestCase):
     def test_default(self):
         self.assertEqual(I.DEFAULT_INDEX_LIMIT, 40)

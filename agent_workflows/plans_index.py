@@ -331,18 +331,59 @@ def run_index(args: argparse.Namespace) -> int:
             print(f"{d.location}: {d.rule}: {d.detail}")
         return 1
     entries, drift = scan_plans(plans_dir)
-    plans_dir.mkdir(parents=True, exist_ok=True)
-    (plans_dir / INDEX_JSON).write_text(build_index_json(entries), encoding="utf-8")
-    (plans_dir / INDEX_MD).write_text(
-        build_index_md(entries, limit=limit), encoding="utf-8"
+    json_path = plans_dir / INDEX_JSON
+    md_path = plans_dir / INDEX_MD
+    new_json = build_index_json(entries)
+    new_md = build_index_md(entries, limit=limit)
+
+    json_changed = (not json_path.exists()) or (
+        json_path.read_text(encoding="utf-8") != new_json
     )
+    md_changed = (not md_path.exists()) or (
+        md_path.read_text(encoding="utf-8") != new_md
+    )
+
+    if json_changed:
+        json_path.write_text(new_json, encoding="utf-8")
+    if md_changed:
+        md_path.write_text(new_md, encoding="utf-8")
+
     # Regeneration always writes the CURRENT state (a snapshot); metadata drift (e.g. a plan still
     # lacking an Id) is reported but does NOT block the write. Use `--check` as the gate.
     if drift and not getattr(args, "quiet", False):
         for d in drift:
             print(f"{d.location}: {d.rule}: {d.detail}")
     if not getattr(args, "quiet", False):
-        print(f"wrote {INDEX_JSON} + {INDEX_MD} ({len(entries)} plans)")
+        from agent_workflows.term import Term
+
+        term = Term(color=not getattr(args, "no_color", False))
+        try:
+            rel_dir = plans_dir.relative_to(repo_root).as_posix()
+        except ValueError:
+            rel_dir = plans_dir.as_posix()
+        dir_prefix = f"{rel_dir}/" if rel_dir and not rel_dir.endswith("/") else rel_dir
+        dir_styled = term.color256(dir_prefix, 33)
+
+        if not json_changed and not md_changed:
+            status_lbl = term.status_256("up to date", width=12)
+            files_str = f"{dir_styled}{INDEX_JSON}, {INDEX_MD}"
+            term.line(f"{status_lbl} {files_str} ({len(entries)} plans)")
+        elif json_changed and md_changed:
+            status_lbl = term.status_256("wrote", width=12)
+            files_str = f"{dir_styled}{INDEX_JSON}, {INDEX_MD}"
+            term.line(f"{status_lbl} {files_str} ({len(entries)} plans)")
+        elif md_changed:
+            status_lbl = term.status_256("updated", width=12)
+            files_str = f"{dir_styled}{INDEX_MD}"
+            term.line(
+                f"{status_lbl} {files_str} ({INDEX_JSON} up to date; {len(entries)} plans)"
+            )
+        else:
+            status_lbl = term.status_256("updated", width=12)
+            files_str = f"{dir_styled}{INDEX_JSON}"
+            term.line(
+                f"{status_lbl} {files_str} ({INDEX_MD} up to date; {len(entries)} plans)"
+            )
     return 0
 
 

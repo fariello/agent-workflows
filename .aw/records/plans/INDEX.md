@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 121 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 122 Sets; the full manifest is INDEX.json.
 
 ## archiveage
 
@@ -32,6 +32,10 @@ Showing the 40 most-recent of 121 Sets; the full manifest is INDEX.json.
 ## grouptypes
 
 - `o2ygf3` [executed] 01 executed/20260823-grouptypes-01-o2ygf3-universal-artifact-type-support-in-aw-group.ipd.md
+
+## indexoutput
+
+- `3br8p0` [executed] 01 executed/20260823-indexoutput-01-3br8p0-enhance-aw-index-cli-output-with-path-location-change-awaren.ipd.md
 
 ## ipdfidelity
 
@@ -256,27 +260,6 @@ Showing the 40 most-recent of 121 Sets; the full manifest is INDEX.json.
 ## awuntracked
 
 - `c32roo` [executed] 01 executed/20260818-awuntracked-01-c32roo-rename-local-lanes-to-untracked-with-catch-all-gitignore.ipd.md
-
-## awphysical
-
-- `rma3j4` [executed] 00 executed/20260810-awphysical-00-rma3j4-physical-aw-hierarchy-and-migration-orchestrator.ipd.md
-- `cwjnj0` [executed] 01 executed/20260810-awphysical-01-cwjnj0-physical-root-ownership-and-git-policy-contract.ipd.md
-- `sywony` [executed] 02 executed/20260810-awphysical-02-sywony-policy-schema-and-deterministic-context-resolution.ipd.md
-- `x2dfen` [executed] 03 executed/20260810-awphysical-03-x2dfen-wizard-presets-custom-placement-and-persistence.ipd.md
-- `ru5pmd` [executed] 04 executed/20260810-awphysical-04-ru5pmd-canonical-system-installation-and-source-checkout-mode.ipd.md
-- `1e9ggw` [executed] 05 executed/20260810-awphysical-05-1e9ggw-private-companion-attachment-and-durability.ipd.md
-- `fcgala` [executed] 06 executed/20260810-awphysical-06-fcgala-migration-inventory-and-mapping-tools.ipd.md
-- `nhv0qm` [executed] 07 executed/20260810-awphysical-07-nhv0qm-transactional-migration-rollback-and-resume.ipd.md
-- `mb9xn2` [executed] 08 executed/20260810-awphysical-08-mb9xn2-record-producers-and-legacy-reference-cutover.ipd.md
-- `2e2jrw` [executed] 09 executed/20260810-awphysical-09-2e2jrw-host-adapters-and-clean-delta-integration.ipd.md
-- `n3fz8b` [executed] 10 executed/20260810-awphysical-10-n3fz8b-post-migration-independent-audit.ipd.md
-- `g5zl1u` [executed] 11 executed/20260810-awphysical-11-g5zl1u-agent-workflows-source-repository-self-migration.ipd.md
-- `pszk6x` [executed] 12 executed/20260810-awphysical-12-pszk6x-documentation-release-and-end-to-end-acceptance.ipd.md
-- `xzuxet` [executed] 13 executed/20260816-awphysical-13-xzuxet-awsystem-nested-layout-reconciliation.ipd.md
-- `hnzr8v` [executed] 14 executed/20260816-awphysical-14-hnzr8v-migration-move-not-copy.ipd.md
-- `7cvh9t` [executed] 15 executed/20260816-awphysical-15-7cvh9t-fresh-install-aw-target.ipd.md
-- `88bnw0` [executed] 16 executed/20260816-awphysical-16-88bnw0-migrate-layout-wizard.ipd.md
-- `wvlk84` [executed] 17 executed/20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md
 
 ## (singletons: no Set)
 
