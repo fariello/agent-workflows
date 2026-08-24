@@ -43,6 +43,7 @@ Showing the 40 most-recent of 119 Sets; the full manifest is INDEX.json.
 - `qmt3yk` [pending] 05 pending/20260823-ipdgates-05-qmt3yk-finalize-two-way-scope-reconciliation-unexpected-path-reason.ipd.md
 - `3xh53a` [pending] 06 pending/20260823-ipdgates-06-3xh53a-aw-ipd-finalize-rollback-and-failure-semantics.ipd.md
 - `wezhxg` [pending] 07 pending/20260823-ipdgates-07-wezhxg-remove-raw-terminal-transition-bypasses-and-strengthen-histo.ipd.md
+- `dulzpy` [pending] 08 pending/20260823-ipdgates-08-dulzpy-local-pre-commit-gate-on-plan-executed-transitions-verify-fi.ipd.md
 
 ## proclint
 
