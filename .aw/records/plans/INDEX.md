@@ -45,7 +45,7 @@ Showing the 40 most-recent of 132 Sets; the full manifest is INDEX.json.
 
 ## runipdwd
 
-- `iw793a` [pending] 01 pending/20260824-runipdwd-01-iw793a-runipd-stall-watchdog-process-group-reaping-and-mmss-idle-fo.ipd.md
+- `iw793a` [executed] 01 executed/20260824-runipdwd-01-iw793a-runipd-stall-watchdog-process-group-reaping-and-mmss-idle-fo.ipd.md
 
 ## vwios6ipd
 

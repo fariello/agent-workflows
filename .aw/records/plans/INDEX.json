@@ -2980,6 +2980,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-24",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260824-runipdwd-01-iw793a-runipd-stall-watchdog-process-group-reaping-and-mmss-idle-fo.ipd.md",
+    "plan_id": "iw793a",
+    "set_id": "runipdwd",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -3127,16 +3137,6 @@
     "path": "pending/20260824-runipdsess-01-rxkf1e-runipd-prints-same-session-continuation-hint-on-exit.ipd.md",
     "plan_id": "rxkf1e",
     "set_id": "runipdsess",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-24",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260824-runipdwd-01-iw793a-runipd-stall-watchdog-process-group-reaping-and-mmss-idle-fo.ipd.md",
-    "plan_id": "iw793a",
-    "set_id": "runipdwd",
     "status": "approved"
   },
   {
