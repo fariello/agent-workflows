@@ -5,7 +5,7 @@
 - Concern: After the core moves into the package (child 01), the original `tools/ipdrunner/runipd.py` must not keep a second copy of the logic (that would drift). But existing invocations - `python3 tools/ipdrunner/runipd.py ...`, the runbook at `tools/ipdrunner/20260823-pending-ipds-overnight-execution-runbook.md`, and any operator muscle memory - must keep working. The established repo pattern for this is a thin backwards-compatible shim (see `tools/antigravity_execute_ipd.py` delegating to `agy_run`, and `tools/watch-agy.py` delegating to `pwatch`).
 - Scope: Reduce `tools/ipdrunner/runipd.py` to a thin shim that imports `agent_workflows.oc_runipd` and delegates `main()`, re-exporting any names external callers rely on, so `python3 tools/ipdrunner/runipd.py ...` behaves identically with zero duplicated logic. Child 03 of the awocrunner Set; depends on child 01.
 - Scope-Paths: tools/ipdrunner/runipd.py, tests/test_oc_runipd_shim.py
-- Status: to-review
+- Status: reviewed
 - Set: awocrunner
 - Order: 3
 - Highest E allocated: 02
@@ -13,6 +13,7 @@
 - Id: 4tlkgj
 
 ## Workflow history
+- 2026-08-25 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (pinned re-export surface + no-external-importer note + identity assertion)
 - 2026-08-25 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique
 
 - 2026-08-24 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created; child 03 of awocrunner Set (thin compat shim).
@@ -27,14 +28,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Replace the script body with a delegating shim
 
-- [ ] E-01 Replace the body of `tools/ipdrunner/runipd.py` with a thin shim: add the repo root / package to `sys.path` if needed, `from agent_workflows import oc_runipd`, re-export the public names external callers may import (e.g. `main`, `DriverError`, and any classes the runbook/tests reference), and make `if __name__ == "__main__": raise SystemExit(oc_runipd.main(sys.argv[1:]))`. Remove ALL duplicated logic - the shim must contain no runner implementation, mirroring `tools/antigravity_execute_ipd.py`.
+- [ ] E-01 Replace the body of `tools/ipdrunner/runipd.py` with a thin shim: add the repo root / package to `sys.path` if needed, `from agent_workflows import oc_runipd`, re-export the runner's public names (verified surface: `main`, `DriverError`, `Palette`, `Heartbeat`, `PlanRecord` - `runipd.py:1625,239,106,194,386`; add others only if a concrete importer is found), and make `if __name__ == "__main__": raise SystemExit(oc_runipd.main(sys.argv[1:]))`. Remove ALL duplicated logic - the shim must contain no runner implementation, mirroring `tools/antigravity_execute_ipd.py` (which re-exports its module's public classes/functions and delegates `main`). Context (verified during review): NO external module currently imports the standalone `runipd` module - only its own test did, and child 01 migrates that to import the package - so the real backward-compat contract is the CLI (`python3 tools/ipdrunner/runipd.py ...`) via `main`; the class re-exports are defensive parity for any operator code.
   - Depends on: none
-  - Expected outcome: `python3 tools/ipdrunner/runipd.py <args>` runs the packaged runner; the file is a small delegating shim with no copied logic.
+  - Expected outcome: `python3 tools/ipdrunner/runipd.py <args>` runs the packaged runner; the file is a small delegating shim with no copied logic; `import`-ing the listed public names off the shim still works.
   - Execution state: pending
 
 ### Task group 2: Shim-parity test
 
-- [ ] E-02 Add `tests/test_oc_runipd_shim.py` asserting that invoking the shim (via `runpy`/subprocess on `tools/ipdrunner/runipd.py`) for a non-mutating command (e.g. `status`/`report`/`--help`) yields the same result as `agent_workflows.oc_runipd.main([...])`, and that the shim re-exports the expected public names.
+- [ ] E-02 Add `tests/test_oc_runipd_shim.py` asserting that invoking the shim (via `runpy`/subprocess on `tools/ipdrunner/runipd.py`) for a non-mutating command (e.g. `status`/`report`/`--help`) yields the same result as `agent_workflows.oc_runipd.main([...])`, and that the shim re-exports the pinned public names from E-01 (`main`, `DriverError`, `Palette`, `Heartbeat`, `PlanRecord`) and that each `is` the same object as `oc_runipd.<name>` (identity, proving no shadow copy).
   - Depends on: E-01
   - Expected outcome: passing test proving the shim and the packaged runner are the same code path.
   - Execution state: pending
@@ -99,7 +100,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: pasted `python3 -m pytest tests/test_oc_runipd_shim.py` output showing the parity/re-export tests passing.
+  - Required evidence: pasted `python3 -m pytest tests/test_oc_runipd_shim.py` output showing the parity test and the pinned-public-name identity re-export test (`main`/`DriverError`/`Palette`/`Heartbeat`/`PlanRecord` each `is` the `oc_runipd` object) passing.
   - Observed evidence:
   - Result: pending
 
