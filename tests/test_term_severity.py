@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import io
 import json
 import re
@@ -13,6 +15,10 @@ from pathlib import Path
 
 from agent_workflows import cli, doctor
 from agent_workflows import term as T
+
+# Heavy subprocess/CLI suite; excluded from the fast default run (see pyproject addopts
+# `-m "not slow"`). Run with `make test-all`.
+pytestmark = pytest.mark.slow
 
 _ANSI = re.compile(r"\033\[[0-9;]*m")
 
