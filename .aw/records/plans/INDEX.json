@@ -3114,6 +3114,16 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260824-runipdbugs-01-wk108w-fix-runipd-dependency-execution-gating-yaml-dependency-parsi.ipd.md",
+    "plan_id": "wk108w",
+    "set_id": "runipdbugs",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-24",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260824-runipdsess-01-rxkf1e-runipd-prints-same-session-continuation-hint-on-exit.ipd.md",
     "plan_id": "rxkf1e",
     "set_id": "runipdsess",

@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 131 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 132 Sets; the full manifest is INDEX.json.
 
 ## 8t5ghsgi
 
@@ -34,6 +34,10 @@ Showing the 40 most-recent of 131 Sets; the full manifest is INDEX.json.
 - `m383qb` [pending] 01 pending/20260824-reslife-01-m383qb-structural-unrun-detection-and-tool-advanced-drift-checked-r.ipd.md
 - `xjrdjp` [pending] 02 pending/20260824-reslife-02-xjrdjp-tooled-and-validated-research-outcome-and-consumed-by-proven.ipd.md
 - `h40usm` [pending] 03 pending/20260824-reslife-03-h40usm-attention-and-query-surfacing-for-research-pending-and-stale.ipd.md
+
+## runipdbugs
+
+- `wk108w` [pending] 01 pending/20260824-runipdbugs-01-wk108w-fix-runipd-dependency-execution-gating-yaml-dependency-parsi.ipd.md
 
 ## runipdsess
 
@@ -246,10 +250,6 @@ Showing the 40 most-recent of 131 Sets; the full manifest is INDEX.json.
 - `1fpmg7` [executed] 01 executed/20260818-awhelp-01-1fpmg7-rewrite-terse-and-jargon-help-strings.ipd.md
 - `vrk3l0` [executed] 02 executed/20260818-awhelp-02-vrk3l0-verbose-non-tty-agent-help-and-arg-hungry-verb-examples.ipd.md
 - `oc4cph` [executed] 03 executed/20260818-awhelp-03-oc4cph-json-output-and-documented-exit-codes-on-read-verbs.ipd.md
-
-## awhelparg
-
-- `n9ysag` [executed] 01 executed/20260818-awhelparg-01-n9ysag-rewrite-bare-help-token-to-help-in-argv-for-natural-ux.ipd.md
 
 ## (singletons: no Set)
 
