@@ -5,15 +5,15 @@
 - Concern: Once `aw oc runipd` exists (children 01-03), the documentation still points only at `python3 tools/ipdrunner/runipd.py ...` (`tools/README.md`, the ipdrunner runbook). Operators need the new command documented. Separately, the deliberately deferred follow-on work - normalizing the runner's (well-liked) interactive/progress output into a shared renderer, and graduating the remaining tools (runagy/agy_run -> `aw agy run`, pwatch -> `aw pwatch`, agy_sessions -> `aw agy sessions`, view-antigravity-jsonl -> `aw agy view`) - must be captured as a committed backlog item so it is visible to `aw attention`, not lost in prose.
 - Scope: Update `tools/README.md` (and the ipdrunner runbook if it instructs invocation) to document `aw oc runipd` (alias `aw opencode runipd`) as the primary way to run the driver, noting the `tools/` path still works as a compat shim; and file a committed medium, non-blocking backlog item via `aw backlog new` capturing (a) output-rendering normalization into a shared `agent_workflows` renderer and (b) graduating the remaining tools under `aw agy`/`aw pwatch`. Child 04 of the awocrunner Set; depends on children 02 and 03.
 - Scope-Paths: tools/README.md, tools/ipdrunner/20260823-pending-ipds-overnight-execution-runbook.md, .aw/records/backlog/open/
-- Status: approved
+- Status: executed
 - Set: awocrunner
 - Order: 4
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: suks59
-- Approval: 2026-08-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-25 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Docs sync: aw oc runipd documented as primary in tools/README.md + runbook (stale ipdrunner.py corrected); filed committed medium/followup backlog item 1sdkvd for output normalization + remaining-tool graduation; all E performed, all V pass with pasted evidence [Scope reconciliation - in-scope-unmodified .aw/records/backlog/open/: new followup backlog item 1sdkvd filed via aw backlog new; committed in 22da425 before the begin baseline; in-scope-unmodified tools/README.md: aw oc runipd documented as primary; committed in 22da425 before the begin baseline; in-scope-unmodified tools/ipdrunner/20260823-pending-ipds-overnight-execution-runbook.md: aw oc runipd primary + ipdrunner.py->runipd.py fix; committed in 22da425 before the begin baseline]
 - 2026-08-25 approved (aw set): status set to approved
 - 2026-08-25 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (fix stale runbook ipdrunner.py->runipd.py), PR-002 (non-blocking is field-absence default, not a flag), OQ-01 marked resolved
 - 2026-08-25 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique
