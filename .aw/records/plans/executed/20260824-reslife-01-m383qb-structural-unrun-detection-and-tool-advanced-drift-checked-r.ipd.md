@@ -5,15 +5,15 @@
 - Concern: Research `status` is written once at creation (`aw research new` hard-codes `status="intake"`, research_cmd.py ~189/~244) and never advanced or validated, so `intake` conflates "untriaged/to-run" with "run-but-unpromoted" and "adopted-but-unpromoted" (11 docs on 2026-08-24; 10 already run+adopted). Spec 5tapom requires the parent B1/H2: identify unrun research WITHOUT trusting hand-typed status, and keep state genuinely tool-maintained.
 - Scope: Add a structural UNRUN/RUN signal derived from manifest set-structure, and a drift rule in `aw research index --check` / `aw check` that flags stale hot state; plus a tool-assisted (human-confirmed) triage classifier reproducing the 2026-08-24 manual pass. Implements spec 5tapom Sections 3.1 and 3.2. Does NOT add a status value or change the vocabulary.
 - Scope-Paths: grandfathered
-- Status: approved
+- Status: executed
 - Set: reslife
 - Order: 1
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: m383qb
-- Approval: 2026-08-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-25 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Structural unrun detection (derive_unrun_prompts/run_prompt_set_ids), stale-state-to-promote drift rule (RUN-set OR cited-by-executed reverse traversal) in research index --check / aw check, and the promote --suggest triage classifier; all E performed, all V pass with pasted test evidence
 - 2026-08-25 approved (aw set): status set to approved
 - 2026-08-25 reviewed (aw set): plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101..PR-104 fixed
 - 2026-08-25 to-review (aw set): Authored complete and lint-conforming; ready for plan-review.

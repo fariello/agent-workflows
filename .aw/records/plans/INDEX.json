@@ -2974,6 +2974,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260824-reslife-01-m383qb-structural-unrun-detection-and-tool-advanced-drift-checked-r.ipd.md",
+    "plan_id": "m383qb",
+    "set_id": "reslife",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-24",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260824-runipdbugs-01-wk108w-fix-runipd-dependency-execution-gating-yaml-dependency-parsi.ipd.md",
     "plan_id": "wk108w",
     "set_id": "runipdbugs",
@@ -3096,16 +3106,6 @@
     "order": 0,
     "path": "pending/20260824-reslife-00-rmwr8s-research-lifecycle-reliability-tool-owned-state-outcome-prov.ipd.md",
     "plan_id": "rmwr8s",
-    "set_id": "reslife",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-24",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260824-reslife-01-m383qb-structural-unrun-detection-and-tool-advanced-drift-checked-r.ipd.md",
-    "plan_id": "m383qb",
     "set_id": "reslife",
     "status": "approved"
   },
