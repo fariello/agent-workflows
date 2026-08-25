@@ -5,7 +5,7 @@
 - Concern: `aw ipd set` has no `--blocks-release` flag, so even once the schema recognizes the field a plan release blocker can only be set by hand-editing front matter. Worse, the underlying write path is broken: `aw backlog set open <id6> --blocks-release next` (status supplied positionally) routes through `status_set.apply_status_change`, whose only blocks_release write is guarded by `if rec.record_type == "specs"` (`status_set.py:416,449-455`), so for backlog (and plans) the `--blocks-release` value is silently dropped. This is bug 61qk4a. Fixing the setter for plans WITHOUT fixing the shared path would duplicate a broken code path.
 - Scope: Add `--blocks-release <release-id6|next|->` to `aw ipd set` with the SAME semantics as the backlog/specs setters (resolve `next` to the single planned release, write/update the `- Blocks-Release:` front-matter field via the shared `releases.set_blocks_release_line` primitive, clear with `-`, append a workflow-history line), and fix `status_set.apply_status_change` so the blocks_release mutation applies to plans AND backlog (not only specs), root-causing bug 61qk4a. Child 02 of the vwios6ipd Set; depends on schema child 01.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/status_set.py, agent_workflows/backlog.py, agent_workflows/releases.py, tests/test_status_set.py, tests/test_blocks_release.py
-- Status: to-review
+- Status: reviewed
 - Set: vwios6ipd
 - Order: 2
 - Highest E allocated: 04
@@ -13,6 +13,7 @@
 - Id: efnn74
 
 ## Workflow history
+- 2026-08-25 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (precise hoist boundary+entrypoint note), PR-002 (specs anti-regression V-item)
 - 2026-08-24 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique
 
 - 2026-08-24 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created; child 02 of vwios6ipd Set (setter + shared-path/61qk4a fix).
@@ -27,9 +28,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Fix the shared setter path (root cause, 61qk4a)
 
-- [ ] E-01 In `agent_workflows/status_set.py`, move the blocks_release mutation out of the `if rec.record_type == "specs":` guard (currently `status_set.py:416,449-455`) so `apply_status_change` applies `--blocks-release` for `plans` and `backlog` records too, always going through the shared `releases.set_blocks_release_line(text, value)` primitive (`releases.py:93-108`). Preserve existing spec behavior. Ensure the write happens even on a same-status (no-op) transition, since `apply_status_change` already rewrites the file idempotently.
+- [ ] E-01 In `agent_workflows/status_set.py`, hoist ONLY the blocks_release mutation block (`status_set.py:449-455`) OUT of the `if rec.record_type == "specs":` guard (`status_set.py:416`) so `apply_status_change` applies `--blocks-release` for `plans` and `backlog` records too, always going through the shared `releases.set_blocks_release_line(text, value)` primitive (`releases.py:93-108`). LEAVE the specs-only gate-field handling (`status_set.py:417-447`, the Gate-Kind/Gate-Ref/Gate-Summary logic) exactly where it is, inside the specs guard - do NOT move it. Preserve existing spec behavior (a spec's blocks_release still writes as before, now via the shared post-guard step). Ensure the write happens even on a same-status (no-op) transition, since `apply_status_change` already rewrites the file idempotently. Preserve the existing join/split idempotency (`"\n".join(new_lines)` -> `set_blocks_release_line` -> `.splitlines()`) so the hoisted step does not alter trailing metadata structure for plans/backlog layouts.
   - Depends on: none
-  - Expected outcome: `aw backlog set open <id6> --blocks-release next` (positional status form) persists the field; bug 61qk4a is fixed at the shared path.
+  - Expected outcome: `aw backlog set open <id6> --blocks-release next` (positional status form) persists the field; bug 61qk4a is fixed at the shared path; spec setter behavior is unchanged; the two backlog entrypoints stay distinct (positional-status -> `status_set.apply_status_change`; `--status` form -> `backlog.run_set` at `backlog.py:467`), each reaching the same shared primitive, with no double-write (the dispatch at `cli.py:6900-6916` makes them mutually exclusive).
   - Execution state: pending
 
 ### Task group 2: Add the aw ipd set --blocks-release flag
@@ -41,9 +42,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: Tests for the setter and the 61qk4a regression
 
-- [ ] E-03 In `tests/test_status_set.py`, add tests that `status_set.run_set_command(["open", <id6>], scoped_type="backlog", ... blocks_release="next")` PERSISTS the field even when status is unchanged (61qk4a regression), and that the same for `scoped_type="plans"` writes/clears the field. Assert the workflow-history line is appended.
+- [ ] E-03 In `tests/test_status_set.py`, add tests that `status_set.run_set_command(["open", <id6>], scoped_type="backlog", ... blocks_release="next")` PERSISTS the field even when status is unchanged (61qk4a regression), and that the same for `scoped_type="plans"` writes/clears the field. Assert the workflow-history line is appended. Include a specs anti-regression case: a `scoped_type="specs"` set with `blocks_release="next"` still writes the field exactly as before the hoist (proving widening the write path did not regress the specs surface it was originally scoped to).
   - Depends on: E-01, E-02
-  - Expected outcome: a test that fails on pre-fix code (field dropped) and passes after; explicit 61qk4a guard.
+  - Expected outcome: a test that fails on pre-fix code (field dropped for backlog/plans) and passes after; explicit 61qk4a guard; specs behavior demonstrably unchanged.
   - Execution state: pending
 
 - [ ] E-04 In `tests/test_blocks_release.py`, add an end-to-end test invoking `aw ipd set --blocks-release next <plan-id6>` on a fixture IPD and asserting the front-matter field is present and the plan still lints CONFORMING (relies on child 01 schema fix), plus a `--blocks-release -` clear assertion and a `next`-resolution assertion.
@@ -119,7 +120,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: pasted `python3 -m pytest tests/test_status_set.py` output with the new backlog-persist (61qk4a) and plans write/clear tests passing.
+  - Required evidence: pasted `python3 -m pytest tests/test_status_set.py` output with the new backlog-persist (61qk4a), plans write/clear, AND specs-unchanged anti-regression tests passing.
   - Observed evidence:
   - Result: pending
 
