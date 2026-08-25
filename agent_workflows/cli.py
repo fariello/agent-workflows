@@ -1449,8 +1449,18 @@ def _build_parser() -> argparse.ArgumentParser:
         parents=[common],
         help="Deliberately set a doc's status (e.g. --to reference) and move it to the shard.",
     )
-    p_research_promote.add_argument("id", help="The <id6> of the doc.")
+    p_research_promote.add_argument(
+        "id",
+        nargs="?",
+        default=None,
+        help="The <id6> of the doc (omit with --suggest).",
+    )
     p_research_promote.add_argument("--to", default="reference", help="Target status.")
+    p_research_promote.add_argument(
+        "--suggest",
+        action="store_true",
+        help="Classify the stale hot cohort (cited/run -> reference; uncited dead-end -> archive) and preview the moves; requires --apply to write.",
+    )
     p_research_promote.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
     )

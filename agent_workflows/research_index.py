@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
@@ -224,8 +225,172 @@ def query(
 
 
 # --------------------------------------------------------------------------------------
-# check (the four drift classes)
+# unrun / RUN derivation (IPD m383qb E-01): a purely structural signal over the manifest
 # --------------------------------------------------------------------------------------
+
+
+def derive_unrun_prompts(entries: List[DocEntry]) -> List[DocEntry]:
+    """Return the UNRUN research prompts, derived purely from set structure (no corpus read).
+
+    A SET is UNRUN when its ``NN=00`` member is a ``research-prompt`` and the set has NO
+    ``NN>=01`` sibling member; the set is RUN otherwise (a report/reconciliation sibling exists).
+    Docs with no parseable set/order are treated as singletons (never unrun prompts unless they
+    are themselves a bare ``NN=00`` prompt). Deterministic order (set-id, then id6).
+
+    This is the single reusable derivation consumed by the drift check (E-02) and later children
+    (``aw research pending`` / attention surfacing, child 03). It reads ONLY the indexed manifest
+    entries (filename + frontmatter), never the document bodies.
+    """
+
+    by_set: Dict[str, List[DocEntry]] = {}
+    for e in entries:
+        by_set.setdefault(e.set_id, []).append(e)
+
+    unrun: List[DocEntry] = []
+    for _set_id, members in by_set.items():
+        prompt = next(
+            (m for m in members if m.order == "00" and m.kind == "research-prompt"),
+            None,
+        )
+        if prompt is None:
+            continue
+        has_sibling = any(m.order > "00" for m in members)
+        if not has_sibling:
+            unrun.append(prompt)
+    return sorted(unrun, key=lambda e: (e.set_id, e.id6))
+
+
+def unrun_set_ids(entries: List[DocEntry]) -> set:
+    """The set-ids that are structurally UNRUN (a bare NN=00 prompt with no NN>=01 sibling)."""
+
+    return {e.set_id for e in derive_unrun_prompts(entries)}
+
+
+def run_prompt_set_ids(entries: List[DocEntry]) -> set:
+    """The set-ids that are RUN PROMPT sets: a set with a ``NN=00 research-prompt`` AND at least
+    one ``NN>=01`` sibling. Sets with no prompt at all are NOT part of the prompt run/unrun
+    taxonomy (so an ordinary lone intake doc's set is neither run nor unrun here)."""
+
+    by_set: Dict[str, List[DocEntry]] = {}
+    for e in entries:
+        by_set.setdefault(e.set_id, []).append(e)
+    out: set = set()
+    for set_id, members in by_set.items():
+        has_prompt = any(
+            m.order == "00" and m.kind == "research-prompt" for m in members
+        )
+        has_sibling = any(m.order > "00" for m in members)
+        if has_prompt and has_sibling:
+            out.add(set_id)
+    return out
+
+
+# --------------------------------------------------------------------------------------
+# cited-by-executed derivation (IPD m383qb E-02): which research id6s are cited by an
+# EXECUTED artifact (plan under executed/, spec implemented, or backlog item done). This is
+# the REVERSE of find_dangling_citations (which finds a doc's OWN unresolved citations): here
+# we scan executed artifacts and collect citations that resolve to a research id6. Built on the
+# shared primitives (iter_scan_files + R.iter_id6_citations); does NOT bend find_dangling_citations.
+# --------------------------------------------------------------------------------------
+
+
+def _under(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def _plan_is_executed(path: Path, repo_root: Path) -> bool:
+    """True when a plan file sits under an ``executed/`` disposition directory.
+
+    A plan's disposition is the first path component under the plans root (kept even inside a
+    ``executed/YYYYMM/`` shard). We look at the repo-relative parts so the repo's own directory
+    names cannot false-trigger.
+    """
+
+    parts = path.relative_to(repo_root).parts if _under(path, repo_root) else path.parts
+    if "plans" not in parts:
+        return False
+    idx = parts.index("plans")
+    return idx + 1 < len(parts) and parts[idx + 1] == "executed"
+
+
+def _spec_is_implemented(text: str) -> bool:
+    from agent_workflows import attention_contract as _A
+
+    lines = text.splitlines()
+    end = len(lines)
+    for i, line in enumerate(lines):
+        if line.startswith("## "):
+            end = i
+            break
+    for i in range(end):
+        m = _A.SPEC_STATUS_RE.match(lines[i])
+        if m:
+            return m.group("value") == "implemented"
+    return False
+
+
+def _backlog_is_done(path: Path, text: str) -> bool:
+    # Directory disposition takes precedence (an item under done/ is done), then the bullet Status.
+    if path.parent.name == "done":
+        return True
+    for line in text.split("\n"):
+        if line.startswith("## "):
+            break
+        m = re.match(r"^- Status:[ \t]*(?P<value>\S+)[ \t]*$", line)
+        if m:
+            return m.group("value") == "done"
+    return False
+
+
+def cited_by_executed_ids(repo_root: Path, research_root: Path) -> set:
+    """Return the research id6s that are cited by an EXECUTED artifact.
+
+    An artifact is executed when: it is a plan file under an ``executed/`` disposition dir; OR a
+    spec whose metadata ``Status:`` is ``implemented``; OR a backlog item that is ``done`` (its
+    ``done/`` dir or a ``- Status: done`` bullet). A citation from a merely pending/draft artifact
+    does NOT count. Reuses ``iter_scan_files`` + ``R.iter_id6_citations`` (the shared citation
+    primitives); the research tree itself is excluded so a doc citing another research doc is not
+    treated as an executed-artifact citation here.
+    """
+
+    cited: set = set()
+    for f in _core.iter_scan_files(repo_root):
+        # Skip the research tree itself (we want EXECUTED plan/spec/backlog citers).
+        if _under(f, research_root):
+            continue
+        parts = f.parts
+        is_plan = "plans" in parts and f.name.endswith(".md")
+        is_spec = "specs" in parts and f.name.endswith(".md")
+        is_backlog = "backlog" in parts and f.name.endswith(".md")
+        if not (is_plan or is_spec or is_backlog):
+            continue
+        try:
+            text = f.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        executed = False
+        if is_plan:
+            executed = _plan_is_executed(f, repo_root)
+        elif is_spec:
+            executed = _spec_is_implemented(text)
+        elif is_backlog:
+            executed = _backlog_is_done(f, text)
+        if not executed:
+            continue
+        for cid in R.iter_id6_citations(text):
+            cited.add(cid)
+    return cited
+
+
+# --------------------------------------------------------------------------------------
+# check (the four drift classes + the stale-state-to-promote rule)
+# --------------------------------------------------------------------------------------
+
+STALE_STATE_RULE = "stale-state-to-promote"
 
 
 def check_drift(
@@ -250,6 +415,30 @@ def check_drift(
     # Dangling citations via Order 04's imported detector primitive.
     for d in RF.find_dangling_citations(repo_root, research_root):
         drift.append(Drift(f"{d.file}:{d.line}", "dangling-citation", f"id6 {d.id6}"))
+    # Stale-state-to-promote (IPD m383qb E-02): an intake/active doc whose SET is RUN
+    # (structural, E-01) OR that is cited by an EXECUTED artifact is stale hot state and must be
+    # promoted. Keeps state honest without trusting the hand-typed status.
+    hot = [e for e in entries if e.status in R.HOT_STATUSES]
+    if hot:
+        run_sets = run_prompt_set_ids(entries)
+        cited_exec = cited_by_executed_ids(repo_root, research_root)
+        for e in hot:
+            if e.set_id in run_sets:
+                drift.append(
+                    Drift(
+                        e.path,
+                        STALE_STATE_RULE,
+                        f"{e.status} doc in RUN set '{e.set_id}'; promote it",
+                    )
+                )
+            elif e.id6 in cited_exec:
+                drift.append(
+                    Drift(
+                        e.path,
+                        STALE_STATE_RULE,
+                        f"{e.status} doc cited by an executed artifact; promote it",
+                    )
+                )
     return drift
 
 

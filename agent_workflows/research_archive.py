@@ -367,16 +367,80 @@ def run_archive(args: argparse.Namespace) -> int:
     return 0
 
 
+def suggest_triage(repo_root: Path, research_root: Path) -> List[Move]:
+    """Classify every STALE hot doc into a promotion, reproducing the 2026-08-24 manual pass.
+
+    A hot (intake/active) doc is STALE when its SET is a RUN prompt-set (structural, E-01) OR it
+    is cited by an EXECUTED artifact (E-02's ``cited_by_executed_ids``). For each stale doc:
+    cited-or-run -> ``reference`` (finished research worth keeping hot-adjacent); an uncited
+    dead-end -> ``archive``. Returns the planned Moves in deterministic (id6) order; writes nothing.
+    """
+
+    entries, _drift = RI._scan_docs(research_root)
+    hot = [e for e in entries if e.status in R.HOT_STATUSES]
+    if not hot:
+        return []
+    run_sets = RI.run_prompt_set_ids(entries)
+    cited_exec = RI.cited_by_executed_ids(repo_root, research_root)
+    all_cited = _collect_all_citations(repo_root, research_root)
+
+    moves: List[Move] = []
+    for e in sorted(hot, key=lambda e: e.id6):
+        in_run_set = e.set_id in run_sets
+        cited = (e.id6 in cited_exec) or (e.id6 in all_cited)
+        if not (in_run_set or cited):
+            # Not stale (genuinely untriaged/unrun): leave it alone.
+            continue
+        # Cited or part of a run set -> reference; a run-set-but-uncited dead-end -> archive.
+        new_status = "reference" if cited else "archive"
+        mv, err = plan_transition(research_root, e.id6, new_status)
+        if err or mv is None:
+            continue
+        moves.append(mv)
+    return moves
+
+
 def run_promote(args: argparse.Namespace) -> int:
-    """`aw research promote <id6> --to <status>`: a deliberate status transition."""
+    """`aw research promote [<id6>] --to <status>` | `--suggest`.
+
+    With ``--suggest`` (no id6 needed), CLASSIFIES the stale hot cohort (cited/run -> reference;
+    uncited dead-end -> archive) and previews the moves, applying only under ``--apply`` (H2:
+    distrust blind writes). Otherwise a single deliberate ``<id6>`` transition as before.
+    """
 
     repo_root, research_root = _roots(args)
+    apply = getattr(args, "apply", False)
+
+    if getattr(args, "suggest", False):
+        moves = suggest_triage(repo_root, research_root)
+        if not moves:
+            print("no stale research docs to triage")
+            return 0
+        if not apply:
+            for m in moves:
+                print(
+                    f"--- would set {m.id6} status={m.new_status} and move to {m.new_path.relative_to(research_root).as_posix()} ---"
+                )
+            print("preview only; re-run with --suggest --apply to move")
+            return 0
+        apply_moves(repo_root, research_root, moves)
+        for m in moves:
+            print(
+                f"{m.new_status}: {m.id6} -> {m.new_path.relative_to(research_root).as_posix()}"
+            )
+        return 0
+
+    if not (getattr(args, "id", None) or "").strip():
+        print(
+            "error: an <id6> is required (or use --suggest to triage the stale cohort)"
+        )
+        return 2
     new_status = getattr(args, "to", None) or "reference"
     mv, err = plan_transition(research_root, getattr(args, "id", "") or "", new_status)
     if err:
         print(f"error: {err}")
         return 2
-    if not getattr(args, "apply", False):
+    if not apply:
         print(
             f"--- would set {mv.id6} status={mv.new_status} and move to {mv.new_path.relative_to(research_root).as_posix()} ---"
         )

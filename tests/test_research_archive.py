@@ -323,6 +323,137 @@ class IndexRefreshTests(unittest.TestCase):
         self.assertNotIn("aaaaaa", md)  # archived -> excluded from the hot glance
 
 
+def _write_kind_doc(root, *, set_id, order, id6, slug, status, created, kind):
+    rroot = root / R.RESEARCH_ROOT
+    rroot.mkdir(parents=True, exist_ok=True)
+    name = R.format_name(
+        R.ResearchName(
+            date=created,
+            set_id=set_id,
+            order=f"{order:02d}",
+            id6=id6,
+            slug=slug,
+            model=None,
+            kind=kind,
+        )
+    )
+    content = C.build_frontmatter(
+        id6=id6,
+        created=created,
+        set_id=set_id,
+        order=f"{order:02d}",
+        topic=["t"],
+        model=None,
+        kind=kind,
+        status=status,
+        outcome="none-yet",
+        summary="s",
+    )
+    p = rroot / name
+    p.write_text(content, encoding="utf-8")
+    return p
+
+
+class SuggestTriageTests(unittest.TestCase):
+    """IPD m383qb E-03: the human-confirmed triage classifier (promote --suggest)."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        _init_git(self.root)
+        self.rroot = self.root / R.RESEARCH_ROOT
+        # RUN prompt-set whose intake report is cited by an EXECUTED plan -> reference.
+        _write_kind_doc(
+            self.root,
+            set_id="runset",
+            order=0,
+            id6="prmpt2",
+            slug="ask",
+            status="reference",
+            created="20260802",
+            kind="research-prompt",
+        )
+        _write_kind_doc(
+            self.root,
+            set_id="runset",
+            order=1,
+            id6="rprt01",
+            slug="answer",
+            status="intake",
+            created="20260803",
+            kind="research-report",
+        )
+        # A stale, UNCITED, non-run-prompt intake doc must NOT be classified (genuinely untriaged).
+        _write_kind_doc(
+            self.root,
+            set_id="lonenote",
+            order=0,
+            id6="lone01",
+            slug="n",
+            status="intake",
+            created="20260804",
+            kind="notes",
+        )
+        # An executed plan citing the run-set report -> makes rprt01 cited (=> reference).
+        pl = self.root / ".aw" / "records" / "plans" / "executed"
+        pl.mkdir(parents=True, exist_ok=True)
+        (pl / "20260805-set-01-plnexe-x.ipd.md").write_text(
+            "# Plan\n\n- Id: plnexe\n\nAdopts research RSCH-rprt01.\n", encoding="utf-8"
+        )
+
+    def test_suggest_classifies_and_previews_without_mutation(self):
+        moves = A.suggest_triage(self.root, self.rroot)
+        by_id = {m.id6: m.new_status for m in moves}
+        # rprt01 is in a RUN set AND cited by an executed plan -> reference.
+        self.assertEqual(by_id.get("rprt01"), "reference")
+        # lone01 is uncited and not part of a run prompt-set -> not classified at all.
+        self.assertNotIn("lone01", by_id)
+        # No files moved during a suggest (preview computes Moves only).
+        self.assertTrue(
+            (
+                self.rroot / "20260803-runset-01-rprt01-answer.research-report.md"
+            ).exists()
+        )
+
+    def test_suggest_apply_promotes_as_previewed(self):
+        import argparse
+
+        args = argparse.Namespace(
+            id=None, to="reference", suggest=True, dir=str(self.root), apply=True
+        )
+        rc = A.run_promote(args)
+        self.assertEqual(rc, 0)
+        moved = list((self.rroot / R.REFERENCE_DIR).rglob("*rprt01*.md"))
+        self.assertEqual(len(moved), 1)
+        fm = R.parse_frontmatter(moved[0].read_text(encoding="utf-8"))
+        self.assertEqual(fm["status"], "reference")
+
+    def test_suggest_archives_uncited_run_set_deadend(self):
+        # A RUN prompt-set report that is NOT cited anywhere -> archive (dead end).
+        _write_kind_doc(
+            self.root,
+            set_id="deadset",
+            order=0,
+            id6="dprmpt",
+            slug="ask",
+            status="reference",
+            created="20260701",
+            kind="research-prompt",
+        )
+        _write_kind_doc(
+            self.root,
+            set_id="deadset",
+            order=1,
+            id6="drpt01",
+            slug="answer",
+            status="intake",
+            created="20260701",
+            kind="research-report",
+        )
+        moves = A.suggest_triage(self.root, self.rroot)
+        by_id = {m.id6: m.new_status for m in moves}
+        self.assertEqual(by_id.get("drpt01"), "archive")
+
+
 class ShardDateTests(unittest.TestCase):
     def test_shard_for_date(self):
         self.assertEqual(R.shard_for_date("20260701"), "202607")

@@ -223,6 +223,191 @@ class CheckDriftTests(unittest.TestCase):
         self.assertTrue(any(d.rule == "dangling-citation" for d in drift))
 
 
+class UnrunDerivationTests(unittest.TestCase):
+    """IPD m383qb E-01: structural unrun/RUN derivation over the manifest."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.rroot = self.root / R.RESEARCH_ROOT
+        # UNRUN: a bare NN=00 research-prompt with no NN>=01 sibling.
+        _write(
+            self.root,
+            set_id="unrunset",
+            order=0,
+            id6="prmpt1",
+            slug="ask",
+            status="intake",
+            created="20260801",
+            kind="research-prompt",
+        )
+        # RUN: a NN=00 research-prompt WITH a NN=01 report sibling.
+        _write(
+            self.root,
+            set_id="runset",
+            order=0,
+            id6="prmpt2",
+            slug="ask",
+            status="intake",
+            created="20260802",
+            kind="research-prompt",
+        )
+        _write(
+            self.root,
+            set_id="runset",
+            order=1,
+            id6="rprt01",
+            slug="answer",
+            status="intake",
+            created="20260803",
+            kind="research-report",
+        )
+
+    def test_derive_unrun_excludes_run_set_includes_bare_prompt(self):
+        entries, _ = I._scan_docs(self.rroot)
+        unrun = I.derive_unrun_prompts(entries)
+        self.assertEqual([e.id6 for e in unrun], ["prmpt1"])
+        self.assertEqual(I.unrun_set_ids(entries), {"unrunset"})
+        self.assertEqual(I.run_prompt_set_ids(entries), {"runset"})
+
+    def test_prompt_set_taxonomy_ignores_non_prompt_sets(self):
+        # A lone non-prompt intake doc is neither a run prompt-set nor unrun.
+        _write(
+            self.root,
+            set_id="lonenote",
+            order=0,
+            id6="note01",
+            slug="n",
+            status="intake",
+            created="20260804",
+            kind="notes",
+        )
+        entries, _ = I._scan_docs(self.rroot)
+        self.assertNotIn("lonenote", I.unrun_set_ids(entries))
+        self.assertNotIn("lonenote", I.run_prompt_set_ids(entries))
+
+
+class StaleStateDriftTests(unittest.TestCase):
+    """IPD m383qb E-02: --check flags stale hot state (RUN set OR cited-by-executed)."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.rroot = self.root / R.RESEARCH_ROOT
+
+    def _regen(self):
+        entries, _ = I._scan_docs(self.rroot)
+        (self.rroot / I.INDEX_JSON).write_text(
+            I.build_index_json(entries), encoding="utf-8"
+        )
+        (self.rroot / I.INDEX_MD).write_text(
+            I.build_index_md(entries), encoding="utf-8"
+        )
+
+    def _write_plan(self, disposition, id6_cite, plan_id="pln001"):
+        d = self.root / ".aw" / "records" / "plans" / disposition
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"20260801-set-01-{plan_id}-x.ipd.md").write_text(
+            f"# Plan\n\n- Id: {plan_id}\n\nUses research RSCH-{id6_cite} for context.\n",
+            encoding="utf-8",
+        )
+
+    def test_trigger_a_run_set_flags_intake_and_clean_after_promote(self):
+        # A RUN prompt-set with an intake report member -> stale-state-to-promote.
+        _write(
+            self.root,
+            set_id="runset",
+            order=0,
+            id6="prmpt2",
+            slug="ask",
+            status="reference",
+            created="20260802",
+            kind="research-prompt",
+        )
+        rpt = _write(
+            self.root,
+            set_id="runset",
+            order=1,
+            id6="rprt01",
+            slug="answer",
+            status="intake",
+            created="20260803",
+            kind="research-report",
+        )
+        self._regen()
+        drift = I.check_drift(self.root, self.rroot)
+        stale = [d for d in drift if d.rule == I.STALE_STATE_RULE]
+        self.assertTrue(
+            any("rprt01" in d.location or "runset" in d.detail for d in stale),
+            f"expected stale flag for the intake report; got {stale}",
+        )
+        # Promote it out of the hot band -> the stale flag clears (only stale rule considered).
+        rpt.write_text(
+            rpt.read_text(encoding="utf-8").replace(
+                "status: intake", "status: reference"
+            ),
+            encoding="utf-8",
+        )
+        self._regen()
+        drift2 = I.check_drift(self.root, self.rroot)
+        self.assertFalse(
+            any(d.rule == I.STALE_STATE_RULE for d in drift2),
+            "stale-state should clear once the doc is promoted",
+        )
+
+    def test_trigger_b_cited_by_executed_plan_flags_but_pending_does_not(self):
+        # A standalone intake doc, cited only by a PENDING plan -> NOT flagged.
+        _write(
+            self.root,
+            set_id="solo",
+            order=0,
+            id6="solo11",
+            slug="s",
+            status="intake",
+            created="20260801",
+            kind="notes",
+        )
+        self._regen()
+        self._write_plan("pending", "solo11", plan_id="pln001")
+        drift = I.check_drift(self.root, self.rroot)
+        self.assertFalse(
+            any(d.rule == I.STALE_STATE_RULE for d in drift),
+            "a pending-only citer must NOT flag the intake doc",
+        )
+        # Now cited by an EXECUTED plan -> flagged.
+        self._write_plan("executed", "solo11", plan_id="pln002")
+        drift2 = I.check_drift(self.root, self.rroot)
+        self.assertTrue(
+            any(d.rule == I.STALE_STATE_RULE and "solo" in d.location for d in drift2),
+            f"expected stale flag from the executed citer; got {[d for d in drift2 if d.rule == I.STALE_STATE_RULE]}",
+        )
+
+    def test_cited_by_executed_ids_reverse_traversal(self):
+        _write(
+            self.root,
+            set_id="solo",
+            order=0,
+            id6="solo11",
+            slug="s",
+            status="intake",
+            created="20260801",
+            kind="notes",
+        )
+        # spec implemented citer
+        sp = self.root / ".aw" / "records" / "specs"
+        sp.mkdir(parents=True, exist_ok=True)
+        (sp / "20260801-01-spc001-x.spec.md").write_text(
+            "# Spec\n\n- Status: implemented\n\ncites RSCH-solo11 here\n",
+            encoding="utf-8",
+        )
+        cited = I.cited_by_executed_ids(self.root, self.rroot)
+        self.assertIn("solo11", cited)
+        # a draft spec citer does NOT count
+        (sp / "20260801-02-spc002-y.spec.md").write_text(
+            "# Spec\n\n- Status: draft\n\ncites RSCH-nofind here\n", encoding="utf-8"
+        )
+        cited2 = I.cited_by_executed_ids(self.root, self.rroot)
+        self.assertNotIn("nofind", cited2)
+
+
 class RunIndexOutputTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
