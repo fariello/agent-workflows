@@ -3,7 +3,7 @@
 # Makefile), so `/verify` can find and run the self-tests here - the framework dogfooding
 # its own evidence layer.
 
-.PHONY: install-dev test test-serial version version-file
+.PHONY: install-dev test test-all test-serial version version-file
 
 # Install everything needed to work on and test this repo (guarantees pytest-xdist is
 # present so the suite ALWAYS runs in parallel). Run this once after cloning.
@@ -18,12 +18,20 @@ install-dev:
 # pytest-xdist if it is somehow missing, so every pytest invocation parallelizes.
 # pytest and pytest-xdist are TEST-ONLY dependencies (the `test` extra in pyproject.toml):
 # not imported at runtime and not shipped in the wheel.
+# FAST default run for routine use (e.g. after every IPD): inherits pyproject addopts
+# (`-n auto --dist=worksteal -m 'not slow'`), so it parallelizes AND skips the heavy
+# subprocess/install/conformance tests marked `slow`. ~24s vs ~2m41s for the full suite.
 test:
-	python3 -m pytest tests/ -n auto -q
+	python3 -m pytest tests/
 
-# Escape hatch: explicit-only serial stdlib runner (no third-party deps). Use ONLY when
-# deliberately debugging a test-isolation issue that -n auto would mask. `make test` never
-# runs this.
+# FULL suite including the `slow` subprocess/integration tests. Use for release-review,
+# CI, or before shipping. `-m ""` clears the default `not slow` filter; still parallel.
+test-all:
+	python3 -m pytest tests/ -m ''
+
+# Escape hatch: explicit-only serial stdlib runner (no third-party deps), runs EVERY test
+# (unittest has no marker filter). Use ONLY when deliberately debugging a test-isolation
+# issue that -n auto would mask. `make test` never runs this.
 test-serial:
 	python3 -m unittest discover -s tests -t .
 

@@ -13,6 +13,8 @@ Asserts:
 
 from __future__ import annotations
 
+import pytest
+
 import json
 import subprocess
 import sys
@@ -29,6 +31,10 @@ from agent_workflows.result_types import (
     ConflictingFlagsError,
     select_output,
 )
+
+# Heavy subprocess/CLI suite; excluded from the fast default run (see pyproject addopts
+# `-m "not slow"`). Run with `make test-all`.
+pytestmark = pytest.mark.slow
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 

@@ -19,12 +19,18 @@ Stdlib ``unittest`` (repository convention).
 
 from __future__ import annotations
 
+import pytest
+
 import subprocess
 import sys
 import unittest
 from pathlib import Path
 
 from agent_workflows import release_readiness as rr
+
+# Heavy subprocess/release suite; excluded from the fast default run (see pyproject addopts
+# `-m "not slow"`). Run with `make test-all`.
+pytestmark = pytest.mark.slow
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 

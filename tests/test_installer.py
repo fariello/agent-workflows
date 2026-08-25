@@ -7,6 +7,8 @@ functions. Stdlib unittest only.
 
 from __future__ import annotations
 
+import pytest
+
 import io
 import os
 import tempfile
@@ -23,6 +25,10 @@ from tests.support import REPO_ROOT, init_repo, run_installer, SOURCE_WORKFLOWS
 from agent_workflows import engine as INS
 from agent_workflows import cli as CLI
 from agent_workflows.term import Term
+
+# Heavy subprocess/install suite; excluded from the fast default run (see pyproject addopts
+# `-m "not slow"`). Run with `make test-all`.
+pytestmark = pytest.mark.slow
 
 
 class InstallerUnitTests(unittest.TestCase):

@@ -11,6 +11,8 @@ Asserts:
 
 from __future__ import annotations
 
+import pytest
+
 import json
 import subprocess
 import sys
@@ -18,6 +20,10 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import agent_schema as schema
+
+# Heavy subprocess/CLI suite; excluded from the fast default run (see pyproject addopts
+# `-m "not slow"`). Run with `make test-all`.
+pytestmark = pytest.mark.slow
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 

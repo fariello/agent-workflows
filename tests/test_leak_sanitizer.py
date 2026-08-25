@@ -10,6 +10,8 @@ are synthesized at runtime so this test file holds no literal leak. Stdlib unitt
 
 from __future__ import annotations
 
+import pytest
+
 import io
 import json
 import os
@@ -21,6 +23,10 @@ from pathlib import Path
 
 from agent_workflows import leak_sanitizer as ls
 from tests.support import REPO_ROOT
+
+# Heavy subprocess/scan suite; excluded from the fast default run (see pyproject addopts
+# `-m "not slow"`). Run with `make test-all`.
+pytestmark = pytest.mark.slow
 
 
 def _init_repo(path: Path) -> Path:

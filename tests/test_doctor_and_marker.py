@@ -3,6 +3,8 @@ source-repo awareness (PR-001) + summary line."""
 
 from __future__ import annotations
 
+import pytest
+
 import io
 import tempfile
 import types
@@ -11,6 +13,10 @@ from contextlib import redirect_stdout, redirect_stderr
 from pathlib import Path
 
 from agent_workflows import attention, doctor
+
+# Heavy subprocess/CLI suite; excluded from the fast default run (see pyproject addopts
+# `-m "not slow"`). Run with `make test-all`.
+pytestmark = pytest.mark.slow
 
 
 class AgeMarkerTests(unittest.TestCase):

@@ -18,6 +18,8 @@ list, so new leaves are forced into coverage automatically.
 
 from __future__ import annotations
 
+import pytest
+
 import unittest
 
 from agent_workflows.cli import _build_parser
@@ -37,6 +39,11 @@ from tests.conformance_matrix import (
     semantic_facts_from_agent,
     semantic_facts_from_human,
 )
+
+
+# Heavy subprocess/conformance suite; excluded from the fast default run (see pyproject
+# addopts `-m "not slow"`). Run with `make test-all`.
+pytestmark = pytest.mark.slow
 
 
 class UndeclaredLeafGuardTests(unittest.TestCase):
@@ -147,7 +154,9 @@ class LiveScenarioConformanceTests(unittest.TestCase):
         for leaf in LIVE_SAFE_LEAVES:
             with self.subTest(leaf=leaf):
                 res = run_cli([*leaf.split(), "--help"])
-                self.assertEqual(res.returncode, 0, f"{leaf} --help rc={res.returncode}")
+                self.assertEqual(
+                    res.returncode, 0, f"{leaf} --help rc={res.returncode}"
+                )
                 self.assertIn("usage", res.stdout.lower())
 
     def test_usage_error_scenario_exits_two(self):

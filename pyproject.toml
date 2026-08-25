@@ -105,12 +105,18 @@ include = [
 # stdlib unittest.TestCase and also run under `python -m unittest discover -s tests -t .`.
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# Run the suite in parallel by default via pytest-xdist (declared in the [test] extra).
-# `-n auto` picks a worker per CPU; override with `-n 0` to force serial (e.g. when
-# debugging a test-isolation issue or needing deterministic output ordering).
-# `-n auto` (pytest-xdist, one worker per CPU) is ALWAYS on so the suite never runs
-# serially. pytest-xdist is a required test dep (the `test` extra and the `dev` group),
-# and the root conftest.py auto-installs it as a last resort if it is somehow missing, so
-# every pytest invocation parallelizes. To force serial when deliberately debugging a
-# test-isolation issue, run `python -m unittest discover -s tests -t .` (or `make test-serial`).
-addopts = "-q -n auto"
+markers = [
+    "slow: heavy subprocess/integration tests (spawn the CLI, install into temp repos). Deselected by default for a fast per-run suite; run them with `make test-all` / `-m ''`.",
+]
+# Two dials, both always on in the default invocation:
+#  1) `-n auto` (pytest-xdist, one worker per CPU) so the suite NEVER runs serially.
+#     pytest-xdist is a required test dep (the `test` extra + the `dev` group), and the
+#     root conftest.py auto-installs it as a last resort if it is somehow missing.
+#     `--dist=worksteal` lets idle workers steal queued tests so one straggler cannot
+#     stall the whole run.
+#  2) `-m "not slow"` so the DEFAULT run is the FAST subset (pure-logic unit tests, ~24s).
+#     The ~9 subprocess-heavy files are marked `slow` and excluded here; run the FULL
+#     suite for release-review / CI with `make test-all` (which passes `-m ""`).
+# To force serial when debugging a test-isolation issue: `make test-serial`
+# (`python -m unittest discover -s tests -t .`).
+addopts = "-q -n auto --dist=worksteal -m 'not slow'"
