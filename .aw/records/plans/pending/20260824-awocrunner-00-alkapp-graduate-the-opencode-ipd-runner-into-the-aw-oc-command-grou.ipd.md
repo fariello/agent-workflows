@@ -32,31 +32,31 @@ This orchestrator does not itself edit code; each `E-*` below is the delivery of
 
 ### Task group 1: Package the core
 
-- [ ] E-01 Deliver child IPD Order 01 (ckxgx4): move the runipd core into `agent_workflows/oc_runipd.py` unchanged (behavior-preserving), and migrate its test suite into the package test tree.
+- [x] E-01 Deliver child IPD Order 01 (ckxgx4): move the runipd core into `agent_workflows/oc_runipd.py` unchanged (behavior-preserving), and migrate its test suite into the package test tree.
   - Depends on: none
   - Expected outcome: `agent_workflows/oc_runipd.py` exists with runipd's full logic; the migrated tests pass under `python3 -m pytest tests/`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Expose the subcommand
 
-- [ ] E-02 Deliver child IPD Order 02 (nfo184): add an `oc` (alias `opencode`) top-level subcommand group to `agent_workflows/cli.py` with a `runipd` subcommand that dispatches into `oc_runipd`, mirroring the existing group pattern (e.g. `ipd`/`plan`/`plans`).
+- [x] E-02 Deliver child IPD Order 02 (nfo184): add an `oc` (alias `opencode`) top-level subcommand group to `agent_workflows/cli.py` with a `runipd` subcommand that dispatches into `oc_runipd`, mirroring the existing group pattern (e.g. `ipd`/`plan`/`plans`).
   - Depends on: E-01
   - Expected outcome: `aw oc runipd ...` and `aw opencode runipd ...` invoke the packaged runner with parity to the standalone script's CLI.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Compat shim
 
-- [ ] E-03 Deliver child IPD Order 03 (4tlkgj): reduce `tools/ipdrunner/runipd.py` to a thin shim that imports and delegates to `agent_workflows.oc_runipd`, preserving existing `python3 tools/ipdrunner/runipd.py ...` invocations and re-exports.
+- [x] E-03 Deliver child IPD Order 03 (4tlkgj): reduce `tools/ipdrunner/runipd.py` to a thin shim that imports and delegates to `agent_workflows.oc_runipd`, preserving existing `python3 tools/ipdrunner/runipd.py ...` invocations and re-exports.
   - Depends on: E-01
   - Expected outcome: `python3 tools/ipdrunner/runipd.py ...` still works identically; no logic duplicated in the shim.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Docs and backlog
 
-- [ ] E-04 Deliver child IPD Order 04 (suks59): update `tools/README.md` (and any doc referencing the driver path) to document `aw oc runipd`; file a non-blocking medium backlog item for normalizing interactive/progress output into a shared renderer and graduating the remaining tools (runagy/agy_run, pwatch, agy sessions, agy view).
+- [x] E-04 Deliver child IPD Order 04 (suks59): update `tools/README.md` (and any doc referencing the driver path) to document `aw oc runipd`; file a non-blocking medium backlog item for normalizing interactive/progress output into a shared renderer and graduating the remaining tools (runagy/agy_run, pwatch, agy sessions, agy view).
   - Depends on: E-02, E-03
   - Expected outcome: docs describe the new command; a committed backlog item captures the deferred follow-on work.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Child IPDs, sequence, and dependencies
 
@@ -116,25 +116,25 @@ Dependency rationale: 01 (packaged core) is the foundation both 02 (subcommand i
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: child 01 moved to `executed/`; pasted `python3 -m pytest tests/` output showing the migrated runipd tests passing; confirmation `agent_workflows/oc_runipd.py` exists.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: child `20260824-awocrunner-01-ckxgx4-extract-runipd-core-into-the-agent-workflows-package-unchang.ipd.md` is `Status: executed` under `.aw/records/plans/executed/` with its own V-01..V-03 all `Result: pass`; product commit ca04e63 (`feat(oc-runipd): extract runipd core into agent_workflows package unchanged (ckxgx4)`), evidence fb72860, finalize 41ef2ac. Re-verified live at HEAD 4d108b3: `agent_workflows/oc_runipd.py` exists (2257 lines, contains the full runner core including DriverError/Palette/Heartbeat/PlanRecord and the start/resume/status/report logic); migrated test surface `tests/test_oc_runipd.py` present. Whole suite `python3 -m pytest tests/` -> `2221 passed, 1 skipped in 17.39s` (includes the migrated runipd tests).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: child 02 moved to `executed/`; pasted output of `aw oc runipd --help` and `aw opencode runipd --help` and one real invocation (e.g. `aw oc runipd status <run-id>`) showing parity with the standalone script.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: child `20260824-awocrunner-02-nfo184-add-aw-oc-opencode-subcommand-group-dispatching-to-the-packa.ipd.md` is `Status: executed` under `.aw/records/plans/executed/` with its own V-01..V-03 all `Result: pass`; product commit 524782a (`feat(cli): add aw oc / aw opencode group dispatching to packaged runipd (nfo184)`), evidence 4692254, finalize 2844803. Re-verified live at HEAD 4d108b3: `aw oc runipd --help` and `aw opencode runipd --help` both print `usage: runipd [-h] {start,resume,status,report} ...` (the alias resolves to the same group), exit 0. Real invocation `aw oc runipd status --repo $PWD run-20260825T105819Z-1469310` succeeded (exit 0), rendering the run table (positions 01 rmwr8s executed, 02 uvsmmy executed, 03 alkapp running). CLI parity with the standalone script proven by the identical-output diff in V-03.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: child 03 moved to `executed/`; pasted output of `python3 tools/ipdrunner/runipd.py status <run-id>` matching the `aw oc runipd status <run-id>` output; a diff/snippet showing the shim contains only delegation.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: child `20260824-awocrunner-03-4tlkgj-reduce-tools-ipdrunner-runipd-to-a-thin-compatibility-shim.ipd.md` is `Status: executed` under `.aw/records/plans/executed/` with its own V-01/V-02 `Result: pass`; product commit 8ce7a09 (`refactor(runipd): reduce tools/ipdrunner/runipd.py to a thin compat shim (4tlkgj)`), evidence 2eb3791, finalize 0796d7c. Re-verified live at HEAD 4d108b3: `diff <(aw oc runipd status --repo $PWD run-20260825T105819Z-1469310) <(python3 tools/ipdrunner/runipd.py status --repo $PWD run-20260825T105819Z-1469310)` is EMPTY (identical output, both exit 0), proving the shim and packaged command are one code path. The shim (`tools/ipdrunner/runipd.py`, 39 lines) contains ONLY delegation: `sys.path` setup, `from agent_workflows import oc_runipd`, re-exports (`main = oc_runipd.main`, `DriverError`/`Palette`/`Heartbeat`/`PlanRecord`), and `raise SystemExit(oc_runipd.main(sys.argv[1:]))`; grep for `^def `/`^class ` in the shim returns nothing (no duplicated logic).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: child 04 moved to `executed/`; snippet of `tools/README.md` documenting `aw oc runipd`; path of the committed backlog item (via `aw backlog`) capturing output normalization + remaining-tool graduation.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: child `20260824-awocrunner-04-suks59-docs-sync-and-non-blocking-backlog-for-output-normalization.ipd.md` is `Status: executed` under `.aw/records/plans/executed/` with its own V-01/V-02 `Result: pass`; product commit 22da425 (`docs(oc-runipd): document aw oc runipd as primary + file deferred-work backlog (suks59)`), evidence e843be2, finalize 37c90e7. Re-verified live at HEAD 4d108b3: `tools/README.md:139` has a `## \`aw oc runipd\` (the OpenCode IPD runner)` section documenting the packaged command, the alias `aw opencode runipd`, and the compat shim. Committed backlog item `.aw/records/backlog/open/20260825-1sdkvd-01-1sdkvd-normalize-runner-output-and-graduate-tools.backlog.md` (Id 1sdkvd, Status open, Priority medium) captures output normalization + graduating runagy/pwatch/agy tools. Runbook drift corrected: `grep ipdrunner.py tools/ipdrunner/20260823-pending-ipds-overnight-execution-runbook.md` returns 0 matches (the stale `ipdrunner.py` filename is gone; the runbook now presents `aw oc runipd` and the `runipd.py` compat shim), and no other doc repeats the wrong filename.
+  - Result: pass
 
 ## Approval and execution gate
 
