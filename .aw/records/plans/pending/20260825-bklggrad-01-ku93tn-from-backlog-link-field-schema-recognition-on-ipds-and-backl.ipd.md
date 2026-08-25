@@ -1,0 +1,127 @@
+# IPD: From-Backlog link field: schema recognition on IPDs and backlog, aw ipd set --from-backlog setter, and dangling-reference check
+
+- Date: 2026-08-25
+- Kind: child
+- Concern: The link between a backlog item and the IPD/IPD set that graduated from it is currently only ever recorded as informal prose (Concern text or a history line). Nothing machine-readable ties a plan back to the backlog item it satisfies, so the `bklggrad` close-legitimacy predicate (child 02) has no deterministic signal to confirm "a blocking plan inherited this item's release gate". Meanwhile `Blocks-Release` already demonstrates the exact recognized-but-optional field pattern this needs (ipd_schema.py:163 META_BLOCKS_RELEASE; releases.set_blocks_release_line; releases.check_blocks_release dangling scan). This child adds a parallel `From-Backlog` link field so the graduation relationship is first-class and checkable.
+- Scope: Add a `From-Backlog: <id6>` metadata field, single-valued, recognized-but-OPTIONAL, that may appear on an IPD (and is tolerated on a backlog item for symmetry, though its primary home is the plan). (1) Schema: add `META_FROM_BACKLOG = "From-Backlog"` to `ipd_schema.META_RECOGNIZED` (NOT in META_REQUIRED, mirroring META_BLOCKS_RELEASE/META_SCOPE_PATHS) so an IPD carrying it lints clean (no IPD-M103). (2) Primitive + setter: add `releases`-style `set_from_backlog_line(text, value)` (or a sibling helper module) that idempotently writes/clears the line, and wire `aw ipd set --from-backlog <id6|->` in cli.py + status_set.py using the SAME hoisted-write pattern as `--blocks-release` (status_set.py:449-461), so it persists on a no-op transition too. (3) Dangling check: add a `check.from-backlog-dangling` rule (in releases.py or check_engine.py, folded into the cross-tree `aw check` sweep like check_blocks_release) that flags a `From-Backlog` value that does not resolve to an existing backlog item id6. Value validation lives in the check surface, not the schema layer (same split as Blocks-Release). This child delivers ONLY the field, setter, and dangling check; the close-legitimacy predicate that CONSUMES the link is child 02.
+- Scope-Paths: agent_workflows/ipd_schema.py, agent_workflows/status_set.py, agent_workflows/cli.py, agent_workflows/releases.py, agent_workflows/check_engine.py, agent_workflows/backlog.py, tests/
+- Status: draft
+- Set: bklggrad
+- Order: 1
+- Highest E allocated: 05
+- Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
+- Id: ku93tn
+
+## Workflow history
+
+- 2026-08-25 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.
+
+## Goal
+
+Add a machine-readable `From-Backlog: <id6>` link field (recognized-but-optional on IPDs), an `aw ipd set --from-backlog` setter, and a dangling-reference check, so the backlog->plan graduation relationship is first-class and deterministically checkable by the child-02 predicate. Mirrors the existing `Blocks-Release` field in every respect.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: schema recognition
+
+- [ ] E-02 Add `META_FROM_BACKLOG = "From-Backlog"` to `agent_workflows/ipd_schema.py` and include it in `META_RECOGNIZED` (alongside `META_BLOCKS_RELEASE`/`META_SCOPE_PATHS`), NOT in `META_REQUIRED`, with a doc comment matching the Blocks-Release precedent (recognition only stops IPD-M103; value validation lives in `aw check`).
+  - Depends on: none
+  - Expected outcome: an IPD carrying `- From-Backlog: <id6>` lints clean (no IPD-M103 "unknown field") at every phase.
+  - Execution state: pending
+
+### Task group 2: write primitive + setter
+
+- [ ] E-03 Add a `set_from_backlog_line(text, value)` primitive (in `agent_workflows/releases.py` next to `set_blocks_release_line`, or a small sibling helper) that idempotently inserts/replaces/removes the `- From-Backlog:` line (value `-`/None clears), anchored after `- Status:`/`- Id:` exactly like the Blocks-Release primitive.
+  - Depends on: none
+  - Expected outcome: `set_from_backlog_line` round-trips (set, overwrite, clear) leaving other metadata structure unchanged.
+  - Execution state: pending
+- [ ] E-04 Wire `aw ipd set --from-backlog <id6|->` in `agent_workflows/cli.py` (new arg on the `ipd set` parser, `dest="from_backlog"`) and apply it in `agent_workflows/status_set.py` using the SAME hoisted, status-branch-independent write pattern as `--blocks-release` (status_set.py:449-461), so it persists even on a no-op (same-status) transition.
+  - Depends on: E-03
+  - Expected outcome: `aw ipd set <status> <plan> --from-backlog 3gr7fk` writes the field and persists on a same-status call; `--from-backlog -` clears it.
+  - Execution state: pending
+
+### Task group 3: dangling-reference check
+
+- [ ] E-05 Add a `check.from-backlog-dangling` rule (a `check_from_backlog` scan in `releases.py` or `check_engine.py`, folded into the cross-tree `aw check` sweep the same way `check_blocks_release` is at check_engine.py:604) that flags any `From-Backlog: <id6>` that does not resolve to an existing backlog item id6.
+  - Depends on: E-02
+  - Expected outcome: `aw check` reports `check.from-backlog-dangling` for a plan whose `From-Backlog` names a nonexistent backlog id6, and is clean when it resolves.
+  - Execution state: pending
+
+Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
+
+## Project conventions discovered (Step 0)
+
+- `Blocks-Release` is the exact precedent to mirror: schema recognition (ipd_schema.py:163-169), idempotent write primitive (releases.set_blocks_release_line:93), hoisted status-branch-independent setter write (status_set.py:449-461, the 61qk4a fix), and a dangling cross-tree check folded into `aw check` (releases.check_blocks_release:137, wired at check_engine.py:604).
+- Recognized-but-optional fields must be added to `META_RECOGNIZED` but NOT `META_REQUIRED`, or every existing pending plan fails the always-on author metadata check (the grandfather guarantee).
+
+## Findings
+
+The graduation link has no machine-readable representation today; child 02's predicate requires one to deterministically confirm a handoff. `From-Backlog` is the minimal addition and has a complete, tested precedent in `Blocks-Release`.
+
+## Proposed changes (ordered, validatable)
+
+1. `ipd_schema.py`: recognize `From-Backlog`.
+2. `releases.py`: `set_from_backlog_line` primitive + `check_from_backlog` dangling scan.
+3. `cli.py` + `status_set.py`: `aw ipd set --from-backlog` (hoisted write).
+4. `check_engine.py`: fold `check_from_backlog` into the cross-tree sweep.
+5. `tests/`: schema-accepts + lint-clean, set/clear/no-op-persist, dangling flagged / resolving clean.
+
+## Deferred / out of scope (with reason)
+
+- The close-legitimacy predicate and `aw backlog set done` gate that CONSUME this link: child 02.
+- The pre-commit hook: child 03.
+
+## Scope check
+
+- Over-scope: none.
+- Under-scope: none (field + setter + dangling check are the complete deliverable for this child).
+
+## Required tests / validation
+
+- Schema: an IPD with `- From-Backlog: <id6>` lints CONFORMING at author/pre-execution/pre-transition phases (guards against re-introducing IPD-M103).
+- Setter: set, overwrite, clear, and same-status no-op persist all work via `aw ipd set --from-backlog`.
+- Check: `check.from-backlog-dangling` fires on a nonexistent target and is clean on a resolving one.
+
+## Spec / documentation sync
+
+- Update AGENTS.md "Release gates" (or a new note) to document `From-Backlog` alongside `Blocks-Release`, and `aw ipd set --help`.
+
+## Open questions
+
+### OQ-01: Should a backlog item also be allowed to carry From-Backlog, or is it plan-only?
+
+- Blocking: no
+- Status: open
+- Owner: none
+- Resolution or deferral rationale: Primary home is the plan (the plan points back at the item). Tolerating it on a backlog item is harmless symmetry but unnecessary; default to plan-only recognition unless child 02 needs the reverse pointer.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [ ] V-02 validates E-02
+  - Required evidence: a test asserting an IPD carrying `- From-Backlog: <id6>` lints CONFORMING at author/pre-execution/pre-transition phases (no IPD-M103); paste the passing test output.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-03 validates E-03
+  - Required evidence: a unit test that `set_from_backlog_line` sets, overwrites, and clears the line idempotently without disturbing other metadata; paste output.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-04 validates E-04
+  - Required evidence: a test that `aw ipd set --from-backlog <id6>` writes the field, persists on a same-status (no-op) transition, and clears with `-`; paste output.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-05 validates E-05
+  - Required evidence: a test that `aw check` fires `check.from-backlog-dangling` on a nonexistent target and is clean on a resolving one; paste output.
+  - Observed evidence:
+  - Result: pending
+
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+TODO: approval + execution gate prose (execution contract, post-gate lifecycle move).
