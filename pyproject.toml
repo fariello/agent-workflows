@@ -29,12 +29,19 @@ classifiers = [
 dependencies = []
 
 # TEST-ONLY dependencies. These are NOT runtime deps (the shipped package currently needs
-# none; D138) and are never imported by agent_workflows/*. Install with
-# `pip install '.[test]'` to run the suite in parallel via `make test` / `pytest -n auto`.
-# The tests themselves are plain stdlib `unittest.TestCase`; pytest is only the runner,
-# and `make test-serial` (python -m unittest) always works without these.
+# none) and are never imported by agent_workflows/*. pytest-xdist is REQUIRED to run the
+# suite: `-n auto` is the default (addopts below + `make test`), so the suite ALWAYS runs
+# in parallel and never serially. Install the test deps with `make install-dev`,
+# `pip install '.[test]'`, or `pip install --group dev` (PEP 735 group below). pytest is
+# only the runner; the tests themselves are plain stdlib `unittest.TestCase`.
 [project.optional-dependencies]
 test = ["pytest>=8", "pytest-xdist>=3"]
+
+# PEP 735 dependency group so `pip install --group dev` (or `pip install -e . --group dev`)
+# always pulls the tools needed to work on this repo, guaranteeing pytest-xdist is present
+# and the suite runs in parallel. Mirrors the `test` extra; kept in sync with it.
+[dependency-groups]
+dev = ["pytest>=8", "pytest-xdist>=3"]
 
 [project.urls]
 Homepage = "https://github.com/fariello/agent-workflows"
@@ -101,4 +108,9 @@ testpaths = ["tests"]
 # Run the suite in parallel by default via pytest-xdist (declared in the [test] extra).
 # `-n auto` picks a worker per CPU; override with `-n 0` to force serial (e.g. when
 # debugging a test-isolation issue or needing deterministic output ordering).
+# `-n auto` (pytest-xdist, one worker per CPU) is ALWAYS on so the suite never runs
+# serially. pytest-xdist is a required test dep (the `test` extra and the `dev` group),
+# and the root conftest.py auto-installs it as a last resort if it is somehow missing, so
+# every pytest invocation parallelizes. To force serial when deliberately debugging a
+# test-isolation issue, run `python -m unittest discover -s tests -t .` (or `make test-serial`).
 addopts = "-q -n auto"

@@ -3,25 +3,27 @@
 # Makefile), so `/verify` can find and run the self-tests here - the framework dogfooding
 # its own evidence layer.
 
-.PHONY: test test-serial version version-file
+.PHONY: install-dev test test-serial version version-file
 
-# Parallel by default: pytest-xdist spreads the suite across all CPUs (the install/
+# Install everything needed to work on and test this repo (guarantees pytest-xdist is
+# present so the suite ALWAYS runs in parallel). Run this once after cloning.
+install-dev:
+	python3 -m pip install -e '.[test]'
+
+# ALWAYS parallel: pytest-xdist spreads the suite across all CPUs (the install/
 # uninstall tests are subprocess/IO bound and independent), cutting wall time ~5-8x
 # (measured ~4:20 serial -> ~0:40 on a 12-core machine, identical results). `make test`
-# is the canonical evidence command. Falls back to serial stdlib unittest when
-# pytest/xdist are not installed, so a minimal env still works. pytest and pytest-xdist
-# are TEST-ONLY dependencies (the `test` extra in pyproject.toml; D138): not imported at
-# runtime and not shipped in the wheel.
+# is the canonical evidence command and NEVER runs serially. `-n auto` is also the
+# default via addopts in pyproject.toml, and the root conftest.py auto-installs
+# pytest-xdist if it is somehow missing, so every pytest invocation parallelizes.
+# pytest and pytest-xdist are TEST-ONLY dependencies (the `test` extra in pyproject.toml):
+# not imported at runtime and not shipped in the wheel.
 test:
-	@if python3 -c "import xdist" >/dev/null 2>&1; then \
-		echo "running: pytest -n auto"; \
-		python3 -m pytest tests/ -n auto -q; \
-	else \
-		echo "pytest-xdist not found; running serial unittest (pip install '.[test]' for parallel)"; \
-		python3 -m unittest discover -s tests -t .; \
-	fi
+	python3 -m pytest tests/ -n auto -q
 
-# Always-serial stdlib runner (no third-party deps). Kept as the guaranteed fallback.
+# Escape hatch: explicit-only serial stdlib runner (no third-party deps). Use ONLY when
+# deliberately debugging a test-isolation issue that -n auto would mask. `make test` never
+# runs this.
 test-serial:
 	python3 -m unittest discover -s tests -t .
 
