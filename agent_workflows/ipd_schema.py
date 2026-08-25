@@ -154,12 +154,19 @@ META_SCOPE_PATHS = "Scope-Paths"
 # `Scope-Paths: grandfathered` is advisory-satisfied at the gate (non-blocking) instead of
 # declaring a real allowlist. It is stored IN the plan's metadata block so it travels with the plan.
 SCOPE_PATHS_GRANDFATHERED = "grandfathered"
+# Blocks-Release (Order si3mmt): an optional, single-valued release-gate field (a release id6 or the
+# sentinel `next`) declaring that this plan must be done before that release ships, matching the
+# semantics the field already has on backlog items and specs (AGENTS.md "Release gates"). Recognized
+# but OPTIONAL (NOT in META_REQUIRED), mirroring META_SCOPE_PATHS: recognition here only stops the
+# IPD-M103 "unknown field" lint error; value validation (does the target resolve to a release
+# record) lives in the `aw check` surface (child 03), not the schema layer.
+META_BLOCKS_RELEASE = "Blocks-Release"
 # The full set of recognized field names (unknown fields are errors for new IPDs).
 META_RECOGNIZED: FrozenSet[str] = frozenset(
     META_REQUIRED
     + META_PAIRED_SET_ORDER
     + META_QUARANTINE_TRIO
-    + (META_WATERMARK, META_APPROVAL, META_SCOPE_PATHS)
+    + (META_WATERMARK, META_APPROVAL, META_SCOPE_PATHS, META_BLOCKS_RELEASE)
 )
 
 # Readiness vocabulary imported from the existing single source of truth (no fork).

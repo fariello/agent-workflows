@@ -551,5 +551,60 @@ class ScopePathsSchemaTests(unittest.TestCase):
         self.assertTrue(any(a.startswith(".aw/records/plans/") for a in allowances))
 
 
+class BlocksReleaseSchemaTests(unittest.TestCase):
+    """Order si3mmt: Blocks-Release is a recognized-but-optional IPD field (guards against IPD-M103)."""
+
+    BASE = {
+        "Date": "2026-08-03",
+        "Kind": "child",
+        "Concern": "x",
+        "Scope": "x",
+        "Status": "to-review",
+        "Author": "x",
+        "Id": "abc123",
+        "Set": "s",
+        "Order": "1",
+    }
+
+    def test_blocks_release_is_recognized_but_not_required(self):
+        # Recognized (so it is not an unknown-field error) but NOT always-required.
+        self.assertIn(S.META_BLOCKS_RELEASE, S.META_RECOGNIZED)
+        self.assertNotIn(S.META_BLOCKS_RELEASE, S.META_REQUIRED)
+
+    def test_blocks_release_line_parses_without_unknown_field_error(self):
+        # A metadata block carrying `- Blocks-Release: next` must NOT produce IPD-M103's
+        # underlying MetaError(field, "unknown field") for that line.
+        lines = [
+            "- Date: 2026-08-03",
+            "- Kind: child",
+            "- Concern: x",
+            "- Scope: x",
+            "- Status: to-review",
+            "- Author: x",
+            "- Id: abc123",
+            "- Set: s",
+            "- Order: 1",
+            "- Blocks-Release: next",
+        ]
+        fields, errs = S.parse_metadata_block(lines)
+        self.assertEqual(fields.get("Blocks-Release"), "next")
+        self.assertFalse(
+            any(
+                e.field == "Blocks-Release" and e.message == "unknown field"
+                for e in errs
+            ),
+            f"Blocks-Release must be recognized; got {errs}",
+        )
+
+    def test_absent_blocks_release_is_not_a_metadata_error(self):
+        # A plan that does not carry the optional field still validates clean.
+        self.assertEqual(S.validate_metadata(dict(self.BASE), directory="pending"), [])
+
+    def test_present_blocks_release_is_not_a_metadata_error(self):
+        f = dict(self.BASE)
+        f["Blocks-Release"] = "next"
+        self.assertEqual(S.validate_metadata(f, directory="pending"), [])
+
+
 if __name__ == "__main__":
     unittest.main()
