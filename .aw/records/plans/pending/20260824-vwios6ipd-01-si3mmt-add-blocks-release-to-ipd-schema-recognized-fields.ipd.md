@@ -98,12 +98,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [x] V-01 validates E-01
   - Required evidence: pasted `aw ipd lint` output on an IPD carrying `- Blocks-Release: next` showing CONFORMING (no IPD-M103); and a grep/snippet showing `META_BLOCKS_RELEASE` present in `META_RECOGNIZED`.
-  - Observed evidence: `aw ipd lint /tmp/opencode/blkrel/scratch.ipd.md` (a copy of an approved IPD with `- Blocks-Release: next` inserted at line 14) -> `disposition: conforming` (no IPD-M103). Source: `ipd_schema.py` now defines `META_BLOCKS_RELEASE = "Blocks-Release"` and unions it into `META_RECOGNIZED` (`+ (META_WATERMARK, META_APPROVAL, META_SCOPE_PATHS, META_BLOCKS_RELEASE)`).
+  - Observed evidence: (run-20260825T035151Z-1236581, commit 7ecfb0a) Source: `ipd_schema.py` now defines `META_BLOCKS_RELEASE = "Blocks-Release"` and unions it into `META_RECOGNIZED` (`+ (META_WATERMARK, META_APPROVAL, META_SCOPE_PATHS, META_BLOCKS_RELEASE)`). Real `aw ipd lint` demonstration: a copy of the conforming fixture `tests/fixtures/conforming-orchestrator.md` lints `disposition: conforming` both before and AFTER inserting `- Blocks-Release: next` after its `- Id:` line (previously the inserted line would have produced IPD-M103); and a grep confirms no `unknown field` for `Blocks-Release`. See DECISION 07-si3mmt-D1 (the plan arrived pre-marked before the code existed; this evidence is the real re-verified run).
   - Result: pass
 
 - [x] V-02 validates E-02
   - Required evidence: pasted `python3 -m pytest tests/test_ipd_schema.py` output showing the new regression test passing.
-  - Observed evidence: `python3 -m pytest tests/test_ipd_schema.py -q` -> all pass (58 tests, `100%`). `-k BlocksRelease` -> `3 passed` (`test_blocks_release_is_recognized_but_not_required`, `test_blocks_release_line_parses_without_unknown_field_error`, `test_absent_blocks_release_is_not_a_metadata_error`).
+  - Observed evidence: (run-20260825T035151Z-1236581, commit 7ecfb0a) `python3 -m pytest tests/test_ipd_schema.py` -> `59 passed`, including the new `BlocksReleaseSchemaTests`: `test_blocks_release_is_recognized_but_not_required`, `test_blocks_release_line_parses_without_unknown_field_error`, `test_absent_blocks_release_is_not_a_metadata_error`, `test_present_blocks_release_is_not_a_metadata_error` (all ok). Whole suite `python3 -m pytest tests/` -> 2145 passed, 1 skipped. `pre-commit run --files agent_workflows/ipd_schema.py tests/test_ipd_schema.py` -> all hooks Passed.
   - Result: pass
 
 ## Approval and execution gate
