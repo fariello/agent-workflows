@@ -5,15 +5,15 @@
 - Concern: After the core moves into the package (child 01), the original `tools/ipdrunner/runipd.py` must not keep a second copy of the logic (that would drift). But existing invocations - `python3 tools/ipdrunner/runipd.py ...`, the runbook at `tools/ipdrunner/20260823-pending-ipds-overnight-execution-runbook.md`, and any operator muscle memory - must keep working. The established repo pattern for this is a thin backwards-compatible shim (see `tools/antigravity_execute_ipd.py` delegating to `agy_run`, and `tools/watch-agy.py` delegating to `pwatch`).
 - Scope: Reduce `tools/ipdrunner/runipd.py` to a thin shim that imports `agent_workflows.oc_runipd` and delegates `main()`, re-exporting any names external callers rely on, so `python3 tools/ipdrunner/runipd.py ...` behaves identically with zero duplicated logic. Child 03 of the awocrunner Set; depends on child 01.
 - Scope-Paths: tools/ipdrunner/runipd.py, tests/test_oc_runipd_shim.py
-- Status: approved
+- Status: executed
 - Set: awocrunner
 - Order: 3
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 4tlkgj
-- Approval: 2026-08-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-25 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Reduce tools/ipdrunner/runipd.py to a thin shim delegating to agent_workflows.oc_runipd (single source of truth; legacy invocation preserved); all E performed, all V pass with pasted evidence [Scope reconciliation - in-scope-unmodified tests/test_oc_runipd_shim.py: shim-parity test added in 8ce7a09 before the begin baseline; in-scope-unmodified tools/ipdrunner/runipd.py: reduced to a 39-line delegating shim in 8ce7a09 before the begin baseline]
 - 2026-08-25 approved (aw set): status set to approved
 - 2026-08-25 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (pinned re-export surface + no-external-importer note + identity assertion)
 - 2026-08-25 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique
