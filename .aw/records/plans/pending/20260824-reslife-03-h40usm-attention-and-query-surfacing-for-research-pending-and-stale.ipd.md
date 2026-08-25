@@ -30,17 +30,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Pending query
 
-- [ ] E-01 Add `aw research pending` (or `aw research find --unrun`) that lists exactly the UNRUN prompts using child 01's structural derivation (no corpus read), in both human and `--agent` output.
+- [x] E-01 Add `aw research pending` (or `aw research find --unrun`) that lists exactly the UNRUN prompts using child 01's structural derivation (no corpus read), in both human and `--agent` output.
   - Depends on: none
   - Expected outcome: the query lists only unrun prompts on a fixture (run set excluded, bare prompt included); unit-tested in both output modes.
-  - Execution state: pending
+  - Execution note: commit 325874e; `research_index.run_pending` lists exactly `derive_unrun_prompts(entries)` (child 01's structural signal, no corpus read) as `id6<TAB>path<TAB>summary`, in both human and `--agent` output; CLI `pending` parser + dispatch in cli.py.
+  - Execution state: performed
 
 ### Task group 2: Attention re-classification
 
-- [ ] E-02 Change `aw attention` so a research doc at `intake` that is RUN or cited-by-executed is NOT classed `ready` (surface it as a stale-state/drift item, per spec 5tapom OQ-01), while a genuinely-unrun `intake` prompt remains actionable. WIRING (the crux): `attention_contract.class_of(tree, status)` is status-only and MUST stay pure/total over `research_contract.STATUSES` - it cannot see the RUN/cited signal, which is manifest-level + cross-tree and is NOT in the per-file `_research_record(rel, path, text)` scanner signature today. So the derived signal must reach classification by ONE of: (a) thread `repo_root` + a precomputed unrun/cited set (from child 01's derivation) into `_record_for`/`_research_record`, or (b) a post-scan reclassification pass over the collected `items` keyed by research id6. Pick the lower-drift option; do NOT push the signal into `class_of`. `active` is a genuine live state (maps to ACTIVE, not READY) and is OUT of the "masquerades as ready" bug, so it is NOT reclassified here (only `intake` is); state this in the code comment.
+- [x] E-02 Change `aw attention` so a research doc at `intake` that is RUN or cited-by-executed is NOT classed `ready` (surface it as a stale-state/drift item, per spec 5tapom OQ-01), while a genuinely-unrun `intake` prompt remains actionable. WIRING (the crux): `attention_contract.class_of(tree, status)` is status-only and MUST stay pure/total over `research_contract.STATUSES` - it cannot see the RUN/cited signal, which is manifest-level + cross-tree and is NOT in the per-file `_research_record(rel, path, text)` scanner signature today. So the derived signal must reach classification by ONE of: (a) thread `repo_root` + a precomputed unrun/cited set (from child 01's derivation) into `_record_for`/`_research_record`, or (b) a post-scan reclassification pass over the collected `items` keyed by research id6. Pick the lower-drift option; do NOT push the signal into `class_of`. `active` is a genuine live state (maps to ACTIVE, not READY) and is OUT of the "masquerades as ready" bug, so it is NOT reclassified here (only `intake` is); state this in the code comment.
   - Depends on: E-01
   - Expected outcome: on a fixture, a finished-but-unpromoted `intake` research doc no longer appears under `ready`; an unrun `intake` prompt does; an `active` doc keeps its ACTIVE class; `class_of` stays status-only and total; `aw attention` regression test asserts the split.
-  - Execution state: pending
+  - Execution note: commit 325874e; chose option (b), the post-scan pass `attention._reclassify_stale_research` keyed by research id6 (OQ-01 resolved to reuse PARKED, no new class, no second fail-closed drift - DECISION 05-h40usm-D1). It moves a RUN-prompt-set or cited-by-executed `intake` item READY -> PARKED (hidden from the default board), leaves a genuinely-unrun `intake` prompt READY, and does NOT touch `active` (code comment states this). `class_of` is unmodified (still status-only/total). Failure-isolated (any derivation error leaves items unchanged).
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -88,15 +90,15 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `aw research pending` (human + `--agent`) on a fixture listing only unrun prompts; unit test passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `PendingQueryTests.test_pending_human_lists_only_unrun ... ok` and `test_pending_agent_lists_only_unrun ... ok` (on a fixture with a RUN set and one bare prompt, both modes list only the unrun `prmpt1`; the RUN-set prompt `prmpt2` and its report `rprt01` are excluded; --agent emits exactly one `id6<TAB>path<TAB>summary` line). Real-repo run: `aw research pending` lists the unrun prompts (e.g. `8it88r ... deriving-actor-identity...research-prompt.md`), exit 0, and `--agent` emits the same tab-separated shape. Full output in the run report (V-01, h40usm).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted `aw attention` output on a fixture showing a finished-but-unpromoted `intake` doc is NOT under `ready`, an unrun `intake` prompt IS actionable, and an `active` doc keeps its ACTIVE class; a `class_of` test proving it stayed status-only and total over the four statuses (unchanged by this child).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `StaleResearchReclassifyTests.test_run_set_intake_not_ready_unrun_stays_ready_active_untouched ... ok` (a RUN-set intake report `rprt01` -> `parked` (not ready); an unrun intake prompt `prmpt9` -> `ready`; an `active` doc `live01` -> `active`); `test_cited_by_executed_intake_not_ready ... ok` (a standalone intake cited by an executed plan -> `parked`); `test_class_of_unchanged_and_total ... ok` (`class_of('research', ...)` still `intake->ready, active->active, reference->done, archive->parked`). Real-repo `aw attention --format json`: research `ready` count dropped to 1 (the genuinely-unrun `8it88r`), 31 stale docs now `parked`; `aw attention --check` still exits 0 (no new drift emitted). Full output in the run report (V-02, h40usm).
+  - Result: pass
 
 
 ## Approval and execution gate
