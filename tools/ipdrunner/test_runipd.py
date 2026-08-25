@@ -1490,5 +1490,145 @@ class RunipdBugsFixesTests(unittest.TestCase):
             self.assertEqual(json.loads(target.read_text()), {"hello": "world"})
 
 
+class PlanBucketRecognitionTests(unittest.TestCase):
+    """#4: plan_bucket must recognize the full lifecycle directory set."""
+
+    def test_recognizes_all_lifecycle_buckets(self):
+        for bucket in (
+            "executed",
+            "active",
+            "pending",
+            "reviewed",
+            "approved",
+            "reusable",
+            "superseded",
+            "not-executed",
+        ):
+            path = Path(
+                f"/x/.aw/records/plans/{bucket}/20260824-demo-01-aaaaaa-t.ipd.md"
+            )
+            self.assertEqual(driver.plan_bucket(path), bucket)
+
+    def test_unknown_bucket_returns_none(self):
+        self.assertIsNone(
+            driver.plan_bucket(Path("/x/.aw/records/plans/limbo/20260824-x.ipd.md"))
+        )
+
+
+class StatusJsonTests(unittest.TestCase):
+    """#3: `status --json` emits the full state.json payload."""
+
+    def test_status_json_emits_state(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run_dir = _make_run_dir(
+                Path(temp),
+                [
+                    {
+                        "position": 1,
+                        "id6": "aaaaaa",
+                        "setid": "demo",
+                        "status": "executed",
+                        "action": "execute",
+                        "attempts": [],
+                    }
+                ],
+            )
+            import io
+            from contextlib import redirect_stdout
+
+            args = driver.build_parser().parse_args(["status", str(run_dir), "--json"])
+            self.assertTrue(args.json)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = driver.main(
+                    ["status", str(run_dir), "--repo", str(run_dir), "--json"]
+                )
+            self.assertEqual(rc, 0)
+            payload = json.loads(buf.getvalue())
+            self.assertEqual(payload["run_id"], "run-test")
+            self.assertEqual(payload["queue"][0]["id6"], "aaaaaa")
+
+
+class ContinuationHintTests(unittest.TestCase):
+    """#2: render_continuation_hint surfaces captured session(s) + reuse commands."""
+
+    def _state(self, set_sessions):
+        return {
+            "repo": "/repo",
+            "run_id": "run-xyz",
+            "set_sessions": set_sessions,
+            "queue": [],
+        }
+
+    def test_no_sessions_captured(self):
+        hint = driver.render_continuation_hint(self._state({}), Path("/x"))
+        self.assertIn("No OpenCode session was captured", hint)
+        self.assertNotIn("ses_", hint)
+        self.assertIn("runipd resume", hint)
+
+    def test_single_session(self):
+        hint = driver.render_continuation_hint(
+            self._state({"demo": "ses_abc123"}), Path("/x")
+        )
+        self.assertIn("ses_abc123", hint)
+        self.assertIn("runipd --session ses_abc123 <selector>", hint)
+        self.assertIn("runipd resume --repo /repo run-xyz", hint)
+
+    def test_multiple_sessions_lists_each_and_uses_last(self):
+        hint = driver.render_continuation_hint(
+            self._state({"setA": "ses_aaa", "setB": "ses_bbb"}), Path("/x")
+        )
+        self.assertIn("ses_aaa", hint)
+        self.assertIn("ses_bbb", hint)
+        # example command uses the most-recent (last) captured session
+        self.assertIn("runipd --session ses_bbb <selector>", hint)
+
+
+class VerifierPromptTests(unittest.TestCase):
+    """#1: turn-2 verifier prompt is well-formed and instructs a fresh-session audit."""
+
+    def test_build_verifier_prompt_contents(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run_dir = Path(temp) / "run"
+            (run_dir / "outcomes").mkdir(parents=True)
+            item = {"position": 3, "id6": "abc123", "setid": "demo"}
+            state = {"run_id": "run-test"}
+            prompt = driver.build_verifier_prompt(
+                item, state, run_dir, Path("/plan.ipd.md")
+            )
+            self.assertIn("Independent Rigorous Verification", prompt)
+            self.assertIn("fresh OpenCode session", prompt)
+            self.assertIn("03-abc123-verification.json", prompt)
+            self.assertIn("VERIFIED|CORRECTION_REQUIRED|BLOCKED", prompt)
+            self.assertIn("Never push", prompt)
+
+    def test_no_audit_flag_sets_option(self):
+        args = driver.build_parser().parse_args(
+            ["start", "demo", "--repo", ".", "--no-audit"]
+        )
+        self.assertTrue(args.no_audit)
+        # --no-verify is an accepted alias for the same dest
+        args2 = driver.build_parser().parse_args(
+            ["start", "demo", "--repo", ".", "--no-verify"]
+        )
+        self.assertTrue(args2.no_audit)
+
+    def test_verify_log_and_prompt_use_distinct_suffix(self):
+        with tempfile.TemporaryDirectory() as temp:
+            run_dir = Path(temp) / "run"
+            (run_dir / "sessions").mkdir(parents=True)
+            (run_dir / "prompts").mkdir(parents=True)
+            item = {
+                "position": 2,
+                "id6": "abc123",
+                "setid": "demo",
+                "action": "execute",
+            }
+            log = driver.attempt_log_path(run_dir, item, 1, suffix="verify")
+            self.assertTrue(log.name.endswith("attempt-1-verify.jsonl"))
+            p = driver.write_prompt(run_dir, item, "hi", 1, suffix="verify")
+            self.assertIn("verify", p.name)
+
+
 if __name__ == "__main__":
     unittest.main()

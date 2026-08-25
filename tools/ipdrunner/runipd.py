@@ -827,7 +827,16 @@ def resolve_plan_path(repo: Path, configured: str, id6: str) -> Path:
 
 def plan_bucket(path: Path) -> str | None:
     parts = path.parts
-    for bucket in ("executed", "active", "pending", "reviewed", "approved"):
+    for bucket in (
+        "executed",
+        "active",
+        "pending",
+        "reviewed",
+        "approved",
+        "reusable",
+        "superseded",
+        "not-executed",
+    ):
         if bucket in parts:
             return bucket
     return None
@@ -986,6 +995,7 @@ def initialize_run(args: argparse.Namespace) -> Path:
             "output_mode": getattr(args, "output_mode", "clean"),
             "stall_timeout": getattr(args, "stall_timeout", DEFAULT_STALL_TIMEOUT),
             "full_auto": full_auto,
+            "no_audit": getattr(args, "no_audit", False),
         },
         "driver": {
             "path": str(Path(__file__).resolve()),
@@ -1026,16 +1036,17 @@ def write_report(run_dir: Path, state: dict[str, Any]) -> None:
         f"- Counts: `{json.dumps(counts, sort_keys=True)}`",
         "- Pushed: no (required; verify independently in outcomes)",
         "",
-        "| # | id6 | Set | Action | Status | Attempts | Last session |",
-        "|---:|---|---|---|---|---:|---|",
+        "| # | id6 | Set | Action | Status | Verify | Attempts | Last session |",
+        "|---:|---|---|---|---|---|---:|---|",
     ]
     for item in state["queue"]:
         attempts = item.get("attempts", [])
         session = attempts[-1].get("session_id", "") if attempts else ""
         action = item.get("action", "execute")
+        verify = item.get("verification_status") or ""
         lines.append(
             f"| {item['position']} | `{item['id6']}` | `{item['setid']}` | `{action}` | "
-            f"{item['status']} | {len(attempts)} | `{session}` |"
+            f"{item['status']} | {verify} | {len(attempts)} | `{session}` |"
         )
     lines.extend(
         [
@@ -1197,10 +1208,69 @@ material question arose, say so in the summary. Explicitly confirm pushed=false.
 """
 
 
+def build_verifier_prompt(
+    item: dict[str, Any],
+    state: dict[str, Any],
+    run_dir: Path,
+    plan_path: Path,
+) -> str:
+    outcome = run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
+    verify_outcome = (
+        run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}-verification.json"
+    )
+    return f"""# Independent Rigorous Verification of Executed IPD
+
+Plan: `{plan_path}`
+Id: `{item['id6']}`
+Set: `{item['setid']}`
+Run ID: `{state['run_id']}`
+Execution Outcome JSON: `{outcome}`
+Verification Outcome JSON to write: `{verify_outcome}`
+
+You are an independent, skeptical verifier running in a fresh OpenCode session to audit
+the execution of this IPD. Your goal is to rigorously verify whether the code, tests,
+and documentation satisfy every requirement before this plan can be considered executed.
+
+## Verification Requirements:
+
+1. **Inspect Concrete Diffs & Commits**:
+   - Inspect the git commits and working tree diffs produced for this IPD.
+   - Verify that real functional changes were made, not just cosmetic/vocabulary additions.
+   - Ensure all referenced files and symbols in the plan's Scope-Paths actually exist and are wired correctly.
+
+2. **Evidence Table (E-* and V-*)**:
+   - Check every Execution item (`E-*`) and every Validation item (`V-*`) in the IPD.
+   - Check if the recorded observed evidence matches real code and passing tests.
+
+3. **Run and Verify Test Suite**:
+   - Run the required tests and validation commands for this IPD (e.g. `python3 -m pytest <test_file> -v` or `python3 -m unittest ...`).
+   - Paste the actual runner output with exit code.
+   - Confirm that tests are genuine and testing real assertions (not trivial passes).
+
+4. **In-Scope Fixes**:
+   - If you discover safely correctable defects, regressions, or missing test cases within the approved scope, fix them, re-run validation, and commit path-scoped (`git commit -m msg -- <paths>`). Never push.
+   - If any unresolvable defect or scope gap remains, report it clearly.
+
+5. **Write Verification Outcome**:
+   Before exiting, write valid JSON to `{verify_outcome}`:
+   {{
+     "schema_version": 1,
+     "id6": "{item['id6']}",
+     "verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED",
+     "summary": "...",
+     "evidence": [],
+     "tests_run": [],
+     "corrections_made": []
+   }}
+
+Begin independent verification now.
+"""
+
+
 def write_prompt(
-    run_dir: Path, item: dict[str, Any], prompt: str, attempt_no: int
+    run_dir: Path, item: dict[str, Any], prompt: str, attempt_no: int, suffix: str = ""
 ) -> Path:
-    prefix = "review" if item.get("action") == "review" else "exec"
+    prefix = suffix or ("review" if item.get("action") == "review" else "exec")
     path = (
         run_dir
         / "prompts"
@@ -1210,11 +1280,14 @@ def write_prompt(
     return path
 
 
-def attempt_log_path(run_dir: Path, item: dict[str, Any], attempt_no: int) -> Path:
+def attempt_log_path(
+    run_dir: Path, item: dict[str, Any], attempt_no: int, suffix: str = ""
+) -> Path:
+    tag = f"-{suffix}" if suffix else ""
     return (
         run_dir
         / "sessions"
-        / f"{item['position']:02d}-{item['id6']}-attempt-{attempt_no}.jsonl"
+        / f"{item['position']:02d}-{item['id6']}-attempt-{attempt_no}{tag}.jsonl"
     )
 
 
@@ -1277,15 +1350,24 @@ def run_opencode(
     plan_path: Path,
     prompt_path: Path,
     attempt_no: int,
+    fresh_session: bool = False,
+    log_suffix: str = "",
+    label_suffix: str = "",
 ) -> tuple[int, str | None, Path, list[str]]:
     options = state.get("options", {})
     opencode = options.get("opencode") or "opencode"
     argv = [opencode, "run"]
 
+    # A verifier turn (fresh_session=True) runs in a clean session with no inherited
+    # context, so it audits the executed work independently.
     session = (
-        state.get("session_id")
-        or state.get("set_sessions", {}).get(item["setid"])
-        or options.get("session")
+        None
+        if fresh_session
+        else (
+            state.get("session_id")
+            or state.get("set_sessions", {}).get(item["setid"])
+            or options.get("session")
+        )
     )
     if session:
         argv.extend(["--session", session])
@@ -1299,7 +1381,7 @@ def run_opencode(
         argv.append("--auto")
 
     is_review = item.get("action") == "review"
-    action_label = "review" if is_review else "exec"
+    action_label = label_suffix or ("review" if is_review else "exec")
     argv.extend(
         [
             "--title",
@@ -1307,7 +1389,12 @@ def run_opencode(
         ]
     )
 
-    if not is_review and state.get("runbook") and Path(state["runbook"]).exists():
+    if (
+        not is_review
+        and not log_suffix
+        and state.get("runbook")
+        and Path(state["runbook"]).exists()
+    ):
         argv.extend(["--file", state["runbook"]])
 
     argv.extend(
@@ -1322,7 +1409,7 @@ def run_opencode(
     output_mode = options.get("output_mode", "clean")
     pal = Palette(should_color(sys.stdout))
     label = pal(f"{item['id6']}", "bold") + f" ({action_label} attempt {attempt_no})"
-    log_path = attempt_log_path(run_dir, item, attempt_no)
+    log_path = attempt_log_path(run_dir, item, attempt_no, suffix=log_suffix)
 
     popen_kwargs: dict[str, Any] = {
         "cwd": state["repo"],
@@ -1541,8 +1628,72 @@ def execute_item(
         }
     )
     disposition, outcome = reconcile_disposition(repo, item, run_dir, exit_code)
+
+    # Turn 2: independent skeptical verification in a fresh session. After a successful
+    # execution turn, audit the work in a clean session (no inherited context); if the
+    # verifier finds unmet criteria, downgrade the disposition so it is not falsely
+    # reported as executed. Opt out with --no-audit / --no-verify.
+    verify_disp = None
+    opts = state.get("options", {})
+    no_verify = opts.get("no_verify") or opts.get("no_audit")
+    if (
+        not is_review
+        and disposition in ("executed", "substantially-complete")
+        and not no_verify
+    ):
+        v_prompt_text = build_verifier_prompt(item, state, run_dir, plan_path)
+        v_prompt_file = write_prompt(
+            run_dir, item, v_prompt_text, attempt_no, suffix="verify"
+        )
+        print(
+            pal(
+                f"\n  \u2022 Running independent verification for {item['id6']} in clean session...",
+                "cyan",
+            ),
+            file=sys.stderr,
+            flush=True,
+        )
+        try:
+            v_rc, _v_session, _v_log, _v_argv = run_opencode(
+                state,
+                run_dir,
+                item,
+                plan_path,
+                v_prompt_file,
+                attempt_no,
+                fresh_session=True,
+                log_suffix="verify",
+                label_suffix="verification",
+            )
+            v_outcome_file = (
+                run_dir
+                / "outcomes"
+                / f"{item['position']:02d}-{item['id6']}-verification.json"
+            )
+            if v_outcome_file.is_file():
+                try:
+                    v_data = json.loads(v_outcome_file.read_text(encoding="utf-8"))
+                    verify_verdict = str(v_data.get("verdict", "")).upper()
+                    if (
+                        "BLOCKED" in verify_verdict
+                        or "NOT CONFORMING" in verify_verdict
+                    ):
+                        verify_disp = "blocked"
+                        disposition = "partial"
+                    else:
+                        verify_disp = "verified"
+                except Exception:
+                    verify_disp = "verified" if v_rc == 0 else "unverified"
+            else:
+                verify_disp = "verified" if v_rc == 0 else "unverified"
+        except (KeyboardInterrupt, StallTimeout):
+            verify_disp = "unverified"
+
+    attempt["disposition"] = disposition
+    attempt["verification"] = verify_disp
     item["status"] = disposition
     item["last_outcome"] = outcome
+    item["verification_status"] = verify_disp
     save_state(run_dir, state)
 
     full_auto = state.get("options", {}).get("full_auto", False)
@@ -1746,7 +1897,46 @@ def run_queue(
             print(f"IPD {runnable['id6']} failed safely: {exc}", file=sys.stderr)
     state = load_state(run_dir)
     write_report(run_dir, state)
+    print(render_continuation_hint(state, run_dir))
     return 0 if all(item["status"] in SUCCESS_STATES for item in state["queue"]) else 1
+
+
+def render_continuation_hint(state: dict[str, Any], run_dir: Path) -> str:
+    """Print, on exit, the captured OpenCode session id(s) and the exact commands to
+    reuse them (run a NEW plan in the same session context) or resume THIS run.
+
+    Sessions are captured even when --session was not passed (extract_session_id reads
+    them from the child's streamed JSONL), so this surfaces them without a hand-read of
+    state.json. Handles 0, 1, and N captured sessions (a multi-Set run has one session
+    per Set)."""
+    pal = Palette(should_color(sys.stdout))
+    repo = state.get("repo", ".")
+    run_id = state.get("run_id", "run-...")
+    sessions = state.get("set_sessions", {})
+    captured: list[tuple[str, str]] = [
+        (s, sid) for s, sid in sessions.items() if sid and isinstance(sid, str)
+    ]
+
+    lines = ["", pal("--- OpenCode Session Continuity ---", "bold")]
+    if not captured:
+        lines.append("No OpenCode session was captured for this run.")
+    elif len(captured) == 1:
+        setid, sid = captured[0]
+        lines.append(f"Captured session: {pal(sid, 'cyan')} (Set: {setid})")
+        lines.append("To run a new plan under the same session:")
+        lines.append(f"  runipd --session {sid} <selector>")
+    else:
+        lines.append("Captured sessions by Set:")
+        for setid, sid in captured:
+            lines.append(f"  - {pal(setid, 'bold')}: {pal(sid, 'cyan')}")
+        last_sid = captured[-1][1]
+        lines.append("To run a new plan under the most recent session:")
+        lines.append(f"  runipd --session {last_sid} <selector>")
+
+    lines.append("To resume this run:")
+    lines.append(f"  runipd resume --repo {repo} {run_id}")
+    lines.append("")
+    return "\n".join(lines)
 
 
 def print_status(run_dir: Path) -> None:
@@ -1757,9 +1947,14 @@ def print_status(run_dir: Path) -> None:
     print(f"State directory: {run_dir}")
     for item in state["queue"]:
         action = item.get("action", "execute")
+        v = (
+            f" [verify: {item.get('verification_status')}]"
+            if item.get("verification_status")
+            else ""
+        )
         print(
             f"{item['position']:02d} {item['id6']} {item['setid']:<12} "
-            f"{action:<8} {item['status']:<20} attempts={len(item.get('attempts', []))}"
+            f"{action:<8} {item['status']:<20}{v} attempts={len(item.get('attempts', []))}"
         )
 
 
@@ -1910,6 +2105,13 @@ AUTOMATIC STATUS ROUTING:
         default=False,
         help="Automatically approve reviewed plans with 'GO - PENDING HUMAN APPROVAL' verdict and execute them immediately",
     )
+    start.add_argument(
+        "--no-audit",
+        "--no-verify",
+        dest="no_audit",
+        action="store_true",
+        help="Skip the turn-2 independent clean-session verification of executed plans",
+    )
     _add_output_mode_flags(start)
 
     resume = sub.add_parser(
@@ -1952,6 +2154,11 @@ AUTOMATIC STATUS ROUTING:
     )
     status.add_argument("run_id", help="Run ID or state directory path")
     status.add_argument("--repo", default=".", help="Target Git repository root")
+    status.add_argument(
+        "--json",
+        action="store_true",
+        help="Output the full state.json payload as JSON (for tooling/CI)",
+    )
 
     report = sub.add_parser(
         "report",
@@ -2001,6 +2208,10 @@ def main(argv: list[str] | None = None) -> int:
         run_dir = resolve_run_dir(args.repo, args.run_id)
         output_mode = getattr(args, "output_mode", None)
         if args.command == "status":
+            if getattr(args, "json", False):
+                state = load_state(run_dir)
+                print(json.dumps(state, indent=2, sort_keys=True))
+                return 0
             print_status(run_dir)
             return 0
         if args.command == "report":
