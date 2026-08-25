@@ -3162,16 +3162,6 @@
   {
     "date": "2026-08-24",
     "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260824-runipdsess-01-rxkf1e-runipd-prints-same-session-continuation-hint-on-exit.ipd.md",
-    "plan_id": "rxkf1e",
-    "set_id": "runipdsess",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-24",
-    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260824-vwios6ipd-00-uvsmmy-ipd-blocks-release-parity-schema-setter-and-check-validation.ipd.md",
@@ -3267,6 +3257,16 @@
     "path": "superseded/20260823-ipdfidelity-01-39fz2x-corrective-enforce-single-ipd-lifecycle-and-scope-gates.ipd.md",
     "plan_id": "39fz2x",
     "set_id": "ipdfidelity",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-24",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 1,
+    "path": "superseded/20260824-runipdsess-01-rxkf1e-runipd-prints-same-session-continuation-hint-on-exit.ipd.md",
+    "plan_id": "rxkf1e",
+    "set_id": "runipdsess",
     "status": "superseded"
   }
 ]

@@ -7,15 +7,15 @@
 - Concern: When a runipd run finishes, the OpenCode session id(s) it used are captured in `state.json` (top-level `session_id` and the per-Set `set_sessions` map) even when `--session` was not passed - OpenCode creates a session per Set and runipd reads the id back out of the streamed JSONL log via `extract_session_id`. But nothing surfaces those ids to the user on exit. To run ANOTHER IPD or file under the SAME session context (so the agent keeps its accumulated context), the user must currently open `state.json` and copy the id by hand. The driver should print a continuation hint on exit naming the captured session id(s) and the exact command to reuse them.
 - Scope: At the end of a `start`/`resume` run (in `run_queue`, after the final report is written), print a concise, colorized continuation hint that (a) lists the captured session id(s) - per Set when a run spans multiple Sets, since each Set has its own session - and (b) shows the exact command to run a NEW IPD/file in that same session context (`runipd --session <ses_...> <selector>`, and equivalently once graduated `aw oc runipd --session <ses_...> <selector>`), plus the `resume` command for continuing THIS run. Handle 0/1/N captured sessions honestly (say '(none captured)' when empty). No behavior change to execution; output-only. Single-child plan for the runipdsess Set.
 - Scope-Paths: tools/ipdrunner/runipd.py, tools/ipdrunner/test_runipd.py
-- Status: approved
+- Status: superseded
 - Set: runipdsess
 - Order: 1
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: rxkf1e
-- Approval: 2026-08-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-25 superseded (aw set): Complete retirement: feature shipped via a8964c5 + 0368aa1 outside this plan's lifecycle; reconciling half-done supersession (pending/approved -> superseded/)
 - 2026-08-25 approved (aw set): status set to approved
 - 2026-08-25 superseded (opencode its_direct/pt3-claude-opus-4.8-1m-us): Superseded: render_continuation_hint implemented directly in a8964c5 (feature) + 0368aa1 (run_queue integration test), outside this plan's lifecycle. Feature live and tested; filed superseded rather than executed for record honesty.
 - 2026-08-25 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 PR-002 PR-003 fixed

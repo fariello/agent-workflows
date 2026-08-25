@@ -41,7 +41,7 @@ Showing the 40 most-recent of 132 Sets; the full manifest is INDEX.json.
 
 ## runipdsess
 
-- `rxkf1e` [pending] 01 pending/20260824-runipdsess-01-rxkf1e-runipd-prints-same-session-continuation-hint-on-exit.ipd.md
+- `rxkf1e` [superseded] 01 superseded/20260824-runipdsess-01-rxkf1e-runipd-prints-same-session-continuation-hint-on-exit.ipd.md
 
 ## runipdwd
 
