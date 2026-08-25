@@ -446,13 +446,19 @@ def apply_status_change(
                 for gl in reversed(gate_lines):
                     new_lines.insert(insert_pos, gl)
 
-        br = getattr(args, "blocks_release", None)
-        if br is not None:
-            from agent_workflows import releases as _releases
+    # Blocks-Release write (IPD efnn74, root-cause of bug 61qk4a): this mutation is
+    # record-type-agnostic and MUST apply to plans and backlog too, not only specs, so it is
+    # hoisted OUT of the specs-only guard above. The specs-only Gate-Kind/Gate-Ref/Gate-Summary
+    # handling stays inside that guard; only this shared write is lifted. All setter surfaces funnel
+    # through the single shared `releases.set_blocks_release_line` primitive (no duplicate write
+    # path). The join/split idempotency is preserved so trailing metadata structure is unchanged.
+    br = getattr(args, "blocks_release", None)
+    if br is not None:
+        from agent_workflows import releases as _releases
 
-            tmp_text = "\n".join(new_lines)
-            tmp_text = _releases.set_blocks_release_line(tmp_text, br)
-            new_lines = tmp_text.splitlines()
+        tmp_text = "\n".join(new_lines)
+        tmp_text = _releases.set_blocks_release_line(tmp_text, br)
+        new_lines = tmp_text.splitlines()
 
     if rec.record_type == "plans" and norm_status != "approved":
         new_lines = [

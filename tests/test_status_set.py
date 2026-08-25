@@ -695,5 +695,93 @@ class TestApprovedWritesApprovalField(StatusSetTestBase):
         self.assertEqual(rc_lint, 0, out)
 
 
+class BlocksReleaseSetterTests(StatusSetTestBase):
+    """IPD efnn74: --blocks-release persists for plans AND backlog via the shared path (bug 61qk4a),
+    and the specs surface is unchanged after the hoist out of the specs-only guard."""
+
+    def test_backlog_positional_status_persists_blocks_release_61qk4a(self):
+        # 61qk4a: `aw backlog set open <id6> --blocks-release next` (positional status form,
+        # unchanged status) routes through status_set.apply_status_change; before the E-01 hoist the
+        # value was silently dropped for backlog. It must now persist.
+        bk = self.create_backlog(
+            "20260822-demo-01-bk0002-x.backlog.md", "bk0002", "demo", "open"
+        )
+        rc = cli.main(
+            [
+                "backlog",
+                "set",
+                "open",
+                "bk0002",
+                "--blocks-release",
+                "next",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("- Blocks-Release: next", bk.read_text(encoding="utf-8"))
+
+    def test_plans_set_writes_and_clears_blocks_release(self):
+        plan = self.create_plan(
+            "20260822-demo-01-pl0007-x.ipd.md", "pl0007", "demo", "draft"
+        )
+        rc = cli.main(
+            [
+                "ipd",
+                "set",
+                "draft",
+                "pl0007",
+                "--blocks-release",
+                "next",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("- Blocks-Release: next", plan.read_text(encoding="utf-8"))
+        # A workflow-history line is appended by the setter.
+        self.assertIn("## Workflow history", plan.read_text(encoding="utf-8"))
+        # Clear with '-'.
+        rc2 = cli.main(
+            [
+                "ipd",
+                "set",
+                "draft",
+                "pl0007",
+                "--blocks-release",
+                "-",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc2, 0)
+        self.assertNotIn("Blocks-Release", plan.read_text(encoding="utf-8"))
+
+    def test_specs_blocks_release_unchanged_after_hoist(self):
+        # Anti-regression: widening the write path to plans/backlog must not change the specs
+        # surface it was originally scoped to.
+        spec = self.create_spec(
+            "20260822-demo-01-sp0007-x.spec.md", "sp0007", "specset", "draft"
+        )
+        rc = cli.main(
+            [
+                "spec",
+                "set",
+                "draft",
+                "sp0007",
+                "--blocks-release",
+                "next",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("- Blocks-Release: next", spec.read_text(encoding="utf-8"))
+
+
 if __name__ == "__main__":
     unittest.main()

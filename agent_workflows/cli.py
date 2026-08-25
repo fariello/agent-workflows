@@ -935,6 +935,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--message", "-m", default=None, help="History record message."
     )
     p_ipd_set.add_argument(
+        "--blocks-release",
+        dest="blocks_release",
+        default=None,
+        help="Set the plan's Blocks-Release gate (a release id6 or 'next'); '-' clears it.",
+    )
+    p_ipd_set.add_argument(
         "--by-human", action="store_true", help="Attest human approval."
     )
     p_ipd_set.add_argument(
