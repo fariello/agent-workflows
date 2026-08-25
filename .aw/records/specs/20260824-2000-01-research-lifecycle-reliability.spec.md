@@ -1,7 +1,7 @@
 # Spec: research lifecycle reliability (make research state, outcome, and provenance tool-owned and verifiable)
 
 - Date: 2026-08-24
-- Status: to-review
+- Status: reviewed
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 5tapom
 - Blocks-Release: next
@@ -120,7 +120,14 @@ must I still run?" is answerable without reading the corpus and without trusting
    `consumed-by`. Each with a regression test; clean when satisfied.
 3. `aw research set-outcome` writes `outcome` and `consumed-by`; `INDEX.json` carries both.
 4. `aw attention` no longer files finished-but-unpromoted research under `ready`.
-5. Whole suite green; the parent spec's B1/B2/H2 are demonstrably met by tests, not prose.
+5. The one-time triage classifier (Section 3.2) exists as a tool-assisted, human-confirmed
+   pass (never a blind auto-mutation, per Section 4 / H2): given the corpus it PROPOSES a
+   per-doc classification (`cited -> reference`; `uncited/dead-end -> archive`) with `outcome`
+   and `consumed-by` back-fill, applied only on confirmation. Proven against a fixture that
+   reproduces the 2026-08-24 reference behavior (a cited doc proposed `reference` with its
+   citing artifact as `consumed-by`; an uncited dead-end proposed `archive`), asserting no
+   mutation occurs without confirmation.
+6. Whole suite green; the parent spec's B1/B2/H2 are demonstrably met by tests, not prose.
 
 ## 6. Open questions
 
@@ -140,9 +147,12 @@ must I still run?" is answerable without reading the corpus and without trusting
 - Owner: author
 - Resolution or deferral rationale: DEFERRED to the state-advancement child IPD. The 2026-08-24 manual
   triage (10 docs promoted to `reference` with `outcome`/`consumed-by` back-filled) is the reference
-  behavior to reproduce tool-assisted.
+  behavior to reproduce tool-assisted. Note: only the PACKAGING (new verb vs `aw archive`/`promote
+  --suggest`) is deferred; the classifier deliverable ITSELF is now a hard acceptance criterion
+  (Section 5, AC 5) so it cannot be silently dropped, closing the review finding SR-001.
 
 ## Workflow history
+- 2026-08-25 reviewed (aw set): /spec review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; SR-001 (Section 3.2 triage classifier had no acceptance criterion) fixed via new AC 5; factual claims verified against research_cmd.py:189-190,244-245 and the reslife Set; aw specs check conforms. GO - PENDING HUMAN APPROVAL
 - 2026-08-25 to-review (aw set): Authored complete and specs-check-conforming; ready for review.
 
 - 2026-08-24 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored as the follow-on rationale
