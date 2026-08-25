@@ -5,7 +5,7 @@
 - Concern: AGENTS.md (Release gates) states any backlog item, spec, OR plan may carry a `- Blocks-Release: <release-id6|next>` front-matter field, but for plans this is untrue today: the IPD linter rejects the field as IPD-M103 "unknown field" (so a plan carrying it cannot pass `aw ipd lint` nor the execution checkpoints that call it), there is no `aw ipd set --blocks-release` setter, and `aw check` has no path to validate the field on a plan. Backlog item vwios6 (release-blocker for 2.0.0 / f33nrj).
 - Scope: Achieve full release-gate parity for plans across the three enforcement surfaces (schema/lint, setter, check/attention), split into three dependency-ordered child IPDs so each is small and independently verifiable. Also fixes the shared blocks-release setter path (bug 61qk4a) so the fix is not duplicated as a broken code path.
 - Scope-Paths: agent_workflows/ipd_schema.py, agent_workflows/ipd_lint.py, agent_workflows/status_set.py, agent_workflows/cli.py, agent_workflows/backlog.py, agent_workflows/releases.py, agent_workflows/check_engine.py, agent_workflows/attention.py, tests/
-- Status: draft
+- Status: to-review
 - Set: vwios6ipd
 - Order: 0
 - Highest E allocated: 03
@@ -13,6 +13,7 @@
 - Id: uvsmmy
 
 ## Workflow history
+- 2026-08-24 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique
 
 - 2026-08-24 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created; orchestrator for backlog item vwios6 (IPD blocks-release parity), split into 3 dependency-ordered children. NOTE: this plan's own `- Blocks-Release: next` intent is DEFERRED (not written to front matter) until child 01 lands, because a plan carrying the field currently fails `aw ipd lint` (IPD-M103) - the exact bug this Set fixes. Interim release-blocker intent is tracked on backlog item vwios6 and the 2.0.0 (f33nrj) release record; re-mark via `aw ipd set --blocks-release next` after child 02 ships the setter.
 
@@ -37,7 +38,8 @@ This orchestrator does not itself edit code; each `E-*` below is the delivery of
 
 - [ ] E-02 Deliver child IPD Order 02 (efnn74): add `--blocks-release <release-id6|next|->` to `aw ipd set` and fix the shared setter path so plans AND backlog persist the field (root-causing bug 61qk4a: backlog set --blocks-release silently no-ops).
   - Depends on: E-01
-  - Expected outcome: `aw ipd set --blocks-release next <id6>` writes the field to the plan front matter; `aw backlog set open <id6> --blocks-release next` persists it (no longer a no-op); `-` clears it; a workflow-history line is appended.
+  - Expected outcome: `aw ipd set --blocks-release next <id6>` writes the field to the plan front matter; `aw backlog set --blocks-release next` persists it (no longer a no-op); `-` clears it; a workflow-history line is appended.
+  - Evidence for the executor (verified during this review): in `status_set.apply_status_change` the `blocks_release` handler (`br = getattr(args, "blocks_release", None)` -> `releases.set_blocks_release_line`) is nested INSIDE the `if rec.record_type == "specs":` branch, so it runs for specs only and is silently skipped for `plans` and `backlog` record types. `aw ipd set` (p_ipd_set in cli.py) also exposes no `--blocks-release` argument at all (only `aw set`, `aw backlog set`, `aw spec set` do). The fix is to hoist the blocks-release write out of the specs-only branch into a shared, record-type-agnostic step (all setters funnel through the single `releases.set_blocks_release_line` primitive) and add the `--blocks-release` argument to `aw ipd set`. Backlog also has a second write site (`backlog.py` ~471) - reconcile to one path so the fix is not duplicated.
   - Execution state: pending
 
 ### Task group 3: Validation and attention surfacing
@@ -68,7 +70,7 @@ Dependency rationale: 01 must land first because until the schema recognizes the
 
 ## Cross-IPD validation
 
-- After all three children execute, hand-verify parity: use the new setter (`aw ipd set --blocks-release next <this-plan-id6>`) to mark this orchestrator itself, then run `aw ipd lint` on it plus `aw check` and `aw attention` to confirm plan, backlog, and spec surfaces agree on release f33nrj. This doubles as the end-to-end acceptance of the whole Set.
+- After all three children execute (setter available only once child 02 is `executed`), hand-verify parity: use the new setter (`aw ipd set --blocks-release next <this-plan-id6>`) to mark this orchestrator itself, then run `aw ipd lint` on it plus `aw check` and `aw attention` to confirm plan, backlog, and spec surfaces agree on release f33nrj. This doubles as the end-to-end acceptance of the whole Set. KEEP the resulting `- Blocks-Release: next` on this orchestrator (do not revert it): once the field is legal and tooled, this Set genuinely blocks 2.0.0 (it carries the vwios6 intent), so the self-mark becomes the correct standing release-blocker declaration rather than a throwaway test artifact.
 - Confirm no duplicated blocks-release write logic remains: the field write must go through the single shared `releases.set_blocks_release_line` primitive from all setter call sites.
 
 ## Deferred / out of scope (with reason)
@@ -123,6 +125,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 1. Open questions RESOLVED: OQ-01 is non-blocking and deferred to child 03. No blocking open question remains.
 2. Scope fence: this orchestrator authors no code; execute children in Order (01, then 02, then 03), each under its own scope fence. Do NOT begin a child before its declared dependencies are `executed`.
+2a. Per-child approval gate: the three children are currently `Status: draft`. Each child MUST independently reach `Status: approved` (its own `/plan-review` completed and human sign-off recorded) BEFORE it is executed. Executing this orchestrator does NOT confer approval on the children; an executor MUST NOT run a child that is still `draft`/`to-review`/`reviewed`. Bring each child to `approved` (in Order) before beginning it.
 3. Honesty rule (hard MUST): when reporting a child complete, rely on that child's pasted validation evidence; never mark an `E-*`/`V-*` here from narration.
 4. Commit ONLY each child's own changed files, path-scoped (`git commit -m msg -- <paths>`); never `git add -A`/bare/`-a`; never push.
 5. Lifecycle move: this orchestrator moves to `executed/` only after all three children are `executed`, every V item here is verified with pasted evidence, the `## Workflow history` line is appended, and `Status: executed` is set, via the lifecycle workflow.
