@@ -20,6 +20,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import signal
 import subprocess
 import sys
@@ -324,6 +325,77 @@ def run_checked(argv: list[str], cwd: Path | None = None) -> str:
     return result.stdout.strip()
 
 
+def extract_last_history_entry(text: str) -> str:
+    """Return the last workflow history bullet from plan text, or full text if no history."""
+    history_idx = text.rfind("## Workflow history")
+    if history_idx == -1:
+        return text
+    history_text = text[history_idx:]
+    bullets = [
+        line.strip()
+        for line in history_text.splitlines()
+        if line.strip().startswith("- ")
+    ]
+    return bullets[-1] if bullets else history_text
+
+
+def is_plan_review_approved(plan_path: Path) -> bool:
+    """Check whether a reviewed plan's latest review verdict is 'GO - PENDING HUMAN APPROVAL'."""
+    try:
+        text = plan_path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    last_entry = extract_last_history_entry(text)
+    if not re.search(r"GO\s*-\s*PENDING\s*HUMAN\s*APPROVAL", last_entry, re.IGNORECASE):
+        return False
+    if re.search(r"Readiness:\s*(NO-GO|CONDITIONAL-GO)", last_entry, re.IGNORECASE):
+        return False
+    return True
+
+
+def set_plan_approved(
+    repo: Path, id6: str, message: str = "Full-auto approval via runipd"
+) -> None:
+    """Transition a reviewed plan to approved via aw set approved --by-human."""
+    cmd = [
+        sys.executable,
+        "-m",
+        "agent_workflows",
+        "set",
+        "approved",
+        id6,
+        "--by-human",
+        "--dir",
+        str(repo),
+        "-m",
+        message,
+    ]
+    try:
+        run_checked(cmd, cwd=repo)
+        return
+    except (DriverError, FileNotFoundError, OSError):
+        pass
+    if shutil.which("aw"):
+        run_checked(
+            [
+                "aw",
+                "set",
+                "approved",
+                id6,
+                "--by-human",
+                "--dir",
+                str(repo),
+                "-m",
+                message,
+            ],
+            cwd=repo,
+        )
+    else:
+        raise DriverError(
+            f"Unable to run 'aw set approved {id6}': aw command not available"
+        )
+
+
 def git_common_dir(repo: Path) -> Path:
     raw = run_checked(["git", "rev-parse", "--git-common-dir"], cwd=repo)
     path = Path(raw)
@@ -593,11 +665,60 @@ def expand_selectors(
     selectors: Iterable[str],
     repo: Path | None = None,
 ) -> list[str]:
-    """Resolve selector tokens (id6, setid, or file paths) against the manifest and repo."""
+    """Resolve selector tokens (id6, setid, file paths, or 'all') against the manifest and repo."""
     plans = manifest.get("plans", {})
     sets = manifest.get("sets", {})
-    expanded: list[str] = []
-    seen: set[str] = set()
+    selectors_list = [str(s).strip() for s in selectors]
+
+    if len(selectors_list) == 1 and selectors_list[0].lower() == "all":
+        expanded: list[str] = []
+        seen: set[str] = set()
+        actionable_statuses = {
+            "to-review",
+            "draft",
+            "reviewed",
+            "approved",
+            "auto-approved",
+        }
+        terminal_statuses = {"executed", "superseded", "not-executed"}
+
+        def _is_actionable(p_info: dict[str, Any]) -> bool:
+            st = str(p_info.get("status", "")).lower().strip()
+            f_str = str(p_info.get("file", ""))
+            is_non_pending = (
+                "/executed/" in f_str
+                or "/superseded/" in f_str
+                or "/not-executed/" in f_str
+                or "/reusable/" in f_str
+            )
+            return (
+                st in actionable_statuses
+                and st not in terminal_statuses
+                and not is_non_pending
+            )
+
+        # 1. Walk sets in manifest in defined order
+        for setid, group in sets.items():
+            for id6 in group.get("order", []):
+                p = plans.get(id6, {})
+                if _is_actionable(p):
+                    if id6 not in seen:
+                        expanded.append(id6)
+                        seen.add(id6)
+
+        # 2. Standalone plans in manifest
+        for id6, p in plans.items():
+            if id6 not in seen:
+                if _is_actionable(p):
+                    expanded.append(id6)
+                    seen.add(id6)
+
+        if not expanded:
+            raise DriverError("No actionable pending IPDs found in repository")
+        return expanded
+
+    expanded = []
+    seen = set()
 
     for selector in selectors:
         sel_str = str(selector).strip()
@@ -790,6 +911,7 @@ def initialize_run(args: argparse.Namespace) -> Path:
     initial_session = getattr(args, "session", None)
     set_sessions: dict[str, str] = {}
     queue: list[dict[str, Any]] = []
+    full_auto = getattr(args, "full_auto", False)
     for position, id6 in enumerate(queue_ids, start=1):
         plan = manifest["plans"][id6]
         setid = plan["set"]
@@ -797,14 +919,23 @@ def initialize_run(args: argparse.Namespace) -> Path:
             set_sessions[setid] = initial_session
 
         status = plan.get("status")
-        if not status:
-            try:
-                p_path = resolve_plan_path(repo, plan.get("file", ""), id6)
-                rec = parse_plan_file(p_path, repo)
-                if rec:
-                    status = rec.status
-            except Exception:
+        p_path = None
+        try:
+            p_path = resolve_plan_path(repo, plan.get("file", ""), id6)
+            rec = parse_plan_file(p_path, repo)
+            if rec and not status:
+                status = rec.status
+        except Exception:
+            if not status:
                 status = "approved"
+
+        if status == "reviewed" and full_auto and p_path:
+            try:
+                if is_plan_review_approved(p_path):
+                    set_plan_approved(repo, id6)
+                    status = "approved"
+            except Exception:
+                pass
 
         action = determine_action(status or "approved")
         queue.append(
@@ -816,7 +947,9 @@ def initialize_run(args: argparse.Namespace) -> Path:
                 "dependencies": plan.get("dependencies", []),
                 "initial_status": status or "approved",
                 "action": action,
-                "status": "queued",
+                "status": "queued"
+                if status in ("to-review", "draft", "approved", "auto-approved")
+                else "reviewed",
                 "attempts": [],
             }
         )
@@ -843,6 +976,7 @@ def initialize_run(args: argparse.Namespace) -> Path:
             "session": initial_session,
             "output_mode": getattr(args, "output_mode", "clean"),
             "stall_timeout": getattr(args, "stall_timeout", DEFAULT_STALL_TIMEOUT),
+            "full_auto": full_auto,
         },
         "driver": {
             "path": str(Path(__file__).resolve()),
@@ -1394,6 +1528,35 @@ def execute_item(
     item["last_outcome"] = outcome
     save_state(run_dir, state)
 
+    full_auto = state.get("options", {}).get("full_auto", False)
+    auto_approved = False
+    if is_review and disposition in ("reviewed", "approved") and full_auto:
+        plan_curr = resolve_plan_path(repo, item["configured_file"], item["id6"])
+        if is_plan_review_approved(plan_curr):
+            try:
+                set_plan_approved(repo, item["id6"])
+                item["action"] = "execute"
+                item["status"] = "queued"
+                item["auto_approved"] = True
+                auto_approved = True
+                save_state(run_dir, state)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "ipd-auto-approved",
+                        "id6": item["id6"],
+                    },
+                )
+            except Exception as exc:
+                print(
+                    pal(
+                        f"  ! Failed to auto-approve IPD {item['id6']}: {exc}",
+                        "yellow",
+                    ),
+                    file=sys.stderr,
+                )
+
     glyph = "\u2713" if disposition in SUCCESS_STATES else "\u25cf"
     glyph_color = (
         "green"
@@ -1409,6 +1572,13 @@ def execute_item(
         + pal(f"  (exit {exit_code})", "dim")
     )
     print(finish)
+    if auto_approved:
+        print(
+            pal(
+                f"  \u2713 IPD {item['id6']} auto-approved (GO - PENDING HUMAN APPROVAL); progressing to execution",
+                "cyan",
+            )
+        )
     print()
     append_jsonl(
         run_dir / "events.jsonl",
@@ -1717,6 +1887,12 @@ AUTOMATIC STATUS ROUTING:
         default=DEFAULT_STALL_TIMEOUT,
         help="Timeout in seconds with no output from child agent before terminating (default: 600; 0 to disable)",
     )
+    start.add_argument(
+        "--full-auto",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Automatically approve reviewed plans with 'GO - PENDING HUMAN APPROVAL' verdict and execute them immediately",
+    )
     _add_output_mode_flags(start)
 
     resume = sub.add_parser(
@@ -1743,6 +1919,12 @@ AUTOMATIC STATUS ROUTING:
         type=float,
         default=None,
         help="Override timeout in seconds with no output from child agent (default: 600; 0 to disable)",
+    )
+    resume.add_argument(
+        "--full-auto",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Override full-auto mode (auto-approve and execute reviewed plans with GO verdict)",
     )
     _add_output_mode_flags(resume)
 
@@ -1810,6 +1992,10 @@ def main(argv: list[str] | None = None) -> int:
             print(run_dir / "execution-report.md")
             return 0
         if args.command == "resume":
+            if getattr(args, "full_auto", None) is not None:
+                state = load_state(run_dir)
+                state.setdefault("options", {})["full_auto"] = args.full_auto
+                save_state(run_dir, state)
             if getattr(args, "stall_timeout", None) is not None:
                 state = load_state(run_dir)
                 state.setdefault("options", {})["stall_timeout"] = args.stall_timeout

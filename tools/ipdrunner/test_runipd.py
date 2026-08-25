@@ -1107,5 +1107,296 @@ class StallWatchdogTests(unittest.TestCase):
             self.assertEqual(state["queue"][0]["status"], "executed")
 
 
+class AllSelectorAndFullAutoTests(unittest.TestCase):
+    def test_expand_selectors_all_finds_only_actionable_pending_plans(self):
+        manifest = {
+            "schema_version": 1,
+            "plans": {
+                "exec01": {
+                    "set": "s1",
+                    "file": ".aw/records/plans/executed/20260801-s1-01-exec01-done.ipd.md",
+                    "status": "executed",
+                    "order": 1,
+                    "dependencies": [],
+                },
+                "pend01": {
+                    "set": "s1",
+                    "file": ".aw/records/plans/pending/20260824-s1-02-pend01-test.ipd.md",
+                    "status": "to-review",
+                    "order": 2,
+                    "dependencies": ["exec01"],
+                },
+                "pend02": {
+                    "set": "s2",
+                    "file": ".aw/records/plans/pending/20260824-s2-01-pend02-test.ipd.md",
+                    "status": "approved",
+                    "order": 1,
+                    "dependencies": [],
+                },
+                "super01": {
+                    "set": "s2",
+                    "file": ".aw/records/plans/superseded/20260824-s2-02-super01-test.ipd.md",
+                    "status": "superseded",
+                    "order": 2,
+                    "dependencies": [],
+                },
+            },
+            "sets": {
+                "s1": {"order": ["exec01", "pend01"]},
+                "s2": {"order": ["pend02", "super01"]},
+            },
+        }
+        expanded = driver.expand_selectors(manifest, ["all"])
+        self.assertEqual(expanded, ["pend01", "pend02"])
+
+    def test_expand_selectors_all_raises_when_no_actionable_plans(self):
+        manifest = {
+            "schema_version": 1,
+            "plans": {
+                "exec01": {
+                    "set": "s1",
+                    "file": ".aw/records/plans/executed/20260801-s1-01-exec01-done.ipd.md",
+                    "status": "executed",
+                    "order": 1,
+                    "dependencies": [],
+                },
+            },
+            "sets": {
+                "s1": {"order": ["exec01"]},
+            },
+        }
+        with self.assertRaises(driver.DriverError):
+            driver.expand_selectors(manifest, ["all"])
+
+    def test_is_plan_review_approved_verdict_detection(self):
+        with tempfile.TemporaryDirectory() as t:
+            p_go = Path(t) / "plan_go.md"
+            p_go.write_text(
+                textwrap.dedent(
+                    """\
+                    - Id: test01
+                    - Status: reviewed
+                    # Test Plan
+
+                    ## Workflow history
+                    - 2026-08-24 /plan-review (opencode): APPROVE WITH REVISIONS APPLIED; PR-001 fixed. Readiness: GO - PENDING HUMAN APPROVAL.
+                    """
+                ),
+                encoding="utf-8",
+            )
+            self.assertTrue(driver.is_plan_review_approved(p_go))
+
+            p_nogo = Path(t) / "plan_nogo.md"
+            p_nogo.write_text(
+                textwrap.dedent(
+                    """\
+                    - Id: test02
+                    - Status: reviewed
+                    # Test Plan
+
+                    ## Workflow history
+                    - 2026-08-24 /plan-review (opencode): REVIEWED - OPEN QUESTIONS; findings G1-G7. Readiness: NO-GO until OQ1 is decided (then GO - PENDING HUMAN APPROVAL).
+                    """
+                ),
+                encoding="utf-8",
+            )
+            self.assertFalse(driver.is_plan_review_approved(p_nogo))
+
+    def test_full_auto_reviews_approves_and_executes_plan(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = root / "repo"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.invalid"],
+                cwd=repo,
+                check=True,
+            )
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            (repo / "README").write_text("test\n", encoding="utf-8")
+            subprocess.run(["git", "add", "README"], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            p1 = pending / "20260824-demo-01-fa0001-test.ipd.md"
+            p1.write_text(
+                textwrap.dedent(
+                    """\
+                    - Id: fa0001
+                    - Set: demo
+                    - Status: to-review
+                    # Full Auto Plan
+
+                    ## Workflow history
+                    - 2026-08-24 created: test stub
+                    """
+                ),
+                encoding="utf-8",
+            )
+
+            fake = root / "fake_opencode"
+            fake.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/usr/bin/env python3
+                    import json, pathlib, re, sys
+                    args = sys.argv[1:]
+                    prompt = args[args.index('--') + 1] if '--' in args else ""
+                    session = args[args.index('--session') + 1] if '--session' in args else ("ses" + "_" + "fullauto")
+
+                    if prompt.startswith("/plan-review"):
+                        target_file = prompt.split()[-1]
+                        p = pathlib.Path(target_file)
+                        if not p.is_absolute():
+                            p = pathlib.Path.cwd() / p
+                        if p.is_file():
+                            content = p.read_text()
+                            content = content.replace("- Status: to-review", "- Status: reviewed")
+                            content += "\\n- 2026-08-24 /plan-review (opencode): APPROVE; no defects. Readiness: GO - PENDING HUMAN APPROVAL.\\n"
+                            p.write_text(content)
+                        print(json.dumps({'type':'text','sessionID':session,'part':{'text':'review done'}}))
+                    else:
+                        outcome = pathlib.Path(re.search(r'Required JSON outcome: (.+)', prompt).group(1).strip())
+                        plan = pathlib.Path(re.search(r'Plan file at launch: (.+)', prompt).group(1).strip())
+                        executed = pathlib.Path(str(plan).replace('/pending/', '/executed/'))
+                        executed.parent.mkdir(parents=True, exist_ok=True)
+                        plan.rename(executed)
+                        outcome.write_text(json.dumps({'schema_version':1,'id6':'fa0001','disposition':'executed','pushed':False}))
+                        print(json.dumps({'type':'text','sessionID':session,'part':{'text':'exec done'}}))
+                    """
+                ),
+                encoding="utf-8",
+            )
+            fake.chmod(0o755)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    os.fspath(Path(driver.__file__).resolve()),
+                    "start",
+                    "all",
+                    "--repo",
+                    os.fspath(repo),
+                    "--full-auto",
+                    "--opencode",
+                    os.fspath(fake),
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+            run_id = next(
+                line.split(": ", 1)[1]
+                for line in result.stdout.splitlines()
+                if line.startswith("Run ID:")
+            )
+            state_file = repo / ".aw" / "records" / "runs" / run_id / "state.json"
+            state = json.loads(state_file.read_text(encoding="utf-8"))
+
+            item = state["queue"][0]
+            self.assertEqual(item["status"], "executed")
+            self.assertEqual(len(item["attempts"]), 2)
+            self.assertEqual(item["attempts"][0]["action"], "review")
+            self.assertEqual(item["attempts"][1]["action"], "execute")
+
+    def test_without_full_auto_stops_at_reviewed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = root / "repo"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.invalid"],
+                cwd=repo,
+                check=True,
+            )
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            (repo / "README").write_text("test\n", encoding="utf-8")
+            subprocess.run(["git", "add", "README"], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            p1 = pending / "20260824-demo-01-nofa01-test.ipd.md"
+            p1.write_text(
+                textwrap.dedent(
+                    """\
+                    - Id: nofa01
+                    - Set: demo
+                    - Status: to-review
+                    # No Full Auto Plan
+
+                    ## Workflow history
+                    - 2026-08-24 created: test stub
+                    """
+                ),
+                encoding="utf-8",
+            )
+
+            fake = root / "fake_opencode"
+            fake.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/usr/bin/env python3
+                    import json, pathlib, re, sys
+                    args = sys.argv[1:]
+                    prompt = args[args.index('--') + 1] if '--' in args else ""
+                    session = args[args.index('--session') + 1] if '--session' in args else ("ses" + "_" + "nofa")
+
+                    if prompt.startswith("/plan-review"):
+                        target_file = prompt.split()[-1]
+                        p = pathlib.Path(target_file)
+                        if not p.is_absolute():
+                            p = pathlib.Path.cwd() / p
+                        if p.is_file():
+                            content = p.read_text()
+                            content = content.replace("- Status: to-review", "- Status: reviewed")
+                            content += "\\n- 2026-08-24 /plan-review (opencode): APPROVE; no defects. Readiness: GO - PENDING HUMAN APPROVAL.\\n"
+                            p.write_text(content)
+                        print(json.dumps({'type':'text','sessionID':session,'part':{'text':'review done'}}))
+                    """
+                ),
+                encoding="utf-8",
+            )
+            fake.chmod(0o755)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    os.fspath(Path(driver.__file__).resolve()),
+                    "start",
+                    "all",
+                    "--repo",
+                    os.fspath(repo),
+                    "--no-full-auto",
+                    "--opencode",
+                    os.fspath(fake),
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+            run_id = next(
+                line.split(": ", 1)[1]
+                for line in result.stdout.splitlines()
+                if line.startswith("Run ID:")
+            )
+            state_file = repo / ".aw" / "records" / "runs" / run_id / "state.json"
+            state = json.loads(state_file.read_text(encoding="utf-8"))
+
+            item = state["queue"][0]
+            self.assertEqual(item["status"], "reviewed")
+            self.assertEqual(len(item["attempts"]), 1)
+            self.assertEqual(item["attempts"][0]["action"], "review")
+
+
 if __name__ == "__main__":
     unittest.main()
