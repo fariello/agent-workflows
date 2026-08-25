@@ -5,15 +5,15 @@
 - Concern: `aw rename plans <id6> --order <NN>` without an explicit `--slug` corrupts the slug: it injects the OLD cluster segment (`<setid>-NN-`) into the new slug instead of changing only the NN facet. Observed 2026-08-23 renumbering the ipdgates Set: `aw rename plans wezhxg --order 07` proposed a target with `ipdgates-06-` embedded in the slug. Root cause: `_slug_of(old_name, id6)` (`plans_refs.py:156-165`) re-derives the slug by splitting the filename and dropping only leading pure-digit tokens and the id6, so it strips the date but leaves the `<setid>` and `NN` tokens in the slug; `run_mv` (`plans_refs.py:379-418`) then feeds that mangled slug back into `clustered_name`. This is silent filename corruption on a common regroup/renumber operation. Backlog item dcla4g (release-blocker for 2.0.0 / f33nrj).
 - Scope: Fix `_slug_of` in `agent_workflows/plans_refs.py` so renaming with `--order` alone preserves the true slug, by parsing the clustered name with the canonical parser (`artifact_naming.parse_clustered` / `_CLUSTERED_RE`) and returning its `slug` group rather than the digit-stripping heuristic. Add a regression test asserting `rename --order` alone preserves the slug. Single-child plan for the awrenamebug Set.
 - Scope-Paths: agent_workflows/plans_refs.py, tests/test_plans_refs.py
-- Status: approved
+- Status: executed
 - Set: awrenamebug
 - Order: 1
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 5rzupk
-- Approval: 2026-08-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-25 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Fix aw rename plans --order slug mangle: _slug_of now uses parse_uniform_permissive's slug group (shared with compute_target_name); rename --order alone preserves the slug; all E performed, all V pass with pasted evidence [Scope reconciliation - in-scope-unmodified agent_workflows/plans_refs.py: _slug_of rewritten to parse_uniform_permissive; committed in 40ab3b2 before the begin baseline; in-scope-unmodified tests/test_plans_refs.py: RenameOrderSlugPreservationTests added in 40ab3b2 before the begin baseline]
 - 2026-08-25 approved (aw set): status set to approved
 - 2026-08-25 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (converge _slug_of on the sibling's parse_uniform_permissive, not a 3rd parser), OQ-01 marked resolved
 - 2026-08-24 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique

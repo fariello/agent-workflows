@@ -18,7 +18,7 @@ Showing the 40 most-recent of 132 Sets; the full manifest is INDEX.json.
 
 ## awrenamebug
 
-- `5rzupk` [pending] 01 pending/20260824-awrenamebug-01-5rzupk-fix-aw-rename-order-slug-mangle-preserve-slug-when-order-cha.ipd.md
+- `5rzupk` [executed] 01 executed/20260824-awrenamebug-01-5rzupk-fix-aw-rename-order-slug-mangle-preserve-slug-when-order-cha.ipd.md
 
 ## ipdrbugs
 
