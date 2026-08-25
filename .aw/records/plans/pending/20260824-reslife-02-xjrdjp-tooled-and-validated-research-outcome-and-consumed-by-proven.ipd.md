@@ -5,7 +5,7 @@
 - Concern: `outcome` is hard-coded `none-yet` at creation (research_cmd.py ~190/~245) with NO verb to ever set it, and `consumed-by: []` is written at creation but never populated or validated (1 of ~85 docs on 2026-08-24) and is not even carried in `INDEX.json`. So "which research output was authoritative/adopted?" and "what used this research?" are unanswerable, contradicting spec 5tapom Section 3.3 (and the parent's B2/provenance intent).
 - Scope: Add a deliberate setter for `outcome` and `consumed-by`, carry `consumed-by` in `INDEX.json`, and validate both in `aw research index --check` / `aw check`. Implements spec 5tapom Section 3.3. Does NOT change the `outcome` vocabulary or the `status` model.
 - Scope-Paths: grandfathered
-- Status: to-review
+- Status: reviewed
 - Set: reslife
 - Order: 2
 - Highest E allocated: 03
@@ -13,6 +13,7 @@
 - Id: xjrdjp
 
 ## Workflow history
+- 2026-08-25 reviewed (aw set): plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201..PR-203 fixed
 - 2026-08-25 to-review (aw set): Authored complete and lint-conforming; ready for plan-review.
 
 - 2026-08-24 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created; child 02 of the reslife Set (spec 5tapom).
@@ -27,9 +28,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: The setter verb
 
-- [ ] E-01 Add `aw research set-outcome <id6> --to <adopted|informational|rejected|none-yet> [--consumed-by <id6[,id6...]>|-]` that writes/updates/clears `outcome` and `consumed-by` in frontmatter through a single shared write primitive, records the disposition, and is dry-run-by-default with `--apply` (consistent with other `aw research` mutators).
+- [ ] E-01 Add `aw research set-outcome <id6> --to <adopted|informational|rejected|none-yet> [--consumed-by <id6[,id6...]>|-]` that sets `outcome` and appends/replaces/clears (`-` clears) `consumed-by` in an EXISTING doc's frontmatter via a new in-place field-updater primitive, dry-run-by-default with `--apply` and the same atomic write-to-temp-rename as the creators. (See conventions: no such updater exists today, so it is introduced here and MUST round-trip - other fields, order, `[a, b]` rendering, and body preserved.)
   - Depends on: none
-  - Expected outcome: the verb sets `outcome` and appends/replaces/clears `consumed-by`; unit-tested for set/append/clear.
+  - Expected outcome: the verb sets `outcome` and appends/replaces/clears `consumed-by` while leaving every other frontmatter field and the body byte-identical; unit-tested for set, append, replace, clear, AND a round-trip test asserting no other field or the body changed.
   - Execution state: pending
 
 ### Task group 2: Index carries provenance
@@ -41,16 +42,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: Validation
 
-- [ ] E-03 Extend `aw research index --check` / `aw check`: a `consumed-by` entry that does not resolve to an existing plan/spec/backlog id6 is flagged (mirroring the dangling-citation check), and `outcome: adopted` with an empty `consumed-by` is flagged (an adopted doc must name its consumer).
+- [ ] E-03 Extend `aw research index --check` / `aw check`: a `consumed-by` entry that does not resolve to an existing plan/spec/backlog id6 is flagged (in the existing Drift-record shape), and `outcome: adopted` with an empty `consumed-by` is flagged (an adopted doc must name its consumer). NOTE the resolution target: `consumed-by` points at PLAN/SPEC/BACKLOG id6s, so the resolvable-id set must be assembled from those trees (plan ids via `plans_index`, spec ids, backlog ids) - it is NOT `research_refs`'s research-only resolver and NOT `check_blocks_release`'s release-only resolver. Reuse the id-resolution + Drift PATTERN, assembling the cross-tree current-id set; do not reuse a single-tree resolver as if it covered all three.
   - Depends on: E-01
-  - Expected outcome: `--check` flags a dangling `consumed-by` and an adopted-without-consumer; clean when satisfied; regression tests for both.
+  - Expected outcome: `--check` flags a `consumed-by` id6 that resolves to no plan/spec/backlog artifact, and an `adopted`-with-empty-`consumed-by`; clean when both satisfied; regression tests for each.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
 ## Project conventions discovered (Step 0)
 
-- `outcome` vocabulary is `adopted|informational|rejected|none-yet` (research_contract). `consumed-by` is a list of plan/spec/backlog id6s the doc informed (spec 20260730 Section 5.4). `releases.check_blocks_release`/citation `--check` show the id-resolution + Drift pattern to reuse.
+- `outcome` vocabulary is `adopted|informational|rejected|none-yet` (research_contract). `consumed-by` is a list of plan/spec/backlog id6s the doc informed (spec 20260730 Section 5.4), rendered as an `[a, b]` flow list in frontmatter (`build_frontmatter` line ~84). `releases.check_blocks_release`/citation `--check` show the id-resolution + Drift PATTERN to reuse - but each resolves ONE tree (release records / research ids respectively); the `consumed-by` check needs a resolvable-id set spanning plan+spec+backlog, assembled from those trees, not any single existing resolver.
+- There is no in-place research frontmatter field-updater today; creation-only `build_frontmatter` renders all 11 fields. E-01 introduces the updater; it must preserve the other fields + body (round-trip).
 
 ## Findings
 
@@ -73,7 +75,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Required tests / validation
 
-- Unit test set/append/clear via the verb; test `INDEX.json` carries `consumed-by`; test `--check` flags dangling `consumed-by` and adopted-without-consumer, clean otherwise. `python3 -m pytest tests/` green.
+- Unit test set/append/replace/clear via the verb plus a frontmatter round-trip (other fields + body unchanged); test `INDEX.json` carries `consumed-by`; test `--check` flags a `consumed-by` id6 unresolved across plan+spec+backlog and an adopted-without-consumer, clean otherwise. `python3 -m pytest tests/` green.
 
 ## Spec / documentation sync
 
@@ -93,7 +95,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted output of `aw research set-outcome` setting `outcome` and `--consumed-by`, and clearing with `-`; unit test passing.
+  - Required evidence: pasted output of `aw research set-outcome` setting `outcome` and `--consumed-by`, appending/replacing, and clearing with `-`; a round-trip test showing the other 10 frontmatter fields and the doc body are byte-identical after a set; unit tests passing.
   - Observed evidence:
   - Result: pending
 
