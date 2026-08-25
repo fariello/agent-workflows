@@ -199,6 +199,11 @@ class DriverTests(unittest.TestCase):
             self.assertEqual(len(state["set_sessions"]), 1)
             sessions = [item["attempts"][0]["session_id"] for item in state["queue"]]
             self.assertEqual(sessions[0], sessions[1])
+            # Continuation hint (rxkf1e) is emitted on run_queue exit: the completed run's
+            # stdout names the captured session id and the copy-ready reuse command.
+            self.assertIn("Session Continuity", result.stdout)
+            self.assertIn(sessions[0], result.stdout)
+            self.assertIn("runipd --session", result.stdout)
 
 
 class ReviewPlanRoutingTests(unittest.TestCase):
