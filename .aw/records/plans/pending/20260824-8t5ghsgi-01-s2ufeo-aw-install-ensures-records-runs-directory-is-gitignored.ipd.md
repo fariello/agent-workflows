@@ -30,24 +30,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Fresh-install template
 
-- [ ] E-01 In `agent_workflows/engine.py`, add `records/runs/` to `_AW_GITIGNORE_TEMPLATE` (`engine.py:4055-4067`) alongside the existing `records/*/untracked/`, `setup-repo-needed.md`, and `records/history.jsonl` entries, so a fresh install writes it.
+- [x] E-01 In `agent_workflows/engine.py`, add `records/runs/` to `_AW_GITIGNORE_TEMPLATE` (`engine.py:4055-4067`) alongside the existing `records/*/untracked/`, `setup-repo-needed.md`, and `records/history.jsonl` entries, so a fresh install writes it.
   - Depends on: none
   - Expected outcome: a brand-new `.aw/.gitignore` written by install contains `records/runs/`.
-  - Execution state: pending
+  - Execution note: commit b78501b; added a `records/runs/` line (with an `awrunsignore` comment) to `_AW_GITIGNORE_TEMPLATE` alongside `records/*/untracked/`, `setup-repo-needed.md`, and `records/history.jsonl`.
+  - Execution state: performed
 
 ### Task group 2: Idempotent back-fill for existing installs
 
-- [ ] E-02 In `agent_workflows/engine.py`, extend `_ensure_aw_gitignore` (`engine.py:4737-4756`) to back-fill `records/runs/` when the file exists but lacks the line, mirroring the existing `if "<entry>" not in text: additions.append(...)` pattern used for `records/*/untracked/` and `setup-repo-needed.md` (add one more `if "records/runs/" not in text: additions.append("records/runs/")` clause). Do not duplicate the line if already present. ALSO close the co-located pre-existing gap in the SAME `additions` block: `records/history.jsonl` is in the template but missing from the back-fill list, so a repo installed before that lane existed never gains it - add the matching `if "records/history.jsonl" not in text: additions.append("records/history.jsonl")` clause. This is one adjacent line, zero added risk, and closes the latent bug F-02 names rather than leaving it; both back-fills share the existing single write path.
+- [x] E-02 In `agent_workflows/engine.py`, extend `_ensure_aw_gitignore` (`engine.py:4737-4756`) to back-fill `records/runs/` when the file exists but lacks the line, mirroring the existing `if "<entry>" not in text: additions.append(...)` pattern used for `records/*/untracked/` and `setup-repo-needed.md` (add one more `if "records/runs/" not in text: additions.append("records/runs/")` clause). Do not duplicate the line if already present. ALSO close the co-located pre-existing gap in the SAME `additions` block: `records/history.jsonl` is in the template but missing from the back-fill list, so a repo installed before that lane existed never gains it - add the matching `if "records/history.jsonl" not in text: additions.append("records/history.jsonl")` clause. This is one adjacent line, zero added risk, and closes the latent bug F-02 names rather than leaving it; both back-fills share the existing single write path.
   - Depends on: none
   - Expected outcome: re-running install (or the ensure path) on a repo whose `.aw/.gitignore` predates this change adds `records/runs/` (and, if missing, `records/history.jsonl`) exactly once each; running again is a no-op.
-  - Execution state: pending
+  - Execution note: commit b78501b; `_ensure_aw_gitignore` gained two back-fill clauses mirroring the existing `if "<entry>" not in text: additions.append(...)` pattern: `records/runs/` (awrunsignore) and the co-located `records/history.jsonl` (closing F-02, which was in the template but missing from the back-fill list). Both share the single existing write path; deduped by the `not in text` guard.
+  - Execution state: performed
 
 ### Task group 3: Install test
 
-- [ ] E-03 In `tests/test_installer.py`, add a test asserting a fresh install produces a `.aw/.gitignore` whose contents include `records/runs/`, and (idempotency) that a second `_ensure_aw_gitignore` pass does not duplicate the line. Add a back-fill fixture: write a pre-existing `.aw/.gitignore` missing BOTH `records/runs/` and `records/history.jsonl`, run `_ensure_aw_gitignore`, and assert each is added exactly once (guarding the E-02 co-located history.jsonl back-fill too) and a second pass is a no-op.
+- [x] E-03 In `tests/test_installer.py`, add a test asserting a fresh install produces a `.aw/.gitignore` whose contents include `records/runs/`, and (idempotency) that a second `_ensure_aw_gitignore` pass does not duplicate the line. Add a back-fill fixture: write a pre-existing `.aw/.gitignore` missing BOTH `records/runs/` and `records/history.jsonl`, run `_ensure_aw_gitignore`, and assert each is added exactly once (guarding the E-02 co-located history.jsonl back-fill too) and a second pass is a no-op.
   - Depends on: E-01, E-02
   - Expected outcome: passing test proving the fresh-install guarantee, the `records/runs/` + `records/history.jsonl` back-fill, and idempotency.
-  - Execution state: pending
+  - Execution note: commit b78501b; added `tests/test_installer.py::AwGitignoreRunsLaneTests` - template-contains-records-runs, fresh-install-presence + idempotency, and the pre-existing-gitignore back-fill (both `records/runs/` and `records/history.jsonl` added exactly once, second pass a no-op). NOTE: test_installer.py carries `pytestmark = pytest.mark.slow`, so these run under `pytest -m ""` / `make test-all` (not the default `-m "not slow"` selection).
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -104,20 +107,20 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: snippet of `_AW_GITIGNORE_TEMPLATE` showing `records/runs/`; pasted contents of a freshly installed `.aw/.gitignore` (from the test or a scratch install) containing the line.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (commit b78501b) `_AW_GITIGNORE_TEMPLATE` now ends with a comment + `records/runs/`. Scratch `engine._ensure_aw_gitignore(<fresh tmp>)` wrote a `.aw/.gitignore` whose tail is: `# The ipdrunner IPD-driver per-run durable state ... never committed (awrunsignore).` then `records/runs/`. `AwGitignoreRunsLaneTests.test_template_contains_records_runs` and `test_fresh_install_gitignores_records_runs_and_is_idempotent` pass.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted test/manual output showing a pre-existing gitignore missing `records/runs/` and `records/history.jsonl` gains each exactly once, and a second pass is a no-op (no duplicate lines).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (commit b78501b) `AwGitignoreRunsLaneTests.test_backfill_adds_runs_and_history_once_on_preexisting` passes: seeding a `.aw/.gitignore` with only `records/*/untracked/` + `setup-repo-needed.md`, one `_ensure_aw_gitignore` pass yields `text.count('records/runs/') == 1` and `text.count('records/history.jsonl') == 1`, and a second pass leaves both counts at 1 (no-op). Manual smoke confirmed the same counts (backfill runs once: True | history once: True; backfill idempotent: True).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted `python3 -m pytest tests/test_installer.py` output with the new test passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (commit b78501b) `python3 -m pytest tests/test_installer.py -m "" -k AwGitignoreRunsLane` -> `3 passed`; full `python3 -m pytest tests/test_installer.py -m ""` -> `148 passed` (no regression; the `-m ""` is required because test_installer.py is `pytestmark = pytest.mark.slow` and the default selection is `-m "not slow"`). Whole default suite `python3 -m pytest tests/` -> 2221 passed, 1 skipped. `pre-commit run --files agent_workflows/engine.py tests/test_installer.py` -> all hooks Passed.
+  - Result: pass
 
 ## Approval and execution gate
 
