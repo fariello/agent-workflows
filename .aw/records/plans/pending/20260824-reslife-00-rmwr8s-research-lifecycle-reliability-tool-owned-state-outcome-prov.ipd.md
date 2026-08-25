@@ -5,7 +5,7 @@
 - Concern: The research subsystem's reliability half is unimplemented. Per spec 5tapom (follow-on to the implemented research-org spec), `aw research new` writes `status: intake`, `outcome: none-yet`, `consumed-by: []` only at CREATION and nothing ever advances/sets/validates them, so `intake` became a permanent default (11 docs stuck there on 2026-08-24, 10 already run+adopted), `aw attention` maps `intake -> ready` (finished research masquerades as actionable), "which research must I still run?" is unanswerable from the tool, and provenance (`consumed-by`) is populated on ~1 of 85 docs and never validated. This violates the parent spec's B1/B2/H2.
 - Scope: Achieve research-lifecycle reliability across three surfaces (state advancement + structural unrun detection; tooled+validated outcome/consumed-by provenance; attention/query surfacing), split into three dependency-ordered child IPDs so each is small and independently verifiable. Implements spec 5tapom. No change to the filename grammar, the four `status` values, the `outcome` vocabulary, or the shard layout.
 - Scope-Paths: grandfathered
-- Status: to-review
+- Status: reviewed
 - Set: reslife
 - Order: 0
 - Highest E allocated: 03
@@ -13,6 +13,7 @@
 - Id: rmwr8s
 
 ## Workflow history
+- 2026-08-25 reviewed (aw set): plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed
 - 2026-08-25 to-review (aw set): Authored complete and lint-conforming; ready for plan-review.
 
 - 2026-08-24 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created; orchestrator for spec 5tapom (research lifecycle reliability), split into 3 dependency-ordered children. Release-blocker for 2.0.0 (f33nrj) intent is anchored on spec 5tapom and the f33nrj record: these plans CANNOT carry `- Blocks-Release:` until the vwios6ipd set lands (IPD-M103 rejects the field on plans today). Re-mark via `aw ipd set --blocks-release next` after vwios6ipd ships the setter.
@@ -31,7 +32,7 @@ This orchestrator does not itself edit code; each `E-*` below is the delivery of
 
 - [ ] E-01 Deliver child IPD Order 01 (m383qb): structural UNRUN detection (a set whose `NN=00` is a `research-prompt` with no `NN>=01` siblings is unrun, derived from the manifest) and tool-advanced, drift-checked state - `aw research index --check`/`aw check` flag an `intake`/`active` doc whose set is RUN or is cited by an executed artifact, plus a tool-assisted reviewed triage classifier (reproducing the 2026-08-24 manual pass).
   - Depends on: none
-  - Expected outcome: unrun detection is computed from set structure; `--check` flags stale state; a regression test asserts both.
+  - Expected outcome: all three of child 01's deliverables land and are verified: (a) unrun detection is computed from set structure; (b) `--check` flags stale state; (c) the tool-assisted triage classifier previews the 2026-08-24 cohort classification and applies only on confirmation; a regression test asserts each.
   - Execution state: pending
 
 ### Task group 2: Outcome and provenance tooling
@@ -65,6 +66,7 @@ Dependency rationale: 01 establishes the structural unrun/RUN signal and the dri
 - `aw research pending`/`find --unrun` lists exactly the UNRUN prompts (structural), proven on a fixture where a set with outputs is excluded and a bare `NN=00` prompt is included.
 - `aw research index --check`/`aw check` flag: an `intake`/`active` doc whose set is RUN or cited by an executed artifact; a dangling `consumed-by`; and `outcome: adopted` with empty `consumed-by`.
 - `aw research set-outcome` writes/updates/clears `outcome` and `consumed-by`; `INDEX.json` carries `consumed-by`.
+- The tool-assisted, human-confirmed triage classifier (spec 5tapom Section 3.2 / child 01 E-03) reproduces the 2026-08-24 manual pass: it PREVIEWS a cited/run -> reference, uncited-dead-end -> archive classification and mutates only on confirmation.
 - `aw attention` no longer files finished-but-unpromoted research under `ready`.
 - Spec 5tapom's acceptance criteria (Section 5) are met by tests, not prose; whole suite green.
 - Each child IPD's own validation passed with pasted evidence and each child moved to `executed/`.
@@ -76,7 +78,7 @@ Dependency rationale: 01 establishes the structural unrun/RUN signal and the dri
 
 ## Deferred / out of scope (with reason)
 
-- Actually re-marking the reslife IPDs with `- Blocks-Release: next` is out of scope until the vwios6ipd set lands (a plan carrying the field fails `aw ipd lint` IPD-M103 today). Interim release-blocker intent lives on spec 5tapom and the f33nrj release record.
+- Actually re-marking the reslife IPDs with `- Blocks-Release: next` is out of scope until the vwios6ipd set lands (a plan carrying the field fails `aw ipd lint` IPD-M103 "unknown field" today, since `Blocks-Release` is not in the IPD schema's recognized-fields set). Interim release-blocker intent lives on spec 5tapom and the f33nrj release record. Re-mark via the tooled setter that vwios6ipd ships (child efnn74; `aw ipd set-blocks-release` per its title) once that set is `executed`; use whatever verb/flag vwios6 actually delivers, do not assume the exact spelling here.
 - No change to the filename grammar, the four `status` values, the `outcome` vocabulary, `INDEX.md`'s bounded hot-glance, or the shard layout (all shipped and working).
 - The one genuinely-unrun prompt today (`actorenv/8it88r`) is real pending research to run, not a lifecycle bug; running it is out of scope for this tooling Set.
 
@@ -104,17 +106,17 @@ Dependency rationale: 01 establishes the structural unrun/RUN signal and the dri
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: child 01 moved to `executed/`; pasted test output showing structural unrun detection (run set excluded, bare prompt included) and `--check` flagging a stale `intake` doc; the regression test named and shown passing.
+  - Required evidence: child 01 moved to `executed/` with ALL of its own V-items (its V-01/V-02/V-03) verified; pasted test output showing (a) structural unrun detection (run set excluded, bare prompt included), (b) `--check` flagging a stale `intake` doc and clean after promotion, and (c) the triage classifier previewing then applying the 2026-08-24 cohort classification; the regression tests named and shown passing.
   - Observed evidence:
   - Result: pending
 
 
 - [ ] V-02 validates E-02
-  - Required evidence: child 02 moved to `executed/`; pasted output of `aw research set-outcome` writing `outcome`+`consumed-by`; `INDEX.json` showing `consumed-by`; `--check` flagging a dangling `consumed-by` and an `adopted`-without-consumer; regression tests passing.
+  - Required evidence: child 02 moved to `executed/` with ALL of its own V-items verified; pasted output of `aw research set-outcome` writing `outcome`+`consumed-by`; `INDEX.json` showing `consumed-by`; `--check` flagging a dangling `consumed-by` and an `adopted`-without-consumer; regression tests passing.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: child 03 moved to `executed/`; pasted `aw research pending` listing only unrun prompts; pasted `aw attention` output showing a finished-but-unpromoted research doc is NOT under `ready`; regression tests passing.
+  - Required evidence: child 03 moved to `executed/` with ALL of its own V-items verified; pasted `aw research pending` listing only unrun prompts; pasted `aw attention` output showing a finished-but-unpromoted research doc is NOT under `ready`; regression tests passing.
   - Observed evidence:
   - Result: pending
 
@@ -131,5 +133,5 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 2a. Per-child approval gate: the three children are authored `Status: draft`. Each child MUST independently reach `Status: approved` (its own `/plan-review` completed and human sign-off recorded) BEFORE it is executed. Executing this orchestrator does NOT confer approval on the children; an executor MUST NOT run a child still `draft`/`to-review`/`reviewed`.
 3. Honesty rule (hard MUST): when reporting a child complete, rely on that child's pasted validation evidence (real runner output); never mark an `E-*`/`V-*` here from narration.
 4. Commit ONLY each child's own changed files, path-scoped (`git commit -m msg -- <paths>`); never `git add -A`/bare/`-a`; never push.
-5. Release-blocker follow-through: once the vwios6ipd set is `executed`, mark this orchestrator and its children with `- Blocks-Release: next` via `aw ipd set --blocks-release next` (the tooled path), retiring the interim intent held on spec 5tapom / the f33nrj record.
+5. Release-blocker follow-through: once the vwios6ipd set is `executed`, mark this orchestrator and its children with `- Blocks-Release: next` via the tooled setter vwios6ipd ships (child efnn74; use whatever verb/flag it actually delivers, do NOT hand-edit the field, which fails IPD-M103 until the schema recognizes it), retiring the interim intent held on spec 5tapom / the f33nrj record.
 6. Lifecycle move: this orchestrator moves to `executed/` only after all three children are `executed`, every V item here is verified with pasted evidence, the `## Workflow history` line is appended, and `Status: executed` is set, via the gated `aw ipd begin`/`aw ipd finalize` lifecycle.
