@@ -5,7 +5,7 @@
 - Concern: `outcome` is hard-coded `none-yet` at creation (research_cmd.py ~190/~245) with NO verb to ever set it, and `consumed-by: []` is written at creation but never populated or validated (1 of ~85 docs on 2026-08-24) and is not even carried in `INDEX.json`. So "which research output was authoritative/adopted?" and "what used this research?" are unanswerable, contradicting spec 5tapom Section 3.3 (and the parent's B2/provenance intent).
 - Scope: Add a deliberate setter for `outcome` and `consumed-by`, carry `consumed-by` in `INDEX.json`, and validate both in `aw research index --check` / `aw check`. Implements spec 5tapom Section 3.3. Does NOT change the `outcome` vocabulary or the `status` model.
 - Scope-Paths: grandfathered
-- Status: draft
+- Status: to-review
 - Set: reslife
 - Order: 2
 - Highest E allocated: 03
@@ -13,6 +13,7 @@
 - Id: xjrdjp
 
 ## Workflow history
+- 2026-08-25 to-review (aw set): Authored complete and lint-conforming; ready for plan-review.
 
 - 2026-08-24 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created; child 02 of the reslife Set (spec 5tapom).
 

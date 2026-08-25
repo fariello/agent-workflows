@@ -5,7 +5,7 @@
 - Concern: The research subsystem's reliability half is unimplemented. Per spec 5tapom (follow-on to the implemented research-org spec), `aw research new` writes `status: intake`, `outcome: none-yet`, `consumed-by: []` only at CREATION and nothing ever advances/sets/validates them, so `intake` became a permanent default (11 docs stuck there on 2026-08-24, 10 already run+adopted), `aw attention` maps `intake -> ready` (finished research masquerades as actionable), "which research must I still run?" is unanswerable from the tool, and provenance (`consumed-by`) is populated on ~1 of 85 docs and never validated. This violates the parent spec's B1/B2/H2.
 - Scope: Achieve research-lifecycle reliability across three surfaces (state advancement + structural unrun detection; tooled+validated outcome/consumed-by provenance; attention/query surfacing), split into three dependency-ordered child IPDs so each is small and independently verifiable. Implements spec 5tapom. No change to the filename grammar, the four `status` values, the `outcome` vocabulary, or the shard layout.
 - Scope-Paths: grandfathered
-- Status: draft
+- Status: to-review
 - Set: reslife
 - Order: 0
 - Highest E allocated: 03
@@ -13,6 +13,7 @@
 - Id: rmwr8s
 
 ## Workflow history
+- 2026-08-25 to-review (aw set): Authored complete and lint-conforming; ready for plan-review.
 
 - 2026-08-24 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created; orchestrator for spec 5tapom (research lifecycle reliability), split into 3 dependency-ordered children. Release-blocker for 2.0.0 (f33nrj) intent is anchored on spec 5tapom and the f33nrj record: these plans CANNOT carry `- Blocks-Release:` until the vwios6ipd set lands (IPD-M103 rejects the field on plans today). Re-mark via `aw ipd set --blocks-release next` after vwios6ipd ships the setter.
 

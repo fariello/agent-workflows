@@ -1,7 +1,7 @@
 # Spec: research lifecycle reliability (make research state, outcome, and provenance tool-owned and verifiable)
 
 - Date: 2026-08-24
-- Status: draft
+- Status: to-review
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 5tapom
 - Blocks-Release: next
@@ -143,6 +143,7 @@ must I still run?" is answerable without reading the corpus and without trusting
   behavior to reproduce tool-assisted.
 
 ## Workflow history
+- 2026-08-25 to-review (aw set): Authored complete and specs-check-conforming; ready for review.
 
 - 2026-08-24 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored as the follow-on rationale
   for the reslife IPD Set, correcting the parent research-org spec's unimplemented reliability half

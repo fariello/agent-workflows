@@ -5,7 +5,7 @@
 - Concern: `aw attention` maps research `intake -> ready` (attention_contract CLASS_MAPS['research'] = {intake: ready, active: active, reference: done, archive: parked}), so finished-but-unpromoted research shows as actionable work (the "ready" bucket held 11 research rows on 2026-08-24, 10 of them already done), and there is no first-class "what research must I still run?" query. Spec 5tapom Section 3.4 requires separating untriaged from actionable and surfacing pending research.
 - Scope: Add `aw research pending` (or `find --unrun`) listing UNRUN prompts (consuming child 01's structural signal), and change `aw attention` so a finished/cited `intake` doc is NOT filed under `ready` (surface it as stale-state-to-promote) while a genuinely-unrun prompt remains actionable. Implements spec 5tapom Section 3.4. Depends on child 01 (unrun signal) and child 02 (provenance fields).
 - Scope-Paths: grandfathered
-- Status: draft
+- Status: to-review
 - Set: reslife
 - Order: 3
 - Highest E allocated: 02
@@ -13,6 +13,7 @@
 - Id: h40usm
 
 ## Workflow history
+- 2026-08-25 to-review (aw set): Authored complete and lint-conforming; ready for plan-review.
 
 - 2026-08-24 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created; child 03 of the reslife Set (spec 5tapom).
 

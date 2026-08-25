@@ -2,11 +2,19 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 128 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 129 Sets; the full manifest is INDEX.json.
 
 ## 8t5ghsgi
 
 - `s2ufeo` [pending] 01 pending/20260824-8t5ghsgi-01-s2ufeo-aw-install-ensures-records-runs-directory-is-gitignored.ipd.md
+
+## awocrunner
+
+- `alkapp` [pending] 00 pending/20260824-awocrunner-00-alkapp-graduate-the-opencode-ipd-runner-into-the-aw-oc-command-grou.ipd.md
+- `ckxgx4` [pending] 01 pending/20260824-awocrunner-01-ckxgx4-extract-runipd-core-into-the-agent-workflows-package-unchang.ipd.md
+- `nfo184` [pending] 02 pending/20260824-awocrunner-02-nfo184-add-aw-oc-opencode-subcommand-group-dispatching-to-the-packa.ipd.md
+- `4tlkgj` [pending] 03 pending/20260824-awocrunner-03-4tlkgj-reduce-tools-ipdrunner-runipd-to-a-thin-compatibility-shim.ipd.md
+- `suks59` [pending] 04 pending/20260824-awocrunner-04-suks59-docs-sync-and-non-blocking-backlog-for-output-normalization.ipd.md
 
 ## awrenamebug
 
@@ -245,10 +253,6 @@ Showing the 40 most-recent of 128 Sets; the full manifest is INDEX.json.
 ## awlintmulti
 
 - `o1ynz3` [executed] 01 executed/20260818-awlintmulti-01-o1ynz3-ipd-lint-accepts-multiple-files-and-defaults-to-all-pending.ipd.md
-
-## awmigrename
-
-- `0qp7u8` [executed] 01 executed/20260818-awmigrename-01-0qp7u8-aw-migrate-layout-optional-rename-on-migrate-to-the-type-md.ipd.md
 
 ## (singletons: no Set)
 

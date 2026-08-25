@@ -5,7 +5,7 @@
 - Concern: Research `status` is written once at creation (`aw research new` hard-codes `status="intake"`, research_cmd.py ~189/~244) and never advanced or validated, so `intake` conflates "untriaged/to-run" with "run-but-unpromoted" and "adopted-but-unpromoted" (11 docs on 2026-08-24; 10 already run+adopted). Spec 5tapom requires the parent B1/H2: identify unrun research WITHOUT trusting hand-typed status, and keep state genuinely tool-maintained.
 - Scope: Add a structural UNRUN/RUN signal derived from manifest set-structure, and a drift rule in `aw research index --check` / `aw check` that flags stale hot state; plus a tool-assisted (human-confirmed) triage classifier reproducing the 2026-08-24 manual pass. Implements spec 5tapom Sections 3.1 and 3.2. Does NOT add a status value or change the vocabulary.
 - Scope-Paths: grandfathered
-- Status: draft
+- Status: to-review
 - Set: reslife
 - Order: 1
 - Highest E allocated: 03
@@ -13,6 +13,7 @@
 - Id: m383qb
 
 ## Workflow history
+- 2026-08-25 to-review (aw set): Authored complete and lint-conforming; ready for plan-review.
 
 - 2026-08-24 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created; child 01 of the reslife Set (spec 5tapom).
 
