@@ -135,11 +135,15 @@ _ITEM_BLOCKS_RELEASE_RE = re.compile(r"(?m)^- Blocks-Release:\s*(\S+)\s*$")
 
 
 def check_blocks_release(repo_root: Path) -> List[_core.Drift]:
-    """Scan backlog + specs items for a `Blocks-Release` value and flag any that does not resolve to
-    an existing release record or 'next' (awrelease Order 02; folds into the awcheck engine seam)."""
+    """Scan backlog + specs + plans items for a `Blocks-Release` value and flag any that does not
+    resolve to an existing release record or 'next' (awrelease Order 02; folds into the awcheck
+    engine seam). IPD 7mw7m5 (OQ-01 option a) added `plans` so a plan carrying a dangling
+    `- Blocks-Release:` is validated the same as backlog/specs; `rglob` recurses through the
+    disposition subdirs (pending/executed/...). This runs in the full cross-tree sweep (`aw check
+    all`), not a type-scoped `aw check plans`."""
     repo_root = Path(repo_root)
     drift: List[_core.Drift] = []
-    for sub in ("backlog", "specs"):
+    for sub in ("backlog", "specs", "plans"):
         for base in (repo_root / ".aw" / "records" / sub, repo_root / ".agents" / sub):
             if not base.is_dir():
                 continue

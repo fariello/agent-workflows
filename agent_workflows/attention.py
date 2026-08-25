@@ -351,8 +351,20 @@ def _plans_record(
         )
     pid = _plans_id(text)
     lha = A.last_history_at(_history_section_lines(text))
+    # IPD 7mw7m5 E-02: populate Item.blocks_release for a release-blocking plan so it renders with
+    # the `>` glyph / `[blocking]` label like specs/backlog blockers (the release_blockers SET scan
+    # already re-reads the file, so set-membership does not depend on this; display parity does).
+    br_m = re.search(r"(?m)^- Blocks-Release:\s*(\S+)\s*$", text)
+    br = br_m.group(1) if br_m else None
     return Item(
-        pid or "", rel, "plans", status, A.class_of("plans", status), None, lha
+        pid or "",
+        rel,
+        "plans",
+        status,
+        A.class_of("plans", status),
+        None,
+        lha,
+        blocks_release=br,
     ), drift
 
 

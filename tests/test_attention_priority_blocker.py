@@ -92,5 +92,58 @@ class AttentionPriorityBlockerTests(unittest.TestCase):
         self.assertIn("blocks_release", it)
 
 
+class PlanReleaseBlockerSurfacingTests(unittest.TestCase):
+    """IPD 7mw7m5 E-02: a plan carrying Blocks-Release surfaces in the release-blocker set AND its
+    Item.blocks_release is populated by the plans reader (display parity with specs/backlog)."""
+
+    def _mk_plan(self, root, br_value):
+        import pathlib
+
+        pdir = pathlib.Path(root) / ".aw" / "records" / "plans" / "pending"
+        pdir.mkdir(parents=True, exist_ok=True)
+        (pdir / "20260101-demo-01-pl0001-x.ipd.md").write_text(
+            "# IPD: pl0001\n\n- Date: 2026-08-22\n- Kind: child\n- Status: draft\n"
+            f"- Set: demo\n- Order: 1\n- Id: pl0001\n- Blocks-Release: {br_value}\n\n"
+            "## Workflow history\n- 2026-08-22 draft (t): x.\n\n## Goal\nx\n",
+            encoding="utf-8",
+        )
+
+    def test_plans_reader_populates_blocks_release_and_surfaces(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            self._mk_plan(root, "next")
+            items, _drift = attention.scan(root)
+            plan_items = [it for it in items if it.tree == "plans"]
+            self.assertEqual(len(plan_items), 1)
+            # E-02: the plans reader now populates blocks_release (was None before).
+            self.assertEqual(plan_items[0].blocks_release, "next")
+            # set membership: the plan appears in the release-blocker set.
+            blockers = attention.release_blockers(items, root)
+            self.assertTrue(
+                any(it.tree == "plans" and it.id == "pl0001" for it in blockers),
+                "release-blocking plan must appear in release_blockers",
+            )
+
+    def test_plan_release_blocker_renders_blocking_markers(self):
+        # Display parity: an Item with blocks_release set renders the `>` glyph / [blocking] label.
+        it = attention.Item(
+            "pl0001",
+            ".aw/records/plans/pending/20260101-demo-01-pl0001-x.ipd.md",
+            "plans",
+            "draft",
+            "ready",
+            None,
+            "2026-05-01",
+            blocks_release="next",
+        )
+        out = _strip(
+            attention.render_board([it], [], show_all=True, term=T.Term(color=True))
+        )
+        self.assertIn("[blocking]", out)
+
+
 if __name__ == "__main__":
     unittest.main()

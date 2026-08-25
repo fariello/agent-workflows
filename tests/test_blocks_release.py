@@ -72,6 +72,47 @@ class BlocksReleaseTests(unittest.TestCase):
         self.assertEqual(releases.check_blocks_release(self.root), [])
 
 
+class PlanBlocksReleaseCheckTests(unittest.TestCase):
+    """IPD 7mw7m5 E-01: aw check validates a PLAN's Blocks-Release (dangling + clean)."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.pdir = self.root / ".aw" / "records" / "plans" / "pending"
+        self.pdir.mkdir(parents=True)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _write_plan(self, br_value):
+        (self.pdir / "20260101-demo-01-pl0001-x.ipd.md").write_text(
+            "# IPD: pl0001\n\n- Date: 2026-08-22\n- Kind: child\n- Status: draft\n"
+            f"- Set: demo\n- Order: 1\n- Id: pl0001\n- Blocks-Release: {br_value}\n\n"
+            "## Workflow history\n- 2026-08-22 draft (t): x.\n\n## Goal\nx\n",
+            encoding="utf-8",
+        )
+
+    def test_dangling_plan_blocks_release_flagged(self):
+        self._write_plan("nosuchid")
+        drift = releases.check_blocks_release(self.root)
+        self.assertTrue(
+            any(
+                d.rule == "check.blocks-release-dangling"
+                and "pl0001" in str(d.location)
+                for d in drift
+            ),
+            f"expected dangling flag for the plan; got {drift}",
+        )
+
+    def test_resolving_plan_blocks_release_clean(self):
+        self._write_plan("next")
+        releases.create_release(self.root, "2.0.0", "x")  # single planned release
+        drift = releases.check_blocks_release(self.root)
+        self.assertEqual(
+            [d for d in drift if d.rule == "check.blocks-release-dangling"], []
+        )
+
+
 class IpdSetBlocksReleaseE2ETests(unittest.TestCase):
     """IPD efnn74 E-04: `aw ipd set --blocks-release` writes/clears/resolves and the plan lints clean
     (relies on the child 01 schema recognition of the Blocks-Release field)."""
