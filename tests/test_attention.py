@@ -261,5 +261,128 @@ class ScanTests(unittest.TestCase):
                 self.assertEqual(after[p], b, f"{p} changed")
 
 
+class StaleResearchReclassifyTests(unittest.TestCase):
+    """IPD h40usm E-02: attention no longer files finished/cited intake research under `ready`."""
+
+    def _write_research(self, root, *, set_id, order, id6, slug, status, kind):
+        from agent_workflows import research_cmd as C
+        from agent_workflows import research_contract as R
+
+        rroot = root / ".agents" / "docs" / "research"
+        rroot.mkdir(parents=True, exist_ok=True)
+        name = R.format_name(
+            R.ResearchName(
+                date="20260801",
+                set_id=set_id,
+                order=f"{order:02d}",
+                id6=id6,
+                slug=slug,
+                model=None,
+                kind=kind,
+            )
+        )
+        content = C.build_frontmatter(
+            id6=id6,
+            created="20260801",
+            set_id=set_id,
+            order=f"{order:02d}",
+            topic=["t"],
+            model=None,
+            kind=kind,
+            status=status,
+            outcome="none-yet",
+            summary="s",
+        )
+        (rroot / name).write_text(
+            content + "\n## Workflow history\n- 2026-08-01 draft (t): x.\n",
+            encoding="utf-8",
+        )
+
+    def test_run_set_intake_not_ready_unrun_stays_ready_active_untouched(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            # RUN prompt-set: an intake report whose set has a prompt + report sibling -> stale.
+            self._write_research(
+                root,
+                set_id="runset",
+                order=0,
+                id6="prmpt2",
+                slug="ask",
+                status="reference",
+                kind="research-prompt",
+            )
+            self._write_research(
+                root,
+                set_id="runset",
+                order=1,
+                id6="rprt01",
+                slug="ans",
+                status="intake",
+                kind="research-report",
+            )
+            # UNRUN prompt: bare NN=00 intake prompt -> stays actionable/ready.
+            self._write_research(
+                root,
+                set_id="unrunset",
+                order=0,
+                id6="prmpt9",
+                slug="ask",
+                status="intake",
+                kind="research-prompt",
+            )
+            # active doc -> keeps ACTIVE.
+            self._write_research(
+                root,
+                set_id="liveset",
+                order=0,
+                id6="live01",
+                slug="w",
+                status="active",
+                kind="notes",
+            )
+            items, drift = att.scan(root)
+            cls = {it.id: it.attention_class for it in items if it.tree == "research"}
+            self.assertEqual(
+                cls.get("rprt01"), "parked", "stale RUN-set intake must not be ready"
+            )
+            self.assertEqual(
+                cls.get("prmpt9"), "ready", "genuinely-unrun intake prompt stays ready"
+            )
+            self.assertEqual(cls.get("live01"), "active", "active doc keeps ACTIVE")
+
+    def test_cited_by_executed_intake_not_ready(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            # A standalone intake doc cited by an EXECUTED plan -> stale -> parked.
+            self._write_research(
+                root,
+                set_id="solo",
+                order=0,
+                id6="solo11",
+                slug="s",
+                status="intake",
+                kind="notes",
+            )
+            pl = root / ".aw" / "records" / "plans" / "executed"
+            pl.mkdir(parents=True, exist_ok=True)
+            (pl / "20260801-set-01-plnexe-x.ipd.md").write_text(
+                "# Plan\n\n- Id: plnexe\n\nAdopts RSCH-solo11.\n", encoding="utf-8"
+            )
+            items, _drift = att.scan(root)
+            cls = {it.id: it.attention_class for it in items if it.tree == "research"}
+            self.assertEqual(cls.get("solo11"), "parked")
+
+    def test_class_of_unchanged_and_total(self):
+        # E-02 must NOT modify class_of; it stays status-only and total over the four statuses.
+        self.assertEqual(A.class_of("research", "intake"), "ready")
+        self.assertEqual(A.class_of("research", "active"), "active")
+        self.assertEqual(A.class_of("research", "reference"), "done")
+        self.assertEqual(A.class_of("research", "archive"), "parked")
+
+
 if __name__ == "__main__":
     unittest.main()

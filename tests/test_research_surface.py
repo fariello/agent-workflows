@@ -29,7 +29,9 @@ class ResearchSurfaceTests(unittest.TestCase):
         "check-refs",
         "index",
         "find",
+        "pending",
         "promote",
+        "set-outcome",
         "miscategorized",
     )
 

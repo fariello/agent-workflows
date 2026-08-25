@@ -639,3 +639,35 @@ def run_find(args: argparse.Namespace) -> int:
     for e in results:
         print(f"{e.id6}\t{e.status}\t{e.path}\t{e.summary}")
     return 0
+
+
+def run_pending(args: argparse.Namespace) -> int:
+    """`aw research pending`: list the UNRUN research prompts (IPD h40usm E-01).
+
+    Uses the structural unrun derivation (E-01 of child 01) over the manifest - a set whose NN=00
+    research-prompt has no NN>=01 sibling. Human output is one ``id6<TAB>path<TAB>summary`` line per
+    prompt; ``--agent`` output is the same tab-separated shape (no prose) for machine consumption.
+    """
+
+    _repo_root, research_root = _roots(args)
+    entries, _drift = _scan_docs(research_root)
+    unrun = derive_unrun_prompts(entries)
+    if getattr(args, "agent", False):
+        for e in unrun:
+            print(f"{e.id6}\t{e.path}\t{e.summary}")
+        return 0
+    if not unrun:
+        from agent_workflows.term import Term
+        from agent_workflows.result_types import NextAction
+
+        Term().empty_result(
+            summary="no unrun research prompts",
+            next_action=NextAction(
+                command="aw research find",
+                description="query all research docs",
+            ),
+        )
+        return 0
+    for e in unrun:
+        print(f"{e.id6}\t{e.path}\t{e.summary}")
+    return 0

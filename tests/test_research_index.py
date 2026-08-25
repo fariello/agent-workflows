@@ -544,6 +544,71 @@ class ConsumedByValidationTests(unittest.TestCase):
         self.assertTrue({"pln003", "spc003", "bkl003"}.issubset(ids))
 
 
+class PendingQueryTests(unittest.TestCase):
+    """IPD h40usm E-01: aw research pending lists exactly the unrun prompts."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.rroot = self.root / ".agents" / "docs" / "research"
+        # UNRUN: bare NN=00 prompt.
+        _write(
+            self.root,
+            set_id="unrunset",
+            order=0,
+            id6="prmpt1",
+            slug="ask",
+            status="intake",
+            created="20260801",
+            kind="research-prompt",
+        )
+        # RUN: prompt + report sibling.
+        _write(
+            self.root,
+            set_id="runset",
+            order=0,
+            id6="prmpt2",
+            slug="ask",
+            status="intake",
+            created="20260802",
+            kind="research-prompt",
+        )
+        _write(
+            self.root,
+            set_id="runset",
+            order=1,
+            id6="rprt01",
+            slug="answer",
+            status="intake",
+            created="20260803",
+            kind="research-report",
+        )
+
+    def _run(self, agent=False):
+        import argparse
+        import io
+        from contextlib import redirect_stdout
+
+        args = argparse.Namespace(dir=str(self.root), agent=agent)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = I.run_pending(args)
+        return rc, buf.getvalue()
+
+    def test_pending_human_lists_only_unrun(self):
+        rc, out = self._run(agent=False)
+        self.assertEqual(rc, 0)
+        self.assertIn("prmpt1", out)
+        self.assertNotIn("prmpt2", out)  # RUN set prompt excluded
+        self.assertNotIn("rprt01", out)
+
+    def test_pending_agent_lists_only_unrun(self):
+        rc, out = self._run(agent=True)
+        self.assertEqual(rc, 0)
+        lines = [ln for ln in out.splitlines() if ln.strip()]
+        self.assertEqual(len(lines), 1)
+        self.assertTrue(lines[0].startswith("prmpt1\t"))
+
+
 class RunIndexOutputTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())

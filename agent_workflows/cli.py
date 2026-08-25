@@ -1444,6 +1444,15 @@ def _build_parser() -> argparse.ArgumentParser:
     p_research_find.add_argument("--topic", default=None, help="Filter by topic.")
     p_research_find.add_argument("--status", default=None, help="Filter by status.")
 
+    p_research_pending = research_sub.add_parser(
+        "pending",
+        parents=[common],
+        help="List UNRUN research prompts (a set whose NN=00 prompt has no report sibling).",
+    )
+    p_research_pending.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+
     p_research_promote = research_sub.add_parser(
         "promote",
         parents=[common],
@@ -6917,6 +6926,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import research_cmd as rc
 
             return rc.run_set_outcome(args)
+        if research_cmd == "pending":
+            from agent_workflows import research_index as ri
+
+            return ri.run_pending(args)
         if research_cmd == "check-miscategorized":
             from agent_workflows import research_archive as ra
 

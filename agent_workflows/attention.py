@@ -173,6 +173,16 @@ def scan(repo_root: Path) -> Tuple[List[Item], List[core.Drift]]:
     # read). "Setup pending" is now DERIVED read-only from the `.aw/setup-repo-needed.md` marker
     # (see `setup_needed`), not scanned as an action tree here.
 
+    # IPD h40usm E-02: reclassify STALE research so finished-but-unpromoted `intake` no longer
+    # masquerades as `ready`. The RUN/cited-by-executed signal is manifest-level + cross-tree, so it
+    # cannot live in the status-only, pure/total `class_of`; instead we apply it here as a post-scan
+    # pass keyed by research id6 (the lower-drift option per the IPD WIRING note + OQ-01). A RUN or
+    # cited-by-executed `intake` doc is reclassed READY -> PARKED (dropped from the default actionable
+    # board; child 01's `aw check`/`aw research index --check` owns the fail-closed stale-state drift,
+    # so attention does NOT re-emit it). `active` is a genuine live state and is NOT touched; a
+    # genuinely-unrun `intake` prompt stays READY (actionable). No new attention class is introduced.
+    items = _reclassify_stale_research(repo_root, items)
+
     items.sort(
         key=lambda it: (
             A.ATTENTION_CLASS_ORDER.index(it.attention_class),
@@ -182,6 +192,51 @@ def scan(repo_root: Path) -> Tuple[List[Item], List[core.Drift]]:
     )
     drift.sort(key=lambda d: (d.location, d.rule))
     return items, drift
+
+
+def _reclassify_stale_research(repo_root: Path, items: List[Item]) -> List[Item]:
+    """Return ``items`` with STALE research ``intake`` rows moved from READY to PARKED.
+
+    A research ``intake`` doc is stale when its SET is a RUN prompt-set OR it is cited by an executed
+    artifact (child 01's derivations). Such a doc is finished-but-unpromoted, not actionable, so it is
+    reclassed to PARKED (hidden from the default board). A genuinely-unrun ``intake`` prompt keeps its
+    READY class. Only ``intake`` is considered; ``active`` (a live state -> ACTIVE) is left untouched.
+    Failure-isolated: any error in deriving the signal leaves the items unchanged (never breaks the
+    view). ``class_of`` is not involved and stays status-only/total.
+    """
+
+    research_intake = [
+        it for it in items if it.tree == "research" and it.native_status == "intake"
+    ]
+    if not research_intake:
+        return items
+    try:
+        from agent_workflows import research_index as _ridx
+
+        research_root = research_contract.resolve_research_root(repo_root)
+        entries, _drift = _ridx._scan_docs(research_root)
+        run_sets = _ridx.run_prompt_set_ids(entries)
+        cited_exec = _ridx.cited_by_executed_ids(repo_root, research_root)
+        by_id = {e.id6: e for e in entries}
+    except Exception:
+        return items
+
+    out: List[Item] = []
+    for it in items:
+        if (
+            it.tree == "research"
+            and it.native_status == "intake"
+            and it.attention_class == A.READY
+        ):
+            entry = by_id.get(it.id)
+            stale = entry is not None and (
+                entry.set_id in run_sets or it.id in cited_exec
+            )
+            if stale:
+                out.append(it._replace(attention_class=A.PARKED))
+                continue
+        out.append(it)
+    return out
 
 
 def _record_for(
