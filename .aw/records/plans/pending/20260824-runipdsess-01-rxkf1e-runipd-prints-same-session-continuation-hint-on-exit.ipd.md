@@ -1,3 +1,5 @@
+<!-- RETIRED 2026-08-25: superseded. The `render_continuation_hint` feature this plan specifies (E-01/E-02/E-03) was implemented directly in `tools/ipdrunner/runipd.py` + `tools/ipdrunner/test_runipd.py` as part of the runipd->runagy parity work (commit a8964c5), and the required run_queue on-exit integration assertion was added in commit 0368aa1. The feature is live and tested (render_continuation_hint at runipd.py, wired into run_queue's tail, 0/1/N unit tests + the end-to-end emission assertion in test_atomic_state_and_set_session_continuity). This plan did NOT itself execute through the runner, so it is filed superseded (not executed) to keep the record honest: the work is done, but via those commits rather than this plan's lifecycle. Retained for the record. -->
+
 # IPD: runipd prints same-session continuation hint on exit
 
 - Date: 2026-08-24
@@ -5,14 +7,17 @@
 - Concern: When a runipd run finishes, the OpenCode session id(s) it used are captured in `state.json` (top-level `session_id` and the per-Set `set_sessions` map) even when `--session` was not passed - OpenCode creates a session per Set and runipd reads the id back out of the streamed JSONL log via `extract_session_id`. But nothing surfaces those ids to the user on exit. To run ANOTHER IPD or file under the SAME session context (so the agent keeps its accumulated context), the user must currently open `state.json` and copy the id by hand. The driver should print a continuation hint on exit naming the captured session id(s) and the exact command to reuse them.
 - Scope: At the end of a `start`/`resume` run (in `run_queue`, after the final report is written), print a concise, colorized continuation hint that (a) lists the captured session id(s) - per Set when a run spans multiple Sets, since each Set has its own session - and (b) shows the exact command to run a NEW IPD/file in that same session context (`runipd --session <ses_...> <selector>`, and equivalently once graduated `aw oc runipd --session <ses_...> <selector>`), plus the `resume` command for continuing THIS run. Handle 0/1/N captured sessions honestly (say '(none captured)' when empty). No behavior change to execution; output-only. Single-child plan for the runipdsess Set.
 - Scope-Paths: tools/ipdrunner/runipd.py, tools/ipdrunner/test_runipd.py
-- Status: reviewed
+- Status: approved
 - Set: runipdsess
 - Order: 1
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: rxkf1e
+- Approval: 2026-08-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-25 approved (aw set): status set to approved
+- 2026-08-25 superseded (opencode its_direct/pt3-claude-opus-4.8-1m-us): Superseded: render_continuation_hint implemented directly in a8964c5 (feature) + 0368aa1 (run_queue integration test), outside this plan's lifecycle. Feature live and tested; filed superseded rather than executed for record honesty.
 - 2026-08-25 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 PR-002 PR-003 fixed
 - 2026-08-25 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique
 
