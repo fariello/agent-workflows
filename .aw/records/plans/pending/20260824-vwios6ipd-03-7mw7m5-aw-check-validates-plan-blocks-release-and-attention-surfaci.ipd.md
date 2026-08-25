@@ -30,24 +30,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Validate plan Blocks-Release in aw check
 
-- [ ] E-01 Extend the plan tree into the blocks-release dangling check. Choose the lower-drift option at execution time: either (a) add `.aw/records/plans` to the directories scanned by `releases.check_blocks_release` (`releases.py:137-162`, currently backlog+specs only), or (b) add a plan-side check via the `check_engine.check_refs` per-type seam (`check_engine.py:197-205`). Reuse `releases.resolve_release` and emit the existing `Drift(path, "check.blocks-release-dangling", ...)` code for a plan whose value does not resolve. Note the invocation gating: `check_blocks_release` is invoked only in the full cross-tree sweep (`check_engine.py:601-604`, run when `collisions` is set, which the `["all"]` sentinel forces at `check_engine.py:585-587`); it does NOT run for a single type-scoped `aw check plans`. Option (a) inherits that same gating (fires on `aw check all`); if option (b) is chosen, it rides the per-type `check_refs` path and may run under type-scoped checks too - either is acceptable, but the executor MUST validate with the command that actually triggers the check (see V-01).
+- [x] E-01 Extend the plan tree into the blocks-release dangling check. Choose the lower-drift option at execution time: either (a) add `.aw/records/plans` to the directories scanned by `releases.check_blocks_release` (`releases.py:137-162`, currently backlog+specs only), or (b) add a plan-side check via the `check_engine.check_refs` per-type seam (`check_engine.py:197-205`). Reuse `releases.resolve_release` and emit the existing `Drift(path, "check.blocks-release-dangling", ...)` code for a plan whose value does not resolve. Note the invocation gating: `check_blocks_release` is invoked only in the full cross-tree sweep (`check_engine.py:601-604`, run when `collisions` is set, which the `["all"]` sentinel forces at `check_engine.py:585-587`); it does NOT run for a single type-scoped `aw check plans`. Option (a) inherits that same gating (fires on `aw check all`); if option (b) is chosen, it rides the per-type `check_refs` path and may run under type-scoped checks too - either is acceptable, but the executor MUST validate with the command that actually triggers the check (see V-01).
   - Depends on: none
   - Expected outcome: `aw check all` (the full sweep) on a repo with a plan carrying a dangling `- Blocks-Release:` reports `check.blocks-release-dangling`; a plan whose value resolves (`next` -> the single planned release, or a live id6) is clean.
-  - Execution state: pending
+  - Execution note: commit f38392e; chose OQ-01 option (a) - added `"plans"` to the `for sub in ("backlog","specs","plans")` scan tuple in `releases.check_blocks_release` (rglob recurses the disposition subdirs), reusing `resolve_release` + the existing `check.blocks-release-dangling` Drift. No `check_engine.py` change needed (the sweep already invokes the validator). DECISION 09-7mw7m5-D1/D2.
+  - Execution state: performed
 
 ### Task group 2: Confirm attention surfacing for plans
 
-- [ ] E-02 Populate `Item.blocks_release` in the plans reader for display parity, and confirm end-to-end surfacing. Verified during review: `release_blockers` (`attention.py:477-494`) re-reads each item's FILE with a regex, so a release-blocking plan already appears in the release-blocker SET without any reader change; BUT the plans reader `_plans_record` (`attention.py:262-301`) constructs its `Item` WITHOUT `blocks_release` (it defaults to `None`), UNLIKE the specs reader (`attention.py:249,258`) and backlog reader (`attention.py:369`) which both populate it. Because the display glyph (`rb_glyph = ">" if it.blocks_release`, `attention.py:622`) and the `[blocking]` label (`attention.py:649-650`) key off `Item.blocks_release`, a release-blocking plan would surface WITHOUT the `>` glyph / `[blocking]` label, inconsistent with backlog/specs. Fix: populate `blocks_release` in `_plans_record` consistent with the specs/backlog readers (read the `- Blocks-Release:` line from the plan text and pass it as the `blocks_release=` kwarg). Do NOT change attention's core scan regex.
+- [x] E-02 Populate `Item.blocks_release` in the plans reader for display parity, and confirm end-to-end surfacing. Verified during review: `release_blockers` (`attention.py:477-494`) re-reads each item's FILE with a regex, so a release-blocking plan already appears in the release-blocker SET without any reader change; BUT the plans reader `_plans_record` (`attention.py:262-301`) constructs its `Item` WITHOUT `blocks_release` (it defaults to `None`), UNLIKE the specs reader (`attention.py:249,258`) and backlog reader (`attention.py:369`) which both populate it. Because the display glyph (`rb_glyph = ">" if it.blocks_release`, `attention.py:622`) and the `[blocking]` label (`attention.py:649-650`) key off `Item.blocks_release`, a release-blocking plan would surface WITHOUT the `>` glyph / `[blocking]` label, inconsistent with backlog/specs. Fix: populate `blocks_release` in `_plans_record` consistent with the specs/backlog readers (read the `- Blocks-Release:` line from the plan text and pass it as the `blocks_release=` kwarg). Do NOT change attention's core scan regex.
   - Depends on: none
   - Expected outcome: a plan carrying `- Blocks-Release: next` appears in `aw attention`'s outstanding release-blocker set for release f33nrj AND renders with the `>` glyph and `[blocking]` label, identical to a backlog/spec release blocker.
-  - Execution state: pending
+  - Execution note: commit f38392e; `attention._plans_record` now reads the `- Blocks-Release:` line and passes `blocks_release=` to the `Item` (parity with the specs/backlog readers). The core `release_blockers` scan regex was not changed (set membership already worked via the per-file re-read); this fixes the display glyph/label parity.
+  - Execution state: performed
 
 ### Task group 3: Tests
 
-- [ ] E-03 Add tests: in `tests/test_blocks_release.py`, a case building a fixture repo with a plan carrying a dangling `Blocks-Release` and asserting the full-sweep check (`aw check all`, or a direct `releases.check_blocks_release(repo_root)` call - matching whichever wiring E-01 chose) emits `check.blocks-release-dangling`, plus a resolving case asserting clean. In `tests/test_attention_priority_blocker.py`, a case asserting a plan carrying `Blocks-Release: next` is returned by the release-blocker view AND that its rendered `Item.blocks_release` is populated (so the `>` glyph / `[blocking]` label parity from E-02 holds).
+- [x] E-03 Add tests: in `tests/test_blocks_release.py`, a case building a fixture repo with a plan carrying a dangling `Blocks-Release` and asserting the full-sweep check (`aw check all`, or a direct `releases.check_blocks_release(repo_root)` call - matching whichever wiring E-01 chose) emits `check.blocks-release-dangling`, plus a resolving case asserting clean. In `tests/test_attention_priority_blocker.py`, a case asserting a plan carrying `Blocks-Release: next` is returned by the release-blocker view AND that its rendered `Item.blocks_release` is populated (so the `>` glyph / `[blocking]` label parity from E-02 holds).
   - Depends on: E-01, E-02
   - Expected outcome: check dangling/clean and attention-surfacing (set membership + populated `blocks_release` for display parity) behavior are covered by passing tests.
-  - Execution state: pending
+  - Execution note: commit f38392e; `tests/test_blocks_release.py::PlanBlocksReleaseCheckTests` (dangling flagged, resolving clean) and `tests/test_attention_priority_blocker.py::PlanReleaseBlockerSurfacingTests` (plans reader populates blocks_release + release_blockers set membership + [blocking] render parity).
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -103,20 +106,20 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output from the command that ACTUALLY triggers the check (`aw check all` for the full-sweep wiring, or a direct `releases.check_blocks_release` call in a test - NOT a type-scoped `aw check plans`, which does not run the sweep-gated check) showing `check.blocks-release-dangling` for a plan with an unresolvable `Blocks-Release`, and clean for a resolving value.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (commit f38392e) Manual `aw check all --dir <scratch> --agent` with a plan carrying `- Blocks-Release: nosuchid` -> diagnostics include `{"location":".aw/records/plans/pending/20260101-demo-01-pl0001-x.ipd.md","rule":"check.blocks-release-dangling"}`, exit 1; after changing to `next` + creating the single planned release, the dangling count is 0. `PlanBlocksReleaseCheckTests.test_dangling_plan_blocks_release_flagged` and `test_resolving_plan_blocks_release_clean` pass (direct `releases.check_blocks_release` call, matching the full-sweep wiring option a). See DECISION 09-7mw7m5-D1.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted `aw attention` (or test) output listing a plan carrying `Blocks-Release: next` in the release-blocker set for release f33nrj, AND evidence that the plan `Item.blocks_release` is populated (the `>` glyph / `[blocking]` label renders for the plan the same as for a backlog/spec blocker), confirming the `_plans_record` population fix.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (commit f38392e) `PlanReleaseBlockerSurfacingTests.test_plans_reader_populates_blocks_release_and_surfaces` asserts, on a scanned scratch repo, that the plan Item has `blocks_release == "next"` (was `None` before the fix) and that `attention.release_blockers(items, root)` returns the plan (id `pl0001`, tree `plans`). `test_plan_release_blocker_renders_blocking_markers` asserts the `[blocking]` label renders for a plan Item carrying `blocks_release`. Manual: `att.scan(scratch)` -> `plan pl0001 blocks_release= nosuchid`. Both ok.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted `python3 -m pytest tests/test_blocks_release.py tests/test_attention_priority_blocker.py` output with the new cases passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (commit f38392e) `python3 -m pytest tests/test_blocks_release.py tests/test_attention_priority_blocker.py` -> `16 passed` (incl. `PlanBlocksReleaseCheckTests` x2 and `PlanReleaseBlockerSurfacingTests` x2). Whole suite `python3 -m pytest tests/` -> 2154 passed, 1 skipped. `pre-commit run --files agent_workflows/releases.py agent_workflows/attention.py tests/test_blocks_release.py tests/test_attention_priority_blocker.py` -> all hooks Passed.
+  - Result: pass
 
 ## Approval and execution gate
 
