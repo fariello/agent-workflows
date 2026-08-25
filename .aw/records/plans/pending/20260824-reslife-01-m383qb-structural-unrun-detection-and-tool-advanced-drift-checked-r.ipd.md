@@ -30,24 +30,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Structural unrun detection
 
-- [ ] E-01 Add a pure `unrun`/`run` derivation over the research manifest: a SET is UNRUN when its `NN=00` member is `kind: research-prompt` and it has no `NN>=01` sibling member; RUN otherwise. Implement as a single reusable function (e.g. in `agent_workflows/research_contract.py` or `research_index.py`) consumed by later children; do NOT read the corpus (manifest/frontmatter only).
+- [x] E-01 Add a pure `unrun`/`run` derivation over the research manifest: a SET is UNRUN when its `NN=00` member is `kind: research-prompt` and it has no `NN>=01` sibling member; RUN otherwise. Implement as a single reusable function (e.g. in `agent_workflows/research_contract.py` or `research_index.py`) consumed by later children; do NOT read the corpus (manifest/frontmatter only).
   - Depends on: none
   - Expected outcome: given the manifest, the function returns the exact set of unrun prompts; unit-tested on a fixture with one run set (excluded) and one bare prompt (included).
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: commit 59fff46; `research_index.derive_unrun_prompts` + `unrun_set_ids` + `run_prompt_set_ids` (pure over `_scan_docs` DocEntry manifest, no corpus read). A prompt-set is UNRUN when its NN=00 research-prompt has no NN>=01 sibling; RUN when it has one; non-prompt sets are outside the taxonomy.
 
 ### Task group 2: Drift-checked state
 
-- [ ] E-02 Extend `aw research index --check` (and the `aw check` research path / `check_engine`) with a DRIFT rule: an `intake`/`active` doc is flagged as stale-state-to-promote (nonzero exit, in the existing drift-record shape) when EITHER trigger holds: (a) its SET is RUN (E-01's structural signal), OR (b) it is cited by an EXECUTED artifact. "Executed" means the citing plan sits under `executed/` (disposition, per `plans_index`), the citing spec is `implemented`, or the citing backlog item is `done`; a citation from a merely pending/draft artifact does NOT trigger the flag. Reuse the citation PRIMITIVES (the `cite_matcher` id-extractor + id-resolver + `iter_scan_files`), but note this is the REVERSE of `artifact_core.find_dangling_citations` (which finds a doc's OWN unresolved citations): here you scan executed artifacts and match citations that resolve TO the intake doc's id6. Build the reverse traversal on the shared primitives; do NOT bend `find_dangling_citations` and do NOT write a second id-matcher.
+- [x] E-02 Extend `aw research index --check` (and the `aw check` research path / `check_engine`) with a DRIFT rule: an `intake`/`active` doc is flagged as stale-state-to-promote (nonzero exit, in the existing drift-record shape) when EITHER trigger holds: (a) its SET is RUN (E-01's structural signal), OR (b) it is cited by an EXECUTED artifact. "Executed" means the citing plan sits under `executed/` (disposition, per `plans_index`), the citing spec is `implemented`, or the citing backlog item is `done`; a citation from a merely pending/draft artifact does NOT trigger the flag. Reuse the citation PRIMITIVES (the `cite_matcher` id-extractor + id-resolver + `iter_scan_files`), but note this is the REVERSE of `artifact_core.find_dangling_citations` (which finds a doc's OWN unresolved citations): here you scan executed artifacts and match citations that resolve TO the intake doc's id6. Build the reverse traversal on the shared primitives; do NOT bend `find_dangling_citations` and do NOT write a second id-matcher.
   - Depends on: E-01
   - Expected outcome: `--check` flags a stale `intake` doc under trigger (a) AND, independently, under trigger (b) with executed-disposition filtering (a pending-only citer does NOT flag); stays clean once the doc is promoted; regression test asserts each trigger independently and the pending-citer negative case.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: commit 59fff46; `research_index.cited_by_executed_ids` (reverse traversal reusing `artifact_core.iter_scan_files` + `R.iter_id6_citations`; executed = plan under `executed/` via `_plan_is_executed`, spec `Status: implemented` via `_spec_is_implemented`, backlog `done` via `_backlog_is_done`; does NOT bend `find_dangling_citations`). `check_drift` now appends `STALE_STATE_RULE` ("stale-state-to-promote") for a hot (intake/active) doc whose set is a RUN prompt-set (trigger a) or is in the cited-by-executed set (trigger b). Flows into `aw check research` automatically via `check_engine.check_content` -> `check_drift`.
 
 ### Task group 3: Tool-assisted triage classifier
 
-- [ ] E-03 Add a human-confirmed triage helper (a new verb or `aw research promote --suggest`, per spec 5tapom OQ-02) that CLASSIFIES stale docs (cited/run -> reference; uncited dead-end -> archive) and previews the moves for confirmation, reproducing the 2026-08-24 manual pass behavior. It must NOT mutate without confirmation (H2: distrust blind writes).
+- [x] E-03 Add a human-confirmed triage helper (a new verb or `aw research promote --suggest`, per spec 5tapom OQ-02) that CLASSIFIES stale docs (cited/run -> reference; uncited dead-end -> archive) and previews the moves for confirmation, reproducing the 2026-08-24 manual pass behavior. It must NOT mutate without confirmation (H2: distrust blind writes).
   - Depends on: E-01
   - Expected outcome: the helper previews a correct classification on a fixture matching the 2026-08-24 cohort; applying it promotes/archives as previewed; unit-tested.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: commit 59fff46; `aw research promote --suggest` (OQ-01 resolved to the flag, not a new verb - DECISION 03-m383qb-D1). `research_archive.suggest_triage` classifies stale hot docs: cited (executed or any citation) or in a RUN prompt-set -> reference; a RUN-set-but-uncited dead-end -> archive; genuinely-untriaged docs are left alone. `run_promote` previews unless `--apply` (H2). CLI `id` made optional (`nargs="?"`) so `--suggest` needs no id6.
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -98,20 +101,20 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted unit-test output showing the unrun derivation returns exactly the bare prompt (run set excluded) on the fixture.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `UnrunDerivationTests.test_derive_unrun_excludes_run_set_includes_bare_prompt ... ok` (asserts `derive_unrun_prompts -> ['prmpt1']`, `unrun_set_ids == {'unrunset'}`, `run_prompt_set_ids == {'runset'}` on a fixture with one RUN set and one bare prompt) and `test_prompt_set_taxonomy_ignores_non_prompt_sets ... ok`. Full output in run-20260825T035151Z-1236581/execution-report.md (V-01, m383qb).
+  - Result: pass
 
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted `aw research index --check` (or `aw check`) output flagging a stale `intake` doc under trigger (a) RUN-set AND, separately, under trigger (b) cited-by-EXECUTED; a pasted negative case showing a doc cited only by a PENDING artifact is NOT flagged; clean after promotion; regression test(s) named and passing, asserting each trigger and the pending-citer negative independently.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `StaleStateDriftTests.test_trigger_a_run_set_flags_intake_and_clean_after_promote ... ok` (flags the RUN-set intake report, then clean after promoting it out of the hot band); `test_trigger_b_cited_by_executed_plan_flags_but_pending_does_not ... ok` (a pending-only citer does NOT flag; an executed-plan citer does); `test_cited_by_executed_ids_reverse_traversal ... ok` (implemented spec citer counts, draft spec citer does not). Real-repo demonstration: `aw research index --check` now emits `...awnamespace-04-2bodwq-...: stale-state-to-promote: active doc in RUN set 'awnamespace'; promote it` (exit 1) - one genuinely-stale doc surfaced (DECISION 03-m383qb-D3). Full output in the run report (V-02, m383qb).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted preview + apply of the triage classifier on a cohort fixture producing the correct reference/archive classification; test passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `SuggestTriageTests.test_suggest_classifies_and_previews_without_mutation ... ok` (a RUN-set report cited by an executed plan -> reference; an uncited non-run intake doc left alone; no file moved during preview); `test_suggest_apply_promotes_as_previewed ... ok` (`--suggest --apply` moves the doc to reference/ and rewrites status); `test_suggest_archives_uncited_run_set_deadend ... ok` (a RUN-set uncited report -> archive). `aw research promote --help` shows `--suggest`. Full output in the run report (V-03, m383qb).
+  - Result: pass
 
 
 ## Approval and execution gate
