@@ -98,4 +98,7 @@ include = [
 # stdlib unittest.TestCase and also run under `python -m unittest discover -s tests -t .`.
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+# Run the suite in parallel by default via pytest-xdist (declared in the [test] extra).
+# `-n auto` picks a worker per CPU; override with `-n 0` to force serial (e.g. when
+# debugging a test-isolation issue or needing deterministic output ordering).
+addopts = "-q -n auto"
