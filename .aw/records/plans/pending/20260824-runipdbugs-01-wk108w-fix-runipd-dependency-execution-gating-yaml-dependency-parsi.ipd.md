@@ -5,7 +5,7 @@
 - Concern: bugs
 - Scope: tools/ipdrunner/runipd.py
 - Scope-Paths: tools/ipdrunner/runipd.py, tools/ipdrunner/test_runipd.py
-- Status: to-review
+- Status: reviewed
 - Set: runipdbugs
 - Order: 1
 - Highest E allocated: 04
@@ -14,6 +14,7 @@
 
 ## Workflow history
 
+- 2026-08-25 reviewed (Antigravity): /plan-review (Antigravity): APPROVE WITH REVISIONS APPLIED; PR-001 PR-002 fixed. Readiness: GO - PENDING HUMAN APPROVAL.
 - 2026-08-24 to-review (Antigravity): created from /assess bugs analysis of tools/ipdrunner/runipd.py.
 
 ## Goal
@@ -141,4 +142,9 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This IPD is authored following the `/assess bugs` workflow. It resides in `.aw/records/plans/pending/` with status `to-review`. It requires review and human approval before execution.
+### Execution Contract
+1. Scope fence: Modify only `tools/ipdrunner/runipd.py` and `tools/ipdrunner/test_runipd.py`.
+2. Commit rules: Path-scoped commits only (`git commit -m msg -- <paths>`). Never `git add -A`, never bare commit, never push.
+3. Validation honesty: Paste actual runner output demonstrating all unit and integration tests pass.
+4. Terminal transition: Run `aw ipd lint --phase pre-transition` before moving this plan to `.aw/records/plans/executed/`.
+5. Human approval required: Do not execute until explicitly approved by a human (`aw set approved wk108w --by-human`).
