@@ -10,10 +10,15 @@ import unittest
 from unittest import mock
 from pathlib import Path
 
-# Add tool directory to sys.path before importing driver
-sys.path.insert(0, str(Path(__file__).parent.resolve()))
+from agent_workflows import oc_runipd as driver
+from tests.support import REPO_ROOT
 
-import runipd as driver  # noqa: E402
+# Launch the packaged driver as a module (`-m agent_workflows.oc_runipd`) with PYTHONPATH pinned to
+# the checkout root, so the package resolves regardless of the tmp-repo cwd AND the stdlib is not
+# shadowed by `agent_workflows/selectors.py` (which running the module file directly would trigger).
+# See DECISION 11-ckxgx4-D1.
+_DRIVER_CMD = [sys.executable, "-m", "agent_workflows.oc_runipd"]
+_DRIVER_ENV = {**os.environ, "PYTHONPATH": str(REPO_ROOT)}
 
 
 def _make_run_dir(root: Path, queue: list) -> Path:
@@ -75,7 +80,10 @@ class DriverTests(unittest.TestCase):
 
     def test_selector_deduplication_supports_interleaved_set_resume(self):
         manifest_path = (
-            Path(__file__).parent / "20260823-pending-ipds-driver-manifest.json"
+            REPO_ROOT
+            / "tools"
+            / "ipdrunner"
+            / "20260823-pending-ipds-driver-manifest.json"
         )
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         queue = driver.expand_selectors(
@@ -164,7 +172,7 @@ class DriverTests(unittest.TestCase):
             fake.chmod(0o755)
             result = subprocess.run(
                 [
-                    os.fspath(Path(driver.__file__).resolve()),
+                    *_DRIVER_CMD,
                     "start",
                     "demo",
                     "--repo",
@@ -177,6 +185,7 @@ class DriverTests(unittest.TestCase):
                     os.fspath(fake),
                 ],
                 cwd=repo,
+                env=_DRIVER_ENV,
                 text=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -268,8 +277,7 @@ class ReviewPlanRoutingTests(unittest.TestCase):
             # Run with direct selectors (id6 and filename) and explicit --session
             result = subprocess.run(
                 [
-                    sys.executable,
-                    os.fspath(Path(driver.__file__).resolve()),
+                    *_DRIVER_CMD,
                     "start",
                     "rev001",
                     os.fspath(p2),
@@ -281,6 +289,7 @@ class ReviewPlanRoutingTests(unittest.TestCase):
                     os.fspath(fake),
                 ],
                 cwd=repo,
+                env=_DRIVER_ENV,
                 text=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -366,14 +375,14 @@ class SelectorResolutionTests(unittest.TestCase):
             # Invoking runipd.py without explicit 'start' subcommand
             result = subprocess.run(
                 [
-                    sys.executable,
-                    os.fspath(Path(driver.__file__).resolve()),
+                    *_DRIVER_CMD,
                     "--repo",
                     os.fspath(repo),
                     "--prepare-only",
                     "tst001",
                 ],
                 cwd=repo,
+                env=_DRIVER_ENV,
                 text=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -992,8 +1001,7 @@ class StallWatchdogTests(unittest.TestCase):
 
             result = subprocess.run(
                 [
-                    sys.executable,
-                    os.fspath(Path(driver.__file__).resolve()),
+                    *_DRIVER_CMD,
                     "start",
                     "stall1",
                     "--repo",
@@ -1004,6 +1012,7 @@ class StallWatchdogTests(unittest.TestCase):
                     os.fspath(silent_child),
                 ],
                 cwd=repo,
+                env=_DRIVER_ENV,
                 text=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -1085,8 +1094,7 @@ class StallWatchdogTests(unittest.TestCase):
 
             result = subprocess.run(
                 [
-                    sys.executable,
-                    os.fspath(Path(driver.__file__).resolve()),
+                    *_DRIVER_CMD,
                     "start",
                     "activ1",
                     "--repo",
@@ -1097,6 +1105,7 @@ class StallWatchdogTests(unittest.TestCase):
                     os.fspath(active_child),
                 ],
                 cwd=repo,
+                env=_DRIVER_ENV,
                 text=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -1279,8 +1288,7 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
 
             result = subprocess.run(
                 [
-                    sys.executable,
-                    os.fspath(Path(driver.__file__).resolve()),
+                    *_DRIVER_CMD,
                     "start",
                     "all",
                     "--repo",
@@ -1290,6 +1298,7 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
                     os.fspath(fake),
                 ],
                 cwd=repo,
+                env=_DRIVER_ENV,
                 text=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -1373,8 +1382,7 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
 
             result = subprocess.run(
                 [
-                    sys.executable,
-                    os.fspath(Path(driver.__file__).resolve()),
+                    *_DRIVER_CMD,
                     "start",
                     "all",
                     "--repo",
@@ -1384,6 +1392,7 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
                     os.fspath(fake),
                 ],
                 cwd=repo,
+                env=_DRIVER_ENV,
                 text=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
