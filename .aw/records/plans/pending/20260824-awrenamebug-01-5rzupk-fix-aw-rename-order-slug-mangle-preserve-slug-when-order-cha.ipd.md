@@ -30,17 +30,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Fix the slug derivation
 
-- [ ] E-01 Replace the heuristic body of `_slug_of(old_name, id6)` (`plans_refs.py:156-165`) so it returns the `slug` group from `artifact_naming.parse_uniform_permissive(old_name)` - the SAME `_UNIFORM_RE` parser the already-correct `artifact_rename.compute_target_name` reads via `m_uni.group("slug")` (`artifact_naming.py:167-174`; `artifact_rename.py:81,87`), so the plans path re-converges on the sibling's mechanism rather than forking a new one. Keep the existing heuristic (or `"plan"`) only as a fallback for a name the parser does not match (truly legacy names). Rationale for the permissive parser over the closed `parse_clustered`: `_UNIFORM_RE` accepts an unusual facet that the closed grammar rejects, matching the sibling path exactly; for conformant `.ipd.md` names both parsers give the identical `slug`, so the reported bug is fixed either way.
+- [x] E-01 Replace the heuristic body of `_slug_of(old_name, id6)` (`plans_refs.py:156-165`) so it returns the `slug` group from `artifact_naming.parse_uniform_permissive(old_name)` - the SAME `_UNIFORM_RE` parser the already-correct `artifact_rename.compute_target_name` reads via `m_uni.group("slug")` (`artifact_naming.py:167-174`; `artifact_rename.py:81,87`), so the plans path re-converges on the sibling's mechanism rather than forking a new one. Keep the existing heuristic (or `"plan"`) only as a fallback for a name the parser does not match (truly legacy names). Rationale for the permissive parser over the closed `parse_clustered`: `_UNIFORM_RE` accepts an unusual facet that the closed grammar rejects, matching the sibling path exactly; for conformant `.ipd.md` names both parsers give the identical `slug`, so the reported bug is fixed either way.
   - Depends on: none
   - Expected outcome: `_slug_of('20260823-ipdgates-06-wezhxg-remove-raw-x.ipd.md', 'wezhxg')` returns `remove-raw-x` (currently the verified-mangled `ipdgates-06-remove-raw-x`); `run_mv --order 07` changes only the NN facet; the plans path and `compute_target_name` share one slug parser.
-  - Execution state: pending
+  - Execution note: commit 40ab3b2; `_slug_of` now returns `_naming.parse_uniform_permissive(old_name).group("slug")` (the same `_UNIFORM_RE` parser `artifact_rename.compute_target_name` reads), converging the plans path on the sibling's mechanism; the legacy digit-stripping heuristic remains only as the fallback for names the parser does not match. Verified `_slug_of('20260823-ipdgates-06-wezhxg-remove-raw-x.ipd.md','wezhxg')` -> `remove-raw-x`.
+  - Execution state: performed
 
 ### Task group 2: Regression test
 
-- [ ] E-02 In `tests/test_plans_refs.py`, add a regression test that runs the `run_mv` path (or `_slug_of` directly) on a clustered plan name with `--order <newNN>` and NO `--slug`, and asserts the resulting target name preserves the original slug and changes only the Order facet (no `<setid>-NN-` injected into the slug). Include the exact ipdgates repro shape from the backlog item.
+- [x] E-02 In `tests/test_plans_refs.py`, add a regression test that runs the `run_mv` path (or `_slug_of` directly) on a clustered plan name with `--order <newNN>` and NO `--slug`, and asserts the resulting target name preserves the original slug and changes only the Order facet (no `<setid>-NN-` injected into the slug). Include the exact ipdgates repro shape from the backlog item.
   - Depends on: E-01
   - Expected outcome: the test fails on pre-fix code (mangled slug) and passes after the fix.
-  - Execution state: pending
+  - Execution note: commit 40ab3b2; `tests/test_plans_refs.py::RenameOrderSlugPreservationTests` - `test_slug_of_returns_true_slug_not_cluster_prefix` (the ipdgates repro + this-plan shape), `test_slug_of_legacy_fallback_unchanged`, and an end-to-end `test_rename_order_preserves_slug_end_to_end` running `run_mv(--order 7, no --slug)` and asserting the file renames `20260823-ipdgates-06-wezhxg-remove-raw-terminal-bypasses.ipd.md` -> `...-07-...` with the slug intact and no `ipdgates-06-` injected.
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -96,15 +98,15 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted dry-run output of `aw rename plans <id6> --order <NN>` (no `--slug`) on a clustered plan showing the target changes only the Order facet and preserves the slug; and/or a snippet showing `_slug_of` now returns the parser's `slug` group.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (commit 40ab3b2) Real dry-run `aw rename plans m383qb --order 09` (no --slug, no --apply) -> `--- would rename 20260824-reslife-01-m383qb-structural-unrun-detection-and-tool-advanced-drift-checked-r.ipd.md -> 20260824-reslife-09-m383qb-structural-unrun-detection-and-tool-advanced-drift-checked-r.ipd.md ---`: ONLY the Order facet `01 -> 09` changed, the slug `structural-unrun-detection-...` preserved, no `reslife-01-` injected (dry-run; no mutation). Snippet: `plans_refs._slug_of('20260823-ipdgates-06-wezhxg-remove-raw-x.ipd.md','wezhxg')` -> `remove-raw-x`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted `python3 -m pytest tests/test_plans_refs.py` output showing the new regression test passing (and, if captured, failing on the pre-fix code).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (commit 40ab3b2) `python3 -m pytest tests/test_plans_refs.py` -> `8 passed` including the 3 new `RenameOrderSlugPreservationTests` (test_slug_of_returns_true_slug_not_cluster_prefix, test_slug_of_legacy_fallback_unchanged, test_rename_order_preserves_slug_end_to_end). The end-to-end case is a pre-fix-failing regression: on the old `_slug_of` it would have produced `...-07-wezhxg-ipdgates-06-remove-raw-terminal-bypasses...`, which the assertion `name == '20260823-ipdgates-07-wezhxg-remove-raw-terminal-bypasses.ipd.md'` rejects. Broader: `pytest tests/test_plans_refs.py tests/test_artifact_rename.py tests/test_naming_authority_golden.py` -> 45 passed; whole suite -> 2221 passed, 1 skipped; pre-commit all hooks Passed.
+  - Result: pass
 
 ## Approval and execution gate
 
