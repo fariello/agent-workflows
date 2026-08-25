@@ -1,7 +1,7 @@
 # Driver Runbook for the Approved 2026-08-23 IPDs
 
 **Runtime:** OpenCode 1.18.21 with Claude Opus 4.8
-**Driver:** `ipdrunner.py`
+**Driver:** `aw oc runipd` (packaged; `tools/ipdrunner/runipd.py` is the compatibility shim)
 **Manifest:** `20260823-pending-ipds-driver-manifest.json`
 **Execution posture:** Unattended, restartable, maximum safe forward progress, no pushing
 
@@ -41,10 +41,19 @@ proclint
 execset children and closeout
 ```
 
-Start directly:
+Start directly. The primary command is `aw oc runipd` (alias `aw opencode runipd`) in any environment where `aw` is installed; the `python3 tools/ipdrunner/runipd.py ...` form shown below continues to work as a compatibility shim that delegates to the same packaged runner:
 
 ```bash
-python3 tools/ipdrunner/ipdrunner.py start \
+aw oc runipd start \
+  --repo /absolute/path/agent-workflows \
+  --manifest tools/ipdrunner/20260823-pending-ipds-driver-manifest.json \
+  --runbook tools/ipdrunner/20260823-pending-ipds-overnight-execution-runbook.md \
+  --model '<provider/model-for-opus-4.8>' \
+  --agent '<coding-primary-agent>' \
+  v6zie5 unifyfileio ipdgates proclint execset
+
+# equivalent legacy/compat invocation:
+python3 tools/ipdrunner/runipd.py start \
   --repo /absolute/path/agent-workflows \
   --manifest tools/ipdrunner/20260823-pending-ipds-driver-manifest.json \
   --runbook tools/ipdrunner/20260823-pending-ipds-overnight-execution-runbook.md \
@@ -58,7 +67,7 @@ If OpenCode's configured default is already Opus 4.8 and its normal primary agen
 To inspect the resolved durable queue before launching anything, add `--prepare-only`, note the printed run ID, then start it with:
 
 ```bash
-python3 tools/ipdrunner/ipdrunner.py resume \
+python3 tools/ipdrunner/runipd.py resume \
   --repo /absolute/path/agent-workflows \
   <run-id>
 ```
@@ -87,7 +96,7 @@ sessions/
 Inspect a run:
 
 ```bash
-python3 tools/ipdrunner/ipdrunner.py status \
+python3 tools/ipdrunner/runipd.py status \
   --repo /absolute/path/agent-workflows \
   <run-id>
 ```
@@ -95,7 +104,7 @@ python3 tools/ipdrunner/ipdrunner.py status \
 Resume queued work after a driver or terminal failure:
 
 ```bash
-python3 tools/ipdrunner/ipdrunner.py resume \
+python3 tools/ipdrunner/runipd.py resume \
   --repo /absolute/path/agent-workflows \
   <run-id>
 ```
@@ -105,7 +114,7 @@ A plain `resume` also re-queues the single item that was in flight when the run 
 Retry interrupted, partial, blocked, dependency-blocked, or safely failed items in recovery mode:
 
 ```bash
-python3 tools/ipdrunner/ipdrunner.py resume \
+python3 tools/ipdrunner/runipd.py resume \
   --repo /absolute/path/agent-workflows \
   --retry-incomplete \
   <run-id>

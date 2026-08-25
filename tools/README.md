@@ -136,28 +136,38 @@ python3 tools/pwatch.py python3 -rm pytest --record-file /tmp/pytest-runs.jsonl
 
 `tools/watch-agy.py` acts as a convenience wrapper around `pwatch.py`, defaulting to `-m agy` when invoked without process filter arguments.
 
-## `ipdrunner/` (runipd)
+## `aw oc runipd` (the OpenCode IPD runner)
 
-`tools/ipdrunner/runipd.py` is a restartable, non-interactive driver for reviewing and executing queues of IPDs, Sets, and plan files. It automatically routes `to-review` plans to OpenCode `/plan-review` (sharing session context across turns) and `approved` plans to full execution. It persists durable run state, session IDs, event streams, decisions, and outcomes under `.aw/records/runs/<run-id>/`.
+The OpenCode IPD runner is a restartable, non-interactive driver for reviewing and executing queues of IPDs, Sets, and plan files. It automatically routes `to-review` plans to OpenCode `/plan-review` (sharing session context across turns) and `approved` plans to full execution. It persists durable run state, session IDs, event streams, decisions, and outcomes under `.aw/records/runs/<run-id>/`.
+
+The runner is packaged in the toolkit as `agent_workflows.oc_runipd` and is invoked as `aw oc runipd` (alias `aw opencode runipd`), so it works in any environment where `aw` is installed. The old path `python3 tools/ipdrunner/runipd.py ...` still works: it is now a thin compatibility shim that delegates to the packaged runner.
 
 ### Usage
 
+Primary (packaged command):
+
 ```bash
 # Review a to-review plan:
-python3 tools/ipdrunner/runipd.py 20260824-ipdrunner-01-pr2nd0-harden.ipd.md
+aw oc runipd 20260824-ipdrunner-01-pr2nd0-harden.ipd.md
 
 # Review all to-review plans in a set using an existing session:
-python3 tools/ipdrunner/runipd.py ipdrunner --session <session_id>
+aw oc runipd ipdrunner --session <session_id>
 
 # Execute an approved plan:
-python3 tools/ipdrunner/runipd.py 5ahblp
+aw oc runipd 5ahblp
 
 # Execute multiple sets and plans in sequence:
-python3 tools/ipdrunner/runipd.py v6zie5 unifyfileio ipdgates execset
+aw oc runipd v6zie5 unifyfileio ipdgates execset
 
 # Inspect run status:
-python3 tools/ipdrunner/runipd.py status --repo /path/to/repo <run-id>
+aw oc runipd status --repo /path/to/repo <run-id>
 
 # Resume a run:
-python3 tools/ipdrunner/runipd.py resume --repo /path/to/repo <run-id>
+aw oc runipd resume --repo /path/to/repo <run-id>
+```
+
+`aw opencode runipd ...` is an accepted alias. The legacy source-checkout path continues to work unchanged as a compatibility shim:
+
+```bash
+python3 tools/ipdrunner/runipd.py status --repo /path/to/repo <run-id>
 ```
