@@ -5,7 +5,7 @@
 - Concern: AGENTS.md (Release gates) states any backlog item, spec, OR plan may carry a `- Blocks-Release: <release-id6|next>` front-matter field, but for plans this is untrue today: the IPD linter rejects the field as IPD-M103 "unknown field" (so a plan carrying it cannot pass `aw ipd lint` nor the execution checkpoints that call it), there is no `aw ipd set --blocks-release` setter, and `aw check` has no path to validate the field on a plan. Backlog item vwios6 (release-blocker for 2.0.0 / f33nrj).
 - Scope: Achieve full release-gate parity for plans across the three enforcement surfaces (schema/lint, setter, check/attention), split into three dependency-ordered child IPDs so each is small and independently verifiable. Also fixes the shared blocks-release setter path (bug 61qk4a) so the fix is not duplicated as a broken code path.
 - Scope-Paths: agent_workflows/ipd_schema.py, agent_workflows/ipd_lint.py, agent_workflows/status_set.py, agent_workflows/cli.py, agent_workflows/backlog.py, agent_workflows/releases.py, agent_workflows/check_engine.py, agent_workflows/attention.py, tests/
-- Status: to-review
+- Status: reviewed
 - Set: vwios6ipd
 - Order: 0
 - Highest E allocated: 03
@@ -13,6 +13,7 @@
 - Id: uvsmmy
 
 ## Workflow history
+- 2026-08-25 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002 fixed
 - 2026-08-24 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique
 
 - 2026-08-24 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created; orchestrator for backlog item vwios6 (IPD blocks-release parity), split into 3 dependency-ordered children. NOTE: this plan's own `- Blocks-Release: next` intent is DEFERRED (not written to front matter) until child 01 lands, because a plan carrying the field currently fails `aw ipd lint` (IPD-M103) - the exact bug this Set fixes. Interim release-blocker intent is tracked on backlog item vwios6 and the 2.0.0 (f33nrj) release record; re-mark via `aw ipd set --blocks-release next` after child 02 ships the setter.
@@ -70,8 +71,11 @@ Dependency rationale: 01 must land first because until the schema recognizes the
 
 ## Cross-IPD validation
 
-- After all three children execute (setter available only once child 02 is `executed`), hand-verify parity: use the new setter (`aw ipd set --blocks-release next <this-plan-id6>`) to mark this orchestrator itself, then run `aw ipd lint` on it plus `aw check` and `aw attention` to confirm plan, backlog, and spec surfaces agree on release f33nrj. This doubles as the end-to-end acceptance of the whole Set. KEEP the resulting `- Blocks-Release: next` on this orchestrator (do not revert it): once the field is legal and tooled, this Set genuinely blocks 2.0.0 (it carries the vwios6 intent), so the self-mark becomes the correct standing release-blocker declaration rather than a throwaway test artifact.
-- Confirm no duplicated blocks-release write logic remains: the field write must go through the single shared `releases.set_blocks_release_line` primitive from all setter call sites.
+- After all three children execute (setter available only once child 02 is `executed`), and WHILE this orchestrator is still non-terminal (`approved`, before its own finalize), hand-verify parity: use the new setter (`aw ipd set --blocks-release next <this-plan-id6>`) to mark this orchestrator itself, then run `aw ipd lint` on it plus `aw check` and `aw attention` to confirm the plan, backlog, and spec surfaces agree on release f33nrj (a plan carrying `- Blocks-Release: next` lints clean, is validated by `aw check`, and appears in `aw attention`'s release-blocker set). This doubles as the end-to-end acceptance of the whole Set.
+- Timing note (why the self-mark must happen before finalize): once this orchestrator moves to `executed/`, its status maps to the attention `done` class (`attention_contract.py: executed -> DONE`) and `aw attention`'s `release_blockers` scan SKIPS `done` items (`attention.py:485-486`), so an executed plan carrying the field would NOT surface as an outstanding release blocker. Perform the attention-surfacing acceptance check while the plan is still `approved`.
+- Standing release-blocker intent: keep the durable "this Set blocks 2.0.0" declaration on the OPEN backlog item vwios6 (and the f33nrj release record), NOT as a `- Blocks-Release:` line on this terminal orchestrator. On finalize, whether the self-mark line is left on the executed record or cleared with `aw ipd set --blocks-release - <this-plan-id6>` is immaterial to enforcement (an executed plan is `done` and no longer gates); do NOT rely on the executed orchestrator itself to enforce the gate. The acceptance evidence (the pre-finalize surfacing check above) is what proves parity.
+- Confirm no duplicated blocks-release write logic remains: the field write must go through the single shared `releases.set_blocks_release_line` primitive from all setter call sites (verify no fourth copy was added; backlog's two call paths `run_set` at `backlog.py:467` and the positional path via `status_set.apply_status_change` both resolve to that one primitive).
+- Anti-regression invariant (specs must not break): child 02 hoists the blocks_release write OUT of the `if rec.record_type == "specs":` guard (`status_set.py:416,449-455`). Confirm existing `aw spec set --blocks-release` behavior is unchanged after the hoist (a spec setter test must still pass), so widening the write path to plans/backlog does not regress the specs surface it was originally scoped to.
 
 ## Deferred / out of scope (with reason)
 
