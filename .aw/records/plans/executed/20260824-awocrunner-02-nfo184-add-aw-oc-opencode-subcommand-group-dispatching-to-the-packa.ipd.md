@@ -5,15 +5,15 @@
 - Concern: With the runner core packaged (child 01), `aw` still has no way to invoke it. `aw`'s argparse tree (`agent_workflows/cli.py`) defines top-level subcommand groups via `p_<group> = sub.add_parser(...)` + `<group>_sub = p_<group>.add_subparsers(...)` (e.g. `p_ipd`/`ipd_sub` at cli.py:780) and dispatches in `main()` via `if args.command == "<group>"` (cli.py:6786 for ipd). A new host group is required to surface `aw oc runipd`.
 - Scope: Add an `oc` top-level subcommand group (alias `opencode`, mirroring the `ipd`/`plan`/`plans` aliasing) to `agent_workflows/cli.py`, with a `runipd` subcommand whose arguments mirror the packaged runner's argparse surface, dispatching into `agent_workflows.oc_runipd`. Add a CLI-parity test. Child 02 of the awocrunner Set; depends on child 01.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/oc_runipd.py, tests/test_oc_runipd_cli.py
-- Status: approved
+- Status: executed
 - Set: awocrunner
 - Order: 2
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: nfo184
-- Approval: 2026-08-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-25 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): aw oc / aw opencode runipd subcommand group forwarding raw argv verbatim to oc_runipd.main (exact CLI parity incl. --help + implicit-start); all E performed, all V pass with pasted evidence [Scope reconciliation - in-scope-unmodified agent_workflows/cli.py: oc/opencode group + runipd REMAINDER + early-intercept forwarding; committed in 524782a before the begin baseline; in-scope-unmodified agent_workflows/oc_runipd.py: untouched (E-01 verification-only; main/build_parser already exist); no parser exposure needed; in-scope-unmodified tests/test_oc_runipd_cli.py: CLI-parity test added in 524782a before the begin baseline]
 - 2026-08-25 approved (aw set): status set to approved
 - 2026-08-25 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (raw-argv REMAINDER forwarding preserves implicit-start + --help parity; E-01 verification-only), OQ-01 marked resolved
 - 2026-08-25 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique
