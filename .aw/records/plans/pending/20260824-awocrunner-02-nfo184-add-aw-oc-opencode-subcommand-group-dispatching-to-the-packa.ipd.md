@@ -30,24 +30,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Expose runipd's argparse for reuse
 
-- [ ] E-01 Verify (do NOT refactor) that `agent_workflows/oc_runipd.py` already exposes `main(argv)` (`runipd.py:1625`, moved by child 01) and `build_parser()` (`runipd.py:1486`). Both already exist, so this is a VERIFICATION-ONLY item; do not add a `run(args)` wrapper or otherwise reshape the runner's entry surface (that would be a behavior change the Set forbids). Confirm `oc_runipd.main([...])` is the single reusable entry the CLI group will delegate to.
+- [x] E-01 Verify (do NOT refactor) that `agent_workflows/oc_runipd.py` already exposes `main(argv)` (`runipd.py:1625`, moved by child 01) and `build_parser()` (`runipd.py:1486`). Both already exist, so this is a VERIFICATION-ONLY item; do not add a `run(args)` wrapper or otherwise reshape the runner's entry surface (that would be a behavior change the Set forbids). Confirm `oc_runipd.main([...])` is the single reusable entry the CLI group will delegate to.
   - Depends on: none
   - Expected outcome: `oc_runipd.main` and `oc_runipd.build_parser` are importable; `main(argv)` is confirmed as the delegation target (no new wrapper added).
-  - Execution state: pending
+  - Execution note: VERIFICATION-ONLY (no code change to oc_runipd.py): `python3 -c "from agent_workflows import oc_runipd as m; print(callable(m.main), callable(m.build_parser))"` -> `True True`; the implicit-`start` shim lives in `main()` (oc_runipd.py:2189). No `run(args)` wrapper added; `git diff` on oc_runipd.py is empty this turn.
+  - Execution state: performed
 
 ### Task group 2: Wire the aw oc / aw opencode group
 
-- [ ] E-02 In `agent_workflows/cli.py`, add an `oc` top-level subparser (alias `opencode`, per the existing `ipd`/`plan`/`plans` pattern) whose `runipd` subcommand captures all remaining tokens verbatim (`nargs=argparse.REMAINDER`) and, via an `if args.command in ("oc", "opencode"):` dispatch in `main()`, forwards that raw argv to `agent_workflows.oc_runipd.main(...)` unchanged. Rationale (do not deviate): re-declaring/re-attaching the runner's flags is forbidden because argparse subparsers cannot be cleanly re-parented and the implicit-`start` shim lives in `oc_runipd.main()` not `build_parser()` (`runipd.py:1629-1639`) - raw-argv forwarding is the single mechanism that preserves exact parity. Because `REMAINDER` swallows `--help`, the bare-help cases (`aw oc runipd --help`, `aw oc runipd`) forward to `oc_runipd.main(["--help"])`/`oc_runipd.main([])` so the runner renders its own help (asserted in E-03).
+- [x] E-02 In `agent_workflows/cli.py`, add an `oc` top-level subparser (alias `opencode`, per the existing `ipd`/`plan`/`plans` pattern) whose `runipd` subcommand captures all remaining tokens verbatim (`nargs=argparse.REMAINDER`) and, via an `if args.command in ("oc", "opencode"):` dispatch in `main()`, forwards that raw argv to `agent_workflows.oc_runipd.main(...)` unchanged. Rationale (do not deviate): re-declaring/re-attaching the runner's flags is forbidden because argparse subparsers cannot be cleanly re-parented and the implicit-`start` shim lives in `oc_runipd.main()` not `build_parser()` (`runipd.py:1629-1639`) - raw-argv forwarding is the single mechanism that preserves exact parity. Because `REMAINDER` swallows `--help`, the bare-help cases (`aw oc runipd --help`, `aw oc runipd`) forward to `oc_runipd.main(["--help"])`/`oc_runipd.main([])` so the runner renders its own help (asserted in E-03).
   - Depends on: E-01
   - Expected outcome: `aw oc runipd ...` and `aw opencode runipd ...` invoke `oc_runipd.main` with the raw args; `aw oc runipd --help` shows the runner's own subcommands/options (not a stub cli.py help).
-  - Execution state: pending
+  - Execution note: commit 524782a; added `sub.add_parser("oc", aliases=["opencode"])` with an `oc_sub` `runipd` subparser (`add_help=False`, `nargs=argparse.REMAINDER` into `runipd_args`) plus an `if args.command in ("oc","opencode")` family-help branch. To guarantee `--help` parity (the top-level parser would otherwise intercept a leading `--help` before REMAINDER), added an EARLY intercept in `_dispatch` (before parse_args): when argv is `oc|opencode runipd ...` it forwards the tail verbatim to `oc_runipd.main(argv_list[2:])` (DECISION 12-nfo184-D1). No runner flags re-declared.
+  - Execution state: performed
 
 ### Task group 3: CLI-parity test
 
-- [ ] E-03 Add `tests/test_oc_runipd_cli.py` asserting: `aw oc runipd --help` and `aw opencode runipd --help` succeed and render the RUNNER's help (the `--help` forwarding nuance from E-02), not a cli.py stub; a non-mutating invocation (e.g. `status`/`report` against a fixture run dir under a temp repo) produces the same result as calling `oc_runipd.main([...])` directly; the implicit-`start` shim is preserved through the wrapper (a bare non-subcommand first arg forwarded via `aw oc runipd` behaves as `start`, same as `oc_runipd.main`); and the `oc`/`opencode` alias pair resolve to the same handler.
+- [x] E-03 Add `tests/test_oc_runipd_cli.py` asserting: `aw oc runipd --help` and `aw opencode runipd --help` succeed and render the RUNNER's help (the `--help` forwarding nuance from E-02), not a cli.py stub; a non-mutating invocation (e.g. `status`/`report` against a fixture run dir under a temp repo) produces the same result as calling `oc_runipd.main([...])` directly; the implicit-`start` shim is preserved through the wrapper (a bare non-subcommand first arg forwarded via `aw oc runipd` behaves as `start`, same as `oc_runipd.main`); and the `oc`/`opencode` alias pair resolve to the same handler.
   - Depends on: E-01, E-02
   - Expected outcome: passing test proving the subcommand path and the packaged `main` are the same behavior (including `--help` and implicit-`start`), across both aliases.
-  - Execution state: pending
+  - Execution note: commit 524782a; `tests/test_oc_runipd_cli.py::OcRunipdCliTests` - help forwards to the runner for both aliases; forwarding delegates to `oc_runipd.main([...])` verbatim (asserted via mock for both `oc` and `opencode`); implicit-`start` shim preserved (bare selector forwarded unchanged); status invocation rc parity with a direct `oc_runipd.main`; bare `aw oc` shows family help.
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -105,20 +108,20 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: snippet showing `oc_runipd.main` and `oc_runipd.build_parser` are importable (both already exist, `runipd.py:1625,1486`); confirmation that NO new `run(args)` wrapper was added (E-01 is verification-only).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -c "from agent_workflows import oc_runipd as m; print(callable(m.main), callable(m.build_parser))"` -> `True True`. `git diff agent_workflows/oc_runipd.py` this turn is EMPTY (no wrapper added, no reshaping); the module remains the byte-identical child-01 copy.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted `aw oc runipd --help` and `aw opencode runipd --help` output showing the runner subcommands/options.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (commit 524782a) `python3 -m agent_workflows oc runipd --help` -> `usage: runipd [-h] {start,resume,status,report} ...` followed by the runner's "Autonomous OpenCode driver for Implementation Plan Documents (IPDs)." description (exit 0) - the RUNNER's own help, not a cli.py stub. `python3 -m agent_workflows opencode runipd --help` -> identical `usage: runipd ...`. A `diff` of `oc runipd --help` vs `python3 -m agent_workflows.oc_runipd --help` is EMPTY (byte-identical help output).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted `python3 -m pytest tests/test_oc_runipd_cli.py` output showing the parity + alias tests passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (commit 524782a) `python3 -m pytest tests/test_oc_runipd_cli.py` -> `6 passed` (test_help_forwards_to_runner_both_aliases, test_forwarding_delegates_to_oc_runipd_main, test_opencode_alias_delegates_identically, test_implicit_start_shim_preserved_through_wrapper, test_status_invocation_parity_with_direct_main, test_bare_oc_group_shows_family_help). Whole suite `python3 -m pytest tests/` -> 2213 passed, 1 skipped. `pre-commit run --files agent_workflows/cli.py tests/test_oc_runipd_cli.py` -> all hooks Passed (oc_runipd.py untouched).
+  - Result: pass
 
 ## Approval and execution gate
 
