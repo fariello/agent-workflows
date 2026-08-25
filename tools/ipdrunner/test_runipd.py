@@ -7,6 +7,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from unittest import mock
 from pathlib import Path
 
 # Add tool directory to sys.path before importing driver
@@ -1396,6 +1397,97 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
             self.assertEqual(item["status"], "reviewed")
             self.assertEqual(len(item["attempts"]), 1)
             self.assertEqual(item["attempts"][0]["action"], "review")
+
+
+class RunipdBugsFixesTests(unittest.TestCase):
+    def test_dependency_status_execution_vs_review(self):
+        state = {
+            "repo": "/nonexistent",
+            "queue": [
+                {
+                    "id6": "dep001",
+                    "status": "reviewed",
+                    "action": "review",
+                },
+                {
+                    "id6": "dep002",
+                    "status": "approved",
+                    "action": "execute",
+                },
+                {
+                    "id6": "dep003",
+                    "status": "executed",
+                    "action": "execute",
+                },
+            ],
+        }
+
+        # Execution item depending on 'reviewed' plan -> blocked
+        exec_item_1 = {"id6": "tgt001", "action": "execute", "dependencies": ["dep001"]}
+        sat, missing = driver.dependency_status(exec_item_1, state)
+        self.assertFalse(sat)
+        self.assertEqual(missing, ["dep001"])
+
+        # Execution item depending on 'approved' plan -> blocked
+        exec_item_2 = {"id6": "tgt002", "action": "execute", "dependencies": ["dep002"]}
+        sat, missing = driver.dependency_status(exec_item_2, state)
+        self.assertFalse(sat)
+        self.assertEqual(missing, ["dep002"])
+
+        # Execution item depending on 'executed' plan -> satisfied
+        exec_item_3 = {"id6": "tgt003", "action": "execute", "dependencies": ["dep003"]}
+        sat, missing = driver.dependency_status(exec_item_3, state)
+        self.assertTrue(sat)
+        self.assertEqual(missing, [])
+
+        # Review item depending on 'reviewed' plan -> satisfied
+        rev_item_1 = {"id6": "tgt004", "action": "review", "dependencies": ["dep001"]}
+        sat, missing = driver.dependency_status(rev_item_1, state)
+        self.assertTrue(sat)
+        self.assertEqual(missing, [])
+
+    def test_read_deps_and_set_parsing(self):
+        # Bracketed YAML array
+        text1 = '- Dependencies: [5ahblp, pr2nd0]\n- Set: "my-set" (descriptive)'
+        self.assertEqual(driver._read_deps(text1), ["5ahblp", "pr2nd0"])
+        self.assertEqual(driver._read_set(text1), "my-set")
+
+        # Quoted YAML array
+        text2 = "- Depends-on: ['5ahblp', 'pr2nd0']\n- Set: 'custom-set'"
+        self.assertEqual(driver._read_deps(text2), ["5ahblp", "pr2nd0"])
+        self.assertEqual(driver._read_set(text2), "custom-set")
+
+        # Inline notes / parentheticals
+        text3 = "- Dependencies: 5ahblp (first step), pr2nd0 (second step)"
+        self.assertEqual(driver._read_deps(text3), ["5ahblp", "pr2nd0"])
+
+        # None / empty / n/a
+        self.assertEqual(driver._read_deps("- Dependencies: None"), [])
+        self.assertEqual(driver._read_deps("- Dependencies: none."), [])
+        self.assertEqual(driver._read_deps("- Dependencies: n/a"), [])
+        self.assertEqual(driver._read_deps("- Dependencies: "), [])
+
+    def test_atomic_write_json_directory_fsync_suppresses_oserror(self):
+        with tempfile.TemporaryDirectory() as t:
+            target = Path(t) / "sub" / "test.json"
+            real_fsync = os.fsync
+
+            def mocked_fsync(fd):
+                try:
+                    st = os.fstat(fd)
+                    import stat
+
+                    if stat.S_ISDIR(st.st_mode):
+                        raise OSError(19, "Operation not supported by device")
+                except Exception:
+                    pass
+                return real_fsync(fd)
+
+            with mock.patch("os.fsync", side_effect=mocked_fsync):
+                driver.atomic_write_json(target, {"hello": "world"})
+
+            self.assertTrue(target.is_file())
+            self.assertEqual(json.loads(target.read_text()), {"hello": "world"})
 
 
 if __name__ == "__main__":

@@ -44,6 +44,7 @@ TERMINAL_STATES = {
     "not-attempted",
 }
 SUCCESS_STATES = {"executed", "reviewed", "approved"}
+EXECUTION_SUCCESS_STATES = {"executed", "substantially-complete"}
 ID6_RE = re.compile(r"^[a-z0-9]{6}$")
 
 # Frontmatter and filename extraction regexes
@@ -448,11 +449,13 @@ def atomic_write_json(path: Path, data: dict[str, Any]) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temp_name, path)
-        dir_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
-        try:
-            os.fsync(dir_fd)
-        finally:
-            os.close(dir_fd)
+        if hasattr(os, "O_DIRECTORY"):
+            with contextlib.suppress(OSError):
+                dir_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    os.fsync(dir_fd)
+                finally:
+                    os.close(dir_fd)
     finally:
         with contextlib.suppress(FileNotFoundError):
             os.unlink(temp_name)
@@ -501,7 +504,11 @@ def _read_set(text: str) -> str | None:
     m = _SET_RE.search(text)
     if not m:
         return None
-    return m.group(1).split("(")[0].strip().split()[0] if m.group(1).strip() else None
+    raw = m.group(1).split("(")[0].strip()
+    if not raw:
+        return None
+    token = raw.split()[0].strip("\"'").strip()
+    return token if token else None
 
 
 def _read_order(text: str) -> int | None:
@@ -516,8 +523,10 @@ def _read_deps(text: str) -> list[str]:
     raw = m.group(1).strip()
     if not raw or raw.lower() in ("none", "none.", "n/a"):
         return []
+    raw = re.sub(r"\(.*?\)", "", raw)
     tokens = re.split(r"[,;\s]+", raw)
-    return [tok.strip() for tok in tokens if ID6_RE.fullmatch(tok.strip())]
+    cleaned = [tok.strip("[]'\"(),;").strip() for tok in tokens]
+    return [tok for tok in cleaned if ID6_RE.fullmatch(tok)]
 
 
 class PlanRecord(NamedTuple):
@@ -1071,9 +1080,12 @@ def dependency_status(
     by_id = {entry["id6"]: entry for entry in state["queue"]}
     repo = Path(state["repo"])
     unsatisfied: list[str] = []
+    is_exec = item.get("action") != "review"
+    required_states = EXECUTION_SUCCESS_STATES if is_exec else SUCCESS_STATES
+
     for dep in item.get("dependencies", []):
         if dep in by_id:
-            if by_id[dep]["status"] not in SUCCESS_STATES:
+            if by_id[dep]["status"] not in required_states:
                 unsatisfied.append(dep)
             continue
         try:
@@ -1081,8 +1093,13 @@ def dependency_status(
         except DriverError:
             unsatisfied.append(dep)
             continue
-        if plan_bucket(dep_path) != "executed":
-            unsatisfied.append(dep)
+        bucket = plan_bucket(dep_path)
+        if is_exec:
+            if bucket != "executed":
+                unsatisfied.append(dep)
+        else:
+            if bucket not in ("executed", "reviewed", "approved"):
+                unsatisfied.append(dep)
     return not unsatisfied, unsatisfied
 
 
