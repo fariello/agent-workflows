@@ -5,7 +5,7 @@
 - Concern: The runipd driver logic lives entirely in the standalone script `tools/ipdrunner/runipd.py` (1696 lines) with NO dependency on the `agent_workflows` package ("kept local so this standalone driver has no package dependency", runipd.py:61). To expose it as `aw oc runipd` and keep a single source of truth, its importable core must first move into the package unchanged. This is the foundation child of the awocrunner Set (orchestrator alkapp); the subcommand (child 02) and the compat shim (child 03) both depend on it.
 - Scope: Move the runipd core into `agent_workflows/oc_runipd.py` as a behavior-preserving relocation (no redesign of logic, CLI, or output), and migrate its test suite (`tools/ipdrunner/test_runipd.py`, 795 lines) into the package test tree (`tests/test_oc_runipd.py`) updated to import from the package. The runbook/manifest data files under `tools/ipdrunner/` stay where they are (referenced by path). Child 01 of the awocrunner Set.
 - Scope-Paths: agent_workflows/oc_runipd.py, tests/test_oc_runipd.py, tools/ipdrunner/test_runipd.py
-- Status: to-review
+- Status: reviewed
 - Set: awocrunner
 - Order: 1
 - Highest E allocated: 03
@@ -13,6 +13,7 @@
 - Id: ckxgx4
 
 ## Workflow history
+- 2026-08-25 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (verbatim-diff proof in V-01, stdlib-only note), PR-002 (specific test import change + OQ-01 marked resolved)
 - 2026-08-25 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique
 
 - 2026-08-24 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created; child 01 of awocrunner Set (behavior-preserving core extraction + test migration).
@@ -27,14 +28,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Move the core into the package
 
-- [ ] E-01 Create `agent_workflows/oc_runipd.py` containing the full runipd logic from `tools/ipdrunner/runipd.py` VERBATIM (all functions, constants, regexes, the `Palette`/`Heartbeat`/`render_event` streaming layer, `run_queue`, `dependency_status`, `initialize_run`, `main`, argparse setup). Preserve behavior exactly; do NOT redesign, rename functions, or change output. Keep the local ANSI/rendering code inline (no extraction into a shared renderer in this Set). Ensure it imports cleanly as `agent_workflows.oc_runipd` and exposes `main(argv)`.
+- [ ] E-01 Create `agent_workflows/oc_runipd.py` containing the full runipd logic from `tools/ipdrunner/runipd.py` VERBATIM (all functions, constants, regexes, the `Palette`/`Heartbeat`/`render_event` streaming layer, `run_queue`, `dependency_status`, `initialize_run`, `main`, argparse setup). Preserve behavior exactly; do NOT redesign, rename functions, or change output. Keep the local ANSI/rendering code inline (no extraction into a shared renderer in this Set). The source imports are all stdlib (verified: argparse/contextlib/datetime/fcntl/hashlib/json/os/re/shlex/signal/subprocess/sys/tempfile/threading/time/pathlib/typing) with NO tools-local or relative imports, so the move requires zero import rewrites and imports cleanly as `agent_workflows.oc_runipd`, exposing `main(argv)`. The ONLY permissible content delta from the source is a module docstring/header adjustment; the executable code must be identical. (Note: the module inherits the source's Unix-only `fcntl` dependency; that is pre-existing behavior being preserved, not introduced here.)
   - Depends on: none
-  - Expected outcome: `python3 -c "import agent_workflows.oc_runipd as m; m.main"` succeeds; the module contains the runner's full logic.
+  - Expected outcome: `python3 -c "import agent_workflows.oc_runipd as m; m.main"` succeeds; the module contains the runner's full logic, byte-identical in its executable code to the source.
   - Execution state: pending
 
 ### Task group 2: Migrate the tests
 
-- [ ] E-02 Create `tests/test_oc_runipd.py` from `tools/ipdrunner/test_runipd.py`, updating imports to target `agent_workflows.oc_runipd` (instead of the tools-path import), and adjusting any path setup so it runs under the package test tree. Keep every existing test case and assertion.
+- [ ] E-02 Create `tests/test_oc_runipd.py` from `tools/ipdrunner/test_runipd.py`, updating imports to target `agent_workflows.oc_runipd` (specifically: replace the `sys.path.insert(...)` + `import runipd as driver` block at `test_runipd.py:12-15` with `from agent_workflows import oc_runipd as driver`, dropping the now-unneeded tools-dir `sys.path` manipulation), and adjusting any remaining path setup so it runs under the package test tree. Keep every existing test case and assertion.
   - Depends on: E-01
   - Expected outcome: `python3 -m pytest tests/test_oc_runipd.py` passes with the same coverage the standalone tests had.
   - Execution state: pending
@@ -94,16 +95,16 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ### OQ-01: Module name `oc_runipd.py` vs generic `ipd_runner.py`?
 
 - Blocking: no
-- Status: deferred
+- Status: resolved
 - Owner: author
-- Resolution or deferral rationale: RESOLVED as `oc_runipd.py`: the runner is OpenCode-specific (shells out to the `opencode` binary) and pairs with the `aw oc` group; a future Antigravity runner (`aw agy run`) gets its own module. Non-blocking; naming is confined to this child and children 02/03 import whatever name is chosen.
+- Resolution or deferral rationale: RESOLVED as `oc_runipd.py`: the runner is OpenCode-specific (shells out to the `opencode` binary) and pairs with the `aw oc` group; a future Antigravity runner (`aw agy run`) gets its own module. Non-blocking; naming is confined to this child and children 02/03 import this name (consistently used across the Set's Scope-Paths).
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: pasted output of `python3 -c "import agent_workflows.oc_runipd as m; print(bool(m.main))"` (True) and a line count / function list confirming the core moved intact.
+  - Required evidence: pasted output of `python3 -c "import agent_workflows.oc_runipd as m; print(bool(m.main))"` (True); AND a verbatim-move proof - a `diff tools/ipdrunner/runipd.py agent_workflows/oc_runipd.py` (or `git diff --no-index`) showing ONLY the expected header/docstring delta and NO change to any function body, constant, regex, or the argparse setup (proving the executable code is identical, not a paraphrase). A bare line-count match is NOT sufficient; the diff must be pasted.
   - Observed evidence:
   - Result: pending
 
