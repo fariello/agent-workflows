@@ -4,8 +4,8 @@
 - Kind: child
 - Concern: The link between a backlog item and the IPD/IPD set that graduated from it is currently only ever recorded as informal prose (Concern text or a history line). Nothing machine-readable ties a plan back to the backlog item it satisfies, so the `bklggrad` close-legitimacy predicate (child 02) has no deterministic signal to confirm "a blocking plan inherited this item's release gate". Meanwhile `Blocks-Release` already demonstrates the exact recognized-but-optional field pattern this needs (ipd_schema.py:163 META_BLOCKS_RELEASE; releases.set_blocks_release_line; releases.check_blocks_release dangling scan). This child adds a parallel `From-Backlog` link field so the graduation relationship is first-class and checkable.
 - Scope: Add a `From-Backlog: <id6>` metadata field, single-valued, recognized-but-OPTIONAL, that may appear on an IPD (and is tolerated on a backlog item for symmetry, though its primary home is the plan). (1) Schema: add `META_FROM_BACKLOG = "From-Backlog"` to `ipd_schema.META_RECOGNIZED` (NOT in META_REQUIRED, mirroring META_BLOCKS_RELEASE/META_SCOPE_PATHS) so an IPD carrying it lints clean (no IPD-M103). (2) Primitive + setter: add `releases`-style `set_from_backlog_line(text, value)` (or a sibling helper module) that idempotently writes/clears the line, and wire `aw ipd set --from-backlog <id6|->` in cli.py + status_set.py using the SAME hoisted-write pattern as `--blocks-release` (status_set.py:449-461), so it persists on a no-op transition too. (3) Dangling check: add a `check.from-backlog-dangling` rule (in releases.py or check_engine.py, folded into the cross-tree `aw check` sweep like check_blocks_release) that flags a `From-Backlog` value that does not resolve to an existing backlog item id6. Value validation lives in the check surface, not the schema layer (same split as Blocks-Release). This child delivers ONLY the field, setter, and dangling check; the close-legitimacy predicate that CONSUMES the link is child 02.
-- Scope-Paths: agent_workflows/ipd_schema.py, agent_workflows/status_set.py, agent_workflows/cli.py, agent_workflows/releases.py, agent_workflows/check_engine.py, agent_workflows/backlog.py, tests/
-- Status: draft
+- Scope-Paths: agent_workflows/ipd_schema.py, agent_workflows/status_set.py, agent_workflows/cli.py, agent_workflows/releases.py, agent_workflows/check_engine.py, agent_workflows/backlog.py, tests/, AGENTS.md
+- Status: reviewed
 - Set: bklggrad
 - Order: 1
 - Highest E allocated: 05
@@ -13,6 +13,8 @@
 - Id: ku93tn
 
 ## Workflow history
+- 2026-08-25 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (gate contract) FIXED, PR-002 (AGENTS.md Scope-Paths) FIXED, PR-003 (status) FIXED
+- 2026-08-25 reviewed (aw set): plan-review: hardened (added AGENTS.md to Scope-Paths + full execution-contract gate)
 
 - 2026-08-25 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.
 
@@ -124,4 +126,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-TODO: approval + execution gate prose (execution contract, post-gate lifecycle move).
+Child 01 of the `bklggrad` Set; it has no cross-plan prerequisite (the orchestrator table lists `Depends on: none`) and delivers only the `From-Backlog` field, setter, and dangling check. Children 02 and 03 CONSUME this; do not implement their predicate/hook here.
+
+Execution contract (binds any agent that executes this plan):
+
+1. Open questions: OQ-01 is `Blocking: no` (plan-only recognition is the default; the reverse pointer is only added if child 02 needs it). No blocking question remains. If OQ-01 becomes blocking during execution, STOP and report.
+2. Scope fence: touch ONLY the paths in `Scope-Paths` (the six `agent_workflows/*.py` modules, `tests/`, and `AGENTS.md` for the "Release gates" doc note named in Spec / documentation sync) plus this plan's own file. Do NOT expand scope; if it seems to need more, STOP and report.
+3. Honesty rule (hard MUST): when you report tests passed, paste the ACTUAL runner output for each V-item's test (schema-lint-clean, setter round-trip, no-op persist, dangling fires/clean). Never claim success you did not run.
+4. Commits: commit ONLY this plan's own changed files, path-scoped (`git commit -- <path>`); never `git add -A`/bare/`-a`; never push.
+5. Lifecycle move on completion: perform the terminal transition via `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply` (runs the pre/pre-transition/post-transition gates, verifies changed paths stayed within `Scope-Paths`, appends the attributed history line, sets `Status: executed`, `git mv`s to `.aw/records/plans/executed/`, and makes the path-scoped lifecycle commit). Do NOT hand-edit the terminal transition.
+
+This review and gate are NOT approval: human sign-off (`Status: approved`) is a separate, required step before execution.
