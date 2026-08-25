@@ -5,15 +5,15 @@
 - Concern: `aw ipd set` has no `--blocks-release` flag, so even once the schema recognizes the field a plan release blocker can only be set by hand-editing front matter. Worse, the underlying write path is broken: `aw backlog set open <id6> --blocks-release next` (status supplied positionally) routes through `status_set.apply_status_change`, whose only blocks_release write is guarded by `if rec.record_type == "specs"` (`status_set.py:416,449-455`), so for backlog (and plans) the `--blocks-release` value is silently dropped. This is bug 61qk4a. Fixing the setter for plans WITHOUT fixing the shared path would duplicate a broken code path.
 - Scope: Add `--blocks-release <release-id6|next|->` to `aw ipd set` with the SAME semantics as the backlog/specs setters (resolve `next` to the single planned release, write/update the `- Blocks-Release:` front-matter field via the shared `releases.set_blocks_release_line` primitive, clear with `-`, append a workflow-history line), and fix `status_set.apply_status_change` so the blocks_release mutation applies to plans AND backlog (not only specs), root-causing bug 61qk4a. Child 02 of the vwios6ipd Set; depends on schema child 01.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/status_set.py, agent_workflows/backlog.py, agent_workflows/releases.py, tests/test_status_set.py, tests/test_blocks_release.py
-- Status: approved
+- Status: executed
 - Set: vwios6ipd
 - Order: 2
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: efnn74
-- Approval: 2026-08-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-25 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): aw ipd set --blocks-release + hoist shared setter write out of the specs-only guard (fixes 61qk4a for plans+backlog); all E performed, all V pass with pasted evidence [Scope reconciliation - in-scope-unmodified agent_workflows/backlog.py: verified already-correct (its --status path funnels through the shared primitive); no edit needed - fix flows through unchanged (DECISION 08-efnn74-D2); in-scope-unmodified agent_workflows/cli.py: --blocks-release flag added to aw ipd set; committed in b416edb before the begin baseline; in-scope-unmodified agent_workflows/releases.py: verified already-correct (set_blocks_release_line/resolve_release); no edit needed (DECISION 08-efnn74-D2); in-scope-unmodified agent_workflows/status_set.py: blocks_release write hoisted out of the specs-only guard (61qk4a); committed in b416edb before the begin baseline; in-scope-unmodified tests/test_blocks_release.py: IpdSetBlocksReleaseE2ETests added in b416edb before the begin baseline; in-scope-unmodified tests/test_status_set.py: BlocksReleaseSetterTests added in b416edb before the begin baseline]
 - 2026-08-25 approved (aw set): status set to approved
 - 2026-08-25 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (precise hoist boundary+entrypoint note), PR-002 (specs anti-regression V-item)
 - 2026-08-24 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique
