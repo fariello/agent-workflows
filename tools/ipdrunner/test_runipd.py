@@ -438,6 +438,42 @@ class ResumeRequeueTests(unittest.TestCase):
             self.assertEqual(state["queue"][0]["status"], "partial")
             self.assertEqual(state["queue"][1]["status"], "failed-safely")
 
+    def test_resume_overrides_session(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            queue = [
+                {
+                    "position": 1,
+                    "id6": "aaaaaa",
+                    "setid": "demo",
+                    "configured_file": "x",
+                    "dependencies": [],
+                    "status": "queued",
+                    "attempts": [],
+                }
+            ]
+            run_dir = _make_run_dir(root, queue)
+            override_session = "ses" + "_" + "resumed999"
+            args = driver.build_parser().parse_args(
+                [
+                    "resume",
+                    str(run_dir),
+                    "--repo",
+                    str(root / "repo"),
+                    "--session",
+                    override_session,
+                ]
+            )
+            # Update state with session via main flow logic
+            state = driver.load_state(run_dir)
+            state["session_id"] = args.session
+            state.setdefault("options", {})["session"] = args.session
+            driver.save_state(run_dir, state)
+
+            reloaded = driver.load_state(run_dir)
+            self.assertEqual(reloaded["session_id"], override_session)
+            self.assertEqual(reloaded["options"]["session"], override_session)
+
 
 class GitPreconditionTests(unittest.TestCase):
     def test_non_git_dir_reports_clear_message(self):

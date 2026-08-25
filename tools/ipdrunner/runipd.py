@@ -1593,6 +1593,10 @@ AUTOMATIC STATUS ROUTING:
     )
     resume.add_argument("--repo", default=".", help="Target Git repository root")
     resume.add_argument(
+        "--session",
+        help="Override or attach OpenCode session ID for resuming turns",
+    )
+    resume.add_argument(
         "--retry-incomplete",
         action="store_true",
         help="Retry interrupted, partial, failed, or blocked items in recovery mode",
@@ -1663,6 +1667,13 @@ def main(argv: list[str] | None = None) -> int:
             print(run_dir / "execution-report.md")
             return 0
         if args.command == "resume":
+            if getattr(args, "session", None):
+                state = load_state(run_dir)
+                state["session_id"] = args.session
+                state.setdefault("options", {})["session"] = args.session
+                for s in state.get("set_sessions", {}):
+                    state["set_sessions"][s] = args.session
+                save_state(run_dir, state)
             with run_lock(run_dir):
                 return run_queue(
                     run_dir,
