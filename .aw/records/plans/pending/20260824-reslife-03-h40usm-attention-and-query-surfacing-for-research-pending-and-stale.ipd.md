@@ -3,9 +3,9 @@
 - Date: 2026-08-24
 - Kind: child
 - Concern: `aw attention` maps research `intake -> ready` (attention_contract CLASS_MAPS['research'] = {intake: ready, active: active, reference: done, archive: parked}), so finished-but-unpromoted research shows as actionable work (the "ready" bucket held 11 research rows on 2026-08-24, 10 of them already done), and there is no first-class "what research must I still run?" query. Spec 5tapom Section 3.4 requires separating untriaged from actionable and surfacing pending research.
-- Scope: Add `aw research pending` (or `find --unrun`) listing UNRUN prompts (consuming child 01's structural signal), and change `aw attention` so a finished/cited `intake` doc is NOT filed under `ready` (surface it as stale-state-to-promote) while a genuinely-unrun prompt remains actionable. Implements spec 5tapom Section 3.4. Depends on child 01 (unrun signal) and child 02 (provenance fields).
+- Scope: Add `aw research pending` (or `find --unrun`) listing UNRUN prompts (consuming child 01's structural signal), and change `aw attention` so a finished/cited `intake` doc is NOT filed under `ready` (surface it as stale-state-to-promote) while a genuinely-unrun prompt remains actionable. Implements spec 5tapom Section 3.4. Depends on child 01 for BOTH the unrun derivation (E-01) and the RUN/cited-by-executed signal (child 01 E-02). It does NOT consume child 02's `outcome`/`consumed-by` fields (those are provenance, not the surfacing signal), so child 02 is NOT a hard dependency; ordering it after 02 is only for clean sequential Set execution, not a data dependency.
 - Scope-Paths: grandfathered
-- Status: to-review
+- Status: reviewed
 - Set: reslife
 - Order: 3
 - Highest E allocated: 02
@@ -13,6 +13,7 @@
 - Id: h40usm
 
 ## Workflow history
+- 2026-08-25 reviewed (aw set): plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-301..PR-303 fixed
 - 2026-08-25 to-review (aw set): Authored complete and lint-conforming; ready for plan-review.
 
 - 2026-08-24 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created; child 03 of the reslife Set (spec 5tapom).
@@ -34,16 +35,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: Attention re-classification
 
-- [ ] E-02 Change `aw attention`/`attention_contract` so a research doc at `intake`/`active` that is RUN or cited-by-executed is NOT classed `ready` (surface it as a stale-state/drift item, per spec 5tapom OQ-01), while a genuinely-unrun `intake` prompt remains actionable. Keep the mapping PURE/TOTAL over `research_contract.STATUSES` (class_of must not raise).
+- [ ] E-02 Change `aw attention` so a research doc at `intake` that is RUN or cited-by-executed is NOT classed `ready` (surface it as a stale-state/drift item, per spec 5tapom OQ-01), while a genuinely-unrun `intake` prompt remains actionable. WIRING (the crux): `attention_contract.class_of(tree, status)` is status-only and MUST stay pure/total over `research_contract.STATUSES` - it cannot see the RUN/cited signal, which is manifest-level + cross-tree and is NOT in the per-file `_research_record(rel, path, text)` scanner signature today. So the derived signal must reach classification by ONE of: (a) thread `repo_root` + a precomputed unrun/cited set (from child 01's derivation) into `_record_for`/`_research_record`, or (b) a post-scan reclassification pass over the collected `items` keyed by research id6. Pick the lower-drift option; do NOT push the signal into `class_of`. `active` is a genuine live state (maps to ACTIVE, not READY) and is OUT of the "masquerades as ready" bug, so it is NOT reclassified here (only `intake` is); state this in the code comment.
   - Depends on: E-01
-  - Expected outcome: on a fixture, a finished-but-unpromoted research doc no longer appears under `ready`; an unrun prompt does; `aw attention` regression test asserts the split.
+  - Expected outcome: on a fixture, a finished-but-unpromoted `intake` research doc no longer appears under `ready`; an unrun `intake` prompt does; an `active` doc keeps its ACTIVE class; `class_of` stays status-only and total; `aw attention` regression test asserts the split.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
 ## Project conventions discovered (Step 0)
 
-- `attention_contract.class_of(tree, status)` is PURE and TOTAL and raises `UnknownNativeStatus` for an unmapped value; the research fragment currently maps `intake->ready`. Any re-class must remain total over the four statuses. `aw attention` buckets are `active/ready/blocked/done/parked`.
+- `attention_contract.class_of(tree, status)` is PURE and TOTAL and raises `UnknownNativeStatus` for an unmapped value; the research fragment currently maps `intake->ready`, `active->active`, `reference->done`, `archive->parked`. Any re-class must remain total over the four statuses. `aw attention` buckets are `active/ready/blocked/done/parked`.
+- The attention scan (`attention.py scan(repo_root)`) loops per file and calls `_record_for(tree, rel, path, text)` -> `_research_record(rel, path, text)` WITHOUT `repo_root` or a shared manifest; the per-file record therefore cannot see set-membership (RUN) or cross-tree citations. The RUN/cited signal must be threaded in or applied in a post-pass (E-02). The `Item` NamedTuple carries `id`/`tree`/`native_status`/`path`, so a post-pass keyed by research id6 is viable.
 
 ## Findings
 
@@ -90,7 +92,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: pasted `aw attention` output on a fixture showing a finished-but-unpromoted research doc is NOT under `ready` and an unrun prompt is actionable; class_of totality test passing.
+  - Required evidence: pasted `aw attention` output on a fixture showing a finished-but-unpromoted `intake` doc is NOT under `ready`, an unrun `intake` prompt IS actionable, and an `active` doc keeps its ACTIVE class; a `class_of` test proving it stayed status-only and total over the four statuses (unchanged by this child).
   - Observed evidence:
   - Result: pending
 
