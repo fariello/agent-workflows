@@ -2149,6 +2149,30 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Show the full repo-relative path instead of the compact identity stem.",
     )
 
+    # awocrunner Order 02 (nfo184): the `oc` (alias `opencode`) host group surfaces the packaged
+    # OpenCode IPD runner as `aw oc runipd`. `runipd` captures ALL remaining tokens verbatim
+    # (argparse.REMAINDER) and forwards the raw argv to `agent_workflows.oc_runipd.main(...)`
+    # unchanged, so the runner's own parser (including its implicit-`start` shim and `--help`) drives
+    # behavior with exact parity - re-declaring its flags here would drift and drop the implicit-start
+    # shim that lives in main(), not build_parser().
+    p_oc = sub.add_parser(
+        "oc",
+        aliases=["opencode"],
+        parents=[common],
+        help="OpenCode host tooling. 'aw oc runipd' runs the restartable IPD review/execute driver. Alias: 'aw opencode'.",
+    )
+    oc_sub = p_oc.add_subparsers(dest="oc_command")
+    p_oc_runipd = oc_sub.add_parser(
+        "runipd",
+        help="Restartable non-interactive OpenCode driver for reviewing/executing IPDs.",
+        add_help=False,
+    )
+    p_oc_runipd.add_argument(
+        "runipd_args",
+        nargs=argparse.REMAINDER,
+        help="Arguments forwarded verbatim to the runipd driver (start/resume/status/report ...).",
+    )
+
     p_backlog = sub.add_parser(
         "backlog",
         parents=[common],
@@ -6692,6 +6716,18 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     # removed with the plan-family verbs; the grammar is now `aw <verb> plans` (index/find/...).
     # awhelparg Order 01: a bare `help` token becomes `--help` (natural `aw ipd help` UX).
     argv_list = list(sys.argv[1:] if argv is None else argv)
+    # awocrunner Order 02 (nfo184): `aw oc runipd ...` / `aw opencode runipd ...` forward the tail
+    # VERBATIM to the packaged runner's own parser (incl. its `--help` and implicit-`start` shim), so
+    # the top-level parser never intercepts the runner's flags (e.g. a leading `--help`). This is the
+    # single mechanism that guarantees exact CLI parity with the standalone script.
+    if (
+        len(argv_list) >= 2
+        and argv_list[0] in ("oc", "opencode")
+        and argv_list[1] == "runipd"
+    ):
+        from agent_workflows import oc_runipd
+
+        return oc_runipd.main(list(argv_list[2:]))
     argv = _rewrite_help_token(argv_list)
     args = parser.parse_args(argv)
 
@@ -6834,6 +6870,17 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             scoped_type=None,
             args=args,
             term=term,
+        )
+    if args.command in ("oc", "opencode"):
+        oc_cmd = getattr(args, "oc_command", None)
+        if oc_cmd == "runipd":
+            from agent_workflows import oc_runipd
+
+            # Forward the captured REMAINDER verbatim so the runner's own parser (incl. its
+            # implicit-`start` shim and `--help`) drives behavior with exact parity.
+            return oc_runipd.main(list(getattr(args, "runipd_args", []) or []))
+        return _show_family_help(
+            parser, "oc", "aw oc runipd status <run-id>", term, context
         )
     if args.command in ("ipd", "plan", "plans"):
         ipd_cmd = (
