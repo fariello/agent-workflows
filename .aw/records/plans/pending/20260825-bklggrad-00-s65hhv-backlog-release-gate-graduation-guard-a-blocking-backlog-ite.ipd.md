@@ -4,8 +4,8 @@
 - Kind: orchestrator
 - Concern: When a backlog item is translated into an IPD/IPD set (or otherwise satisfied), it should leave the backlog by being marked `done` (it served its purpose; no bespoke `promoted`/`superseded` state is warranted). But a backlog item carrying `- Blocks-Release: <R>` must not silently lose its release gate when it exits the active-blocker set. Today `aw backlog set done` on a blocking item drops it from the release-blocker view with no check, and the only backlog<->plan link is informal prose (no machine-readable `From-Backlog`), so nothing can deterministically confirm the gate was handed off or satisfied. This is the exact "move an invariant out of prose into a deterministic boundary" pattern from the agentadhere findings, applied to one concrete rule. Origin: design discussion 2026-08-25 (backlog->IPD handoff policy + release-gate preservation).
 - Scope: Introduce a machine-readable `From-Backlog` link and a shared close-legitimacy predicate, then enforce it at two layers (setter/check + optional opt-in pre-commit hook) all calling ONE predicate so they cannot diverge. The predicate answers "does this transition silently drop a release gate?" with per-transition severity on a `Blocks-Release` item: (1) `-> done` FAIL-CLOSED unless one of {handoff: a blocking plan with `From-Backlog: <id6>` and the same `Blocks-Release: <R>`; satisfied: a resolvable `--evidence` citation, reusing the spec-`implemented` `_evidence_resolvable` pattern for non-IPD work like README/research/prompt/check items; de-gated: `Blocks-Release` cleared first}; (2) blocking `-> parked` WARN (allowed; gate hidden from active view, hint to de-gate); (3) priority-demote of a blocker WARN (allowed; possible contradiction). Everything else flows freely with NO check: priority promote, open<->parked (non-blocking), block/unblock (the existing typed Gate-Kind/Gate-Ref requirement stays), reopen. Sibling consistency checks fold in: dangling `From-Backlog`, gate mismatch (`From-Backlog` plan's `Blocks-Release` != item's), and orphaned-live-blocker (a blocking item already graduated to a blocking plan but still `open`). Children: 01 `From-Backlog` field (schema + `aw ipd set --from-backlog` + dangling-ref check); 02 shared predicate + `aw backlog set done` fail-closed gate + the two WARN transitions + `aw check` consistency rules + tests; 03 optional opt-in pre-commit hook wired by `aw install` covering the fail-closed `done` case + adversarial/bypass tests. Then dogfood: close `3gr7fk` through the new guard.
-- Scope-Paths: agent_workflows/backlog.py, agent_workflows/ipd_schema.py, agent_workflows/cli.py, agent_workflows/check_engine.py, agent_workflows/releases.py, agent_workflows/attention.py, agent_workflows/engine.py, agent_workflows/hooks/, tests/
-- Status: draft
+- Scope-Paths: agent_workflows/backlog.py, agent_workflows/ipd_schema.py, agent_workflows/cli.py, agent_workflows/check_engine.py, agent_workflows/releases.py, agent_workflows/attention.py, agent_workflows/engine.py, agent_workflows/hooks/, tests/, .aw/records/backlog/**, .aw/records/plans/**
+- Status: reviewed
 - Set: bklggrad
 - Order: 0
 - Highest E allocated: 02
@@ -13,6 +13,8 @@
 - Id: s65hhv
 
 ## Workflow history
+- 2026-08-25 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (gate contract) FIXED, PR-002 (records Scope-Paths) FIXED, PR-003 (status) FIXED, PR-004 (dogfood clarity) FIXED
+- 2026-08-25 reviewed (aw set): plan-review: hardened (added records Scope-Paths + full execution-contract gate)
 
 - 2026-08-25 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.
 
@@ -30,7 +32,7 @@ This orchestrator authors NO code; each child carries its own executable checkli
 
 - [ ] E-02 After children 01-03 are executed and green, close backlog item `3gr7fk` THROUGH the new guard: add `From-Backlog: 3gr7fk` to the agentadhere orchestrator (3b4f8u, which already carries `Blocks-Release: next`), then `aw backlog set done 3gr7fk` and confirm it succeeds via the HANDOFF path (not by clearing the gate), leaving the release gate solely on the agentadhere orchestrator.
   - Depends on: none
-  - Expected outcome: `aw backlog set done 3gr7fk` succeeds because the agentadhere orchestrator is a `From-Backlog: 3gr7fk` + `Blocks-Release: next` plan; `aw attention` shows the gate once (on 3b4f8u), no double-count; `aw check` clean. (Cross-IPD: runs only after children 01/02/03 are executed; ordering tracked in the dependency table below.)
+  - Expected outcome: `aw backlog set done 3gr7fk` succeeds because the agentadhere orchestrator is a `From-Backlog: 3gr7fk` + `Blocks-Release: next` plan; the HANDOFF path does NOT clear `3gr7fk`'s own `Blocks-Release` (it de-activates by becoming `done`), so the active release-blocker view shows the gate once (on 3b4f8u), no double-count; `aw attention` and `aw check` are clean. (Cross-IPD: runs only after children 01/02/03 are executed; ordering tracked in the dependency table below.)
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -85,12 +87,8 @@ Aggregate of the children's tests (schema/lint, setter fail-closed + three paths
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
-  - Required evidence: TODO falsifiable evidence.
-  - Observed evidence:
-  - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: after children land, paste the `aw backlog set done 3gr7fk` success output (HANDOFF path), `aw attention` showing the gate once on 3b4f8u (no double-count), and `aw check` clean.
   - Observed evidence:
   - Result: pending
 
@@ -100,4 +98,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-TODO: approval + execution gate prose (execution contract, post-gate lifecycle move).
+This is an orchestrator: it authors NO product code. Children 01 -> 02 -> 03 are separately approved and executed IPDs (each carries its own gate); this orchestrator's only execution action is the post-children dogfood (E-02). Approve and execute this orchestrator only after all three children are `executed` and green.
+
+Execution contract (binds any agent that executes this plan):
+
+1. Open questions: OQ-01 is `Blocking: no` and deferred with rationale (spec extension is out of scope for the 2.0.0 blocker close); no blocking question remains. If any becomes blocking, STOP and report.
+2. Scope fence: touch ONLY the paths in `Scope-Paths`. The orchestrator's own execution (E-02) is confined to `.aw/records/backlog/**` (close `3gr7fk`) and `.aw/records/plans/**` (add `From-Backlog: 3gr7fk` to the agentadhere orchestrator `3b4f8u`); the source-code paths are exercised by the children, not by this orchestrator. Do NOT expand scope; if the work seems to need more, STOP and report.
+3. Honesty rule (hard MUST): when you report that tests or validation passed, paste the ACTUAL runner output (the `aw backlog set done 3gr7fk` result, `aw attention`, `aw check`, and the full suite summary). Never claim success you did not run.
+4. Commits: commit ONLY this plan's own changed files, path-scoped (`git commit -- <path>`); never `git add -A`/bare/`-a`; never push.
+5. Lifecycle move on completion: perform the terminal transition via `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply` (runs the pre/pre-transition/post-transition gates, verifies changed paths stayed within `Scope-Paths`, appends the attributed `## Workflow history` line, sets `Status: executed`, `git mv`s to `.aw/records/plans/executed/`, and makes the path-scoped lifecycle commit). Do NOT hand-edit the terminal transition.
+
+Do not treat this review or gate as approval: human sign-off (`Status: approved`) is a separate, required step before execution.
