@@ -154,8 +154,21 @@ def clustered_name(
 
 
 def _slug_of(old_name: str, id6: str) -> str:
-    """Derive a slug for the clustered name from an old filename."""
+    """Derive the true slug of a clustered plan name (IPD 5rzupk fix).
 
+    Parse the filename with the SAME permissive parser the correct generic rename path uses
+    (``artifact_naming.parse_uniform_permissive`` -> ``_UNIFORM_RE``, read as ``m.group("slug")`` by
+    ``artifact_rename.compute_target_name``) and return its ``slug`` group, so a
+    ``rename --order`` with no ``--slug`` changes only the Order facet and never injects the old
+    ``<setid>-NN-`` cluster prefix into the slug. Falls back to the legacy digit-stripping heuristic
+    ONLY for a truly legacy name the canonical parser does not match.
+    """
+
+    m = _naming.parse_uniform_permissive(old_name)
+    if m is not None:
+        return _core.kebab(m.group("slug")) or "plan"
+
+    # Legacy fallback (unchanged): a name the canonical parser does not handle.
     base = old_name.removesuffix(".md")
     base = base.split(".")[0]  # drop any dotted facets
     parts = [p for p in base.split("-") if p and p != id6]

@@ -135,5 +135,65 @@ class ReferenceRewriteTests(unittest.TestCase):
         self.assertEqual(edits, [])
 
 
+class RenameOrderSlugPreservationTests(unittest.TestCase):
+    """IPD 5rzupk: `aw rename plans <id6> --order <NN>` with no --slug must preserve the true slug
+    and change only the Order facet (regression for the injected `<setid>-NN-` mangle)."""
+
+    def test_slug_of_returns_true_slug_not_cluster_prefix(self):
+        # The exact ipdgates repro shape from the backlog item / concern.
+        self.assertEqual(
+            R._slug_of("20260823-ipdgates-06-wezhxg-remove-raw-x.ipd.md", "wezhxg"),
+            "remove-raw-x",
+        )
+        # This plan's own name: slug preserved, no `awrenamebug-01-` injected.
+        self.assertEqual(
+            R._slug_of("20260824-awrenamebug-01-5rzupk-fix-the-thing.ipd.md", "5rzupk"),
+            "fix-the-thing",
+        )
+
+    def test_slug_of_legacy_fallback_unchanged(self):
+        # A name the canonical parser does not match keeps the legacy heuristic behavior.
+        self.assertEqual(
+            R._slug_of("some-legacy-plan.md", "zzzzzz"), "some-legacy-plan"
+        )
+
+    def test_rename_order_preserves_slug_end_to_end(self):
+        import argparse
+
+        root = Path(tempfile.mkdtemp())
+        _init_git(root)
+        pdir = root / ".agents" / "plans"
+        src = _plan(
+            root,
+            "pending",
+            "20260823-ipdgates-06-wezhxg-remove-raw-terminal-bypasses.ipd.md",
+            plan_id="wezhxg",
+            date="20260823",
+            set_id="ipdgates",
+            order="06",
+        )
+        self.assertTrue(src.exists())
+        rc = R.run_mv(
+            argparse.Namespace(
+                dir=str(root),
+                id="wezhxg",
+                order=7,
+                slug=None,
+                set=None,
+                apply=True,
+                no_refs=True,
+            )
+        )
+        self.assertEqual(rc, 0)
+        moved = list((pdir / "pending").glob("*wezhxg*.md"))
+        self.assertEqual(len(moved), 1)
+        name = moved[0].name
+        # Only the Order facet changed (06 -> 07); the slug is preserved; no `ipdgates-06-` injected.
+        self.assertEqual(
+            name, "20260823-ipdgates-07-wezhxg-remove-raw-terminal-bypasses.ipd.md"
+        )
+        self.assertNotIn("ipdgates-06-remove", name)
+
+
 if __name__ == "__main__":
     unittest.main()
