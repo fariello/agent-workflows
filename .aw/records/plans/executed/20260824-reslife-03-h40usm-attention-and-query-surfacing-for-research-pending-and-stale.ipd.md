@@ -5,15 +5,15 @@
 - Concern: `aw attention` maps research `intake -> ready` (attention_contract CLASS_MAPS['research'] = {intake: ready, active: active, reference: done, archive: parked}), so finished-but-unpromoted research shows as actionable work (the "ready" bucket held 11 research rows on 2026-08-24, 10 of them already done), and there is no first-class "what research must I still run?" query. Spec 5tapom Section 3.4 requires separating untriaged from actionable and surfacing pending research.
 - Scope: Add `aw research pending` (or `find --unrun`) listing UNRUN prompts (consuming child 01's structural signal), and change `aw attention` so a finished/cited `intake` doc is NOT filed under `ready` (surface it as stale-state-to-promote) while a genuinely-unrun prompt remains actionable. Implements spec 5tapom Section 3.4. Depends on child 01 for BOTH the unrun derivation (E-01) and the RUN/cited-by-executed signal (child 01 E-02). It does NOT consume child 02's `outcome`/`consumed-by` fields (those are provenance, not the surfacing signal), so child 02 is NOT a hard dependency; ordering it after 02 is only for clean sequential Set execution, not a data dependency.
 - Scope-Paths: grandfathered
-- Status: approved
+- Status: executed
 - Set: reslife
 - Order: 3
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: h40usm
-- Approval: 2026-08-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-25 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Attention + query surfacing: aw research pending lists unrun prompts, and attention reclassifies stale RUN/cited intake research READY->PARKED (class_of unchanged/total); all E performed, all V pass with pasted test evidence
 - 2026-08-25 approved (aw set): status set to approved
 - 2026-08-25 reviewed (aw set): plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-301..PR-303 fixed
 - 2026-08-25 to-review (aw set): Authored complete and lint-conforming; ready for plan-review.
