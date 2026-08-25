@@ -30,31 +30,35 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Human-readable idle duration (smallest, independent)
 
-- [ ] E-01 In `Heartbeat._run` (runipd.py:213-225), format the idle time as `{m}m{s:02d}s since last event` (reusing the same `divmod(..., 60)` shape already used for `elapsed` on the same line at runipd.py:217-218) instead of `{int(idle)}s since last event`. Keep the existing `elapsed` field unchanged. Output-only; no behavior change.
+- [x] E-01 In `Heartbeat._run` (runipd.py:213-225), format the idle time as `{m}m{s:02d}s since last event` (reusing the same `divmod(..., 60)` shape already used for `elapsed` on the same line at runipd.py:217-218) instead of `{int(idle)}s since last event`. Keep the existing `elapsed` field unchanged. Output-only; no behavior change.
   - Depends on: none
   - Expected outcome: the progress line reads e.g. `(6m21s elapsed, 6m21s since last event)` rather than `(6m21s elapsed, 381s since last event)`.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: implemented in commit ed52562; `Heartbeat.format_idle` at runipd.py:215-218 returns `{m}m{s:02d}s` and `format_message` at runipd.py:220-227 emits `... since last event` with the unchanged `elapsed` field.
 
 ### Task group 2: Process-group child so subprocesses can be reaped together
 
-- [ ] E-02 In `run_opencode` (runipd.py:1096-1103), start the child in its own process group/session (`subprocess.Popen(..., start_new_session=True)` on POSIX) so opencode and all its descendants (MCP servers like `hound`, LSP servers) share a killable group. Update `terminate_process` (runipd.py:1008-1031) to signal the whole GROUP (`os.killpg(os.getpgid(pid), sig)`) through the existing SIGINT -> SIGTERM -> SIGKILL escalation (`_SIGINT_GRACE_SECONDS`=5, `_SIGTERM_GRACE_SECONDS`=2), falling back to the single-process path if `getpgid`/`killpg` is unavailable (non-POSIX). Preserve the existing stream-closing behavior.
+- [x] E-02 In `run_opencode` (runipd.py:1096-1103), start the child in its own process group/session (`subprocess.Popen(..., start_new_session=True)` on POSIX) so opencode and all its descendants (MCP servers like `hound`, LSP servers) share a killable group. Update `terminate_process` (runipd.py:1008-1031) to signal the whole GROUP (`os.killpg(os.getpgid(pid), sig)`) through the existing SIGINT -> SIGTERM -> SIGKILL escalation (`_SIGINT_GRACE_SECONDS`=5, `_SIGTERM_GRACE_SECONDS`=2), falling back to the single-process path if `getpgid`/`killpg` is unavailable (non-POSIX). Preserve the existing stream-closing behavior.
   - Depends on: none
   - Expected outcome: terminating a turn kills opencode AND its MCP/LSP children (no orphans); verified by asserting the group receives the signal.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: commit ed52562; `start_new_session=True` on POSIX at runipd.py:1421-1422; `terminate_process` at runipd.py:1299-1337 signals the group via `os.getpgid`/`os.killpg` with the SIGINT(5s)->SIGTERM(2s)->SIGKILL escalation and single-process fallback, preserving `_close_process_streams`.
 
 ### Task group 3: Stall watchdog that acts on silence
 
-- [ ] E-03 Add a stall watchdog to the streaming loop in `run_opencode` (runipd.py:1107-1126). Track the last-event monotonic time (the loop already calls `heartbeat.touch()` per line at runipd.py:1112). If no JSONL line arrives for a configurable `stall_timeout` (default 600s; `0`/None disables), reap the child via the E-02 group-aware `terminate_process` and signal the stall to the caller as a DISTINCT condition (NOT a normal return): raise a dedicated `StallTimeout(DriverError)` from `run_opencode` (or set an unambiguous sentinel the caller checks) so `execute_item` does NOT fall through to `reconcile_disposition`/exit-code classification (runipd.py:1261-1262), which would otherwise misclassify the SIGKILLed turn as `failed-safely` and prevent `requeue_interrupted` (which only re-queues `interrupted`, runipd.py:1346-1348) from retrying it. In `execute_item`, handle `StallTimeout` in a branch modeled on the existing `KeyboardInterrupt` handler (runipd.py:1230-1238): set `item["status"] = "interrupted"`, record `attempt["interrupted_at"] = utc_now()` and a distinct `attempt["stall_timeout"] = <seconds>` (or `attempt["interrupt_reason"] = "stall_timeout"`), append an `ipd-stalled` event, and let the run loop move on so `resume` re-queues it via `reconcile_interrupted`/`requeue_interrupted`. Implement the timeout without blocking indefinitely on `for line in process.stdout` (a daemon watchdog thread that trips `terminate_process`, whose pipe close then unblocks the loop, is acceptable); the reap must be idempotent with the existing `except BaseException: terminate_process(...)` path. Add a `--stall-timeout SECONDS` flag (on `start` and `resume`) plumbed through `state["options"]`, defaulting to the constant. The watchdog enforces the timeout in ALL output modes including `raw` (safety must not depend on verbosity; see OQ-02).
+- [x] E-03 Add a stall watchdog to the streaming loop in `run_opencode` (runipd.py:1107-1126). Track the last-event monotonic time (the loop already calls `heartbeat.touch()` per line at runipd.py:1112). If no JSONL line arrives for a configurable `stall_timeout` (default 600s; `0`/None disables), reap the child via the E-02 group-aware `terminate_process` and signal the stall to the caller as a DISTINCT condition (NOT a normal return): raise a dedicated `StallTimeout(DriverError)` from `run_opencode` (or set an unambiguous sentinel the caller checks) so `execute_item` does NOT fall through to `reconcile_disposition`/exit-code classification (runipd.py:1261-1262), which would otherwise misclassify the SIGKILLed turn as `failed-safely` and prevent `requeue_interrupted` (which only re-queues `interrupted`, runipd.py:1346-1348) from retrying it. In `execute_item`, handle `StallTimeout` in a branch modeled on the existing `KeyboardInterrupt` handler (runipd.py:1230-1238): set `item["status"] = "interrupted"`, record `attempt["interrupted_at"] = utc_now()` and a distinct `attempt["stall_timeout"] = <seconds>` (or `attempt["interrupt_reason"] = "stall_timeout"`), append an `ipd-stalled` event, and let the run loop move on so `resume` re-queues it via `reconcile_interrupted`/`requeue_interrupted`. Implement the timeout without blocking indefinitely on `for line in process.stdout` (a daemon watchdog thread that trips `terminate_process`, whose pipe close then unblocks the loop, is acceptable); the reap must be idempotent with the existing `except BaseException: terminate_process(...)` path. Add a `--stall-timeout SECONDS` flag (on `start` and `resume`) plumbed through `state["options"]`, defaulting to the constant. The watchdog enforces the timeout in ALL output modes including `raw` (safety must not depend on verbosity; see OQ-02).
   - Depends on: E-02
   - Expected outcome: a turn emitting no events for longer than `stall_timeout` is auto-terminated (whole group), its attempt ends as `interrupted` (with a `stall_timeout` reason) NOT `failed-safely`, and `resume` re-queues it - instead of hanging indefinitely as in run-20260825T010422Z-553957.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: commit ed52562; `StallTimeout(DriverError)` at runipd.py:253-256; `StallWatchdog` at runipd.py:259-307 runs off the stream loop independent of the heartbeat print thread (OQ-02 satisfied in `raw` mode); `run_opencode` at runipd.py:1424-1467 wires the watchdog, group-reaps via `terminate_process`, and raises `StallTimeout` from both the `except BaseException` path and the post-loop check; `execute_item` at runipd.py:1581-1607 handles `StallTimeout` setting `item["status"]="interrupted"`, `attempt["interrupt_reason"]="stall_timeout"`, `attempt["stall_timeout"]`, appends an `ipd-stalled` event, and returns so `requeue_interrupted` re-queues on resume; `--stall-timeout` on start+resume plumbed via `state["options"]`, `DEFAULT_STALL_TIMEOUT=600.0` at runipd.py:1296.
 
 ### Task group 4: Tests
 
-- [ ] E-04 In `tools/ipdrunner/test_runipd.py`, add tests: (a) `Heartbeat` idle formatting renders `XmYs since last event` for a >60s idle (unit-test the formatting helper, injecting a fake idle/elapsed); (b) `terminate_process` signals the process group (use a fake process exposing a pid + a stubbed `os.killpg`/`getpgid`, assert group signaling and the SIGINT->SIGTERM->SIGKILL escalation, plus the non-POSIX fallback); (c) the stall watchdog trips: a stubbed child that produces no output within a short test `stall_timeout` is terminated (assert `terminate_process` invoked) AND the attempt ends specifically as `item["status"] == "interrupted"` with a `stall_timeout` reason recorded (NOT `failed-safely`/exit-code classification), such that `requeue_interrupted` would re-queue it (assert the interrupted status directly, and optionally that a follow-up `requeue_interrupted` re-queues the item); and conversely a child that keeps emitting lines within the window is NOT terminated and completes normally (no false trip).
+- [x] E-04 In `tools/ipdrunner/test_runipd.py`, add tests: (a) `Heartbeat` idle formatting renders `XmYs since last event` for a >60s idle (unit-test the formatting helper, injecting a fake idle/elapsed); (b) `terminate_process` signals the process group (use a fake process exposing a pid + a stubbed `os.killpg`/`getpgid`, assert group signaling and the SIGINT->SIGTERM->SIGKILL escalation, plus the non-POSIX fallback); (c) the stall watchdog trips: a stubbed child that produces no output within a short test `stall_timeout` is terminated (assert `terminate_process` invoked) AND the attempt ends specifically as `item["status"] == "interrupted"` with a `stall_timeout` reason recorded (NOT `failed-safely`/exit-code classification), such that `requeue_interrupted` would re-queue it (assert the interrupted status directly, and optionally that a follow-up `requeue_interrupted` re-queues the item); and conversely a child that keeps emitting lines within the window is NOT terminated and completes normally (no false trip).
   - Depends on: E-01, E-02, E-03
   - Expected outcome: passing tests pinning all three behaviors (format, group reap, watchdog trip + no-false-trip).
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: commit ed52562; test_runipd.py: `test_heartbeat_idle_formatting_over_60s`/`_under_60s` (a); `test_terminate_process_signals_process_group_with_escalation` + `test_terminate_process_non_posix_fallback` (b); `test_stall_watchdog_terminates_silent_child_and_marks_interrupted` asserting `interrupt_reason=="stall_timeout"`, `status=="interrupted"`, and `requeue_interrupted` re-queues, plus `test_stall_watchdog_does_not_trip_on_active_child` (c). Full suite: Ran 53 tests, OK.
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -124,25 +128,25 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted test/manual output showing the progress line renders `XmYs since last event` (e.g. `6m21s since last event`) for a >60s idle.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: a 381s idle renders `... (0m00s elapsed, 6m21s since last event)` (matches expected `6m21s since last event`); `test_heartbeat_idle_formatting_over_60s` and `_under_60s` pass. Full pasted output in run-20260825T035151Z-1236581/execution-report.md (V-01).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted test output asserting `terminate_process` signals the process GROUP (killpg) through the SIGINT->SIGTERM->SIGKILL escalation, plus the non-POSIX single-process fallback; and a manual check that after termination no opencode/hound/LSP children remain in `ps`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `test_terminate_process_signals_process_group_with_escalation` and `test_terminate_process_non_posix_fallback` pass; a live-process demo showed a grandchild (simulating a wedged hound/LSP) sharing the child's pgid and both reaped by `terminate_process` with no orphan surviving (`child alive? False`, `grandchild alive? False`). Full pasted output in run-20260825T035151Z-1236581/execution-report.md (V-02).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted test output showing a no-output child is auto-terminated after a short test `stall_timeout` and its attempt marked interrupted/recoverable, AND a child that keeps emitting lines is NOT terminated (no false trip); the `--stall-timeout` flag present in `--help`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `test_stall_watchdog_terminates_silent_child_and_marks_interrupted` (no-output child with `--stall-timeout 0.3` ends `status=="interrupted"`, `interrupt_reason=="stall_timeout"`, `stall_timeout==0.3`, and `requeue_interrupted` re-queues `stall1`) and `test_stall_watchdog_does_not_trip_on_active_child` (no false trip) pass; `--stall-timeout` appears in both `start --help` and `resume --help`. Full pasted output in run-20260825T035151Z-1236581/execution-report.md (V-03).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: pasted `python3 tools/ipdrunner/test_runipd.py` (or pytest) output with all new tests passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 tools/ipdrunner/test_runipd.py` -> `Ran 53 tests in 3.353s / OK`; `pytest -k "heartbeat_idle or terminate_process_signals or terminate_process_non_posix or stall_watchdog"` -> `6 passed`; `pre-commit run --files tools/ipdrunner/runipd.py tools/ipdrunner/test_runipd.py` -> all hooks Passed. Full pasted output in run-20260825T035151Z-1236581/execution-report.md (V-04).
+  - Result: pass
 
 ## Approval and execution gate
 
