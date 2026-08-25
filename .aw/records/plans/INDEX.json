@@ -2970,6 +2970,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-24",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260824-runipdbugs-01-wk108w-fix-runipd-dependency-execution-gating-yaml-dependency-parsi.ipd.md",
+    "plan_id": "wk108w",
+    "set_id": "runipdbugs",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -3107,16 +3117,6 @@
     "path": "pending/20260824-reslife-03-h40usm-attention-and-query-surfacing-for-research-pending-and-stale.ipd.md",
     "plan_id": "h40usm",
     "set_id": "reslife",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-24",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260824-runipdbugs-01-wk108w-fix-runipd-dependency-execution-gating-yaml-dependency-parsi.ipd.md",
-    "plan_id": "wk108w",
-    "set_id": "runipdbugs",
     "status": "approved"
   },
   {

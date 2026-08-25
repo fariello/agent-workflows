@@ -5,15 +5,15 @@
 - Concern: bugs
 - Scope: tools/ipdrunner/runipd.py
 - Scope-Paths: tools/ipdrunner/runipd.py, tools/ipdrunner/test_runipd.py
-- Status: approved
+- Status: executed
 - Set: runipdbugs
 - Order: 1
 - Highest E allocated: 04
 - Author: Antigravity
 - Id: wk108w
-- Approval: 2026-08-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-25 executed (Antigravity): Implemented runipd dependency execution gating, YAML deps, and fsync portability [Scope reconciliation - in-scope-unmodified tools/ipdrunner/runipd.py: implemented in commit 11bd9ee; in-scope-unmodified tools/ipdrunner/test_runipd.py: implemented in commit 11bd9ee]
 - 2026-08-25 approved (aw set, --by-human): Approved by human for execution
 - 2026-08-25 approved (aw set): status set to approved
 

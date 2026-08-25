@@ -37,7 +37,7 @@ Showing the 40 most-recent of 132 Sets; the full manifest is INDEX.json.
 
 ## runipdbugs
 
-- `wk108w` [pending] 01 pending/20260824-runipdbugs-01-wk108w-fix-runipd-dependency-execution-gating-yaml-dependency-parsi.ipd.md
+- `wk108w` [executed] 01 executed/20260824-runipdbugs-01-wk108w-fix-runipd-dependency-execution-gating-yaml-dependency-parsi.ipd.md
 
 ## runipdsess
 
