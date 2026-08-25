@@ -30,17 +30,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Documentation sync
 
-- [ ] E-01 Update `tools/README.md` (the `ipdrunner/` section) and `tools/ipdrunner/20260823-pending-ipds-overnight-execution-runbook.md` (which DOES prescribe invocation) to present `aw oc runipd ...` (alias `aw opencode runipd ...`) as the primary command, with a note that `python3 tools/ipdrunner/runipd.py ...` continues to work via a compatibility shim. Also correct the runbook's STALE driver filename: it currently names the driver `ipdrunner.py` and prescribes `python3 tools/ipdrunner/ipdrunner.py ...` (runbook lines 4,47,61,90,98,108), but the actual script is `runipd.py` - fix every occurrence so the documented legacy/compat path is real. Keep the usage examples accurate to the shipped CLI (child 02). Write user-facing prose with no em/en dashes.
+- [x] E-01 Update `tools/README.md` (the `ipdrunner/` section) and `tools/ipdrunner/20260823-pending-ipds-overnight-execution-runbook.md` (which DOES prescribe invocation) to present `aw oc runipd ...` (alias `aw opencode runipd ...`) as the primary command, with a note that `python3 tools/ipdrunner/runipd.py ...` continues to work via a compatibility shim. Also correct the runbook's STALE driver filename: it currently names the driver `ipdrunner.py` and prescribes `python3 tools/ipdrunner/ipdrunner.py ...` (runbook lines 4,47,61,90,98,108), but the actual script is `runipd.py` - fix every occurrence so the documented legacy/compat path is real. Keep the usage examples accurate to the shipped CLI (child 02). Write user-facing prose with no em/en dashes.
   - Depends on: none
   - Expected outcome: docs describe `aw oc runipd` as the primary entry and the shim as legacy-compatible; the runbook no longer references the nonexistent `ipdrunner.py`.
-  - Execution state: pending
+  - Execution note: commit 22da425; tools/README.md ipdrunner section retitled `aw oc runipd`, presenting the packaged command (alias `aw opencode runipd`) as primary with all examples in that form and a note that `python3 tools/ipdrunner/runipd.py ...` still works as a compat shim. The runbook now presents `aw oc runipd start` as primary (with the legacy form beside it) and the stale `ipdrunner.py` name was corrected to `runipd.py` at all 6 occurrences (Driver header + 5 invocation lines); `grep -c ipdrunner.py` runbook -> 0. AGENTS.md/RELEASING/CONTRIBUTING checked - no driver-path drift there.
+  - Execution state: performed
 
 ### Task group 2: File the deferred-work backlog item
 
-- [ ] E-02 Create a committed backlog item with `aw backlog new --apply --priority medium --kind followup --summary "Normalize runner interactive output into a shared renderer and graduate remaining tools (runagy, pwatch, agy sessions/view) under aw"` (do NOT hand-name the file). In the item body capture: (a) extract runipd's `render_event`/`Palette`/`Heartbeat` streaming into a shared `agent_workflows` rendering utility (currently duplicated inline in `oc_runipd`); (b) graduate `agy_run.py` -> `aw agy run` (renamed runagy), `agy_sessions.py` -> `aw agy sessions`, `view-antigravity-jsonl.py` -> `aw agy view`, `pwatch.py` -> `aw pwatch`; (c) note this is non-blocking and follows the packaged-core + host-subcommand + compat-shim pattern established by the awocrunner Set. Non-release-blocking is the DEFAULT: simply do NOT add a `- Blocks-Release:` field to the item (there is no `--blocks-release` flag on `aw backlog new`, and a backlog item is non-blocking unless it carries that field per AGENTS.md). Do not attempt to "mark" it non-blocking with a flag.
+- [x] E-02 Create a committed backlog item with `aw backlog new --apply --priority medium --kind followup --summary "Normalize runner interactive output into a shared renderer and graduate remaining tools (runagy, pwatch, agy sessions/view) under aw"` (do NOT hand-name the file). In the item body capture: (a) extract runipd's `render_event`/`Palette`/`Heartbeat` streaming into a shared `agent_workflows` rendering utility (currently duplicated inline in `oc_runipd`); (b) graduate `agy_run.py` -> `aw agy run` (renamed runagy), `agy_sessions.py` -> `aw agy sessions`, `view-antigravity-jsonl.py` -> `aw agy view`, `pwatch.py` -> `aw pwatch`; (c) note this is non-blocking and follows the packaged-core + host-subcommand + compat-shim pattern established by the awocrunner Set. Non-release-blocking is the DEFAULT: simply do NOT add a `- Blocks-Release:` field to the item (there is no `--blocks-release` flag on `aw backlog new`, and a backlog item is non-blocking unless it carries that field per AGENTS.md). Do not attempt to "mark" it non-blocking with a flag.
   - Depends on: none
   - Expected outcome: a committed `open`, medium, followup backlog item exists, carries no `Blocks-Release` field, and appears in `aw attention` as `ready`.
-  - Execution state: pending
+  - Execution note: commit 22da425; filed via `aw backlog new --apply` (not hand-named) at `.aw/records/backlog/open/20260825-1sdkvd-01-1sdkvd-normalize-runner-output-and-graduate-tools.backlog.md` (id 1sdkvd, open/medium/followup). Body captures (a) shared-renderer extraction of render_event/Palette/Heartbeat, (b) graduating runagy/pwatch/agy sessions/agy view under aw, (c) non-blocking, follows the awocrunner packaged-core+shim pattern. No `- Blocks-Release:` field (non-blocking by default per AGENTS.md; no flag used). See DECISION 14-suks59-D1 re: pre-existing (unrelated) backlog-check findings.
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -96,15 +98,15 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted snippet of the updated `tools/README.md` and runbook showing `aw oc runipd`/`aw opencode runipd` as the primary invocation with the shim noted; and a grep confirming no remaining `ipdrunner.py` occurrences in the runbook (the stale name is corrected to `runipd.py`).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (commit 22da425) tools/README.md now heads `## aw oc runipd (the OpenCode IPD runner)` with usage `aw oc runipd 5ahblp`, `aw oc runipd status --repo ... <run-id>`, etc., a note "`aw opencode runipd ...` is an accepted alias" and "The legacy source-checkout path continues to work unchanged as a compatibility shim: `python3 tools/ipdrunner/runipd.py status ...`". The runbook now shows `aw oc runipd start \ ...` as primary with the legacy `python3 tools/ipdrunner/runipd.py start ...` beside it. `grep -c "ipdrunner.py" runbook` -> 0 (corrected to `runipd.py`); `grep -c "aw oc runipd" tools/README.md` -> 8.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the path of the created backlog file and pasted `aw attention` (or `aw backlog`) output listing it as an `open`/`ready`, medium, followup item; confirmation the file carries NO `- Blocks-Release:` line (so it is non-release-blocking by default); pasted `aw check` clean.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (commit 22da425) File: `.aw/records/backlog/open/20260825-1sdkvd-01-1sdkvd-normalize-runner-output-and-graduate-tools.backlog.md`. `aw attention --format json` lists it: `{'id': '1sdkvd', 'tree': 'backlog', 'native_status': 'open', 'attention_class': 'ready', 'priority': 'medium', 'blocks_release': None}`. `grep -c Blocks-Release <file>` -> 0 (non-release-blocking by default). `backlog.parse_item` -> open/medium/followup, single-line summary, blocks_release None. `aw check backlog --agent` reports 5 diagnostics, NONE referencing 1sdkvd (`any('1sdkvd' in ...)` == False) - the new item introduces zero findings; the 5 are pre-existing, unrelated older-item drift (DECISION 14-suks59-D1).
+  - Result: pass
 
 ## Approval and execution gate
 
