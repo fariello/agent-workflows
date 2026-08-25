@@ -369,6 +369,136 @@ def _emit_and_write(
     return 0
 
 
+# --------------------------------------------------------------------------------------
+# In-place frontmatter field updater + set-outcome (IPD xjrdjp E-01)
+# --------------------------------------------------------------------------------------
+
+
+def _render_list(values: List[str]) -> str:
+    """Render a frontmatter flow list ``[a, b]`` (empty -> ``[]``), matching build_frontmatter."""
+
+    return "[" + ", ".join(values) + "]" if values else "[]"
+
+
+def update_frontmatter_fields(text: str, updates: dict) -> str:
+    """Return ``text`` with the named first-block frontmatter scalar/list fields replaced in place.
+
+    Only the given ``updates`` (field -> already-rendered string value) are rewritten; every other
+    frontmatter line, its order, the ``---`` fences, and the entire document body are preserved
+    byte-for-byte. Rewrites ONLY lines inside the FIRST frontmatter block (so a ``status:`` example
+    in the body is never touched). A field not present in the block is left absent (the research
+    creators always emit all 11 fields, so ``outcome``/``consumed-by`` are present)."""
+
+    lines = text.splitlines(keepends=True)
+    in_fm = False
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if i == 0 and stripped == "---":
+            in_fm = True
+            continue
+        if in_fm and stripped == "---":
+            break
+        if not in_fm:
+            continue
+        for field, value in updates.items():
+            if stripped.startswith(f"{field}:"):
+                newline = "\n" if line.endswith("\n") else ""
+                lines[i] = f"{field}: {value}{newline}"
+                break
+    return "".join(lines)
+
+
+def plan_set_outcome(
+    research_root: Path,
+    id6: str,
+    outcome: Optional[str],
+    consumed_by: Optional[List[str]],
+    clear_consumed: bool = False,
+) -> Tuple[Optional[Path], Optional[str], Optional[str]]:
+    """Plan an outcome/consumed-by update for one doc; returns (path, new_text, error).
+
+    ``outcome`` (when given) must be in the vocabulary. ``consumed_by`` REPLACES the list;
+    ``clear_consumed`` (the ``-`` sentinel) empties it. Reads the doc, applies only the requested
+    fields, and returns the new text without writing. Preserves all other fields and the body.
+    """
+
+    if outcome is not None and outcome not in R.OUTCOMES:
+        return None, None, f"outcome must be one of {sorted(R.OUTCOMES)}"
+    target: Optional[Path] = None
+    for p in sorted(research_root.rglob("*.md")):
+        parsed, _err = R.parse_name(p.name)
+        if parsed is not None and parsed.id6 == id6:
+            target = p
+            break
+    if target is None:
+        return None, None, f"no research file has id6 '{id6}'"
+    text = target.read_text(encoding="utf-8")
+    updates: dict = {}
+    if outcome is not None:
+        updates["outcome"] = outcome
+    if clear_consumed:
+        updates["consumed-by"] = _render_list([])
+    elif consumed_by is not None:
+        updates["consumed-by"] = _render_list(consumed_by)
+    if not updates:
+        return None, None, "nothing to set (provide --to and/or --consumed-by)"
+    return target, update_frontmatter_fields(text, updates), None
+
+
+def run_set_outcome(args: argparse.Namespace) -> int:
+    """`aw research set-outcome <id6> --to <outcome> [--consumed-by <id6,...>|-]` (preview/--apply)."""
+
+    root = _research_root(args)
+    id6 = (getattr(args, "id", "") or "").strip()
+    if not id6:
+        print("error: an <id6> is required")
+        return 2
+    raw_consumed = getattr(args, "consumed_by", None)
+    clear = raw_consumed is not None and raw_consumed.strip() == "-"
+    consumed_list: Optional[List[str]] = None
+    if raw_consumed is not None and not clear:
+        consumed_list = [c.strip() for c in raw_consumed.split(",") if c.strip()]
+    target, new_text, err = plan_set_outcome(
+        root,
+        id6,
+        getattr(args, "to", None),
+        consumed_list,
+        clear_consumed=clear,
+    )
+    if err or target is None or new_text is None:
+        print(f"error: {err or 'could not plan update'}")
+        return 2
+    rel = target.relative_to(root).as_posix()
+    if not getattr(args, "apply", False):
+        bits = []
+        if getattr(args, "to", None) is not None:
+            bits.append(f"outcome={args.to}")
+        if clear:
+            bits.append("consumed-by=[] (cleared)")
+        elif consumed_list is not None:
+            bits.append(f"consumed-by={_render_list(consumed_list)}")
+        print(f"--- would update {rel}: {', '.join(bits)} ---")
+        return 0
+    _atomic_write(target, new_text)
+    print(f"updated {rel}")
+    # Refresh the index so INDEX.json carries the new consumed-by (E-02).
+    try:
+        from agent_workflows import research_index as _ridx
+
+        _ridx.run_index(
+            argparse.Namespace(
+                dir=getattr(args, "dir", None),
+                check=False,
+                agent=False,
+                limit=None,
+                quiet=True,
+            )
+        )
+    except Exception:
+        pass
+    return 0
+
+
 def run_new(args: argparse.Namespace) -> int:
     root = _research_root(args)
     topic = [

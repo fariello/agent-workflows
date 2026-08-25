@@ -48,6 +48,7 @@ class DocEntry(NamedTuple):
     status: str
     outcome: str
     summary: str
+    consumed_by: List[str]
 
 
 # The generic drift record is the shared core's (plans-adopter Order 01); re-export it.
@@ -115,6 +116,10 @@ def _scan_docs(
             )
         topic_val = fm.get("topic")
         topic_list = [str(t) for t in topic_val] if isinstance(topic_val, list) else []
+        consumed_val = fm.get("consumed-by")
+        consumed_list = (
+            [str(c) for c in consumed_val] if isinstance(consumed_val, list) else []
+        )
         entries.append(
             DocEntry(
                 id6=parsed.id6,
@@ -129,6 +134,7 @@ def _scan_docs(
                 status=str(fm.get("status", "")),
                 outcome=str(fm.get("outcome", "")),
                 summary=str(fm.get("summary", "")),
+                consumed_by=consumed_list,
             )
         )
     return entries, drift
@@ -387,10 +393,46 @@ def cited_by_executed_ids(repo_root: Path, research_root: Path) -> set:
 
 
 # --------------------------------------------------------------------------------------
-# check (the four drift classes + the stale-state-to-promote rule)
+# consumer-id resolution (IPD xjrdjp E-03): the resolvable id6 set spanning the PLAN, SPEC, and
+# BACKLOG trees (consumed-by points at those, NOT at research ids). Assembled from the `- Id:`
+# metadata of each artifact via the shared scan roots; this is a cross-tree set, deliberately
+# NOT the research-only resolver (research_refs) nor a release-only resolver.
+# --------------------------------------------------------------------------------------
+
+_META_ID_RE = re.compile(r"(?m)^- Id:[ \t]*([0-9a-z]{6})[ \t]*$")
+
+
+def resolvable_consumer_ids(repo_root: Path) -> set:
+    """Return every id6 declared by a plan, spec, or backlog artifact (its ``- Id:`` metadata).
+
+    These are the artifacts a research doc's ``consumed-by`` may legitimately point at. Scans the
+    plan/spec/backlog files under the shared scan roots and extracts the first-block ``- Id:``.
+    """
+
+    ids: set = set()
+    for f in _core.iter_scan_files(repo_root):
+        parts = f.parts
+        if not ("plans" in parts or "specs" in parts or "backlog" in parts):
+            continue
+        if not f.name.endswith(".md"):
+            continue
+        try:
+            text = f.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        m = _META_ID_RE.search(text)
+        if m:
+            ids.add(m.group(1))
+    return ids
+
+
+# --------------------------------------------------------------------------------------
+# check (the four drift classes + the stale-state-to-promote rule + provenance rules)
 # --------------------------------------------------------------------------------------
 
 STALE_STATE_RULE = "stale-state-to-promote"
+DANGLING_CONSUMED_RULE = "dangling-consumed-by"
+ADOPTED_NO_CONSUMER_RULE = "adopted-without-consumer"
 
 
 def check_drift(
@@ -437,6 +479,29 @@ def check_drift(
                         e.path,
                         STALE_STATE_RULE,
                         f"{e.status} doc cited by an executed artifact; promote it",
+                    )
+                )
+    # Provenance rules (IPD xjrdjp E-03): a consumed-by that resolves to no plan/spec/backlog
+    # artifact is dangling; an adopted doc must name at least one consumer.
+    needs_provenance = [e for e in entries if e.consumed_by or e.outcome == "adopted"]
+    if needs_provenance:
+        consumer_ids = resolvable_consumer_ids(repo_root)
+        for e in needs_provenance:
+            for cid in e.consumed_by:
+                if cid not in consumer_ids:
+                    drift.append(
+                        Drift(
+                            e.path,
+                            DANGLING_CONSUMED_RULE,
+                            f"consumed-by id6 '{cid}' resolves to no plan/spec/backlog artifact",
+                        )
+                    )
+            if e.outcome == "adopted" and not e.consumed_by:
+                drift.append(
+                    Drift(
+                        e.path,
+                        ADOPTED_NO_CONSUMER_RULE,
+                        "outcome: adopted requires a non-empty consumed-by",
                     )
                 )
     return drift

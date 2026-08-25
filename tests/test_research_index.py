@@ -408,6 +408,142 @@ class StaleStateDriftTests(unittest.TestCase):
         self.assertNotIn("nofind", cited2)
 
 
+class ConsumedByIndexTests(unittest.TestCase):
+    """IPD xjrdjp E-02: INDEX.json carries consumed-by."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.rroot = self.root / R.RESEARCH_ROOT
+        p = _write(
+            self.root,
+            set_id="alpha",
+            order=0,
+            id6="aaaaaa",
+            slug="a",
+            status="reference",
+            created="20260701",
+        )
+        # give it a consumed-by
+        p.write_text(
+            p.read_text(encoding="utf-8").replace(
+                "consumed-by: []", "consumed-by: [pln001]"
+            ),
+            encoding="utf-8",
+        )
+
+    def test_docentry_and_json_carry_consumed_by(self):
+        entries, _ = I._scan_docs(self.rroot)
+        self.assertEqual(entries[0].consumed_by, ["pln001"])
+        js = I.build_index_json(entries)
+        self.assertIn('"consumed_by"', js)
+        self.assertIn("pln001", js)
+
+
+class ConsumedByValidationTests(unittest.TestCase):
+    """IPD xjrdjp E-03: --check flags dangling consumed-by + adopted-without-consumer."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.rroot = self.root / R.RESEARCH_ROOT
+
+    def _regen(self):
+        entries, _ = I._scan_docs(self.rroot)
+        (self.rroot / I.INDEX_JSON).write_text(
+            I.build_index_json(entries), encoding="utf-8"
+        )
+        (self.rroot / I.INDEX_MD).write_text(
+            I.build_index_md(entries), encoding="utf-8"
+        )
+
+    def _write_plan_with_id(self, plan_id):
+        d = self.root / ".aw" / "records" / "plans" / "executed"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"20260801-set-01-{plan_id}-x.ipd.md").write_text(
+            f"# Plan\n\n- Id: {plan_id}\n\nbody\n", encoding="utf-8"
+        )
+
+    def test_dangling_consumed_by_flagged(self):
+        p = _write(
+            self.root,
+            set_id="alpha",
+            order=0,
+            id6="aaaaaa",
+            slug="a",
+            status="reference",
+            created="20260701",
+        )
+        p.write_text(
+            p.read_text(encoding="utf-8").replace(
+                "consumed-by: []", "consumed-by: [nofind]"
+            ),
+            encoding="utf-8",
+        )
+        self._regen()
+        drift = I.check_drift(self.root, self.rroot)
+        self.assertTrue(
+            any(
+                d.rule == I.DANGLING_CONSUMED_RULE and "nofind" in d.detail
+                for d in drift
+            )
+        )
+        # add a real plan with that id -> resolves, clears.
+        p.write_text(
+            p.read_text(encoding="utf-8").replace(
+                "consumed-by: [nofind]", "consumed-by: [pln001]"
+            ),
+            encoding="utf-8",
+        )
+        self._write_plan_with_id("pln001")
+        self._regen()
+        drift2 = I.check_drift(self.root, self.rroot)
+        self.assertFalse(any(d.rule == I.DANGLING_CONSUMED_RULE for d in drift2))
+
+    def test_adopted_without_consumer_flagged(self):
+        p = _write(
+            self.root,
+            set_id="beta",
+            order=0,
+            id6="bbbbbb",
+            slug="b",
+            status="reference",
+            created="20260701",
+        )
+        p.write_text(
+            p.read_text(encoding="utf-8").replace(
+                "outcome: none-yet", "outcome: adopted"
+            ),
+            encoding="utf-8",
+        )
+        self._regen()
+        drift = I.check_drift(self.root, self.rroot)
+        self.assertTrue(any(d.rule == I.ADOPTED_NO_CONSUMER_RULE for d in drift))
+        # give it a resolving consumer -> clears.
+        self._write_plan_with_id("pln002")
+        p.write_text(
+            p.read_text(encoding="utf-8").replace(
+                "consumed-by: []", "consumed-by: [pln002]"
+            ),
+            encoding="utf-8",
+        )
+        self._regen()
+        drift2 = I.check_drift(self.root, self.rroot)
+        self.assertFalse(any(d.rule == I.ADOPTED_NO_CONSUMER_RULE for d in drift2))
+
+    def test_resolvable_consumer_ids_spans_trees(self):
+        # plan, spec, backlog ids all resolve.
+        self._write_plan_with_id("pln003")
+        sp = self.root / ".aw" / "records" / "specs"
+        sp.mkdir(parents=True, exist_ok=True)
+        (sp / "20260801-01-spc003-x.spec.md").write_text(
+            "# Spec\n\n- Id: spc003\n", encoding="utf-8"
+        )
+        bk = self.root / ".aw" / "records" / "backlog" / "open"
+        bk.mkdir(parents=True, exist_ok=True)
+        (bk / "item.md").write_text("- Id: bkl003\n- Status: open\n", encoding="utf-8")
+        ids = I.resolvable_consumer_ids(self.root)
+        self.assertTrue({"pln003", "spc003", "bkl003"}.issubset(ids))
+
+
 class RunIndexOutputTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())

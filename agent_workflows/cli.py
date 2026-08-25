@@ -1470,6 +1470,33 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Perform the move (default is preview only).",
     )
 
+    p_research_set_outcome = research_sub.add_parser(
+        "set-outcome",
+        parents=[common],
+        help="Set a doc's outcome and consumed-by provenance (preview unless --apply).",
+    )
+    p_research_set_outcome.add_argument("id", help="The <id6> of the doc.")
+    p_research_set_outcome.add_argument(
+        "--to",
+        default=None,
+        choices=["adopted", "informational", "rejected", "none-yet"],
+        help="Set the outcome value.",
+    )
+    p_research_set_outcome.add_argument(
+        "--consumed-by",
+        dest="consumed_by",
+        default=None,
+        help="Comma-separated plan/spec/backlog id6s that consumed this research; '-' clears the list.",
+    )
+    p_research_set_outcome.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_research_set_outcome.add_argument(
+        "--apply",
+        action="store_true",
+        help="Perform the update (default is preview only).",
+    )
+
     p_research_miscat = research_sub.add_parser(
         "check-miscategorized",
         parents=[common],
@@ -6886,6 +6913,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import research_archive as ra
 
             return ra.run_promote(args)
+        if research_cmd == "set-outcome":
+            from agent_workflows import research_cmd as rc
+
+            return rc.run_set_outcome(args)
         if research_cmd == "check-miscategorized":
             from agent_workflows import research_archive as ra
 

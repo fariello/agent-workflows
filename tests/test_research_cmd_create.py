@@ -208,5 +208,106 @@ def _parse_frontmatter(text: str) -> dict:
     return data
 
 
+class SetOutcomeTests(unittest.TestCase):
+    """IPD xjrdjp E-01: aw research set-outcome + the in-place frontmatter field updater."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.research = self.root / R.RESEARCH_ROOT
+        self.research.mkdir(parents=True)
+        files, err = C.plan_new(
+            research_root=self.research,
+            kind="research-report",
+            slug="notes",
+            summary="A summary.",
+            set_id="aw-delivery",
+            model=None,
+            topic=["delivery"],
+            date_str="20260726",
+        )
+        assert err is None
+        self.doc = files[0].path
+        self.doc.write_text(files[0].content, encoding="utf-8")
+        # Append a body that intentionally contains a `status:`-like line to prove the updater
+        # only touches the FIRST frontmatter block.
+        self.doc.write_text(
+            self.doc.read_text(encoding="utf-8") + "Body.\noutcome: not-frontmatter\n",
+            encoding="utf-8",
+        )
+        self.id6 = R.parse_name(self.doc.name)[0].id6
+
+    def test_updater_round_trips_only_named_fields(self):
+        before = self.doc.read_text(encoding="utf-8")
+        target, new_text, err = C.plan_set_outcome(
+            self.research, self.id6, "adopted", ["pln001", "spc002"]
+        )
+        self.assertIsNone(err)
+        fm_before = R.parse_frontmatter(before)
+        fm_after = R.parse_frontmatter(new_text)
+        # Only outcome + consumed-by changed; every other field byte-identical.
+        for k in (
+            "id",
+            "created",
+            "set",
+            "order",
+            "topic",
+            "model",
+            "kind",
+            "status",
+            "summary",
+        ):
+            self.assertEqual(fm_before.get(k), fm_after.get(k), f"field {k} changed")
+        self.assertEqual(fm_after["outcome"], "adopted")
+        self.assertEqual(fm_after["consumed-by"], ["pln001", "spc002"])
+        # Body preserved, including the decoy `outcome:` body line.
+        self.assertIn("outcome: not-frontmatter", new_text)
+        self.assertEqual(
+            before.split("---", 2)[2], new_text.split("---", 2)[2], "body changed"
+        )
+
+    def test_set_append_replace_clear(self):
+        # set
+        _t, txt, err = C.plan_set_outcome(
+            self.research, self.id6, "informational", ["pln001"]
+        )
+        self.assertIsNone(err)
+        self.assertEqual(R.parse_frontmatter(txt)["consumed-by"], ["pln001"])
+        self.doc.write_text(txt, encoding="utf-8")
+        # replace
+        _t, txt, err = C.plan_set_outcome(
+            self.research, self.id6, None, ["aaaaaa", "bbbbbb"]
+        )
+        self.assertIsNone(err)
+        self.assertEqual(R.parse_frontmatter(txt)["consumed-by"], ["aaaaaa", "bbbbbb"])
+        self.doc.write_text(txt, encoding="utf-8")
+        # clear via '-'
+        _t, txt, err = C.plan_set_outcome(
+            self.research, self.id6, None, None, clear_consumed=True
+        )
+        self.assertIsNone(err)
+        self.assertEqual(R.parse_frontmatter(txt)["consumed-by"], [])
+
+    def test_invalid_outcome_rejected(self):
+        _t, _txt, err = C.plan_set_outcome(self.research, self.id6, "bogus", None)
+        self.assertIsNotNone(err)
+        self.assertIn("outcome must be", err)
+
+    def test_run_set_outcome_apply_writes(self):
+        import argparse
+
+        args = argparse.Namespace(
+            id=self.id6,
+            to="adopted",
+            consumed_by="pln001",
+            dir=str(self.root),
+            apply=True,
+        )
+        rc = C.run_set_outcome(args)
+        self.assertEqual(rc, 0)
+        fm = R.parse_frontmatter(self.doc.read_text(encoding="utf-8"))
+        self.assertEqual(fm["outcome"], "adopted")
+        self.assertEqual(fm["consumed-by"], ["pln001"])
+
+
 if __name__ == "__main__":
     unittest.main()
