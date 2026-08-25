@@ -32,7 +32,7 @@ Showing the 40 most-recent of 132 Sets; the full manifest is INDEX.json.
 
 - `rmwr8s` [pending] 00 pending/20260824-reslife-00-rmwr8s-research-lifecycle-reliability-tool-owned-state-outcome-prov.ipd.md
 - `m383qb` [executed] 01 executed/20260824-reslife-01-m383qb-structural-unrun-detection-and-tool-advanced-drift-checked-r.ipd.md
-- `xjrdjp` [pending] 02 pending/20260824-reslife-02-xjrdjp-tooled-and-validated-research-outcome-and-consumed-by-proven.ipd.md
+- `xjrdjp` [executed] 02 executed/20260824-reslife-02-xjrdjp-tooled-and-validated-research-outcome-and-consumed-by-proven.ipd.md
 - `h40usm` [pending] 03 pending/20260824-reslife-03-h40usm-attention-and-query-surfacing-for-research-pending-and-stale.ipd.md
 
 ## runipdbugs
