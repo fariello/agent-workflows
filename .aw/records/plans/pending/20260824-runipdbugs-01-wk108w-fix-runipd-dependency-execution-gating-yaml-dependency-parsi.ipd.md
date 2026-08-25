@@ -5,14 +5,17 @@
 - Concern: bugs
 - Scope: tools/ipdrunner/runipd.py
 - Scope-Paths: tools/ipdrunner/runipd.py, tools/ipdrunner/test_runipd.py
-- Status: reviewed
+- Status: approved
 - Set: runipdbugs
 - Order: 1
 - Highest E allocated: 04
 - Author: Antigravity
 - Id: wk108w
+- Approval: 2026-08-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-25 approved (aw set, --by-human): Approved by human for execution
+- 2026-08-25 approved (aw set): status set to approved
 
 - 2026-08-25 reviewed (Antigravity): /plan-review (Antigravity): APPROVE WITH REVISIONS APPLIED; PR-001 PR-002 fixed. Readiness: GO - PENDING HUMAN APPROVAL.
 - 2026-08-24 to-review (Antigravity): created from /assess bugs analysis of tools/ipdrunner/runipd.py.
@@ -31,31 +34,31 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Dependency execution gating and status separation
 
-- [ ] E-01 Separate execution dependency satisfaction from overall run success statuses in `dependency_status`.
+- [x] E-01 Separate execution dependency satisfaction from overall run success statuses in `dependency_status`.
   - Depends on: none
   - Expected outcome: Execution tasks (`action == 'execute'`) require prerequisites to be in `{'executed', 'substantially-complete'}`, while review tasks (`action == 'review'`) accept reviewed or approved plans.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Frontmatter metadata parser hardening
 
-- [ ] E-02 Harden `_read_deps` and `_read_set` against bracketed lists, quoted strings, and inline annotations.
+- [x] E-02 Harden `_read_deps` and `_read_set` against bracketed lists, quoted strings, and inline annotations.
   - Depends on: none
   - Expected outcome: YAML arrays like `[a1b2c3, d4e5f6]` and quoted sets like `"demo"` are correctly parsed into cleaned tokens.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Atomic write directory fsync portability
 
-- [ ] E-03 Guard directory file descriptor opening and fsyncing with `contextlib.suppress(OSError)` in `atomic_write_json`.
+- [x] E-03 Guard directory file descriptor opening and fsyncing with `contextlib.suppress(OSError)` in `atomic_write_json`.
   - Depends on: none
   - Expected outcome: Atomic file writes succeed even on non-POSIX platforms or network filesystems where directory fsync is unsupported.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Regression and unit testing
 
-- [ ] E-04 Add unit tests covering dependency execution gating, YAML dependency parsing, and directory fsync suppression.
+- [x] E-04 Add unit tests covering dependency execution gating, YAML dependency parsing, and directory fsync suppression.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: All new and existing tests pass under `pytest tools/ipdrunner/test_runipd.py`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -117,25 +120,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Test demonstrating dependency blocking for `execute` action when prerequisite is in `reviewed` or `approved` status.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `RunipdBugsFixesTests.test_dependency_status_execution_vs_review` passed in `tools/ipdrunner/test_runipd.py`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Test asserting `_read_deps` parses `[5ahblp, pr2nd0]` and quoted tokens correctly.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `RunipdBugsFixesTests.test_read_deps_and_set_parsing` passed in `tools/ipdrunner/test_runipd.py`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Test asserting `atomic_write_json` writes file atomically even if directory fsync throws `OSError`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `RunipdBugsFixesTests.test_atomic_write_json_directory_fsync_suppresses_oserror` passed in `tools/ipdrunner/test_runipd.py`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Full pytest output demonstrating all tests passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `pytest tools/ipdrunner/test_runipd.py -v` passed with 44/44 passing tests.
+  - Result: pass
 
 ## Approval and execution gate
 
