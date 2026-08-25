@@ -2,7 +2,15 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 124 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 128 Sets; the full manifest is INDEX.json.
+
+## 8t5ghsgi
+
+- `s2ufeo` [pending] 01 pending/20260824-8t5ghsgi-01-s2ufeo-aw-install-ensures-records-runs-directory-is-gitignored.ipd.md
+
+## awrenamebug
+
+- `5rzupk` [pending] 01 pending/20260824-awrenamebug-01-5rzupk-fix-aw-rename-order-slug-mangle-preserve-slug-when-order-cha.ipd.md
 
 ## ipdrbugs
 
@@ -11,6 +19,20 @@ Showing the 40 most-recent of 124 Sets; the full manifest is INDEX.json.
 ## ipdrunner
 
 - `pr2nd0` [executed] 01 executed/20260824-ipdrunner-01-pr2nd0-harden-ipdrunner-process-lifecycle-dependency-validation-and.ipd.md
+
+## reslife
+
+- `rmwr8s` [pending] 00 pending/20260824-reslife-00-rmwr8s-research-lifecycle-reliability-tool-owned-state-outcome-prov.ipd.md
+- `m383qb` [pending] 01 pending/20260824-reslife-01-m383qb-structural-unrun-detection-and-tool-advanced-drift-checked-r.ipd.md
+- `xjrdjp` [pending] 02 pending/20260824-reslife-02-xjrdjp-tooled-and-validated-research-outcome-and-consumed-by-proven.ipd.md
+- `h40usm` [pending] 03 pending/20260824-reslife-03-h40usm-attention-and-query-surfacing-for-research-pending-and-stale.ipd.md
+
+## vwios6ipd
+
+- `uvsmmy` [pending] 00 pending/20260824-vwios6ipd-00-uvsmmy-ipd-blocks-release-parity-schema-setter-and-check-validation.ipd.md
+- `si3mmt` [pending] 01 pending/20260824-vwios6ipd-01-si3mmt-add-blocks-release-to-ipd-schema-recognized-fields.ipd.md
+- `efnn74` [pending] 02 pending/20260824-vwios6ipd-02-efnn74-aw-ipd-set-blocks-release-and-shared-setter-fix-for-plans-an.ipd.md
+- `7mw7m5` [pending] 03 pending/20260824-vwios6ipd-03-7mw7m5-aw-check-validates-plan-blocks-release-and-attention-surfaci.ipd.md
 
 ## archiveage
 
@@ -227,37 +249,6 @@ Showing the 40 most-recent of 124 Sets; the full manifest is INDEX.json.
 ## awmigrename
 
 - `0qp7u8` [executed] 01 executed/20260818-awmigrename-01-0qp7u8-aw-migrate-layout-optional-rename-on-migrate-to-the-type-md.ipd.md
-
-## awnaming
-
-- `6gy9rf` [executed] 00 executed/20260818-awnaming-00-6gy9rf-awnaming-orchestrator.ipd.md
-- `f8e6y7` [executed] 01 executed/20260818-awnaming-01-f8e6y7-grammar-and-producers.ipd.md
-- `975whv` [executed] 02 executed/20260818-awnaming-02-975whv-rename-and-docs.ipd.md
-
-## awrelease
-
-- `rreixg` [executed] 00 executed/20260818-awrelease-00-rreixg-releases-record-class-and-blocks-release-gate.ipd.md
-- `wl6c7z` [executed] 01 executed/20260818-awrelease-01-wl6c7z-create-the-releases-record-class-and-tree.ipd.md
-- `6wdjss` [executed] 02 executed/20260818-awrelease-02-6wdjss-blocks-release-gate-field-parser-setter-and-validation.ipd.md
-- `i7c6uv` [executed] 03 executed/20260818-awrelease-03-i7c6uv-document-blocks-release-vs-blocked-by-in-agents-md.ipd.md
-
-## awresearchrev
-
-- `z4m7bf` [executed] 01 executed/20260818-awresearchrev-01-z4m7bf-review-and-harden-aw-research-command-surface.ipd.md
-
-## awretrofit
-
-- `pp6y76` [executed] 00 executed/20260817-awretrofit-00-pp6y76-orchestrator.ipd.md
-- `i7um6r` [executed] 01 executed/20260817-awretrofit-01-i7um6r-record-verbs-layout-aware.ipd.md
-- `ckvg3n` [executed] 02 executed/20260817-awretrofit-02-ckvg3n-shipped-docs-and-agents-md.ipd.md
-- `giiowo` [executed] 03 executed/20260817-awretrofit-03-giiowo-release-mechanics.ipd.md
-- `y5zxql` [executed] 04 executed/20260817-awretrofit-04-y5zxql-install-uninstall-migration-safety.ipd.md
-- `euqxi3` [executed] 05 executed/20260817-awretrofit-05-euqxi3-help-docstrings-manifest-deadcode.ipd.md
-- `uh295u` [executed] 06 executed/20260817-awretrofit-06-uh295u-cwd-climb-project-root.ipd.md
-- `u7xtni` [executed] 07 executed/20260817-awretrofit-07-u7xtni-records-taxonomy-cleanup.ipd.md
-- `ksim8l` [executed] 08 executed/20260817-awretrofit-08-ksim8l-install-scaffolder-flat.ipd.md
-- `7m458z` [executed] 09 executed/20260818-awretrofit-09-7m458z-managed-sections-regen.ipd.md
-- `oznad0` [executed] 10 executed/20260818-awretrofit-10-oznad0-install-selfheal-and-shims.ipd.md
 
 ## (singletons: no Set)
 

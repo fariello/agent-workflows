@@ -3000,6 +3000,106 @@
     "status": "not-executed"
   },
   {
+    "date": "2026-08-24",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260824-8t5ghsgi-01-s2ufeo-aw-install-ensures-records-runs-directory-is-gitignored.ipd.md",
+    "plan_id": "s2ufeo",
+    "set_id": "8t5ghsgi",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-24",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260824-awrenamebug-01-5rzupk-fix-aw-rename-order-slug-mangle-preserve-slug-when-order-cha.ipd.md",
+    "plan_id": "5rzupk",
+    "set_id": "awrenamebug",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-24",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260824-reslife-00-rmwr8s-research-lifecycle-reliability-tool-owned-state-outcome-prov.ipd.md",
+    "plan_id": "rmwr8s",
+    "set_id": "reslife",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-24",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260824-reslife-01-m383qb-structural-unrun-detection-and-tool-advanced-drift-checked-r.ipd.md",
+    "plan_id": "m383qb",
+    "set_id": "reslife",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-24",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260824-reslife-02-xjrdjp-tooled-and-validated-research-outcome-and-consumed-by-proven.ipd.md",
+    "plan_id": "xjrdjp",
+    "set_id": "reslife",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-24",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260824-reslife-03-h40usm-attention-and-query-surfacing-for-research-pending-and-stale.ipd.md",
+    "plan_id": "h40usm",
+    "set_id": "reslife",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-24",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260824-vwios6ipd-00-uvsmmy-ipd-blocks-release-parity-schema-setter-and-check-validation.ipd.md",
+    "plan_id": "uvsmmy",
+    "set_id": "vwios6ipd",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-24",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260824-vwios6ipd-01-si3mmt-add-blocks-release-to-ipd-schema-recognized-fields.ipd.md",
+    "plan_id": "si3mmt",
+    "set_id": "vwios6ipd",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-08-24",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260824-vwios6ipd-02-efnn74-aw-ipd-set-blocks-release-and-shared-setter-fix-for-plans-an.ipd.md",
+    "plan_id": "efnn74",
+    "set_id": "vwios6ipd",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-24",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260824-vwios6ipd-03-7mw7m5-aw-check-validates-plan-blocks-release-and-attention-surfaci.ipd.md",
+    "plan_id": "7mw7m5",
+    "set_id": "vwios6ipd",
+    "status": "to-review"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",
