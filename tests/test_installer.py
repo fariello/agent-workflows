@@ -2942,5 +2942,43 @@ class UninstallCompletenessTests(unittest.TestCase):
         self.assertIn(".gitleaksignore", plan.other_files)
 
 
+class AwGitignoreRunsLaneTests(unittest.TestCase):
+    """IPD s2ufeo: `aw install` guarantees `records/runs/` is in .aw/.gitignore (fresh + back-fill)."""
+
+    def test_template_contains_records_runs(self):
+        self.assertIn("records/runs/", INS._AW_GITIGNORE_TEMPLATE)
+
+    def test_fresh_install_gitignores_records_runs_and_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            INS._ensure_aw_gitignore(root)
+            gi = root / ".aw" / ".gitignore"
+            self.assertTrue(gi.is_file())
+            text = gi.read_text(encoding="utf-8")
+            self.assertIn("records/runs/", text)
+            # A second pass must not duplicate the line.
+            INS._ensure_aw_gitignore(root)
+            self.assertEqual(gi.read_text(encoding="utf-8").count("records/runs/"), 1)
+
+    def test_backfill_adds_runs_and_history_once_on_preexisting(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            gi = root / ".aw" / ".gitignore"
+            gi.parent.mkdir(parents=True)
+            # A pre-existing .aw/.gitignore that predates BOTH lanes.
+            gi.write_text(
+                "records/*/untracked/\nsetup-repo-needed.md\n", encoding="utf-8"
+            )
+            INS._ensure_aw_gitignore(root)
+            text = gi.read_text(encoding="utf-8")
+            self.assertEqual(text.count("records/runs/"), 1)
+            self.assertEqual(text.count("records/history.jsonl"), 1)
+            # Idempotent: a second pass adds neither again.
+            INS._ensure_aw_gitignore(root)
+            text2 = gi.read_text(encoding="utf-8")
+            self.assertEqual(text2.count("records/runs/"), 1)
+            self.assertEqual(text2.count("records/history.jsonl"), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

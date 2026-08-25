@@ -4064,6 +4064,9 @@ setup-repo-needed.md
 # The per-repo append-only workflow-history sidecar (record_history): a local activity log
 # appended on every `aw` status write; local-only, never committed (awhistignore).
 records/history.jsonl
+# The ipdrunner IPD-driver per-run durable state (queue state.json, session JSONL logs, prompts,
+# outcomes, driver.lock): box-local, ephemeral working material; never committed (awrunsignore).
+records/runs/
 """
 
 # setupmarker Order 01: the per-repo, per-machine, gitignored "run setup here" reminder that replaces
@@ -4750,6 +4753,13 @@ def _ensure_aw_gitignore(repo_root: Path) -> None:
         additions.append("records/*/untracked/")
     if "setup-repo-needed.md" not in text:
         additions.append("setup-repo-needed.md")
+    # awrunsignore (s2ufeo): back-fill the ipdrunner per-run state lane on an already-installed repo.
+    if "records/runs/" not in text:
+        additions.append("records/runs/")
+    # Co-located pre-existing gap (F-02): `records/history.jsonl` is in the template but was missing
+    # from this back-fill list, so a repo installed before that lane existed never gained it. Add it.
+    if "records/history.jsonl" not in text:
+        additions.append("records/history.jsonl")
     if additions:
         gi.write_text(
             text.rstrip("\n") + "\n" + "\n".join(additions) + "\n", encoding="utf-8"
