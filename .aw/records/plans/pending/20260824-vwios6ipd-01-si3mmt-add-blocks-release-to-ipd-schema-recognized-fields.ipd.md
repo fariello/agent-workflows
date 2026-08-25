@@ -5,7 +5,7 @@
 - Concern: The IPD linter's recognized-field set omits `Blocks-Release`. `agent_workflows/ipd_schema.py` parse records any field not in `META_RECOGNIZED` as an error, surfaced by `aw ipd lint` as IPD-M103 "unknown field" (verified by hand-adding the field to an approved IPD and running `aw ipd lint`). Because `aw ipd lint` gates execution (pre-execution/pre-transition checkpoints), a plan that carries the field currently FAILS lint and cannot be executed. Meanwhile `attention.py` already scans any artifact for `- Blocks-Release:`, so the toolkit is internally inconsistent.
 - Scope: Add `Blocks-Release` to the IPD schema recognized-field set as an optional, single-valued field (a release id6 or `next`), so an IPD may legally carry it and lint clean at every phase. Add a regression test guarding against re-introducing IPD-M103. This is the foundation child of the vwios6ipd Set (Order 00 orchestrator uvsmmy); nothing else can be exercised until the schema accepts the field.
 - Scope-Paths: agent_workflows/ipd_schema.py, tests/test_ipd_schema.py
-- Status: to-review
+- Status: reviewed
 - Set: vwios6ipd
 - Order: 1
 - Highest E allocated: 02
@@ -13,6 +13,7 @@
 - Id: si3mmt
 
 ## Workflow history
+- 2026-08-25 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (spec-sync clarified to N/A)
 - 2026-08-24 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique
 
 - 2026-08-24 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created; child 01 of vwios6ipd Set (schema recognition foundation).
@@ -78,7 +79,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Spec / documentation sync
 
-- The IPD spec (`.aw/records/specs/20260726-1340-01-ipd-spec.spec.md`) lists recognized metadata fields. If it enumerates the optional field set, add `Blocks-Release` there for parity. Otherwise N/A. Verify during execution and update only if the spec explicitly enumerates fields.
+- The IPD spec (`.aw/records/specs/20260726-1340-01-ipd-spec.spec.md:21`) enumerates the REQUIRED and CONDITIONAL metadata fields (`Date`, `Kind`, `Concern`, `Scope`, `Status`, `Author`, `Set`/`Order`, `Approval`, `Highest E allocated`, the Quarantine trio) but it does NOT enumerate the optional single-valued field set: it already OMITS the sibling optional field `Scope-Paths`. So the spec's list is not the authoritative optional-field enumeration (the code's `META_RECOGNIZED` is), and by the established pattern an optional field like `Blocks-Release` does NOT belong in that spec line. Treat spec sync as N/A here (matching how `Scope-Paths` was handled). Do NOT add `Blocks-Release` to spec line 21; if a future decision wants optional fields enumerated in the spec, that is a separate spec edit covering `Scope-Paths` and `Blocks-Release` together, out of scope for this child.
 
 ## Open questions
 
