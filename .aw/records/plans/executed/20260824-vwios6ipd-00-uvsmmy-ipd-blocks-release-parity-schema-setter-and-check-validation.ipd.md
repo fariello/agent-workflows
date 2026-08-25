@@ -5,15 +5,15 @@
 - Concern: AGENTS.md (Release gates) states any backlog item, spec, OR plan may carry a `- Blocks-Release: <release-id6|next>` front-matter field, but for plans this is untrue today: the IPD linter rejects the field as IPD-M103 "unknown field" (so a plan carrying it cannot pass `aw ipd lint` nor the execution checkpoints that call it), there is no `aw ipd set --blocks-release` setter, and `aw check` has no path to validate the field on a plan. Backlog item vwios6 (release-blocker for 2.0.0 / f33nrj).
 - Scope: Achieve full release-gate parity for plans across the three enforcement surfaces (schema/lint, setter, check/attention), split into three dependency-ordered child IPDs so each is small and independently verifiable. Also fixes the shared blocks-release setter path (bug 61qk4a) so the fix is not duplicated as a broken code path.
 - Scope-Paths: agent_workflows/ipd_schema.py, agent_workflows/ipd_lint.py, agent_workflows/status_set.py, agent_workflows/cli.py, agent_workflows/backlog.py, agent_workflows/releases.py, agent_workflows/check_engine.py, agent_workflows/attention.py, tests/
-- Status: approved
+- Status: executed
 - Set: vwios6ipd
 - Order: 0
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: uvsmmy
-- Approval: 2026-08-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-25 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): all three vwios6ipd children (si3mmt schema, efnn74 setter+61qk4a, 7mw7m5 check+attention) executed; V-01..V-03 verified; pre-finalize parity self-mark confirmed plan/backlog/spec agree on release f33nrj; whole suite green (2221 passed, 1 skipped) [Scope reconciliation - in-scope-unmodified agent_workflows/attention.py: edited by child 7mw7m5, not this orchestrator; in-scope-unmodified agent_workflows/backlog.py: edited by child efnn74, not this orchestrator; in-scope-unmodified agent_workflows/check_engine.py: edited by child 7mw7m5, not this orchestrator; in-scope-unmodified agent_workflows/cli.py: edited by child efnn74, not this orchestrator; in-scope-unmodified agent_workflows/ipd_lint.py: orchestrator authors no code; lint behavior delivered via schema child si3mmt; in-scope-unmodified agent_workflows/ipd_schema.py: edited by child si3mmt, not this orchestrator (authors no code); in-scope-unmodified agent_workflows/releases.py: edited by children efnn74/7mw7m5, not this orchestrator; in-scope-unmodified agent_workflows/status_set.py: edited by child efnn74, not this orchestrator; in-scope-unmodified tests/: tests added by the three children, not this orchestrator]
 - 2026-08-25 approved (aw set): status set to approved
 - 2026-08-25 approved (aw set): status set to approved
 - 2026-08-25 approved (aw set): status set to approved

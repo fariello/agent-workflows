@@ -3092,6 +3092,16 @@
   {
     "date": "2026-08-24",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260824-vwios6ipd-00-uvsmmy-ipd-blocks-release-parity-schema-setter-and-check-validation.ipd.md",
+    "plan_id": "uvsmmy",
+    "set_id": "vwios6ipd",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-24",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260824-vwios6ipd-01-si3mmt-add-blocks-release-to-ipd-schema-recognized-fields.ipd.md",
@@ -3157,16 +3167,6 @@
     "path": "pending/20260824-awocrunner-00-alkapp-graduate-the-opencode-ipd-runner-into-the-aw-oc-command-grou.ipd.md",
     "plan_id": "alkapp",
     "set_id": "awocrunner",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-24",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260824-vwios6ipd-00-uvsmmy-ipd-blocks-release-parity-schema-setter-and-check-validation.ipd.md",
-    "plan_id": "uvsmmy",
-    "set_id": "vwios6ipd",
     "status": "approved"
   },
   {
