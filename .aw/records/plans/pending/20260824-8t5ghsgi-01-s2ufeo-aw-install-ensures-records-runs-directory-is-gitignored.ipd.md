@@ -5,7 +5,7 @@
 - Concern: The ipdrunner IPD driver writes per-run durable state under `.aw/records/runs/<run-id>/` (queue state.json, session JSONL logs, prompts, outcomes, driver.lock). This is box-local, ephemeral working material that must never be committed. It was manually added to `.aw/.gitignore` in this repo, but a fresh `aw install` does not guarantee it, so any new repo shows ipdrunner run dirs as untracked noise. Backlog item 8t5ghs (release-blocker for 2.0.0 / f33nrj).
 - Scope: Make `aw install` (the per-repo installer that lays down the framework-owned `.aw/` tree including `.aw/.gitignore`) guarantee `records/runs/` is present in `.aw/.gitignore`, idempotently, alongside the existing ignored lanes. This covers both a fresh install (via the gitignore template) and an already-installed repo (via the back-fill path). Add an install test asserting a fresh install produces a `.aw/.gitignore` that ignores `records/runs/`.
 - Scope-Paths: agent_workflows/engine.py, tests/test_installer.py
-- Status: to-review
+- Status: reviewed
 - Set: 8t5ghsgi
 - Order: 1
 - Highest E allocated: 03
@@ -13,6 +13,7 @@
 - Id: s2ufeo
 
 ## Workflow history
+- 2026-08-25 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (include co-located history.jsonl back-fill per Fix Bar + test it), OQ-01 marked resolved
 - 2026-08-24 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique
 
 - 2026-08-24 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created; single-child plan for backlog item 8t5ghs (install must gitignore records/runs/). NOTE: release-blocker intent (`Blocks-Release: next`, gates 2.0.0 / f33nrj) is DEFERRED from front matter until the vwios6ipd Set makes plans able to carry the field without failing `aw ipd lint` (IPD-M103). Interim intent is tracked on backlog item 8t5ghs and the f33nrj release record; re-mark via `aw ipd set --blocks-release next` once that Set lands.
@@ -34,16 +35,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: Idempotent back-fill for existing installs
 
-- [ ] E-02 In `agent_workflows/engine.py`, extend `_ensure_aw_gitignore` (`engine.py:4737-4756`) to back-fill `records/runs/` when the file exists but lacks the line, mirroring the existing `if "<entry>" not in text: additions.append(...)` pattern used for `records/*/untracked/` and `setup-repo-needed.md`. Do not duplicate the line if already present. (Optionally also back-fill the pre-existing gap where `records/history.jsonl` is in the template but not the back-fill list; include ONLY if trivially co-located, otherwise leave for its own item and note it.)
+- [ ] E-02 In `agent_workflows/engine.py`, extend `_ensure_aw_gitignore` (`engine.py:4737-4756`) to back-fill `records/runs/` when the file exists but lacks the line, mirroring the existing `if "<entry>" not in text: additions.append(...)` pattern used for `records/*/untracked/` and `setup-repo-needed.md` (add one more `if "records/runs/" not in text: additions.append("records/runs/")` clause). Do not duplicate the line if already present. ALSO close the co-located pre-existing gap in the SAME `additions` block: `records/history.jsonl` is in the template but missing from the back-fill list, so a repo installed before that lane existed never gains it - add the matching `if "records/history.jsonl" not in text: additions.append("records/history.jsonl")` clause. This is one adjacent line, zero added risk, and closes the latent bug F-02 names rather than leaving it; both back-fills share the existing single write path.
   - Depends on: none
-  - Expected outcome: re-running install (or the ensure path) on a repo whose `.aw/.gitignore` predates this change adds `records/runs/` exactly once; running again is a no-op.
+  - Expected outcome: re-running install (or the ensure path) on a repo whose `.aw/.gitignore` predates this change adds `records/runs/` (and, if missing, `records/history.jsonl`) exactly once each; running again is a no-op.
   - Execution state: pending
 
 ### Task group 3: Install test
 
-- [ ] E-03 In `tests/test_installer.py`, add a test asserting a fresh install produces a `.aw/.gitignore` whose contents include `records/runs/`, and (idempotency) that a second `_ensure_aw_gitignore` pass does not duplicate the line. If a back-fill fixture is feasible, also assert a pre-existing gitignore missing the line gains it exactly once.
+- [ ] E-03 In `tests/test_installer.py`, add a test asserting a fresh install produces a `.aw/.gitignore` whose contents include `records/runs/`, and (idempotency) that a second `_ensure_aw_gitignore` pass does not duplicate the line. Add a back-fill fixture: write a pre-existing `.aw/.gitignore` missing BOTH `records/runs/` and `records/history.jsonl`, run `_ensure_aw_gitignore`, and assert each is added exactly once (guarding the E-02 co-located history.jsonl back-fill too) and a second pass is a no-op.
   - Depends on: E-01, E-02
-  - Expected outcome: passing test proving both the fresh-install guarantee and idempotency.
+  - Expected outcome: passing test proving the fresh-install guarantee, the `records/runs/` + `records/history.jsonl` back-fill, and idempotency.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -70,7 +71,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Deferred / out of scope (with reason)
 
-- Fully reconciling the template/back-fill divergence for `records/history.jsonl` is out of scope unless trivially co-located with E-02; it is a pre-existing inconsistency with its own remediation and is noted, not required here.
+- The `records/history.jsonl` back-fill divergence is now INCLUDED in E-02 (it is trivially co-located - one adjacent line in the same `additions` block, zero added risk - so the Fix Bar favors closing it here rather than deferring). No broader template/back-fill audit beyond these two lanes is in scope.
 - No change to what ipdrunner writes or where; only the ignore guarantee.
 
 ## Scope check
@@ -93,9 +94,9 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ### OQ-01: Should the entry be `records/runs/` (trailing slash, directory) to match the sibling `records/*/untracked/` style?
 
 - Blocking: no
-- Status: deferred
+- Status: resolved
 - Owner: author
-- Resolution or deferral rationale: DEFERRED to a trivial execution decision. Use `records/runs/` (trailing slash, directory form) to match the existing directory-ignore style (`records/*/untracked/`) and the manual entry already in this repo's `.aw/.gitignore`. Non-blocking.
+- Resolution or deferral rationale: RESOLVED. Use `records/runs/` (trailing slash, directory form) to match the existing directory-ignore style (`records/*/untracked/`) and the manual entry already present in this repo's `.aw/.gitignore` (verified: `.aw/.gitignore:15`). Non-blocking.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -107,7 +108,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: pasted test/manual output showing a pre-existing gitignore missing the line gains it exactly once, and a second pass is a no-op (no duplicate).
+  - Required evidence: pasted test/manual output showing a pre-existing gitignore missing `records/runs/` and `records/history.jsonl` gains each exactly once, and a second pass is a no-op (no duplicate lines).
   - Observed evidence:
   - Result: pending
 
