@@ -5,15 +5,15 @@
 - Concern: `aw check`'s blocks-release dangling-reference validation (`releases.check_blocks_release`, `releases.py:137-162`) scans only the backlog and specs trees; the plans tree is NOT scanned, so a plan carrying a dangling `- Blocks-Release:` (pointing at a non-existent release) is never flagged. AGENTS.md and the vwios6 acceptance criteria require `aw check` to validate a plan's Blocks-Release the same as backlog/specs. Separately, `aw attention`'s `release_blockers` scan (`attention.py:477-494`) already recognizes any artifact carrying the field, so a plan carrying it should surface once child 02 can persist it; this child confirms that surfacing end to end.
 - Scope: Extend `aw check` so a plan's `Blocks-Release` is validated (clean when it resolves via `releases.resolve_release`, flagged `check.blocks-release-dangling` when it does not), reusing the existing shared release-resolution logic; and add coverage confirming `aw attention` lists a plan carrying `Blocks-Release: next` in the release-blocker set. Child 03 of the vwios6ipd Set; depends on schema child 01 and setter child 02.
 - Scope-Paths: agent_workflows/releases.py, agent_workflows/check_engine.py, tests/test_blocks_release.py, tests/test_attention_priority_blocker.py
-- Status: approved
+- Status: executed
 - Set: vwios6ipd
 - Order: 3
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 7mw7m5
-- Approval: 2026-08-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-25 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Validate plan Blocks-Release in aw check (plans added to check_blocks_release scan set) + attention plans-reader blocks_release population; all E performed, all V pass with pasted evidence [Scope reconciliation - in-scope-unmodified agent_workflows/attention.py: _plans_record now populates Item.blocks_release; committed in f38392e before the begin baseline; in-scope-unmodified agent_workflows/check_engine.py: no edit needed - option (a) flows through the existing sweep invocation (DECISION 09-7mw7m5-D2); in-scope-unmodified agent_workflows/releases.py: added 'plans' to check_blocks_release scan set (OQ-01 option a); committed in f38392e before the begin baseline; in-scope-unmodified tests/test_attention_priority_blocker.py: PlanReleaseBlockerSurfacingTests added in f38392e; in-scope-unmodified tests/test_blocks_release.py: PlanBlocksReleaseCheckTests added in f38392e]
 - 2026-08-25 approved (aw set): status set to approved
 - 2026-08-25 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (plans reader blocks_release population + corrected convention), PR-002 (check-all sweep gating in E-01/V-01)
 - 2026-08-24 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique
