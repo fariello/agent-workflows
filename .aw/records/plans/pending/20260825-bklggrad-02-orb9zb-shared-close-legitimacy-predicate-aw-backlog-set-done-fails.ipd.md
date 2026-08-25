@@ -4,8 +4,8 @@
 - Kind: child
 - Concern: `aw backlog set done` on an item carrying `- Blocks-Release: <R>` currently drops it from the release-blocker view with NO check (backlog.py:426 gates only `-> blocked`), so a release gate can silently vanish when nothing has shipped and no plan inherited it. The agreed policy (design discussion 2026-08-25) is: a backlog item translated into a plan should be closed `done`, but a blocking item may only leave the active-blocker set if the gate is provably preserved or released. This must be a deterministic boundary, not prose, and it must be ONE shared predicate that the setter, `aw check`, and the child-03 hook all call so they cannot diverge (the status_untooled_gate.py:33-45 pattern: hook delegates to a single check_engine rule).
 - Scope: Implement the shared close-legitimacy predicate and wire it at the setter + check surfaces (child 03 adds the hook). (1) Predicate: a single function (in check_engine.py) `evaluate_blocking_close(repo_root, item_path, target_status, evidence=None)` that, for an item carrying `Blocks-Release: <R>`, returns per-transition severity: `-> done` is LEGITIMATE iff one of {HANDOFF: a plan carrying `From-Backlog: <this id6>` AND `Blocks-Release: <R>` (same release) exists; SATISFIED: a resolvable `evidence` citation - generalize the specs `_evidence_resolvable` (specs.py:673) to accept an existing artifact path (executed IPD, a records file, a committed doc) not only executed IPDs; DE-GATED: the item no longer carries Blocks-Release, i.e. it was cleared in/before this transition}, else ILLEGITIMATE (fail-closed). (2) Setter gate: in `agent_workflows/backlog.py` `run_set`, before writing, if new_status == "done" and the item carries Blocks-Release and none of the three paths hold, REFUSE with a teaching error naming all three fixes (`--from-backlog` plan, `--evidence <path>`, or `--blocks-release -`); add `--evidence` to `aw backlog set` (cli.py). (3) WARN transitions (allowed, never block): blocking `-> parked` and priority-demote-of-a-blocker emit `aw check`/`attention` warnings (severity warn, not error). (4) `aw check` consistency rules reusing the predicate: `check.blocking-item-closed-without-gate` (an already-`done` blocking item with no preserved/satisfied gate - the backstop for a hand-edit bypass), `check.from-backlog-gate-mismatch` (a `From-Backlog` plan whose `Blocks-Release` != the item's), and `check.orphaned-live-blocker` (a blocking item already graduated to a blocking plan but still `open` - warn). Everything else (priority promote, open<->parked non-blocking, block/unblock, reopen) is unchecked.
-- Scope-Paths: agent_workflows/backlog.py, agent_workflows/check_engine.py, agent_workflows/cli.py, agent_workflows/releases.py, agent_workflows/attention.py, agent_workflows/specs.py, tests/
-- Status: draft
+- Scope-Paths: agent_workflows/backlog.py, agent_workflows/check_engine.py, agent_workflows/cli.py, agent_workflows/releases.py, agent_workflows/attention.py, agent_workflows/specs.py, tests/, AGENTS.md
+- Status: reviewed
 - Set: bklggrad
 - Order: 2
 - Highest E allocated: 06
@@ -13,6 +13,8 @@
 - Id: orb9zb
 
 ## Workflow history
+- 2026-08-25 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (gate contract) FIXED, PR-002 (AGENTS.md Scope-Paths) FIXED, PR-003 (status) FIXED, PR-004 (de-gate same-call ordering) FIXED
+- 2026-08-25 reviewed (aw set): plan-review: hardened (AGENTS.md Scope-Paths, de-gate ordering clarified, full execution-contract gate)
 
 - 2026-08-25 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.
 
@@ -37,9 +39,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: setter gate + --evidence
 
-- [ ] E-04 In `agent_workflows/backlog.py` `run_set`, before rendering/writing, call the predicate when `new_status == "done"`; on an illegitimate blocking close, REFUSE (return nonzero) with a teaching error listing all three fixes. Add `--evidence <path>` to `aw backlog set` in `agent_workflows/cli.py` (dest `evidence`).
+- [ ] E-04 In `agent_workflows/backlog.py` `run_set`, when `new_status == "done"`, call the predicate on the item's POST-mutation state (after any same-call `--blocks-release -`/`--evidence` args are applied to the in-memory item, before the file is rendered/written), so a `done` + `--blocks-release -` in ONE call takes the DE-GATED path; on an illegitimate blocking close, REFUSE (return nonzero) with a teaching error listing all three fixes and do NOT write. Add `--evidence <path>` to `aw backlog set` in `agent_workflows/cli.py` (dest `evidence`).
   - Depends on: E-02, E-03
-  - Expected outcome: `aw backlog set done <blocking-item>` fails with the teaching error; adding a `From-Backlog` plan, or `--evidence <resolvable>`, or `--blocks-release -` each makes it succeed.
+  - Expected outcome: `aw backlog set done <blocking-item>` fails with the teaching error and writes nothing; adding a `From-Backlog` plan, or `--evidence <resolvable>`, or a same-call `--blocks-release -` (de-gate) each makes it succeed. The predicate sees the post-arg state so de-gate-and-close in one command is honored.
   - Execution state: pending
 
 ### Task group 3: check consistency rules + warns
@@ -136,4 +138,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-TODO: approval + execution gate prose (execution contract, post-gate lifecycle move).
+Child 02 of the `bklggrad` Set; it DEPENDS on child 01 (the `From-Backlog` field + resolver it consumes) - execute 01 first. Child 03 (the pre-commit hook) delegates to this child's `evaluate_blocking_close`; do not implement the hook here. The dogfood close of `3gr7fk` is the orchestrator's step, after 01 and 02 land.
+
+Execution contract (binds any agent that executes this plan):
+
+1. Open questions: OQ-01 is `Blocking: no` (start with a resolvable in-tree artifact path; a commit-hash evidence form is a deferred later extension). No blocking question remains. If OQ-01 becomes blocking, STOP and report.
+2. Scope fence: touch ONLY the paths in `Scope-Paths` (`backlog.py`, `check_engine.py`, `cli.py`, `releases.py`, `attention.py`, `specs.py`, `tests/`, and `AGENTS.md` for the doc note in Spec / documentation sync) plus this plan's own file. The `specs.py` change MUST keep `implementing -> implemented` behavior unchanged (it may retain its own stricter predicate); the generalized resolver is additive. Do NOT expand scope; if it seems to need more, STOP and report.
+3. Honesty rule (hard MUST): when you report tests passed, paste the ACTUAL runner output for each V-item (predicate fail-closed + three paths + two warns, evidence resolver + specs non-regression, setter teaching error + three success paths, the three check rules, warn-only exit codes). Never claim success you did not run.
+4. Commits: commit ONLY this plan's own changed files, path-scoped (`git commit -- <path>`); never `git add -A`/bare/`-a`; never push.
+5. Lifecycle move on completion: perform the terminal transition via `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply` (runs the pre/pre-transition/post-transition gates, verifies changed paths stayed within `Scope-Paths`, appends the attributed history line, sets `Status: executed`, `git mv`s to `.aw/records/plans/executed/`, path-scoped lifecycle commit). Do NOT hand-edit the terminal transition.
+
+This review and gate are NOT approval: human sign-off (`Status: approved`) is a separate, required step before execution.
