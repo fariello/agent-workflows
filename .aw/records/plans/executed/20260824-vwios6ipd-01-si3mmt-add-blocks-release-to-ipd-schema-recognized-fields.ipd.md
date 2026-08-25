@@ -5,15 +5,15 @@
 - Concern: The IPD linter's recognized-field set omits `Blocks-Release`. `agent_workflows/ipd_schema.py` parse records any field not in `META_RECOGNIZED` as an error, surfaced by `aw ipd lint` as IPD-M103 "unknown field" (verified by hand-adding the field to an approved IPD and running `aw ipd lint`). Because `aw ipd lint` gates execution (pre-execution/pre-transition checkpoints), a plan that carries the field currently FAILS lint and cannot be executed. Meanwhile `attention.py` already scans any artifact for `- Blocks-Release:`, so the toolkit is internally inconsistent.
 - Scope: Add `Blocks-Release` to the IPD schema recognized-field set as an optional, single-valued field (a release id6 or `next`), so an IPD may legally carry it and lint clean at every phase. Add a regression test guarding against re-introducing IPD-M103. This is the foundation child of the vwios6ipd Set (Order 00 orchestrator uvsmmy); nothing else can be exercised until the schema accepts the field.
 - Scope-Paths: agent_workflows/ipd_schema.py, tests/test_ipd_schema.py
-- Status: approved
+- Status: executed
 - Set: vwios6ipd
 - Order: 1
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: si3mmt
-- Approval: 2026-08-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-25 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Recognize Blocks-Release as an optional IPD field (META_BLOCKS_RELEASE in META_RECOGNIZED); plan carrying it lints conforming (no IPD-M103); regression tests added; all E performed, all V pass with pasted evidence [Scope reconciliation - in-scope-unmodified agent_workflows/ipd_schema.py: implemented + committed in 7ecfb0a just before the begin baseline; META_BLOCKS_RELEASE added to META_RECOGNIZED; in-scope-unmodified tests/test_ipd_schema.py: BlocksReleaseSchemaTests added in 7ecfb0a; 59 passed]
 - 2026-08-25 approved (aw set): status set to approved
 - 2026-08-25 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (spec-sync clarified to N/A)
 - 2026-08-24 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique

@@ -50,7 +50,7 @@ Showing the 40 most-recent of 132 Sets; the full manifest is INDEX.json.
 ## vwios6ipd
 
 - `uvsmmy` [pending] 00 pending/20260824-vwios6ipd-00-uvsmmy-ipd-blocks-release-parity-schema-setter-and-check-validation.ipd.md
-- `si3mmt` [pending] 01 pending/20260824-vwios6ipd-01-si3mmt-add-blocks-release-to-ipd-schema-recognized-fields.ipd.md
+- `si3mmt` [executed] 01 executed/20260824-vwios6ipd-01-si3mmt-add-blocks-release-to-ipd-schema-recognized-fields.ipd.md
 - `efnn74` [pending] 02 pending/20260824-vwios6ipd-02-efnn74-aw-ipd-set-blocks-release-and-shared-setter-fix-for-plans-an.ipd.md
 - `7mw7m5` [pending] 03 pending/20260824-vwios6ipd-03-7mw7m5-aw-check-validates-plan-blocks-release-and-attention-surfaci.ipd.md
 
