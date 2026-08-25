@@ -5,15 +5,15 @@
 - Concern: The research subsystem's reliability half is unimplemented. Per spec 5tapom (follow-on to the implemented research-org spec), `aw research new` writes `status: intake`, `outcome: none-yet`, `consumed-by: []` only at CREATION and nothing ever advances/sets/validates them, so `intake` became a permanent default (11 docs stuck there on 2026-08-24, 10 already run+adopted), `aw attention` maps `intake -> ready` (finished research masquerades as actionable), "which research must I still run?" is unanswerable from the tool, and provenance (`consumed-by`) is populated on ~1 of 85 docs and never validated. This violates the parent spec's B1/B2/H2.
 - Scope: Achieve research-lifecycle reliability across three surfaces (state advancement + structural unrun detection; tooled+validated outcome/consumed-by provenance; attention/query surfacing), split into three dependency-ordered child IPDs so each is small and independently verifiable. Implements spec 5tapom. No change to the filename grammar, the four `status` values, the `outcome` vocabulary, or the shard layout.
 - Scope-Paths: grandfathered
-- Status: approved
+- Status: executed
 - Set: reslife
 - Order: 0
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: rmwr8s
-- Approval: 2026-08-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-25 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): all three reslife children (m383qb, xjrdjp, h40usm) executed; V-01..V-03 verified with pasted evidence; whole suite green (2221 passed, 1 skipped)
 - 2026-08-25 approved (aw set): status set to approved
 - 2026-08-25 reviewed (aw set): plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed
 - 2026-08-25 to-review (aw set): Authored complete and lint-conforming; ready for plan-review.
