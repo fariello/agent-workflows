@@ -10,7 +10,7 @@ Showing the 40 most-recent of 132 Sets; the full manifest is INDEX.json.
 
 ## awocrunner
 
-- `alkapp` [pending] 00 pending/20260824-awocrunner-00-alkapp-graduate-the-opencode-ipd-runner-into-the-aw-oc-command-grou.ipd.md
+- `alkapp` [executed] 00 executed/20260824-awocrunner-00-alkapp-graduate-the-opencode-ipd-runner-into-the-aw-oc-command-grou.ipd.md
 - `ckxgx4` [executed] 01 executed/20260824-awocrunner-01-ckxgx4-extract-runipd-core-into-the-agent-workflows-package-unchang.ipd.md
 - `nfo184` [executed] 02 executed/20260824-awocrunner-02-nfo184-add-aw-oc-opencode-subcommand-group-dispatching-to-the-packa.ipd.md
 - `4tlkgj` [executed] 03 executed/20260824-awocrunner-03-4tlkgj-reduce-tools-ipdrunner-runipd-to-a-thin-compatibility-shim.ipd.md

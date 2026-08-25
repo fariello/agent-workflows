@@ -5,15 +5,15 @@
 - Concern: `tools/ipdrunner/runipd.py` (the restartable, non-interactive OpenCode driver that reviews `to-review` plans and executes `approved` ones, persisting durable run state under `.aw/records/runs/`) is genuinely useful but only runnable from a source checkout: it is not packaged (no pyproject/MANIFEST reference), not installed by `aw install`, and the `aw` entrypoint (`agent_workflows.cli:main`) cannot reach it. Users of a pip-installed toolkit have no way to run it. The design ethos (versioning.py: runtime tools stay dumb once copied) argues against copying the 1696-line driver into every repo; instead its importable core should live in the `agent_workflows` package and be exposed as a first-class `aw oc runipd` subcommand.
 - Scope: Graduate runipd into the toolkit as `aw oc runipd` (alias `aw opencode runipd`) by (1) moving its core into the package unchanged, (2) adding an `oc`/`opencode` host subcommand group that dispatches into it, (3) reducing `tools/ipdrunner/runipd.py` to a thin compatibility shim so existing invocations keep working, and (4) syncing docs and filing a non-blocking medium backlog item for output normalization and graduating the remaining tools (runagy/agy_run, pwatch, agy sessions/view). Behavior-preserving move; no redesign of the runner or its output rendering in this Set.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/cli.py, tools/ipdrunner/runipd.py, tools/ipdrunner/test_runipd.py, tests/, tools/README.md, .aw/records/backlog/
-- Status: approved
+- Status: executed
 - Set: awocrunner
 - Order: 0
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: alkapp
-- Approval: 2026-08-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-25 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): graduate runipd -> aw oc runipd complete; 4 children (ckxgx4 core, nfo184 oc group, 4tlkgj shim, suks59 docs+backlog) executed; V-01..V-04 verified; cross-IPD parity confirmed (one source of truth, identical dual-invocation status output, runbook drift corrected); whole suite green (2221 passed, 1 skipped) [Scope reconciliation - in-scope-unmodified .aw/records/backlog/: deferred-work backlog item filed by child suks59, not this orchestrator; in-scope-unmodified agent_workflows/cli.py: edited by child nfo184 (aw oc group), not this orchestrator; in-scope-unmodified agent_workflows/oc_runipd.py: created by child ckxgx4, not this orchestrator (authors no code); in-scope-unmodified tests/: new test surfaces added by children ckxgx4/nfo184/4tlkgj, not this orchestrator; in-scope-unmodified tools/README.md: updated by child suks59, not this orchestrator; in-scope-unmodified tools/ipdrunner/runipd.py: reduced to shim by child 4tlkgj, not this orchestrator; in-scope-unmodified tools/ipdrunner/test_runipd.py: migrated by child ckxgx4, not this orchestrator]
 - 2026-08-25 approved (aw set): status set to approved
 - 2026-08-25 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (whole-suite gate + path-preservation + runbook drift in cross-IPD validation), PR-002 (OQ-01 marked resolved)
 - 2026-08-25 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique

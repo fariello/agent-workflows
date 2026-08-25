@@ -2962,6 +2962,16 @@
   {
     "date": "2026-08-24",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260824-awocrunner-00-alkapp-graduate-the-opencode-ipd-runner-into-the-aw-oc-command-grou.ipd.md",
+    "plan_id": "alkapp",
+    "set_id": "awocrunner",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-24",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260824-awocrunner-01-ckxgx4-extract-runipd-core-into-the-agent-workflows-package-unchang.ipd.md",
@@ -3158,16 +3168,6 @@
     "plan_id": "pprchd",
     "set_id": "awhistignore",
     "status": "not-executed"
-  },
-  {
-    "date": "2026-08-24",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260824-awocrunner-00-alkapp-graduate-the-opencode-ipd-runner-into-the-aw-oc-command-grou.ipd.md",
-    "plan_id": "alkapp",
-    "set_id": "awocrunner",
-    "status": "approved"
   },
   {
     "date": "2026-08-07",
