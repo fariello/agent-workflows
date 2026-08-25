@@ -6,10 +6,10 @@ order: 00
 topic: [workflow-reliability, process-adherence, agent-harness, enforcement, tooling-ergonomics]
 model:
 kind: research-prompt
-status: intake
-outcome: none-yet
+status: reference
+outcome: adopted
 summary: How to make agent-workflow process steps (aw set, aw ipd begin/finalize, IPD authoring, path-scoped commits) reliably adhered-to by untrained heterogeneous coding agents
-consumed-by: []
+consumed-by: [79li67]
 ---
 
 <!-- aw-prompt: Kind: research | Status: pending | Created: 2026-08-23 | Author: opencode (Claude Opus 4.8) | Targets: GPT-5.6, Claude Opus 4.8/5, Gemini 3.x, and capable successor coding/research models with web access | Concerns: reliable agent process-adherence, behavioral enforcement vs soft prose, tooling ergonomics, detection of process violations, cross-agent portability | Results-go-to: FILED under .aw/records/research/. This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->

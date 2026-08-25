@@ -6,10 +6,10 @@ order: 00
 topic: [workflow-reliability, anti-false-completion, portability, orchestration, verification]
 model:
 kind: research-prompt
-status: intake
-outcome: none-yet
+status: reference
+outcome: adopted
 summary: Originating prompt: optimal-architecture research + conformant IPD Set for the reusable coding-agent workflows (run on GPT 5.6 Sol Extra High)
-consumed-by: []
+consumed-by: [p070c8]
 ---
 
 <!-- aw-prompt: Kind: research | Status: pending | Created: 2026-08-21 | Author: Codex (GPT-5.6 Sol) | Targets: Codex GPT-5.6 Sol, Gemini 3.7 Flash Medium, Claude Opus 5, GLM 5.3, and capable successor coding models | Concerns: workflow reliability, anti-false-completion controls, cross-model and cross-host portability, skills, orchestration, context isolation, verification, and coding-agent effectiveness | Results-go-to: FILED under .aw/records/research/ and .aw/records/plans/ once completed. This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->

@@ -6,10 +6,10 @@ order: 01
 topic: [workflow-reliability, anti-false-completion, portability, orchestration, verification]
 model:
 kind: research-report
-status: intake
-outcome: none-yet
+status: reference
+outcome: adopted
 summary: Optimal architecture research, workflow inventory, false-completion threat model, matrices, and recommendation
-consumed-by: []
+consumed-by: [p070c8]
 ---
 
 # Agent Workflows Optimal Architecture Research

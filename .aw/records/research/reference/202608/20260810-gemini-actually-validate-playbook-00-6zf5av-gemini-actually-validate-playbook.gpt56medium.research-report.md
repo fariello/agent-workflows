@@ -6,10 +6,10 @@ order: 00
 topic: [agent-reliability, gemini, antigravity, validation, ci-gates]
 model: gpt56medium
 kind: research-report
-status: intake
-outcome: none-yet
+status: reference
+outcome: adopted
 summary: Gemini/agy-specific controls to make headless Gemini actually run validation and stop green-washing
-consumed-by: []
+consumed-by: [p1ku23]
 ---
 
 # Gemini Actually Validate Playbook

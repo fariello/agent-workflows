@@ -6,10 +6,10 @@ order: 03
 topic: [roadmap, plan-index, traceability]
 model:
 kind: roadmap
-status: intake
-outcome: none-yet
+status: reference
+outcome: adopted
 summary: Dependency-ordered IPD index, critical path, execution guidance, and human gates for the awoptimize plan Set
-consumed-by: []
+consumed-by: [p070c8]
 ---
 
 # Agent Workflows Optimal Architecture: IPD Index and Traceability Map

@@ -6,10 +6,10 @@ order: 04
 topic: [agent-adherence, enforcement, hooks, ci, lifecycle]
 model: reconciliation
 kind: findings
-status: intake
-outcome: none-yet
+status: reference
+outcome: adopted
 summary: Aggregate finding: layered defense-in-depth for reliable process adherence (definitive synthesis of the 3 model reports)
-consumed-by: []
+consumed-by: [3gr7fk]
 ---
 
 # Aggregate Research Finding: Reliable Process Adherence for Heterogeneous Coding Agents

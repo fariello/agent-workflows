@@ -6,10 +6,10 @@ order: 02
 topic: [evidence, provenance, experiments]
 model:
 kind: reference-research
-status: intake
-outcome: none-yet
+status: reference
+outcome: adopted
 summary: Evidence and source appendix: source ledger, repository evidence, experiment ledger, unverified claims, and probes
-consumed-by: []
+consumed-by: [p070c8]
 ---
 
 # Agent Workflows Optimal Architecture: Evidence and Source Appendix

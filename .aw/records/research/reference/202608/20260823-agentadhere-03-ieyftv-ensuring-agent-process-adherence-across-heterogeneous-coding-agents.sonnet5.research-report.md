@@ -6,10 +6,10 @@ order: 03
 topic: [agent-adherence, enforcement, hooks, ci, lifecycle]
 model: sonnet5
 kind: research-report
-status: intake
-outcome: none-yet
+status: reference
+outcome: adopted
 summary: Why soft prose fails; defense-in-depth for heterogeneous coding agents (Sonnet 5)
-consumed-by: []
+consumed-by: [79li67]
 ---
 
 # Agent Process Adherence: Why Soft Directives Fail and What Actually Works
