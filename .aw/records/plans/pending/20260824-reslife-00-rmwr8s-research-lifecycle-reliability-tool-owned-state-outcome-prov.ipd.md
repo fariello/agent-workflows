@@ -32,24 +32,24 @@ This orchestrator does not itself edit code; each `E-*` below is the delivery of
 
 ### Task group 1: State advancement and unrun detection (foundation)
 
-- [ ] E-01 Deliver child IPD Order 01 (m383qb): structural UNRUN detection (a set whose `NN=00` is a `research-prompt` with no `NN>=01` siblings is unrun, derived from the manifest) and tool-advanced, drift-checked state - `aw research index --check`/`aw check` flag an `intake`/`active` doc whose set is RUN or is cited by an executed artifact, plus a tool-assisted reviewed triage classifier (reproducing the 2026-08-24 manual pass).
+- [x] E-01 Deliver child IPD Order 01 (m383qb): structural UNRUN detection (a set whose `NN=00` is a `research-prompt` with no `NN>=01` siblings is unrun, derived from the manifest) and tool-advanced, drift-checked state - `aw research index --check`/`aw check` flag an `intake`/`active` doc whose set is RUN or is cited by an executed artifact, plus a tool-assisted reviewed triage classifier (reproducing the 2026-08-24 manual pass).
   - Depends on: none
   - Expected outcome: all three of child 01's deliverables land and are verified: (a) unrun detection is computed from set structure; (b) `--check` flags stale state; (c) the tool-assisted triage classifier previews the 2026-08-24 cohort classification and applies only on confirmation; a regression test asserts each.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Outcome and provenance tooling
 
-- [ ] E-02 Deliver child IPD Order 02 (xjrdjp): make `outcome` and `consumed-by` tooled and validated - `aw research set-outcome <id6> --to <...> [--consumed-by <id6,...>]`, carry `consumed-by` in `INDEX.json`, and validate in `aw research index --check`/`aw check` (dangling `consumed-by` flagged; `outcome: adopted` requires a non-empty `consumed-by`).
+- [x] E-02 Deliver child IPD Order 02 (xjrdjp): make `outcome` and `consumed-by` tooled and validated - `aw research set-outcome <id6> --to <...> [--consumed-by <id6,...>]`, carry `consumed-by` in `INDEX.json`, and validate in `aw research index --check`/`aw check` (dangling `consumed-by` flagged; `outcome: adopted` requires a non-empty `consumed-by`).
   - Depends on: E-01
   - Expected outcome: `aw research set-outcome` writes/updates/clears the fields; `INDEX.json` carries `consumed-by`; `--check` flags dangling refs and adopted-without-consumer; regression tests assert each.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Attention and query surfacing
 
-- [ ] E-03 Deliver child IPD Order 03 (h40usm): add `aw research pending` (or `find --unrun`) listing unrun prompts, and change `aw attention` so plain `intake` that is finished/cited no longer files under `ready` (surface it as stale-state-to-promote), while genuinely-unrun research remains actionable.
+- [x] E-03 Deliver child IPD Order 03 (h40usm): add `aw research pending` (or `find --unrun`) listing unrun prompts, and change `aw attention` so plain `intake` that is finished/cited no longer files under `ready` (surface it as stale-state-to-promote), while genuinely-unrun research remains actionable.
   - Depends on: E-01, E-02
   - Expected outcome: `aw research pending` lists exactly the unrun prompts; `aw attention` no longer shows finished-but-unpromoted research as `ready`; regression tests assert both.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -107,20 +107,20 @@ Dependency rationale: 01 establishes the structural unrun/RUN signal and the dri
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: child 01 moved to `executed/` with ALL of its own V-items (its V-01/V-02/V-03) verified; pasted test output showing (a) structural unrun detection (run set excluded, bare prompt included), (b) `--check` flagging a stale `intake` doc and clean after promotion, and (c) the triage classifier previewing then applying the 2026-08-24 cohort classification; the regression tests named and shown passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: child `20260824-reslife-01-m383qb-structural-unrun-detection-and-tool-advanced-drift-checked-r.ipd.md` is `Status: executed` under `.aw/records/plans/executed/` with its own V-01/V-02/V-03 all `Result: pass`; product commit 59fff46 (`feat(research): structural unrun detection + stale-state drift check + triage classifier (m383qb)`), evidence 124feba, finalize 8f0c5da. (a) `UnrunDerivationTests.test_derive_unrun_excludes_run_set_includes_bare_prompt ... ok` (asserts `derive_unrun_prompts -> ['prmpt1']`, `unrun_set_ids == {'unrunset'}`, `run_prompt_set_ids == {'runset'}`); (b) `StaleStateDriftTests.test_trigger_a_run_set_flags_intake_and_clean_after_promote ... ok` and `test_trigger_b_cited_by_executed_plan_flags_but_pending_does_not ... ok`; (c) `SuggestTriageTests.test_suggest_classifies_and_previews_without_mutation ... ok`, `test_suggest_apply_promotes_as_previewed ... ok`, `test_suggest_archives_uncited_run_set_deadend ... ok`. Re-verified live at HEAD 106aef4: `aw research index --check` emits `20260813-awnamespace-04-2bodwq-...: stale-state-to-promote: active doc in RUN set 'awnamespace'; promote it` (the one genuinely-stale doc). Single-source confirmed: `derive_unrun_prompts`/`unrun_set_ids`/`run_prompt_set_ids` defined once in `agent_workflows/research_index.py:238-275`, consumed by `attention.py`, `research_archive.py`, and the `--check` path.
+  - Result: pass
 
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: child 02 moved to `executed/` with ALL of its own V-items verified; pasted output of `aw research set-outcome` writing `outcome`+`consumed-by`; `INDEX.json` showing `consumed-by`; `--check` flagging a dangling `consumed-by` and an `adopted`-without-consumer; regression tests passing.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: child `20260824-reslife-02-xjrdjp-tooled-and-validated-research-outcome-and-consumed-by-proven.ipd.md` is `Status: executed` under `.aw/records/plans/executed/` with its own V-01/V-02/V-03 all `Result: pass`; product commit de7e1c1 (`feat(research): tooled+validated outcome/consumed-by provenance (xjrdjp)`), evidence e20cd62, finalize 0970c8f. Re-verified live at HEAD 106aef4: `aw research set-outcome 2bodwq --to adopted --consumed-by pln001,spc002` -> `--- would update 20260813-awnamespace-04-2bodwq-...: outcome=adopted, consumed-by=[pln001, spc002] ---`, and `--consumed-by -` -> `consumed-by=[] (cleared)` (dry-run default, no doc mutated). `.aw/records/research/INDEX.json` carries `consumed_by` on all 85 docs (`grep -c consumed_by INDEX.json` = 85). `aw research index --check` emits `adopted-without-consumer` findings (e.g. awdeliv/hostprobe/chkplace sets) - the real provenance gap surfaced (child DECISION 04-xjrdjp-D2). Tests: `SetOutcomeTests.test_updater_round_trips_only_named_fields ... ok`, `test_set_append_replace_clear ... ok`, `test_invalid_outcome_rejected ... ok`; `ConsumedByIndexTests.test_docentry_and_json_carry_consumed_by ... ok`; `ConsumedByValidationTests.test_dangling_consumed_by_flagged ... ok`, `test_adopted_without_consumer_flagged ... ok`, `test_resolvable_consumer_ids_spans_trees ... ok`. Single shared setter primitive: `update_frontmatter_fields` in `agent_workflows/research_cmd.py:383`.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: child 03 moved to `executed/` with ALL of its own V-items verified; pasted `aw research pending` listing only unrun prompts; pasted `aw attention` output showing a finished-but-unpromoted research doc is NOT under `ready`; regression tests passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: child `20260824-reslife-03-h40usm-attention-and-query-surfacing-for-research-pending-and-stale.ipd.md` is `Status: executed` under `.aw/records/plans/executed/` with its own V-01/V-02 all `Result: pass`; product commit 325874e (`feat(research): aw research pending + attention stale-intake reclassification (h40usm)`), evidence ba74be4, finalize 66a822b. Re-verified live at HEAD 106aef4: `aw research pending` lists only structurally-unrun bare prompts (`8it88r` actorenv, plus migrated bare prompts `jd8qhs`, `g5vhpz`, `2838rp`); the `--agent` form emits the same `id6<TAB>path<TAB>summary` shape. `aw attention --format json` research breakdown: `attention_class` = {active:1, ready:1, done:52, parked:31}; the single `ready` research item is `8it88r` (native_status `intake`, the genuinely-unrun actorenv prompt), and 31 finished-but-unpromoted docs are `parked` (NOT `ready`); `aw attention` overall `valid: true, violations: 0`. Tests: `PendingQueryTests.test_pending_human_lists_only_unrun ... ok`, `test_pending_agent_lists_only_unrun ... ok`; `StaleResearchReclassifyTests.test_run_set_intake_not_ready_unrun_stays_ready_active_untouched ... ok`, `test_cited_by_executed_intake_not_ready ... ok`, `test_class_of_unchanged_and_total ... ok`.
+  - Result: pass
 
 
 ## Approval and execution gate
