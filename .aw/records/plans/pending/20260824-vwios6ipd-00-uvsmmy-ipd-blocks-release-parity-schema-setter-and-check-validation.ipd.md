@@ -15,6 +15,8 @@
 
 ## Workflow history
 - 2026-08-25 approved (aw set): status set to approved
+- 2026-08-25 approved (aw set): status set to approved
+- 2026-08-25 approved (aw set): status set to approved
 - 2026-08-25 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002 fixed
 - 2026-08-24 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique
 
@@ -32,25 +34,25 @@ This orchestrator does not itself edit code; each `E-*` below is the delivery of
 
 ### Task group 1: Schema recognition (foundation)
 
-- [ ] E-01 Deliver child IPD Order 01 (si3mmt): add `Blocks-Release` to the IPD schema recognized-field set so an IPD carrying it lints CONFORMING at every phase, with a regression test guarding against re-introducing IPD-M103.
+- [x] E-01 Deliver child IPD Order 01 (si3mmt): add `Blocks-Release` to the IPD schema recognized-field set so an IPD carrying it lints CONFORMING at every phase, with a regression test guarding against re-introducing IPD-M103.
   - Depends on: none
   - Expected outcome: an IPD with `- Blocks-Release: next` passes `aw ipd lint` at author/pre-execution/pre-transition/post-transition; a regression test asserts it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Setter and shared-path fix
 
-- [ ] E-02 Deliver child IPD Order 02 (efnn74): add `--blocks-release <release-id6|next|->` to `aw ipd set` and fix the shared setter path so plans AND backlog persist the field (root-causing bug 61qk4a: backlog set --blocks-release silently no-ops).
+- [x] E-02 Deliver child IPD Order 02 (efnn74): add `--blocks-release <release-id6|next|->` to `aw ipd set` and fix the shared setter path so plans AND backlog persist the field (root-causing bug 61qk4a: backlog set --blocks-release silently no-ops).
   - Depends on: E-01
   - Expected outcome: `aw ipd set --blocks-release next <id6>` writes the field to the plan front matter; `aw backlog set --blocks-release next` persists it (no longer a no-op); `-` clears it; a workflow-history line is appended.
   - Evidence for the executor (verified during this review): in `status_set.apply_status_change` the `blocks_release` handler (`br = getattr(args, "blocks_release", None)` -> `releases.set_blocks_release_line`) is nested INSIDE the `if rec.record_type == "specs":` branch, so it runs for specs only and is silently skipped for `plans` and `backlog` record types. `aw ipd set` (p_ipd_set in cli.py) also exposes no `--blocks-release` argument at all (only `aw set`, `aw backlog set`, `aw spec set` do). The fix is to hoist the blocks-release write out of the specs-only branch into a shared, record-type-agnostic step (all setters funnel through the single `releases.set_blocks_release_line` primitive) and add the `--blocks-release` argument to `aw ipd set`. Backlog also has a second write site (`backlog.py` ~471) - reconcile to one path so the fix is not duplicated.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Validation and attention surfacing
 
-- [ ] E-03 Deliver child IPD Order 03 (7mw7m5): extend `aw check` to validate a plan's `Blocks-Release` (clean when it resolves, flagged when dangling) and confirm `aw attention` surfaces a plan carrying it in the release-blocker set.
+- [x] E-03 Deliver child IPD Order 03 (7mw7m5): extend `aw check` to validate a plan's `Blocks-Release` (clean when it resolves, flagged when dangling) and confirm `aw attention` surfaces a plan carrying it in the release-blocker set.
   - Depends on: E-01, E-02
   - Expected outcome: `aw check` flags a plan with a dangling `Blocks-Release`; a plan carrying `- Blocks-Release: next` appears in `aw attention`'s release-blocker set.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Child IPDs, sequence, and dependencies
 
@@ -107,20 +109,20 @@ Dependency rationale: 01 must land first because until the schema recognizes the
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: child 01 moved to `executed/`; `aw ipd lint` output pasted showing an IPD carrying `- Blocks-Release: next` is CONFORMING; the regression test named and shown passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: child `20260824-vwios6ipd-01-si3mmt-add-blocks-release-to-ipd-schema-recognized-fields.ipd.md` is `Status: executed` under `.aw/records/plans/executed/` with its own V-01/V-02 `Result: pass`; product commit 7ecfb0a (`feat(ipd-schema): recognize Blocks-Release as an optional IPD field (si3mmt)`), evidence 8d4589f, finalize d2a36fc. Schema: `META_BLOCKS_RELEASE = "Blocks-Release"` at `agent_workflows/ipd_schema.py:163`, appended to `META_RECOGNIZED` at line 169 (not in `META_REQUIRED`). Re-verified live at HEAD 90b5681: after self-marking this orchestrator via `aw ipd set approved uvsmmy --blocks-release next`, `aw ipd lint <this plan>` -> `disposition: conforming` (author phase) with the `- Blocks-Release: next` line present - no IPD-M103. Regression test: `tests/test_ipd_schema.py` asserts `S.META_BLOCKS_RELEASE in S.META_RECOGNIZED` and parses a metadata block carrying `- Blocks-Release: next` with no MetaError (part of the 101-test targeted run below, all passed).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: child 02 moved to `executed/`; pasted output of `aw ipd set --blocks-release next <id6>` and `aw ipd set --blocks-release - <id6>` showing write and clear; pasted output showing `aw backlog set open <id6> --blocks-release next` now persists the field (61qk4a regression test passing).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: child `20260824-vwios6ipd-02-efnn74-aw-ipd-set-blocks-release-and-shared-setter-fix-for-plans-an.ipd.md` is `Status: executed` under `.aw/records/plans/executed/` with its own V-01..V-04 all `Result: pass`; product commit b416edb (`feat(ipd): aw ipd set --blocks-release + hoist shared setter write (efnn74, fixes 61qk4a)`), evidence 763b3a8, finalize 761c591. Hoist verified in source: the blocks_release write (`status_set.py:449-461`) is OUTSIDE the `if rec.record_type == "specs":` guard (which ends at 447), applying to plans/backlog/specs alike via the single `releases.set_blocks_release_line` primitive. Re-verified live at HEAD 90b5681 on this orchestrator (a plan): `aw ipd set approved uvsmmy --blocks-release next` -> wrote `- Blocks-Release: next` at front-matter line 9; `aw ipd set approved uvsmmy --blocks-release -` -> cleared the line (grep confirms no `- Blocks-Release:` line remains). 61qk4a regression + specs anti-regression asserted by `tests/test_status_set.py` (backlog persist on unchanged status; plans write/clear; specs still writes as before) and `tests/test_blocks_release.py` e2e - all green in the 101-test targeted run below.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: child 03 moved to `executed/`; pasted `aw check` output flagging a dangling plan Blocks-Release; pasted `aw attention` output listing a plan with `Blocks-Release: next` in the release-blocker set.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: child `20260824-vwios6ipd-03-7mw7m5-aw-check-validates-plan-blocks-release-and-attention-surfaci.ipd.md` is `Status: executed` under `.aw/records/plans/executed/` with its own V-01..V-03 all `Result: pass`; product commit f38392e (`feat(release-gate): validate plan Blocks-Release in aw check + attention surfacing (7mw7m5)`), evidence 76852ac, finalize ad98fbe. Check wiring (OQ-01 resolved to option a): `releases.check_blocks_release` now scans the plans tree. Re-verified live at HEAD 90b5681 while this orchestrator was self-marked `- Blocks-Release: next`: `releases.check_blocks_release(repo_root)` returned 0 drifts and `resolve_release('next') -> .aw/records/releases/20260820-f33nrj-01-f33nrj-2-0-0.release.md` (a resolving plan value is clean, as required). The dangling-flag path is asserted by `tests/test_blocks_release.py` (a plan with a non-resolving `Blocks-Release` emits `check.blocks-release-dangling`; a resolving case is clean). Attention surfacing: `aw attention` listed this plan under `## release-blockers (7)` (alongside backlog vwios6/61qk4a and the research-lifecycle spec), and `aw attention --format json` showed the uvsmmy plans item with `"blocks_release": "next"` populated (the `_plans_record` parity fix); asserted by `tests/test_attention_priority_blocker.py`. All in the 101-test targeted run below (passed).
+  - Result: pass
 
 ## Approval and execution gate
 
