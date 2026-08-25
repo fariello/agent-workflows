@@ -5,14 +5,16 @@
 - Concern: The runipd driver logic lives entirely in the standalone script `tools/ipdrunner/runipd.py` (1696 lines) with NO dependency on the `agent_workflows` package ("kept local so this standalone driver has no package dependency", runipd.py:61). To expose it as `aw oc runipd` and keep a single source of truth, its importable core must first move into the package unchanged. This is the foundation child of the awocrunner Set (orchestrator alkapp); the subcommand (child 02) and the compat shim (child 03) both depend on it.
 - Scope: Move the runipd core into `agent_workflows/oc_runipd.py` as a behavior-preserving relocation (no redesign of logic, CLI, or output), and migrate its test suite (`tools/ipdrunner/test_runipd.py`, 795 lines) into the package test tree (`tests/test_oc_runipd.py`) updated to import from the package. The runbook/manifest data files under `tools/ipdrunner/` stay where they are (referenced by path). Child 01 of the awocrunner Set.
 - Scope-Paths: agent_workflows/oc_runipd.py, tests/test_oc_runipd.py, tools/ipdrunner/test_runipd.py
-- Status: reviewed
+- Status: approved
 - Set: awocrunner
 - Order: 1
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: ckxgx4
+- Approval: 2026-08-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-25 approved (aw set): status set to approved
 - 2026-08-25 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (verbatim-diff proof in V-01, stdlib-only note), PR-002 (specific test import change + OQ-01 marked resolved)
 - 2026-08-25 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique
 

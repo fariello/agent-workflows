@@ -5,14 +5,16 @@
 - Concern: `aw ipd set` has no `--blocks-release` flag, so even once the schema recognizes the field a plan release blocker can only be set by hand-editing front matter. Worse, the underlying write path is broken: `aw backlog set open <id6> --blocks-release next` (status supplied positionally) routes through `status_set.apply_status_change`, whose only blocks_release write is guarded by `if rec.record_type == "specs"` (`status_set.py:416,449-455`), so for backlog (and plans) the `--blocks-release` value is silently dropped. This is bug 61qk4a. Fixing the setter for plans WITHOUT fixing the shared path would duplicate a broken code path.
 - Scope: Add `--blocks-release <release-id6|next|->` to `aw ipd set` with the SAME semantics as the backlog/specs setters (resolve `next` to the single planned release, write/update the `- Blocks-Release:` front-matter field via the shared `releases.set_blocks_release_line` primitive, clear with `-`, append a workflow-history line), and fix `status_set.apply_status_change` so the blocks_release mutation applies to plans AND backlog (not only specs), root-causing bug 61qk4a. Child 02 of the vwios6ipd Set; depends on schema child 01.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/status_set.py, agent_workflows/backlog.py, agent_workflows/releases.py, tests/test_status_set.py, tests/test_blocks_release.py
-- Status: reviewed
+- Status: approved
 - Set: vwios6ipd
 - Order: 2
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: efnn74
+- Approval: 2026-08-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-25 approved (aw set): status set to approved
 - 2026-08-25 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (precise hoist boundary+entrypoint note), PR-002 (specs anti-regression V-item)
 - 2026-08-24 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique
 

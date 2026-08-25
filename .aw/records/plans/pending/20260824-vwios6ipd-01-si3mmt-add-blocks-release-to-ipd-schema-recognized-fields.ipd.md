@@ -5,14 +5,16 @@
 - Concern: The IPD linter's recognized-field set omits `Blocks-Release`. `agent_workflows/ipd_schema.py` parse records any field not in `META_RECOGNIZED` as an error, surfaced by `aw ipd lint` as IPD-M103 "unknown field" (verified by hand-adding the field to an approved IPD and running `aw ipd lint`). Because `aw ipd lint` gates execution (pre-execution/pre-transition checkpoints), a plan that carries the field currently FAILS lint and cannot be executed. Meanwhile `attention.py` already scans any artifact for `- Blocks-Release:`, so the toolkit is internally inconsistent.
 - Scope: Add `Blocks-Release` to the IPD schema recognized-field set as an optional, single-valued field (a release id6 or `next`), so an IPD may legally carry it and lint clean at every phase. Add a regression test guarding against re-introducing IPD-M103. This is the foundation child of the vwios6ipd Set (Order 00 orchestrator uvsmmy); nothing else can be exercised until the schema accepts the field.
 - Scope-Paths: agent_workflows/ipd_schema.py, tests/test_ipd_schema.py
-- Status: reviewed
+- Status: approved
 - Set: vwios6ipd
 - Order: 1
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: si3mmt
+- Approval: 2026-08-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-25 approved (aw set): status set to approved
 - 2026-08-25 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (spec-sync clarified to N/A)
 - 2026-08-24 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique
 
@@ -28,17 +30,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Schema recognition
 
-- [ ] E-01 In `agent_workflows/ipd_schema.py`, add a module-level constant `META_BLOCKS_RELEASE = "Blocks-Release"` next to `META_SCOPE_PATHS` (~line 152), and append it to the `META_RECOGNIZED` frozenset union tuple (~line 162), mirroring the existing optional single-valued field `META_SCOPE_PATHS`. Do NOT add it to `META_REQUIRED` (it is optional). Confirm `_META_LINE_RE` already accepts the hyphenated field name (it does; no regex change).
+- [x] E-01 In `agent_workflows/ipd_schema.py`, add a module-level constant `META_BLOCKS_RELEASE = "Blocks-Release"` next to `META_SCOPE_PATHS` (~line 152), and append it to the `META_RECOGNIZED` frozenset union tuple (~line 162), mirroring the existing optional single-valued field `META_SCOPE_PATHS`. Do NOT add it to `META_REQUIRED` (it is optional). Confirm `_META_LINE_RE` already accepts the hyphenated field name (it does; no regex change).
   - Depends on: none
   - Expected outcome: `parse_metadata_block` no longer records `Blocks-Release` as an "unknown field", so `aw ipd lint` stops emitting IPD-M103 for a plan carrying it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Regression test
 
-- [ ] E-02 In `tests/test_ipd_schema.py`, add a regression test that (a) asserts `S.META_BLOCKS_RELEASE in S.META_RECOGNIZED` (mirroring the existing `META_SCOPE_PATHS` assertion at ~line 477), and (b) parses a minimal IPD metadata block carrying `- Blocks-Release: next` and asserts NO `MetaError`/"unknown field" is produced for that line. This guards against re-introducing IPD-M103.
+- [x] E-02 In `tests/test_ipd_schema.py`, add a regression test that (a) asserts `S.META_BLOCKS_RELEASE in S.META_RECOGNIZED` (mirroring the existing `META_SCOPE_PATHS` assertion at ~line 477), and (b) parses a minimal IPD metadata block carrying `- Blocks-Release: next` and asserts NO `MetaError`/"unknown field" is produced for that line. This guards against re-introducing IPD-M103.
   - Depends on: E-01
   - Expected outcome: the test fails on the pre-fix code (documenting the bug) and passes on the fixed code.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -94,15 +96,15 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `aw ipd lint` output on an IPD carrying `- Blocks-Release: next` showing CONFORMING (no IPD-M103); and a grep/snippet showing `META_BLOCKS_RELEASE` present in `META_RECOGNIZED`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `aw ipd lint /tmp/opencode/blkrel/scratch.ipd.md` (a copy of an approved IPD with `- Blocks-Release: next` inserted at line 14) -> `disposition: conforming` (no IPD-M103). Source: `ipd_schema.py` now defines `META_BLOCKS_RELEASE = "Blocks-Release"` and unions it into `META_RECOGNIZED` (`+ (META_WATERMARK, META_APPROVAL, META_SCOPE_PATHS, META_BLOCKS_RELEASE)`).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted `python3 -m pytest tests/test_ipd_schema.py` output showing the new regression test passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_ipd_schema.py -q` -> all pass (58 tests, `100%`). `-k BlocksRelease` -> `3 passed` (`test_blocks_release_is_recognized_but_not_required`, `test_blocks_release_line_parses_without_unknown_field_error`, `test_absent_blocks_release_is_not_a_metadata_error`).
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 129 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 131 Sets; the full manifest is INDEX.json.
 
 ## 8t5ghsgi
 
@@ -34,6 +34,14 @@ Showing the 40 most-recent of 129 Sets; the full manifest is INDEX.json.
 - `m383qb` [pending] 01 pending/20260824-reslife-01-m383qb-structural-unrun-detection-and-tool-advanced-drift-checked-r.ipd.md
 - `xjrdjp` [pending] 02 pending/20260824-reslife-02-xjrdjp-tooled-and-validated-research-outcome-and-consumed-by-proven.ipd.md
 - `h40usm` [pending] 03 pending/20260824-reslife-03-h40usm-attention-and-query-surfacing-for-research-pending-and-stale.ipd.md
+
+## runipdsess
+
+- `rxkf1e` [pending] 01 pending/20260824-runipdsess-01-rxkf1e-runipd-prints-same-session-continuation-hint-on-exit.ipd.md
+
+## runipdwd
+
+- `iw793a` [pending] 01 pending/20260824-runipdwd-01-iw793a-runipd-stall-watchdog-process-group-reaping-and-mmss-idle-fo.ipd.md
 
 ## vwios6ipd
 
@@ -242,17 +250,6 @@ Showing the 40 most-recent of 129 Sets; the full manifest is INDEX.json.
 ## awhelparg
 
 - `n9ysag` [executed] 01 executed/20260818-awhelparg-01-n9ysag-rewrite-bare-help-token-to-help-in-argv-for-natural-ux.ipd.md
-
-## awhistory
-
-- `x97z83` [executed] 00 executed/20260818-awhistory-00-x97z83-global-history-sidecar-and-inline-metadata-slimming.ipd.md
-- `im90a5` [executed] 01 executed/20260818-awhistory-01-im90a5-global-history-jsonl-store-and-writer-module.ipd.md
-- `b0behn` [executed] 02 executed/20260818-awhistory-02-b0behn-route-status-writers-to-the-sidecar-and-slim-inline-history.ipd.md
-- `cizkf4` [executed] 03 executed/20260818-awhistory-03-cizkf4-inline-to-sidecar-migration-and-record-history-read-verb.ipd.md
-
-## awlintmulti
-
-- `o1ynz3` [executed] 01 executed/20260818-awlintmulti-01-o1ynz3-ipd-lint-accepts-multiple-files-and-defaults-to-all-pending.ipd.md
 
 ## (singletons: no Set)
 
