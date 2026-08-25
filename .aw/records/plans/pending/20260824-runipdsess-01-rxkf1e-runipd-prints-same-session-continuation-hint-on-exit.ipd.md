@@ -5,7 +5,7 @@
 - Concern: When a runipd run finishes, the OpenCode session id(s) it used are captured in `state.json` (top-level `session_id` and the per-Set `set_sessions` map) even when `--session` was not passed - OpenCode creates a session per Set and runipd reads the id back out of the streamed JSONL log via `extract_session_id`. But nothing surfaces those ids to the user on exit. To run ANOTHER IPD or file under the SAME session context (so the agent keeps its accumulated context), the user must currently open `state.json` and copy the id by hand. The driver should print a continuation hint on exit naming the captured session id(s) and the exact command to reuse them.
 - Scope: At the end of a `start`/`resume` run (in `run_queue`, after the final report is written), print a concise, colorized continuation hint that (a) lists the captured session id(s) - per Set when a run spans multiple Sets, since each Set has its own session - and (b) shows the exact command to run a NEW IPD/file in that same session context (`runipd --session <ses_...> <selector>`, and equivalently once graduated `aw oc runipd --session <ses_...> <selector>`), plus the `resume` command for continuing THIS run. Handle 0/1/N captured sessions honestly (say '(none captured)' when empty). No behavior change to execution; output-only. Single-child plan for the runipdsess Set.
 - Scope-Paths: tools/ipdrunner/runipd.py, tools/ipdrunner/test_runipd.py
-- Status: to-review
+- Status: reviewed
 - Set: runipdsess
 - Order: 1
 - Highest E allocated: 03
@@ -13,6 +13,7 @@
 - Id: rxkf1e
 
 ## Workflow history
+- 2026-08-25 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 PR-002 PR-003 fixed
 - 2026-08-25 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique
 
 - 2026-08-24 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created; single-child plan to print a same-session continuation hint on runipd exit.
@@ -27,7 +28,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Continuation-hint renderer
 
-- [ ] E-01 Add a `render_continuation_hint(state, run_dir) -> str` helper in `tools/ipdrunner/runipd.py` that reads the captured sessions from `state` (the per-Set `set_sessions` map, falling back to top-level `session_id`) and returns a hint block. Behavior by count: 0 sessions -> a line noting no session was captured (e.g. "No OpenCode session was captured for this run."); exactly 1 -> name it once and show the reuse command; N (multi-Set) -> list each `setid: ses_...` and show the reuse command using a representative/most-recent id, noting each Set has its own session. Include: the same-context command `runipd --session <ses_...> <new-selector>` (primary use: run a NEW IPD/file in that session), and the `runipd resume --repo <repo> <run-id>` command (to continue THIS run's queue, which already reuses the persisted per-Set sessions). Use the existing `Palette`/`should_color` helpers so the hint is colorized like the rest of the output and degrades to plain text when not a TTY / NO_COLOR.
+- [ ] E-01 Add a `render_continuation_hint(state, run_dir) -> str` helper in `tools/ipdrunner/runipd.py` that reads the captured sessions from `state` (the per-Set `set_sessions` map, falling back to top-level `session_id`) and returns a hint block. Behavior by count: 0 sessions -> a line noting no session was captured (e.g. "No OpenCode session was captured for this run."); exactly 1 -> name it once and show the reuse command; N (multi-Set) -> list each `setid: ses_...` and show the reuse command using a representative/most-recent id, noting each Set has its own session. Include: the same-context command `runipd --session <ses_...> <new-selector>` (primary use: run a NEW IPD/file in that session), and the `runipd resume --repo <repo> <run-id>` command (to continue THIS run's queue, which already reuses the persisted per-Set sessions). Show ONLY the working `runipd` form as the copy-ready command; do NOT print the not-yet-existing `aw oc runipd` form as if it were runnable today (the awocrunner Set has not graduated it). At most mention `aw oc runipd` as the future equivalent in a parenthetical, never as the primary command a user is invited to copy. Use the existing `Palette`/`should_color` helpers so the hint is colorized like the rest of the output and degrades to plain text when not a TTY / NO_COLOR.
   - Depends on: none
   - Expected outcome: a pure function that, given a run state, returns the correct hint text for 0/1/N captured sessions.
   - Execution state: pending
@@ -41,7 +42,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: Test
 
-- [ ] E-03 In `tools/ipdrunner/test_runipd.py`, add tests for `render_continuation_hint` covering the three shapes: zero captured sessions (no-session note, no `ses_` id, no crash), exactly one (id named once, reuse command present), and multiple Sets (each `setid: ses_...` listed). Assert the reuse command string contains `--session` and the captured id. If feasible, add a light integration assertion that a completed `run_queue` (with a stubbed executor that records a session id into `set_sessions`) emits the hint on stdout.
+- [ ] E-03 In `tools/ipdrunner/test_runipd.py`, add tests for `render_continuation_hint` covering the three shapes: zero captured sessions (no-session note, no `ses_` id, no crash), exactly one (id named once, reuse command present), and multiple Sets (each `setid: ses_...` listed). Assert the reuse command string contains `--session` and the captured id. Add a required integration assertion that a completed `run_queue` (with a stubbed executor that records a session id into `set_sessions`, following the existing pattern in `test_atomic_state_and_set_session_continuity` at test_runipd.py:94) emits the hint on stdout (capture stdout, assert the `ses_...` id and `--session` appear). The stubbing pattern already exists in the suite, so this assertion is not optional; it is what pins E-02.
   - Depends on: E-01, E-02
   - Expected outcome: passing tests pinning the 0/1/N output contract and the on-exit emission.
   - Execution state: pending
@@ -115,7 +116,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: pasted `python3 tools/ipdrunner/test_runipd.py` (or pytest) output with the new tests passing.
+  - Required evidence: pasted `python3 tools/ipdrunner/test_runipd.py` (or pytest) output with the new tests passing, including the three-shape `render_continuation_hint` cases AND the required `run_queue` on-exit emission test (stubbed executor -> captured stdout shows the `ses_...` id and `--session`).
   - Observed evidence:
   - Result: pending
 
@@ -127,7 +128,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 ### Execution contract
 
 1. Open questions RESOLVED: OQ-01 resolved (list all per-Set ids; default the example to the most-recent). No blocking open question remains.
-2. Scope fence: touch ONLY `tools/ipdrunner/runipd.py` and `tools/ipdrunner/test_runipd.py`. Output-only change; do NOT alter session capture, execution, or the state schema. Do NOT modify the `agent_workflows/` package. If a fix seems to need more, STOP and report.
+2. Scope fence: touch ONLY `tools/ipdrunner/runipd.py` and `tools/ipdrunner/test_runipd.py`. Output-only change; do NOT alter session capture, execution, or the state schema. Do NOT modify the `agent_workflows/` package. The hint is stdout-ONLY: session ids (`ses_...`) are leak-sanitizer-flagged identifiers (see AGENTS.md), so do NOT write the hint (or its captured id) into any tracked artifact - not `execution-report.md`, not `state.json`, not a committed file (the run dir is already gitignored, so its transient contents are acceptable). If a fix seems to need more, STOP and report.
 3. Honesty rule (hard MUST): when reporting tests/checks passed, paste the ACTUAL runner output (the test run and a real run's exit hint); never claim a pass from narration or an unchecked box.
 4. Commit ONLY this plan's own changed files, path-scoped (`git commit -m msg -- <paths>`); never `git add -A`/bare/`-a`; never push.
 5. Lifecycle move: on completion, after every E item is performed and every V item verified with pasted evidence, append the `## Workflow history` line, set `Status: executed`, `git mv` this file from `pending/` to `executed/`, and make the path-scoped lifecycle commit (via the lifecycle workflow).
