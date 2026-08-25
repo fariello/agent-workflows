@@ -210,17 +210,25 @@ class Heartbeat:
     def touch(self) -> None:
         self._last_activity = time.monotonic()
 
+    def format_idle(self) -> str:
+        idle = int(time.monotonic() - self._last_activity)
+        idle_m, idle_s = divmod(idle, 60)
+        return f"{idle_m}m{idle_s:02d}s"
+
+    def format_message(self) -> str:
+        elapsed = int(time.monotonic() - self._start)
+        mins, secs = divmod(elapsed, 60)
+        idle_str = self.format_idle()
+        return (
+            f"    \u2026 still working on {self.label} "
+            f"({mins}m{secs:02d}s elapsed, {idle_str} since last event)"
+        )
+
     def _run(self) -> None:
         while not self._stop.wait(self.interval):
             idle = time.monotonic() - self._last_activity
             if idle >= self.interval:
-                elapsed = int(time.monotonic() - self._start)
-                mins, secs = divmod(elapsed, 60)
-                msg = self.pal(
-                    f"    \u2026 still working on {self.label} "
-                    f"({mins}m{secs:02d}s elapsed, {int(idle)}s since last event)",
-                    "dim",
-                )
+                msg = self.pal(self.format_message(), "dim")
                 self.stream.write(msg + "\n")
                 self.stream.flush()
 
@@ -238,6 +246,63 @@ class Heartbeat:
 
 class DriverError(RuntimeError):
     pass
+
+
+class StallTimeout(DriverError):
+    """Raised when the child agent produces no JSONL events for stall_timeout seconds."""
+
+    pass
+
+
+class StallWatchdog:
+    """Watchdog thread that terminates child process if stream is quiet for too long."""
+
+    def __init__(
+        self,
+        process: subprocess.Popen,
+        timeout: float | None = 600.0,
+        check_interval: float = 1.0,
+    ) -> None:
+        self.process = process
+        self.timeout = float(timeout) if timeout and timeout > 0 else 0.0
+        self.enabled = self.timeout > 0
+        self.check_interval = (
+            min(check_interval, max(0.05, self.timeout / 4.0)) if self.enabled else 1.0
+        )
+        self._last_activity = time.monotonic()
+        self._stop = threading.Event()
+        self._stalled = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def touch(self) -> None:
+        self._last_activity = time.monotonic()
+
+    @property
+    def stalled(self) -> bool:
+        return self._stalled.is_set()
+
+    def _run(self) -> None:
+        while not self._stop.wait(self.check_interval):
+            if not self.enabled:
+                break
+            if self.process.poll() is not None:
+                break
+            idle = time.monotonic() - self._last_activity
+            if idle >= self.timeout:
+                self._stalled.set()
+                terminate_process(self.process)
+                break
+
+    def __enter__(self) -> StallWatchdog:
+        if self.enabled:
+            self._thread = threading.Thread(target=self._run, daemon=True)
+            self._thread.start()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=1.0)
 
 
 def utc_now() -> str:
@@ -777,6 +842,7 @@ def initialize_run(args: argparse.Namespace) -> Path:
             "auto": getattr(args, "auto", True),
             "session": initial_session,
             "output_mode": getattr(args, "output_mode", "clean"),
+            "stall_timeout": getattr(args, "stall_timeout", DEFAULT_STALL_TIMEOUT),
         },
         "driver": {
             "path": str(Path(__file__).resolve()),
@@ -1003,20 +1069,35 @@ def attempt_log_path(run_dir: Path, item: dict[str, Any], attempt_no: int) -> Pa
 
 _SIGINT_GRACE_SECONDS = 5.0
 _SIGTERM_GRACE_SECONDS = 2.0
+DEFAULT_STALL_TIMEOUT: float = 600.0
 
 
 def terminate_process(process: subprocess.Popen) -> None:
-    """Reap a child OpenCode process without leaving orphans."""
+    """Reap a child OpenCode process and its process group without leaving orphans."""
     if process.poll() is not None:
         _close_process_streams(process)
         return
+
+    def _signal(sig: int) -> bool:
+        if hasattr(os, "killpg") and hasattr(os, "getpgid") and hasattr(os, "getpgrp"):
+            try:
+                pgid = os.getpgid(process.pid)
+                if pgid != os.getpgrp():
+                    os.killpg(pgid, sig)
+                    return True
+            except (ProcessLookupError, OSError):
+                pass
+        try:
+            process.send_signal(sig)
+            return True
+        except (ProcessLookupError, OSError):
+            return False
+
     for sig, grace in (
         (signal.SIGINT, _SIGINT_GRACE_SECONDS),
         (signal.SIGTERM, _SIGTERM_GRACE_SECONDS),
     ):
-        try:
-            process.send_signal(sig)
-        except (ProcessLookupError, OSError):
+        if not _signal(sig):
             break
         try:
             process.wait(timeout=grace)
@@ -1024,8 +1105,8 @@ def terminate_process(process: subprocess.Popen) -> None:
             return
         except subprocess.TimeoutExpired:
             continue
-    with contextlib.suppress(ProcessLookupError, OSError):
-        process.kill()
+
+    _signal(signal.SIGKILL)
     with contextlib.suppress(Exception):
         process.wait(timeout=_SIGTERM_GRACE_SECONDS)
     _close_process_streams(process)
@@ -1092,24 +1173,31 @@ def run_opencode(
     label = pal(f"{item['id6']}", "bold") + f" ({action_label} attempt {attempt_no})"
     log_path = attempt_log_path(run_dir, item, attempt_no)
 
+    popen_kwargs: dict[str, Any] = {
+        "cwd": state["repo"],
+        "text": True,
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.STDOUT,
+        "bufsize": 1,
+    }
+    if os.name == "posix":
+        popen_kwargs["start_new_session"] = True
+
+    stall_timeout = options.get("stall_timeout", DEFAULT_STALL_TIMEOUT)
+
     with log_path.open("w", encoding="utf-8") as log:
-        process = subprocess.Popen(
-            argv,
-            cwd=state["repo"],
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            bufsize=1,
-        )
+        process = subprocess.Popen(argv, **popen_kwargs)
         assert process.stdout is not None
         interval = 0.0 if output_mode == "raw" else 15.0
         heartbeat = Heartbeat(pal, label, sys.stderr, interval=interval)
+        watchdog = StallWatchdog(process, timeout=stall_timeout)
         try:
-            with heartbeat:
+            with heartbeat, watchdog:
                 for line in process.stdout:
                     log.write(line)
                     log.flush()
                     heartbeat.touch()
+                    watchdog.touch()
                     if output_mode == "raw":
                         sys.stdout.write(line)
                         sys.stdout.flush()
@@ -1123,7 +1211,23 @@ def run_opencode(
             log.flush()
             with contextlib.suppress(OSError):
                 os.fsync(log.fileno())
+            if watchdog.stalled:
+                timeout_val = int(watchdog.timeout) if watchdog.timeout else 0
+                raise StallTimeout(
+                    f"OpenCode child turn stalled: no output for {timeout_val}s"
+                ) from None
             raise
+
+        if watchdog.stalled:
+            terminate_process(process)
+            log.flush()
+            with contextlib.suppress(OSError):
+                os.fsync(log.fileno())
+            timeout_val = int(watchdog.timeout) if watchdog.timeout else 0
+            raise StallTimeout(
+                f"OpenCode child turn stalled: no output for {timeout_val}s"
+            )
+
         returncode = process.wait()
         log.flush()
         os.fsync(log.fileno())
@@ -1236,6 +1340,33 @@ def execute_item(
             {"at": utc_now(), "event": "ipd-interrupted", "id6": item["id6"]},
         )
         raise
+    except StallTimeout:
+        now = utc_now()
+        attempt["interrupted_at"] = now
+        attempt["ended_at"] = now
+        attempt["interrupt_reason"] = "stall_timeout"
+        stall_sec = state.get("options", {}).get("stall_timeout", DEFAULT_STALL_TIMEOUT)
+        attempt["stall_timeout"] = stall_sec
+        item["status"] = "interrupted"
+        save_state(run_dir, state)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": now,
+                "event": "ipd-stalled",
+                "id6": item["id6"],
+                "stall_timeout": stall_sec,
+                "attempt": attempt_no,
+            },
+        )
+        print(
+            pal(
+                f"\u2717 IPD {item['position']:02d}/{total} {item['id6']} stalled (no output for {int(stall_sec) if stall_sec else 0}s); turn terminated",
+                "red",
+            ),
+            file=sys.stderr,
+        )
+        return
 
     if session_id:
         existing = state.setdefault("set_sessions", {}).get(item["setid"])
@@ -1580,6 +1711,12 @@ AUTOMATIC STATUS ROUTING:
         action="store_true",
         help="Create and display the durable queue without launching OpenCode",
     )
+    start.add_argument(
+        "--stall-timeout",
+        type=float,
+        default=DEFAULT_STALL_TIMEOUT,
+        help="Timeout in seconds with no output from child agent before terminating (default: 600; 0 to disable)",
+    )
     _add_output_mode_flags(start)
 
     resume = sub.add_parser(
@@ -1600,6 +1737,12 @@ AUTOMATIC STATUS ROUTING:
         "--retry-incomplete",
         action="store_true",
         help="Retry interrupted, partial, failed, or blocked items in recovery mode",
+    )
+    resume.add_argument(
+        "--stall-timeout",
+        type=float,
+        default=None,
+        help="Override timeout in seconds with no output from child agent (default: 600; 0 to disable)",
     )
     _add_output_mode_flags(resume)
 
@@ -1667,6 +1810,10 @@ def main(argv: list[str] | None = None) -> int:
             print(run_dir / "execution-report.md")
             return 0
         if args.command == "resume":
+            if getattr(args, "stall_timeout", None) is not None:
+                state = load_state(run_dir)
+                state.setdefault("options", {})["stall_timeout"] = args.stall_timeout
+                save_state(run_dir, state)
             if getattr(args, "session", None):
                 state = load_state(run_dir)
                 state["session_id"] = args.session

@@ -791,5 +791,321 @@ class AtomicWriteAndReconcileTests(unittest.TestCase):
             self.assertIn("ended_at", item["attempts"][-1])
 
 
+class HeartbeatFormattingTests(unittest.TestCase):
+    def test_heartbeat_idle_formatting_over_60s(self):
+        import io
+        import time
+
+        buf = io.StringIO()
+        pal = driver.Palette(False)
+        hb = driver.Heartbeat(pal, "test-ipd", buf, interval=1.0)
+        hb._start = time.monotonic() - 150.0  # 2m30s elapsed
+        hb._last_activity = time.monotonic() - 75.0  # 1m15s idle
+        self.assertEqual(hb.format_idle(), "1m15s")
+        msg = hb.format_message()
+        self.assertIn("1m15s since last event", msg)
+        self.assertIn("2m30s elapsed", msg)
+
+    def test_heartbeat_idle_formatting_under_60s(self):
+        import io
+        import time
+
+        buf = io.StringIO()
+        pal = driver.Palette(False)
+        hb = driver.Heartbeat(pal, "test-ipd", buf, interval=1.0)
+        hb._start = time.monotonic() - 45.0
+        hb._last_activity = time.monotonic() - 20.0
+        self.assertEqual(hb.format_idle(), "0m20s")
+        msg = hb.format_message()
+        self.assertIn("0m20s since last event", msg)
+        self.assertIn("0m45s elapsed", msg)
+
+
+class ProcessGroupTerminationTests(unittest.TestCase):
+    def test_terminate_process_signals_process_group_with_escalation(self):
+        import io
+        import signal
+
+        signals_sent = []
+
+        class DummyProcess:
+            def __init__(self):
+                self.pid = 4242
+                self.stdout = io.StringIO()
+                self.stderr = None
+                self.stdin = None
+
+            def poll(self):
+                if len(signals_sent) >= 3:
+                    return -signal.SIGKILL
+                return None
+
+            def wait(self, timeout=None):
+                if len(signals_sent) < 3:
+                    raise subprocess.TimeoutExpired(["dummy"], timeout)
+                return -signal.SIGKILL
+
+            def send_signal(self, sig):
+                signals_sent.append(("single", sig))
+
+            def kill(self):
+                signals_sent.append(("kill", signal.SIGKILL))
+
+        proc = DummyProcess()
+
+        orig_killpg = getattr(os, "killpg", None)
+        orig_getpgid = getattr(os, "getpgid", None)
+        orig_getpgrp = getattr(os, "getpgrp", None)
+        orig_sigint_grace = driver._SIGINT_GRACE_SECONDS
+        orig_sigterm_grace = driver._SIGTERM_GRACE_SECONDS
+
+        try:
+            driver._SIGINT_GRACE_SECONDS = 0.01
+            driver._SIGTERM_GRACE_SECONDS = 0.01
+            os.getpgid = lambda pid: 9999
+            os.getpgrp = lambda: 1111  # different from pgid
+            os.killpg = lambda pgid, sig: signals_sent.append(("group", pgid, sig))
+
+            driver.terminate_process(proc)
+
+            self.assertEqual(
+                signals_sent,
+                [
+                    ("group", 9999, signal.SIGINT),
+                    ("group", 9999, signal.SIGTERM),
+                    ("group", 9999, signal.SIGKILL),
+                ],
+            )
+            self.assertTrue(proc.stdout.closed)
+        finally:
+            driver._SIGINT_GRACE_SECONDS = orig_sigint_grace
+            driver._SIGTERM_GRACE_SECONDS = orig_sigterm_grace
+            if orig_killpg is not None:
+                os.killpg = orig_killpg
+            if orig_getpgid is not None:
+                os.getpgid = orig_getpgid
+            if orig_getpgrp is not None:
+                os.getpgrp = orig_getpgrp
+
+    def test_terminate_process_non_posix_fallback(self):
+        import io
+        import signal
+
+        signals_sent = []
+
+        class DummyProcess:
+            def __init__(self):
+                self.pid = 5353
+                self.stdout = io.StringIO()
+                self.stderr = None
+                self.stdin = None
+
+            def poll(self):
+                if len(signals_sent) >= 3:
+                    return -signal.SIGKILL
+                return None
+
+            def wait(self, timeout=None):
+                if len(signals_sent) < 3:
+                    raise subprocess.TimeoutExpired(["dummy"], timeout)
+                return -signal.SIGKILL
+
+            def send_signal(self, sig):
+                signals_sent.append(("single", sig))
+
+            def kill(self):
+                signals_sent.append(("kill", signal.SIGKILL))
+
+        proc = DummyProcess()
+
+        orig_killpg = getattr(os, "killpg", None)
+        orig_sigint_grace = driver._SIGINT_GRACE_SECONDS
+        orig_sigterm_grace = driver._SIGTERM_GRACE_SECONDS
+
+        try:
+            driver._SIGINT_GRACE_SECONDS = 0.01
+            driver._SIGTERM_GRACE_SECONDS = 0.01
+            if hasattr(os, "killpg"):
+                delattr(os, "killpg")
+
+            driver.terminate_process(proc)
+
+            self.assertEqual(
+                signals_sent,
+                [
+                    ("single", signal.SIGINT),
+                    ("single", signal.SIGTERM),
+                    ("single", signal.SIGKILL),
+                ],
+            )
+            self.assertTrue(proc.stdout.closed)
+        finally:
+            driver._SIGINT_GRACE_SECONDS = orig_sigint_grace
+            driver._SIGTERM_GRACE_SECONDS = orig_sigterm_grace
+            if orig_killpg is not None:
+                os.killpg = orig_killpg
+
+
+class StallWatchdogTests(unittest.TestCase):
+    def test_stall_watchdog_terminates_silent_child_and_marks_interrupted(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = root / "repo"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.invalid"],
+                cwd=repo,
+                check=True,
+            )
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            (repo / "README").write_text("test\n", encoding="utf-8")
+            subprocess.run(["git", "add", "README"], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            plan = pending / "20260824-demo-01-stall1-test.ipd.md"
+            plan.write_text(
+                "- Id: stall1\n- Set: demo\n- Status: approved\n# Stall Plan\n",
+                encoding="utf-8",
+            )
+
+            silent_child = root / "silent_opencode"
+            silent_child.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/usr/bin/env python3
+                    import time
+                    time.sleep(60)
+                    """
+                ),
+                encoding="utf-8",
+            )
+            silent_child.chmod(0o755)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    os.fspath(Path(driver.__file__).resolve()),
+                    "start",
+                    "stall1",
+                    "--repo",
+                    os.fspath(repo),
+                    "--stall-timeout",
+                    "0.3",
+                    "--opencode",
+                    os.fspath(silent_child),
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            self.assertEqual(result.returncode, 1, result.stderr)
+
+            run_id = next(
+                line.split(": ", 1)[1]
+                for line in result.stdout.splitlines()
+                if line.startswith("Run ID:")
+            )
+            state_file = repo / ".aw" / "records" / "runs" / run_id / "state.json"
+            state = json.loads(state_file.read_text(encoding="utf-8"))
+
+            item = state["queue"][0]
+            self.assertEqual(item["status"], "interrupted")
+            attempt = item["attempts"][0]
+            self.assertEqual(attempt.get("interrupt_reason"), "stall_timeout")
+            self.assertEqual(attempt.get("stall_timeout"), 0.3)
+            self.assertIn("interrupted_at", attempt)
+            self.assertIn("ended_at", attempt)
+
+            requeued = driver.requeue_interrupted(
+                repo / ".aw" / "records" / "runs" / run_id, state
+            )
+            self.assertIn("stall1", requeued)
+            self.assertEqual(item["status"], "queued")
+            self.assertTrue(item.get("recovery_next"))
+
+    def test_stall_watchdog_does_not_trip_on_active_child(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = root / "repo"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.invalid"],
+                cwd=repo,
+                check=True,
+            )
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            (repo / "README").write_text("test\n", encoding="utf-8")
+            subprocess.run(["git", "add", "README"], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            plan = pending / "20260824-demo-01-activ1-test.ipd.md"
+            plan.write_text(
+                "- Id: activ1\n- Set: demo\n- Status: approved\n# Active Plan\n",
+                encoding="utf-8",
+            )
+
+            active_child = root / "active_opencode"
+            active_child.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/usr/bin/env python3
+                    import json, pathlib, re, sys, time
+                    args = sys.argv[1:]
+                    prompt = args[args.index('--') + 1] if '--' in args else ""
+                    outcome = pathlib.Path(re.search(r'Required JSON outcome: (.+)', prompt).group(1).strip())
+                    plan = pathlib.Path(re.search(r'Plan file at launch: (.+)', prompt).group(1).strip())
+                    executed = pathlib.Path(str(plan).replace('/pending/', '/executed/'))
+                    executed.parent.mkdir(parents=True, exist_ok=True)
+                    plan.rename(executed)
+
+                    for i in range(3):
+                        print(json.dumps({'type':'text','sessionID':'ses_activ1','part':{'text':f'step {i}'}}), flush=True)
+                        time.sleep(0.05)
+
+                    outcome.write_text(json.dumps({'schema_version':1,'id6':'activ1','disposition':'executed','pushed':False}))
+                    print(json.dumps({'type':'text','sessionID':'ses_activ1','part':{'text':'done'}}), flush=True)
+                    """
+                ),
+                encoding="utf-8",
+            )
+            active_child.chmod(0o755)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    os.fspath(Path(driver.__file__).resolve()),
+                    "start",
+                    "activ1",
+                    "--repo",
+                    os.fspath(repo),
+                    "--stall-timeout",
+                    "0.5",
+                    "--opencode",
+                    os.fspath(active_child),
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+            run_id = next(
+                line.split(": ", 1)[1]
+                for line in result.stdout.splitlines()
+                if line.startswith("Run ID:")
+            )
+            state_file = repo / ".aw" / "records" / "runs" / run_id / "state.json"
+            state = json.loads(state_file.read_text(encoding="utf-8"))
+            self.assertEqual(state["queue"][0]["status"], "executed")
+
+
 if __name__ == "__main__":
     unittest.main()
