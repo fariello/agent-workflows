@@ -5,7 +5,7 @@
 - Concern: Research `status` is written once at creation (`aw research new` hard-codes `status="intake"`, research_cmd.py ~189/~244) and never advanced or validated, so `intake` conflates "untriaged/to-run" with "run-but-unpromoted" and "adopted-but-unpromoted" (11 docs on 2026-08-24; 10 already run+adopted). Spec 5tapom requires the parent B1/H2: identify unrun research WITHOUT trusting hand-typed status, and keep state genuinely tool-maintained.
 - Scope: Add a structural UNRUN/RUN signal derived from manifest set-structure, and a drift rule in `aw research index --check` / `aw check` that flags stale hot state; plus a tool-assisted (human-confirmed) triage classifier reproducing the 2026-08-24 manual pass. Implements spec 5tapom Sections 3.1 and 3.2. Does NOT add a status value or change the vocabulary.
 - Scope-Paths: grandfathered
-- Status: to-review
+- Status: reviewed
 - Set: reslife
 - Order: 1
 - Highest E allocated: 03
@@ -13,6 +13,7 @@
 - Id: m383qb
 
 ## Workflow history
+- 2026-08-25 reviewed (aw set): plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101..PR-104 fixed
 - 2026-08-25 to-review (aw set): Authored complete and lint-conforming; ready for plan-review.
 
 - 2026-08-24 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created; child 01 of the reslife Set (spec 5tapom).
@@ -34,9 +35,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: Drift-checked state
 
-- [ ] E-02 Extend `aw research index --check` (and the `aw check` research path / `check_engine`) with a DRIFT rule: an `intake`/`active` doc whose set is RUN, or which is cited by an executed plan/spec/backlog artifact, is flagged as stale-state-to-promote (nonzero exit, like the existing dangling-citation check). Reuse the existing citation-resolution machinery; do not duplicate it.
+- [ ] E-02 Extend `aw research index --check` (and the `aw check` research path / `check_engine`) with a DRIFT rule: an `intake`/`active` doc is flagged as stale-state-to-promote (nonzero exit, in the existing drift-record shape) when EITHER trigger holds: (a) its SET is RUN (E-01's structural signal), OR (b) it is cited by an EXECUTED artifact. "Executed" means the citing plan sits under `executed/` (disposition, per `plans_index`), the citing spec is `implemented`, or the citing backlog item is `done`; a citation from a merely pending/draft artifact does NOT trigger the flag. Reuse the citation PRIMITIVES (the `cite_matcher` id-extractor + id-resolver + `iter_scan_files`), but note this is the REVERSE of `artifact_core.find_dangling_citations` (which finds a doc's OWN unresolved citations): here you scan executed artifacts and match citations that resolve TO the intake doc's id6. Build the reverse traversal on the shared primitives; do NOT bend `find_dangling_citations` and do NOT write a second id-matcher.
   - Depends on: E-01
-  - Expected outcome: `--check` flags a stale `intake` doc (RUN set or cited-by-executed) and stays clean once promoted; regression test asserts both directions.
+  - Expected outcome: `--check` flags a stale `intake` doc under trigger (a) AND, independently, under trigger (b) with executed-disposition filtering (a pending-only citer does NOT flag); stays clean once the doc is promoted; regression test asserts each trigger independently and the pending-citer negative case.
   - Execution state: pending
 
 ### Task group 3: Tool-assisted triage classifier
@@ -51,7 +52,8 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ## Project conventions discovered (Step 0)
 
 - Research manifest is `INDEX.json` (all docs, tool-generated from frontmatter); `aw research index --check` is the CI/pre-commit drift gate. Statuses are the four-value `research_contract.STATUSES`. The `NN=00` `research-prompt` convention and set membership come from the filename grammar (spec 20260730 Section 4.5 / 4.2).
-- The citation `--check` already resolves `\b<id6>\b` references; reuse it for the cited-by-executed signal rather than a second scanner.
+- The citation `--check` already resolves `\b<id6>\b` references via the shared `artifact_core` primitives (`cite_matcher`, `iter_scan_files`, id-resolver); reuse those primitives for the cited-by-executed signal rather than a second scanner. NOTE the direction: `artifact_core.find_dangling_citations` scans a doc for its OWN unresolved citations (forward); the drift signal here is the REVERSE (which executed artifacts cite THIS doc), so it is a new traversal over the same primitives, not a call to that function.
+- Disposition is derivable without a new parser: a plan's `executed` state is its top-level directory (`plans_index` derives `disposition`), a spec's is `Status: implemented`, a backlog item's is `status: done`.
 
 ## Findings
 
@@ -75,7 +77,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Required tests / validation
 
-- Unit test the unrun derivation on a fixture manifest; test `--check` flags a stale `intake` doc and is clean after promotion; test the triage classifier's preview/apply on a cohort fixture. `python3 -m pytest tests/` green.
+- Unit test the unrun derivation on a fixture manifest; test `--check` flags a stale `intake` doc under BOTH triggers (RUN set; cited-by-executed) independently, does NOT flag a doc cited only by a pending artifact, and is clean after promotion; test the triage classifier's preview/apply on a cohort fixture. `python3 -m pytest tests/` green.
 
 ## Spec / documentation sync
 
@@ -101,7 +103,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 
 - [ ] V-02 validates E-02
-  - Required evidence: pasted `aw research index --check` (or `aw check`) output flagging a stale `intake` doc, and clean after promotion; regression test named and passing.
+  - Required evidence: pasted `aw research index --check` (or `aw check`) output flagging a stale `intake` doc under trigger (a) RUN-set AND, separately, under trigger (b) cited-by-EXECUTED; a pasted negative case showing a doc cited only by a PENDING artifact is NOT flagged; clean after promotion; regression test(s) named and passing, asserting each trigger and the pending-citer negative independently.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
