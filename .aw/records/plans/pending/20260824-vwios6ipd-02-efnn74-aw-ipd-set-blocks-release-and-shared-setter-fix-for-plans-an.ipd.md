@@ -30,29 +30,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Fix the shared setter path (root cause, 61qk4a)
 
-- [ ] E-01 In `agent_workflows/status_set.py`, hoist ONLY the blocks_release mutation block (`status_set.py:449-455`) OUT of the `if rec.record_type == "specs":` guard (`status_set.py:416`) so `apply_status_change` applies `--blocks-release` for `plans` and `backlog` records too, always going through the shared `releases.set_blocks_release_line(text, value)` primitive (`releases.py:93-108`). LEAVE the specs-only gate-field handling (`status_set.py:417-447`, the Gate-Kind/Gate-Ref/Gate-Summary logic) exactly where it is, inside the specs guard - do NOT move it. Preserve existing spec behavior (a spec's blocks_release still writes as before, now via the shared post-guard step). Ensure the write happens even on a same-status (no-op) transition, since `apply_status_change` already rewrites the file idempotently. Preserve the existing join/split idempotency (`"\n".join(new_lines)` -> `set_blocks_release_line` -> `.splitlines()`) so the hoisted step does not alter trailing metadata structure for plans/backlog layouts.
+- [x] E-01 In `agent_workflows/status_set.py`, hoist ONLY the blocks_release mutation block (`status_set.py:449-455`) OUT of the `if rec.record_type == "specs":` guard (`status_set.py:416`) so `apply_status_change` applies `--blocks-release` for `plans` and `backlog` records too, always going through the shared `releases.set_blocks_release_line(text, value)` primitive (`releases.py:93-108`). LEAVE the specs-only gate-field handling (`status_set.py:417-447`, the Gate-Kind/Gate-Ref/Gate-Summary logic) exactly where it is, inside the specs guard - do NOT move it. Preserve existing spec behavior (a spec's blocks_release still writes as before, now via the shared post-guard step). Ensure the write happens even on a same-status (no-op) transition, since `apply_status_change` already rewrites the file idempotently. Preserve the existing join/split idempotency (`"\n".join(new_lines)` -> `set_blocks_release_line` -> `.splitlines()`) so the hoisted step does not alter trailing metadata structure for plans/backlog layouts.
   - Depends on: none
   - Expected outcome: `aw backlog set open <id6> --blocks-release next` (positional status form) persists the field; bug 61qk4a is fixed at the shared path; spec setter behavior is unchanged; the two backlog entrypoints stay distinct (positional-status -> `status_set.apply_status_change`; `--status` form -> `backlog.run_set` at `backlog.py:467`), each reaching the same shared primitive, with no double-write (the dispatch at `cli.py:6900-6916` makes them mutually exclusive).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Add the aw ipd set --blocks-release flag
 
-- [ ] E-02 In `agent_workflows/cli.py`, add a `--blocks-release <release-id6|next|->` argument to the `aw ipd set` subparser (near `cli.py:921`) and thread its value through to `status_set.run_set_command(..., scoped_type="plans", ...)` (dispatched at `cli.py:6792-6800`), mirroring how `aw set`/`aw backlog set`/`aw specs set` accept and pass the flag. When provided, the value flows into `apply_status_change` and is written via the shared primitive fixed in E-01; a `blocks-release-set`/`blocks-release-clear` workflow-history line is appended consistent with the backlog/specs setters.
+- [x] E-02 In `agent_workflows/cli.py`, add a `--blocks-release <release-id6|next|->` argument to the `aw ipd set` subparser (near `cli.py:921`) and thread its value through to `status_set.run_set_command(..., scoped_type="plans", ...)` (dispatched at `cli.py:6792-6800`), mirroring how `aw set`/`aw backlog set`/`aw specs set` accept and pass the flag. When provided, the value flows into `apply_status_change` and is written via the shared primitive fixed in E-01; a `blocks-release-set`/`blocks-release-clear` workflow-history line is appended consistent with the backlog/specs setters.
   - Depends on: E-01
   - Expected outcome: `aw ipd set --blocks-release next <plan-id6>` writes `- Blocks-Release: next`; `--blocks-release -` clears it; a workflow-history line is appended.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Tests for the setter and the 61qk4a regression
 
-- [ ] E-03 In `tests/test_status_set.py`, add tests that `status_set.run_set_command(["open", <id6>], scoped_type="backlog", ... blocks_release="next")` PERSISTS the field even when status is unchanged (61qk4a regression), and that the same for `scoped_type="plans"` writes/clears the field. Assert the workflow-history line is appended. Include a specs anti-regression case: a `scoped_type="specs"` set with `blocks_release="next"` still writes the field exactly as before the hoist (proving widening the write path did not regress the specs surface it was originally scoped to).
+- [x] E-03 In `tests/test_status_set.py`, add tests that `status_set.run_set_command(["open", <id6>], scoped_type="backlog", ... blocks_release="next")` PERSISTS the field even when status is unchanged (61qk4a regression), and that the same for `scoped_type="plans"` writes/clears the field. Assert the workflow-history line is appended. Include a specs anti-regression case: a `scoped_type="specs"` set with `blocks_release="next"` still writes the field exactly as before the hoist (proving widening the write path did not regress the specs surface it was originally scoped to).
   - Depends on: E-01, E-02
   - Expected outcome: a test that fails on pre-fix code (field dropped for backlog/plans) and passes after; explicit 61qk4a guard; specs behavior demonstrably unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `tests/test_blocks_release.py`, add an end-to-end test invoking `aw ipd set --blocks-release next <plan-id6>` on a fixture IPD and asserting the front-matter field is present and the plan still lints CONFORMING (relies on child 01 schema fix), plus a `--blocks-release -` clear assertion and a `next`-resolution assertion.
+- [x] E-04 In `tests/test_blocks_release.py`, add an end-to-end test invoking `aw ipd set --blocks-release next <plan-id6>` on a fixture IPD and asserting the front-matter field is present and the plan still lints CONFORMING (relies on child 01 schema fix), plus a `--blocks-release -` clear assertion and a `next`-resolution assertion.
   - Depends on: E-01, E-02
   - Expected outcome: end-to-end proof the ipd setter writes, clears, and resolves `next`, and the result lints clean.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -111,25 +111,25 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted test output showing a backlog record's `Blocks-Release` persists through `status_set.run_set_command` with unchanged status (61qk4a); before/after front-matter snippet.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (commit b416edb) `BlocksReleaseSetterTests.test_backlog_positional_status_persists_blocks_release_61qk4a ... ok` (`aw backlog set open bk0002 --blocks-release next` positional-status form now writes `- Blocks-Release: next`; before the E-01 hoist the specs-only guard dropped it). Manual: `aw backlog set open bk0001 --blocks-release next --dir .` -> the item gains `- Blocks-Release: next`. Implementation: the blocks_release write in `status_set.apply_status_change` was hoisted OUT of `if rec.record_type == "specs":` to a record-type-agnostic step through `releases.set_blocks_release_line`. See DECISION 08-efnn74-D1/D2.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted terminal output of `aw ipd set --blocks-release next <plan-id6>` and `aw ipd set --blocks-release - <plan-id6>` showing the field written then cleared, and the appended workflow-history line.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (commit b416edb) Manual on a scratch conforming fixture: `aw ipd set draft fix000 --blocks-release next --dir .` -> plan gains `- Blocks-Release: next`; `aw ipd set draft fix000 --blocks-release - --dir .` -> field CLEARED (grep confirms absence). `--blocks-release` present in `aw ipd set --help`. The setter threads through `run_set_command(scoped_type="plans")` -> `apply_status_change`, which appends the standard workflow-history line for the transition (parity with backlog/specs; no invented phrase - DECISION 08-efnn74-D1). `test_plans_set_writes_and_clears_blocks_release ... ok` asserts write, `## Workflow history` present, and clear.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted `python3 -m pytest tests/test_status_set.py` output with the new backlog-persist (61qk4a), plans write/clear, AND specs-unchanged anti-regression tests passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (commit b416edb) `python3 -m pytest tests/test_status_set.py` -> `26 passed`, including `BlocksReleaseSetterTests.test_backlog_positional_status_persists_blocks_release_61qk4a`, `test_plans_set_writes_and_clears_blocks_release`, and `test_specs_blocks_release_unchanged_after_hoist` (the specs anti-regression: `spec set draft sp0007 --blocks-release next` still writes the field after the hoist). All three ok.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: pasted `python3 -m pytest tests/test_blocks_release.py` output with the ipd-setter end-to-end (write/clear/resolve-next + lint-clean) test passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (commit b416edb) `python3 -m pytest tests/test_blocks_release.py` -> `7 passed`, including `IpdSetBlocksReleaseE2ETests.test_ipd_set_writes_clears_and_lints_clean` (copies the conforming fixture, sets `--blocks-release next` via `cli.main(["ipd","set",...])`, asserts the field present AND the plan lints CONFORMING with no IPD-M103, then `--blocks-release -` clears it) and `test_next_resolution_via_shared_primitive` (`next` stored literally; `resolve_release` maps it to the single planned release). Manual: `aw ipd lint` on the fixture with `- Blocks-Release: next` -> `disposition: conforming`. Whole suite `python3 -m pytest tests/` -> 2150 passed, 1 skipped.
+  - Result: pass
 
 ## Approval and execution gate
 
