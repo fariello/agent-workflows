@@ -30,24 +30,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Move the core into the package
 
-- [ ] E-01 Create `agent_workflows/oc_runipd.py` containing the full runipd logic from `tools/ipdrunner/runipd.py` VERBATIM (all functions, constants, regexes, the `Palette`/`Heartbeat`/`render_event` streaming layer, `run_queue`, `dependency_status`, `initialize_run`, `main`, argparse setup). Preserve behavior exactly; do NOT redesign, rename functions, or change output. Keep the local ANSI/rendering code inline (no extraction into a shared renderer in this Set). The source imports are all stdlib (verified: argparse/contextlib/datetime/fcntl/hashlib/json/os/re/shlex/signal/subprocess/sys/tempfile/threading/time/pathlib/typing) with NO tools-local or relative imports, so the move requires zero import rewrites and imports cleanly as `agent_workflows.oc_runipd`, exposing `main(argv)`. The ONLY permissible content delta from the source is a module docstring/header adjustment; the executable code must be identical. (Note: the module inherits the source's Unix-only `fcntl` dependency; that is pre-existing behavior being preserved, not introduced here.)
+- [x] E-01 Create `agent_workflows/oc_runipd.py` containing the full runipd logic from `tools/ipdrunner/runipd.py` VERBATIM (all functions, constants, regexes, the `Palette`/`Heartbeat`/`render_event` streaming layer, `run_queue`, `dependency_status`, `initialize_run`, `main`, argparse setup). Preserve behavior exactly; do NOT redesign, rename functions, or change output. Keep the local ANSI/rendering code inline (no extraction into a shared renderer in this Set). The source imports are all stdlib (verified: argparse/contextlib/datetime/fcntl/hashlib/json/os/re/shlex/signal/subprocess/sys/tempfile/threading/time/pathlib/typing) with NO tools-local or relative imports, so the move requires zero import rewrites and imports cleanly as `agent_workflows.oc_runipd`, exposing `main(argv)`. The ONLY permissible content delta from the source is a module docstring/header adjustment; the executable code must be identical. (Note: the module inherits the source's Unix-only `fcntl` dependency; that is pre-existing behavior being preserved, not introduced here.)
   - Depends on: none
   - Expected outcome: `python3 -c "import agent_workflows.oc_runipd as m; m.main"` succeeds; the module contains the runner's full logic, byte-identical in its executable code to the source.
-  - Execution state: pending
+  - Execution note: commit ca04e63; `agent_workflows/oc_runipd.py` is a BYTE-IDENTICAL copy of `tools/ipdrunner/runipd.py` (`git diff --no-index` empty, not even a header delta), stdlib-only, imports cleanly as `agent_workflows.oc_runipd` exposing `main`.
+  - Execution state: performed
 
 ### Task group 2: Migrate the tests
 
-- [ ] E-02 Create `tests/test_oc_runipd.py` from `tools/ipdrunner/test_runipd.py`, updating imports to target `agent_workflows.oc_runipd` (specifically: replace the `sys.path.insert(...)` + `import runipd as driver` block at `test_runipd.py:12-15` with `from agent_workflows import oc_runipd as driver`, dropping the now-unneeded tools-dir `sys.path` manipulation), and adjusting any remaining path setup so it runs under the package test tree. Keep every existing test case and assertion.
+- [x] E-02 Create `tests/test_oc_runipd.py` from `tools/ipdrunner/test_runipd.py`, updating imports to target `agent_workflows.oc_runipd` (specifically: replace the `sys.path.insert(...)` + `import runipd as driver` block at `test_runipd.py:12-15` with `from agent_workflows import oc_runipd as driver`, dropping the now-unneeded tools-dir `sys.path` manipulation), and adjusting any remaining path setup so it runs under the package test tree. Keep every existing test case and assertion.
   - Depends on: E-01
   - Expected outcome: `python3 -m pytest tests/test_oc_runipd.py` passes with the same coverage the standalone tests had.
-  - Execution state: pending
+  - Execution note: commit ca04e63; `tests/test_oc_runipd.py` migrated from the standalone suite: the `sys.path.insert(...)` + `import runipd as driver` block replaced with `from agent_workflows import oc_runipd as driver`. Adapted the 7 subprocess driver-launches to `python3 -m agent_workflows.oc_runipd` with `PYTHONPATH=REPO_ROOT` (avoids the `agent_workflows/selectors.py` stdlib-shadow that running the module file directly would trigger) and repointed the manifest path to `tools/ipdrunner/` (DECISION 11-ckxgx4-D1). Every test case/assertion kept.
+  - Execution state: performed
 
 ### Task group 3: Remove the migrated standalone test
 
-- [ ] E-03 Delete `tools/ipdrunner/test_runipd.py` now that its cases live in `tests/test_oc_runipd.py` (avoid two divergent copies). Confirm nothing else imports it.
+- [x] E-03 Delete `tools/ipdrunner/test_runipd.py` now that its cases live in `tests/test_oc_runipd.py` (avoid two divergent copies). Confirm nothing else imports it.
   - Depends on: E-02
   - Expected outcome: no duplicate test module; `python3 -m pytest tests/` green.
-  - Execution state: pending
+  - Execution note: commit ca04e63; `git rm tools/ipdrunner/test_runipd.py` (git detected the rename to `tests/test_oc_runipd.py`). Grep confirmed no Python code imports the deleted module (only prose references in plan/record docs).
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -105,20 +108,20 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted output of `python3 -c "import agent_workflows.oc_runipd as m; print(bool(m.main))"` (True); AND a verbatim-move proof - a `diff tools/ipdrunner/runipd.py agent_workflows/oc_runipd.py` (or `git diff --no-index`) showing ONLY the expected header/docstring delta and NO change to any function body, constant, regex, or the argparse setup (proving the executable code is identical, not a paraphrase). A bare line-count match is NOT sufficient; the diff must be pasted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (commit ca04e63) `python3 -c "import agent_workflows.oc_runipd as m; print('import OK, main callable:', callable(m.main))"` -> `import OK, main callable: True`. `git diff --no-index tools/ipdrunner/runipd.py agent_workflows/oc_runipd.py` produced EMPTY output (0 lines) - the copy is BYTE-IDENTICAL to the source (even the header/docstring is unchanged), which is a strictly stronger proof than "only the header differs": no function body, constant, regex, or argparse setup changed.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted `python3 -m pytest tests/test_oc_runipd.py` output showing all migrated tests passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (commit ca04e63) `python3 -m pytest tests/test_oc_runipd.py` -> `53 passed` (the full migrated suite, all cases from the 1639-line standalone test retained; the StallWatchdog/terminate-process cases from iw793a included).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted `python3 -m pytest tests/` output green with no reference to a missing `tools/ipdrunner/test_runipd.py`; a grep confirming nothing imports the deleted module.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (commit ca04e63) `python3 -m pytest tests/` -> `2207 passed, 1 skipped` (up from 2154 pre-migration; +53 from the migrated oc_runipd suite; no collection error for a missing tools test). `ls tools/ipdrunner/test_runipd.py` -> No such file. `grep -rln "import test_runipd\|from test_runipd\|tools.ipdrunner.test_runipd"` over *.py -> no Python importer (only prose references in plan/record docs). pre-commit on the two new files -> all hooks Passed (ruff-format left oc_runipd.py unchanged, preserving the verbatim copy).
+  - Result: pass
 
 ## Approval and execution gate
 
