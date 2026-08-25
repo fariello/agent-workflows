@@ -2954,6 +2954,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260824-8t5ghsgi-01-s2ufeo-aw-install-ensures-records-runs-directory-is-gitignored.ipd.md",
+    "plan_id": "s2ufeo",
+    "set_id": "8t5ghsgi",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-24",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260824-awocrunner-01-ckxgx4-extract-runipd-core-into-the-agent-workflows-package-unchang.ipd.md",
     "plan_id": "ckxgx4",
     "set_id": "awocrunner",
@@ -3128,16 +3138,6 @@
     "plan_id": "pprchd",
     "set_id": "awhistignore",
     "status": "not-executed"
-  },
-  {
-    "date": "2026-08-24",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260824-8t5ghsgi-01-s2ufeo-aw-install-ensures-records-runs-directory-is-gitignored.ipd.md",
-    "plan_id": "s2ufeo",
-    "set_id": "8t5ghsgi",
-    "status": "approved"
   },
   {
     "date": "2026-08-24",

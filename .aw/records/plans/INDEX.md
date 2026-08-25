@@ -6,7 +6,7 @@ Showing the 40 most-recent of 132 Sets; the full manifest is INDEX.json.
 
 ## 8t5ghsgi
 
-- `s2ufeo` [pending] 01 pending/20260824-8t5ghsgi-01-s2ufeo-aw-install-ensures-records-runs-directory-is-gitignored.ipd.md
+- `s2ufeo` [executed] 01 executed/20260824-8t5ghsgi-01-s2ufeo-aw-install-ensures-records-runs-directory-is-gitignored.ipd.md
 
 ## awocrunner
 

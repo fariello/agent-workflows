@@ -5,15 +5,15 @@
 - Concern: The ipdrunner IPD driver writes per-run durable state under `.aw/records/runs/<run-id>/` (queue state.json, session JSONL logs, prompts, outcomes, driver.lock). This is box-local, ephemeral working material that must never be committed. It was manually added to `.aw/.gitignore` in this repo, but a fresh `aw install` does not guarantee it, so any new repo shows ipdrunner run dirs as untracked noise. Backlog item 8t5ghs (release-blocker for 2.0.0 / f33nrj).
 - Scope: Make `aw install` (the per-repo installer that lays down the framework-owned `.aw/` tree including `.aw/.gitignore`) guarantee `records/runs/` is present in `.aw/.gitignore`, idempotently, alongside the existing ignored lanes. This covers both a fresh install (via the gitignore template) and an already-installed repo (via the back-fill path). Add an install test asserting a fresh install produces a `.aw/.gitignore` that ignores `records/runs/`.
 - Scope-Paths: agent_workflows/engine.py, tests/test_installer.py
-- Status: approved
+- Status: executed
 - Set: 8t5ghsgi
 - Order: 1
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: s2ufeo
-- Approval: 2026-08-25, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-25 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): aw install now gitignores records/runs/ (fresh template + idempotent back-fill, plus the co-located records/history.jsonl back-fill); all E performed, all V pass with pasted evidence [Scope reconciliation - in-scope-unmodified agent_workflows/engine.py: records/runs/ added to template + back-fill (and history.jsonl back-fill); committed in b78501b before the begin baseline; in-scope-unmodified tests/test_installer.py: AwGitignoreRunsLaneTests added in b78501b before the begin baseline]
 - 2026-08-25 approved (aw set): status set to approved
 - 2026-08-25 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (include co-located history.jsonl back-fill per Fix Bar + test it), OQ-01 marked resolved
 - 2026-08-24 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique
