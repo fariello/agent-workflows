@@ -5,7 +5,7 @@
 - Concern: `tools/ipdrunner/runipd.py` (the restartable, non-interactive OpenCode driver that reviews `to-review` plans and executes `approved` ones, persisting durable run state under `.aw/records/runs/`) is genuinely useful but only runnable from a source checkout: it is not packaged (no pyproject/MANIFEST reference), not installed by `aw install`, and the `aw` entrypoint (`agent_workflows.cli:main`) cannot reach it. Users of a pip-installed toolkit have no way to run it. The design ethos (versioning.py: runtime tools stay dumb once copied) argues against copying the 1696-line driver into every repo; instead its importable core should live in the `agent_workflows` package and be exposed as a first-class `aw oc runipd` subcommand.
 - Scope: Graduate runipd into the toolkit as `aw oc runipd` (alias `aw opencode runipd`) by (1) moving its core into the package unchanged, (2) adding an `oc`/`opencode` host subcommand group that dispatches into it, (3) reducing `tools/ipdrunner/runipd.py` to a thin compatibility shim so existing invocations keep working, and (4) syncing docs and filing a non-blocking medium backlog item for output normalization and graduating the remaining tools (runagy/agy_run, pwatch, agy sessions/view). Behavior-preserving move; no redesign of the runner or its output rendering in this Set.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/cli.py, tools/ipdrunner/runipd.py, tools/ipdrunner/test_runipd.py, tests/, tools/README.md, .aw/records/backlog/
-- Status: to-review
+- Status: reviewed
 - Set: awocrunner
 - Order: 0
 - Highest E allocated: 04
@@ -13,6 +13,7 @@
 - Id: alkapp
 
 ## Workflow history
+- 2026-08-25 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (whole-suite gate + path-preservation + runbook drift in cross-IPD validation), PR-002 (OQ-01 marked resolved)
 - 2026-08-25 to-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): Completed drafting: fully authored, lint-conforming, ready to critique
 
 - 2026-08-24 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created; orchestrator to graduate runipd -> `aw oc runipd`, split into 4 dependency-ordered children. Scope deliberately limited to runipd; output normalization and the other tools (runagy, pwatch, agy sessions/view) are a non-blocking medium backlog item (filed by child 04).
@@ -79,6 +80,9 @@ Dependency rationale: 01 (packaged core) is the foundation both 02 (subcommand i
 
 - After all four children execute, confirm there is ONE source of truth for the runner logic: `agent_workflows/oc_runipd.py`. Grep the repo to confirm `tools/ipdrunner/runipd.py` contains only shim/delegation code and no copied logic.
 - Run the same runipd smoke invocation two ways (`aw oc runipd status <run-id>` and `python3 tools/ipdrunner/runipd.py status <run-id>`) against a fixture run dir and confirm identical output, proving the shim and the packaged command are the same code path.
+- Whole-suite regression gate on the combined result: after the last child, run `python3 -m pytest tests/` on the merged HEAD and paste the actual green output. This is a hard gate, not just a completion-criteria bullet: the three test surfaces added by the children (`test_oc_runipd.py`, `test_oc_runipd_cli.py`, `test_oc_runipd_shim.py`) plus the pre-existing suite must all pass together (no cross-child regression from the move + wiring + shim landing on one tree).
+- Path-resolution behavior preservation (verified during review): the runner resolves the runbook/manifest via repo-relative CLI args (`(repo / path).resolve()`, runipd.py:265) and builds a dynamic manifest (runipd.py:471) - it has NO `__file__`-relative dependency on the runbook/manifest data files. So the verbatim move to `agent_workflows/oc_runipd.py` does not break path resolution; confirm this still holds after the move (a `status`/`report` run against a fixture run dir works from the packaged command).
+- Runbook filename drift (child 04): the runbook `tools/ipdrunner/20260823-pending-ipds-overnight-execution-runbook.md` currently names the driver `ipdrunner.py` and prescribes `python3 tools/ipdrunner/ipdrunner.py ...` (runbook lines 4,47,61,90,98,108), but the actual script is `runipd.py`. When child 04 updates the runbook to present `aw oc runipd`, it MUST also correct this stale `ipdrunner.py` -> `runipd.py` name so the documented legacy/compat path is real. Verify no other doc repeats the wrong `ipdrunner.py` filename.
 
 ## Deferred / out of scope (with reason)
 
@@ -102,9 +106,9 @@ Dependency rationale: 01 (packaged core) is the foundation both 02 (subcommand i
 ### OQ-01: Should the packaged module be named `oc_runipd.py` or a more generic `ipd_runner.py`?
 
 - Blocking: no
-- Status: deferred
+- Status: resolved
 - Owner: author
-- Resolution or deferral rationale: DEFERRED to child 01, which owns the file name. `oc_runipd.py` is proposed because the runner is OpenCode-specific (it shells out to the `opencode` binary) and pairs with the `aw oc` group; a future `agy run` would get its own module. Child 01 may choose the final name; non-blocking for the orchestrator.
+- Resolution or deferral rationale: RESOLVED in child 01 (ckxgx4 OQ-01) as `oc_runipd.py`: the runner is OpenCode-specific (it shells out to the `opencode` binary) and pairs with the `aw oc` group; a future `agy run` would get its own module. This orchestrator, children 02/03 (which import the module), and Scope-Paths all consistently use `oc_runipd.py`. Non-blocking; recorded resolved for cross-plan consistency.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
