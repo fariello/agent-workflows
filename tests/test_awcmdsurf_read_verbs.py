@@ -72,6 +72,17 @@ class ReadVerbsTests(unittest.TestCase):
         # Assert line number 8 appears in output
         self.assertTrue(any(line.strip().startswith("8:") for line in out.splitlines()))
 
+    def test_search_files_only(self) -> None:
+        rc, out = self._run(["search", "-l", "specs", "findable content"])
+        self.assertEqual(rc, 0)
+        self.assertIn("20260101-1200-01-thing.spec.md", out)
+        self.assertNotIn("findable content", out)
+
+        rc2, out2 = self._run(["search", "--files-only", "findable"])
+        self.assertEqual(rc2, 0)
+        self.assertIn("20260101-1200-01-thing.spec.md", out2)
+        self.assertNotIn("findable content", out2)
+
     def test_find_without_type(self) -> None:
         rc, out = self._run(["find", "aaa111"])
         self.assertEqual(rc, 0)

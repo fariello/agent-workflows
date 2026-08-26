@@ -383,7 +383,17 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         agent_record_kind="result",
         mutation_gate="none",
         empty_error_renderer="shared_empty_result",
-        legacy_flags=("--json", "--agent", "--line-numbers"),
+        legacy_flags=(
+            "--json",
+            "--agent",
+            "--line-numbers",
+            "--files-with-matches",
+            "--files-only",
+            "--files",
+            "--filenames",
+            "-l",
+            "-n",
+        ),
         exit_contract=(0, 1, 2),
     ),
     CommandDeclaration(

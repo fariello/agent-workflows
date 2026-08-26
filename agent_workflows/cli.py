@@ -1909,6 +1909,16 @@ def _build_parser() -> argparse.ArgumentParser:
                 action="store_true",
                 help="Print line numbers for matched lines.",
             )
+            _p.add_argument(
+                "--files-with-matches",
+                "--files-only",
+                "--files",
+                "--filenames",
+                "-l",
+                dest="files_only",
+                action="store_true",
+                help="Only print filenames of matching files (like grep -l).",
+            )
         # backend-relevant passthrough flags (index/find/check)
         _p.add_argument(
             "--check",
@@ -5899,9 +5909,11 @@ def _run_search(
     repo_root = Path(getattr(args, "dir", None) or os.getcwd())
     types = at.ARTIFACT_TYPES if norm == "all" else (norm,)
     line_numbers = getattr(args, "line_numbers", False)
+    files_only = getattr(args, "files_only", False)
 
     hits = 0
     json_results = []
+    matching_files = []
 
     for t in types:
         for base in (repo_root / ".aw" / "records" / t, repo_root / ".agents" / t):
@@ -5922,20 +5934,27 @@ def _run_search(
                             {"path": str(p), "line": i, "text": line.strip()}
                         )
 
-                if file_matches and not (ctx.is_agent or ctx.is_json):
-                    file_header = (
-                        term.color256(str(p), 39, bold=True) if term.color else str(p)
-                    )
-                    term.line(file_header)
-                    for i, line in file_matches:
-                        highlighted = _highlight_matches(line.strip(), rx, term)
-                        if line_numbers:
-                            line_no = (
-                                term.color256(f"{i}:", 244) if term.color else f"{i}:"
-                            )
-                            term.line(f"  {line_no} {highlighted}")
-                        else:
-                            term.line(f"  {highlighted}")
+                if file_matches:
+                    matching_files.append(str(p))
+                    if not (ctx.is_agent or ctx.is_json):
+                        file_header = (
+                            term.color256(str(p), 39, bold=True)
+                            if term.color
+                            else str(p)
+                        )
+                        term.line(file_header)
+                        if not files_only:
+                            for i, line in file_matches:
+                                highlighted = _highlight_matches(line.strip(), rx, term)
+                                if line_numbers:
+                                    line_no = (
+                                        term.color256(f"{i}:", 244)
+                                        if term.color
+                                        else f"{i}:"
+                                    )
+                                    term.line(f"  {line_no} {highlighted}")
+                                else:
+                                    term.line(f"  {highlighted}")
 
     if ctx.is_agent or ctx.is_json:
         exit_code = 0 if hits else 1
@@ -5968,6 +5987,7 @@ def _run_search(
             data={
                 "pattern": pattern,
                 "hits": hits,
+                "files": matching_files,
                 "matches": json_results,
                 "filters": {"type": norm, "pattern": pattern},
             },
