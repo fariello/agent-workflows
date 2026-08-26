@@ -1115,5 +1115,6 @@ aw oc run --resume <run-id>
 This example demonstrates the revised guarantees: `all` is safely bounded; dependencies are explicit id6-grounded facts; a failed item is contained instead of poisoning independent work; unmet state cascades without starting dependents; a host capability gap refuses only the affected item; contractless prompt neutrality changes only aggregate exit calculation; and deterministic repository evidence rather than agent confidence decides completion.
 
 ## Workflow history
+- 2026-08-26 to-review (aw set): Authored complete from the two-pass frontier-model design and specs-check-conforming; build-order map (research 40g511) backs it. Ready for review.
 
 - 2026-08-26 to-review (aw specs): Gate v2.0.0 release on the deterministic run-and-verify design spec (blocks-release: next)
