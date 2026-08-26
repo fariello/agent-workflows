@@ -32,10 +32,11 @@ This orchestrator authors NO code; each child carries its own executable checkli
 
 ### Task group 1: dogfood the guard
 
-- [ ] E-02 After children 01-03 are executed and green, close backlog item `3gr7fk` THROUGH the new guard: add `From-Backlog: 3gr7fk` to the agentadhere orchestrator (3b4f8u, which already carries `Blocks-Release: next`), then `aw backlog set done 3gr7fk` and confirm it succeeds via the HANDOFF path (not by clearing the gate), leaving the release gate solely on the agentadhere orchestrator.
+- [x] E-02 After children 01-03 are executed and green, close backlog item `3gr7fk` THROUGH the new guard: add `From-Backlog: 3gr7fk` to the agentadhere orchestrator (3b4f8u, which already carries `Blocks-Release: next`), then `aw backlog set done 3gr7fk` and confirm it succeeds via the HANDOFF path (not by clearing the gate), leaving the release gate solely on the agentadhere orchestrator.
   - Depends on: none
   - Expected outcome: `aw backlog set done 3gr7fk` succeeds because the agentadhere orchestrator is a `From-Backlog: 3gr7fk` + `Blocks-Release: next` plan; the HANDOFF path does NOT clear `3gr7fk`'s own `Blocks-Release` (it de-activates by becoming `done`), so the active release-blocker view shows the gate once (on 3b4f8u), no double-count; `aw attention` and `aw check` are clean. (Cross-IPD: runs only after children 01/02/03 are executed; ordering tracked in the dependency table below.)
-  - Execution state: pending
+  - Execution state: performed
+  - Execution notes (2026-08-26): Children 01 (ku93tn), 02 (orb9zb), 03 (f1dhht) are all executed and green (finalized to executed/ at abd933c, 844533a, 9931105). Set `From-Backlog: 3gr7fk` on 3b4f8u via `aw ipd set draft 3b4f8u --from-backlog 3gr7fk` (3b4f8u already carries `Blocks-Release: next`), then `aw backlog set done 3gr7fk` SUCCEEDED via the HANDOFF path (open -> done, moved to backlog/done/) WITHOUT clearing 3gr7fk's own gate. Evidence in V-02.
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -89,10 +90,10 @@ Aggregate of the children's tests (schema/lint, setter fail-closed + three paths
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: after children land, paste the `aw backlog set done 3gr7fk` success output (HANDOFF path), `aw attention` showing the gate once on 3b4f8u (no double-count), and `aw check` clean.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (2026-08-26) HANDOFF setup: `aw ipd set draft 3b4f8u --from-backlog 3gr7fk` -> `aw set: ...20260825-agentadhere-00-3b4f8u-...ipd.md -> draft`; grep confirms `- From-Backlog: 3gr7fk` and `- Blocks-Release: next` both present on 3b4f8u. Close via HANDOFF: `aw backlog set done 3gr7fk` -> `aw set: .aw/records/backlog/done/20260823-agentadhere-01-3gr7fk-...backlog.md -> done` (the child-02 fail-closed predicate did NOT refuse, because a From-Backlog plan carrying the same Blocks-Release exists = HANDOFF). NOT de-gated: `3gr7fk` still carries `- Blocks-Release: next` in its done record; it left the active blocker set by becoming `done`, not by clearing the gate. No double-count: `aw attention` `## release-blockers (2)` lists exactly `...agentadhere-00-3b4f8u-...ipd.md (draft)` and `...20260824-2000-01-research-lifecycle-reliability.spec.md (reviewed)`; `3gr7fk` is ABSENT, so the gate is single-sourced on 3b4f8u; `aw attention --format json` -> `valid: True`. `aw check all --agent` -> 65 findings == the pre-existing baseline (35 adopted-without-consumer, 18 setid-collision, 8 name-nonconformant, 3 backlog.summary-unsafe, 1 stale-state-to-promote); the three release-gate rules add ZERO findings: `check.blocking-item-closed-without-gate: 0`, `check.from-backlog-gate-mismatch: 0`, `check.orphaned-live-blocker: 0`. No 3gr7fk/3b4f8u finding other than pre-existing setid-collision noise; the dogfood introduced no new violation.
+  - Result: pass
 
 
 ## Approval and execution gate
