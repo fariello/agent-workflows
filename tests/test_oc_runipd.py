@@ -1643,6 +1643,24 @@ class VerifierPromptTests(unittest.TestCase):
             p = driver.write_prompt(run_dir, item, "hi", 1, suffix="verify")
             self.assertIn("verify", p.name)
 
+    def test_concurrent_work_statement_in_prompts(self):
+        item = {"position": 1, "id6": "abc123", "setid": "testset"}
+        state = {"run_id": "run-test-12345"}
+        exec_prompt = driver.build_prompt(
+            item, state, Path("/tmp/run"), Path("/tmp/plan.md"), recovery=False
+        )
+        verify_prompt = driver.build_verifier_prompt(
+            item, state, Path("/tmp/run"), Path("/tmp/plan.md")
+        )
+        expected = (
+            "## Concurrent Work\n\n"
+            "Other agents may modify this repository concurrently. Work only on files required for your task. Ignore unrelated changes, commits, and untracked files.\n\n"
+            "Do not alter, revert, stage, or commit another agent’s work. Stage only your files; never use `git add .` or `git add -A`.\n\n"
+            "Stop only if another agent changes a file you are editing or must edit and the changes cannot be safely combined. Never discard their work."
+        )
+        self.assertIn(expected, exec_prompt)
+        self.assertIn(expected, verify_prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

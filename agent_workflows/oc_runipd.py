@@ -1155,6 +1155,14 @@ Required JSON outcome: {outcome}
 Driver report: {report}
 Prior attempt: {json.dumps(prior, sort_keys=True) if prior else "none"}
 
+## Concurrent Work
+
+Other agents may modify this repository concurrently. Work only on files required for your task. Ignore unrelated changes, commits, and untracked files.
+
+Do not alter, revert, stage, or commit another agent’s work. Stage only your files; never use `git add .` or `git add -A`.
+
+Stop only if another agent changes a file you are editing or must edit and the changes cannot be safely combined. Never discard their work.
+
 Execute only IPD {item["id6"]}. Read the attached driver runbook, every applicable
 repository instruction, the assigned IPD in full, its current orchestrator, current
 repository state, and completed prerequisite artifacts before editing. Do not implement
@@ -1226,6 +1234,14 @@ Set: `{item['setid']}`
 Run ID: `{state['run_id']}`
 Execution Outcome JSON: `{outcome}`
 Verification Outcome JSON to write: `{verify_outcome}`
+
+## Concurrent Work
+
+Other agents may modify this repository concurrently. Work only on files required for your task. Ignore unrelated changes, commits, and untracked files.
+
+Do not alter, revert, stage, or commit another agent’s work. Stage only your files; never use `git add .` or `git add -A`.
+
+Stop only if another agent changes a file you are editing or must edit and the changes cannot be safely combined. Never discard their work.
 
 You are an independent, skeptical verifier running in a fresh OpenCode session to audit
 the execution of this IPD. Your goal is to rigorously verify whether the code, tests,
