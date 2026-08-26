@@ -1,5 +1,5 @@
 - Id: 8t5ghs
-- Status: open
+- Status: done
 - Set: 8t5ghs
 - Priority: high
 - Kind: chore
@@ -7,6 +7,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-25 done (aw set): Verified implemented: aw install idempotently back-fills records/runs/ into .aw/.gitignore (engine.py:4757, template covers it). Executed IPD s2ufeo, commit b78501b.
 - 2026-08-24 open (aw set): status set to open
 - 2026-08-24 open (aw set): Release blocker for 2.0.0: install must guarantee records/runs/ is gitignored.
 - 2026-08-24 created (aw backlog): aw install must ensure .aw/records/runs/ is gitignored (ipdrunner durable run state must never be committed)

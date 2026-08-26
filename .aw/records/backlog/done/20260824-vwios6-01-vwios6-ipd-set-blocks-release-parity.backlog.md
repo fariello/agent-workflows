@@ -1,5 +1,5 @@
 - Id: vwios6
-- Status: open
+- Status: done
 - Set: vwios6
 - Priority: high
 - Kind: feature
@@ -7,6 +7,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-25 done (aw set): Verified implemented: Blocks-Release in IPD schema (ipd_schema.py:163), aw ipd set --blocks-release writes+lints clean (no IPD-M103), aw check validates. Executed IPDs si3mmt/efnn74/7mw7m5 (orch uvsmmy).
 - 2026-08-24 open (aw set): status set to open
 - 2026-08-24 created (aw backlog): aw ipd set must support --blocks-release (release-gate parity with backlog and specs setters)
 

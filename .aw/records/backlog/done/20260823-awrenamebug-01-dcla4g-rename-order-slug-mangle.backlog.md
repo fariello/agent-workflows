@@ -1,5 +1,5 @@
 - Id: dcla4g
-- Status: open
+- Status: done
 - Set: awrenamebug
 - Priority: high
 - Kind: bug
@@ -7,6 +7,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-25 done (aw set): Verified fixed: aw rename plans <id6> --order NN preserves the slug (live repro on demo plan; no cluster-prefix injection). Executed IPD 5rzupk, commit 40ab3b2; regression test_rename_order_preserves_slug_end_to_end.
 - 2026-08-24 open (aw set): status set to open
 - 2026-08-24 open (aw set): status set to open
 - 2026-08-24 open (aw set): status set to open

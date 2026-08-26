@@ -1,5 +1,5 @@
 - Id: 61qk4a
-- Status: open
+- Status: done
 - Set: awrenamebug
 - Priority: high
 - Kind: bug
@@ -7,6 +7,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-25 done (aw set): Verified fixed: --blocks-release now persists on a no-op (same-status) transition; write hoisted out of the status branch (status_set.py:449-461). Executed IPD efnn74; regression test_backlog_positional_status_persists_blocks_release_61qk4a.
 - 2026-08-24 renumber+blocks-release-set (opencode its_direct/pt3-claude-opus-4.8-1m-us): renamed awrenamebug-01 -> awrenamebug-02 via `aw rename backlog --order 02` to resolve the NN collision with dcla4g (both were `awrenamebug-01-`, differing only by id6). Added `Blocks-Release: next` (gates 2.0.0 / f33nrj) by HAND-EDIT - justified exception: this bug (the no-op non-persist) is precisely why `aw backlog set --blocks-release` cannot set it; a tool that is broken cannot set its own release-gate. Re-verify/re-set via the tool once this bug is fixed.
 - 2026-08-23 created (aw backlog): aw backlog set --blocks-release does not persist the Blocks-Release field on a no-op (same-status) transition
 
