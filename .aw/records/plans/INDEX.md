@@ -20,7 +20,7 @@ Showing the 40 most-recent of 139 Sets; the full manifest is INDEX.json.
 
 ## beginscope
 
-- `vaq9qf` [pending] 01 pending/20260825-beginscope-01-vaq9qf-scope-aw-ipd-begin-baseline-dirty-check-to-the-plan-scope-pa.ipd.md
+- `vaq9qf` [executed] 01 executed/20260825-beginscope-01-vaq9qf-scope-aw-ipd-begin-baseline-dirty-check-to-the-plan-scope-pa.ipd.md
 
 ## bklggrad
 

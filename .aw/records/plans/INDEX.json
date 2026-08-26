@@ -3142,6 +3142,16 @@
   {
     "date": "2026-08-25",
     "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260825-beginscope-01-vaq9qf-scope-aw-ipd-begin-baseline-dirty-check-to-the-plan-scope-pa.ipd.md",
+    "plan_id": "vaq9qf",
+    "set_id": "beginscope",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "executed",
     "kind": "orchestrator",
     "order": 0,
     "path": "executed/20260825-bklggrad-00-s65hhv-backlog-release-gate-graduation-guard-a-blocking-backlog-ite.ipd.md",
@@ -3278,16 +3288,6 @@
     "plan_id": "r2ks4k",
     "set_id": "agentadhere",
     "status": "draft"
-  },
-  {
-    "date": "2026-08-25",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260825-beginscope-01-vaq9qf-scope-aw-ipd-begin-baseline-dirty-check-to-the-plan-scope-pa.ipd.md",
-    "plan_id": "vaq9qf",
-    "set_id": "beginscope",
-    "status": "approved"
   },
   {
     "date": "2026-08-25",
