@@ -29,20 +29,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Scoped baseline dirty-check in aw ipd begin
 
-- [ ] E-01 In agent_workflows/run_evidence.py, add a path-scoped dirty helper (e.g. `dirty_within(repo_dir, scope_paths) -> "clean" | <digest>`) that runs `git status --porcelain` and returns non-clean ONLY when a staged, unstaged, or untracked entry matches any of `scope_paths` (repo-relative prefix / pathspec, matching the same normalization `finalize` uses for its Scope-Paths comparison). Leave the existing whole-tree `get_git_dirty_digest` unchanged (other callers rely on it).
+- [x] E-01 In agent_workflows/run_evidence.py, add a path-scoped dirty helper (e.g. `dirty_within(repo_dir, scope_paths) -> "clean" | <digest>`) that runs `git status --porcelain` and returns non-clean ONLY when a staged, unstaged, or untracked entry matches any of `scope_paths` (repo-relative prefix / pathspec, matching the same normalization `finalize` uses for its Scope-Paths comparison). Leave the existing whole-tree `get_git_dirty_digest` unchanged (other callers rely on it).
   - Depends on: none
   - Expected outcome: a unit-testable function that reports clean when only disjoint paths are dirty and non-clean (naming the offending path) when an in-scope path is dirty.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In agent_workflows/ipd_lifecycle.py `begin`, reorder so the `Scope-Paths` freeze (current step 5) runs BEFORE the baseline check (current step 4), then replace the whole-tree `get_git_dirty_digest(repo) != "clean"` refusal (ipd_lifecycle.py:460) with a call to the E-01 scoped helper over the frozen `Scope-Paths`. Keep the unversioned / ambiguous-HEAD refusal unchanged. Make the refusal diagnostic name the specific in-scope dirty path(s) and cite that disjoint work is intentionally allowed. Update the docstring's ordered fail-closed list (ipd_lifecycle.py:380-387).
+- [x] E-02 In agent_workflows/ipd_lifecycle.py `begin`, reorder so the `Scope-Paths` freeze (current step 5) runs BEFORE the baseline check (current step 4), then replace the whole-tree `get_git_dirty_digest(repo) != "clean"` refusal (ipd_lifecycle.py:460) with a call to the E-01 scoped helper over the frozen `Scope-Paths`. Keep the unversioned / ambiguous-HEAD refusal unchanged. Make the refusal diagnostic name the specific in-scope dirty path(s) and cite that disjoint work is intentionally allowed. Update the docstring's ordered fail-closed list (ipd_lifecycle.py:380-387).
   - Depends on: E-01
   - Expected outcome: `begin` issues a receipt when only disjoint paths are dirty; still refuses (exit 2) when an in-scope path is dirty or HEAD is ambiguous; the receipt binding is otherwise unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Update the `ipd-structure` spec Section 11 and the `ipd-lifecycle` workflow doc text that describe the "clean/unambiguous baseline" so they state the PATH-OVERLAP rule (in-scope dirt refuses; disjoint dirt is allowed to preserve the concurrent multi-agent workflow), consistent with the `ipdgates-03` OQ-01 resolution. Use the managed verbs (`aw specs note`) for the spec.
+- [x] E-03 Update the `ipd-structure` spec Section 11 and the `ipd-lifecycle` workflow doc text that describe the "clean/unambiguous baseline" so they state the PATH-OVERLAP rule (in-scope dirt refuses; disjoint dirt is allowed to preserve the concurrent multi-agent workflow), consistent with the `ipdgates-03` OQ-01 resolution. Use the managed verbs (`aw specs note`) for the spec.
   - Depends on: E-02
   - Expected outcome: the primary docs no longer claim a globally-clean tree is required; they describe the scoped rule.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -101,20 +101,20 @@ Update `ipd-structure` spec Section 11 (via `aw specs note`) and `.aw/system/wor
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
-  - Required evidence: a unit test showing `dirty_within` returns "clean" when only a disjoint path is dirty and non-clean (naming the path) when an in-scope path is dirty (staged, unstaged, and untracked-new cases). Paste the runner output.
-  - Observed evidence:
-  - Result: pending
+- [x] V-01 validates E-01
+   - Required evidence: a unit test showing `dirty_within` returns "clean" when only a disjoint path is dirty and non-clean (naming the path) when an in-scope path is dirty (staged, unstaged, and untracked-new cases). Paste the runner output.
+  - Observed evidence: `run_evidence.dirty_within(repo, scope, matcher)` added (run_evidence.py) with `_porcelain_paths` using `git status --porcelain -uall` so a wholly-new in-scope dir is not collapsed to its directory name. Isolated check: with `agent_workflows/demo.py` modified and scope `['agent_workflows/demo.py']`, `dirty_within` -> `'agent_workflows/demo.py'` (non-clean, names the path); with only a disjoint path dirty -> `'clean'`. Exercised through the begin-level tests below (BeginFailClosedTests). Full lifecycle file: `python -m pytest tests/test_ipd_lifecycle_cli.py -p no:randomly` -> 56 passed.
+  - Result: pass
 
-- [ ] V-02 validates E-02
-  - Required evidence: rewritten/added tests in tests/test_ipd_lifecycle_cli.py proving `begin` (a) issues a receipt when only disjoint paths are dirty, (b) still refuses (exit 2) on an in-scope dirty path with a diagnostic that names it, (c) still refuses on ambiguous/unversioned HEAD; plus a manual `aw ipd begin` repro on a disjoint-dirty tree (receipt written) vs an in-scope-dirty tree (refused). Paste both. Full suite `python -m pytest -p no:randomly` green.
-  - Observed evidence:
-  - Result: pending
+- [x] V-02 validates E-02
+   - Required evidence: rewritten/added tests in tests/test_ipd_lifecycle_cli.py proving `begin` (a) issues a receipt when only disjoint paths are dirty, (b) still refuses (exit 2) on an in-scope dirty path with a diagnostic that names it, (c) still refuses on ambiguous/unversioned HEAD; plus a manual `aw ipd begin` repro on a disjoint-dirty tree (receipt written) vs an in-scope-dirty tree (refused). Paste both. Full suite `python -m pytest -p no:randomly` green.
+  - Observed evidence: Rewrote `BeginFailClosedTests.test_dirty_worktree_refused` into `test_disjoint_dirty_paths_do_not_block_begin` (dirty.txt + unrelated module -> begin EXIT_OK, receipt written), `test_in_scope_dirty_path_refused_and_named` (dirty agent_workflows/demo.py -> EXIT_CANNOT_RUN, message contains "Scope-Paths" and "agent_workflows/demo.py"), and `test_in_scope_dirty_under_declared_directory_refused` (dirty tests/test_demo.py -> refused, names path). Also corrected `RollbackFailureSemanticsTests::test_crash_restart_before_commit_recovers_on_reinvocation`, which previously passed ONLY because the whole-tree dirty check refused the incidental re-begin and preserved the original receipt; it now resumes the still-valid original receipt without a re-begin. Manual repro (throwaway git repo, plan scope agent_workflows/demo.py+tests/test_demo.py): DISJOINT-DIRTY (UNRELATED.md) -> `begin` exit 0 "begin receipt written for abc123 at base bf7ae85bee19"; IN-SCOPE-DIRTY (agent_workflows/demo.py) -> exit 2 "refusing to begin: uncommitted changes to paths INSIDE this plan's Scope-Paths make the frozen base ambiguous: agent_workflows/demo.py". Full suite: `python -m pytest -p no:randomly` -> 2281 passed, 1 skipped.
+  - Result: pass
 
-- [ ] V-03 validates E-03
-  - Required evidence: the updated spec Section 11 text and `ipd-lifecycle.md` excerpt showing the path-overlap baseline rule; `aw specs check` / `aw ipd lint` clean; `aw sanitize --agent` clean.
-  - Observed evidence:
-  - Result: pending
+- [x] V-03 validates E-03
+   - Required evidence: the updated spec Section 11 text and `ipd-lifecycle.md` excerpt showing the path-overlap baseline rule; `aw specs check` / `aw ipd lint` clean; `aw sanitize --agent` clean.
+  - Observed evidence: Spec `20260802-1904-01-ipd-structure-and-linting.spec.md` Section 11 now states "The baseline dirty-check is PATH-OVERLAP-scoped, not whole-tree ... uncommitted work on DISJOINT paths is allowed so a concurrent multi-agent workflow ... is not thrashed" (recorded via `aw specs note`). `ipd-lifecycle.md` fail-closed list updated to "an uncommitted change to a path INSIDE the plan's frozen `Scope-Paths`" + "The baseline dirty-check is Scope-Paths-scoped, not whole-tree ... uncommitted work on DISJOINT paths is allowed". Evidence for lint/sanitize pasted in the finalize gate run below.
+  - Result: pass
 
 ## Approval and execution gate
 
