@@ -3140,6 +3140,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-25",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260825-bklggrad-01-ku93tn-from-backlog-link-field-schema-recognition-on-ipds-and-backl.ipd.md",
+    "plan_id": "ku93tn",
+    "set_id": "bklggrad",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -3246,16 +3256,6 @@
     "order": 0,
     "path": "pending/20260825-bklggrad-00-s65hhv-backlog-release-gate-graduation-guard-a-blocking-backlog-ite.ipd.md",
     "plan_id": "s65hhv",
-    "set_id": "bklggrad",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-25",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260825-bklggrad-01-ku93tn-from-backlog-link-field-schema-recognition-on-ipds-and-backl.ipd.md",
-    "plan_id": "ku93tn",
     "set_id": "bklggrad",
     "status": "approved"
   },

@@ -17,7 +17,7 @@ Showing the 40 most-recent of 137 Sets; the full manifest is INDEX.json.
 ## bklggrad
 
 - `s65hhv` [pending] 00 pending/20260825-bklggrad-00-s65hhv-backlog-release-gate-graduation-guard-a-blocking-backlog-ite.ipd.md
-- `ku93tn` [pending] 01 pending/20260825-bklggrad-01-ku93tn-from-backlog-link-field-schema-recognition-on-ipds-and-backl.ipd.md
+- `ku93tn` [executed] 01 executed/20260825-bklggrad-01-ku93tn-from-backlog-link-field-schema-recognition-on-ipds-and-backl.ipd.md
 - `orb9zb` [pending] 02 pending/20260825-bklggrad-02-orb9zb-shared-close-legitimacy-predicate-aw-backlog-set-done-fails.ipd.md
 - `f1dhht` [pending] 03 pending/20260825-bklggrad-03-f1dhht-optional-opt-in-pre-commit-hook-wired-by-aw-install-that-ref.ipd.md
 
