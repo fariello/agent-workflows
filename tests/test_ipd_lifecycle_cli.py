@@ -217,11 +217,37 @@ class BeginFailClosedTests(unittest.TestCase):
         self.assertEqual(result.exit_code, LC.EXIT_CANNOT_RUN)
         self._no_receipt()
 
-    def test_dirty_worktree_refused(self):
+    def test_disjoint_dirty_paths_do_not_block_begin(self):
+        # Path-overlap rule (ipdgates-03 OQ-01): uncommitted work OUTSIDE this plan's Scope-Paths
+        # (here `dirty.txt` and an unrelated other-plan file) must NOT block begin, so a concurrent
+        # multi-agent workflow is not thrashed.
         (self.root / "dirty.txt").write_text("x", encoding="utf-8")
+        (self.root / "some_other_module.py").write_text("y = 1\n", encoding="utf-8")
+        result = LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
+        self.assertEqual(result.exit_code, LC.EXIT_OK)
+        self.assertTrue(LC.receipt_path_for(self.root, "abc123").exists())
+
+    def test_in_scope_dirty_path_refused_and_named(self):
+        # An uncommitted change to a path INSIDE the frozen Scope-Paths (agent_workflows/demo.py)
+        # makes the baseline ambiguous and must be refused, naming the offending path.
+        demo = self.root / "agent_workflows" / "demo.py"
+        demo.parent.mkdir(parents=True, exist_ok=True)
+        demo.write_text("in_scope_change = True\n", encoding="utf-8")
         result = LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
         self.assertEqual(result.exit_code, LC.EXIT_CANNOT_RUN)
-        self.assertIn("DIRTY", result.message.upper())
+        self.assertIn("Scope-Paths", result.message)
+        self.assertIn("agent_workflows/demo.py", result.message)
+        self._no_receipt()
+
+    def test_in_scope_dirty_under_declared_directory_refused(self):
+        # A declared directory scope entry (tests/test_demo.py is a file, but the plan also implies
+        # the tests area) - here we dirty the exact in-scope file and confirm refusal.
+        f = self.root / "tests" / "test_demo.py"
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text("def test_x():\n    assert True\n", encoding="utf-8")
+        result = LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
+        self.assertEqual(result.exit_code, LC.EXIT_CANNOT_RUN)
+        self.assertIn("tests/test_demo.py", result.message)
         self._no_receipt()
 
     def test_non_conforming_lint_is_findings_and_writes_nothing(self):
@@ -886,6 +912,13 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
 
     def test_crash_restart_before_commit_recovers_on_reinvocation(self):
         # A pre-commit fault leaves a rolled-back state; a fresh finalize then succeeds cleanly.
+        # The ORIGINAL begin receipt (plan digest unchanged) is still current after the rollback, so
+        # recovery is a plain re-finalize that resumes against the frozen base - NOT a re-begin. (A
+        # re-begin here would recapture a base AT the in-scope work commit, which is only relevant to
+        # scope reconciliation, not this pre-commit-rollback recovery path. The prior version of this
+        # test re-begin'd and passed only because the whole-tree dirty check refused that re-begin and
+        # thereby preserved the original receipt; the begin baseline check is now Scope-Paths-scoped
+        # -- ipdgates-03 OQ-01 path-overlap rule -- so the recovery no longer depends on that refusal.)
         self._begin_and_work()
         LC.finalize(
             self.root,
@@ -895,8 +928,7 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
             apply=True,
             fault_injection="after_move",
         )
-        # Re-begin (plan digest unchanged) + finalize succeeds.
-        LC.begin(self.root, self.plan, "opencode/test", timestamp="t2")
+        # The original receipt is still valid (plan digest unchanged); re-finalize resumes and succeeds.
         result = LC.finalize(
             self.root, self.plan, "opencode/test", "recovered", apply=True
         )

@@ -29,6 +29,7 @@ import subprocess
 from pathlib import Path
 from typing import (
     Any,
+    Callable,
     Dict,
     FrozenSet,
     List,
@@ -172,6 +173,84 @@ def get_git_dirty_digest(repo_dir: Union[str, Path] = ".") -> str:
     except (OSError, subprocess.SubprocessError):
         pass
     return "unversioned"
+
+
+def _porcelain_paths(repo_dir: Union[str, Path] = ".") -> Optional[List[str]]:
+    """Repo-relative paths with ANY uncommitted state (staged, unstaged, or untracked).
+
+    Returns a de-duplicated list of paths from ``git status --porcelain`` (both the staged and the
+    worktree side of a rename are included), or ``None`` when git is unavailable / not a repo. An
+    empty list means a clean tree.
+    """
+    try:
+        # -uall lists untracked files INDIVIDUALLY rather than collapsing a wholly-new directory to
+        # its directory name, so a new in-scope file (e.g. a fresh tests/test_x.py under a new dir) is
+        # attributable to the exact path a Scope-Paths matcher can compare.
+        proc = subprocess.run(
+            ["git", "status", "--porcelain", "-uall"],
+            cwd=str(repo_dir),
+            capture_output=True,
+            text=True,
+            timeout=5.0,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    paths: List[str] = []
+    for line in proc.stdout.splitlines():
+        if not line.strip():
+            continue
+        # Porcelain v1: XY<space>path  (rename/copy: XY<space>old -> new).
+        entry = line[3:] if len(line) > 3 else line.strip()
+        if " -> " in entry:
+            old, new = entry.split(" -> ", 1)
+            paths.append(old.strip().strip('"'))
+            paths.append(new.strip().strip('"'))
+        else:
+            paths.append(entry.strip().strip('"'))
+    # Stable, de-duplicated.
+    seen: Set[str] = set()
+    out: List[str] = []
+    for p in paths:
+        if p and p not in seen:
+            seen.add(p)
+            out.append(p)
+    return out
+
+
+def dirty_within(
+    repo_dir: Union[str, Path],
+    scope_paths: Sequence[str],
+    matcher: Callable[[str, str], bool],
+) -> str:
+    """Path-scoped dirty check: is any uncommitted path INSIDE ``scope_paths``?
+
+    Unlike :func:`get_git_dirty_digest` (which reports the WHOLE tree), this reports non-clean only
+    when an uncommitted path (staged, unstaged, or untracked; both sides of a rename) matches at
+    least one ``scope_paths`` entry via ``matcher(path, pattern)``. Disjoint uncommitted work
+    elsewhere is intentionally IGNORED - this is the path-overlap rule (ipdgates-03 OQ-01) that
+    preserves a concurrent multi-agent workflow, where other agents may have unrelated uncommitted
+    changes on disjoint paths.
+
+    ``matcher`` is injected (rather than reimplementing the Scope-Paths grammar here) so the caller
+    supplies the SAME matcher its scope comparison uses, guaranteeing begin and finalize agree.
+
+    Returns:
+      * ``"clean"``          - no uncommitted path is inside ``scope_paths`` (or ``scope_paths`` is empty);
+      * a ``\\n``-joined string of the offending in-scope paths (sorted) - when at least one matches;
+      * ``"unversioned"``    - git is unavailable / not a repo (fail-closed, mirrors get_git_dirty_digest).
+    """
+    if not scope_paths:
+        return "clean"
+    paths = _porcelain_paths(repo_dir)
+    if paths is None:
+        return "unversioned"
+    hits = sorted({p for p in paths if any(matcher(p, pat) for pat in scope_paths)})
+    if not hits:
+        return "clean"
+    return "\n".join(hits)
 
 
 def get_worktree_path(repo_dir: Union[str, Path] = ".") -> str:

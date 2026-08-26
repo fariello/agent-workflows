@@ -45,8 +45,13 @@ This is the durable proof - retained even after the fact - that the approved pla
 the gate at a specific base HEAD, which Order 04's `aw ipd finalize` later requires.
 
 It is fail-closed: a non-conforming lint (exit 1), an unrunnable lint / missing `--actor` /
-dirty-or-ambiguous baseline / unresolvable-or-ambiguous plan selector / interrupted write (exit 2) all
-leave NO valid receipt and therefore NO execution authority. The receipt is written atomically (an
+an unversioned-or-ambiguous base HEAD / an uncommitted change to a path INSIDE the plan's frozen
+`Scope-Paths` / unresolvable-or-ambiguous plan selector / interrupted write (exit 2) all
+leave NO valid receipt and therefore NO execution authority. The baseline dirty-check is
+Scope-Paths-scoped, not whole-tree: `begin` refuses only when the plan's OWN declared paths carry
+uncommitted work; uncommitted work on DISJOINT paths is allowed (the same path-overlap rule that
+governs receipt lifetime), so one agent can begin executing an IPD while other agents have unrelated
+uncommitted changes elsewhere. The receipt is written atomically (an
 interrupted write never leaves a partial receipt) and is resumable (a re-read returns the same
 receipt). It PERSISTS across unrelated intervening commits on disjoint paths (HEAD movement alone does
 not invalidate it, preserving a concurrent multi-agent workflow); it is invalidated only by a change

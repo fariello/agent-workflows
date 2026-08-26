@@ -382,15 +382,19 @@ def begin(
       2. the plan file exists and parses to a valid ``- Id:`` id6;
       3. the ``pre-execution`` lint disposition is ``conforming`` (else exit 1; an unrunnable lint or
          internal error is exit 2);
-      4. the worktree baseline is clean and unambiguous (a dirty tree or an unversioned/absent HEAD
-         is refused with an actionable diagnostic);
-      5. the plan requirements + ``Scope-Paths`` freeze successfully.
-    Only when all pass is the receipt built and written atomically.
+      4. the base HEAD is versioned and unambiguous (an unversioned/absent HEAD is refused);
+      5. the plan requirements + ``Scope-Paths`` freeze successfully;
+      6. the baseline is clean WITHIN this plan's frozen ``Scope-Paths`` (path-overlap rule,
+         ipdgates-03 OQ-01): an uncommitted change to an in-scope path is refused, while disjoint
+         uncommitted work elsewhere is IGNORED so a concurrent multi-agent workflow is not thrashed.
+         The finalize scope reconciliation remains the enforcement point for out-of-scope changes.
+    Only when all pass is the receipt built and written atomically. Steps 5 and 6 are ordered so the
+    baseline check can scope itself to the frozen ``Scope-Paths``.
     """
     from agent_workflows import ipd_lint as _lint
     from agent_workflows import ipd_schema as _schema
     from agent_workflows import run_freeze
-    from agent_workflows.run_evidence import get_git_dirty_digest, get_git_head
+    from agent_workflows.run_evidence import dirty_within, get_git_head
 
     # 1. actor required (non-empty).
     if not actor or not actor.strip():
@@ -447,7 +451,7 @@ def begin(
             findings=finding_lines,
         )
 
-    # 4. clean, unambiguous baseline.
+    # 4. unambiguous, versioned base HEAD.
     head = get_git_head(str(repo_root))
     if head == "unversioned":
         return BeginResult(
@@ -457,18 +461,8 @@ def begin(
             "cannot capture a base HEAD (not a git repo, or git unavailable); baseline is "
             "ambiguous, refusing to issue a receipt.",
         )
-    dirty = get_git_dirty_digest(str(repo_root))
-    if dirty != "clean":
-        return BeginResult(
-            EXIT_CANNOT_RUN,
-            None,
-            rcpt_path,
-            "refusing to begin on a DIRTY worktree: uncommitted changes make the frozen base "
-            "ambiguous (a later scope comparison could not attribute changes to this execution). "
-            "Commit or stash unrelated work first, then re-run `aw ipd begin`.",
-        )
 
-    # 5. freeze requirements + Scope-Paths.
+    # 5. freeze requirements + Scope-Paths (BEFORE the baseline check, which scopes to these paths).
     try:
         frozen = run_freeze.freeze_requirements(_requirements_from_plan(plan_text))
     except ValueError as exc:
@@ -477,6 +471,31 @@ def begin(
             None,
             rcpt_path,
             f"cannot freeze the plan's requirements/scope: {exc}",
+        )
+
+    # 6. baseline clean WITHIN this plan's frozen Scope-Paths (path-overlap rule, ipdgates-03 OQ-01).
+    #    Disjoint uncommitted work elsewhere is intentionally ignored so a concurrent multi-agent
+    #    workflow is not thrashed; finalize's scope reconciliation still catches out-of-scope changes.
+    scope_paths = _frozen_scope_paths(plan_text)
+    in_scope_dirty = dirty_within(str(repo_root), scope_paths, _scope_match)
+    if in_scope_dirty == "unversioned":
+        return BeginResult(
+            EXIT_CANNOT_RUN,
+            None,
+            rcpt_path,
+            "cannot read the worktree status (not a git repo, or git unavailable); baseline is "
+            "ambiguous, refusing to issue a receipt.",
+        )
+    if in_scope_dirty != "clean":
+        offending = in_scope_dirty.replace("\n", ", ")
+        return BeginResult(
+            EXIT_CANNOT_RUN,
+            None,
+            rcpt_path,
+            "refusing to begin: uncommitted changes to paths INSIDE this plan's Scope-Paths make "
+            f"the frozen base ambiguous: {offending}. Commit or stash these in-scope changes first, "
+            "then re-run `aw ipd begin`. (Uncommitted work on paths OUTSIDE this plan's Scope-Paths "
+            "is allowed and does not block begin.)",
         )
 
     receipt: Dict[str, Any] = {
