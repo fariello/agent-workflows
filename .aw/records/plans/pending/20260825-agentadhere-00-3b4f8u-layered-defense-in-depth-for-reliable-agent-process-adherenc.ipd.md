@@ -6,6 +6,7 @@
 - Scope: Deliver the 2.0.0 CORE of the layered architecture: findings phases 0-5, one dependency-ordered child each, each small and independently verifiable. Phase 0: threat model + assurance classes (guidance / repository-invariant / authority-invariant) + invariant catalog + observable-evidence definitions (prevents false guarantees; gives every later layer a precise target). Phase 1: a versioned policy schema and a shared `aw check --format json` policy engine with positive AND adversarial fixtures (the host-independent deterministic core all other layers call). Phase 2: atomic `aw work`/`aw test`/`aw commit`/`aw finish` primitives that make the compliant path the easy path and produce evidence at the action boundary (aw commit REUSES the selfcommit `git_commit_helper`). Phase 3: event-derived lifecycle state + declared file scope (validated transitions, not a freely editable status field). Phase 4: local git hooks that call the shared checker and emit teaching errors (early feedback; honest local-only limits). Phase 5: required CI + protected-branch enforcement running the SAME policy engine (the only non-bypassable authority boundary). Explicitly DEFERRED to a later set (NOT in this 2.0.0 cut): phases 6 (host adapters), 7 (trusted test runner/tree-bound evidence), 8 (external signing/push broker), 9 (fresh-context verifier), 10 (cross-host adherence benchmark). Each layer must degrade honestly from prevention to detection and never oversell a local control as an authority boundary (findings sections 4.6/7.1).
 - Scope-Paths: agent_workflows/, .aw/records/specs/, docs/, tests/, .github/
 - Status: draft
+- From-Backlog: 3gr7fk
 - Blocks-Release: next
 - Set: agentadhere
 - Order: 0
@@ -14,6 +15,7 @@
 - Id: 3b4f8u
 
 ## Workflow history
+- 2026-08-26 draft (aw set): HANDOFF: agentadhere orchestrator inherits the Blocks-Release: next gate from backlog 3gr7fk (bklggrad s65hhv E-02 dogfood)
 - 2026-08-25 draft (aw set): status set to draft
 
 - 2026-08-25 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.

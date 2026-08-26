@@ -1,5 +1,5 @@
 - Id: 3gr7fk
-- Status: open
+- Status: done
 - Set: agentadhere
 - Priority: high
 - Kind: feature
@@ -7,6 +7,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-26 done (aw set): Graduated into agentadhere IPD set (orchestrator 3b4f8u + children); release gate handed off via From-Backlog: 3gr7fk on 3b4f8u (bklggrad s65hhv E-02 dogfood)
 - 2026-08-24 open (aw set): Release blocker for 2.0.0
 - 2026-08-24 open (aw set): Marked as release blocker for 2.0.0 (next planned release): findings must be addressed before ship.
 - 2026-08-24 open (aw set): Marked as release blocker for 2.0.0 (next planned release): findings must be addressed before ship.
