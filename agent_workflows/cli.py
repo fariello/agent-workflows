@@ -2208,6 +2208,25 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Arguments forwarded verbatim to the runipd driver (start/resume/status/report ...).",
     )
 
+    p_agy = sub.add_parser(
+        "agy",
+        aliases=["antigravity"],
+        parents=[common],
+        help="Antigravity host tooling. 'aw agy runipd' runs the restartable IPD review/execute driver. Alias: 'aw antigravity'.",
+    )
+    agy_sub = p_agy.add_subparsers(dest="agy_command")
+    p_agy_runipd = agy_sub.add_parser(
+        "runipd",
+        aliases=["run", "runagy"],
+        help="Restartable non-interactive Antigravity driver for reviewing/executing IPDs.",
+        add_help=False,
+    )
+    p_agy_runipd.add_argument(
+        "runipd_args",
+        nargs=argparse.REMAINDER,
+        help="Arguments forwarded verbatim to the runagy driver (start/resume/status/report ...).",
+    )
+
     p_backlog = sub.add_parser(
         "backlog",
         parents=[common],
@@ -6915,6 +6934,14 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         from agent_workflows import oc_runipd
 
         return oc_runipd.main(list(argv_list[2:]))
+    if (
+        len(argv_list) >= 2
+        and argv_list[0] in ("agy", "antigravity")
+        and argv_list[1] in ("runipd", "run", "runagy")
+    ):
+        from agent_workflows import agy_runipd
+
+        return agy_runipd.main(list(argv_list[2:]))
     argv = _rewrite_help_token(argv_list)
     args = parser.parse_args(argv)
 
@@ -7068,6 +7095,17 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             return oc_runipd.main(list(getattr(args, "runipd_args", []) or []))
         return _show_family_help(
             parser, "oc", "aw oc runipd status <run-id>", term, context
+        )
+    if args.command in ("agy", "antigravity"):
+        agy_cmd = getattr(args, "agy_command", None)
+        if agy_cmd in ("runipd", "run", "runagy"):
+            from agent_workflows import agy_runipd
+
+            # Forward the captured REMAINDER verbatim so the runner's own parser (incl. its
+            # implicit-`start` shim and `--help`) drives behavior with exact parity.
+            return agy_runipd.main(list(getattr(args, "runipd_args", []) or []))
+        return _show_family_help(
+            parser, "agy", "aw agy runipd status <run-id>", term, context
         )
     if args.command in ("ipd", "plan", "plans"):
         ipd_cmd = (
