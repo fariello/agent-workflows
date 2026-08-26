@@ -98,6 +98,18 @@ class ReadVerbsTests(unittest.TestCase):
         self.assertIn("spec", out2)
         self.assertIn("20260101-1200-01-thing", out2)
 
+    def test_search_json_includes_files_list(self) -> None:
+        import json
+
+        rc, out = self._run(["search", "--json", "specs", "findable content"])
+        self.assertEqual(rc, 0)
+        data = json.loads(out)
+        self.assertIn("data", data)
+        self.assertIn("files", data["data"])
+        self.assertTrue(
+            any("20260101-1200-01-thing.spec.md" in f for f in data["data"]["files"])
+        )
+
     def test_find_without_type(self) -> None:
         rc, out = self._run(["find", "aaa111"])
         self.assertEqual(rc, 0)

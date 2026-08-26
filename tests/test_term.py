@@ -114,6 +114,27 @@ class StylingTests(unittest.TestCase):
         self.assertIn("38;5;255m", t.color256("x", 999))
         self.assertIn("38;5;0m", t.color256("x", -5))
 
+    def test_status_256_styling_and_padding(self):
+        t_color = T.Term(stream=io.StringIO(), color=True)
+        out = t_color.status_256("open", width=12)
+        self.assertIn("\033[1;38;5;40mopen\033[0m", out)
+        self.assertEqual(len(_ANSI.sub("", out)), 12)
+
+        t_plain = T.Term(stream=io.StringIO(), color=False)
+        out_plain = t_plain.status_256("open", width=12)
+        self.assertEqual(out_plain, "open        ")
+
+    def test_status_palette_consistency_with_attention(self):
+        from agent_workflows import attention as att
+
+        for status, code in att._STATUS_COLOR_256.items():
+            self.assertIn(status, T.STATUS_COLOR_256)
+            self.assertEqual(
+                T.STATUS_COLOR_256[status],
+                code,
+                f"Mismatch for status '{status}': term has {T.STATUS_COLOR_256.get(status)}, attention has {code}",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
