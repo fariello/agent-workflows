@@ -2,14 +2,16 @@
 
 # Research index
 
-Showing the most-recent 40 of 54 hot docs (archive excluded).
+Showing the most-recent 40 of 55 hot docs (archive excluded).
 
 ## Needs addressing (intake)
 
 - `8it88r` 20260823-actorenv-00-8it88r-deriving-actor-identity-host-and-model-from-coding-agent-environments.research-prompt.md - How to auto-derive a trustworthy actor (host + model) from the environment across coding hosts so aw attribution does not depend on the agent remembering --actor
+- `40g511` 20260826-aw-run-spec-build-order-00-40g511-aw-run-spec-build-order.findings.md - What exists vs net-new for the aw run deterministic run-and-verify spec (25kzda): build-order dependency map
 
 ## Most recent
 
+- `40g511` [intake] 20260826-aw-run-spec-build-order-00-40g511-aw-run-spec-build-order.findings.md - What exists vs net-new for the aw run deterministic run-and-verify spec (25kzda): build-order dependency map
 - `8it88r` [intake] 20260823-actorenv-00-8it88r-deriving-actor-identity-host-and-model-from-coding-agent-environments.research-prompt.md - How to auto-derive a trustworthy actor (host + model) from the environment across coding hosts so aw attribution does not depend on the agent remembering --actor
 - `2mpcqb` [reference] reference/202608/20260823-agentadhere-02-2mpcqb-ensuring-agent-process-adherence-across-heterogeneous-coding-agents.gpt56medium.research-report.md - Why soft prose fails; defense-in-depth for heterogeneous coding agents (ChatGPT 5.6 Sol Medium)
 - `9bd3j8` [reference] reference/202608/20260823-agentadhere-00-9bd3j8-ensuring-agent-process-adherence-across-heterogeneous-coding-agents.research-prompt.md - How to make agent-workflow process steps (aw set, aw ipd begin/finalize, IPD authoring, path-scoped commits) reliably adhered-to by untrained heterogeneous coding agents
@@ -49,4 +51,3 @@ Showing the most-recent 40 of 54 hot docs (archive excluded).
 - `x9whzs` [reference] 20260726-skills-01-x9whzs-suggested-future-skill-usage.gemini31pro.research-report.md - Migrated from 20260726-skills-01-x9whzs-suggested-future-skill-usage.gemini31pro.research-report.md.
 - `cnkyvn` [reference] 20260726-awdeliv-00-cnkyvn-aw-delivery-and-clean-delta.gpt56.research-report.md - Migrated from 20260726-awdeliv-00-cnkyvn-aw-delivery-and-clean-delta.gpt56.research-report.md.
 - `lc6898` [reference] 20260726-awdeliv-03-lc6898-aw-delivery-and-clean-delta.sonnet5.research-report.md - Migrated from 20260726-awdeliv-03-lc6898-aw-delivery-and-clean-delta.sonnet5.research-report.md.
-- `uxq2tt` [reference] 20260726-awdeliv-04-uxq2tt-aw-delivery-and-clean-delta.reconciliation.reconciliation-report.md - Migrated from 20260726-awdeliv-04-uxq2tt-aw-delivery-and-clean-delta.reconciliation.reconciliation-report.md.

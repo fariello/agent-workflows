@@ -153,6 +153,29 @@
     "topic": []
   },
   {
+    "consumed_by": [
+      "25kzda"
+    ],
+    "created": "20260826",
+    "date": "20260826",
+    "id6": "40g511",
+    "kind": "findings",
+    "model": "",
+    "order": "00",
+    "outcome": "adopted",
+    "path": "20260826-aw-run-spec-build-order-00-40g511-aw-run-spec-build-order.findings.md",
+    "set_id": "aw-run-spec-build-order",
+    "status": "intake",
+    "summary": "What exists vs net-new for the aw run deterministic run-and-verify spec (25kzda): build-order dependency map",
+    "topic": [
+      "runner",
+      "dependencies",
+      "build-order",
+      "agentadhere",
+      "awoptimize"
+    ]
+  },
+  {
     "consumed_by": [],
     "created": "20260802",
     "date": "20260731",
