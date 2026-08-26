@@ -3170,6 +3170,196 @@
     "status": "not-executed"
   },
   {
+    "date": "2026-08-25",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260825-agentadhere-00-3b4f8u-layered-defense-in-depth-for-reliable-agent-process-adherenc.ipd.md",
+    "plan_id": "3b4f8u",
+    "set_id": "agentadhere",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260825-agentadhere-01-gfokao-phase-0-threat-model-assurance-classes-invariant-catalog-and.ipd.md",
+    "plan_id": "gfokao",
+    "set_id": "agentadhere",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260825-agentadhere-02-uisjns-phase-1-versioned-policy-schema-and-shared-aw-check-format-j.ipd.md",
+    "plan_id": "uisjns",
+    "set_id": "agentadhere",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260825-agentadhere-03-8dto0g-phase-2-atomic-aw-work-test-commit-finish-primitives-that-pr.ipd.md",
+    "plan_id": "8dto0g",
+    "set_id": "agentadhere",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 4,
+    "path": "pending/20260825-agentadhere-04-wqj1ne-phase-3-event-derived-lifecycle-state-and-declared-file-scop.ipd.md",
+    "plan_id": "wqj1ne",
+    "set_id": "agentadhere",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 5,
+    "path": "pending/20260825-agentadhere-05-diundn-phase-4-local-git-hooks-that-call-the-shared-checker-and-emi.ipd.md",
+    "plan_id": "diundn",
+    "set_id": "agentadhere",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 6,
+    "path": "pending/20260825-agentadhere-06-r2ks4k-phase-5-required-ci-and-protected-branch-enforcement-running.ipd.md",
+    "plan_id": "r2ks4k",
+    "set_id": "agentadhere",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260825-bklggrad-00-s65hhv-backlog-release-gate-graduation-guard-a-blocking-backlog-ite.ipd.md",
+    "plan_id": "s65hhv",
+    "set_id": "bklggrad",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260825-bklggrad-01-ku93tn-from-backlog-link-field-schema-recognition-on-ipds-and-backl.ipd.md",
+    "plan_id": "ku93tn",
+    "set_id": "bklggrad",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260825-bklggrad-02-orb9zb-shared-close-legitimacy-predicate-aw-backlog-set-done-fails.ipd.md",
+    "plan_id": "orb9zb",
+    "set_id": "bklggrad",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260825-bklggrad-03-f1dhht-optional-opt-in-pre-commit-hook-wired-by-aw-install-that-ref.ipd.md",
+    "plan_id": "f1dhht",
+    "set_id": "bklggrad",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260825-installerskill-00-rldro6-wire-skill-package-emission-into-the-installer-run-path-acro.ipd.md",
+    "plan_id": "rldro6",
+    "set_id": "installerskill",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260825-installerskill-01-kvfsak-emit-skill-package-adapter-bundle-from-install-all-across-ho.ipd.md",
+    "plan_id": "kvfsak",
+    "set_id": "installerskill",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260825-runnernorm-00-ryvoi5-normalize-runner-interactive-output-and-graduate-remaining-t.ipd.md",
+    "plan_id": "ryvoi5",
+    "set_id": "runnernorm",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260825-runnernorm-01-dg28i9-extract-runipd-render-event-palette-heartbeat-into-a-shared.ipd.md",
+    "plan_id": "dg28i9",
+    "set_id": "runnernorm",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260825-runnernorm-02-puot79-graduate-agy-run-sessions-view-and-pwatch-under-the-packaged.ipd.md",
+    "plan_id": "puot79",
+    "set_id": "runnernorm",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260825-selfcommit-00-88h0h8-records-mutating-commands-offer-to-commit-their-own-path-sco.ipd.md",
+    "plan_id": "88h0h8",
+    "set_id": "selfcommit",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260825-selfcommit-01-cv1rfd-shared-commit-what-i-changed-helper-path-scoped-tty-gated-no.ipd.md",
+    "plan_id": "cv1rfd",
+    "set_id": "selfcommit",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260825-selfcommit-02-jgcm68-adopt-the-self-commit-helper-across-aw-archive-group-rename.ipd.md",
+    "plan_id": "jgcm68",
+    "set_id": "selfcommit",
+    "status": "draft"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",

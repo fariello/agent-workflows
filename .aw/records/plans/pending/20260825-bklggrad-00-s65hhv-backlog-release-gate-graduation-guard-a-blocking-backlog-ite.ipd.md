@@ -5,14 +5,16 @@
 - Concern: When a backlog item is translated into an IPD/IPD set (or otherwise satisfied), it should leave the backlog by being marked `done` (it served its purpose; no bespoke `promoted`/`superseded` state is warranted). But a backlog item carrying `- Blocks-Release: <R>` must not silently lose its release gate when it exits the active-blocker set. Today `aw backlog set done` on a blocking item drops it from the release-blocker view with no check, and the only backlog<->plan link is informal prose (no machine-readable `From-Backlog`), so nothing can deterministically confirm the gate was handed off or satisfied. This is the exact "move an invariant out of prose into a deterministic boundary" pattern from the agentadhere findings, applied to one concrete rule. Origin: design discussion 2026-08-25 (backlog->IPD handoff policy + release-gate preservation).
 - Scope: Introduce a machine-readable `From-Backlog` link and a shared close-legitimacy predicate, then enforce it at two layers (setter/check + optional opt-in pre-commit hook) all calling ONE predicate so they cannot diverge. The predicate answers "does this transition silently drop a release gate?" with per-transition severity on a `Blocks-Release` item: (1) `-> done` FAIL-CLOSED unless one of {handoff: a blocking plan with `From-Backlog: <id6>` and the same `Blocks-Release: <R>`; satisfied: a resolvable `--evidence` citation, reusing the spec-`implemented` `_evidence_resolvable` pattern for non-IPD work like README/research/prompt/check items; de-gated: `Blocks-Release` cleared first}; (2) blocking `-> parked` WARN (allowed; gate hidden from active view, hint to de-gate); (3) priority-demote of a blocker WARN (allowed; possible contradiction). Everything else flows freely with NO check: priority promote, open<->parked (non-blocking), block/unblock (the existing typed Gate-Kind/Gate-Ref requirement stays), reopen. Sibling consistency checks fold in: dangling `From-Backlog`, gate mismatch (`From-Backlog` plan's `Blocks-Release` != item's), and orphaned-live-blocker (a blocking item already graduated to a blocking plan but still `open`). Children: 01 `From-Backlog` field (schema + `aw ipd set --from-backlog` + dangling-ref check); 02 shared predicate + `aw backlog set done` fail-closed gate + the two WARN transitions + `aw check` consistency rules + tests; 03 optional opt-in pre-commit hook wired by `aw install` covering the fail-closed `done` case + adversarial/bypass tests. Then dogfood: close `3gr7fk` through the new guard.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/ipd_schema.py, agent_workflows/cli.py, agent_workflows/check_engine.py, agent_workflows/releases.py, agent_workflows/attention.py, agent_workflows/engine.py, agent_workflows/hooks/, tests/, .aw/records/backlog/**, .aw/records/plans/**
-- Status: reviewed
+- Status: approved
 - Set: bklggrad
 - Order: 0
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: s65hhv
+- Approval: 2026-08-26, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-26 approved (aw set): status set to approved
 - 2026-08-25 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (gate contract) FIXED, PR-002 (records Scope-Paths) FIXED, PR-003 (status) FIXED, PR-004 (dogfood clarity) FIXED
 - 2026-08-25 reviewed (aw set): plan-review: hardened (added records Scope-Paths + full execution-contract gate)
 

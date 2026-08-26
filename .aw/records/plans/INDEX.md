@@ -2,7 +2,41 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 132 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 137 Sets; the full manifest is INDEX.json.
+
+## agentadhere
+
+- `3b4f8u` [pending] 00 pending/20260825-agentadhere-00-3b4f8u-layered-defense-in-depth-for-reliable-agent-process-adherenc.ipd.md
+- `gfokao` [pending] 01 pending/20260825-agentadhere-01-gfokao-phase-0-threat-model-assurance-classes-invariant-catalog-and.ipd.md
+- `uisjns` [pending] 02 pending/20260825-agentadhere-02-uisjns-phase-1-versioned-policy-schema-and-shared-aw-check-format-j.ipd.md
+- `8dto0g` [pending] 03 pending/20260825-agentadhere-03-8dto0g-phase-2-atomic-aw-work-test-commit-finish-primitives-that-pr.ipd.md
+- `wqj1ne` [pending] 04 pending/20260825-agentadhere-04-wqj1ne-phase-3-event-derived-lifecycle-state-and-declared-file-scop.ipd.md
+- `diundn` [pending] 05 pending/20260825-agentadhere-05-diundn-phase-4-local-git-hooks-that-call-the-shared-checker-and-emi.ipd.md
+- `r2ks4k` [pending] 06 pending/20260825-agentadhere-06-r2ks4k-phase-5-required-ci-and-protected-branch-enforcement-running.ipd.md
+
+## bklggrad
+
+- `s65hhv` [pending] 00 pending/20260825-bklggrad-00-s65hhv-backlog-release-gate-graduation-guard-a-blocking-backlog-ite.ipd.md
+- `ku93tn` [pending] 01 pending/20260825-bklggrad-01-ku93tn-from-backlog-link-field-schema-recognition-on-ipds-and-backl.ipd.md
+- `orb9zb` [pending] 02 pending/20260825-bklggrad-02-orb9zb-shared-close-legitimacy-predicate-aw-backlog-set-done-fails.ipd.md
+- `f1dhht` [pending] 03 pending/20260825-bklggrad-03-f1dhht-optional-opt-in-pre-commit-hook-wired-by-aw-install-that-ref.ipd.md
+
+## installerskill
+
+- `rldro6` [pending] 00 pending/20260825-installerskill-00-rldro6-wire-skill-package-emission-into-the-installer-run-path-acro.ipd.md
+- `kvfsak` [pending] 01 pending/20260825-installerskill-01-kvfsak-emit-skill-package-adapter-bundle-from-install-all-across-ho.ipd.md
+
+## runnernorm
+
+- `ryvoi5` [pending] 00 pending/20260825-runnernorm-00-ryvoi5-normalize-runner-interactive-output-and-graduate-remaining-t.ipd.md
+- `dg28i9` [pending] 01 pending/20260825-runnernorm-01-dg28i9-extract-runipd-render-event-palette-heartbeat-into-a-shared.ipd.md
+- `puot79` [pending] 02 pending/20260825-runnernorm-02-puot79-graduate-agy-run-sessions-view-and-pwatch-under-the-packaged.ipd.md
+
+## selfcommit
+
+- `88h0h8` [pending] 00 pending/20260825-selfcommit-00-88h0h8-records-mutating-commands-offer-to-commit-their-own-path-sco.ipd.md
+- `cv1rfd` [pending] 01 pending/20260825-selfcommit-01-cv1rfd-shared-commit-what-i-changed-helper-path-scoped-tty-gated-no.ipd.md
+- `jgcm68` [pending] 02 pending/20260825-selfcommit-02-jgcm68-adopt-the-self-commit-helper-across-aw-archive-group-rename.ipd.md
 
 ## 8t5ghsgi
 
@@ -216,40 +250,6 @@ Showing the 40 most-recent of 132 Sets; the full manifest is INDEX.json.
 ## setupmarker-260819
 
 - `i80vz1` [executed] 01 executed/20260819-setupmarker-260819-01-i80vz1-replace-the-action-ledger-with-a-self-explaining-setup-repo.ipd.md
-
-## awcheck
-
-- `t9a0b3` [executed] 00 executed/20260818-awcheck-00-t9a0b3-unified-check-and-validation-engine.ipd.md
-- `iw1wlx` [executed] 01 executed/20260818-awcheck-01-iw1wlx-unified-check-engine-core.ipd.md
-- `xwxxo8` [executed] 02 executed/20260818-awcheck-02-xwxxo8-cross-tree-id6-and-setid-collision-verifier.ipd.md
-- `5qwy7d` [executed] 03 executed/20260818-awcheck-03-5qwy7d-legacy-flag-stale-message-fix-and-ipd-lint-name-conformity.ipd.md
-
-## awcmdsurf
-
-- `mvz3d2` [executed] 00 executed/20260818-awcmdsurf-00-mvz3d2-aw-command-surface-redesign-noun-verb-grammar-hard-cutover.ipd.md
-- `p1859z` [executed] 01 executed/20260818-awcmdsurf-01-p1859z-type-noun-vocabulary-and-cross-cutting-verb-parser-scaffolding.ipd.md
-- `vaghnb` [executed] 02 executed/20260818-awcmdsurf-02-vaghnb-read-verbs-find-search-index.ipd.md
-- `77ukqh` [executed] 03 executed/20260818-awcmdsurf-03-77ukqh-mutation-verbs-rename-group-archive.ipd.md
-- `1njmzt` [executed] 04 executed/20260818-awcmdsurf-04-1njmzt-merge-plans-into-ipd-and-rename-list-repos-and-todo-alias.ipd.md
-- `1z3byy` [executed] 05 executed/20260818-awcmdsurf-05-1z3byy-hard-cutover-remove-old-verbs-and-sweep-references.ipd.md
-
-## awcolor
-
-- `u88tb7` [executed] 01 executed/20260818-awcolor-01-u88tb7-256-color-pretty-output-across-all-aw-verbs-by-default-on-tt.ipd.md
-
-## awdoctor
-
-- `zz2dum` [executed] 00 executed/20260818-awdoctor-00-zz2dum-aw-doctor-and-attention-view-upgrades.ipd.md
-- `zi9kjl` [executed] 01 executed/20260818-awdoctor-01-zi9kjl-compact-attention-board-with-urgency-and-blocking-columns.ipd.md
-- `jc4fus` [executed] 02 executed/20260818-awdoctor-02-jc4fus-attention-highlights-setup-needed-and-release-blockers.ipd.md
-- `5vvlm3` [executed] 03 executed/20260818-awdoctor-03-5vvlm3-aw-doctor-deep-repo-inspector.ipd.md
-
-## awhelp
-
-- `ny1pjz` [executed] 00 executed/20260818-awhelp-00-ny1pjz-help-text-and-agent-facing-ux-overhaul.ipd.md
-- `1fpmg7` [executed] 01 executed/20260818-awhelp-01-1fpmg7-rewrite-terse-and-jargon-help-strings.ipd.md
-- `vrk3l0` [executed] 02 executed/20260818-awhelp-02-vrk3l0-verbose-non-tty-agent-help-and-arg-hungry-verb-examples.ipd.md
-- `oc4cph` [executed] 03 executed/20260818-awhelp-03-oc4cph-json-output-and-documented-exit-codes-on-read-verbs.ipd.md
 
 ## (singletons: no Set)
 

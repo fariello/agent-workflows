@@ -5,14 +5,16 @@
 - Concern: `aw backlog set done` on an item carrying `- Blocks-Release: <R>` currently drops it from the release-blocker view with NO check (backlog.py:426 gates only `-> blocked`), so a release gate can silently vanish when nothing has shipped and no plan inherited it. The agreed policy (design discussion 2026-08-25) is: a backlog item translated into a plan should be closed `done`, but a blocking item may only leave the active-blocker set if the gate is provably preserved or released. This must be a deterministic boundary, not prose, and it must be ONE shared predicate that the setter, `aw check`, and the child-03 hook all call so they cannot diverge (the status_untooled_gate.py:33-45 pattern: hook delegates to a single check_engine rule).
 - Scope: Implement the shared close-legitimacy predicate and wire it at the setter + check surfaces (child 03 adds the hook). (1) Predicate: a single function (in check_engine.py) `evaluate_blocking_close(repo_root, item_path, target_status, evidence=None)` that, for an item carrying `Blocks-Release: <R>`, returns per-transition severity: `-> done` is LEGITIMATE iff one of {HANDOFF: a plan carrying `From-Backlog: <this id6>` AND `Blocks-Release: <R>` (same release) exists; SATISFIED: a resolvable `evidence` citation - generalize the specs `_evidence_resolvable` (specs.py:673) to accept an existing artifact path (executed IPD, a records file, a committed doc) not only executed IPDs; DE-GATED: the item no longer carries Blocks-Release, i.e. it was cleared in/before this transition}, else ILLEGITIMATE (fail-closed). (2) Setter gate: in `agent_workflows/backlog.py` `run_set`, before writing, if new_status == "done" and the item carries Blocks-Release and none of the three paths hold, REFUSE with a teaching error naming all three fixes (`--from-backlog` plan, `--evidence <path>`, or `--blocks-release -`); add `--evidence` to `aw backlog set` (cli.py). (3) WARN transitions (allowed, never block): blocking `-> parked` and priority-demote-of-a-blocker emit `aw check`/`attention` warnings (severity warn, not error). (4) `aw check` consistency rules reusing the predicate: `check.blocking-item-closed-without-gate` (an already-`done` blocking item with no preserved/satisfied gate - the backstop for a hand-edit bypass), `check.from-backlog-gate-mismatch` (a `From-Backlog` plan whose `Blocks-Release` != the item's), and `check.orphaned-live-blocker` (a blocking item already graduated to a blocking plan but still `open` - warn). Everything else (priority promote, open<->parked non-blocking, block/unblock, reopen) is unchecked.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/check_engine.py, agent_workflows/cli.py, agent_workflows/releases.py, agent_workflows/attention.py, agent_workflows/specs.py, tests/, AGENTS.md
-- Status: reviewed
+- Status: approved
 - Set: bklggrad
 - Order: 2
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: orb9zb
+- Approval: 2026-08-26, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-26 approved (aw set): status set to approved
 - 2026-08-25 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (gate contract) FIXED, PR-002 (AGENTS.md Scope-Paths) FIXED, PR-003 (status) FIXED, PR-004 (de-gate same-call ordering) FIXED
 - 2026-08-25 reviewed (aw set): plan-review: hardened (AGENTS.md Scope-Paths, de-gate ordering clarified, full execution-contract gate)
 
@@ -28,32 +30,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the shared predicate
 
-- [ ] E-02 Add `evaluate_blocking_close(repo_root, item_path, target_status, evidence=None)` to `agent_workflows/check_engine.py` returning a structured verdict (legitimate/illegitimate + reason + severity). Implements the three legitimacy paths (HANDOFF via a `From-Backlog`+matching-`Blocks-Release` plan; SATISFIED via resolvable evidence; DE-GATED when Blocks-Release absent) and the two WARN cases (blocking->parked, priority-demote-of-blocker).
+- [x] E-02 Add `evaluate_blocking_close(repo_root, item_path, target_status, evidence=None)` to `agent_workflows/check_engine.py` returning a structured verdict (legitimate/illegitimate + reason + severity). Implements the three legitimacy paths (HANDOFF via a `From-Backlog`+matching-`Blocks-Release` plan; SATISFIED via resolvable evidence; DE-GATED when Blocks-Release absent) and the two WARN cases (blocking->parked, priority-demote-of-blocker).
   - Depends on: none
   - Expected outcome: pure function returns fail-closed for a bare blocking `-> done`, legitimate for each of the three paths, and warn (not error) for park/demote. (Cross-IPD: consumes bklggrad-01's From-Backlog field/resolver; ordering tracked in the orchestrator dependency table.)
-  - Execution state: pending
-- [ ] E-03 Generalize evidence resolvability: factor the specs `_evidence_resolvable` (specs.py:673) into a shared resolver that accepts an existing executed IPD OR another resolvable artifact path (a records file / committed doc), so non-IPD backlog items (README/research/prompt/check work) can be closed with cited evidence. Keep specs' `implemented` behavior unchanged (it may pass its own stricter predicate).
+  - Execution state: performed
+- [x] E-03 Generalize evidence resolvability: factor the specs `_evidence_resolvable` (specs.py:673) into a shared resolver that accepts an existing executed IPD OR another resolvable artifact path (a records file / committed doc), so non-IPD backlog items (README/research/prompt/check work) can be closed with cited evidence. Keep specs' `implemented` behavior unchanged (it may pass its own stricter predicate).
   - Depends on: none
   - Expected outcome: the shared resolver accepts a real artifact path and rejects a nonexistent/unsafe one; specs `implementing -> implemented` behavior is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: setter gate + --evidence
 
-- [ ] E-04 In `agent_workflows/backlog.py` `run_set`, when `new_status == "done"`, call the predicate on the item's POST-mutation state (after any same-call `--blocks-release -`/`--evidence` args are applied to the in-memory item, before the file is rendered/written), so a `done` + `--blocks-release -` in ONE call takes the DE-GATED path; on an illegitimate blocking close, REFUSE (return nonzero) with a teaching error listing all three fixes and do NOT write. Add `--evidence <path>` to `aw backlog set` in `agent_workflows/cli.py` (dest `evidence`).
+- [x] E-04 In `agent_workflows/backlog.py` `run_set`, when `new_status == "done"`, call the predicate on the item's POST-mutation state (after any same-call `--blocks-release -`/`--evidence` args are applied to the in-memory item, before the file is rendered/written), so a `done` + `--blocks-release -` in ONE call takes the DE-GATED path; on an illegitimate blocking close, REFUSE (return nonzero) with a teaching error listing all three fixes and do NOT write. Add `--evidence <path>` to `aw backlog set` in `agent_workflows/cli.py` (dest `evidence`).
   - Depends on: E-02, E-03
   - Expected outcome: `aw backlog set done <blocking-item>` fails with the teaching error and writes nothing; adding a `From-Backlog` plan, or `--evidence <resolvable>`, or a same-call `--blocks-release -` (de-gate) each makes it succeed. The predicate sees the post-arg state so de-gate-and-close in one command is honored.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: check consistency rules + warns
 
-- [ ] E-05 Add `aw check` rules reusing the predicate: `check.blocking-item-closed-without-gate` (error: an already-`done` blocking item with no preserved/satisfied gate), `check.from-backlog-gate-mismatch` (error: `From-Backlog` plan's `Blocks-Release` differs from the item's), and `check.orphaned-live-blocker` (warn: a still-`open` blocking item already graduated to a blocking plan). Fold into the cross-tree sweep next to `check_blocks_release`.
+- [x] E-05 Add `aw check` rules reusing the predicate: `check.blocking-item-closed-without-gate` (error: an already-`done` blocking item with no preserved/satisfied gate), `check.from-backlog-gate-mismatch` (error: `From-Backlog` plan's `Blocks-Release` differs from the item's), and `check.orphaned-live-blocker` (warn: a still-`open` blocking item already graduated to a blocking plan). Fold into the cross-tree sweep next to `check_blocks_release`.
   - Depends on: E-02
   - Expected outcome: `aw check` fires each rule on a crafted fixture and is clean otherwise.
-  - Execution state: pending
-- [ ] E-06 Surface the WARN transitions in `agent_workflows/attention.py`/`aw check`: blocking `-> parked` and priority-demote-of-a-blocker emit a warning with a de-gate hint; never change exit-code-blocking behavior for these.
+  - Execution state: performed
+- [x] E-06 Surface the WARN transitions in `agent_workflows/attention.py`/`aw check`: blocking `-> parked` and priority-demote-of-a-blocker emit a warning with a de-gate hint; never change exit-code-blocking behavior for these.
   - Depends on: E-02
   - Expected outcome: parking or demoting a blocker produces a warning surfaced by `aw check`/`aw attention`, exit code unaffected.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -111,26 +113,26 @@ The gate must be one predicate with three severities (fail-closed on `done`, war
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: unit tests of `evaluate_blocking_close`: fail-closed on bare blocking `-> done`; legitimate for HANDOFF, SATISFIED, DE-GATED; warn for park/demote; paste output.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `tests/test_release_gate_close.py::PredicateTests` (all `ok` in `python -m unittest tests.test_release_gate_close -v`, Ran 25 tests OK): `test_bare_blocking_done_fails_closed` (severity error + 3 fixes), `test_handoff_path_legitimate` (path=HANDOFF), `test_handoff_mismatched_release_not_legitimate` (mismatched release != handoff), `test_satisfied_path_legitimate` (path=SATISFIED), `test_degated_path_legitimate` (path=DE-GATED), `test_non_blocking_item_unchecked` (ok), `test_parked_blocker_warns` (severity warn), `test_priority_demote_of_blocker_warns` (severity warn). Predicate `check_engine.evaluate_blocking_close`.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: test that the shared evidence resolver accepts a real artifact path and rejects nonexistent/unsafe; a spec `implementing -> implemented` regression test still passes; paste output.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `tests/test_release_gate_close.py::EvidenceResolverTests` (`ok`): `test_accepts_in_tree_artifact`, `test_rejects_nonexistent`, `test_rejects_traversal` (../ escape rejected), `test_rejects_non_records_path` (a source file rejected), `test_specs_evidence_resolvable_unchanged` (specs still requires an executed IPD: a non-executed records file is rejected, an executed IPD is accepted). Shared resolver `check_engine.resolve_evidence_artifact`; specs `_evidence_resolvable` now DELEGATES to it then applies its own executed-IPD-only rule. Spec non-regression: `python -m pytest tests/ -k "spec or evidence or implemented"` -> 122 passed.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: CLI test that `aw backlog set done <blocking-item>` fails with the three-fix teaching error, and succeeds via each of the three paths; paste output.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `tests/test_release_gate_close.py::SetterGateTests` (`ok`): `test_bare_blocking_close_refused_with_three_fixes` (rc==1, stderr names From-Backlog + --evidence + --blocks-release -, nothing written to done/), `test_handoff_makes_close_succeed`, `test_evidence_makes_close_succeed`, `test_same_call_degate_makes_close_succeed` (`done` + `--blocks-release -` in ONE call takes DE-GATED path; moved file carries no Blocks-Release), `test_non_blocking_close_unaffected`. Gate in `backlog.run_set` evaluates the predicate on the POST-mutation rendered text; `--evidence` arg wired in `cli.py` (committed at HEAD; see NOTE below re attribution).
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: tests that `aw check` fires `blocking-item-closed-without-gate`, `from-backlog-gate-mismatch`, and `orphaned-live-blocker` on fixtures and is clean otherwise; paste output.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `tests/test_release_gate_close.py::ConsistencyCheckTests` + `WarnSurfaceTests` (`ok`): `test_blocking_item_closed_without_gate_flagged_when_staged` (COMMIT-SCOPED backstop fires on a staged done+blocking item), `test_historical_done_blocker_grandfathered_when_unstaged` (an already-committed done blocker is NOT retroactively flagged - grandfathering), `test_done_with_handoff_is_clean_when_staged`, `test_from_backlog_gate_mismatch_flagged`, `test_matching_gate_is_clean`, `test_orphaned_live_blocker_is_warn_not_error` (orphaned-live-blocker is a WARN, absent from the exit-blocking consistency drift, present in `release_gate_warnings`). Live: `check_engine.check_types(repo, ['all'])` adds ZERO of my 3 rules to the tree (full sweep 65 == pre-existing baseline), and `aw sanitize` clean.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: test that blocking `-> parked` and priority-demote-of-blocker each produce a warning via `aw check`/`aw attention` with exit code unchanged; paste output.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_release_gate_close.py::WarnSurfaceTests::test_parked_blocker_succeeds_with_warning` (`ok`): parking a blocker via `aw backlog set parked` returns rc==0 (allowed) and emits `aw backlog set: warning: parking a release-blocking item ...` to stderr; the item moves to `parked/`. Priority-demote warn covered by `PredicateTests::test_priority_demote_of_blocker_warns`. `release_gate_warnings` surfaced in the `attention.py` human view as a `## release-gate-warnings` block (NEVER affects the exit code).
+  - Result: pass
 
 
 ## Approval and execution gate
