@@ -113,6 +113,10 @@ STATUS_COLOR_256 = {
     "implemented": 46,
     "executed": 46,
     "reusable": 39,
+    "planned": 40,
+    "shipped": 46,
+    "reference": 244,
+    "archived": 240,
     "blocked": 203,
     "deferred": 208,  # orange-red
     "done": 244,

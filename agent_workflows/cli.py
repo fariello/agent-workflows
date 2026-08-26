@@ -394,6 +394,18 @@ _DESCRIPTIONS = {
         "evades it; 'aw check'/'aw doctor' is the backstop); no CI. Exit 0 = ok/no-op, 1 = refused. "
         "Invoked by the repo:local pre-commit hook, not typically by hand."
     ),
+    "backlog-blocking-close-gate": (
+        "Local pre-commit gate (bklggrad f1dhht): refuse committing a release-blocking backlog item "
+        "closed to '- Status: done' (or moved into done/) without a preserved-or-satisfied gate - the "
+        "bypass-catcher for a hand-edit that skips 'aw backlog set done'. Inspects the staged diff and "
+        "delegates to the shared 'check_engine.evaluate_blocking_close' predicate (via the commit-scoped "
+        "'check.blocking-item-closed-without-gate' rule), reconstructing legitimacy from PERSISTED state "
+        "(HANDOFF: a From-Backlog blocking plan; DE-GATED: Blocks-Release cleared), so the hook, setter, "
+        "and 'aw check' never diverge. Gates the 'done' case only (park/demote warns are surfaced by "
+        "'aw check'/'aw attention'). LOCAL best-effort, OPT-IN only (--no-verify bypasses it; the "
+        "portable authority is the 'aw check' rule + CI); commit-scoped (historical done items "
+        "grandfathered). Exit 0 = ok/no-op, 1 = refused. Invoked by the repo:local pre-commit hook."
+    ),
 }
 
 
@@ -2628,6 +2640,15 @@ EXAMPLES
         parents=[common],
         help="Local pre-commit gate: flag a raw (untooled) intermediate plan status change "
         "(no attributed history line; use aw set <status> <id6>; LOCAL prevention, no CI).",
+    )
+
+    # bklggrad f1dhht: OPT-IN local pre-commit gate refusing a release-blocking backlog item closed
+    # to done without a preserved-or-satisfied gate. Delegates to the child-02 shared predicate.
+    sub.add_parser(
+        "backlog-blocking-close-gate",
+        parents=[common],
+        help="Local pre-commit gate: refuse a release-blocking backlog item closed to done without a "
+        "handoff/evidence/de-gate (OPT-IN, LOCAL prevention, no CI; the aw check rule is the backstop).",
     )
 
     _apply_descriptions(parser)
@@ -5998,18 +6019,7 @@ def _run_search(
                             it = item_map.get(p.resolve()) if item_map else None
                             if it:
                                 status_word = it.native_status
-                                code = att._STATUS_COLOR_256.get(
-                                    it.native_status,
-                                    att._CLASS_COLOR_256.get(it.attention_class, 244),
-                                )
-                                status_txt = (
-                                    term.color256(status_word, code, bold=True)
-                                    if term.color
-                                    else status_word
-                                )
-                                status_padded = status_txt + (
-                                    " " * max(0, 12 - len(status_word))
-                                )
+                                status_padded = term.status_256(status_word, width=12)
                                 age = att._age_marker(it.last_history_at, it.tree)
                                 gate_glyph = "#" if it.gate else ""
                                 rb_glyph = ">" if it.blocks_release else ""
@@ -6066,14 +6076,7 @@ def _run_search(
                                     rel = str(p)
                                 stem = att._identity_stem(rel)
                                 status_word = _artifact_status(p, text)
-                                status_txt = (
-                                    term.color256(status_word, 244, bold=True)
-                                    if term.color
-                                    else status_word
-                                )
-                                status_padded = status_txt + (
-                                    " " * max(0, 12 - len(status_word))
-                                )
+                                status_padded = term.status_256(status_word, width=12)
                                 type_word = att._SINGULAR_TYPE.get(t, t)
                                 type_txt = (
                                     term.color256(
@@ -7258,6 +7261,11 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         from agent_workflows.hooks import status_untooled_gate as _sgate
 
         return _sgate.main([])
+
+    if args.command == "backlog-blocking-close-gate":
+        from agent_workflows.hooks import backlog_blocking_close_gate as _bgate
+
+        return _bgate.main([])
 
     parser.print_help()
     return 2

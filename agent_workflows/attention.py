@@ -485,12 +485,19 @@ _STATUS_COLOR_256 = {
     "intake": 44,  # teal (research not-yet-active)
     "open": 40,
     "ready": 40,
+    "pending": 40,
     "approved": 46,  # bright green (cleared to go)
     "reviewed": 226,  # yellow (progressed, awaiting approval)
     "to-review": 214,  # orange (needs a review pass)
     "draft": 245,  # gray (not ready)
     "implementing": 51,  # cyan
     "implemented": 46,
+    "executed": 46,  # bright green (implemented and verified)
+    "reusable": 39,  # bright azure
+    "planned": 40,
+    "shipped": 46,
+    "reference": 244,
+    "archived": 240,
     "blocked": 203,
     "deferred": 208,  # orange-red (gated)
     "done": 244,
