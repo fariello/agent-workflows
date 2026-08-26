@@ -1919,6 +1919,13 @@ def _build_parser() -> argparse.ArgumentParser:
                 action="store_true",
                 help="Only print filenames of matching files (like grep -l).",
             )
+            _p.add_argument(
+                "--short",
+                "-s",
+                dest="short",
+                action="store_true",
+                help="Print matching files with type and status in attention format (- [type] path (status)).",
+            )
         # backend-relevant passthrough flags (index/find/check)
         _p.add_argument(
             "--check",
@@ -2296,6 +2303,16 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="blocks_release",
         default=None,
         help="Declare this item gates a release: a release id6, 'next', or '-' to clear.",
+    )
+    p_backlog_set.add_argument(
+        "--evidence",
+        dest="evidence",
+        default=None,
+        help=(
+            "Resolvable in-tree artifact path satisfying a release gate, so a blocking item may "
+            "close 'done' (SATISFIED path). Alternatives: hand the gate to a From-Backlog plan, or "
+            "clear it with '--blocks-release -'."
+        ),
     )
     p_backlog_set.add_argument(
         "--dry-run", action="store_true", help="Preview without writing."
@@ -5909,11 +5926,39 @@ def _run_search(
     repo_root = Path(getattr(args, "dir", None) or os.getcwd())
     types = at.ARTIFACT_TYPES if norm == "all" else (norm,)
     line_numbers = getattr(args, "line_numbers", False)
+    short_format = getattr(args, "short", False)
     files_only = getattr(args, "files_only", False)
 
     hits = 0
     json_results = []
     matching_files = []
+
+    def _artifact_status(p: Path, text: str) -> str:
+        m = re.search(r"(?m)^-\s*Status:\s*(\S+)", text)
+        if m:
+            return m.group(1)
+        parts = p.parts
+        for bucket in (
+            "executed",
+            "active",
+            "pending",
+            "reviewed",
+            "approved",
+            "reusable",
+            "superseded",
+            "not-executed",
+            "open",
+            "done",
+            "parked",
+            "intake",
+            "reference",
+            "archived",
+            "planned",
+            "shipped",
+        ):
+            if bucket in parts:
+                return bucket
+        return "-"
 
     for t in types:
         for base in (repo_root / ".aw" / "records" / t, repo_root / ".agents" / t):
@@ -5937,13 +5982,32 @@ def _run_search(
                 if file_matches:
                     matching_files.append(str(p))
                     if not (ctx.is_agent or ctx.is_json):
-                        file_header = (
-                            term.color256(str(p), 39, bold=True)
-                            if term.color
-                            else str(p)
-                        )
-                        term.line(file_header)
-                        if not files_only:
+                        if short_format:
+                            try:
+                                rel = str(p.relative_to(repo_root))
+                            except ValueError:
+                                rel = str(p)
+                            status_word = _artifact_status(p, text)
+                            if term.color:
+                                type_txt = term.color256(f"[{t}]", 39, bold=True)
+                                status_txt = term.status_256(status_word)
+                                term.line(f"- {type_txt} {rel} ({status_txt})")
+                            else:
+                                term.line(f"- [{t}] {rel} ({status_word})")
+                        elif files_only:
+                            file_header = (
+                                term.color256(str(p), 39, bold=True)
+                                if term.color
+                                else str(p)
+                            )
+                            term.line(file_header)
+                        else:
+                            file_header = (
+                                term.color256(str(p), 39, bold=True)
+                                if term.color
+                                else str(p)
+                            )
+                            term.line(file_header)
                             for i, line in file_matches:
                                 highlighted = _highlight_matches(line.strip(), rx, term)
                                 if line_numbers:
