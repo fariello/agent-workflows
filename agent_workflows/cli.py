@@ -5960,6 +5960,16 @@ def _run_search(
                 return bucket
         return "-"
 
+    item_map = None
+    if short_format:
+        try:
+            from agent_workflows import attention as att
+
+            items_scanned, _ = att.scan(repo_root)
+            item_map = {(repo_root / it.path).resolve(): it for it in items_scanned}
+        except Exception:
+            item_map = {}
+
     for t in types:
         for base in (repo_root / ".aw" / "records" / t, repo_root / ".agents" / t):
             if not base.is_dir():
@@ -5983,17 +5993,101 @@ def _run_search(
                     matching_files.append(str(p))
                     if not (ctx.is_agent or ctx.is_json):
                         if short_format:
-                            try:
-                                rel = str(p.relative_to(repo_root))
-                            except ValueError:
-                                rel = str(p)
-                            status_word = _artifact_status(p, text)
-                            if term.color:
-                                type_txt = term.color256(f"[{t}]", 39, bold=True)
-                                status_txt = term.status_256(status_word)
-                                term.line(f"- {type_txt} {rel} ({status_txt})")
+                            from agent_workflows import attention as att
+
+                            it = item_map.get(p.resolve()) if item_map else None
+                            if it:
+                                status_word = it.native_status
+                                code = att._STATUS_COLOR_256.get(
+                                    it.native_status,
+                                    att._CLASS_COLOR_256.get(it.attention_class, 244),
+                                )
+                                status_txt = (
+                                    term.color256(status_word, code, bold=True)
+                                    if term.color
+                                    else status_word
+                                )
+                                status_padded = status_txt + (
+                                    " " * max(0, 12 - len(status_word))
+                                )
+                                age = att._age_marker(it.last_history_at, it.tree)
+                                gate_glyph = "#" if it.gate else ""
+                                rb_glyph = ">" if it.blocks_release else ""
+                                blk = (age + gate_glyph + rb_glyph).strip()
+                                lead = f"{blk:<3}" if blk else "   "
+                                path_txt = att._identity_stem(it.path)
+                                type_word = att._SINGULAR_TYPE.get(it.tree, it.tree)
+                                type_txt = (
+                                    term.color256(
+                                        type_word, att._TREE_COLOR_256, bold=True
+                                    )
+                                    if term.color
+                                    else type_word
+                                )
+                                type_prefix = (
+                                    type_txt
+                                    + (" " * max(0, 10 - len(type_word)))
+                                    + "  "
+                                )
+                                prio = ""
+                                if it.priority:
+                                    pcode = {
+                                        "high": 196,
+                                        "medium": 214,
+                                        "low": 244,
+                                    }.get(it.priority, 244)
+                                    prio = "  " + (
+                                        term.color256(
+                                            f"[{it.priority}]", pcode, bold=True
+                                        )
+                                        if term.color
+                                        else f"[{it.priority}]"
+                                    )
+                                blocking = ""
+                                if it.blocks_release:
+                                    blocking = "  " + (
+                                        term.color256("[blocking]", 196, bold=True)
+                                        if term.color
+                                        else "[blocking]"
+                                    )
+                                inline_gate = ""
+                                if it.gate and it.attention_class != "blocked":
+                                    g = it.gate
+                                    g_kind = g.get("kind")
+                                    g_ref = att.A.escape_detail(g.get("ref", ""))
+                                    inline_gate = f"  [gate {g_kind}: {g_ref}]"
+                                term.line(
+                                    f"- {lead}{status_padded}  {type_prefix}{path_txt}{prio}{blocking}{inline_gate}"
+                                )
                             else:
-                                term.line(f"- [{t}] {rel} ({status_word})")
+                                try:
+                                    rel = str(p.relative_to(repo_root))
+                                except ValueError:
+                                    rel = str(p)
+                                stem = att._identity_stem(rel)
+                                status_word = _artifact_status(p, text)
+                                status_txt = (
+                                    term.color256(status_word, 244, bold=True)
+                                    if term.color
+                                    else status_word
+                                )
+                                status_padded = status_txt + (
+                                    " " * max(0, 12 - len(status_word))
+                                )
+                                type_word = att._SINGULAR_TYPE.get(t, t)
+                                type_txt = (
+                                    term.color256(
+                                        type_word, att._TREE_COLOR_256, bold=True
+                                    )
+                                    if term.color
+                                    else type_word
+                                )
+                                type_prefix = (
+                                    type_txt
+                                    + (" " * max(0, 10 - len(type_word)))
+                                    + "  "
+                                )
+                                term.line(f"-    {status_padded}  {type_prefix}{stem}")
                         elif files_only:
                             file_header = (
                                 term.color256(str(p), 39, bold=True)

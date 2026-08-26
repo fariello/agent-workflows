@@ -86,17 +86,17 @@ class ReadVerbsTests(unittest.TestCase):
     def test_search_short_format(self) -> None:
         rc, out = self._run(["search", "--short", "specs", "findable content"])
         self.assertEqual(rc, 0)
-        self.assertIn(
-            "- [specs] .aw/records/specs/20260101-1200-01-thing.spec.md (draft)", out
-        )
+        self.assertIn("draft", out)
+        self.assertIn("spec", out)
+        self.assertIn("20260101-1200-01-thing", out)
         self.assertNotIn("findable content here", out)
 
         # --short overrides -l
         rc2, out2 = self._run(["search", "-s", "-l", "findable"])
         self.assertEqual(rc2, 0)
-        self.assertIn(
-            "- [specs] .aw/records/specs/20260101-1200-01-thing.spec.md (draft)", out2
-        )
+        self.assertIn("draft", out2)
+        self.assertIn("spec", out2)
+        self.assertIn("20260101-1200-01-thing", out2)
 
     def test_find_without_type(self) -> None:
         rc, out = self._run(["find", "aaa111"])
