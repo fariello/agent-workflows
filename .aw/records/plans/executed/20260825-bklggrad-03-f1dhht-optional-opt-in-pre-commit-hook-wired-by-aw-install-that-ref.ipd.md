@@ -5,15 +5,15 @@
 - Concern: The child-02 setter gate can be bypassed by hand-editing a backlog file (flip `Status: done`, move it to `done/`) and committing directly, which silently drops a release gate - exactly the hand-edit bypass the findings doc (bu9yij, section 7.7) says a local pre-commit hook should catch. `aw install` should OPTIONALLY (opt-in, not default - per the design decision) wire a local pre-commit hook that refuses to COMMIT a blocking backlog item closed to `done` without a preserved-or-satisfied gate, using the SAME shared predicate as the setter/check so they cannot diverge.
 - Scope: Add an opt-in local pre-commit hook mirroring `agent_workflows/hooks/status_untooled_gate.py`: (1) a new hook module (e.g. `agent_workflows/hooks/backlog_blocking_close_gate.py`) whose `check(repo_root)` inspects the STAGED change and, for each backlog item whose staged content shows `Status: done` (or a move into `done/`) while it carries `Blocks-Release` and has no matching tool-history line, delegates to the child-02 `evaluate_blocking_close` predicate (commit-scoped, over the staged tree) and returns exit 1 with a teaching refusal when illegitimate; (2) installer wiring in `agent_workflows/engine.py` so `aw install` OFFERS to install it (interactive) or a flag enables it, fail-closed where the host supports it, opt-out available, idempotent; NOT installed by default. Honest limits documented (local only, not cloned by default, skippable with `--no-verify`; the portable authority is the child-02 `aw check` rule + CI). Adversarial/bypass tests: hand-edit-to-done without gate is refused; with a From-Backlog blocking plan / resolvable evidence / cleared Blocks-Release it passes; a non-blocking item close is unaffected; `--no-verify` documented as the (visible) escape.
 - Scope-Paths: agent_workflows/hooks/, agent_workflows/engine.py, agent_workflows/check_engine.py, tests/, AGENTS.md
-- Status: approved
+- Status: executed
 - Set: bklggrad
 - Order: 3
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: f1dhht
-- Approval: 2026-08-26, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-26 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): opt-in backlog-blocking-close pre-commit hook + installer wiring; product committed 81d9acb (cli.py entry via c84d7ab, decision 04-f1dhht-D2), tests green (test_backlog_blocking_close_gate 12 + full suite 2267), terminal transition post-hoc [Scope reconciliation - in-scope-unmodified AGENTS.md: landed in 81d9acb; in-scope-unmodified agent_workflows/check_engine.py: landed in 81d9acb; in-scope-unmodified agent_workflows/engine.py: landed in 81d9acb; in-scope-unmodified agent_workflows/hooks/: landed in 81d9acb; in-scope-unmodified tests/: landed in 81d9acb]
 - 2026-08-26 approved (aw set): status set to approved
 - 2026-08-25 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (gate contract) FIXED, PR-002 (AGENTS.md Scope-Paths) FIXED, PR-003 (status) FIXED, PR-004 (commit-time SATISFIED reconstructability) FIXED; cross-IPD note to child 02 (persist SATISFIED evidence citation) recorded in the review report
 - 2026-08-25 reviewed (aw set): plan-review: hardened (AGENTS.md Scope-Paths, commit-time SATISFIED reconstructability clarified, full execution-contract gate)

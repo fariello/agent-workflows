@@ -3160,6 +3160,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-25",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 3,
+    "path": "executed/20260825-bklggrad-03-f1dhht-optional-opt-in-pre-commit-hook-wired-by-aw-install-that-ref.ipd.md",
+    "plan_id": "f1dhht",
+    "set_id": "bklggrad",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -3266,16 +3276,6 @@
     "order": 0,
     "path": "pending/20260825-bklggrad-00-s65hhv-backlog-release-gate-graduation-guard-a-blocking-backlog-ite.ipd.md",
     "plan_id": "s65hhv",
-    "set_id": "bklggrad",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-25",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 3,
-    "path": "pending/20260825-bklggrad-03-f1dhht-optional-opt-in-pre-commit-hook-wired-by-aw-install-that-ref.ipd.md",
-    "plan_id": "f1dhht",
     "set_id": "bklggrad",
     "status": "approved"
   },
