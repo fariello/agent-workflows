@@ -670,32 +670,41 @@ def run_note(args) -> int:
     return 0
 
 
-def _evidence_resolvable(spec_path: Path, evidence: str) -> bool:
-    """`implemented` evidence must be a resolvable citation: an existing executed-IPD path.
-
-    Layout-aware: the executed-IPD tree is `.agents/plans/executed/` (legacy) or
-    `.aw/records/plans/executed/` (after the physical-layout migration). The repo root is
-    found by walking up from the spec file until a `.git` (or the `.aw`/`.agents` root) is
-    seen, so this works whether the spec lives under `.agents/docs/specs/` (3 deep) or
-    `.aw/records/specs/` (flattened, Order 07).
-    """
-
-    if not A.is_safe_descriptive(evidence):
-        return False
+def _spec_repo_root(spec_path: Path) -> Path:
+    """The repo root for a spec file: walk up until a `.git`/`.aw`/`.agents` marker (bklggrad
+    orb9zb: factored out of `_evidence_resolvable` so the shared resolver can reuse it)."""
     resolved = spec_path.resolve()
-    repo_root = None
     for parent in resolved.parents:
         if (
             (parent / ".git").exists()
             or (parent / ".aw").is_dir()
             or (parent / ".agents").is_dir()
         ):
-            repo_root = parent
-            break
-    if repo_root is None:
-        repo_root = Path(".")
+            return parent
+    return Path(".")
+
+
+def _evidence_resolvable(spec_path: Path, evidence: str) -> bool:
+    """`implemented` evidence must be a resolvable citation: an existing executed-IPD path.
+
+    bklggrad orb9zb E-03: this now DELEGATES the shared safety + containment + existence check to
+    `check_engine.resolve_evidence_artifact` (the generalized resolver reused by the backlog
+    close-legitimacy predicate) and then applies specs' OWN stricter requirement that the artifact
+    live under an `executed/` plans tree. Behavior is UNCHANGED: a safe, in-tree, existing
+    executed-IPD path passes; anything else is rejected.
+
+    Layout-aware: the executed-IPD tree is `.agents/plans/executed/` (legacy) or
+    `.aw/records/plans/executed/` (after the physical-layout migration).
+    """
+    from agent_workflows import check_engine as _ce
+
+    if not A.is_safe_descriptive(evidence):
+        return False
+    repo_root = _spec_repo_root(spec_path)
+    # shared safety/containment/existence + in-tree-records gate:
+    if not _ce.resolve_evidence_artifact(repo_root, evidence):
+        return False
+    # specs' STRICTER requirement (unchanged): must be an executed IPD.
     candidate = (repo_root / evidence).resolve()
     norm = str(candidate).replace("\\", "/")
-    return candidate.exists() and (
-        ".agents/plans/executed" in norm or ".aw/records/plans/executed" in norm
-    )
+    return ".agents/plans/executed" in norm or ".aw/records/plans/executed" in norm

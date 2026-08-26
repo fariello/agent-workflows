@@ -83,3 +83,13 @@ set <status> <plan> --from-backlog <id6>` (clear with `--from-backlog -`). `aw c
 `From-Backlog` value that resolves to no backlog item (`check.from-backlog-dangling`). This link lets a
 blocking backlog item's release gate be provably handed off to the plan that inherits it (so the item can
 close `done` without silently dropping the gate).
+
+Close-legitimacy rule for a release-blocking backlog item: `aw backlog set done` on an item carrying
+`- Blocks-Release: <R>` FAILS CLOSED unless the gate is provably preserved or released via one of three
+fixes: (1) HANDOFF, a plan carrying `- From-Backlog: <this id6>` and the same `- Blocks-Release: <R>`
+(set with `aw ipd set ... --from-backlog <id6>`); (2) SATISFIED, a resolvable in-tree artifact citation
+`aw backlog set done <item> --evidence <path>`; (3) DE-GATED, clear the gate first (or in the same call)
+with `aw backlog set done <item> --blocks-release -`. Parking a blocker or demoting its priority is
+allowed but WARNs. One shared predicate (`check_engine.evaluate_blocking_close`) backs the setter, the
+`aw check` consistency rules (`check.blocking-item-closed-without-gate`, `check.from-backlog-gate-mismatch`,
+and the advisory `check.orphaned-live-blocker`), and the opt-in pre-commit hook, so they cannot diverge.

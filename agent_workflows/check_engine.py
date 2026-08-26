@@ -6,7 +6,7 @@ from __future__ import annotations
 import importlib.util
 import re as _re
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
@@ -614,4 +614,387 @@ def check_types(
             drift.extend(check_status_untooled(repo_root))
         except Exception:
             pass
+        # bklggrad orb9zb: release-gate close-legitimacy consistency rules (blocking item closed
+        # without a preserved/satisfied gate; a From-Backlog plan whose Blocks-Release != the item's;
+        # a still-open blocking item already graduated to a blocking plan). ERROR-severity rules fold
+        # into the exit-blocking sweep; the WARN-severity findings are surfaced by attention only.
+        try:
+            drift.extend(check_release_gate_consistency(repo_root))
+        except Exception:
+            pass
     return drift
+
+
+# ======================================================================================
+# bklggrad orb9zb: shared close-legitimacy predicate for release-gated backlog items.
+#
+# ONE predicate consumed by three surfaces so they cannot diverge (the status_untooled_gate
+# hook->check_engine pattern): the `aw backlog set done` setter gate (backlog.run_set), the
+# `aw check` consistency rules below, and the child-03 opt-in pre-commit hook (which delegates
+# here). A release-blocking backlog item (one carrying `- Blocks-Release: <R>`) may only leave the
+# active-blocker set via `-> done` when the gate is provably HANDOFF'd, SATISFIED, or DE-GATED.
+# ======================================================================================
+
+_ID6_RE = _re.compile(r"\A[0-9a-z]{6}\Z")
+_ITEM_ID_RE = _re.compile(r"(?m)^- Id:[ \t]*([0-9a-z]{6})[ \t]*$")
+_ITEM_PRIORITY_RE = _re.compile(r"(?m)^- Priority:[ \t]*(\S+)[ \t]*$")
+_META_BLOCKS_RELEASE_RE = _re.compile(r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$")
+_META_FROM_BACKLOG_RE = _re.compile(r"(?m)^- From-Backlog:[ \t]*(\S+)[ \t]*$")
+_PLAN_STATUS_RE = _re.compile(r"(?m)^- Status:[ \t]*(\S+)[ \t]*$")
+
+_PRIORITY_RANK = {"low": 0, "medium": 1, "high": 2}
+
+
+def resolve_evidence_artifact(repo_root: Path, evidence: str) -> bool:
+    """Shared evidence resolver (bklggrad orb9zb E-03): a resolvable close-evidence citation is a
+    SAFE, in-tree, existing artifact path under the repo's records tree (an executed IPD, a records
+    file, or another committed doc). Generalizes the specs `_evidence_resolvable` (which is
+    executed-IPD-only) so a non-IPD backlog item (README/research/prompt/check work) can be closed
+    `done` with a cited artifact. Path-traversal-safe: the resolved path must stay inside the repo.
+
+    NOTE: this is intentionally MORE permissive than the specs predicate (any in-tree records
+    artifact, not only executed IPDs). specs' `implementing -> implemented` keeps its own stricter
+    predicate unchanged.
+    """
+    from agent_workflows import attention_contract as _A
+
+    if not evidence or not _A.is_safe_descriptive(evidence):
+        return False
+    repo_root = Path(repo_root).resolve()
+    candidate = (repo_root / evidence).resolve()
+    # containment: candidate must be inside the repo root (no ../ escape)
+    try:
+        candidate.relative_to(repo_root)
+    except ValueError:
+        return False
+    if not candidate.exists():
+        return False
+    norm = str(candidate).replace("\\", "/")
+    # must live under a records/artifact tree (not, e.g., a source file or an arbitrary dotfile).
+    # Accept the post-migration `.aw/records/` tree and the legacy `.agents/` records tree (plans,
+    # docs, specs, etc.) so an executed IPD under either layout resolves.
+    return (".aw/records/" in norm) or ("/.agents/" in norm)
+
+
+def _iter_plan_ipds(repo_root: Path):
+    """Yield (path, text) for every plan IPD under either layout's plans tree."""
+    for base in (
+        Path(repo_root) / ".aw" / "records" / "plans",
+        Path(repo_root) / ".agents" / "plans",
+    ):
+        if not base.is_dir():
+            continue
+        for p in sorted(base.rglob("*.ipd.md")):
+            if p.name in _SKIP_NAMES:
+                continue
+            try:
+                yield p, p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+
+
+def find_from_backlog_plans(repo_root: Path, item_id6: str) -> List[Tuple[Path, str]]:
+    """Every plan whose `- From-Backlog:` names `item_id6`. Returns [(path, blocks_release_or_'')]."""
+    out: List[Tuple[Path, str]] = []
+    for p, text in _iter_plan_ipds(repo_root):
+        mfb = _META_FROM_BACKLOG_RE.search(text)
+        if mfb and mfb.group(1) == item_id6:
+            mbr = _META_BLOCKS_RELEASE_RE.search(text)
+            out.append((p, mbr.group(1) if mbr else ""))
+    return out
+
+
+class CloseVerdict(NamedTuple):
+    """Structured verdict from `evaluate_blocking_close`.
+
+    legitimate: may this transition proceed?
+    severity:   'ok' (unchecked/allowed) | 'warn' (allowed, advisory) | 'error' (fail-closed).
+    reason:     machine/human explanation.
+    fixes:      the concrete remedies to offer on an error.
+    path:       HANDOFF|SATISFIED|DE-GATED|None (which legitimacy path matched).
+    """
+
+    legitimate: bool
+    severity: str
+    reason: str
+    fixes: Tuple[str, ...]
+    path: Optional[str]
+
+
+def evaluate_blocking_close(
+    repo_root: Path,
+    item_path: Path,
+    target_status: str,
+    evidence: Optional[str] = None,
+    *,
+    item_text: Optional[str] = None,
+    prior_priority: Optional[str] = None,
+) -> CloseVerdict:
+    """The shared close-legitimacy predicate for a release-gated backlog item (bklggrad orb9zb).
+
+    Reads the item's POST-mutation state (pass `item_text` to evaluate an in-memory item, e.g. after
+    a same-call `--blocks-release -`/`--evidence`; else the file is read). Only items that carry a
+    `- Blocks-Release:` line are gated; everything else returns legitimate/ok (unchecked).
+
+    Transitions:
+      -> done   : LEGITIMATE iff one of
+                    HANDOFF  - a plan carrying `From-Backlog: <this id6>` AND the same `Blocks-Release`
+                    SATISFIED- a resolvable `evidence` artifact citation
+                    DE-GATED - the (post-mutation) item no longer carries Blocks-Release
+                  else ILLEGITIMATE (severity error, fail-closed).
+      -> parked : WARN (allowed): the gate is hidden from the active view; hint to de-gate.
+      priority-demote of a blocker (prior_priority outranks the new one): WARN (allowed).
+      everything else: ok (unchecked).
+    """
+    repo_root = Path(repo_root)
+    text = (
+        item_text
+        if item_text is not None
+        else Path(item_path).read_text(encoding="utf-8")
+    )
+    mid = _ITEM_ID_RE.search(text)
+    item_id6 = mid.group(1) if mid else None
+    mbr = _META_BLOCKS_RELEASE_RE.search(text)
+    blocks_release = mbr.group(1) if mbr else None
+
+    if target_status == "done":
+        # DE-GATED: the post-mutation item carries no Blocks-Release -> nothing to preserve.
+        if not blocks_release:
+            return CloseVerdict(
+                True, "ok", "no release gate to preserve", (), "DE-GATED"
+            )
+        # HANDOFF: a From-Backlog plan with the SAME Blocks-Release inherited the gate.
+        if item_id6:
+            for _p, plan_br in find_from_backlog_plans(repo_root, item_id6):
+                if plan_br == blocks_release:
+                    return CloseVerdict(
+                        True,
+                        "ok",
+                        f"gate {blocks_release!r} handed off to a From-Backlog plan",
+                        (),
+                        "HANDOFF",
+                    )
+        # SATISFIED: a resolvable evidence artifact citation.
+        if evidence and resolve_evidence_artifact(repo_root, evidence):
+            return CloseVerdict(
+                True,
+                "ok",
+                f"gate {blocks_release!r} satisfied by resolvable evidence {evidence!r}",
+                (),
+                "SATISFIED",
+            )
+        # else fail-closed with the three fixes.
+        return CloseVerdict(
+            False,
+            "error",
+            (
+                f"backlog item carries Blocks-Release {blocks_release!r}; closing it `done` would "
+                f"silently drop that release gate"
+            ),
+            (
+                "hand the gate to a plan: add `- From-Backlog: <this id6>` (and the same "
+                "`- Blocks-Release`) to a plan via `aw ipd set ... --from-backlog <id6>`",
+                "cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path>`",
+                "explicitly release the gate first: `aw backlog set done <item> --blocks-release -`",
+            ),
+            None,
+        )
+
+    if target_status == "parked" and blocks_release:
+        return CloseVerdict(
+            True,
+            "warn",
+            (
+                f"parking a release-blocking item hides gate {blocks_release!r} from the active "
+                f"release-blocker view; de-gate (`--blocks-release -`) if it truly no longer blocks"
+            ),
+            (),
+            None,
+        )
+
+    if (
+        blocks_release
+        and prior_priority is not None
+        and target_status not in ("done", "parked")
+    ):
+        mp = _ITEM_PRIORITY_RE.search(text)
+        new_priority = mp.group(1) if mp else None
+        pr = _PRIORITY_RANK.get((prior_priority or "").lower())
+        nr = _PRIORITY_RANK.get((new_priority or "").lower())
+        if pr is not None and nr is not None and nr < pr:
+            return CloseVerdict(
+                True,
+                "warn",
+                (
+                    f"demoting the priority of a release-blocking item ({prior_priority} -> "
+                    f"{new_priority}) may contradict its Blocks-Release {blocks_release!r}"
+                ),
+                (),
+                None,
+            )
+
+    return CloseVerdict(True, "ok", "unchecked transition", (), None)
+
+
+def _backlog_done_dirs(repo_root: Path):
+    for root_rel in (".aw/records/backlog", ".agents/backlog"):
+        d = Path(repo_root) / root_rel / "done"
+        if d.is_dir():
+            yield d
+
+
+_BACKLOG_DONE_RE = _re.compile(r"(?:^|/)backlog/done/[^/]+\.md$")
+
+
+def _staged_backlog_done_items(repo_root: Path) -> List[str]:
+    """Repo-relative paths of backlog items UNDER a `backlog/done/` dir that are added/modified/renamed
+    in the STAGED index of the current commit (commit-scoped, like check_status_untooled). Empty when
+    nothing under backlog/ is staged (fast no-op on an ordinary `aw check`)."""
+    rc, out, _err = _git_capture(
+        repo_root,
+        [
+            "diff",
+            "--cached",
+            "--name-status",
+            "-M",
+            "--",
+            ".aw/records/backlog",
+            ".agents/backlog",
+        ],
+    )
+    if rc != 0 or not out.strip():
+        return []
+    paths: List[str] = []
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if not parts:
+            continue
+        code = parts[0].strip()
+        if code.startswith("D"):
+            continue  # a deletion carries no new done state
+        new_path = parts[-1].strip()
+        if (
+            _BACKLOG_DONE_RE.search(new_path.replace("\\", "/"))
+            and new_path not in paths
+        ):
+            paths.append(new_path)
+    return paths
+
+
+def check_release_gate_consistency(repo_root: Path) -> List[_core.Drift]:
+    """bklggrad orb9zb E-05: cross-tree consistency rules reusing `evaluate_blocking_close`.
+
+    ERROR-severity (fold into the exit-blocking sweep):
+      check.blocking-item-closed-without-gate - an already-`done` blocking item whose gate was not
+        preserved/satisfied (the backstop for a hand-edit bypass of the setter gate).
+      check.from-backlog-gate-mismatch - a `From-Backlog` plan whose `Blocks-Release` differs from
+        the backlog item's Blocks-Release (a broken handoff).
+
+    The WARN-severity `check.orphaned-live-blocker` (a still-open blocking item already graduated to
+    a blocking plan) is surfaced via `release_gate_warnings`/attention, NOT here (it must not set the
+    exit code).
+    """
+    repo_root = Path(repo_root)
+    drift: List[_core.Drift] = []
+
+    # Rule 1: the hand-edit-bypass backstop. COMMIT-SCOPED (the check_status_untooled philosophy):
+    # only a backlog item whose close-to-`done` is STAGED in THIS commit is examined, so historical
+    # `done/` items closed before this guard existed are grandfathered (never retroactively flagged).
+    # A staged done+blocking item with no legitimate gate is the fingerprint of a hand-edit that
+    # bypassed the `aw backlog set done` gate. Fast no-op when nothing under backlog/ is staged.
+    for staged_path in _staged_backlog_done_items(repo_root):
+        staged_text = _blob_text(repo_root, ":0:", staged_path)
+        if not staged_text or not _META_BLOCKS_RELEASE_RE.search(staged_text):
+            continue
+        if _status_meta(staged_text) != "done":
+            continue
+        verdict = evaluate_blocking_close(
+            repo_root, repo_root / staged_path, "done", item_text=staged_text
+        )
+        if not verdict.legitimate and verdict.severity == "error":
+            drift.append(
+                _core.Drift(
+                    staged_path,
+                    "check.blocking-item-closed-without-gate",
+                    (
+                        "a done backlog item staged in this commit still carries Blocks-Release with "
+                        "no handoff (From-Backlog plan), resolvable evidence, or de-gate; close it "
+                        "via `aw backlog set done` (which enforces the gate) rather than by hand"
+                    ),
+                )
+            )
+
+    # Rule 2: From-Backlog plan whose Blocks-Release differs from the backlog item's.
+    from agent_workflows import backlog as _backlog
+
+    item_gate: Dict[str, Tuple[str, str]] = {}  # id6 -> (blocks_release, item_path)
+    for f in _backlog._iter_items(repo_root):
+        try:
+            text = f.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        mid = _ITEM_ID_RE.search(text)
+        mbr = _META_BLOCKS_RELEASE_RE.search(text)
+        if mid and mbr:
+            item_gate[mid.group(1)] = (mbr.group(1), str(f))
+    for p, text in _iter_plan_ipds(repo_root):
+        mfb = _META_FROM_BACKLOG_RE.search(text)
+        if not mfb:
+            continue
+        target_id6 = mfb.group(1)
+        if target_id6 not in item_gate:
+            continue  # dangling From-Backlog is check.from-backlog-dangling's job (ku93tn)
+        item_br, _item_path = item_gate[target_id6]
+        mbr = _META_BLOCKS_RELEASE_RE.search(text)
+        plan_br = mbr.group(1) if mbr else None
+        if plan_br != item_br:
+            drift.append(
+                _core.Drift(
+                    str(p),
+                    "check.from-backlog-gate-mismatch",
+                    (
+                        f"From-Backlog plan's Blocks-Release {plan_br!r} does not match backlog item "
+                        f"{target_id6}'s Blocks-Release {item_br!r}"
+                    ),
+                )
+            )
+    return drift
+
+
+def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
+    """bklggrad orb9zb E-06: WARN-severity release-gate findings for the attention human view. These
+    NEVER set an exit code (returned separately from the exit-blocking `check_release_gate_consistency`).
+
+      check.orphaned-live-blocker - a still-`open` blocking backlog item that has ALREADY been
+        graduated to a blocking plan (a From-Backlog plan with the same Blocks-Release); it should
+        probably be closed `done` via the handoff path.
+    """
+    repo_root = Path(repo_root)
+    from agent_workflows import backlog as _backlog
+
+    warnings: List[_core.Drift] = []
+    for f in _backlog._iter_items(repo_root):
+        if f.parent.name != "open":
+            continue
+        try:
+            text = f.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        mbr = _META_BLOCKS_RELEASE_RE.search(text)
+        mid = _ITEM_ID_RE.search(text)
+        if not mbr or not mid:
+            continue
+        for _p, plan_br in find_from_backlog_plans(repo_root, mid.group(1)):
+            if plan_br == mbr.group(1):
+                warnings.append(
+                    _core.Drift(
+                        str(f),
+                        "check.orphaned-live-blocker",
+                        (
+                            "an open release-blocking item is already graduated to a From-Backlog "
+                            "plan; consider closing it `done` (the gate is preserved via handoff)"
+                        ),
+                    )
+                )
+                break
+    return warnings

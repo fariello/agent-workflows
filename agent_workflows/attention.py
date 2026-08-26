@@ -919,6 +919,19 @@ def run(args) -> int:
             board += f"\n## release-blockers ({len(blockers)})\n"
             for it in blockers:
                 board += f"- {it.path} ({it.native_status})\n"
+        # bklggrad orb9zb E-06: advisory release-gate warnings (human view only; NEVER affect the
+        # exit code). Surfaces orphaned-live-blocker (an open blocking item already handed off to a
+        # plan) with a de-gate/close hint.
+        try:
+            from agent_workflows import check_engine as _ce
+
+            gate_warnings = _ce.release_gate_warnings(repo_root)
+        except Exception:
+            gate_warnings = []
+        if gate_warnings:
+            board += f"\n## release-gate-warnings ({len(gate_warnings)})\n"
+            for w in gate_warnings:
+                board += f"- {w.location}: {w.rule}: {w.detail}\n"
         sys.stdout.write(board)
     # a plain view still fails closed if invalid, so consumers cannot treat an invalid view as authoritative
     return core.drift_exit_code(drift)

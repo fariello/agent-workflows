@@ -492,6 +492,30 @@ def run_set(args) -> int:
 
         rendered = _releases.set_blocks_release_line(rendered, item.blocks_release)
 
+    # bklggrad orb9zb E-04: release-gate close-legitimacy gate. `rendered` now reflects the
+    # POST-mutation item (including any same-call `--blocks-release -` de-gate), so a
+    # `done` + `--blocks-release -` in ONE call is honored via the DE-GATED path. The predicate is
+    # the SINGLE shared authority (check_engine.evaluate_blocking_close) used by the setter, `aw
+    # check`, and the child-03 hook so they cannot diverge. On an illegitimate blocking close we
+    # REFUSE and write nothing; blocking `-> parked` and priority-demote-of-a-blocker WARN but proceed.
+    from agent_workflows import check_engine as _ce
+
+    verdict = _ce.evaluate_blocking_close(
+        repo_root,
+        src,
+        new_status,
+        evidence=getattr(args, "evidence", None),
+        item_text=rendered,
+        prior_priority=parse_item(text).priority,
+    )
+    if not verdict.legitimate and verdict.severity == "error":
+        sys.stderr.write(f"aw backlog set: refused: {verdict.reason}.\n")
+        for fix in verdict.fixes:
+            sys.stderr.write(f"  - {fix}\n")
+        return 1
+    if verdict.severity == "warn":
+        sys.stderr.write(f"aw backlog set: warning: {verdict.reason}.\n")
+
     dest_dir = _resolve_backlog_root(repo_root) / new_status
     dest = dest_dir / src.name
     if not getattr(args, "apply", True):  # set applies by default
