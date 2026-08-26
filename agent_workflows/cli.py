@@ -2199,6 +2199,7 @@ def _build_parser() -> argparse.ArgumentParser:
     oc_sub = p_oc.add_subparsers(dest="oc_command")
     p_oc_runipd = oc_sub.add_parser(
         "runipd",
+        aliases=["run"],
         help="Restartable non-interactive OpenCode driver for reviewing/executing IPDs.",
         add_help=False,
     )
@@ -6929,7 +6930,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     if (
         len(argv_list) >= 2
         and argv_list[0] in ("oc", "opencode")
-        and argv_list[1] == "runipd"
+        and argv_list[1] in ("runipd", "run")
     ):
         from agent_workflows import oc_runipd
 
@@ -7087,7 +7088,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         )
     if args.command in ("oc", "opencode"):
         oc_cmd = getattr(args, "oc_command", None)
-        if oc_cmd == "runipd":
+        if oc_cmd in ("runipd", "run"):
             from agent_workflows import oc_runipd
 
             # Forward the captured REMAINDER verbatim so the runner's own parser (incl. its

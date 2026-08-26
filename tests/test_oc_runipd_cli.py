@@ -32,15 +32,16 @@ def _run_cli(argv):
 class OcRunipdCliTests(unittest.TestCase):
     def test_help_forwards_to_runner_both_aliases(self):
         for group in ("oc", "opencode"):
-            rc, out, err = _run_cli([group, "runipd", "--help"])
-            combined = out + err
-            self.assertEqual(rc, 0, f"{group} runipd --help rc={rc}: {combined}")
-            # The RUNNER's own help (prog 'runipd' with its subcommands), not a cli.py stub.
-            self.assertIn("runipd", combined)
-            self.assertIn("start", combined)
-            self.assertIn("resume", combined)
-            self.assertIn("status", combined)
-            self.assertIn("report", combined)
+            for subcmd in ("runipd", "run"):
+                rc, out, err = _run_cli([group, subcmd, "--help"])
+                combined = out + err
+                self.assertEqual(rc, 0, f"{group} {subcmd} --help rc={rc}: {combined}")
+                # The RUNNER's own help (prog 'runipd' with its subcommands), not a cli.py stub.
+                self.assertIn("runipd", combined)
+                self.assertIn("start", combined)
+                self.assertIn("resume", combined)
+                self.assertIn("status", combined)
+                self.assertIn("report", combined)
 
     def test_forwarding_delegates_to_oc_runipd_main(self):
         # `aw oc runipd status X` must call oc_runipd.main(["status", "X"]) verbatim.
