@@ -3272,6 +3272,16 @@
   {
     "date": "2026-08-25",
     "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260825-beginscope-01-vaq9qf-scope-aw-ipd-begin-baseline-dirty-check-to-the-plan-scope-pa.ipd.md",
+    "plan_id": "vaq9qf",
+    "set_id": "beginscope",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260825-bklggrad-00-s65hhv-backlog-release-gate-graduation-guard-a-blocking-backlog-ite.ipd.md",
@@ -3358,6 +3368,16 @@
     "plan_id": "jgcm68",
     "set_id": "selfcommit",
     "status": "draft"
+  },
+  {
+    "date": "2026-08-26",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260826-specid6-01-ha55fi-spec-id6-filenames-producer-emits-id6-clustered-names-checke.ipd.md",
+    "plan_id": "ha55fi",
+    "set_id": "specid6",
+    "status": "to-review"
   },
   {
     "date": "2026-08-07",
