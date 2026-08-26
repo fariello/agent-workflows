@@ -460,6 +460,18 @@ def apply_status_change(
         tmp_text = _releases.set_blocks_release_line(tmp_text, br)
         new_lines = tmp_text.splitlines()
 
+    # From-Backlog write (bklggrad ku93tn): the same hoisted, status-branch-independent shape as the
+    # Blocks-Release write above, so `aw ipd set --from-backlog <id6|->` persists even on a no-op
+    # (same-status) transition. Funnels through the single shared `releases.set_from_backlog_line`
+    # primitive (no duplicate write path).
+    fb = getattr(args, "from_backlog", None)
+    if fb is not None:
+        from agent_workflows import releases as _releases
+
+        tmp_text = "\n".join(new_lines)
+        tmp_text = _releases.set_from_backlog_line(tmp_text, fb)
+        new_lines = tmp_text.splitlines()
+
     if rec.record_type == "plans" and norm_status != "approved":
         new_lines = [
             line_item

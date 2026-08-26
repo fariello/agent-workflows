@@ -131,7 +131,30 @@ def resolve_release(repo_root: Path, value: str) -> Optional[Path]:
     return None
 
 
+_FROM_BACKLOG_LINE_RE = re.compile(r"(?m)^- From-Backlog:[ \t]*\S+[ \t]*$\n?")
+
+
+def set_from_backlog_line(text: str, value: Optional[str]) -> str:
+    """Return `text` with the `- From-Backlog:` metadata line set to `value`, or removed when
+    `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
+    (falling back to after `- Id:`, or the top of the bullet block). Mirrors
+    `set_blocks_release_line` exactly (bklggrad Order ku93tn)."""
+    # Always strip any existing line first.
+    text = _FROM_BACKLOG_LINE_RE.sub("", text)
+    if value in (None, "-"):
+        return text
+    new_line = f"- From-Backlog: {value}\n"
+    # Insert after the `- Status:` line if present, else after `- Id:`, else before the first blank.
+    for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
+        m = re.search(anchor, text)
+        if m:
+            i = m.end()
+            return text[:i] + new_line + text[i:]
+    return text
+
+
 _ITEM_BLOCKS_RELEASE_RE = re.compile(r"(?m)^- Blocks-Release:\s*(\S+)\s*$")
+_ITEM_FROM_BACKLOG_RE = re.compile(r"(?m)^- From-Backlog:\s*(\S+)\s*$")
 
 
 def check_blocks_release(repo_root: Path) -> List[_core.Drift]:
@@ -161,6 +184,42 @@ def check_blocks_release(repo_root: Path) -> List[_core.Drift]:
                             str(p),
                             "check.blocks-release-dangling",
                             f"Blocks-Release {m.group(1)!r} does not resolve to a release record",
+                        )
+                    )
+    return drift
+
+
+def check_from_backlog(repo_root: Path) -> List[_core.Drift]:
+    """Scan plans (and, symmetrically, specs/backlog) for a `From-Backlog` value and flag any that
+    does not resolve to an existing backlog item id6 (bklggrad Order ku93tn; folds into the awcheck
+    cross-tree sweep the same way `check_blocks_release` does). The graduation link's primary home is
+    the plan; the scan tolerates it anywhere for symmetry. `rglob` recurses the disposition subdirs
+    (pending/executed/...)."""
+    from agent_workflows import (
+        backlog as _backlog,
+    )  # local import avoids an import cycle
+
+    repo_root = Path(repo_root)
+    drift: List[_core.Drift] = []
+    known = _backlog.existing_backlog_ids(repo_root)
+    for sub in ("plans", "specs", "backlog"):
+        for base in (repo_root / ".aw" / "records" / sub, repo_root / ".agents" / sub):
+            if not base.is_dir():
+                continue
+            for p in base.rglob("*.md"):
+                if p.name in ("README.md", "INDEX.md", "STATUS.md"):
+                    continue
+                try:
+                    text = p.read_text(encoding="utf-8")
+                except OSError:
+                    continue
+                m = _ITEM_FROM_BACKLOG_RE.search(text)
+                if m and m.group(1) not in known:
+                    drift.append(
+                        _core.Drift(
+                            str(p),
+                            "check.from-backlog-dangling",
+                            f"From-Backlog {m.group(1)!r} does not resolve to a backlog item",
                         )
                     )
     return drift

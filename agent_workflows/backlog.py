@@ -245,6 +245,24 @@ def _iter_items(repo_root: Path) -> List[Path]:
     return sorted(set(files))
 
 
+def existing_backlog_ids(repo_root: Path) -> set:
+    """The set of `- Id:` id6 values across all backlog items (any status dir, either layout).
+
+    Used by the `check.from-backlog-dangling` scan (bklggrad Order ku93tn) to confirm a plan's
+    `From-Backlog` value resolves to a real backlog item."""
+
+    ids: set = set()
+    for f in _iter_items(Path(repo_root)):
+        try:
+            text = f.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        item = parse_item(text)
+        if item.id:
+            ids.add(item.id)
+    return ids
+
+
 # --------------------------------------------------------------------------------------
 # CLI verbs: new | set | check
 # --------------------------------------------------------------------------------------

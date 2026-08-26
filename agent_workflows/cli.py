@@ -941,6 +941,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Set the plan's Blocks-Release gate (a release id6 or 'next'); '-' clears it.",
     )
     p_ipd_set.add_argument(
+        "--from-backlog",
+        dest="from_backlog",
+        default=None,
+        help="Link this plan to the backlog item it graduated from (a backlog id6); '-' clears it.",
+    )
+    p_ipd_set.add_argument(
         "--by-human", action="store_true", help="Attest human approval."
     )
     p_ipd_set.add_argument(

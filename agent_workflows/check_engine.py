@@ -602,6 +602,9 @@ def check_types(
             from agent_workflows import releases as _releases
 
             drift.extend(_releases.check_blocks_release(repo_root))
+            # bklggrad ku93tn: dangling From-Backlog links (a plan pointing at a nonexistent backlog
+            # item id6) are the same class of cross-tree ref check, run once in the full sweep.
+            drift.extend(_releases.check_from_backlog(repo_root))
         except Exception:
             pass
         # proclint 79li67: the COMMIT-SCOPED untooled-status detector rides `aw check`/`aw check all`

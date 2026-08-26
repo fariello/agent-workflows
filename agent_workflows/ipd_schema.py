@@ -161,12 +161,26 @@ SCOPE_PATHS_GRANDFATHERED = "grandfathered"
 # IPD-M103 "unknown field" lint error; value validation (does the target resolve to a release
 # record) lives in the `aw check` surface (child 03), not the schema layer.
 META_BLOCKS_RELEASE = "Blocks-Release"
+# From-Backlog (Order ku93tn): an optional, single-valued link field naming the backlog item id6
+# this plan graduated from, so the backlog->plan graduation relationship is machine-readable (the
+# bklggrad close-legitimacy predicate in child 02 consumes it to confirm a blocking backlog item's
+# release gate was handed off to a plan). Recognized but OPTIONAL (NOT in META_REQUIRED), mirroring
+# META_SCOPE_PATHS/META_BLOCKS_RELEASE: recognition here only stops the IPD-M103 "unknown field"
+# lint error; value validation (does the target resolve to a backlog item id6) lives in the
+# `aw check` surface (check.from-backlog-dangling), not the schema layer.
+META_FROM_BACKLOG = "From-Backlog"
 # The full set of recognized field names (unknown fields are errors for new IPDs).
 META_RECOGNIZED: FrozenSet[str] = frozenset(
     META_REQUIRED
     + META_PAIRED_SET_ORDER
     + META_QUARANTINE_TRIO
-    + (META_WATERMARK, META_APPROVAL, META_SCOPE_PATHS, META_BLOCKS_RELEASE)
+    + (
+        META_WATERMARK,
+        META_APPROVAL,
+        META_SCOPE_PATHS,
+        META_BLOCKS_RELEASE,
+        META_FROM_BACKLOG,
+    )
 )
 
 # Readiness vocabulary imported from the existing single source of truth (no fork).

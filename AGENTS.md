@@ -76,3 +76,10 @@ BLOCKS-RELEASE vs BLOCKED-BY are distinct and independent:
 Capture a release blocker in ONE place: the `Blocks-Release` field on the item (not in prose). `aw check`
 flags a `Blocks-Release` value that resolves to no release record, and `aw attention` surfaces the
 outstanding release-blocker set for the active release.
+
+A plan may also carry a `- From-Backlog: <backlog-id6>` front-matter field naming the backlog item it
+graduated from, so the backlog->plan handoff is machine-readable rather than prose. Set it with `aw ipd
+set <status> <plan> --from-backlog <id6>` (clear with `--from-backlog -`). `aw check` flags a
+`From-Backlog` value that resolves to no backlog item (`check.from-backlog-dangling`). This link lets a
+blocking backlog item's release gate be provably handed off to the plan that inherits it (so the item can
+close `done` without silently dropping the gate).
