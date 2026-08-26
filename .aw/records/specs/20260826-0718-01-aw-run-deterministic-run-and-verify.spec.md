@@ -1,7 +1,8 @@
 # Spec: aw <host> run - deterministic run-and-verify with enforced cross-item dependencies
 
 - Date: 2026-08-26
-- Status: draft
+- Status: to-review
+- Blocks-Release: next
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 25kzda
 - Scope: the behavior of the single canonical runner verb `aw oc run` / `aw agy run`: selector
@@ -1114,4 +1115,5 @@ aw oc run --resume <run-id>
 This example demonstrates the revised guarantees: `all` is safely bounded; dependencies are explicit id6-grounded facts; a failed item is contained instead of poisoning independent work; unmet state cascades without starting dependents; a host capability gap refuses only the affected item; contractless prompt neutrality changes only aggregate exit calculation; and deterministic repository evidence rather than agent confidence decides completion.
 
 ## Workflow history
-- 2026-08-26 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): promoted from the two-pass frontier-model design (tmp/aw-run-and-verify-design.updated.md) into a conformant spec. Content is the revised run-and-verify design incorporating four accepted pushbacks (A1 scope=fail-item-not-abort + containment; A2 configurable retry budget; A3 operator-selectable contractless-prompt exit; A4 per-host capability descriptor + host-dependent/independent guarantee split) and the new mandatory id6-grounded Item-Dependencies mechanism enforced by one shared predicate across aw check/lint/opt-in commit hook/runner preflight/CI, with grandfathering and skip-cascade. Presumes net-new infrastructure (Item-Dependencies, From-Spec, run ledger + commit trailers, prompt Run contract, per-host capability descriptor, aw ipd dependencies/aw runs/aw hooks install); overlaps agentadhere + bklggrad + the runner rename. Authored to be reviewed via /spec review before it seeds an IPD Set.
+
+- 2026-08-26 to-review (aw specs): Gate v2.0.0 release on the deterministic run-and-verify design spec (blocks-release: next)
