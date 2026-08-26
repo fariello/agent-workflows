@@ -93,3 +93,10 @@ with `aw backlog set done <item> --blocks-release -`. Parking a blocker or demot
 allowed but WARNs. One shared predicate (`check_engine.evaluate_blocking_close`) backs the setter, the
 `aw check` consistency rules (`check.blocking-item-closed-without-gate`, `check.from-backlog-gate-mismatch`,
 and the advisory `check.orphaned-live-blocker`), and the opt-in pre-commit hook, so they cannot diverge.
+
+An OPT-IN local pre-commit hook (`backlog-blocking-close-gate`) catches the hand-edit bypass (staging a
+done+blocking item directly instead of using `aw backlog set done`). It is NOT installed by default; wire
+it with `engine.create_backlog_close_gate_hook(repo, install=True)` (idempotent, no-clobber). It delegates
+to the same `evaluate_blocking_close` predicate and gates the `done` case only. Honest limits: git hooks
+are local, not cloned by default, and skippable with `--no-verify`; the portable authority is the
+`aw check` rule plus CI, never the local hook alone.
