@@ -3150,6 +3150,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-25",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260825-bklggrad-02-orb9zb-shared-close-legitimacy-predicate-aw-backlog-set-done-fails.ipd.md",
+    "plan_id": "orb9zb",
+    "set_id": "bklggrad",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -3256,16 +3266,6 @@
     "order": 0,
     "path": "pending/20260825-bklggrad-00-s65hhv-backlog-release-gate-graduation-guard-a-blocking-backlog-ite.ipd.md",
     "plan_id": "s65hhv",
-    "set_id": "bklggrad",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-25",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260825-bklggrad-02-orb9zb-shared-close-legitimacy-predicate-aw-backlog-set-done-fails.ipd.md",
-    "plan_id": "orb9zb",
     "set_id": "bklggrad",
     "status": "approved"
   },
