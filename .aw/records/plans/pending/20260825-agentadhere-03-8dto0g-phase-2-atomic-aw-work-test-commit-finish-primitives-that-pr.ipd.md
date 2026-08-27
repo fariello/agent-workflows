@@ -5,14 +5,17 @@
 - Concern: Findings bu9yij Phase 2 + section 4.3/7.4: reliable adherence requires replacing a sequence of remembered duties with a smaller number of atomic actions that make the compliant path the EASY path and produce evidence at the action boundary. Today the workflow is a chain of separate remembered steps (start work, run tests, commit path-scoped, finalize), each an independent failure opportunity. There is no `aw work`/`aw test`/`aw commit`/`aw finish` wrapper that validates-then-acts and captures evidence.
 - Scope: Add atomic workflow primitives (findings 7.4), each validating before mutating and calling the phase-1 `aw check` engine: (1) `aw work begin <ipd>` - validate the plan and create/associate an isolated worktree; (2) `aw test <ipd> -- <cmd>` - execute the test, capture stdout/stderr + exit + env metadata, bind evidence to the tree/commit; (3) `aw commit <ipd> -- <paths>` - compute allowed paths, refuse out-of-scope staged changes, run the checker, commit ONLY declared scope (REUSE the selfcommit `git_commit_helper` - no forked commit path); (4) `aw finish <ipd>` - check required evidence and perform valid non-authoritative transitions. Raw actions either blocked (where interception is reliable) or caught by a later deterministic failure; the wrapper must be the faster path. This child builds the primitives + their evidence capture; it does NOT build event-derived state (phase 3), hooks (phase 4), or CI (phase 5). Honest limit: local evidence is forgeable by a privileged local agent (findings 6.6); CI reproduction (phase 5) is the High-confidence boundary.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/work_cmd.py, agent_workflows/git_commit_helper.py, agent_workflows/worktree_lease.py, agent_workflows/ipd_lifecycle.py, tests/
-- Status: reviewed
+- Status: approved
 - Set: agentadhere
 - Order: 3
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 8dto0g
+- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-27 approved (aw set): status set to approved
+- 2026-08-27 approved (aw set): status set to approved
 
 - 2026-08-27 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 gate execution contract added, PR-002 V-01..V-04 concrete falsifiable evidence, PR-003 split 2 E-items into 4 (one per primitive) for conceptual density, PR-004 OQ-01 resolved + sequencing MUST, PR-005 Status draft->reviewed
 - 2026-08-25 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.

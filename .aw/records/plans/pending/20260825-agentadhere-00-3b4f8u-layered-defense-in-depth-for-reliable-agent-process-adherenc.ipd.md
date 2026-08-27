@@ -5,7 +5,7 @@
 - Concern: Multi-agent research (findings bu9yij, `.aw/records/research/reference/202608/20260823-agentadhere-04-bu9yij-...findings.md`) concluded with High confidence that always-loaded prose (AGENTS.md) can orient but cannot RELIABLY cause process adherence: instructions may not be retrieved at the decision point, learned habits (raw edits, `git add -A`) outcompete repo conventions, verbal knowledge does not imply procedural execution, and long workflows compound failure. The fix is a layered defense-in-depth that moves important invariants out of model memory into deterministic boundaries every successful workflow must cross. Backlog item 3gr7fk (high, release blocker for 2.0.0 / f33nrj). This orchestrator carries `Blocks-Release: next` and `From-Backlog: 3gr7fk` so the release gate is single-sourced here once 3gr7fk is closed via the bklggrad guard.
 - Scope: Deliver the 2.0.0 CORE of the layered architecture: findings phases 0-5, one dependency-ordered child each, each small and independently verifiable. Phase 0: threat model + assurance classes (guidance / repository-invariant / authority-invariant) + invariant catalog + observable-evidence definitions (prevents false guarantees; gives every later layer a precise target). Phase 1: a versioned policy schema and a shared `aw check` policy engine (machine-readable JSON via the existing `--agent`/`--json` surface, enriched in child 02; NOT a new `--format json` flag) with positive AND adversarial fixtures (the host-independent deterministic core all other layers call). Phase 2: atomic `aw work`/`aw test`/`aw commit`/`aw finish` primitives that make the compliant path the easy path and produce evidence at the action boundary (aw commit REUSES the selfcommit `git_commit_helper`, which does NOT exist yet - it is delivered by the selfcommit set child cv1rfd; this is the cross-set dependency named in OQ-01, so child 03 must be sequenced after selfcommit or ship a thin internal committer per that OQ). Phase 3: event-derived lifecycle state + declared file scope (validated transitions, not a freely editable status field). Phase 4: local git hooks that call the shared checker and emit teaching errors (early feedback; honest local-only limits). Phase 5: required CI + protected-branch enforcement running the SAME policy engine (the only non-bypassable authority boundary). Explicitly DEFERRED to a later set (NOT in this 2.0.0 cut): phases 6 (host adapters), 7 (trusted test runner/tree-bound evidence), 8 (external signing/push broker), 9 (fresh-context verifier), 10 (cross-host adherence benchmark). Each layer must degrade honestly from prevention to detection and never oversell a local control as an authority boundary (findings sections 4.6/7.1).
 - Scope-Paths: agent_workflows/, .aw/records/specs/, docs/, tests/, .github/
-- Status: reviewed
+- Status: approved
 - From-Backlog: 3gr7fk
 - Blocks-Release: next
 - Set: agentadhere
@@ -13,8 +13,11 @@
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 3b4f8u
+- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-27 approved (aw set): status set to approved
+- 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (gate execution contract, --format json corrected to --agent/--json, git_commit_helper cross-set dep clarified, V-01 concrete evidence, OQs resolved)
 - 2026-08-26 draft (aw set): HANDOFF: agentadhere orchestrator inherits the Blocks-Release: next gate from backlog 3gr7fk (bklggrad s65hhv E-02 dogfood)
 - 2026-08-25 draft (aw set): status set to draft

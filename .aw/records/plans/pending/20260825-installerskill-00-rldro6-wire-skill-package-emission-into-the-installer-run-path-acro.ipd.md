@@ -5,14 +5,16 @@
 - Concern: The execset Set (Order 05, 2h7777) proved skill/shim generation at the library level (`build_skill_package` digest parity + `generate_shim_members` drift-free) and exposed `/exec-set` via the existing shim path, but did NOT wire skill-package emission (`host_adapters.generate_adapter_bundle` / `build_skill_package(...).to_files()`) into `engine.install_all` (engine.py:1953), which today writes only `body_members` + `shim_members`. So a real `aw install` never emits the generated skill packages / per-host adapter bundles. Wiring it is a cross-cutting installer-output change (all hosts + uninstall + idempotency + install-diff), deliberately deferred out of the packaging Order (D21-2h7777-D2). Backlog item bplplj (medium).
 - Scope: Wire skill-PACKAGE emission (`host_adapters.build_skill_package(...).to_files()` via `AdapterBundle.skill_files()`, host_adapters.py:227/663) into the installer run path so `aw install` writes the generated skill files alongside body + shim members, covering the hosts the bundle already generates, uninstall, idempotency, and install-diff. Single coherent child (01) plus this orchestrator. Deliverable: `install_into_repo` (engine.py:4992) builds the skill member map and merges it into the desired set passed to `install_all` (engine.py:1953), written the same idempotent way as shim members; the framework-namespace predicate (`in_framework_namespace`, engine.py:1632), the prune scan (`collect_target_framework_files`, engine.py:2012) and the prune defense-in-depth guard (engine.py:2072) are extended to recognize the skills directory so orphaned skill files are pruned and re-install is a no-op; uninstall is manifest-driven (`uninstall_repo`, engine.py:3836 removes any file `write_file` recorded in the ownership manifest), so it removes emitted skill files WITHOUT a separate member set once the namespace guard admits them; install-diff/idempotency tests are extended so a fresh install emits the skill package and a re-install is a no-op. NOTE: the per-host `host_adapters` metadata in `AdapterBundle` (host_adapters.py:661) is structured data (`to_dict`), NOT writable files - see OQ-02; this Set does not emit adapter-metadata files unless OQ-02 decides otherwise.
 - Scope-Paths: agent_workflows/engine.py, agent_workflows/host_adapters.py, tests/
-- Status: reviewed
+- Status: approved
 - Set: installerskill
 - Order: 0
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: rldro6
+- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 reviewed (aw set): /plan-review: REVIEWED - OPEN QUESTIONS (OQ-02/03/04 blocking); adapter-file conflation, namespace/prune/layout gaps, uninstall mechanism, citations, execution contract fixed
 
 - 2026-08-25 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.

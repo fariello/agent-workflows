@@ -5,14 +5,17 @@
 - Concern: Findings bu9yij Phase 4 + section 7.7: local git hooks give immediate, self-correcting feedback (High confidence as feedback, Med-low as a hard boundary - local, not cloned by default, skippable with `--no-verify`). The toolkit already has two commit-scoped gates (`hooks/status_untooled_gate.py`, `hooks/executed_transition_gate.py`) that delegate to `check_engine` rules, but there is no systematic pre-commit/pre-push layer calling the full phase-1 engine over the staged index + declared scope, and refusals do not uniformly TEACH the recovery path.
 - Scope: Add/extend local git hooks that call the SHARED phase-1 engine (never a forked policy): (1) a pre-commit hook that runs the checker against the staged INDEX and the declared scope (Scope-Paths comparison from phase 3), refusing out-of-scope or invariant-violating staged trees with a TEACHING error (name the violated invariant + the exact `aw ...` recovery command, findings 4.4); (2) a pre-push hook that explains missing authorization and prevents accidental pushes (convenience/feedback, NOT an authority boundary); (3) fail-closed for security-sensitive rules where the host supports it; (4) contract tests for each hook (coverage, alternate tool paths, malformed input, disablement, fail-open behavior). Follow the established pattern: each hook `check(repo_root)` delegates to a single `check_engine` rule so hook and `aw check` never diverge (status_untooled_gate.py:33). Honest limits documented (local only, `--no-verify`); the authoritative boundary is phase-5 CI.
 - Scope-Paths: agent_workflows/hooks/, agent_workflows/check_engine.py, agent_workflows/engine.py, tests/
-- Status: reviewed
+- Status: approved
 - Set: agentadhere
 - Order: 5
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: diundn
+- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-27 approved (aw set): status set to approved
+- 2026-08-27 approved (aw set): status set to approved
 
 - 2026-08-27 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 gate execution contract added, PR-002 V-01..V-03 concrete falsifiable evidence, PR-003 OQ-01 resolved (opt-in, idempotent/no-clobber), PR-004 no-fork/no-divergence proofs required, PR-005 Status draft->reviewed, PR-006 split E-01 into pre-commit + pre-push (distinct test-surfaces)
 - 2026-08-25 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.

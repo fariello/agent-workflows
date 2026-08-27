@@ -5,14 +5,17 @@
 - Concern: Findings bu9yij Phase 3 + section 7.3/7.5: a freely-editable `- Status:` field is trivially hand-editable, and file authorship in a shared dirty worktree cannot be reliably attributed. Lifecycle state should be DERIVED from validated events, and file scope should be DECLARED and compared to the actual index/diff, rather than inferred from timestamps or narrative.
 - Scope: (1) Event-derived lifecycle state: represent transitions as validated events (e.g. IPD_CREATED -> WORK_STARTED -> TEST_EVIDENCE_RECORDED -> REVIEWED -> FINALIZED) with the visible status DERIVED from versioned events; the transition function rejects missing predecessors, stale tree ids, invalid actors, malformed evidence, and unauthorized terminal transitions. For ordinary repository assurance, versioned local events + CI validation suffice (authority countersigning is the deferred external-signing set). (2) Declared file scope: record an explicit task scope (the IPD `Scope-Paths` already exists) and COMPARE it to the git index + final diff; use isolated worktrees for concurrency; do NOT infer authorship from timestamps/narrative. This child integrates with the phase-1 engine (transition validity + scope drift are engine rules) and the phase-2 commands (which emit the events / enforce scope). Honest limit: local events are forgeable by a privileged local agent; authenticity depends on who can write/sign events (findings 5.4/7.3) - non-forgeable provenance is the deferred set.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/check_engine.py, agent_workflows/ipd_schema.py, agent_workflows/record_history.py, tests/
-- Status: reviewed
+- Status: approved
 - Set: agentadhere
 - Order: 4
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: wqj1ne
+- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-27 approved (aw set): status set to approved
+- 2026-08-27 approved (aw set): status set to approved
 
 - 2026-08-27 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 gate execution contract added, PR-002 V-01/V-02 concrete falsifiable evidence, PR-003 E-02 no-fork reuse of finalize scope helpers named, PR-004 backward-compat characterization (V-01d) + anti-regression MUST, PR-005 OQ-01 resolved (run-alongside), PR-006 Status draft->reviewed
 - 2026-08-25 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.

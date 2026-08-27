@@ -5,14 +5,16 @@
 - Concern: Records-mutating verbs leave their changeset UNCOMMITTED, so the user must notice and hand-commit it. Two shapes: (a) MOVE/RENAME + INDEX-regeneration verbs (`aw archive`, `aw group`, `aw rename`, `aw research set-assign`/`mv`) produce a large coherent set of renames + index updates (origin: a 23-file `aw archive` research changeset); (b) IN-PLACE metadata rewrites (`aw ipd set`, `aw spec set`/`specs set`, and the shared `aw set` engine) flip `- Status:` + append workflow-history on one file (or a whole Set) with no rename. Both leave uncommitted work worth offering to commit. There is no shared "commit-what-I-changed" helper today; `ipd_lifecycle._git` (ipd_lifecycle.py:557) is a private path-scoped git wrapper used only by finalize, and each verb reimplements or omits committing. Backlog item vvc7c1 (medium).
 - Scope: Add ONE shared "commit-what-I-changed" helper and adopt it across the records-mutating verbs so that, when run interactively (TTY), each verb PROMPTS to commit ONLY the files it just touched (moved/renamed paths + regenerated index), path-scoped, never `git add -A`/`-a`, never push, no hook bypass, with a good per-verb default message. Constraints (from vvc7c1): (1) commit ONLY files the command itself touched - track them explicitly, never commit whatever is dirty; (2) interactive-only by default - non-interactive/CI must NOT auto-commit unless an explicit `--commit` flag is passed, and a `--no-commit` escape hatch exists; (3) respect the repo contract (path-scoped, no push, no hook bypass); (4) if the tree already has unrelated staged/unstaged changes, do not fold them in; (5) sensible default message per verb (e.g. `chore(research): archive aged artifacts and regenerate index`). Two children: 01 builds the shared helper (path-scoped, TTY-gated, explicit path-set, `--commit`/`--no-commit`, per-verb message); 02 adopts it across the verbs with tests. NOTE: this helper is the same path-scoped-commit plumbing the agentadhere `aw commit` primitive (Phase 2) will want; keep it a standalone reusable helper so agentadhere can consume it later (no duplicate code path).
 - Scope-Paths: agent_workflows/git_commit_helper.py, agent_workflows/research_archive.py, agent_workflows/plans_archive.py, agent_workflows/plans_refs.py, agent_workflows/status_set.py, agent_workflows/specs.py, agent_workflows/cli.py, tests/
-- Status: reviewed
+- Status: approved
 - Set: selfcommit
 - Order: 0
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 88h0h8
+- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED (PR-001..PR-010); corrected architecture (type-parameterized group/rename dispatch, shared status_set engine, specs dual path), fixed the cli.py prompt-helper citation and non-TTY gating divergence, parameterized on_unrelated_staged, split the multi-concern E-item, authored falsifiable V-evidence, filled execution-contract gates. GO - PENDING HUMAN APPROVAL.
 
 - 2026-08-25 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.

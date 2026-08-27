@@ -5,14 +5,16 @@
 - Concern: Follow-on work deferred by the awocrunner Set (which graduated the runipd/runagy IPD-runner drivers to `aw oc runipd` / `aw agy runipd`). Two gaps: (a) runipd's interactive render layer (`render_event`/`Palette`/`Heartbeat` plus coupled module-level helpers `_ANSI_CODES`/`_ANSI_RESET`/`_STATUS_COLOR`/`_ANSI_STRIP_RE`/`_strip_ansi`/`_one_line`, oc_runipd.py:142/108/196 and surrounding) is inline and unshared, so progress/streaming output would be duplicated per tool rather than normalized; (b) several source-checkout tools remain outside the packaged host-subcommand pattern: `tools/agy_run.py`, `tools/agy_sessions.py`, `tools/view-antigravity-jsonl.py`, `tools/pwatch.py`. Backlog item 1sdkvd (medium, non-blocking); the item itself notes it can be split renderer-vs-tool-graduation.
 - Scope: (a) Extract runipd's `render_event`/`Palette`/`Heartbeat` streaming layer AND its tightly-coupled module-level helpers into a shared `agent_workflows` rendering utility so interactive/progress output is normalized across consumers, with runipd refactored to consume it (behavior-preserving). (b) Graduate the remaining source-checkout tools under the packaged host-subcommand + compat-shim pattern established by awocrunner (packaged core + `aw <host>` group + thin `tools/` shim): `agy_sessions.py -> aw agy sessions`, `view-antigravity-jsonl.py -> aw agy view`, `pwatch.py -> aw pwatch`. `tools/agy_run.py` graduation is GATED on OQ-02 (its relationship to the already-packaged `agent_workflows/agy_runipd.py` / existing `aw agy runipd` + `run`/`runagy` aliases must be resolved first, and the `aw agy run` name already ALIASES `aw agy runipd` at cli.py:2221 - a naming collision). Two children: 01 shared renderer + runipd refactor; 02 tool graduation (packaged cores + `aw agy`/`aw pwatch` groups + compat shims). Non-blocking; children are independent and may execute in either order.
 - Scope-Paths: agent_workflows/render_stream.py, agent_workflows/oc_runipd.py, agent_workflows/agy_run.py, agent_workflows/agy_sessions.py, agent_workflows/agy_view.py, agent_workflows/pwatch.py, agent_workflows/cli.py, tools/, tests/
-- Status: reviewed
+- Status: approved
 - Set: runnernorm
 - Order: 0
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: ryvoi5
+- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 reviewed (aw set): /plan-review: REVIEWED - OPEN QUESTIONS (OQ-02 blocking); agy_run/aw-agy-run collision surfaced, citations fixed, execution contract added
 
 - 2026-08-25 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.

@@ -5,14 +5,16 @@
 - Concern: Several source-checkout tools remain outside the packaged host-subcommand pattern that awocrunner established for the IPD runner (`aw oc runipd` + packaged core + thin `tools/` compat shim; the `aw oc`/`aw agy` groups are declared at cli.py:2193/2212 and dispatched at cli.py:7090/7100): `tools/agy_sessions.py`, `tools/view-antigravity-jsonl.py`, `tools/pwatch.py`. They should be graduated so they are invocable via `aw` and covered by the package. NOTE (found in review): `tools/agy_run.py` is a SEPARATE case - see OQ-02 - because `agent_workflows/agy_runipd.py` is already packaged as `aw agy runipd` (with `run`/`runagy` aliases, cli.py:2219-2221, dispatch cli.py:7102) and `tools/agy_run.py` (886 lines, `prog="agy_run.py"`) is still un-shimmed; the surface `aw agy run` is ALREADY taken by the runipd driver.
 - Scope: Graduate the three unambiguous tools under the awocrunner packaged-core + host-subcommand + compat-shim pattern: (1) move each tool's logic into a packaged `agent_workflows` core module (`agy_sessions.py`, `agy_view.py`, `pwatch.py`); (2) expose `aw agy sessions`, `aw agy view`, and `aw pwatch` via cli.py (extending the existing `aw agy` group, cli.py:2212, and adding a top-level `aw pwatch`); (3) reduce each corresponding `tools/*.py` to a thin compat shim that forwards to the packaged entry (as `tools/ipdrunner/runipd.py` was reduced). `tools/agy_run.py` is GATED on OQ-02 and MUST NOT be touched until that question is resolved (its target surface cannot be `aw agy run`, which already aliases `aw agy runipd`). Add invocation tests (each `aw` subcommand runs the packaged core) and shim-forwarding tests, including a test asserting NO `aw agy run` collision. If child 01's shared renderer has landed, the graduated tools may consume it; if not, leave their output as-is (adoption is optional, not required for graduation).
 - Scope-Paths: agent_workflows/agy_sessions.py, agent_workflows/agy_view.py, agent_workflows/pwatch.py, agent_workflows/cli.py, tools/agy_sessions.py, tools/view-antigravity-jsonl.py, tools/pwatch.py, tests/ (agent_workflows/agy_run.py + tools/agy_run.py are IN SCOPE only once OQ-02 is resolved; do not touch them before then)
-- Status: reviewed
+- Status: approved
 - Set: runnernorm
 - Order: 2
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: puot79
+- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 reviewed (aw set): /plan-review: REVIEWED - OPEN QUESTIONS (OQ-02 blocking); agy_run collision split out and gated, scope right-sized, citations fixed, execution contract added
 
 - 2026-08-25 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.

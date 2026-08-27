@@ -5,14 +5,16 @@
 - Concern: runipd's interactive streaming layer (`render_event`, oc_runipd.py:142; `Palette`, oc_runipd.py:108; `Heartbeat`, oc_runipd.py:196) is inline in `oc_runipd.py`, so any other consumer that wants normalized progress/streaming output must duplicate it. It should be a shared `agent_workflows` rendering utility.
 - Scope: Extract `render_event`/`Palette`/`Heartbeat` (and any tightly-coupled helpers) into a new shared module (e.g. `agent_workflows/render_stream.py`), then refactor `oc_runipd.py` to import and use it, behavior-preserving (identical rendered output for the same event stream). No UX/behavior change; pure extraction + de-duplication. Add unit tests for the shared renderer (event -> rendered line, palette application, heartbeat lifecycle) and confirm runipd output is unchanged.
 - Scope-Paths: agent_workflows/render_stream.py, agent_workflows/oc_runipd.py, tests/
-- Status: reviewed
+- Status: approved
 - Set: runnernorm
 - Order: 1
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: dg28i9
+- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-runnernorm findings fixed (stub gate, V-01 evidence, stale citations); no open questions
 
 - 2026-08-25 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.

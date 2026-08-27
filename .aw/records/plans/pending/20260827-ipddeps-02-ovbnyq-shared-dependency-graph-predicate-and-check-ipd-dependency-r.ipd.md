@@ -5,14 +5,16 @@
 - Concern: With the `Item-Dependencies` field parseable (child 01), nothing yet RESOLVES its edges, builds the cross-IPD graph, detects cycles/dangling targets, or enforces that the statement is present and resolved at the right lifecycle phases. It must be ONE shared pure predicate consumed by `aw check`, phased `aw ipd lint`, and (child 03) the hook, so they cannot diverge - exactly the bklggrad `evaluate_blocking_close` one-predicate-many-surfaces model. It also needs a grandfathering cutover so making the statement mandatory does not mass-fail the existing plan corpus. Spec 25kzda sections 2.9-2.11 + 4.3 define this precisely.
 - Scope: Implement the shared dependency evaluator + its rule family + grandfathering. (1) One pure evaluator (in check_engine.py) that consumes a repo snapshot + IPD path set + phase + cutover marker: parses every `Item-Dependencies` once (via child 01's parser), resolves each typed id6 edge once against the identity index, builds ONE directed graph (IPD->IPD edges participate in cycle detection; spec/backlog targets are leaves), and returns the stable findings. (2) The `check.ipd-*dependency*` rule family with the spec's exact severities/assurance classes/recovery commands: `check.ipd-missing-dependency-statement` (error post-cutover + at review-readiness/pre-execution/pre-transition; advisory `grandfathered` for a pre-cutover draft or eligible terminal plan at the always-on author check), `check.ipd-dependency-unresolved` (advisory on a scaffolded draft at author; error at later phases; fires on the `unresolved` sentinel), `check.ipd-dependency-malformed` (error), `check.ipd-dependency-dangling` (error - a typed id6 with zero matches), `check.ipd-dependency-ambiguous` (fatal/identity - multiple matches or cross-type ambiguity), `check.ipd-dependency-cycle` (error - directed cycle). (3) Surface the SAME evaluator through `aw check` (repo-wide portable authority; folded into the cross-tree sweep next to the from-backlog/blocks-release checks) AND phased `aw ipd lint` (author = advisory/unresolved-permitted honest stub; review-readiness/pre-execution/pre-transition = blocking; the frozen statement must equal the reviewed statement at execution). (4) Grandfathering: record one dependency-schema cutover marker in repo policy; any IPD created at/after cutover must carry the field; pre-cutover terminal plans get the `grandfathered` advisory (no mass-fail); pre-cutover pending plans stay honest drafts but cannot advance to review-readiness/execution until resolved; NO tool bulk-inserts `none`. This child does NOT add the commit hook (child 03) nor the runner preflight/cascade (deferred to the runner program).
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/ipd_lint.py, agent_workflows/ipd_schema.py, agent_workflows/releases.py, agent_workflows/config.py, tests/
-- Status: reviewed
+- Status: approved
 - Set: ipddeps
 - Order: 2
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: ovbnyq
+- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-201/202/203 fixed
 
 - 2026-08-27 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.

@@ -5,14 +5,18 @@
 - Concern: Findings bu9yij Phase 1 (the "host-independent deterministic core" all other layers must call): a single policy engine, surfaced through the EXISTING `aw check` machine-readable output (`--agent` = `aw.agent/v1` JSONL, `--json` = structured JSON; there is NO `--format json` flag - enrich the existing surface, do NOT add a new flag or a forked output path), where each finding carries a stable rule id, severity + assurance class, affected artifact/location, observed-vs-required state, the exact recovery command, and whether the result is deterministic/heuristic/externally-attested. The toolkit already has a unified `check_engine` (check_engine.py) producing a `Drift` list, but it is not yet organized as a versioned policy schema with the full finding shape, and it lacks a systematic positive+adversarial fixture corpus. Phases 2-5 (atomic commands, hooks, CI) must all call THIS engine so results never diverge by host.
 - Scope: Formalize the shared policy engine on top of the existing `check_engine`: (1) a VERSIONED policy schema (a schema_version + a registry of rules, each with stable id, severity, assurance class from the Phase-0 catalog, and determinism/heuristic/attested tag); (2) enrich the `Drift`/finding shape and the existing `aw check` machine-readable output (`--agent`/`--json`) to include observed-vs-required, the exact recovery command, and the determinism/assurance tags; (3) a fixture corpus with POSITIVE cases (clean artifacts pass) and ADVERSARIAL cases (each cataloged invariant's violation is detected) drawn from the Phase-0 catalog and findings section 9 (code-before-IPD, hand-edited status, terminal transition without evidence, out-of-scope staged tree, claimed-but-unrun tests, stale-tree evidence, missing/disabled/malformed hook, etc.). This child does NOT add the atomic commands/hooks/CI; it makes the engine the single, versioned, well-shaped source of truth they will all call. Reuse the existing per-type validators (check_engine composes them); do not fork. Also includes the first concrete authoring-lifecycle rule (detect-and-nudge): a `draft` IPD whose authoring placeholders are all resolved is flagged with the `aw ipd set to-review` recovery command, fixing the recurring miss where a finished draft is never advanced to `to-review` (scaffold correctly emits `draft` for a stub at ipd_authoring.py:131; nothing advances it when authoring completes).
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/artifact_core.py, agent_workflows/ipd_lint.py, agent_workflows/ipd_authoring.py, agent_workflows/cli.py, tests/
-- Status: reviewed
+- Status: approved
 - Set: agentadhere
 - Order: 2
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: uisjns
+- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-27 approved (aw set): status set to approved
+- 2026-08-27 approved (aw set): status set to approved
+- 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 --format json corrected to --agent/--json (x6), PR-002 gate execution contract, PR-003 backward-compat characterization test added (HIGH under-scope), PR-004 V-01..V-03 concrete evidence, OQ-01/OQ-02 resolved
 
 - 2026-08-25 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.
