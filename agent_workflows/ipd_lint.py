@@ -1100,13 +1100,29 @@ def run_lint(args: argparse.Namespace) -> int:
                         )
                     )
                 if not (ctx.is_agent or ctx.is_json):
+                    term.line(_format_lint_line(f, disp))
                     if diags:
                         for d in diags:
-                            term.line(f"  ! {d.render(str(f))}")
+                            loc_str = f"line {d.line}" if d.line else ""
+                            rule_str = f"{d.code} ({loc_str})" if loc_str else d.code
+                            diag_txt = (
+                                term.color256(f"     ! {rule_str}: {d.message}", 196)
+                                if getattr(term, "color", False)
+                                else f"     ! {rule_str}: {d.message}"
+                            )
+                            term.line(diag_txt)
                     if getattr(res, "advisories", []):
                         for a in res.advisories:
-                            term.line(f"advisory: {a.render(str(f))}")
-                    term.line(_format_lint_line(f, disp))
+                            loc_str = f"line {a.line}" if a.line else ""
+                            rule_str = f"{a.code} ({loc_str})" if loc_str else a.code
+                            adv_txt = (
+                                term.color256(
+                                    f"     ? advisory: {rule_str}: {a.message}", 214
+                                )
+                                if getattr(term, "color", False)
+                                else f"     ? advisory: {rule_str}: {a.message}"
+                            )
+                            term.line(adv_txt)
 
             any_error = bool(counts.get(S.DISPOSITION_ERROR, 0))
             exit_code = 1 if any_error else 0
@@ -1189,13 +1205,29 @@ def run_lint(args: argparse.Namespace) -> int:
                     )
                 )
             if not (ctx.is_agent or ctx.is_json):
+                term.line(_format_lint_line(path, disp))
                 if diags:
                     for d in diags:
-                        term.line(f"  ! {d.render(str(path))}")
+                        loc_str = f"line {d.line}" if d.line else ""
+                        rule_str = f"{d.code} ({loc_str})" if loc_str else d.code
+                        diag_txt = (
+                            term.color256(f"     ! {rule_str}: {d.message}", 196)
+                            if getattr(term, "color", False)
+                            else f"     ! {rule_str}: {d.message}"
+                        )
+                        term.line(diag_txt)
                 if getattr(res, "advisories", []):
                     for a in res.advisories:
-                        term.line(f"advisory: {a.render(str(path))}")
-                term.line(_format_lint_line(path, disp))
+                        loc_str = f"line {a.line}" if a.line else ""
+                        rule_str = f"{a.code} ({loc_str})" if loc_str else a.code
+                        adv_txt = (
+                            term.color256(
+                                f"     ? advisory: {rule_str}: {a.message}", 214
+                            )
+                            if getattr(term, "color", False)
+                            else f"     ? advisory: {rule_str}: {a.message}"
+                        )
+                        term.line(adv_txt)
 
         exit_code = 1 if any_error else 0
         if ctx.is_agent or ctx.is_json:

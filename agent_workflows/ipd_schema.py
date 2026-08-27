@@ -858,33 +858,43 @@ def e_item_density_advisory(action: str) -> Optional[str]:
         return "names multiple distinct test surfaces across subsystems"
 
     # 3. Three or more distinct action verb clauses targeting deliverables joined by commas/conjunctions/semicolons
-    segments = [s.strip() for s in _CLAUSE_SPLIT_RE.split(cleaned) if s.strip()]
+    cleaned_no_parens = re.sub(r"\([^)]*\)", "", cleaned)
+    segments = [
+        s.strip() for s in _CLAUSE_SPLIT_RE.split(cleaned_no_parens) if s.strip()
+    ]
     if len(segments) >= 3:
-        distinct_action_clauses = 0
+        matched_clauses = []
         for seg in segments:
             words = set(_WORD_RE.findall(seg.lower()))
             has_verb = bool(words & DENSITY_ACTION_VERBS)
             has_noun = bool(words & DENSITY_DELIVERABLE_NOUNS)
             is_prep = bool(_PREP_START_RE.match(seg))
-            if has_verb and has_noun and not is_prep:
-                distinct_action_clauses += 1
-            elif has_noun and len(words) >= 2 and not is_prep:
-                distinct_action_clauses += 1
-        if distinct_action_clauses >= 3:
-            return "names multiple independent deliverables or action clauses (likely multi-concern)"
+            if (has_verb and has_noun and not is_prep) or (
+                has_noun and len(words) >= 2 and not is_prep
+            ):
+                matched_clauses.append(seg)
+        if len(matched_clauses) >= 3:
+            snippets = ", ".join(
+                f"'{c[:28]}...'" if len(c) > 28 else f"'{c}'"
+                for c in matched_clauses[:3]
+            )
+            return f"names multiple independent deliverables or action clauses (likely multi-concern; {len(matched_clauses)} clauses: {snippets})"
 
     # 4. Semicolon-separated chain of 3+ distinct action verb clauses
     semi_parts = [p.strip() for p in cleaned.split(";") if p.strip()]
     if len(semi_parts) >= 3:
-        verb_clauses = 0
+        verb_clauses = []
         for p in semi_parts:
             words = set(_WORD_RE.findall(p.lower()))
             if words & DENSITY_ACTION_VERBS and (
                 words & DENSITY_DELIVERABLE_NOUNS or len(words) >= 4
             ):
-                verb_clauses += 1
-        if verb_clauses >= 3:
-            return "chains multiple semicolon-separated action clauses"
+                verb_clauses.append(p)
+        if len(verb_clauses) >= 3:
+            snippets = ", ".join(
+                f"'{c[:28]}...'" if len(c) > 28 else f"'{c}'" for c in verb_clauses[:3]
+            )
+            return f"chains multiple semicolon-separated action clauses (likely multi-concern; {len(verb_clauses)} clauses: {snippets})"
 
     return None
 
