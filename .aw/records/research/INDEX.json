@@ -66,6 +66,26 @@
   },
   {
     "consumed_by": [],
+    "created": "20260826",
+    "date": "20260826",
+    "id6": "0my8eb",
+    "kind": "research-report",
+    "model": "sonnet5",
+    "order": "02",
+    "outcome": "none-yet",
+    "path": "20260826-awclia-02-0my8eb-aw-cli-naming-ia.sonnet5.research-report.md",
+    "set_id": "awclia",
+    "status": "intake",
+    "summary": "sonnet5 report.",
+    "topic": [
+      "cli",
+      "information-architecture",
+      "naming",
+      "pre-release"
+    ]
+  },
+  {
+    "consumed_by": [],
     "created": "20260706",
     "date": "20260706",
     "id6": "2838rp",
@@ -138,6 +158,29 @@
     "topic": []
   },
   {
+    "consumed_by": [
+      "25kzda"
+    ],
+    "created": "20260826",
+    "date": "20260826",
+    "id6": "3nlmug",
+    "kind": "research-prompt",
+    "model": "",
+    "order": "00",
+    "outcome": "adopted",
+    "path": "20260826-awrunverify-00-3nlmug-aw-run-and-verify-design-prompts.research-prompt.md",
+    "set_id": "awrunverify",
+    "status": "intake",
+    "summary": "The two-pass frontier-model design prompts (initial checking-spec + addendum + revision followup) that produced spec 25kzda's aw-run deterministic run-and-verify design",
+    "topic": [
+      "runner",
+      "run-and-verify",
+      "dependencies",
+      "prompt-provenance",
+      "spec-25kzda"
+    ]
+  },
+  {
     "consumed_by": [],
     "created": "20260713",
     "date": "20260713",
@@ -151,6 +194,26 @@
     "status": "archive",
     "summary": "Migrated from 20260713-occomms-09-3rpcmu-implementation-roadmap.roadmap.md.",
     "topic": []
+  },
+  {
+    "consumed_by": [],
+    "created": "20260826",
+    "date": "20260826",
+    "id6": "3uh9j3",
+    "kind": "research-report",
+    "model": "gemini31pro",
+    "order": "03",
+    "outcome": "none-yet",
+    "path": "20260826-awclia-03-3uh9j3-aw-cli-naming-ia.gemini31pro.research-report.md",
+    "set_id": "awclia",
+    "status": "intake",
+    "summary": "gemini31pro report.",
+    "topic": [
+      "cli",
+      "information-architecture",
+      "naming",
+      "pre-release"
+    ]
   },
   {
     "consumed_by": [
@@ -547,6 +610,26 @@
   },
   {
     "consumed_by": [],
+    "created": "20260826",
+    "date": "20260826",
+    "id6": "e3arxt",
+    "kind": "research-report",
+    "model": "gpt56",
+    "order": "01",
+    "outcome": "none-yet",
+    "path": "20260826-awclia-01-e3arxt-aw-cli-naming-ia.gpt56.research-report.md",
+    "set_id": "awclia",
+    "status": "intake",
+    "summary": "gpt56 report.",
+    "topic": [
+      "cli",
+      "information-architecture",
+      "naming",
+      "pre-release"
+    ]
+  },
+  {
+    "consumed_by": [],
     "created": "20260802",
     "date": "20260731",
     "id6": "e4k1m0",
@@ -615,6 +698,26 @@
       "evidence",
       "provenance",
       "experiments"
+    ]
+  },
+  {
+    "consumed_by": [],
+    "created": "20260826",
+    "date": "20260826",
+    "id6": "f79ve1",
+    "kind": "research-prompt",
+    "model": "",
+    "order": "00",
+    "outcome": "none-yet",
+    "path": "20260826-awclia-00-f79ve1-aw-cli-naming-ia.research-prompt.md",
+    "set_id": "awclia",
+    "status": "intake",
+    "summary": "Originating prompt for the comparison set.",
+    "topic": [
+      "cli",
+      "information-architecture",
+      "naming",
+      "pre-release"
     ]
   },
   {
@@ -1215,6 +1318,26 @@
     "status": "reference",
     "summary": "Migrated from 20260726-awdeliv-04-uxq2tt-aw-delivery-and-clean-delta.reconciliation.reconciliation-report.md.",
     "topic": []
+  },
+  {
+    "consumed_by": [],
+    "created": "20260826",
+    "date": "20260826",
+    "id6": "v912ed",
+    "kind": "reconciliation-report",
+    "model": "reconciliation",
+    "order": "04",
+    "outcome": "none-yet",
+    "path": "20260826-awclia-04-v912ed-aw-cli-naming-ia.reconciliation.reconciliation-report.md",
+    "set_id": "awclia",
+    "status": "intake",
+    "summary": "Synthesis of the model reports.",
+    "topic": [
+      "cli",
+      "information-architecture",
+      "naming",
+      "pre-release"
+    ]
   },
   {
     "consumed_by": [],
