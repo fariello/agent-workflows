@@ -141,3 +141,33 @@ are reliable for UNRUN detection but not yet for FINISHED-but-unadvanced detecti
   already lives).
 - Interaction of the new active states with the existing `auto-approved` tier and the draft-readiness
   nudge (agentadhere) and the `Item-Dependencies` gates (ipddeps).
+
+## Addendum (2026-08-27): uniform `Summary` field for board-renderable descriptions
+
+Finding: `aw att` shows no per-artifact description - it renders `[type] path (status)` only. Two causes:
+(1) the attention `Item` model has no description field; (2) types carry a description INCONSISTENTLY -
+backlog/research/releases have a `Summary`/`summary` field, but specs and IPDs use only their H1 title
+(`# Spec:`/`# IPD:`) + `- Concern:`, and walkthroughs/roadmaps rely on the filename slug + H1. So a
+description is parsable per-type but there is no single field a reader can use blindly across all types.
+This is why finished-but-unadvanced `intake` docs (e.g. this one) look like undifferentiated noise on
+the board: it cannot show WHAT an artifact is, only WHERE it is.
+
+DECISION (revisable): standardize on the incumbent field name **`Summary`**, uniform across ALL managed
+artifact types, CONTRACTED as a single bounded, control-char-free line (generalize the existing
+`backlog.summary-unsafe` one-line rule to every type). Add `Summary` to the types that lack it
+(specs, plans/IPDs, walkthroughs, roadmaps); keep it on backlog/research/releases. Solve the
+length-ambiguity of the word "Summary" via the CONTRACT (must be one line, bounded length), NOT via a
+longer field name like `Short-Description` - a longer name that still permits multi-line content would
+not actually enforce brevity, and renaming three existing types' fields is churn for a clarity gain the
+contract already delivers. One field, one meaning, enforced brevity, zero rename.
+
+Consequences for the spec pass:
+- Fold into SPEC B (toolset-redirect/frontmatter): "every managed artifact carries a tool-maintained,
+  single-line `Summary` field" becomes part of the frontmatter contract the tool maintains + the
+  `aw check`/repair surface validates (same report-default/config-toggle-autofix stance as the banner).
+- `aw att` (and the attention `Item` model) gains a `summary` field read from each artifact's `Summary`
+  and renders it as the one-line per-row description. Extractor reads the uniform field (no per-type
+  special-casing once all types carry it; a transition window may fall back to H1/slug for not-yet-
+  migrated artifacts).
+- The one-line `Summary` contract also feeds the "which research needs attention" clarity (Q3): a board
+  that shows each row's Summary distinguishes a finished design record from an unrun prompt at a glance.
