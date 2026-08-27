@@ -2,15 +2,17 @@
 
 # Research index
 
-Showing the most-recent 40 of 55 hot docs (archive excluded).
+Showing the most-recent 40 of 56 hot docs (archive excluded).
 
 ## Needs addressing (intake)
 
 - `8it88r` 20260823-actorenv-00-8it88r-deriving-actor-identity-host-and-model-from-coding-agent-environments.research-prompt.md - How to auto-derive a trustworthy actor (host + model) from the environment across coding hosts so aw attribution does not depend on the agent remembering --actor
+- `sk94i0` 20260826-aw-cli-surface-inventory-00-sk94i0-aw-cli-surface-inventory.survey.md - Exhaustive named inventory of the full aw CLI surface (all ~44 verbs + subcommands, read/write + operates-on + naming smells) - ground truth for the naming/IA redesign
 - `40g511` 20260826-aw-run-spec-build-order-00-40g511-aw-run-spec-build-order.findings.md - What exists vs net-new for the aw run deterministic run-and-verify spec (25kzda): build-order dependency map
 
 ## Most recent
 
+- `sk94i0` [intake] 20260826-aw-cli-surface-inventory-00-sk94i0-aw-cli-surface-inventory.survey.md - Exhaustive named inventory of the full aw CLI surface (all ~44 verbs + subcommands, read/write + operates-on + naming smells) - ground truth for the naming/IA redesign
 - `40g511` [intake] 20260826-aw-run-spec-build-order-00-40g511-aw-run-spec-build-order.findings.md - What exists vs net-new for the aw run deterministic run-and-verify spec (25kzda): build-order dependency map
 - `8it88r` [intake] 20260823-actorenv-00-8it88r-deriving-actor-identity-host-and-model-from-coding-agent-environments.research-prompt.md - How to auto-derive a trustworthy actor (host + model) from the environment across coding hosts so aw attribution does not depend on the agent remembering --actor
 - `2mpcqb` [reference] reference/202608/20260823-agentadhere-02-2mpcqb-ensuring-agent-process-adherence-across-heterogeneous-coding-agents.gpt56medium.research-report.md - Why soft prose fails; defense-in-depth for heterogeneous coding agents (ChatGPT 5.6 Sol Medium)
@@ -50,4 +52,3 @@ Showing the most-recent 40 of 55 hot docs (archive excluded).
 - `vdz4ui` [reference] 20260726-skills-00-vdz4ui-codex-cli-gpt-5.findings.md - Migrated from 20260726-skills-00-vdz4ui-codex-cli-gpt-5.findings.md.
 - `x9whzs` [reference] 20260726-skills-01-x9whzs-suggested-future-skill-usage.gemini31pro.research-report.md - Migrated from 20260726-skills-01-x9whzs-suggested-future-skill-usage.gemini31pro.research-report.md.
 - `cnkyvn` [reference] 20260726-awdeliv-00-cnkyvn-aw-delivery-and-clean-delta.gpt56.research-report.md - Migrated from 20260726-awdeliv-00-cnkyvn-aw-delivery-and-clean-delta.gpt56.research-report.md.
-- `lc6898` [reference] 20260726-awdeliv-03-lc6898-aw-delivery-and-clean-delta.sonnet5.research-report.md - Migrated from 20260726-awdeliv-03-lc6898-aw-delivery-and-clean-delta.sonnet5.research-report.md.

@@ -1040,6 +1040,29 @@
     "topic": []
   },
   {
+    "consumed_by": [
+      "25kzda"
+    ],
+    "created": "20260826",
+    "date": "20260826",
+    "id6": "sk94i0",
+    "kind": "survey",
+    "model": "",
+    "order": "00",
+    "outcome": "adopted",
+    "path": "20260826-aw-cli-surface-inventory-00-sk94i0-aw-cli-surface-inventory.survey.md",
+    "set_id": "aw-cli-surface-inventory",
+    "status": "intake",
+    "summary": "Exhaustive named inventory of the full aw CLI surface (all ~44 verbs + subcommands, read/write + operates-on + naming smells) - ground truth for the naming/IA redesign",
+    "topic": [
+      "cli",
+      "information-architecture",
+      "naming",
+      "inventory",
+      "pre-release"
+    ]
+  },
+  {
     "consumed_by": [],
     "created": "20260713",
     "date": "20260713",
