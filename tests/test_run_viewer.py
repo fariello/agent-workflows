@@ -254,3 +254,95 @@ class RunViewerTests(TestCase):
             except SystemExit as exc:
                 self.assertEqual(exc.code, 0)
         self.assertIn("run-", buf2.getvalue())
+
+    def test_parse_since_timestamp_relative(self):
+        from datetime import datetime, timezone
+
+        fixed_now = datetime(2026, 8, 27, 19, 0, 0, tzinfo=timezone.utc)
+        # 1d = 24 hours
+        dt_1d = run_viewer.parse_since_timestamp("1d", fixed_now)
+        self.assertEqual(dt_1d, datetime(2026, 8, 26, 19, 0, 0, tzinfo=timezone.utc))
+
+        # 0.5d = 12 hours
+        dt_half_d = run_viewer.parse_since_timestamp("0.5d", fixed_now)
+        self.assertEqual(dt_half_d, datetime(2026, 8, 27, 7, 0, 0, tzinfo=timezone.utc))
+
+        # 2h = 2 hours
+        dt_2h = run_viewer.parse_since_timestamp("2h", fixed_now)
+        self.assertEqual(dt_2h, datetime(2026, 8, 27, 17, 0, 0, tzinfo=timezone.utc))
+
+        # 1.5h = 90 mins
+        dt_1_5h = run_viewer.parse_since_timestamp("1.5h", fixed_now)
+        self.assertEqual(dt_1_5h, datetime(2026, 8, 27, 17, 30, 0, tzinfo=timezone.utc))
+
+        # 1w = 7 days
+        dt_1w = run_viewer.parse_since_timestamp("1w", fixed_now)
+        self.assertEqual(dt_1w, datetime(2026, 8, 20, 19, 0, 0, tzinfo=timezone.utc))
+
+        # 1m = ~30 days
+        dt_1m = run_viewer.parse_since_timestamp("1m", fixed_now)
+        self.assertTrue((fixed_now - dt_1m).days >= 30)
+
+        # 1y = ~365 days
+        dt_1y = run_viewer.parse_since_timestamp("1y", fixed_now)
+        self.assertTrue((fixed_now - dt_1y).days >= 365)
+
+    def test_parse_since_timestamp_dates(self):
+        from datetime import datetime, timezone
+
+        dt_ymd = run_viewer.parse_since_timestamp("2026-08-25")
+        self.assertEqual(dt_ymd, datetime(2026, 8, 25, 0, 0, 0, tzinfo=timezone.utc))
+
+        dt_dense = run_viewer.parse_since_timestamp("20260825")
+        self.assertEqual(dt_dense, datetime(2026, 8, 25, 0, 0, 0, tzinfo=timezone.utc))
+
+        dt_iso = run_viewer.parse_since_timestamp("2026-08-27T13:00:00Z")
+        self.assertEqual(dt_iso, datetime(2026, 8, 27, 13, 0, 0, tzinfo=timezone.utc))
+
+    def test_parse_since_timestamp_invalid(self):
+        with self.assertRaises(ValueError):
+            run_viewer.parse_since_timestamp("invalid-date-or-spec")
+
+    def test_run_viewer_cli_since_filter(self):
+        # Filtering with --since 10y should return runs
+        ns = argparse.Namespace(
+            dir=".",
+            target=[],
+            set=None,
+            ipd=None,
+            status=None,
+            failed=False,
+            active=False,
+            latest=False,
+            since="10y",
+            detail=False,
+            json=False,
+            agent=False,
+            no_color=True,
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = run_viewer.run_viewer_cli(ns)
+        self.assertEqual(code, 0)
+        self.assertIn("run-", buf.getvalue())
+
+        # Filtering with an invalid --since should return code 2
+        ns_bad = argparse.Namespace(
+            dir=".",
+            target=[],
+            set=None,
+            ipd=None,
+            status=None,
+            failed=False,
+            active=False,
+            latest=False,
+            since="not-a-timespec",
+            detail=False,
+            json=False,
+            agent=False,
+            no_color=True,
+        )
+        buf_bad = io.StringIO()
+        with redirect_stdout(buf_bad):
+            code_bad = run_viewer.run_viewer_cli(ns_bad)
+        self.assertEqual(code_bad, 2)

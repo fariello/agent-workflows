@@ -1390,6 +1390,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Filter runs by step status (e.g. executed, partial, blocked, failed).",
     )
     p_run_list.add_argument(
+        "--since",
+        help="Show runs created since date (YYYY-MM-DD), timestamp, or relative timespec (e.g. 1d, 12h, 1.5w, 1m, 1y).",
+    )
+    p_run_list.add_argument(
         "--detail",
         "--long",
         action="store_true",
@@ -1410,6 +1414,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "EXAMPLES\n"
             "  aw runs                          # summary of all execution runs\n"
             "  aw runs --latest                 # summary of the most recent run\n"
+            "  aw runs --since 1d               # summary of runs in the last day\n"
             "  aw runs <run-id-or-path>         # summary of a specific run\n"
             "  aw runs --set <setid>            # filter runs by Set ID\n"
             "  aw runs --ipd <id6>              # filter runs by IPD id6\n"
@@ -1455,6 +1460,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p_runs.add_argument(
         "--status",
         help="Filter runs by step status (e.g. executed, partial, blocked, failed).",
+    )
+    p_runs.add_argument(
+        "--since",
+        help="Show runs created since date (YYYY-MM-DD), timestamp, or relative timespec (e.g. 1d, 12h, 1.5w, 1m, 1y).",
     )
     p_runs.add_argument(
         "--detail",

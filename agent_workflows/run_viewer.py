@@ -11,6 +11,7 @@ import json
 import re
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from agent_workflows.attention import _TREE_COLOR_256, _identity_stem
@@ -45,6 +46,103 @@ class RunSummary:
     setids: list[str] = field(default_factory=list)
     steps: list[StepSummary] = field(default_factory=list)
     counts: dict[str, int] = field(default_factory=dict)
+
+    @property
+    def timestamp_dt(self) -> datetime | None:
+        """Parse the run's effective datetime in UTC."""
+        for ts_str in (
+            self.created_at,
+            self.updated_at,
+            self.run_id,
+            self.run_dir.name,
+        ):
+            if not ts_str:
+                continue
+            cleaned = ts_str.replace("Z", "+00:00")
+            try:
+                dt = datetime.fromisoformat(cleaned)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt
+            except (ValueError, TypeError):
+                pass
+            m = re.search(r"(\d{8})T(\d{6})", ts_str)
+            if m:
+                try:
+                    return datetime.strptime(
+                        f"{m.group(1)}T{m.group(2)}", "%Y%m%dT%H%M%S"
+                    ).replace(tzinfo=timezone.utc)
+                except (ValueError, TypeError):
+                    pass
+        return None
+
+
+def parse_since_timestamp(spec: str, now: datetime | None = None) -> datetime:
+    """Parse a date, timestamp, or relative timespec into an aware UTC datetime.
+
+    Supports:
+      - Relative timespecs with floats: e.g. '1d', '0.5d', '2h', '1.5h', '1w', '2.5w', '1m', '0.5m', '1y'
+      - Dates: 'YYYY-MM-DD', 'YYYYMMDD', 'YYYY/MM/DD'
+      - Timestamps: 'YYYY-MM-DDTHH:MM:SS', 'YYYY-MM-DD HH:MM:SS', 'YYYYMMDDTHHMMSSZ'
+    """
+    ref_now = now or datetime.now(timezone.utc)
+    s = spec.strip()
+
+    # Relative timespec with unit: e.g. 1d, 1.5w, 2h, 0.5m, 1y
+    m = re.match(r"^([0-9]+(?:\.[0-9]+)?)\s*([a-zA-Z]+)$", s)
+    if m:
+        val = float(m.group(1))
+        unit = m.group(2).lower()
+        if unit in ("h", "hr", "hrs", "hour", "hours"):
+            delta = timedelta(hours=val)
+        elif unit in ("d", "day", "days"):
+            delta = timedelta(days=val)
+        elif unit in ("w", "wk", "wks", "week", "weeks"):
+            delta = timedelta(days=val * 7)
+        elif unit in ("m", "mo", "mon", "month", "months"):
+            delta = timedelta(days=val * 30.4375)
+        elif unit in ("y", "yr", "yrs", "year", "years"):
+            delta = timedelta(days=val * 365.25)
+        elif unit in ("min", "mins", "minute", "minutes"):
+            delta = timedelta(minutes=val)
+        elif unit in ("s", "sec", "secs", "second", "seconds"):
+            delta = timedelta(seconds=val)
+        else:
+            raise ValueError(f"unknown timespec unit '{unit}' (expected h, d, w, m, y)")
+        return ref_now - delta
+
+    # Date without delimiters: YYYYMMDD
+    if re.match(r"^\d{8}$", s):
+        return datetime.strptime(s, "%Y%m%d").replace(tzinfo=timezone.utc)
+
+    # Clean ISO format
+    cleaned = s.replace("Z", "+00:00")
+    try:
+        dt = datetime.fromisoformat(cleaned)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (ValueError, TypeError):
+        pass
+
+    # Common date / timestamp patterns
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc)
+        except (ValueError, TypeError):
+            pass
+
+    # Run directory / id pattern: e.g. 20260827T212958
+    m_run = re.search(r"(\d{8})T(\d{6})", s)
+    if m_run:
+        try:
+            return datetime.strptime(
+                f"{m_run.group(1)}T{m_run.group(2)}", "%Y%m%dT%H%M%S"
+            ).replace(tzinfo=timezone.utc)
+        except (ValueError, TypeError):
+            pass
+
+    raise ValueError(f"invalid date, timestamp, or timespec '{spec}'")
 
 
 def _find_stem_for_id6(repo_root: Path, id6: str) -> str | None:
@@ -488,12 +586,25 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
     failed_only = getattr(args, "failed", False)
     active_only = getattr(args, "active", False)
     latest_only = getattr(args, "latest", False)
+    since_spec = getattr(args, "since", None)
     detail = getattr(args, "detail", False) or getattr(args, "long", False)
     is_json = getattr(args, "json", False)
     is_agent = getattr(args, "agent", False) or getattr(args, "as_agent", False)
     no_color = getattr(args, "no_color", False)
 
     term = Term(color=False if no_color else None)
+
+    since_dt = None
+    if since_spec:
+        try:
+            since_dt = parse_since_timestamp(since_spec)
+        except ValueError as exc:
+            err_msg = f"error: {exc}"
+            if is_agent or is_json:
+                print(json.dumps({"error": err_msg, "exit_code": 2}))
+            else:
+                term.line(err_msg)
+            return 2
 
     summaries: list[RunSummary] = []
     for r_dir in run_dirs:
@@ -522,6 +633,11 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
 
         if active_only and not any(s.status == "running" for s in summary.steps):
             continue
+
+        if since_dt:
+            run_dt = summary.timestamp_dt
+            if run_dt and run_dt < since_dt:
+                continue
 
         summaries.append(summary)
 
