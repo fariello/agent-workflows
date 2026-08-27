@@ -5,7 +5,7 @@
 - Concern: The child-02 `aw check`/lint enforcement can be bypassed by hand-editing an IPD's `Item-Dependencies` (or staging a malformed/cyclic statement) and committing directly. Spec 25kzda (2.10) calls for an OPT-IN, commit-scoped, type-scoped pre-commit hook that catches this at commit time, delegating to the SAME shared evaluator so hook and check never diverge - exactly the bklggrad `backlog-blocking-close-gate` / existing `ipd-status-untooled-gate` model.
 - Scope: Add an opt-in local pre-commit hook `ipd-dependency-statement-gate`, mirroring `hooks/backlog_blocking_close_gate.py` / `hooks/status_untooled_gate.py`: (1) a hook module whose `check(repo_root) -> (exit, messages)` inspects the STAGED diff, and for each staged `.ipd.md` evaluates its dependency statement over the staged overlay + HEAD via the child-02 evaluator, refusing (exit 1) only when a staged IPD is malformed, unresolved-where-blocking, dangling, ambiguous, or introduces/participates in a cycle - printing the same rule IDs + recovery commands as `aw check`; (2) register a top-level shim verb (like `ipd-status-untooled-gate`) so the hook can invoke it; (3) opt-in installer wiring (`aw hooks install ipd-dependency-statement-gate`, or the existing hook-install mechanism) - NOT installed by default; idempotent; opt-out honored. Honest local-only limits documented (local, not cloned by default, `--no-verify` bypasses; `aw check`/CI is the portable authority). Never blocks an unrelated commit on a pre-existing finding in a file it did not touch (commit-scoped).
 - Scope-Paths: agent_workflows/hooks/, agent_workflows/check_engine.py, agent_workflows/cli.py, agent_workflows/engine.py, tests/
-- Status: draft
+- Status: reviewed
 - Set: ipddeps
 - Order: 3
 - Highest E allocated: 02
@@ -13,6 +13,7 @@
 - Id: mp88bl
 
 ## Workflow history
+- 2026-08-27 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-301/302/303/304 fixed, PR-305 considered (no split)
 
 - 2026-08-27 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.
 
