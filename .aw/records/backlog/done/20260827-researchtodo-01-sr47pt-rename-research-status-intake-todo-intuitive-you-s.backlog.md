@@ -1,11 +1,12 @@
 - Id: sr47pt
-- Status: open
+- Status: done
 - Set: researchtodo
 - Priority: high
 - Kind: feature
 - Summary: Rename research status 'intake' -> 'todo' (intuitive 'you still need to do this'); migrate the 8 modules + existing docs; ride with 5tapom's state-advancement so 'todo' means genuinely-not-started
 
 ## Workflow history
+- 2026-08-27 done (aw set): Graduated into plan Set 'rstodo' (orchestrator dh5gnl; children p3o9je token-rename, lpqy64 on-disk migration). Per graduation policy (spec 4w7d6s) the child Set was minted with a FRESH setid (rstodo, NOT researchtodo) to avoid a cross-type setid collision. Link is recorded in prose here + the orchestrator's From-Backlog: sr47pt note; the machine-readable Graduated-To/From-Backlog fields are owed once sjsoqq builds them.
 - 2026-08-27 created (aw backlog): Rename research status 'intake' -> 'todo' (intuitive 'you still need to do this'); migrate the 8 modules + existing docs; ride with 5tapom's state-advancement so 'todo' means genuinely-not-started
 
 Problem: research status `intake` is opaque - it does not tell a reader "you still need to do this research", and it is OVERLOADED (means both genuinely-unrun AND finished-but-unpromoted; see this session's sk94i0/40g511 sitting as `intake` despite being done+adopted). Decision: rename `intake` -> `todo` ('Status: todo' unambiguously = the reader must act; beats the passive/ambiguous `pending`). New research lifecycle: `todo` -> `active` -> `reference`/`archive`.
