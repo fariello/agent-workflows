@@ -5,7 +5,7 @@
 - Concern: runipd's interactive streaming layer (`render_event`, oc_runipd.py:142; `Palette`, oc_runipd.py:108; `Heartbeat`, oc_runipd.py:196) is inline in `oc_runipd.py`, so any other consumer that wants normalized progress/streaming output must duplicate it. It should be a shared `agent_workflows` rendering utility.
 - Scope: Extract `render_event`/`Palette`/`Heartbeat` (and any tightly-coupled helpers) into a new shared module (e.g. `agent_workflows/render_stream.py`), then refactor `oc_runipd.py` to import and use it, behavior-preserving (identical rendered output for the same event stream). No UX/behavior change; pure extraction + de-duplication. Add unit tests for the shared renderer (event -> rendered line, palette application, heartbeat lifecycle) and confirm runipd output is unchanged.
 - Scope-Paths: agent_workflows/render_stream.py, agent_workflows/oc_runipd.py, tests/
-- Status: draft
+- Status: reviewed
 - Set: runnernorm
 - Order: 1
 - Highest E allocated: 01
@@ -13,6 +13,7 @@
 - Id: dg28i9
 
 ## Workflow history
+- 2026-08-27 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-runnernorm findings fixed (stub gate, V-01 evidence, stale citations); no open questions
 
 - 2026-08-25 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.
 
@@ -26,16 +27,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: extract + refactor
 
-- [ ] E-01 Move `render_event` (oc_runipd.py:142), `Palette` (oc_runipd.py:108), `Heartbeat` (oc_runipd.py:196), and tightly-coupled helpers into a new `agent_workflows/render_stream.py`; refactor `oc_runipd.py` to import them. Behavior-preserving (identical rendered output for the same event stream).
+- [ ] E-01 Move `render_event` (oc_runipd.py:142), `Palette` (oc_runipd.py:108), `Heartbeat` (oc_runipd.py:196), and the tightly-coupled module-level helpers `_ANSI_RESET` (oc_runipd.py:64), `_ANSI_CODES` (oc_runipd.py:65), `_ANSI_STRIP_RE` (oc_runipd.py:76), `_STATUS_COLOR` (oc_runipd.py:79), `_strip_ansi` (oc_runipd.py:130), and `_one_line` (oc_runipd.py:134) into a new `agent_workflows/render_stream.py`; refactor `oc_runipd.py` to import them (its call sites at oc_runipd.py:1426/1446/1459/1571/1928 keep working, with `should_color` still supplied by the caller per OQ-01). Behavior-preserving (identical rendered output for the same event stream).
   - Depends on: none
   - Expected outcome: `render_stream` holds the single definitions; `oc_runipd` imports them; runipd output is byte-identical for a fixed event stream.
   - Execution state: pending
 
-Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
-
 ## Project conventions discovered (Step 0)
 
-- The render layer lives at oc_runipd.py:108 (`Palette`), :142 (`render_event`), :196 (`Heartbeat`); it is used at the runipd streaming call sites (e.g. oc_runipd.py:1430 `Heartbeat(pal, ...)`).
+- The render layer lives at oc_runipd.py:108 (`Palette`), :142 (`render_event`), :196 (`Heartbeat`), plus coupled module-level helpers at oc_runipd.py:64-134 (`_ANSI_RESET`/`_ANSI_CODES`/`_ANSI_STRIP_RE`/`_STATUS_COLOR`/`_strip_ansi`/`_one_line`). It is used at the runipd streaming call sites: `Palette(should_color(...))` at oc_runipd.py:1426/1571/1928 and `Heartbeat(pal, ...)`/`render_event(line, pal)` at oc_runipd.py:1446/1459.
+- `Palette` is constructed with `should_color(sys.stdout)`; `should_color` is itself DUPLICATED (oc_runipd.py:95, agy_runipd.py:100, term.py:74). Unifying it is deferred (OQ-01); the extracted renderer takes the color decision from its caller, so this refactor does not depend on that consolidation.
 - awocrunner reduced `tools/ipdrunner/runipd.py` to a thin shim after packaging the core; the same packaged-core discipline applies to shared internals.
 
 ## Findings
@@ -68,25 +68,31 @@ Pure refactor: the risk is behavior drift, mitigated by a golden-output test ove
 
 ## Open questions
 
-### OQ-01: Should the shared renderer subsume the `should_color` TTY logic (attention.py:901) too?
+### OQ-01: Should the shared renderer subsume the duplicated `should_color` TTY logic too?
 
 - Blocking: no
 - Status: open
 - Owner: none
-- Resolution or deferral rationale: Keep scope to the runipd render layer; unifying with `should_color` is a possible later consolidation, not required here.
+- Resolution or deferral rationale: `should_color` is defined three times (oc_runipd.py:95, agy_runipd.py:100, term.py:74; `term.py` is the natural canonical home). Keep scope to the runipd render layer; the extracted renderer takes the color flag from its caller. Unifying the three `should_color` copies is a possible later consolidation, not required here.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: Pasted output of the repo's real test runner showing (a) the new `render_stream` unit tests pass (`render_event` sample-event->line mapping; `Palette` applies/omits color per the flag; `Heartbeat` enter/exit/interval lifecycle); (b) a golden test proving runipd's rendered output for a fixed event stream is BYTE-IDENTICAL before and after extraction; (c) `render_event`/`Palette`/`Heartbeat` and the coupled helpers have a SINGLE definition in `render_stream.py` with no inline copy left in `oc_runipd.py` (e.g. a grep/import assertion); and (d) the full suite green (paste the actual pass/fail summary line).
   - Observed evidence:
   - Result: pending
 
 ## Approval and execution gate
 
 - Size assessment: standard
-- Cohesion rationale: not required
+- Cohesion rationale: not required (single cohesive concern: extract one render layer and refactor its one consumer).
 
-TODO: approval + execution gate prose (execution contract, post-gate lifecycle move).
+### Execution contract
+
+1. Open questions: OQ-01 is non-blocking (the `should_color` consolidation is explicitly deferred); no blocking questions remain.
+2. Scope fence: touch only `agent_workflows/render_stream.py`, `agent_workflows/oc_runipd.py`, and `tests/` (per Scope-Paths). Behavior-preserving extraction only - no UX/output change. If it appears to need a `should_color` unification or another file, STOP and report.
+3. Honesty rule (hard MUST): when you report tests/validation passed, paste the ACTUAL runner output; never claim a pass you did not run. The golden byte-identical test is the core evidence that behavior was preserved.
+4. Commit only this plan's own changed files, path-scoped (`git commit -- <path>`); never `git add -A`/bare/`-a`; never push.
+5. Lifecycle move on completion: as a POST-GATE transaction (not an `E-*`/`V-*` item) run `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply` to write the workflow-history line, set terminal `Status:`, `git mv` to `executed/`, refresh the index, and make the path-scoped lifecycle commit. Do not move to `executed/` until E-01 is performed and V-01 is verified with concrete pasted evidence.

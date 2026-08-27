@@ -2,10 +2,10 @@
 
 - Date: 2026-08-25
 - Kind: orchestrator
-- Concern: Follow-on work deferred by the awocrunner Set (which graduated runipd to `aw oc runipd`). Two gaps: (a) runipd's interactive render layer (`render_event`/`Palette`/`Heartbeat`, oc_runipd.py:142/108/196) is inline and unshared, so progress/streaming output is duplicated per tool rather than normalized; (b) several source-checkout tools remain outside the packaged host-subcommand pattern: `tools/agy_run.py`, `tools/agy_sessions.py`, `tools/view-antigravity-jsonl.py`, `tools/pwatch.py`. Backlog item 1sdkvd (medium, non-blocking); the item itself notes it can be split renderer-vs-tool-graduation.
-- Scope: (a) Extract runipd's `render_event`/`Palette`/`Heartbeat` streaming layer into a shared `agent_workflows` rendering utility so interactive/progress output is normalized across consumers, with runipd refactored to consume it (behavior-preserving). (b) Graduate the remaining source-checkout tools under the packaged host-subcommand + compat-shim pattern established by awocrunner (packaged core + `aw <host>` group + thin `tools/` shim): `agy_run.py -> aw agy run` (renamed runagy), `agy_sessions.py -> aw agy sessions`, `view-antigravity-jsonl.py -> aw agy view`, `pwatch.py -> aw pwatch`. Two children: 01 shared renderer + runipd refactor; 02 tool graduation (packaged cores + `aw agy`/`aw pwatch` groups + compat shims). Non-blocking; children are independent and may execute in either order.
+- Concern: Follow-on work deferred by the awocrunner Set (which graduated the runipd/runagy IPD-runner drivers to `aw oc runipd` / `aw agy runipd`). Two gaps: (a) runipd's interactive render layer (`render_event`/`Palette`/`Heartbeat` plus coupled module-level helpers `_ANSI_CODES`/`_ANSI_RESET`/`_STATUS_COLOR`/`_ANSI_STRIP_RE`/`_strip_ansi`/`_one_line`, oc_runipd.py:142/108/196 and surrounding) is inline and unshared, so progress/streaming output would be duplicated per tool rather than normalized; (b) several source-checkout tools remain outside the packaged host-subcommand pattern: `tools/agy_run.py`, `tools/agy_sessions.py`, `tools/view-antigravity-jsonl.py`, `tools/pwatch.py`. Backlog item 1sdkvd (medium, non-blocking); the item itself notes it can be split renderer-vs-tool-graduation.
+- Scope: (a) Extract runipd's `render_event`/`Palette`/`Heartbeat` streaming layer AND its tightly-coupled module-level helpers into a shared `agent_workflows` rendering utility so interactive/progress output is normalized across consumers, with runipd refactored to consume it (behavior-preserving). (b) Graduate the remaining source-checkout tools under the packaged host-subcommand + compat-shim pattern established by awocrunner (packaged core + `aw <host>` group + thin `tools/` shim): `agy_sessions.py -> aw agy sessions`, `view-antigravity-jsonl.py -> aw agy view`, `pwatch.py -> aw pwatch`. `tools/agy_run.py` graduation is GATED on OQ-02 (its relationship to the already-packaged `agent_workflows/agy_runipd.py` / existing `aw agy runipd` + `run`/`runagy` aliases must be resolved first, and the `aw agy run` name already ALIASES `aw agy runipd` at cli.py:2221 - a naming collision). Two children: 01 shared renderer + runipd refactor; 02 tool graduation (packaged cores + `aw agy`/`aw pwatch` groups + compat shims). Non-blocking; children are independent and may execute in either order.
 - Scope-Paths: agent_workflows/render_stream.py, agent_workflows/oc_runipd.py, agent_workflows/agy_run.py, agent_workflows/agy_sessions.py, agent_workflows/agy_view.py, agent_workflows/pwatch.py, agent_workflows/cli.py, tools/, tests/
-- Status: draft
+- Status: reviewed
 - Set: runnernorm
 - Order: 0
 - Highest E allocated: 01
@@ -13,6 +13,7 @@
 - Id: ryvoi5
 
 ## Workflow history
+- 2026-08-27 reviewed (aw set): /plan-review: REVIEWED - OPEN QUESTIONS (OQ-02 blocking); agy_run/aw-agy-run collision surfaced, citations fixed, execution contract added
 
 - 2026-08-25 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.
 
@@ -28,9 +29,9 @@ This orchestrator authors NO code; the children carry the work. Its only executi
 
 ### Task group 1: whole-Set verification
 
-- [ ] E-01 After children 01-02 execute, confirm runipd uses the shared renderer (no inline duplicate) and each graduated tool runs via `aw agy ...`/`aw pwatch` with a working compat shim; full suite green.
+- [ ] E-01 After children 01-02 execute, confirm runipd uses the shared renderer (no inline duplicate) and each graduated tool runs via `aw agy sessions/view` / `aw pwatch` with a working compat shim, `agy_run.py` is dispositioned per OQ-02 with NO `aw agy run` alias collision, and the full suite is green.
   - Depends on: none
-  - Expected outcome: shared renderer has a single definition consumed by runipd; `aw agy run/sessions/view` and `aw pwatch` invoke the packaged cores; shims forward; suite green.
+  - Expected outcome: shared renderer has a single definition consumed by runipd; `aw agy sessions/view` and `aw pwatch` invoke the packaged cores; shims forward; `agy_run.py` disposition matches the OQ-02 resolution (no colliding subcommand); suite green.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -39,21 +40,23 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 | Order | File (id6) | What it does | Depends on |
 |---|---|---|---|
-| 01 | shared renderer (dg28i9) | extract `render_event`/`Palette`/`Heartbeat` into a shared utility; refactor runipd to consume it | none |
-| 02 | graduate tools (puot79) | package agy run/sessions/view + pwatch cores; add `aw agy`/`aw pwatch`; thin `tools/` compat shims | none |
+| 01 | shared renderer (dg28i9) | extract `render_event`/`Palette`/`Heartbeat` + coupled helpers into a shared utility; refactor runipd to consume it | none |
+| 02 | graduate tools (puot79) | package agy sessions/view + pwatch cores; add `aw agy sessions/view` + `aw pwatch`; thin `tools/` compat shims; `agy_run.py` graduation gated on OQ-02 | none |
 
-Children are independent (may execute in either order); orchestrator verifies.
+Children are independent (may execute in either order); orchestrator verifies. Child 02 must resolve OQ-02 (the `agy_run.py` vs already-packaged `agy_runipd` relationship + the `aw agy run` alias collision) before graduating `agy_run.py`; the other three tools are unaffected.
 
 ## Completion criteria (the whole Set is done only when)
 
 - A shared rendering utility exists and runipd consumes it with unchanged behavior (01).
-- `agy_run`/`agy_sessions`/`view-antigravity-jsonl`/`pwatch` are packaged and invocable as `aw agy run/sessions/view` and `aw pwatch`, with thin `tools/` compat shims (02).
+- `agy_sessions`/`view-antigravity-jsonl`/`pwatch` are packaged and invocable as `aw agy sessions/view` and `aw pwatch`, with thin `tools/` compat shims (02).
+- `agy_run.py` is dispositioned per OQ-02: either graduated under a NON-colliding surface, or recorded as already-superseded-by-`agy_runipd` (with `tools/agy_run.py` reduced to a shim or retired), with no `aw agy run` alias collision.
 - Full test suite green.
 
 ## Cross-IPD validation
 
-- Single renderer definition (no duplicated `render_event`/`Palette`/`Heartbeat`).
+- Single renderer definition (no duplicated `render_event`/`Palette`/`Heartbeat` + helpers).
 - Graduated tools follow the awocrunner packaged-core + host-subcommand + compat-shim pattern (consistency with `aw oc runipd`).
+- Discovered in review (blocking, feeds child 02): `agent_workflows/agy_runipd.py` (packaged, ~80KB) already backs `aw agy runipd` (aliases `run`/`runagy`, cli.py:2219-2221); `tools/agy_run.py` (886 lines, full logic, `prog="agy_run.py"`) is a SEPARATE still-un-shimmed Antigravity multi-mode runner. The plan's original "`agy_run.py -> aw agy run` (renamed runagy)" is factually wrong on two counts: (i) `aw agy run` already aliases `aw agy runipd`, so the proposed name collides; (ii) `agy_run.py` may already be superseded by `agy_runipd` (needs disposition, not a fresh graduation). OQ-02 must resolve this.
 
 ## Deferred / out of scope (with reason)
 
@@ -61,34 +64,47 @@ Children are independent (may execute in either order); orchestrator verifies.
 
 ## Scope check
 
-- Over-scope: none.
-- Under-scope: none.
+- Over-scope: possible - `tools/agy_run.py` may already be superseded by the packaged `agy_runipd`; re-graduating it would be duplicate work. Gated behind OQ-02 to avoid it.
+- Under-scope: the original plan did not surface the `agy_run.py`/`agy_runipd` relationship or the `aw agy run` alias collision (cli.py:2221); now captured in OQ-02 and Cross-IPD validation.
 
 ## Required tests / validation
 
-Aggregate of children: renderer unit tests + runipd behavior-preserved; graduated-tool invocation tests via `aw agy`/`aw pwatch` + shim-forwarding tests.
+Aggregate of children: renderer unit tests + a golden runipd-output test proving behavior is preserved; graduated-tool invocation tests via `aw agy sessions/view` + `aw pwatch` + shim-forwarding tests; and, per OQ-02, either an `agy_run.py`-superseded disposition (shim/retire, no new subcommand) or a non-colliding `agy_run` surface with its own invocation + shim tests. A test MUST assert no `aw agy run` collision with the existing `runipd` alias. Validation MUST paste the ACTUAL runner output (see V-01); never an un-run "tests pass" claim.
 
 ## Open questions
 
-### OQ-01: Rename `runagy` to `aw agy run` - keep a `runagy` alias?
+### OQ-01: Compat-alias policy for the graduated tools (sessions/view/pwatch)?
 
 - Blocking: no
 - Status: open
 - Owner: none
-- Resolution or deferral rationale: Provide a thin compat shim (as awocrunner did for runipd) so existing `runagy`/`tools/*.py` invocations keep working; finalize alias names in child 02.
+- Resolution or deferral rationale: Provide a thin compat shim (as awocrunner did for runipd) so existing `tools/*.py` invocations keep working; finalize alias names in child 02. Applies to `agy_sessions`/`view-antigravity-jsonl`/`pwatch`; `agy_run.py` is handled by OQ-02.
+
+### OQ-02: What is `tools/agy_run.py`'s relationship to the packaged `agy_runipd`, and what surface does it graduate to (given `aw agy run` already aliases `aw agy runipd`)?
+
+- Blocking: yes
+- Status: open
+- Owner: none
+- Resolution or deferral rationale: `agent_workflows/agy_runipd.py` already backs `aw agy runipd` (aliases `run`/`runagy`, cli.py:2219-2221) and `tools/ipdrunner/runagy.py` is already a thin shim to it. But `tools/agy_run.py` (886 lines, `prog="agy_run.py"`) is a SEPARATE un-shimmed multi-mode runner. Decide: (A) `tools/agy_run.py` is already superseded by `agy_runipd` -> disposition = reduce it to a shim (or retire with a RETIRED header), NO new subcommand, and drop it from child 02's graduation scope; or (B) it is genuinely distinct -> graduate it under a NON-colliding surface (NOT `aw agy run`, which aliases runipd - e.g. `aw agy exec` or another name), and add the `run` alias removal/repoint decision explicitly. Until resolved, child 02 MUST NOT touch `agy_run.py`. MUST be resolved before executing the `agy_run.py` portion of child 02.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: Pasted output of the repo's real test runner showing (a) the shared renderer's unit tests + the golden runipd-output test pass (byte-identical output for a fixed event stream) and that `render_event`/`Palette`/`Heartbeat` have a single definition (no inline duplicate in `oc_runipd.py`); (b) `aw agy sessions`, `aw agy view`, and `aw pwatch` invoke the packaged cores and their `tools/*.py` shims forward; (c) the `agy_run.py` disposition per OQ-02 (either a shim/retire with no new subcommand, or a non-colliding surface) with a test asserting no `aw agy run` collision; and (d) the full suite green (paste the actual pass/fail summary line). Also paste `aw ipd lint --phase pre-transition --agent <child>` conforming for children 01 and 02.
   - Observed evidence:
   - Result: pending
 
 ## Approval and execution gate
 
 - Size assessment: standard
-- Cohesion rationale: not required
+- Cohesion rationale: not required (orchestrator with two independent children; the only execution step here is whole-Set verification).
 
-TODO: approval + execution gate prose (execution contract, post-gate lifecycle move).
+### Execution contract
+
+1. Open questions: OQ-02 is BLOCKING for the `agy_run.py` portion of child 02 and MUST be resolved before that portion executes; while it is open, child 02 proceeds only for `agy_sessions`/`view`/`pwatch`, and the Set is NO-GO until OQ-02 is resolved and dispositioned. OQ-01 is non-blocking.
+2. Scope fence: touch only the paths in Scope-Paths (renderer, `oc_runipd.py`, the packaged agy/pwatch cores, `cli.py`, `tools/`, `tests/`). Do NOT expand scope; if the work appears to need another file or a subcommand rename beyond OQ-02's resolution, STOP and report.
+3. Honesty rule (hard MUST): when you report tests/validation passed, paste the ACTUAL runner output. Never claim a pass you did not run.
+4. Commit only this Set's own changed files, path-scoped (`git commit -- <path>`); never `git add -A`/bare/`-a`; never push.
+5. Lifecycle move on completion: perform the terminal transition as a POST-GATE transaction via `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply` (workflow-history line, terminal `Status:`, `git mv` to `executed/`, index refresh, path-scoped lifecycle commit). It is NOT an `E-*`/`V-*` item. Do not move to `executed/` until every `E-*` is performed and every `V-*` is verified with concrete pasted evidence.
