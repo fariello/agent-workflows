@@ -3194,6 +3194,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260825-installerskill-01-kvfsak-emit-skill-package-adapter-bundle-from-install-all-across-ho.ipd.md",
+    "plan_id": "kvfsak",
+    "set_id": "installerskill",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260825-runnernorm-01-dg28i9-extract-runipd-render-event-palette-heartbeat-into-a-shared.ipd.md",
     "plan_id": "dg28i9",
     "set_id": "runnernorm",
@@ -3306,16 +3316,6 @@
     "order": 0,
     "path": "pending/20260825-installerskill-00-rldro6-wire-skill-package-emission-into-the-installer-run-path-acro.ipd.md",
     "plan_id": "rldro6",
-    "set_id": "installerskill",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-25",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260825-installerskill-01-kvfsak-emit-skill-package-adapter-bundle-from-install-all-across-ho.ipd.md",
-    "plan_id": "kvfsak",
     "set_id": "installerskill",
     "status": "approved"
   },

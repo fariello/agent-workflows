@@ -5,15 +5,15 @@
 - Concern: `engine.install_all` (engine.py:1953) writes only `body_members` + `shim_members`; the generated skill packages (`host_adapters.build_skill_package(...).to_files()`, host_adapters.py:349/227, aggregated by `AdapterBundle.skill_files()`, host_adapters.py:663) are never emitted by a real install. This child wires that skill-file emission in. NOTE: `generate_adapter_bundle` (host_adapters.py:677) returns an `AdapterBundle` whose ONLY writable-file output is `skill_files()`; the `host_adapters` field (host_adapters.py:661) is `to_dict`-only metadata with NO file renderer, so there are no "adapter bundle files" to emit unless OQ-02 authorizes a new renderer (default: it does not).
 - Scope: Extend the installer run path to emit skill-package members: (1) in `install_into_repo` (engine.py:4992), build the skill member map via `generate_adapter_bundle(...).skill_files()` (equivalently `build_skill_package(...).to_files()` per workflow) and merge it into the desired member set passed to `install_all` (engine.py:1953), writing them with the SAME idempotent write + skip-unchanged logic as `shim_members` (`write_file`, engine.py:1782, which also records each written path into the ownership manifest); (2) extend `in_framework_namespace` (engine.py:1632), the prune scan `collect_target_framework_files` (engine.py:2012), and the prune defense-in-depth guard (engine.py:2072) to recognize the resolved skills directory, and resolve that directory correctly for BOTH the `aw` and legacy layouts (OQ-03) since `SHARED_SKILLS_DIR = ".agents/skills"` (host_adapters.py:60) is the LEGACY path only; (3) ensure the install-diff / desired-set union (engine.py:2062) and `collect_target_framework_files` account for skill files so an orphaned skill file is pruned and a re-install is a no-op. Uninstall needs NO member set: `uninstall_repo` (engine.py:3836) is manifest-driven and removes any file `write_file` recorded, so once (2) admits the skills dir the manifest path removes them. Extend install tests: a fresh install produces the skill package for each generated host; a second install is idempotent (empty diff); an orphaned skill file is pruned; uninstall removes the emitted skill files; and (if OQ-02 keeps them out) no adapter-metadata files are emitted.
 - Scope-Paths: agent_workflows/engine.py, agent_workflows/host_adapters.py, tests/
-- Status: approved
+- Status: executed
 - Set: installerskill
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: kvfsak
-- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-27 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Post-hoc reconciliation: driver executed+committed (5af28bb) + verified skill-package emission but skipped begin/finalize (ctt412 driver gap). Verified: install/skill tests 96 pass, pre-transition lint clean. Begin receipt retroactive; work predates it. [Scope reconciliation - in-scope-unmodified agent_workflows/engine.py: committed in 5af28bb before the retroactive begin receipt; in-scope-unmodified agent_workflows/host_adapters.py: committed in 5af28bb before the retroactive begin receipt; in-scope-unmodified tests/: skill-emission tests added in 5af28bb before the retroactive begin receipt]
 - 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 reviewed (aw set): /plan-review: REVIEWED - OPEN QUESTIONS (OQ-02/03/04 blocking); materially re-planned emission wiring; adapter-file/namespace/prune/layout/uninstall corrected; E-items right-sized
 
