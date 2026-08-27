@@ -850,6 +850,43 @@ class BlocksReleaseSetterTests(StatusSetTestBase):
         self.assertIn("approved", out)
         self.assertIn("- Status: approved", plan.read_text(encoding="utf-8"))
 
+    def test_status_set_unchanged_idempotent_no_rewrite(self):
+        plan = self.create_plan(
+            "20260822-fmtset-02-pl0202-p2.ipd.md", "pl0202", "fmtset", "approved"
+        )
+        # Add approval line so plan is fully conformant
+        orig_text = plan.read_text(encoding="utf-8")
+        if "- Approval:" not in orig_text:
+            orig_text = orig_text.replace(
+                "- Status: approved",
+                "- Status: approved\n- Approval: 2026-08-27, recorded: ok",
+            )
+            plan.write_text(orig_text, encoding="utf-8")
+
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "approved",
+                    "pl0202",
+                    "--yes",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc, 0)
+        out = buf.getvalue()
+        # Output should say `unchanged` instead of `approved -> approved`
+        self.assertIn("unchanged", out)
+        self.assertNotIn("approved -> approved", out)
+        self.assertNotIn("approved → approved", out)
+
+        # File content must not have any duplicate history lines appended
+        after_text = plan.read_text(encoding="utf-8")
+        self.assertEqual(orig_text, after_text)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -302,17 +302,30 @@ def _format_status_transition_line(
     term: Term,
     args: argparse.Namespace | None = None,
     dry_run: bool = False,
+    changed: bool = True,
 ) -> str:
     from agent_workflows import attention as _att
 
-    old_status = rec.status or "draft"
-    old_styled = (
-        term.status_256(old_status) if getattr(term, "color", False) else old_status
-    )
-    new_styled = (
-        term.status_256(norm_stat) if getattr(term, "color", False) else norm_stat
-    )
+    old_status = (rec.status or "draft").strip().lower()
+    norm_stat_clean = norm_stat.strip().lower()
     arrow = term.glyph("arrow")
+
+    if not changed or old_status == norm_stat_clean:
+        status_part = (
+            term.status_256("unchanged")
+            if getattr(term, "color", False)
+            else "unchanged"
+        )
+    else:
+        old_styled = (
+            term.status_256(rec.status or "draft")
+            if getattr(term, "color", False)
+            else (rec.status or "draft")
+        )
+        new_styled = (
+            term.status_256(norm_stat) if getattr(term, "color", False) else norm_stat
+        )
+        status_part = f"{old_styled} {arrow} {new_styled}"
 
     m_prio = re.search(r"(?m)^-\s*Priority:\s*(\S+)", rec.raw_text)
     priority = m_prio.group(1).lower() if m_prio else None
@@ -364,7 +377,7 @@ def _format_status_transition_line(
     stem = _att._identity_stem(str(dest_path))
     dry_suffix = "  (dry-run)" if dry_run else ""
 
-    return f"- {lead}{type_prefix}{stem}{prio_txt}{blocking_txt}{gate_txt}  {old_styled} {arrow} {new_styled}{dry_suffix}"
+    return f"- {lead}{type_prefix}{stem}{prio_txt}{blocking_txt}{gate_txt}  {status_part}{dry_suffix}"
 
 
 def normalize_target_status(raw_status: str, record_type: str) -> str:
@@ -594,27 +607,6 @@ def apply_status_change(
                     insert_idx = len(new_lines)
             new_lines.insert(insert_idx, approval_line)
 
-    # Append Workflow history
-    hist_entry = f"- {today} {norm_status} ({actor}): {message}"
-    has_hist_section = False
-    for i, line in enumerate(new_lines):
-        if _HISTORY_HDR_RE.match(line):
-            has_hist_section = True
-            new_lines.insert(i + 1, hist_entry)
-            break
-
-    if not has_hist_section:
-        insert_idx = len(new_lines)
-        for i, line in enumerate(new_lines):
-            if line.startswith("## "):
-                insert_idx = i
-                break
-        new_lines.insert(insert_idx, "")
-        new_lines.insert(insert_idx, hist_entry)
-        new_lines.insert(insert_idx, "## Workflow history")
-
-    updated_text = "\n".join(new_lines).rstrip() + "\n"
-
     # Determine destination path if directory-disposition applies
     dest_path = rec.path
     if rec.record_type in ("plans", "prompts"):
@@ -656,6 +648,33 @@ def apply_status_change(
         ):
             dest_path = rec.path.parent.parent / norm_status / rec.path.name
 
+    content_changed = new_lines != lines
+    path_changed = dest_path.resolve() != rec.path.resolve()
+
+    if not content_changed and not path_changed:
+        return rec.path, norm_status, False
+
+    # Append Workflow history
+    hist_entry = f"- {today} {norm_status} ({actor}): {message}"
+    has_hist_section = False
+    for i, line in enumerate(new_lines):
+        if _HISTORY_HDR_RE.match(line):
+            has_hist_section = True
+            new_lines.insert(i + 1, hist_entry)
+            break
+
+    if not has_hist_section:
+        insert_idx = len(new_lines)
+        for i, line in enumerate(new_lines):
+            if line.startswith("## "):
+                insert_idx = i
+                break
+        new_lines.insert(insert_idx, "")
+        new_lines.insert(insert_idx, hist_entry)
+        new_lines.insert(insert_idx, "## Workflow history")
+
+    updated_text = "\n".join(new_lines).rstrip() + "\n"
+
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     _core.atomic_write(dest_path, updated_text)
 
@@ -665,7 +684,7 @@ def apply_status_change(
         except OSError:
             pass
 
-    return dest_path, norm_status
+    return dest_path, norm_status, True
 
 
 def _auto_index_types(
@@ -1113,36 +1132,45 @@ def run_set_command(
 
         for r in matched_records:
             nstat = normalize_target_status(target_status, r.record_type)
+            curr = (r.status or "").strip().lower()
+            changed = curr != nstat.strip().lower()
             term.line(
                 _format_status_transition_line(
-                    r, r.path, nstat, term, args, dry_run=True
+                    r, r.path, nstat, term, args, dry_run=True, changed=changed
                 )
             )
         return 0
 
-    results: list[tuple[Path, str, ArtifactRecord]] = []
+    results: list[tuple[Path, str, ArtifactRecord, bool]] = []
     touched_types: set[str] = set()
     for rec in matched_records:
-        dest_path, norm_stat = apply_status_change(rec, target_status, repo_root, args)
-        results.append((dest_path, norm_stat, rec))
-        touched_types.add(rec.record_type)
+        dest_path, norm_stat, changed = apply_status_change(
+            rec, target_status, repo_root, args
+        )
+        results.append((dest_path, norm_stat, rec, changed))
+        if changed:
+            touched_types.add(rec.record_type)
 
     if ctx.is_agent or ctx.is_json:
         changes = [
             Change(
                 path=str(dest),
-                kind="update",
-                applied=True,
-                detail=f"status: {rec.status or '-'} -> {norm_stat}",
+                kind="update" if changed else "noop",
+                applied=changed,
+                detail=(
+                    f"status: {rec.status or '-'} -> {norm_stat}"
+                    if changed
+                    else f"status: {norm_stat} (unchanged)"
+                ),
             )
-            for dest, norm_stat, rec in results
+            for dest, norm_stat, rec, changed in results
         ]
         _auto_index_types(touched_types, repo_root, changes=changes)
         res = CommandResult(
             command="set",
             status="clean",
             exit_code=0,
-            summary=f"updated status on {len(results)} artifact(s)",
+            summary=f"updated status on {len([r for r in results if r[3]])} artifact(s)",
             changes=changes,
             data={
                 "items": [
@@ -1151,8 +1179,9 @@ def run_set_command(
                         "type": rec.record_type,
                         "old_status": rec.status,
                         "new_status": norm_stat,
+                        "changed": changed,
                     }
-                    for dest, norm_stat, rec in results
+                    for dest, norm_stat, rec, changed in results
                 ]
             },
             verified=True,
@@ -1162,10 +1191,10 @@ def run_set_command(
 
     _auto_index_types(touched_types, repo_root)
 
-    for dest, norm_stat, rec in results:
+    for dest, norm_stat, rec, changed in results:
         term.line(
             _format_status_transition_line(
-                rec, dest, norm_stat, term, args, dry_run=False
+                rec, dest, norm_stat, term, args, dry_run=False, changed=changed
             )
         )
 
