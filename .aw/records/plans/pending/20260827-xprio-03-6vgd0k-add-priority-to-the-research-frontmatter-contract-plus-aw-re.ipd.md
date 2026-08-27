@@ -8,7 +8,7 @@
 - Status: draft
 - Set: xprio
 - Order: 3
-- Highest E allocated: 02
+- Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 6vgd0k
 
@@ -24,18 +24,26 @@ Add a recognized-but-optional `priority` (shared low/medium/high vocab) to resea
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
-### Task group 1: contract + INDEX + setter
+### Task group 1: contract + INDEX + writers
 
-- [ ] E-01 In `research_contract.py`, recognize an optional `priority:` frontmatter key validated against shared `backlog.PRIORITIES` (import, do not fork); optional (existing docs stay valid). Carry it in `research_index` (INDEX.json field). Add `--priority` to `aw research new` and a set path (extend a research mutator or add `aw research set-priority`) to write/clear it.
+- [ ] E-01 In `research_contract.py`, recognize an optional `priority:` frontmatter key (`validate_frontmatter` ignores unknown keys today, so add explicit per-key acceptance) validated against shared `backlog.PRIORITIES` (import, do not fork); optional (existing docs stay valid). Carry it as an INDEX.json field in `research_index` (build path).
   - Depends on: none
-  - Expected outcome: a research doc may carry `priority: high` and `aw research index --check` conforms; creation/set can write it; absent stays valid.
+  - Expected outcome: a research doc may carry `priority: high`, `aw research index --check` conforms with or without it, and a rebuilt INDEX.json carries the `priority` field for a doc that has it.
+  - Execution state: pending
+- [ ] E-03 Add the writer surface: `--priority <low|medium|high>` on `aw research new` (research_cmd.py `plan_new`/`run_new` + cli.py), and a set/clear path that MIRRORS the existing in-place frontmatter mutator `aw research set-outcome` (research_cmd.py:373/449, IPD xjrdjp) - either a `--priority` on that mutator or a sibling `aw research set-priority <id6> --to <low|medium|high|->` - to write/clear `priority` on an existing doc.
+  - Depends on: E-01
+  - Expected outcome: `aw research new --priority high` emits `priority: high`; the set path writes `priority: medium` on an existing doc and `-`/clear removes it; both mirror `set-outcome`'s preview/`--apply` shape.
   - Execution state: pending
 
 ### Task group 2: check + attention
 
-- [ ] E-02 Flag an out-of-vocab `priority` in `aw research index --check`/`aw check`. Populate `Item.priority` in `attention._research_record` (:371) from the doc's `priority:`.
+- [ ] E-02 Flag an out-of-vocab `priority` value in `aw research index --check`/`aw check` (validated against shared `backlog.PRIORITIES`).
   - Depends on: E-01
-  - Expected outcome: `aw check` flags `priority: bogus`; `aw attention` sorts/labels a research doc by priority.
+  - Expected outcome: `aw research index --check`/`aw check` reports a finding for a doc carrying `priority: bogus` and reports none for `priority: high` or an absent priority.
+  - Execution state: pending
+- [ ] E-04 Populate `Item.priority` in `attention._research_record` (attention.py:371) from the doc's `priority:` key so the board labels a research doc's priority (absent = unset). Scope note: reuses the EXISTING label renderer (attention.py:717) only; it does NOT change the shared attention sort key (attention.py:186), which excludes priority for all trees today.
+  - Depends on: E-01
+  - Expected outcome: `aw attention` renders a `[high]`/`[medium]`/`[low]` label for a research doc carrying `priority:`, matching backlog's label rendering; no label for an absent priority.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -93,13 +101,22 @@ Same recognized-but-optional-field + setter + attention pattern; research-specif
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: Pasted `aw research index --check` on a fixture doc carrying `priority: high` showing conformance, and on a doc with NO priority also conforming (optional). Pasted rebuilt `INDEX.json` excerpt showing the `priority` field present for the doc that has it (and absent/null for one that does not). A grep proving `research_contract` imports `backlog.PRIORITIES` (no forked vocab literal).
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: Pasted `aw research index --check` (and `aw check`) over a fixture doc carrying `priority: bogus` showing a `priority`-invalid finding (with its rule id), and over fixtures carrying `priority: high` and no priority showing NO such finding. Pasted new/updated test in tests/ asserting all three cases.
   - Observed evidence:
   - Result: pending
+- [ ] V-03 validates E-03
+  - Required evidence: Pasted `aw research new --priority high ... --apply` run and the created doc's `priority: high` frontmatter line. Pasted set-path run (preview then `--apply`) writing `priority: medium` on an existing doc, and the clear (`-`) run removing the key; confirm the surface mirrors `set-outcome`'s preview/`--apply` shape.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-04 validates E-04
+  - Required evidence: Pasted `aw attention --format json` (or the table) for a fixture research doc carrying `priority: high` showing `"priority": "high"` (JSON) / a `[high]` label (table), and for a doc with no priority showing `"priority": null` / no label. A diff/grep proving `attention.py:186` sort key is UNCHANGED (priority not added to the sort tuple).
+  - Observed evidence:
+  - Result: pending
+
 
 
 ## Approval and execution gate
@@ -107,4 +124,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-TODO: approval + execution gate prose (execution contract, post-gate lifecycle move).
+Execution requires human approval recorded as `Status: approved` + an attributed `- Approval:` line. All open questions above are resolved (OQ-01 defers only to the orchestrator's absent-rendering decision). Scope fence: changes are confined to this plan's Scope-Paths (`research_contract.py`, `research_cmd.py`, `research_index.py`, `cli.py`, `check_engine.py`, `attention.py`, `backlog.py` import-only, `tests/`); do NOT fork the shared `backlog.PRIORITIES` vocab and do NOT touch the plans/specs contracts (children 01/02) or the shared attention sort key. If the intake->todo rename Set `rstodo` (which also touches `research_contract.py`) has landed, rebase onto it before executing. The executor owns all path-scoped commits and never pushes. When reporting tests, PASTE THE ACTUAL RUNNER OUTPUT (never claim a pass not run). Move this plan to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every V-item is verified with pasted evidence; if any validation fails, STOP and report rather than marking done.
