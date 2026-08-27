@@ -326,6 +326,29 @@ class RunViewerTests(TestCase):
         self.assertEqual(code, 0)
         self.assertIn("run-", buf.getvalue())
 
+        # Filtering with a specific run ID should include that run and subsequent runs
+        ns_run_id = argparse.Namespace(
+            dir=".",
+            target=[],
+            set=None,
+            ipd=None,
+            status=None,
+            failed=False,
+            active=False,
+            latest=False,
+            since="run-20260827T212854Z-2364829",
+            detail=False,
+            json=False,
+            agent=False,
+            no_color=True,
+        )
+        buf_run = io.StringIO()
+        with redirect_stdout(buf_run):
+            code_run = run_viewer.run_viewer_cli(ns_run_id)
+        self.assertEqual(code_run, 0)
+        self.assertIn("run-20260827T212854Z-2364829", buf_run.getvalue())
+        self.assertIn("run-20260827T212958Z-2367239", buf_run.getvalue())
+
         # Filtering with an invalid --since should return code 2
         ns_bad = argparse.Namespace(
             dir=".",

@@ -145,6 +145,19 @@ def parse_since_timestamp(spec: str, now: datetime | None = None) -> datetime:
     raise ValueError(f"invalid date, timestamp, or timespec '{spec}'")
 
 
+def resolve_since_timestamp(
+    spec: str, repo_root: Path = Path("."), now: datetime | None = None
+) -> datetime:
+    """Resolve a date, timestamp, timespec, or run ID/dir to an aware UTC datetime."""
+    s = spec.strip()
+    matched = resolve_target_runs([s], repo_root)
+    if matched:
+        summary = load_run_summary(matched[0], repo_root)
+        if summary and summary.timestamp_dt:
+            return summary.timestamp_dt
+    return parse_since_timestamp(s, now=now)
+
+
 def _find_stem_for_id6(repo_root: Path, id6: str) -> str | None:
     """Find the plan file stem for a given id6 across pending and executed plans."""
     for base_rel in (
@@ -597,7 +610,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
     since_dt = None
     if since_spec:
         try:
-            since_dt = parse_since_timestamp(since_spec)
+            since_dt = resolve_since_timestamp(since_spec, repo_root=repo_root)
         except ValueError as exc:
             err_msg = f"error: {exc}"
             if is_agent or is_json:
