@@ -5,7 +5,7 @@
 - Concern: There is no shared helper to commit exactly the files a command changed. `ipd_lifecycle._git` (ipd_lifecycle.py:557) is a private path-scoped git subprocess wrapper used only by finalize; every other verb reimplements or omits committing. To let records-mutating verbs offer to commit their own changes safely, a single reusable helper is needed that enforces the repo contract (path-scoped, no `add -A`/`-a`, no push, no hook bypass) and is TTY-gated.
 - Scope: Add `agent_workflows/git_commit_helper.py` exposing a function like `offer_commit(repo_root, paths, *, message, assume_yes=False, no_commit=False, interactive=None, on_unrelated_staged="scope") -> CommitOutcome` that: (1) stages ONLY the explicit `paths` (repo-relative; the exact files the caller touched, including deletions/renames and the regenerated index) via `git add -- <paths>` (never `-A`/`-a`); (2) commits with `message`, never `--no-verify`, never `push`; (3) is INTERACTIVE-GATED - when `interactive` is a TTY and neither `assume_yes` (the `--commit` flag) nor `no_commit` is set, PROMPT using the SAME prompt UX as the existing `_confirm` helper (cli.py:2689, which honors `isatty`); `no_commit` short-circuits to a no-op. CRITICAL DIVERGENCE FROM `_confirm`: unlike `_confirm` (cli.py:2694, which auto-YES on non-interactive stdin), this helper's non-interactive default is a NO-OP (skipped, not committed) unless `assume_yes` (`--commit`) is explicitly passed - this is orchestrator constraint 2 and is the opposite of `_confirm`'s non-TTY behavior, so do NOT blindly reuse `_confirm` for the gate decision; reuse only its TTY prompt rendering. (4) does NOT fold in unrelated staged/unstaged changes - `on_unrelated_staged` selects the policy when the index already holds staged paths OUTSIDE `paths`: `"scope"` (default; stage/commit only `paths`, leave the rest untouched) or `"refuse"` (return `refused-dirty` without committing). Both consumers are served: selfcommit verbs pass `"scope"`; the agentadhere `aw commit` primitive (child 8dto0g E-03) passes `"refuse"`. (5) returns a structured outcome (committed sha / skipped / declined / refused-dirty) for the caller to report. Reuse `ipd_lifecycle._git` (ipd_lifecycle.py:557) or factor a tiny shared `_git` runner so there is ONE subprocess wrapper. This child delivers ONLY the helper + its unit tests; adoption is child 02.
 - Scope-Paths: agent_workflows/git_commit_helper.py, agent_workflows/ipd_lifecycle.py, tests/
-- Status: draft
+- Status: reviewed
 - Set: selfcommit
 - Order: 1
 - Highest E allocated: 01
@@ -13,6 +13,7 @@
 - Id: cv1rfd
 
 ## Workflow history
+- 2026-08-27 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED (PR-001..PR-010); corrected architecture (type-parameterized group/rename dispatch, shared status_set engine, specs dual path), fixed the cli.py prompt-helper citation and non-TTY gating divergence, parameterized on_unrelated_staged, split the multi-concern E-item, authored falsifiable V-evidence, filled execution-contract gates. GO - PENDING HUMAN APPROVAL.
 
 - 2026-08-25 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.
 

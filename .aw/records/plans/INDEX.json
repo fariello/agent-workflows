@@ -3257,7 +3257,7 @@
     "path": "pending/20260825-agentadhere-03-8dto0g-phase-2-atomic-aw-work-test-commit-finish-primitives-that-pr.ipd.md",
     "plan_id": "8dto0g",
     "set_id": "agentadhere",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-25",
@@ -3267,7 +3267,7 @@
     "path": "pending/20260825-agentadhere-04-wqj1ne-phase-3-event-derived-lifecycle-state-and-declared-file-scop.ipd.md",
     "plan_id": "wqj1ne",
     "set_id": "agentadhere",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-25",
@@ -3277,7 +3277,7 @@
     "path": "pending/20260825-agentadhere-05-diundn-phase-4-local-git-hooks-that-call-the-shared-checker-and-emi.ipd.md",
     "plan_id": "diundn",
     "set_id": "agentadhere",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-25",
@@ -3347,7 +3347,7 @@
     "path": "pending/20260825-selfcommit-00-88h0h8-records-mutating-commands-offer-to-commit-their-own-path-sco.ipd.md",
     "plan_id": "88h0h8",
     "set_id": "selfcommit",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-25",
@@ -3357,7 +3357,7 @@
     "path": "pending/20260825-selfcommit-01-cv1rfd-shared-commit-what-i-changed-helper-path-scoped-tty-gated-no.ipd.md",
     "plan_id": "cv1rfd",
     "set_id": "selfcommit",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-25",
@@ -3367,7 +3367,7 @@
     "path": "pending/20260825-selfcommit-02-jgcm68-adopt-the-self-commit-helper-across-aw-archive-group-rename.ipd.md",
     "plan_id": "jgcm68",
     "set_id": "selfcommit",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-26",

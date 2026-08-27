@@ -11,7 +11,7 @@
   - `aw specs set` DUAL-PATH caveat (PR-004): the `specs`/`spec` command branch (cli.py:7257) routes the NO-`--status` form to `status_set.run_set_command(scoped_type="specs")` and the `--status <X> <path>` form to `specs.py:run_set` (specs.py:430). To avoid a MISSED path or a DOUBLE offer, the offer must fire in exactly one place per invocation: since `status_set` already covers the no-flag form, either (a) also add the offer to `specs.py:run_set` for the `--status` form (both single-fire, no overlap), or (b) route both forms through `status_set`. The plan chooses and the tests assert exactly one offer per invocation.
   Each verb passes the PRECISE touched-path list tracked explicitly during the mutation, NOT "whatever is dirty". Add `--commit`/`--no-commit` as a SHARED arg group registered on each records-mutating parser (OQ-01). Per-verb default messages (e.g. `chore(research): archive aged artifacts and regenerate index`, `refactor(plans): regroup set <id> and rewrite refs`, `chore(specs): set <id> status <old> -> <new>`).
 - Scope-Paths: agent_workflows/research_archive.py, agent_workflows/plans_archive.py, agent_workflows/plans_refs.py, agent_workflows/research_refs.py, agent_workflows/artifact_rename.py, agent_workflows/status_set.py, agent_workflows/specs.py, agent_workflows/cli.py, tests/
-- Status: draft
+- Status: reviewed
 - Set: selfcommit
 - Order: 2
 - Highest E allocated: 07
@@ -19,6 +19,7 @@
 - Id: jgcm68
 
 ## Workflow history
+- 2026-08-27 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED (PR-001..PR-010); corrected architecture (type-parameterized group/rename dispatch, shared status_set engine, specs dual path), fixed the cli.py prompt-helper citation and non-TTY gating divergence, parameterized on_unrelated_staged, split the multi-concern E-item, authored falsifiable V-evidence, filled execution-contract gates. GO - PENDING HUMAN APPROVAL.
 
 - 2026-08-25 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.
 
