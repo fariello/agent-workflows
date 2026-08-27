@@ -820,6 +820,36 @@ class BlocksReleaseSetterTests(StatusSetTestBase):
         self.assertIn("- Status: draft", spec.read_text(encoding="utf-8"))
         self.assertIn("- Status: open", backlog.read_text(encoding="utf-8"))
 
+    def test_status_set_att_style_output_format(self):
+        plan = self.create_plan(
+            "20260822-fmtset-01-pl0201-p1.ipd.md", "pl0201", "fmtset", "reviewed"
+        )
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "approved",
+                    "pl0201",
+                    "--blocks-release",
+                    "next",
+                    "--yes",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc, 0)
+        out = buf.getvalue()
+        # Output should be formatted like `aw att`: `- >  plan        20260822-fmtset-01-pl0201  [blocking]  reviewed -> approved`
+        self.assertIn("- >", out)
+        self.assertIn("plan", out)
+        self.assertIn("20260822-fmtset-01-pl0201", out)
+        self.assertIn("[blocking]", out)
+        self.assertIn("reviewed", out)
+        self.assertIn("approved", out)
+        self.assertIn("- Status: approved", plan.read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()

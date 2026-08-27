@@ -18,6 +18,7 @@ Enforces:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime
 import re
 from dataclasses import dataclass
@@ -292,6 +293,78 @@ def match_selector(
         if rec:
             out.append(rec)
     return out
+
+
+def _format_status_transition_line(
+    rec: ArtifactRecord,
+    dest_path: Path,
+    norm_stat: str,
+    term: Term,
+    args: argparse.Namespace | None = None,
+    dry_run: bool = False,
+) -> str:
+    from agent_workflows import attention as _att
+
+    old_status = rec.status or "draft"
+    old_styled = (
+        term.status_256(old_status) if getattr(term, "color", False) else old_status
+    )
+    new_styled = (
+        term.status_256(norm_stat) if getattr(term, "color", False) else norm_stat
+    )
+    arrow = term.glyph("arrow")
+
+    m_prio = re.search(r"(?m)^-\s*Priority:\s*(\S+)", rec.raw_text)
+    priority = m_prio.group(1).lower() if m_prio else None
+
+    br_arg = getattr(args, "blocks_release", None) if args else None
+    if br_arg:
+        blocks_release = None if br_arg == "-" else br_arg
+    else:
+        m_br = re.search(r"(?m)^-\s*Blocks-Release:\s*(\S+)", rec.raw_text)
+        blocks_release = m_br.group(1) if m_br else None
+
+    m_gk = re.search(r"(?m)^-\s*Gate-Kind:\s*(\S+)", rec.raw_text)
+    m_gr = re.search(r"(?m)^-\s*Gate-Ref:\s*(\S+)", rec.raw_text)
+    gate = f"{m_gk.group(1)}:{m_gr.group(1)}" if (m_gk and m_gr) else None
+
+    prio_txt = ""
+    if priority:
+        pcode = {"high": 196, "medium": 214, "low": 244}.get(priority, 244)
+        prio_txt = "  " + (
+            term.color256(f"[{priority}]", pcode, bold=True)
+            if getattr(term, "color", False)
+            else f"[{priority}]"
+        )
+
+    blocking_txt = ""
+    if blocks_release:
+        blocking_txt = "  " + (
+            term.color256("[blocking]", 196, bold=True)
+            if getattr(term, "color", False)
+            else "[blocking]"
+        )
+
+    gate_txt = ""
+    if gate:
+        gate_txt = "  " + (
+            term.color256(f"[{gate}]", 203, bold=True)
+            if getattr(term, "color", False)
+            else f"[{gate}]"
+        )
+
+    lead = ">  " if blocks_release else "   "
+    type_word = _att._SINGULAR_TYPE.get(rec.record_type, rec.record_type)
+    type_txt = (
+        term.color256(type_word, _att._TREE_COLOR_256, bold=True)
+        if getattr(term, "color", False)
+        else type_word
+    )
+    type_prefix = type_txt + (" " * max(0, 10 - len(type_word))) + "  "
+    stem = _att._identity_stem(str(dest_path))
+    dry_suffix = "  (dry-run)" if dry_run else ""
+
+    return f"- {lead}{type_prefix}{stem}{prio_txt}{blocking_txt}{gate_txt}  {old_styled} {arrow} {new_styled}{dry_suffix}"
 
 
 def normalize_target_status(raw_status: str, record_type: str) -> str:
@@ -603,7 +676,7 @@ def _auto_index_types(
     """Automatically refresh manifest indices for modified artifact types that maintain an index."""
     for rtype in sorted(touched_types):
         if rtype == "plans":
-            try:
+            with contextlib.suppress(Exception):
                 from agent_workflows import plans_index as _pidx
 
                 _pidx.run_index(
@@ -639,10 +712,8 @@ def _auto_index_types(
                                 detail="manifest index auto-refreshed",
                             )
                         )
-            except Exception:
-                pass
         elif rtype == "research":
-            try:
+            with contextlib.suppress(Exception):
                 from agent_workflows import research_index as _ridx
 
                 _ridx.run_index(
@@ -676,8 +747,6 @@ def _auto_index_types(
                                 detail="manifest index auto-refreshed",
                             )
                         )
-            except Exception:
-                pass
 
 
 def _delegate_plan_executed_to_finalize(
@@ -1044,9 +1113,10 @@ def run_set_command(
 
         for r in matched_records:
             nstat = normalize_target_status(target_status, r.record_type)
-            stat_str = r.status or "-"
             term.line(
-                f"aw set (dry-run): would set {r.path.name} ({stat_str} -> {nstat})"
+                _format_status_transition_line(
+                    r, r.path, nstat, term, args, dry_run=True
+                )
             )
         return 0
 
@@ -1093,15 +1163,10 @@ def run_set_command(
     _auto_index_types(touched_types, repo_root)
 
     for dest, norm_stat, rec in results:
-        try:
-            rel = dest.relative_to(repo_root).as_posix()
-        except ValueError:
-            rel = str(dest)
-        status_disp = (
-            term.status_256(norm_stat, width=12)
-            if getattr(term, "color", False)
-            else norm_stat
+        term.line(
+            _format_status_transition_line(
+                rec, dest, norm_stat, term, args, dry_run=False
+            )
         )
-        term.line(f"aw set: {rel} -> {status_disp}")
 
     return 0
