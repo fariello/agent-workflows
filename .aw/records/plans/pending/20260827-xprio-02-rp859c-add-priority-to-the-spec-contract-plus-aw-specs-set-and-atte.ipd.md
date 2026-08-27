@@ -8,7 +8,7 @@
 - Status: draft
 - Set: xprio
 - Order: 2
-- Highest E allocated: 02
+- Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: rp859c
 
@@ -33,9 +33,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: check + attention
 
-- [ ] E-02 Flag an out-of-vocab Priority in `aw specs check`/`aw check`. Populate `Item.priority` in `attention._spec_record` (:289) from the spec's `- Priority:`.
+- [ ] E-02 Flag an out-of-vocab `- Priority:` value on a spec in `aw specs check`/`aw check` (validated against shared `backlog.PRIORITIES`), added to `validate_spec` (specs.py) alongside the existing status/gate checks. Note: `validate_spec` today ignores unrecognized bullets, so this explicit enum check is what catches a bad value.
   - Depends on: E-01
-  - Expected outcome: `aw check` flags `- Priority: bogus` on a spec; `aw attention` sorts/labels a spec by priority.
+  - Expected outcome: `aw specs check`/`aw check` reports a finding for a spec carrying `- Priority: bogus` and reports none for `- Priority: high` or an absent Priority.
+  - Execution state: pending
+- [ ] E-03 Populate `Item.priority` in `attention._spec_record` (attention.py:289) from the spec's `- Priority:` line so the board labels a spec's priority (absent = unset). Scope note: reuses the EXISTING label renderer (attention.py:717) only; it does NOT change the shared attention sort key (attention.py:186), which excludes priority for all trees today.
+  - Depends on: E-01
+  - Expected outcome: `aw attention` renders a `[high]`/`[medium]`/`[low]` label for a spec carrying `- Priority:`, matching backlog's label rendering; no label for an absent Priority.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -92,13 +96,18 @@ Same recognized-but-optional-field + setter + attention pattern as the plans chi
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: Pasted `aw specs check` on a fixture spec carrying `- Priority: high` showing conformance, and on a spec with NO Priority also conforming (optional). Pasted `aw specs set <fixture> --priority medium` run then the resulting `- Priority: medium` bullet AND the appended `## Workflow history` record, and `--priority -` showing the bullet removed. A grep proving `specs.py` imports `backlog.PRIORITIES` (no forked vocab literal).
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: Pasted `aw specs check` (and `aw check`) over a fixture spec carrying `- Priority: bogus` showing a `priority`-invalid finding (with its rule id), and over fixtures carrying `- Priority: high` and no Priority showing NO such finding. Pasted new/updated test in tests/ asserting all three cases.
   - Observed evidence:
   - Result: pending
+- [ ] V-03 validates E-03
+  - Required evidence: Pasted `aw attention --format json` (or the table) for a fixture spec carrying `- Priority: high` showing `"priority": "high"` (JSON) / a `[high]` label (table), and for a spec with no Priority showing `"priority": null` / no label. A diff/grep proving `attention.py:186` sort key is UNCHANGED (priority not added to the sort tuple).
+  - Observed evidence:
+  - Result: pending
+
 
 
 ## Approval and execution gate
@@ -106,4 +115,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-TODO: approval + execution gate prose (execution contract, post-gate lifecycle move).
+Execution requires human approval recorded as `Status: approved` + an attributed `- Approval:` line. All open questions above are resolved (OQ-01 defers only to the orchestrator's absent-rendering decision). Scope fence: changes are confined to this plan's Scope-Paths (`specs.py`, `cli.py`, `check_engine.py`, `attention.py`, `backlog.py` import-only, `tests/`); do NOT fork the shared `backlog.PRIORITIES` vocab and do NOT touch the plans/research contracts (children 01/03) or the shared attention sort key. The executor owns all path-scoped commits and never pushes. When reporting tests, PASTE THE ACTUAL RUNNER OUTPUT (never claim a pass not run). Move this plan to `.aw/records/plans/executed/` only after `aw ipd lint --phase pre-transition` conforms and every V-item is verified with pasted evidence; if any validation fails, STOP and report rather than marking done.
