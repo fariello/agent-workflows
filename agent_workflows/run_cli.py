@@ -46,6 +46,10 @@ EXIT_INVALID_INVOCATION: int = 2  # bad invocation / missing ledger
 def run_cli(args: argparse.Namespace) -> int:
     """Dispatch `aw run <subcommand>`. Returns the process exit code."""
     sub = getattr(args, "run_command", None)
+    if sub in ("list", "runs", "summary", "viewer"):
+        from agent_workflows import run_viewer
+
+        return run_viewer.run_viewer_cli(args)
     if sub == "show":
         return _run_show(args)
     if sub == "evidence":

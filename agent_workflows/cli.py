@@ -997,6 +997,52 @@ def _build_parser() -> argparse.ArgumentParser:
         "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
     )
 
+    # ipddeps Order g69y23: `aw ipd dependencies set` writes the machine-readable, id6-grounded
+    # cross-IPD `Item-Dependencies` field (a DIFFERENT layer from the intra-plan `Depends on:`
+    # E-item field). It routes through the SAME hoisted no-op-safe write as `aw ipd set
+    # --from-backlog`, so the value persists on a same-status transition.
+    p_ipd_deps = ipd_sub.add_parser(
+        "dependencies",
+        parents=[common],
+        help="Manage a plan's cross-IPD Item-Dependencies (e.g. 'aw ipd dependencies set <id6> "
+        "executed:<id6> exists:spec:<id6>').",
+        description=(
+            "Get or set the machine-readable, id6-grounded cross-IPD `Item-Dependencies` statement "
+            "of one or more plans. Edges are `none` | `unresolved` | comma/space-separated "
+            "`executed:<id6>` | `exists:<type>:<id6>` | `state:<type>:<status>:<id6>` "
+            "(type in ipd|spec|backlog; `executed:` targets IPDs; `state:ipd:executed:` is illegal "
+            "- use `executed:`). This is a DIFFERENT field from the intra-plan `Depends on:` E-item "
+            "ordering. The value is canonicalized and validated before writing and persists on a "
+            "same-status no-op transition (mirroring `aw ipd set --from-backlog`)."
+        ),
+    )
+    p_ipd_deps_sub = p_ipd_deps.add_subparsers(dest="ipd_dependencies_command")
+    p_ipd_deps_set = p_ipd_deps_sub.add_parser(
+        "set",
+        parents=[common],
+        help="Set/clear a plan's Item-Dependencies (canonicalizes + validates; '-'/'none' clears).",
+    )
+    p_ipd_deps_set.add_argument(
+        "selector", help="Plan selector (id6, setid, or filename)."
+    )
+    p_ipd_deps_set.add_argument(
+        "edges",
+        nargs="*",
+        help="Zero or more edges (space- or comma-separated). Omit, or pass 'none'/'-', to clear.",
+    )
+    p_ipd_deps_set.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_ipd_deps_set.add_argument(
+        "--message", "-m", default=None, help="History record message."
+    )
+    p_ipd_deps_set.add_argument(
+        "--dry-run", action="store_true", help="Preview without writing."
+    )
+    p_ipd_deps_set.add_argument(
+        "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
+    )
+
     # ipdgates Order 03 (xjbvu2): `aw ipd begin` fail-closed execution-start receipt.
     p_ipd_begin = ipd_sub.add_parser(
         "begin",
@@ -1296,6 +1342,127 @@ def _build_parser() -> argparse.ArgumentParser:
                 default=None,
                 help="Cancellation reason (recorded in the ledger).",
             )
+
+    p_run_list = run_sub.add_parser(
+        "list",
+        parents=[common],
+        help="List and summarize driver execution runs and step outcomes (read-only).",
+        description="Inspect driver execution runs under .aw/records/runs/ and summarize the ending status of each step.",
+    )
+    p_run_list.add_argument(
+        "targets",
+        nargs="*",
+        default=None,
+        help="Zero or more run IDs, directory paths, or set IDs to inspect (default: all runs).",
+    )
+    p_run_list.add_argument(
+        "--dir",
+        default=None,
+        help="Target Git repository root (default: current directory).",
+    )
+    p_run_list.add_argument(
+        "--latest",
+        action="store_true",
+        help="Show only the most recent run.",
+    )
+    p_run_list.add_argument(
+        "--active",
+        action="store_true",
+        help="Show only runs with active/running steps.",
+    )
+    p_run_list.add_argument(
+        "--failed",
+        action="store_true",
+        help="Show only runs with failed, partial, or blocked steps.",
+    )
+    p_run_list.add_argument(
+        "--set",
+        help="Filter runs by Set ID.",
+    )
+    p_run_list.add_argument(
+        "--ipd",
+        "--id6",
+        dest="ipd",
+        help="Filter runs by IPD id6.",
+    )
+    p_run_list.add_argument(
+        "--status",
+        help="Filter runs by step status (e.g. executed, partial, blocked, failed).",
+    )
+    p_run_list.add_argument(
+        "--detail",
+        "--long",
+        action="store_true",
+        dest="detail",
+        help="Show detailed incomplete requirements and step summaries.",
+    )
+
+    p_runs = sub.add_parser(
+        "runs",
+        parents=[common],
+        help="View driver execution runs and ending states of their steps.",
+        description=(
+            "Inspect driver execution runs under .aw/records/runs/ and display a unified "
+            "summary of the ending status of each IPD step in each run. Read-only."
+        ),
+        formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw runs                          # summary of all execution runs\n"
+            "  aw runs --latest                 # summary of the most recent run\n"
+            "  aw runs <run-id-or-path>         # summary of a specific run\n"
+            "  aw runs --set <setid>            # filter runs by Set ID\n"
+            "  aw runs --ipd <id6>              # filter runs by IPD id6\n"
+            "  aw runs --detail                 # include incomplete items and step summaries\n"
+        ),
+    )
+    p_runs.add_argument(
+        "targets",
+        nargs="*",
+        default=None,
+        help="Zero or more run IDs, directory paths, or set IDs to inspect (default: all runs).",
+    )
+    p_runs.add_argument(
+        "--dir",
+        default=None,
+        help="Target Git repository root (default: current directory).",
+    )
+    p_runs.add_argument(
+        "--latest",
+        action="store_true",
+        help="Show only the most recent run.",
+    )
+    p_runs.add_argument(
+        "--active",
+        action="store_true",
+        help="Show only runs with active/running steps.",
+    )
+    p_runs.add_argument(
+        "--failed",
+        action="store_true",
+        help="Show only runs with failed, partial, or blocked steps.",
+    )
+    p_runs.add_argument(
+        "--set",
+        help="Filter runs by Set ID.",
+    )
+    p_runs.add_argument(
+        "--ipd",
+        "--id6",
+        dest="ipd",
+        help="Filter runs by IPD id6.",
+    )
+    p_runs.add_argument(
+        "--status",
+        help="Filter runs by step status (e.g. executed, partial, blocked, failed).",
+    )
+    p_runs.add_argument(
+        "--detail",
+        "--long",
+        action="store_true",
+        dest="detail",
+        help="Show detailed incomplete requirements and step summaries.",
+    )
 
     p_research = sub.add_parser(
         "research",
@@ -7145,6 +7312,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         from agent_workflows import run_cli
 
         return run_cli.run_cli(args)
+    if args.command == "runs":
+        from agent_workflows import run_viewer
+
+        return run_viewer.run_viewer_cli(args)
     if args.command == "set":
         from agent_workflows import status_set
 
