@@ -1020,6 +1020,14 @@ def run_lint(args: argparse.Namespace) -> int:
         except OSError:
             pass
 
+        m_stat = re.search(r"(?m)^-\s*Status:\s*(\S+)", raw_text)
+        status_word = m_stat.group(1).lower() if m_stat else "draft"
+        status_padded = (
+            term.status_256(status_word, width=12)
+            if getattr(term, "color", False)
+            else status_word.ljust(12)
+        )
+
         m_prio = re.search(r"(?m)^-\s*Priority:\s*(\S+)", raw_text)
         priority = m_prio.group(1).lower() if m_prio else None
 
@@ -1054,7 +1062,7 @@ def run_lint(args: argparse.Namespace) -> int:
         stem = _att._identity_stem(str(path))
         disp_styled = term.status_256(disp) if getattr(term, "color", False) else disp
 
-        return f"- {lead}{type_prefix}{stem}{prio_txt}{blocking_txt}  {disp_styled}"
+        return f"- {lead}{status_padded} {type_prefix}{stem}{prio_txt}{blocking_txt}  {disp_styled}"
 
     try:
         if getattr(args, "all", False):
