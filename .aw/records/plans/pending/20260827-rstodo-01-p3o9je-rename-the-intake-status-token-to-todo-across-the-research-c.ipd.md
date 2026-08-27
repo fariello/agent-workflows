@@ -5,14 +5,16 @@
 - Concern: The `intake` status token is opaque and must become `todo`. It is referenced in code at: `research_contract.py` STATUSES/HOT_STATUSES (:148-149) + docstring (:18); `research_cmd.py` creation defaults (:189, :244); `attention_contract.py` classification map (:231 `"intake": READY`); `attention.py` stale-reclass logic + color band (:176-228, :485); `research_index.py` hot-glance band + the `## Needs addressing (intake)` header (:185-195); `research_archive.py` docstrings/hot-state logic; `cli.py` (:5994); `term.py`. This child renames the TOKEN in code (behavior-preserving); on-disk doc migration is child 02.
 - Scope: Rename `intake` -> `todo` everywhere the token appears in code, keeping behavior identical (a `todo` research doc classifies READY/needs-attention exactly as `intake` did; stale-reclass to PARKED unchanged; color band preserved). Add a BACKWARD-COMPATIBLE READ: the contract accepts a legacy `intake` value as an alias of `todo` (so a not-yet-migrated on-disk doc, and child 02's migration window, do not break). Update the `research_index` `## Needs addressing` header wording to reflect `todo`. Update `cli.py` status choices/help and `term.py` label/color keys. Do NOT migrate on-disk docs here (child 02). Update the module tests that assert `intake` to assert `todo` + add a compat test that a legacy `intake` value still classifies as READY.
 - Scope-Paths: agent_workflows/research_contract.py, agent_workflows/research_cmd.py, agent_workflows/research_index.py, agent_workflows/research_archive.py, agent_workflows/attention.py, agent_workflows/attention_contract.py, agent_workflows/cli.py, agent_workflows/term.py, tests/
-- Status: reviewed
+- Status: approved
 - Set: rstodo
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: p3o9je
+- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 reviewed (aw set): plan-review APPROVE WITH REVISIONS APPLIED: PR-101 raw-frontmatter read-site composition (index/attention/class_of) made explicit in E-02/E-03; PR-102 concrete STATUS_NORMALIZATIONS/normalize_status mechanism in E-01; PR-103 research_archive.py covered (new E-04); PR-104 enumerated test files + load-bearing compat test; PR-105 concrete V-01..V-05 evidence; PR-106 execution contract; PR-107 in-code prose sync. Split research_cmd defaults to E-05 for right-sizing.
 
 - 2026-08-27 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.

@@ -5,14 +5,16 @@
 - Concern: With the code token renamed to `todo` (child 01, backward-compat accepts legacy `intake`), the ~10 existing on-disk research docs still carry `status: intake` in frontmatter. They must be migrated to `status: todo` and the INDEX regenerated, so the corpus matches the new vocab and the board/index show `todo`.
 - Scope: Migrate every on-disk research doc whose frontmatter `status:` is `intake` to `todo` (found ~10 via `grep -rl '^status: intake' .aw/records/research/`), preserving all other frontmatter, then regenerate `INDEX.json`/`INDEX.md` (`aw research index`). Use the naming/frontmatter tooling, not a blind sed, so it goes through the contract. Verify `aw research index --check` is clean and `aw attention` shows the migrated docs as READY `todo`. This depends on child 01 (the contract must ACCEPT `todo` first, and keep accepting `intake` during the window). Add a test that a doc created with legacy `intake` is migrated to `todo` and that `aw research index --check` passes post-migration.
 - Scope-Paths: .aw/records/research/, tests/
-- Status: reviewed
+- Status: approved
 - Set: rstodo
 - Order: 2
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: lpqy64
+- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 reviewed (aw set): plan-review APPROVE WITH REVISIONS APPLIED: PR-201 fixed false 'all READY' acceptance -> class-parity (verified 5 READY/5 PARKED via stale-reclass); PR-202 named the contract tool aw research promote --to todo (hot->hot in-place, auto-reindex); PR-203 concrete V-01 evidence incl before/after class table; PR-204 execution contract; PR-205 trimmed over-scoped code Scope-Paths (data migration); OQ-01 resolved (promote --apply gate).
 
 - 2026-08-27 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.

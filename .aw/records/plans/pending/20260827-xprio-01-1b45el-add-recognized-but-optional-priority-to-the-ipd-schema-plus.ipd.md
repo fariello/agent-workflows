@@ -5,14 +5,16 @@
 - Concern: Plans/IPDs have no `Priority`, so they cannot be prioritized on the attention board. Add it as a recognized-but-optional IPD metadata field reusing the shared `{high,medium,low}` vocab, with the `aw ipd set` setter, scaffold emission (optional), `aw check` validation, and `_plans_record` attention rendering. Part of Set xprio (graduated from backlog p9o1oo).
 - Scope: (1) Schema: add `META_PRIORITY = "Priority"` to `ipd_schema.META_RECOGNIZED` (NOT `META_REQUIRED`; recognized-but-optional like Scope-Paths/Blocks-Release). Schema-layer recognition ONLY suppresses the IPD-M103 "unknown field" lint error; per the documented convention (ipd_schema.py:161-162,168-170), value/enum validation does NOT live in `validate_metadata` but in the `aw check` surface (see (3)). Define `META_PRIORITY` referencing the shared `backlog.PRIORITIES = {high,medium,low}` in prose only; do not fork the vocab. (2) Setter: add `--priority <low|medium|high>` to `aw ipd set` in cli.py + status_set.py using the hoisted status-branch-independent write (mirrors `--blocks-release`/`--from-backlog`, status_set.py:544-562) so it persists on a no-op transition; `-`/empty clears. (3) `aw check`: validate the enum here (flag an out-of-vocab Priority on a plan against the shared `backlog.PRIORITIES`; import the one vocab, do not fork). (4) Attention: populate `Item.priority` in `attention._plans_record` (:317) from the plan's `- Priority:` (attention.py already renders `Item.priority`, :45/:435/:717). Absent = unprioritized. This child covers PLANS only; specs = child 02, research = child 03.
 - Scope-Paths: agent_workflows/ipd_schema.py, agent_workflows/status_set.py, agent_workflows/cli.py, agent_workflows/check_engine.py, agent_workflows/attention.py, agent_workflows/backlog.py, tests/
-- Status: reviewed
+- Status: approved
 - Set: xprio
 - Order: 1
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 1b45el
+- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101..PR-104 fixed (schema recognizes-not-validates, enum-check precedent corrected, label-not-sort, OQ-01 resolved, V-01/V-02 evidence realigned)
 
 - 2026-08-27 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.

@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 140 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 142 Sets; the full manifest is INDEX.json.
 
 ## ipddeps
 
@@ -10,6 +10,19 @@ Showing the 40 most-recent of 140 Sets; the full manifest is INDEX.json.
 - `g69y23` [pending] 01 pending/20260827-ipddeps-01-g69y23-item-dependencies-schema-field-grammar-and-aw-ipd-dependenci.ipd.md
 - `ovbnyq` [pending] 02 pending/20260827-ipddeps-02-ovbnyq-shared-dependency-graph-predicate-and-check-ipd-dependency-r.ipd.md
 - `mp88bl` [pending] 03 pending/20260827-ipddeps-03-mp88bl-opt-in-commit-scoped-ipd-dependency-statement-gate-hook-dele.ipd.md
+
+## rstodo
+
+- `dh5gnl` [pending] 00 pending/20260827-rstodo-00-dh5gnl-rename-research-status-intake-todo-intuitive-you-still-need.ipd.md
+- `p3o9je` [pending] 01 pending/20260827-rstodo-01-p3o9je-rename-the-intake-status-token-to-todo-across-the-research-c.ipd.md
+- `lpqy64` [pending] 02 pending/20260827-rstodo-02-lpqy64-migrate-existing-on-disk-research-docs-status-intake-todo-an.ipd.md
+
+## xprio
+
+- `u5vyye` [pending] 00 pending/20260827-xprio-00-u5vyye-uniform-priority-field-low-medium-high-across-research-plans.ipd.md
+- `1b45el` [pending] 01 pending/20260827-xprio-01-1b45el-add-recognized-but-optional-priority-to-the-ipd-schema-plus.ipd.md
+- `rp859c` [pending] 02 pending/20260827-xprio-02-rp859c-add-priority-to-the-spec-contract-plus-aw-specs-set-and-atte.ipd.md
+- `6vgd0k` [pending] 03 pending/20260827-xprio-03-6vgd0k-add-priority-to-the-research-frontmatter-contract-plus-aw-re.ipd.md
 
 ## specid6
 
@@ -236,16 +249,6 @@ Showing the 40 most-recent of 140 Sets; the full manifest is INDEX.json.
 ## awuninstallfix
 
 - `ejhzgk` [executed] 01 executed/20260820-awuninstallfix-01-ejhzgk-complete-uninstall-remove-orphaned-config-state-gitignore-se.ipd.md
-
-## awdoctorfix
-
-- `hblwtx` [executed] 01 executed/20260819-awdoctorfix-01-hblwtx-attention-board-priority-labeled-blocker-columns-with-legend.ipd.md
-- `2pyjga` [executed] 02 executed/20260819-awdoctorfix-02-2pyjga-attention-board-shows-identity-stem-by-default-long-for-full.ipd.md
-- `qa1k8z` [executed] 03 executed/20260819-awdoctorfix-03-qa1k8z-attention-hides-for-history-less-trees-aw-doctor-source-repo.ipd.md
-
-## awgitignore
-
-- `65t5sk` [executed] 01 executed/20260819-awgitignore-01-65t5sk-consolidate-untracked-lane-gitignore-to-a-single-framework-o.ipd.md
 
 ## (singletons: no Set)
 

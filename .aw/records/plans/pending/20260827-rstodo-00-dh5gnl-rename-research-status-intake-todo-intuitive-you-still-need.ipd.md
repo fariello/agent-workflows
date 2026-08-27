@@ -5,15 +5,17 @@
 - Concern: The research status `intake` is opaque - it does not tell a reader "you still need to do this research" - and it is OVERLOADED (means both genuinely-unrun AND finished-but-unpromoted; e.g. this session's sk94i0/40g511 sat as `intake` despite being done + adopted). Graduated from backlog `sr47pt` (Set `researchtodo`); design/rationale in that item. Decision: rename `intake` -> `todo` ('Status: todo' unambiguously = the reader must act). New research lifecycle: `todo` -> `active` -> `reference`/`archive`. This Set is minted with a FRESH setid `rstodo` (NOT the source's `researchtodo`) per the graduation-link model (spec 4w7d6s): the child->source link is recorded as the front-matter field `From-Backlog: sr47pt` on this orchestrator (present + `aw check`-resolvable). The reciprocal `Graduated-To: rstodo` on the source backlog `sr47pt` is currently only in that item's workflow-history prose (the machine-readable field is owed once backlog `sjsoqq` builds the setid-uniqueness + graduation-link enforcement); this Set does not depend on that reciprocal field existing.
 - Scope: Rename the `intake` status token to `todo` across the research contract + classification + CLI + index, and migrate the ~10 existing on-disk research docs, WITHOUT changing behavior (a `todo` research doc classifies READY/needs-attention exactly as `intake` does today). Two children: 01 renames the token in code (research_contract.py STATUSES/HOT_STATUSES:148-149, research_cmd.py creation defaults:189/244, attention_contract.py:231 + attention.py stale-reclass/color:176-228,485, research_index.py band + `## Needs addressing` header:185-195, research_archive.py docstrings/logic, cli.py:5994, term.py); 02 migrates on-disk docs `status: intake` -> `status: todo` + regenerates INDEX, with a backward-compatible read (accept legacy `intake` as an alias of `todo` during/after migration so nothing breaks mid-flight). COUPLING (not in scope here): the OVERLOAD fix (unrun vs done-but-unfiled) is spec 5tapom's tool-owned state-advancement; this rename fixes only the NAME. If 5tapom lands first/concurrently, `todo` should mean genuinely-not-started.
 - Scope-Paths: agent_workflows/research_contract.py, agent_workflows/research_cmd.py, agent_workflows/research_index.py, agent_workflows/research_archive.py, agent_workflows/attention.py, agent_workflows/attention_contract.py, agent_workflows/cli.py, agent_workflows/term.py, .aw/records/research/, tests/
-- Status: reviewed
+- Status: approved
 - Set: rstodo
 - Order: 0
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: dh5gnl
+- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 - From-Backlog: sr47pt
 
 ## Workflow history
+- 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 reviewed (aw set): plan-review APPROVE WITH REVISIONS APPLIED: PR-001 E-01 precise + research_archive/comment coverage note; PR-002 From-Backlog:sr47pt added; PR-003 color-map compat-normalization-before-lookup; PR-004 execution contract; PR-005 V-01 concrete evidence; PR-006 softened Graduated-To prose
 
 - 2026-08-27 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.

@@ -3420,6 +3420,76 @@
     "status": "approved"
   },
   {
+    "date": "2026-08-27",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260827-rstodo-00-dh5gnl-rename-research-status-intake-todo-intuitive-you-still-need.ipd.md",
+    "plan_id": "dh5gnl",
+    "set_id": "rstodo",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-27",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260827-rstodo-01-p3o9je-rename-the-intake-status-token-to-todo-across-the-research-c.ipd.md",
+    "plan_id": "p3o9je",
+    "set_id": "rstodo",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-27",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260827-rstodo-02-lpqy64-migrate-existing-on-disk-research-docs-status-intake-todo-an.ipd.md",
+    "plan_id": "lpqy64",
+    "set_id": "rstodo",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-27",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260827-xprio-00-u5vyye-uniform-priority-field-low-medium-high-across-research-plans.ipd.md",
+    "plan_id": "u5vyye",
+    "set_id": "xprio",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-27",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260827-xprio-01-1b45el-add-recognized-but-optional-priority-to-the-ipd-schema-plus.ipd.md",
+    "plan_id": "1b45el",
+    "set_id": "xprio",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-27",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260827-xprio-02-rp859c-add-priority-to-the-spec-contract-plus-aw-specs-set-and-atte.ipd.md",
+    "plan_id": "rp859c",
+    "set_id": "xprio",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-27",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260827-xprio-03-6vgd0k-add-priority-to-the-research-frontmatter-contract-plus-aw-re.ipd.md",
+    "plan_id": "6vgd0k",
+    "set_id": "xprio",
+    "status": "approved"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",

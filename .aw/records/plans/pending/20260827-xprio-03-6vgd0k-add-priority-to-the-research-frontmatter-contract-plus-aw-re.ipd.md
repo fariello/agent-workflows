@@ -5,14 +5,16 @@
 - Concern: Research docs have no `Priority`, so they cannot be prioritized on the attention board. Add it as a recognized-but-optional research FRONTMATTER key reusing the shared `{high,medium,low}` vocab, with `aw research new`/a set-priority path, `aw research index --check`/`aw check` validation, and `_research_record` attention rendering. Part of Set xprio (graduated from backlog p9o1oo).
 - Scope: (1) Research contract (`research_contract.py`): add an optional `priority:` frontmatter key. CRITICAL: do NOT add `priority` to `FRONTMATTER_FIELDS` (research_contract.py:365-377) - that tuple is the REQUIRED-presence set (checked at :400-402), so adding it there would mass-fail every existing doc. Optional means: no presence requirement, only a value check when present. Carry `priority` in `INDEX.json` (research_index build path). The enum value check itself is (3)/E-02. (2) Setter: allow `aw research new --priority` to emit it, and add a set path (extend an existing research set verb, e.g. `aw research set-priority` or a `--priority` on an existing mutator) to write/clear it on an existing doc, mirroring the `set-outcome` preview/`--apply` mutator (research_cmd.py:411/448). (3) Validation: add a per-key enum check `if "priority" in data: value in backlog.PRIORITIES` inside `validate_frontmatter` (research_contract.py, mirroring the `status`/`outcome` checks at :442-457); `aw research index --check` (which calls `validate_frontmatter`, research_index.py:93) and `aw check` then flag an out-of-vocab value. (4) Attention: populate `Item.priority` in `attention._research_record` (:371) from the doc's `priority:`. Absent = unprioritized. Research only; plans = child 01, specs = child 02.
 - Scope-Paths: agent_workflows/research_contract.py, agent_workflows/research_cmd.py, agent_workflows/research_index.py, agent_workflows/cli.py, agent_workflows/check_engine.py, agent_workflows/attention.py, agent_workflows/backlog.py, tests/
-- Status: reviewed
+- Status: approved
 - Set: xprio
 - Order: 3
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 6vgd0k
+- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-301..PR-304 fixed (do-not-add-to-FRONTMATTER_FIELDS mass-fail guard, E-01/E-02 validation ownership split, label-not-sort, OQ-01 resolved, V-01/V-02 evidence)
 
 - 2026-08-27 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.
