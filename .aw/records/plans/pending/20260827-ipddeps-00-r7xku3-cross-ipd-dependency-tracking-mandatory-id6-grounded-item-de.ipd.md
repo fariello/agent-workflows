@@ -16,6 +16,7 @@
 - 2026-08-27 draft (aw set): status set to draft
 
 - 2026-08-27 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.
+- 2026-08-27 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (added execution contract + resolved OQ-01/OQ-02 in gate), PR-002 (replaced V-01 placeholder with concrete falsifiable evidence), PR-003 (noted shared child gate gap, out of ledger scope).
 
 ## Goal
 
@@ -78,23 +79,23 @@ Aggregate of children: field/grammar/setter round-trip + no-op persist (01); eac
 ### OQ-01: Should this Set's own children dogfood Item-Dependencies (03 declares executed:02, 02 declares executed:01)?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: none
-- Resolution or deferral rationale: Attractive dogfood once 01 lands the field, but it would make THIS Set's plans require their own new field mid-Set (grandfathering interaction). Default: do NOT self-apply during this Set's execution; adopt Item-Dependencies for subsequent Sets after cutover. Revisit at 01's completion.
+- Resolution or deferral rationale: Attractive dogfood once 01 lands the field, but it would make THIS Set's plans require their own new field mid-Set (grandfathering interaction). RESOLVED (see gate "Open questions resolved"): do NOT self-apply during this Set's execution; adopt Item-Dependencies for subsequent Sets after cutover. Revisit at 01's completion.
 
 ### OQ-02: Is the schema cutover marker a repo policy value or a fixed commit?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: none
-- Resolution or deferral rationale: Spec 2.11 says "one dependency-schema cutover commit in its policy." Child 02 decides the exact representation (a policy/config value vs a recorded commit) at implementation; either satisfies the grandfathering requirement.
+- Resolution or deferral rationale: Spec 2.11 says "one dependency-schema cutover commit in its policy." RESOLVED (see gate "Open questions resolved"): child 02 (E-04) decides the exact representation (a policy/config value vs a recorded commit) at implementation; either satisfies the grandfathering requirement. Not an orchestrator-level or human decision.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: (a) A grep over `agent_workflows/` shows exactly ONE definition of the dependency parse/resolve/graph evaluator (the child-02 predicate) and that the setter (01), the `aw check`/lint rules (02), and the hook (03) all call it - paste the grep command and its output showing the single definition and the delegating call sites. (b) An IPD carrying a well-formed `Item-Dependencies` value lints CONFORMING at author/review-finalize/pre-execution/pre-transition - paste the `aw ipd lint` output. (c) A crafted dangling AND a crafted cyclic statement each fire the matching `check.ipd-dependency-dangling` / `check.ipd-dependency-cycle` finding under `aw check` AND `aw ipd lint` AND the opt-in hook (same rule ID from each surface) - paste each surface's output. (d) The full test suite is green - paste the actual `pytest` (or the repo's `run_checks.py`) summary line.
   - Observed evidence:
   - Result: pending
 
@@ -103,4 +104,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-TODO: approval + execution gate prose (execution contract, post-gate lifecycle move).
+### Open questions resolved
+
+- OQ-01 (should this Set's own children dogfood `Item-Dependencies`): RESOLVED for authoring - do NOT self-apply during this Set's execution. Adopting the new field on this Set's own in-flight children would entangle them with the very grandfathering cutover they introduce (child 02). Adopt `Item-Dependencies` for subsequent Sets after the cutover lands. Not a blocker; revisit at 01's completion. See OQ-01 above.
+- OQ-02 (is the schema cutover marker a policy value or a fixed commit): RESOLVED as a child-02 implementation choice, not an orchestrator-level decision. Spec 2.11 requires exactly one dependency-schema cutover commit recorded in repository policy; child 02 (E-04) selects the concrete representation (a policy/config value vs. a recorded commit hash) at implementation, and either satisfies the grandfathering requirement. Not a blocker for approving this orchestrator. See OQ-02 above.
+
+### Execution contract
+
+- Scope fence: this orchestrator authors NO code and edits NO source. Its ONLY execution action is E-01: the whole-Set integration check AFTER children 01 (g69y23), 02 (ovbnyq), and 03 (mp88bl) are executed and green, plus recording that verification here. Touch ONLY this orchestrator file (its own lifecycle artifact). If the integration check surfaces a gap (duplicated dependency logic, a surface that does not consume the shared predicate, a stated dependency not checkable end-to-end), STOP and report - do NOT expand scope, do NOT edit a child in place; open a corrective IPD instead. Do NOT execute any child from this plan; children are approved and executed independently in the strict order 01 -> 02 -> 03.
+- Honesty rule (hard MUST): when V-01 reports the full suite green, the single-predicate grep result, or any check passed, paste the ACTUAL runner/command output (the real `pytest`/`grep`/`aw check`/`aw ipd lint` output); never claim a pass you did not run.
+- Commit rule: commit ONLY this orchestrator's own changed file, path-scoped (`git commit -m <msg> -- <this plan path>`); never `git add -A`/bare/`-a`; never push.
+- Lifecycle move: on completion, finalize via `aw ipd finalize <this plan> --actor <agent/model> --message <summary> --apply` (which runs the pre/post-transition gates, verifies changed paths stayed within `Scope-Paths`, writes the attributed history line, `git mv`s to `.aw/records/plans/executed/`, sets `Status: executed`, and makes the path-scoped lifecycle commit atomically). Because this is an ORCHESTRATOR, finalize it only after all three children are themselves executed.
