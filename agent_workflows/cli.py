@@ -2234,6 +2234,45 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs=argparse.REMAINDER,
         help="Arguments forwarded verbatim to the runagy driver (start/resume/status/report ...).",
     )
+    # runnernorm Order 02 (puot79): graduate the remaining Antigravity source-checkout tools
+    # under the same packaged-core + host-subcommand pattern. Each captures REMAINDER verbatim and
+    # forwards to its packaged core's main(), so the tool's own parser (incl. --help) drives behavior
+    # with exact parity. NOTE: `run`/`runagy` above already alias `runipd`; `sessions`/`view` are new
+    # non-colliding surfaces (agy_run.py's disposition is tracked separately under OQ-02).
+    p_agy_sessions = agy_sub.add_parser(
+        "sessions",
+        help="List and inspect Antigravity sessions for a workspace/directory.",
+        add_help=False,
+    )
+    p_agy_sessions.add_argument(
+        "sessions_args",
+        nargs=argparse.REMAINDER,
+        help="Arguments forwarded verbatim to the agy sessions tool.",
+    )
+    p_agy_view = agy_sub.add_parser(
+        "view",
+        aliases=["view-antigravity-jsonl"],
+        help="Format Antigravity JSONL event logs as readable terminal text.",
+        add_help=False,
+    )
+    p_agy_view.add_argument(
+        "view_args",
+        nargs=argparse.REMAINDER,
+        help="Arguments forwarded verbatim to the agy view tool.",
+    )
+
+    # runnernorm Order 02 (puot79): top-level `aw pwatch` graduates tools/pwatch.py.
+    p_pwatch = sub.add_parser(
+        "pwatch",
+        parents=[common],
+        help="Watch and summarize processes (graduated from tools/pwatch.py).",
+        add_help=False,
+    )
+    p_pwatch.add_argument(
+        "pwatch_args",
+        nargs=argparse.REMAINDER,
+        help="Arguments forwarded verbatim to the packaged pwatch core.",
+    )
 
     p_backlog = sub.add_parser(
         "backlog",
@@ -6950,6 +6989,28 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         from agent_workflows import agy_runipd
 
         return agy_runipd.main(list(argv_list[2:]))
+    # runnernorm Order 02 (puot79): forward `aw agy sessions|view ...` and `aw pwatch ...` VERBATIM
+    # to the packaged core's own parser (incl. its `--help`), matching the runipd forwarding above.
+    if (
+        len(argv_list) >= 2
+        and argv_list[0] in ("agy", "antigravity")
+        and argv_list[1] in ("sessions",)
+    ):
+        from agent_workflows import agy_sessions
+
+        return agy_sessions.main(list(argv_list[2:]))
+    if (
+        len(argv_list) >= 2
+        and argv_list[0] in ("agy", "antigravity")
+        and argv_list[1] in ("view", "view-antigravity-jsonl")
+    ):
+        from agent_workflows import agy_view
+
+        return agy_view.main(list(argv_list[2:]))
+    if len(argv_list) >= 1 and argv_list[0] == "pwatch":
+        from agent_workflows import pwatch
+
+        return pwatch.main(list(argv_list[1:]))
     argv = _rewrite_help_token(argv_list)
     args = parser.parse_args(argv)
 
@@ -7112,9 +7173,23 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             # Forward the captured REMAINDER verbatim so the runner's own parser (incl. its
             # implicit-`start` shim and `--help`) drives behavior with exact parity.
             return agy_runipd.main(list(getattr(args, "runipd_args", []) or []))
+        # runnernorm Order 02 (puot79): graduated agy sessions/view tools.
+        if agy_cmd == "sessions":
+            from agent_workflows import agy_sessions
+
+            return agy_sessions.main(list(getattr(args, "sessions_args", []) or []))
+        if agy_cmd in ("view", "view-antigravity-jsonl"):
+            from agent_workflows import agy_view
+
+            return agy_view.main(list(getattr(args, "view_args", []) or []))
         return _show_family_help(
             parser, "agy", "aw agy runipd status <run-id>", term, context
         )
+    # runnernorm Order 02 (puot79): top-level `aw pwatch` graduated from tools/pwatch.py.
+    if args.command == "pwatch":
+        from agent_workflows import pwatch
+
+        return pwatch.main(list(getattr(args, "pwatch_args", []) or []))
     if args.command in ("ipd", "plan", "plans"):
         ipd_cmd = (
             getattr(args, "ipd_command", None)
@@ -7129,6 +7204,19 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
                 scoped_type="plans",
                 args=args,
                 term=term,
+            )
+        if ipd_cmd == "dependencies":
+            from agent_workflows import status_set
+
+            dep_cmd = getattr(args, "ipd_dependencies_command", None)
+            if dep_cmd == "set":
+                return status_set.run_dependencies_set_command(args, term=term)
+            return _show_family_help(
+                parser,
+                "ipd dependencies",
+                "aw ipd dependencies set <id6> <edge...>",
+                term,
+                context,
             )
         if ipd_cmd == "lint":
             from agent_workflows import ipd_lint

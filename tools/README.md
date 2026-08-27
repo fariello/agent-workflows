@@ -43,24 +43,42 @@ This directory contains standalone utility scripts for repository maintenance, w
 - List sessions for this workspace: `python3 tools/agy_run.py --list-sessions`
 - Skip verification turn: `python3 tools/agy_run.py --no-audit -p "..."`
 
-## `agy_sessions.py`
+## `aw agy sessions` (was `agy_sessions.py`)
 
-`tools/agy_sessions.py` inspects and lists Antigravity sessions for a project workspace or across all projects. It displays the session ID, start timestamp, last active timestamp, duration, whether the session is currently in use (ACTIVE vs IDLE via file locks), and initial prompt snippet.
+Inspects and lists Antigravity sessions for a project workspace or across all projects. It displays the session ID, start timestamp, last active timestamp, duration, whether the session is currently in use (ACTIVE vs IDLE via file locks), and initial prompt snippet.
+
+The logic is packaged as `agent_workflows.agy_sessions` and the canonical surface is `aw agy sessions`. `tools/agy_sessions.py` is a thin compat shim that forwards to the packaged core, so existing invocations keep working.
 
 ### Usage
 
 ```bash
 # List sessions for current directory:
-python3 tools/agy_sessions.py
+aw agy sessions            # or: python3 tools/agy_sessions.py
 
 # List sessions for a specific directory:
-python3 tools/agy_sessions.py /path/to/project
+aw agy sessions /path/to/project
 
 # List all sessions across all projects:
-python3 tools/agy_sessions.py --all
+aw agy sessions --all
 
 # Output machine-readable JSON:
-python3 tools/agy_sessions.py --json
+aw agy sessions --json
+```
+
+## `aw agy view` (was `view-antigravity-jsonl.py`)
+
+Formats Antigravity JSONL event logs as readable, pipe-friendly terminal text.
+
+The logic is packaged as `agent_workflows.agy_view` and the canonical surface is `aw agy view` (with a `view-antigravity-jsonl` subcommand alias). `tools/view-antigravity-jsonl.py` is a thin compat shim that forwards to the packaged core.
+
+### Usage
+
+```bash
+# Format a JSONL log (or - for stdin):
+aw agy view path/to/log.jsonl      # or: python3 tools/view-antigravity-jsonl.py path/to/log.jsonl
+
+# Only emit records containing some text, and also dump the raw objects:
+aw agy view --match tool --raw path/to/log.jsonl
 ```
 
 ## `antigravity_execute_ipd.py`
@@ -111,30 +129,32 @@ If a repository has previously committed `workflow-artifacts/` run records to Gi
    ```
    **WARNING (destructive; run ONLY with explicit human approval):** this REWRITES history, changes every subsequent commit SHA, and requires a coordinated force-push that invalidates all existing clones and open branches/PRs. It is NOT reversible by a normal pull. Do NOT run it automatically or as part of routine remediation; propose it, explain the blast radius, and wait for an explicit human decision before executing (consistent with the toolkit's never-rewrite-history-without-approval posture).
 
-## `pwatch.py`
+## `aw pwatch` (was `pwatch.py`)
 
-`tools/pwatch.py` is a generic process-tree watcher and recorder. It monitors and visualizes process trees matching user-defined strings or regular expressions, collapsing redundant sibling processes and same-name threads with box line art and 256-color styling.
+A generic process-tree watcher and recorder. It monitors and visualizes process trees matching user-defined strings or regular expressions, collapsing redundant sibling processes and same-name threads with box line art and 256-color styling.
+
+The logic is packaged as `agent_workflows.pwatch` and the canonical surface is the top-level `aw pwatch`. `tools/pwatch.py` is a thin compat shim that forwards to the packaged core.
 
 ### Usage
 
 ```bash
 # Watch processes matching a case-insensitive string or bare argument:
-python3 tools/pwatch.py python3
-python3 tools/pwatch.py -m opencode
+aw pwatch python3           # or: python3 tools/pwatch.py python3
+aw pwatch -m opencode
 
 # Match with case-sensitive strings (-M) or regular expressions (-R, -r):
-python3 tools/pwatch.py -M Python -R '^pytest.*'
+aw pwatch -M Python -R '^pytest.*'
 
 # Exclude processes matching strings or regexes (-eM, -em, -eR, -er):
-python3 tools/pwatch.py python3 -em pyright
+aw pwatch python3 -em pyright
 
 # Record matching processes in the watched tree to JSONL (-rM, -rm, -rR, -rr):
-python3 tools/pwatch.py python3 -rm pytest --record-file /tmp/pytest-runs.jsonl
+aw pwatch python3 -rm pytest --record-file /tmp/pytest-runs.jsonl
 ```
 
 ### Backwards Compatibility
 
-`tools/watch-agy.py` acts as a convenience wrapper around `pwatch.py`, defaulting to `-m agy` when invoked without process filter arguments.
+`tools/watch-agy.py` acts as a convenience wrapper around `pwatch.py` (now the compat shim), defaulting to `-m agy` when invoked without process filter arguments.
 
 ## `aw oc runipd` (the OpenCode IPD runner)
 
