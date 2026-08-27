@@ -33,9 +33,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: surface across check + lint
 
-- [ ] E-02 Fold the evaluator into the cross-tree `aw check` sweep (next to the from-backlog/blocks-release checks) as repo-wide portable authority, deterministic path/rule order.
+- [ ] E-02 Surface the evaluator through `aw check` as repo-wide portable authority, deterministic path/rule order. CRITICAL WIRING NOTE: the existing cross-tree block in `check_engine.check_types` (near `check_blocks_release`/`check_from_backlog`/`check_release_gate_consistency`, check_engine.py:597-624) runs ONLY under the `["all"]`/`collisions=True` sentinel, so `aw check plans` (norm="plans", `collisions=False`, cli.py:6241-6246) does NOT reach it. Spec 2.10 lists `aw check plans` as a recovery command AND all dependency sources are IPDs (a plans-scoped concern), so the dependency evaluator MUST run for the `plans` type too - wire it into the plans-type check path (check_type/check_refs for "plans") so `aw check plans` surfaces it, AND ensure it also runs in the `all` sweep (do not double-report: run it once per invocation). Deterministic path then rule order.
   - Depends on: E-01
-  - Expected outcome: `aw check` (and `aw check plans`) report every non-grandfathered dependency finding; clean tree passes.
+  - Expected outcome: BOTH `aw check plans` AND `aw check all` report every non-grandfathered dependency finding (verified by actually running both); a clean tree passes both; no finding is double-reported when running `all`.
   - Execution state: pending
 - [ ] E-03 Wire the evaluator into phased `aw ipd lint`: author phase = advisory (unresolved permitted, honest stub); review-readiness/pre-execution/pre-transition = blocking; enforce that the frozen statement equals the reviewed statement at execution.
   - Depends on: E-01
@@ -53,7 +53,9 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Project conventions discovered (Step 0)
 
-- `check_engine.evaluate_blocking_close` + the from-backlog rule family is the exact one-predicate-many-surfaces precedent (setter/check/hook call one evaluator). Cross-tree checks fold into the sweep near `check_blocks_release`/from-backlog at check_engine.
+- `check_engine.evaluate_blocking_close` + the from-backlog rule family is the exact one-predicate-many-surfaces precedent (setter/check/hook call one evaluator). Cross-tree checks fold into the sweep near `check_blocks_release`/from-backlog at check_engine (check_engine.py:597-624).
+- WIRING SUBTLETY: that cross-tree sweep is gated by `collisions=True`, set ONLY for the `["all"]` sentinel (cli.py:6245 passes `collisions=(norm == "all")`). `aw check plans` therefore does NOT run it. Because every dependency source is an IPD (plans-scoped) and spec 2.10 uses `aw check plans` as a recovery command, the evaluator must be reachable under the `plans` type, not only `all` (see E-02).
+- Identity resolution: `_check_identity_slots`/`check_collisions` (check_engine.py:253,336) already build a declared-Id owner map + `_ID6_RE` (check_engine.py:638); reuse this identity index to resolve typed id6 edges and to detect the `ambiguous` (multiple-owner) case rather than building a second index.
 - Phased lint already supports author/review-finalize/pre-execution/pre-transition/post-transition (`aw ipd lint --phase`); this adds dependency findings at the right phases (map "review-readiness" to the existing review-finalize phase).
 - Grandfathering precedent: `Scope-Paths` uses a reserved sentinel + conditional-at-gate mandatoriness so pre-cutover plans are not mass-failed; mirror it.
 
@@ -95,28 +97,28 @@ The only novel logic is edge resolution + cycle detection + the phase/grandfathe
 ### OQ-01: `state:` edge on an in-repo target the dependent must precede - do we need a "settle order" note now, or only in the runner?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: none
-- Resolution or deferral rationale: Spec 2.9 notes an already-satisfied `state:` edge requires the scheduler to run the dependent before the target advances away from that state. That is a RUNNER-scheduling concern; this child only checks the statement is well-formed/resolved. Defer the ordering guarantee to the runner program; record the requirement here.
+- Resolution or deferral rationale: Spec 2.9 notes an already-satisfied `state:` edge requires the scheduler to run the dependent before the target advances away from that state. That is a RUNNER-scheduling concern; this child only checks the statement is well-formed/resolved. RESOLVED (see gate "Open questions resolved"): defer the ordering guarantee to the runner program; record the requirement here.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: A pytest table driving the pure evaluator over crafted repo snapshots shows EACH of the six findings fires on exactly its own fixture and on no other: clean (no finding); missing field -> `check.ipd-missing-dependency-statement`; `unresolved` value -> `check.ipd-dependency-unresolved`; a grammar/canonical-order/pairing/duplicate/self/none-mixture violation -> `check.ipd-dependency-malformed`; a typed id6 with zero matches -> `check.ipd-dependency-dangling`; a typed id6 with multiple owners (or cross-type collision) -> `check.ipd-dependency-ambiguous` at the fatal/identity class; an IPD->IPD directed cycle (including a 3-node cycle) -> `check.ipd-dependency-cycle`. Paste the passing test IDs/output, showing each finding carries the spec's exact severity/assurance/recovery-command text. Falsifiable: a fixture that should be clean but reports a finding, or a missing rule, fails.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: Actual transcripts of BOTH `aw check plans` AND `aw check all` (or `aw check` with the appropriate type) run against (a) a crafted tree with a dangling AND a cyclic dependency IPD - each command reports both findings with the same rule IDs; and (b) the CURRENT clean repo - each exits 0 with zero dependency findings. Show that running `all` does not double-count a finding (a single occurrence per rule/path). Paste both transcripts + exit codes. Falsifiable: `aw check plans` NOT surfacing the findings (the collisions-gating bug) fails.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: `aw ipd lint --phase author/review-finalize/pre-execution/pre-transition` transcripts on crafted IPDs proving the phase matrix: at author, a valid statement passes AND `unresolved` is advisory (non-blocking, readiness false); at review-finalize/pre-execution/pre-transition, each of missing/`unresolved`/malformed/dangling/cyclic is BLOCKING (non-zero); and the frozen statement != the reviewed statement is caught at execution phase. Paste each phase's command + output + exit code.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: (a) Run `aw check plans`/`aw check all` on the CURRENT repository AFTER the cutover marker is set and paste the output showing zero dependency errors from the pre-cutover corpus (no mass-fail; pre-cutover terminal plans emit at most a `grandfathered` advisory). (b) A pytest shows a synthetic post-cutover IPD missing the field errors (`check.ipd-missing-dependency-statement`), while a pre-cutover pending plan without the field is clean at author but BLOCKED at review-finalize/advance. (c) Assert NO tool path inserts `none` automatically (grep/review the setter + scaffold + any migration for an auto-`none` write; confirm scaffold emits `unresolved`). Paste each. Falsifiable: any mass-fail on the current corpus, or an auto-`none`, fails.
   - Observed evidence:
   - Result: pending
 
@@ -126,4 +128,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-TODO: approval + execution gate prose (execution contract, post-gate lifecycle move).
+### Open questions resolved
+
+- OQ-01 (`state:` edge "settle order" - do we note it now or only in the runner): RESOLVED from spec 2.9 - the requirement that the scheduler run the dependent BEFORE the target advances away from a required `state:` is a RUNNER-scheduling concern, explicitly deferred to the runner program with this child. This child checks only that the statement is well-formed/resolved/acyclic; it records (not implements) the ordering requirement. Not a blocker. See OQ-01 above.
+
+### Execution contract
+
+- Scope fence: touch ONLY the files in `Scope-Paths` (`check_engine.py`, `ipd_lint.py`, `ipd_schema.py`, `releases.py`, `config.py`, `tests/`). This child delivers the shared evaluator + the six `check.ipd-dependency-*` rules + the `aw check`/phased-lint surfaces + grandfathering. It MUST consume child 01's (`g69y23`) `parse_item_dependencies` rather than reimplement parsing; if that symbol is absent, STOP (child 01 must land first - strict order 01 -> 02). Do NOT add the commit hook (child 03 `mp88bl`) nor any runner preflight/skip-cascade/`--with-dependencies` (the runner program, spec 2.9/5.4). If a change needs a file outside `Scope-Paths` or reaches into child 03/runner territory, STOP and report.
+- One-predicate rule (hard MUST): there is EXACTLY ONE definition of the parse/resolve/graph evaluator; `aw check`, phased `aw ipd lint`, and (later) the child-03 hook all CALL it - no duplicated dependency logic. A grep for the evaluator must show one definition and delegating call sites.
+- Honesty rule (hard MUST): when a V-item claims a check/lint/suite passed or `aw check` on the current repo is clean, paste the ACTUAL runner output (the real `pytest`/`aw check plans`/`aw check all`/`aw ipd lint` output); never claim a pass you did not run. The grandfather no-mass-fail claim (V-04) MUST be backed by real `aw check` output on this repository.
+- Commit rule: commit ONLY files this child changed, path-scoped (`git commit -m <msg> -- <paths>`); never `git add -A`/bare/`-a`; never push.
+- Lifecycle move: on completion, finalize via `aw ipd finalize <this plan> --actor <agent/model> --message <summary> --apply` (runs the pre/post-transition gates, verifies changed paths stayed within `Scope-Paths`, writes the attributed history line, `git mv`s to `.aw/records/plans/executed/`, sets `Status: executed`, and makes the path-scoped lifecycle commit atomically).
