@@ -5,7 +5,7 @@
 - Concern: There is NO machine-readable, enforced way to state that one IPD depends on another. Today inter-IPD ordering is carried only by `Set`/`Order` (a convention, not a validated dependency) and by prose "Child IPDs, sequence, and dependencies" tables in orchestrators (not machine-readable, not checked). The intra-plan `Depends on: <E-ids>` field is a DIFFERENT layer (steps within one IPD). So nothing prevents an IPD from being run before the IPD it depends on, and dependencies cannot even be STATED in a checkable form. Spec `25kzda` (`.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`, sections 2.7-2.11 + 4.3) designs the fix; build-order map `40g511` places it at Phase R3. This Set graduates JUST that mechanism from the spec, independent of the full runner program.
 - Scope: Deliver first-class, id6-grounded, enforced cross-IPD dependencies via one shared predicate across many surfaces (cloning the bklggrad `From-Backlog` one-predicate-many-surfaces model). Three children: (01) the `Item-Dependencies` metadata field + typed grammar (`none` | `executed:<id6>` | `exists:<type>:<id6>` | `state:<type>:<status>:<id6>`) + `aw ipd dependencies set` setter (parse, canonical-order, self/duplicate/none-mixture rejection), mirroring `From-Backlog` (ipd_schema recognition, releases-style write primitive, status_set hoisted write); (02) one shared pure graph predicate (parse-once, resolve-once, one DAG) surfaced as the `check.ipd-*dependency*` rule family across `aw check` and phased `aw ipd lint` (author advisory; review-readiness/pre-execution/pre-transition blocking), with the grandfathering cutover so existing plans are not mass-failed and scaffold emits `unresolved` (never blank, never `none`); (03) the opt-in commit-scoped `ipd-dependency-statement-gate` hook delegating to the same predicate. EXPLICITLY DEFERRED to the runner program (not this Set): the runner's dependency-graph PREFLIGHT, skip-cascade semantics, and `--with-dependencies` closure (spec 2.9/5.4) - those live with `aw <host> run`, which does not yet exist. This Set makes dependencies STATABLE and CHECKABLE; the runner later CONSUMES them.
 - Scope-Paths: agent_workflows/ipd_schema.py, agent_workflows/status_set.py, agent_workflows/cli.py, agent_workflows/releases.py, agent_workflows/check_engine.py, agent_workflows/ipd_lint.py, agent_workflows/ipd_authoring.py, agent_workflows/hooks/, agent_workflows/engine.py, tests/
-- Status: draft
+- Status: reviewed
 - Set: ipddeps
 - Order: 0
 - Highest E allocated: 01
@@ -13,6 +13,7 @@
 - Id: r7xku3
 
 ## Workflow history
+- 2026-08-27 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001/PR-002 fixed, PR-003 noted (out of ledger scope)
 - 2026-08-27 draft (aw set): status set to draft
 
 - 2026-08-27 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.
