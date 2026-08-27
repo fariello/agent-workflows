@@ -755,7 +755,7 @@ class DensityAdvisoryLintTests(unittest.TestCase):
             out = buf.getvalue()
             self.assertIn("advisory:", out)
             self.assertIn("IPD-Z602", out)
-            self.assertIn("disposition: conforming", out)
+            self.assertIn("conforming", out)
 
 
 def _with_scope_paths(text: str, value) -> str:

@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Dict, FrozenSet, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import ipd_schema as S
+from agent_workflows.term import Term
 
 # --------------------------------------------------------------------------------------
 # Diagnostics
@@ -1008,26 +1009,52 @@ def run_lint(args: argparse.Namespace) -> int:
         return 2
 
     legacy = getattr(args, "legacy", False)
+    term = Term(color=False if getattr(args, "no_color", False) else None)
 
-    # awcolor Order 01: color the disposition word in the HUMAN branch only (agent output unchanged).
-    def _disp(word: str) -> str:
-        if getattr(args, "no_color", False):
-            return word
+    def _format_lint_line(path: Path, disp: str) -> str:
+        from agent_workflows import attention as _att
+
+        raw_text = ""
         try:
-            from agent_workflows import term as _term
+            raw_text = path.read_text(encoding="utf-8")
+        except OSError:
+            pass
 
-            t = _term.Term(color=None)
-            if not getattr(t, "color", False):
-                return word
-            code = {
-                S.DISPOSITION_CONFORMING: 46,  # green
-                S.DISPOSITION_LEGACY: 244,  # grey
-                S.DISPOSITION_QUARANTINED: 214,  # amber
-                S.DISPOSITION_ERROR: 196,  # red
-            }.get(word, 244)
-            return t.color256(word, code, bold=True)
-        except Exception:
-            return word
+        m_prio = re.search(r"(?m)^-\s*Priority:\s*(\S+)", raw_text)
+        priority = m_prio.group(1).lower() if m_prio else None
+
+        m_br = re.search(r"(?m)^-\s*Blocks-Release:\s*(\S+)", raw_text)
+        blocks_release = m_br.group(1) if m_br else None
+
+        prio_txt = ""
+        if priority:
+            pcode = {"high": 196, "medium": 214, "low": 244}.get(priority, 244)
+            prio_txt = "  " + (
+                term.color256(f"[{priority}]", pcode, bold=True)
+                if getattr(term, "color", False)
+                else f"[{priority}]"
+            )
+
+        blocking_txt = ""
+        if blocks_release:
+            blocking_txt = "  " + (
+                term.color256("[blocking]", 196, bold=True)
+                if getattr(term, "color", False)
+                else "[blocking]"
+            )
+
+        lead = ">  " if blocks_release else "   "
+        type_word = "plan"
+        type_txt = (
+            term.color256(type_word, _att._TREE_COLOR_256, bold=True)
+            if getattr(term, "color", False)
+            else type_word
+        )
+        type_prefix = type_txt + (" " * max(0, 10 - len(type_word))) + "  "
+        stem = _att._identity_stem(str(path))
+        disp_styled = term.status_256(disp) if getattr(term, "color", False) else disp
+
+        return f"- {lead}{type_prefix}{stem}{prio_txt}{blocking_txt}  {disp_styled}"
 
     try:
         if getattr(args, "all", False):
@@ -1065,10 +1092,13 @@ def run_lint(args: argparse.Namespace) -> int:
                         )
                     )
                 if not (ctx.is_agent or ctx.is_json):
+                    if diags:
+                        for d in diags:
+                            term.line(f"  ! {d.render(str(f))}")
                     if getattr(res, "advisories", []):
                         for a in res.advisories:
-                            print(f"advisory: {a.render(str(f))}")
-                    print(f"{_disp(disp)}: {f}")
+                            term.line(f"advisory: {a.render(str(f))}")
+                    term.line(_format_lint_line(f, disp))
 
             any_error = bool(counts.get(S.DISPOSITION_ERROR, 0))
             exit_code = 1 if any_error else 0
@@ -1087,7 +1117,7 @@ def run_lint(args: argparse.Namespace) -> int:
                 )
                 return get_renderer(ctx).emit(res, ctx)
 
-            print("counts: " + ", ".join(f"{k}={v}" for k, v in counts.items()))
+            term.line("counts: " + ", ".join(f"{k}={v}" for k, v in counts.items()))
             return exit_code
 
         # awlintmulti Order 01: `path` is now a LIST (nargs="*"). Lint the explicit files when given,
@@ -1153,11 +1183,11 @@ def run_lint(args: argparse.Namespace) -> int:
             if not (ctx.is_agent or ctx.is_json):
                 if diags:
                     for d in diags:
-                        print(d.render(str(path)))
+                        term.line(f"  ! {d.render(str(path))}")
                 if getattr(res, "advisories", []):
                     for a in res.advisories:
-                        print(f"advisory: {a.render(str(path))}")
-                print(f"disposition: {_disp(disp)} ({path})")
+                        term.line(f"advisory: {a.render(str(path))}")
+                term.line(_format_lint_line(path, disp))
 
         exit_code = 1 if any_error else 0
         if ctx.is_agent or ctx.is_json:

@@ -126,6 +126,9 @@ STATUS_COLOR_256 = {
     # Extended roles (awcliux Order 02 E-01)
     "success": 46,
     "conforms": 46,
+    "conforming": 46,
+    "quarantined": 214,
+    "legacy": 244,
     "ok": 46,
     "up to date": 46,
     "wrote": 46,

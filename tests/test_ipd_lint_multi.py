@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import io
 import unittest
-from contextlib import redirect_stdout, redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 
 from agent_workflows import ipd_lint as L
 from tests.support import CONFORMING_ORCHESTRATOR
@@ -30,17 +30,17 @@ def _lint(argv_paths, phase="author"):
 class IpdLintMultiTests(unittest.TestCase):
     def test_two_files_both_linted(self):
         p = str(CONFORMING_ORCHESTRATOR)
-        rc, out = _lint([p, p])
-        # two disposition lines (one per file)
-        self.assertEqual(out.count("disposition:"), 2)
+        _rc, out = _lint([p, p])
+        # two formatted lines (one per file)
+        self.assertEqual(out.count("- "), 2)
 
     def test_single_string_backcompat(self):
         # a bare string path (not a list) still works
-        rc, out = _lint(str(CONFORMING_ORCHESTRATOR))
-        self.assertEqual(out.count("disposition:"), 1)
+        _rc, out = _lint(str(CONFORMING_ORCHESTRATOR))
+        self.assertEqual(out.count("- "), 1)
 
     def test_nonexistent_path_exits_2(self):
-        rc, out = _lint(["/no/such/plan.ipd.md"])
+        rc, _out = _lint(["/no/such/plan.ipd.md"])
         self.assertEqual(rc, 2)
 
 
