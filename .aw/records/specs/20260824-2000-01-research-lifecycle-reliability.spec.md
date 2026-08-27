@@ -152,11 +152,5 @@ must I still run?" is answerable without reading the corpus and without trusting
   (Section 5, AC 5) so it cannot be silently dropped, closing the review finding SR-001.
 
 ## Workflow history
-- 2026-08-25 reviewed (aw set): /spec review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; SR-001 (Section 3.2 triage classifier had no acceptance criterion) fixed via new AC 5; factual claims verified against research_cmd.py:189-190,244-245 and the reslife Set; aw specs check conforms. GO - PENDING HUMAN APPROVAL
-- 2026-08-25 to-review (aw set): Authored complete and specs-check-conforming; ready for review.
 
-- 2026-08-24 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored as the follow-on rationale
-  for the reslife IPD Set, correcting the parent research-org spec's unimplemented reliability half
-  (tool-owned state/outcome/provenance). Blocks 2.0.0 (f33nrj). Interim: the reslife IPDs cannot carry
-  Blocks-Release until vwios6ipd ships the field (IPD-M103), so the release-blocker intent is anchored
-  on this spec and the f33nrj record until then.
+- 2026-08-27 note (aw specs): Cross-ref: backlog sr47pt renames research status 'intake' -> 'todo' (intuitive 'you still need to do this'). The rename should RIDE WITH this spec's tool-owned state-advancement so 'todo' means genuinely-not-started (not the current overload where finished-but-unadvanced docs also read 'intake'). Same reliability gap this spec (H2) targets.
