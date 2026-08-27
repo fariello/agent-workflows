@@ -58,6 +58,13 @@ Sequence: 01 -> 02; orchestrator integration check runs last.
 - Single helper definition consumed by every adopting verb (no duplicate commit logic).
 - The helper is standalone (importable by a future agentadhere `aw commit`), not entangled with any one verb.
 
+## Cross-set dependencies
+
+This set is a HARD PREREQUISITE for another set (downstream), and has SOFT contention with others:
+- DOWNSTREAM (hard): **agentadhere child 03 (8dto0g)** hard-depends on this set's child 01 (cv1rfd) `git_commit_helper.offer_commit` (its `aw commit` primitive reuses it, passing `on_unrelated_staged="refuse"`). selfcommit child 01 MUST land before agentadhere child 03 runs. selfcommit therefore has no upstream dependency and should run EARLY.
+- SOFT file-contention: `status_set.py` (shared with ipddeps/xprio), `specs.py` (shared with specid6/xprio), `artifact_rename.py` (shared with specid6), `cli.py` (shared broadly). Sequence rather than run concurrently with those.
+Recommendation: run selfcommit EARLY (it unblocks agentadhere phase 2); it may run in parallel with installerskill/runnernorm (disjoint), but not concurrently with specid6 (shares specs.py/artifact_rename.py).
+
 ## Deferred / out of scope (with reason)
 
 - The agentadhere `aw commit <ipd>` primitive that will REUSE this helper: agentadhere set (this set only builds the reusable helper).

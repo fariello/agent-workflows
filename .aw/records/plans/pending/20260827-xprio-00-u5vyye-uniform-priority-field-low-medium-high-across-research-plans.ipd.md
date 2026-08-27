@@ -61,6 +61,14 @@ Children are INDEPENDENT (different contracts/setters) and may execute in any or
 - `Item.priority` populated by every per-type record builder; the board LABELS all four types identically via the existing type-agnostic renderer (attention.py:717), and no per-type builder alters the shared sort key (attention.py:186).
 - Recognized-but-optional posture consistent with Scope-Paths/Blocks-Release/Summary (no mass-fail).
 
+## Cross-set dependencies
+
+No HARD functional dependency on another set (xprio only ADDS a recognized-but-optional field; it needs no other set's code). SOFT file-contention (same-file edits -> do not run truly concurrently with these; sequence or rebase):
+- `ipd_schema.py` (META_RECOGNIZED), `status_set.py`, `check_engine.py`: shared with **ipddeps** (both add a recognized-but-optional field / rule). Additive but same line-regions.
+- `research_contract.py`, `research_cmd.py`, `research_index.py`, `attention.py`: shared with **rstodo** (the intake->todo rename touches the same research/attention code). Same line-regions.
+- `specs.py`: shared with **selfcommit**/**specid6**. `status_set.py`: shared with **selfcommit**.
+Recommendation: run xprio in the SAME lane as (i.e. sequentially with, not parallel to) ipddeps and rstodo to avoid research/schema merge conflicts; it may run in parallel with installerskill/runnernorm (disjoint files).
+
 ## Deferred / out of scope (with reason)
 
 - A 4th 'urgent' tier: excluded (Blocks-Release covers it; 3 levels are reliably distinguishable).

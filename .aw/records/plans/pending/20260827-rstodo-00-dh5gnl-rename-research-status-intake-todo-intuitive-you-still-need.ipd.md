@@ -65,6 +65,13 @@ Order 01 -> 02; orchestrator verifies. (Source link: front-matter `From-Backlog:
 - No live `intake` token remains in code after both children (only the documented backward-compat alias).
 - The attention classification for research is byte-identical in behavior (READY/PARKED/ACTIVE) before/after - only the token label changes.
 
+## Cross-set dependencies
+
+No HARD functional dependency on another set. SOFT file-contention (same-file edits -> sequence, do not run truly concurrently):
+- `research_contract.py`, `research_cmd.py`, `research_index.py`, `attention.py`: shared with **xprio** (adds research/plans/spec Priority + attention rendering). Both edit the research contract + attention record builders.
+- `research_archive.py`: shared with **selfcommit** (self-commit adoption in `aw archive`).
+Recommendation: run rstodo and xprio in ONE lane (sequentially), rstodo FIRST is slightly preferable (a pure token rename is a smaller, lower-risk diff to land before xprio adds a new field to the same files) but either order works with a rebase. May run in parallel with installerskill/runnernorm (disjoint files).
+
 ## Deferred / out of scope (with reason)
 
 - The intake OVERLOAD fix (unrun vs done-but-unfiled): spec 5tapom (tool-owned state advancement). This Set only renames the token.

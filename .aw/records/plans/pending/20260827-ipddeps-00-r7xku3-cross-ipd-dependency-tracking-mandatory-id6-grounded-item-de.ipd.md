@@ -62,6 +62,13 @@ Strict order 01 -> 02 -> 03; orchestrator integration check runs last. (This IS 
 - ONE predicate: setter (01), `aw check`/lint rules (02), and hook (03) all call the same evaluator - no duplicated parse/resolve/graph logic (grep confirms a single definition).
 - The `Item-Dependencies` field (01) and the intra-plan `Depends on: <E-ids>` field never collide (an E-id is never legal in Item-Dependencies; an id6 never legal in a Depends-on row).
 
+## Cross-set dependencies
+
+No HARD functional dependency on another set (ipddeps clones the bklggrad From-Backlog PATTERN but bklggrad is already executed - no pending dependency). SOFT file-contention (same-file edits -> sequence, do not run truly concurrently):
+- `ipd_schema.py` (META_RECOGNIZED), `status_set.py`, `check_engine.py`, `cli.py`: shared with **xprio** (both add a recognized-but-optional field + a `--flag` on `aw ipd set`).
+- `ipd_lint.py`, `ipd_authoring.py`, `hooks/`, `engine.py`: shared with **agentadhere** (phase-1 engine / lint phases / hooks). agentadhere claims the whole `agent_workflows/` - see its note.
+Recommendation: run ipddeps and xprio in ONE lane (sequentially). Both are additive to the same schema/setter regions; a rebase between them is trivial but concurrent execution risks a `META_RECOGNIZED`/`status_set` merge conflict.
+
 ## Deferred / out of scope (with reason)
 
 - Runner-side dependency PREFLIGHT, skip-cascade, and `--with-dependencies` closure (spec 2.9/5.4): they belong to `aw <host> run`, which does not exist yet; this Set makes deps statable/checkable, the runner later consumes them.
