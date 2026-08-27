@@ -29,10 +29,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: extract + refactor
 
-- [ ] E-01 Move `render_event` (oc_runipd.py:142), `Palette` (oc_runipd.py:108), `Heartbeat` (oc_runipd.py:196), and the tightly-coupled module-level helpers `_ANSI_RESET` (oc_runipd.py:64), `_ANSI_CODES` (oc_runipd.py:65), `_ANSI_STRIP_RE` (oc_runipd.py:76), `_STATUS_COLOR` (oc_runipd.py:79), `_strip_ansi` (oc_runipd.py:130), and `_one_line` (oc_runipd.py:134) into a new `agent_workflows/render_stream.py`; refactor `oc_runipd.py` to import them (its call sites at oc_runipd.py:1426/1446/1459/1571/1928 keep working, with `should_color` still supplied by the caller per OQ-01). Behavior-preserving (identical rendered output for the same event stream).
+- [x] E-01 Move `render_event` (oc_runipd.py:142), `Palette` (oc_runipd.py:108), `Heartbeat` (oc_runipd.py:196), and the tightly-coupled module-level helpers `_ANSI_RESET` (oc_runipd.py:64), `_ANSI_CODES` (oc_runipd.py:65), `_ANSI_STRIP_RE` (oc_runipd.py:76), `_STATUS_COLOR` (oc_runipd.py:79), `_strip_ansi` (oc_runipd.py:130), and `_one_line` (oc_runipd.py:134) into a new `agent_workflows/render_stream.py`; refactor `oc_runipd.py` to import them (its call sites at oc_runipd.py:1426/1446/1459/1571/1928 keep working, with `should_color` still supplied by the caller per OQ-01). Behavior-preserving (identical rendered output for the same event stream).
   - Depends on: none
   - Expected outcome: `render_stream` holds the single definitions; `oc_runipd` imports them; runipd output is byte-identical for a fixed event stream.
-  - Execution state: pending
+  - Done note (commit 275324a): created `agent_workflows/render_stream.py` holding the single definitions of `render_event`/`Palette`/`Heartbeat` + the coupled helpers `_ANSI_RESET`/`_ANSI_CODES`/`_ANSI_STRIP_RE`/`_STATUS_COLOR`/`_strip_ansi`/`_one_line`; `oc_runipd.py` now imports them and re-exports via `__all__`; `should_color` stays caller-owned per OQ-01; call sites (now at oc_runipd.py:1253/1273/1286/1398/1755 and the `_STATUS_COLOR` use at :1575 after the -141-line deletion) keep working.
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -81,10 +82,10 @@ Pure refactor: the risk is behavior drift, mitigated by a golden-output test ove
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Pasted output of the repo's real test runner showing (a) the new `render_stream` unit tests pass (`render_event` sample-event->line mapping; `Palette` applies/omits color per the flag; `Heartbeat` enter/exit/interval lifecycle); (b) a golden test proving runipd's rendered output for a fixed event stream is BYTE-IDENTICAL before and after extraction; (c) `render_event`/`Palette`/`Heartbeat` and the coupled helpers have a SINGLE definition in `render_stream.py` with no inline copy left in `oc_runipd.py` (e.g. a grep/import assertion); and (d) the full suite green (paste the actual pass/fail summary line).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (a)+(b)+(c) new renderer tests `tests/test_render_stream.py`: `python3 -m pytest tests/test_render_stream.py -p no:randomly` -> `21 passed in 2.66s`; the 21 tests cover `RenderEventUnitTests` (event->line mapping), `PaletteUnitTests` (color applied/omitted per flag + status mapping + strip_ansi), `HeartbeatLifecycleTests` (disabled writes nothing / enabled emits while idle / touch+format), the GOLDEN `GoldenByteIdenticalTests` (`test_plain_transcript_is_byte_identical` pins the exact transcript for a fixed 9-event stream, `test_driver_reexport_produces_identical_transcript` proves the `oc_runipd` re-export yields the SAME transcript as `render_stream`, `test_colored_transcript_strips_back_to_plain`), and `SingleDefinitionTests` (identity `driver.Palette is render_stream.Palette` etc.; `inspect.getmodule(...) == agent_workflows.render_stream`; a source-inspection assertion that `oc_runipd` contains NO inline `class Palette:`/`class Heartbeat:`/`def render_event(`/`def _one_line(`/`def _strip_ansi(` and DOES `from agent_workflows.render_stream import`). (b') Behavior preservation across the existing runipd suite: `python3 -m pytest tests/test_oc_runipd.py tests/test_oc_runipd_cli.py tests/test_oc_runipd_shim.py tests/test_render_stream.py -p no:randomly` -> `86 passed in 3.16s` (the pre-existing `ProgressRendererTests`/`HeartbeatFormattingTests`, which call `driver.Palette`/`driver.render_event`/`driver.Heartbeat`, still pass unchanged). (d) full suite `python3 -m pytest -p no:randomly` -> `2321 passed, 1 skipped in 29.03s`. Ruff (pre-commit v0.4.4 default set) `ruff check --select E4,E7,E9,F agent_workflows/render_stream.py agent_workflows/oc_runipd.py` -> `All checks passed!`; commit 275324a's `ruff`/`ruff-format` pre-commit hooks Passed.
+  - Result: pass
 
 ## Approval and execution gate
 
