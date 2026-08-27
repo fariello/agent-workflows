@@ -652,7 +652,7 @@ def apply_status_change(
     path_changed = dest_path.resolve() != rec.path.resolve()
 
     if not content_changed and not path_changed:
-        return rec.path, norm_status, False
+        return rec.path, norm_status
 
     # Append Workflow history
     hist_entry = f"- {today} {norm_status} ({actor}): {message}"
@@ -684,7 +684,7 @@ def apply_status_change(
         except OSError:
             pass
 
-    return dest_path, norm_status, True
+    return dest_path, norm_status
 
 
 def _auto_index_types(
@@ -1144,9 +1144,10 @@ def run_set_command(
     results: list[tuple[Path, str, ArtifactRecord, bool]] = []
     touched_types: set[str] = set()
     for rec in matched_records:
-        dest_path, norm_stat, changed = apply_status_change(
-            rec, target_status, repo_root, args
-        )
+        old_text = rec.raw_text
+        dest_path, norm_stat = apply_status_change(rec, target_status, repo_root, args)
+        new_text = dest_path.read_text(encoding="utf-8") if dest_path.exists() else ""
+        changed = (old_text != new_text) or (dest_path.resolve() != rec.path.resolve())
         results.append((dest_path, norm_stat, rec, changed))
         if changed:
             touched_types.add(rec.record_type)
