@@ -3,9 +3,9 @@
 - Date: 2026-08-27
 - Kind: child
 - Concern: Specs have no `Priority`, so they cannot be prioritized on the attention board. Add it as a recognized-but-optional spec metadata field reusing the shared `{high,medium,low}` vocab, with the `aw specs set` setter, `aw check`/`aw specs check` validation, and `_spec_record` attention rendering. Part of Set xprio (graduated from backlog p9o1oo).
-- Scope: (1) Spec contract (`specs.py`): recognize an optional `- Priority:` bullet, validated against shared `backlog.PRIORITIES` (import, do not fork); optional so existing specs are not mass-failed. (2) Setter: add `--priority <low|medium|high|->` to `aw specs set` (cli.py + specs.py), writing/clearing the bullet + appending history, consistent with how specs set writes typed fields. (3) Validation: `aw specs check`/`aw check` flag an out-of-vocab value. (4) Attention: populate `Item.priority` in `attention._spec_record` (:289) from the spec's `- Priority:`. Absent = unprioritized. Specs only; plans = child 01, research = child 03.
+- Scope: (1) Spec contract (`specs.py`): add a reader for an optional `- Priority:` bullet (mirroring `_read_blocks_release`, specs.py:149); the value is enum-validated in `validate_spec` (see (3)) - note `validate_spec` has no unknown-field rejection, so a Priority bullet needs no "recognition" step, only the reader + the explicit enum check. Optional so existing specs are not mass-failed (none carry Priority today). (2) Setter: add `--priority <low|medium|high|->` to `aw specs set` (cli.py + specs.py), writing/clearing the bullet as a side-effect of a status transition (the same shape as `--blocks-release`, specs.py:510-514). NOTE: `aw specs set` REQUIRES a target status (positional `<status>` or `--status`) and always appends a history record and re-runs `validate_spec` (specs.py:499-524); so setting priority re-asserts the current status (a no-op transition still records history), and once (3)'s enum check lives in `validate_spec` the setter itself REFUSES an out-of-vocab `--priority bogus` (byte-identical refuse path, specs.py:516-523). (3) Validation: enum-validate the value in `validate_spec` (specs.py) so `aw specs check`/`aw check` (and the setter's refuse path) flag an out-of-vocab value; reuse shared `backlog.PRIORITIES`. (4) Attention: populate `Item.priority` in `attention._spec_record` (:289) from the spec's `- Priority:`. Absent = unprioritized. Specs only; plans = child 01, research = child 03.
 - Scope-Paths: agent_workflows/specs.py, agent_workflows/cli.py, agent_workflows/check_engine.py, agent_workflows/attention.py, agent_workflows/backlog.py, tests/
-- Status: draft
+- Status: reviewed
 - Set: xprio
 - Order: 2
 - Highest E allocated: 03
@@ -13,6 +13,7 @@
 - Id: rp859c
 
 ## Workflow history
+- 2026-08-27 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201..PR-204 fixed (specs-set status-coupling + setter-refuse consequence, reader-not-recognition, label-not-sort, OQ-01 resolved, V-01/V-02 evidence)
 
 - 2026-08-27 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.
 
@@ -26,14 +27,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: contract + setter
 
-- [ ] E-01 In `specs.py`, recognize an optional `- Priority:` bullet validated against shared `backlog.PRIORITIES` (import, do not fork); optional (existing specs without it stay conforming). Add `--priority <low|medium|high|->` to `aw specs set` (cli.py + specs.py), writing/clearing the bullet and appending a history record.
+- [ ] E-01 In `specs.py`, add a reader for an optional `- Priority:` bullet (mirror `_read_blocks_release`, specs.py:149); the enum validation itself is E-02 (`validate_spec` has no unknown-field rejection, so no separate "recognition" step is needed). Optional (existing specs without it stay conforming). Add `--priority <low|medium|high|->` to `aw specs set` (cli.py + specs.py), writing/clearing the bullet as a side-effect of the required status transition (same shape as `--blocks-release`, specs.py:510-514); a priority-only change is expressed as a no-op status transition (which still appends a history record).
   - Depends on: none
-  - Expected outcome: a spec may carry `- Priority: high` and `aw specs check` conforms; `aw specs set <spec> --priority medium` writes it, `--priority -` clears; absent stays conforming.
+  - Expected outcome: a spec may carry `- Priority: high` and `aw specs check` conforms; `aw specs set <status> <spec> --priority medium` writes it (re-asserting the current status if unchanged, appending history), `--priority -` clears; absent stays conforming.
   - Execution state: pending
 
 ### Task group 2: check + attention
 
-- [ ] E-02 Flag an out-of-vocab `- Priority:` value on a spec in `aw specs check`/`aw check` (validated against shared `backlog.PRIORITIES`), added to `validate_spec` (specs.py) alongside the existing status/gate checks. Note: `validate_spec` today ignores unrecognized bullets, so this explicit enum check is what catches a bad value.
+- [ ] E-02 Flag an out-of-vocab `- Priority:` value on a spec in `aw specs check`/`aw check` (validated against shared `backlog.PRIORITIES`), added to `validate_spec` (specs.py) alongside the existing status/gate checks. Note: `validate_spec` today ignores unrecognized bullets, so this explicit enum check is what catches a bad value. Consequence to verify: because `aw specs set` re-runs `validate_spec` and refuses a nonconforming result (specs.py:516-523), placing the enum check here also makes the SETTER refuse an out-of-vocab `--priority bogus` (not merely a later `aw check` report).
   - Depends on: E-01
   - Expected outcome: `aw specs check`/`aw check` reports a finding for a spec carrying `- Priority: bogus` and reports none for `- Priority: high` or an absent Priority.
   - Execution state: pending
@@ -56,7 +57,7 @@ Same recognized-but-optional-field + setter + attention pattern as the plans chi
 
 ## Proposed changes (ordered, validatable)
 
-1. `specs.py`: recognize optional `Priority` (shared vocab).
+1. `specs.py`: add an optional `Priority` reader (mirror `_read_blocks_release`); enum validation is E-02 in `validate_spec` (shared vocab).
 2. `cli.py`+`specs.py`: `aw specs set --priority` (write/clear + history).
 3. `check_engine.py`/specs check: enum validation.
 4. `attention.py`: populate `Item.priority` in `_spec_record`.
@@ -76,7 +77,7 @@ Same recognized-but-optional-field + setter + attention pattern as the plans chi
 - A spec with `- Priority: high` passes `aw specs check`; a spec without it also passes (optional).
 - `aw specs set <spec> --priority medium` writes it; `--priority -` clears.
 - `aw check`/`aw specs check` flag an out-of-vocab value.
-- `aw attention` sorts/labels a spec by priority.
+- `aw attention` LABELS a spec by its priority (`[high]`/`[medium]`/`[low]` bracket via the existing renderer, attention.py:717); the shared sort key (attention.py:186) is unchanged (E-03 scope note).
 
 ## Spec / documentation sync
 
@@ -87,20 +88,20 @@ Same recognized-but-optional-field + setter + attention pattern as the plans chi
 ### OQ-01: none beyond the orchestrator's absent-renders-as question.
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: none
-- Resolution or deferral rationale: Handled at the orchestrator (OQ-01).
+- Resolution or deferral rationale: RESOLVED by the orchestrator's OQ-01 (absent = unprioritized, no `[priority]` label, no priority sort introduced). This child follows: `_spec_record` passes `Item.priority` (None when absent) to the existing renderer and does not alter the sort key.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Pasted `aw specs check` on a fixture spec carrying `- Priority: high` showing conformance, and on a spec with NO Priority also conforming (optional). Pasted `aw specs set <fixture> --priority medium` run then the resulting `- Priority: medium` bullet AND the appended `## Workflow history` record, and `--priority -` showing the bullet removed. A grep proving `specs.py` imports `backlog.PRIORITIES` (no forked vocab literal).
+  - Required evidence: Pasted `aw specs check` on a fixture spec carrying `- Priority: high` showing conformance, and on a spec with NO Priority also conforming (optional). Pasted `aw specs set <current-status> <fixture> --priority medium` run (status re-asserted as a no-op transition) then the resulting `- Priority: medium` bullet AND the appended `## Workflow history` record, and `aw specs set <current-status> <fixture> --priority -` showing the bullet removed. A grep proving the enum check in `specs.py`/`validate_spec` consumes the shared `backlog.PRIORITIES` (no forked `{"high","medium","low"}` literal).
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: Pasted `aw specs check` (and `aw check`) over a fixture spec carrying `- Priority: bogus` showing a `priority`-invalid finding (with its rule id), and over fixtures carrying `- Priority: high` and no Priority showing NO such finding. Pasted new/updated test in tests/ asserting all three cases.
+  - Required evidence: Pasted `aw specs check` (and `aw check`) over a fixture spec carrying `- Priority: bogus` showing a `priority`-invalid finding (with its rule id), and over fixtures carrying `- Priority: high` and no Priority showing NO such finding. PLUS pasted `aw specs set <status> <fixture> --priority bogus` showing the setter REFUSES (byte-identical, nonzero exit) because `validate_spec` now rejects the value. Pasted new/updated test in tests/ asserting the check (all three cases) and the setter-refuse behavior.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
