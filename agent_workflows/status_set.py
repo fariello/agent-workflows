@@ -238,6 +238,7 @@ def match_selector(
     selector: str,
     all_records: list[ArtifactRecord],
     repo_root: Path,
+    scoped_type: str | None = None,
 ) -> list[ArtifactRecord]:
     """Match a single selector token against the inventory (IPD laykok E-03: thin shim over the ONE
     unified resolver ``selectors.resolve``).
@@ -253,20 +254,22 @@ def match_selector(
     if not tok:
         return []
 
-    # Resolve across ALL record types (the caller's inventory is cross-type; scope enforcement is
-    # applied by run_set_command after matching). Union the per-type resolutions, dedup by path.
     from agent_workflows import selectors as _sel
 
-    record_types = (
-        "plans",
-        "specs",
-        "prompts",
-        "backlog",
-        "releases",
-        "research",
-        "walkthroughs",
-        "roadmaps",
-    )
+    if scoped_type:
+        canonical = canonical_type(scoped_type) or scoped_type
+        record_types = (canonical,)
+    else:
+        record_types = (
+            "plans",
+            "specs",
+            "prompts",
+            "backlog",
+            "releases",
+            "research",
+            "walkthroughs",
+            "roadmaps",
+        )
     matched_paths: dict[str, Path] = {}
     for rt in record_types:
         res = _sel.resolve(repo_root, rt, tok)
@@ -860,7 +863,9 @@ def run_set_command(
 
     force = bool(getattr(args, "force", False))
     for tok in selector_tokens:
-        matches = match_selector(tok, all_records, repo_root)
+        matches = match_selector(
+            tok, all_records, repo_root, scoped_type=scoped_type_canonical
+        )
         if not matches:
             if scoped_type_canonical:
                 term.status(

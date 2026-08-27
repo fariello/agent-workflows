@@ -408,7 +408,7 @@ class TestStatusSetCommands(StatusSetTestBase):
         self.assertIn("- Status: draft", plan.read_text(encoding="utf-8"))
         self.assertIn("- Status: draft", spec.read_text(encoding="utf-8"))
 
-    def test_set_with_mixed_types_scoped_command_refuses(self):
+    def test_set_with_mixed_types_scoped_command_limits_to_scoped_type(self):
         plan = self.create_plan(
             "20260822-mixedset-01-pl0009-plan.ipd.md", "pl0009", "mixedset", "draft"
         )
@@ -416,7 +416,7 @@ class TestStatusSetCommands(StatusSetTestBase):
             "20260822-0005-01-test-spec.spec.md", "sp0005", "mixedset", "draft"
         )
 
-        # Scoped command targeting a mixed set must refuse
+        # Scoped command targeting a mixed set must ONLY affect the scoped type (plans)
         rc = cli.main(
             [
                 "ipd",
@@ -428,9 +428,9 @@ class TestStatusSetCommands(StatusSetTestBase):
                 str(self.repo_root),
             ]
         )
-        self.assertNotEqual(rc, 0)
+        self.assertEqual(rc, 0)
 
-        self.assertIn("- Status: draft", plan.read_text(encoding="utf-8"))
+        self.assertIn("- Status: approved", plan.read_text(encoding="utf-8"))
         self.assertIn("- Status: draft", spec.read_text(encoding="utf-8"))
 
     def test_target_not_found_refuses_execution_before_changes(self):
@@ -781,6 +781,44 @@ class BlocksReleaseSetterTests(StatusSetTestBase):
         )
         self.assertEqual(rc, 0)
         self.assertIn("- Blocks-Release: next", spec.read_text(encoding="utf-8"))
+
+    def test_ipd_set_with_shared_setid_across_types(self):
+        # A setid shared across plans, backlog, and specs
+        shared_set = "sharedset"
+        plan1 = self.create_plan(
+            "20260822-sharedset-01-pl0101-p1.ipd.md", "pl0101", shared_set, "draft"
+        )
+        plan2 = self.create_plan(
+            "20260822-sharedset-02-pl0102-p2.ipd.md", "pl0102", shared_set, "draft"
+        )
+        spec = self.create_spec(
+            "20260822-0101-01-test-spec.spec.md", "sp0101", shared_set, "draft"
+        )
+        backlog = self.create_backlog(
+            "20260822-sharedset-01-bk0101-item.backlog.md", "bk0101", shared_set, "open"
+        )
+
+        # `aw ipd set approved sharedset` must transition ONLY the plans to approved
+        rc = cli.main(
+            [
+                "ipd",
+                "set",
+                "approved",
+                shared_set,
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 0)
+
+        # Plans are approved
+        self.assertIn("- Status: approved", plan1.read_text(encoding="utf-8"))
+        self.assertIn("- Status: approved", plan2.read_text(encoding="utf-8"))
+
+        # Spec and backlog are untouched
+        self.assertIn("- Status: draft", spec.read_text(encoding="utf-8"))
+        self.assertIn("- Status: open", backlog.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
