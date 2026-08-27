@@ -15,7 +15,14 @@ Layout it installs into a target repo:
     .agents/workflows/                  workflow bodies + index.md (the manifest)
     .opencode/commands/<command>.md     OpenCode slash-command shims
     .claude/commands/<command>.md       Claude Code slash-command shims
+    .agents/skills/<name>/SKILL.md      generated Agent Skill packages (+ reference/, scripts/)
     AGENTS.md                           one-line pointer to .agents/workflows/index.md
+
+The generated skill packages (a SKILL.md router plus reference/ and scripts/ resources per
+workflow classified as a skill entry point) are emitted into the shared host-consumption
+skills directory (`resolve_skills_dir()`, `.agents/skills` for both the `aw` and legacy
+layouts, like the command shim dirs). They are written idempotently, pruned when orphaned,
+and removed by the manifest-driven uninstall, exactly like the other generated members.
 
 Design (see the repo's DECISIONS.md D12, D15, D16, D17):
 
@@ -139,6 +146,32 @@ def resolve_workflows_dir(target_layout: str) -> str:
     if target_layout == "aw":
         return AW_SYSTEM_WORKFLOWS_DIR
     return WORKFLOWS_DIR
+
+
+# The shared on-demand Agent Skills directory the installer emits generated skill packages
+# into. Unlike workflow BODIES (which the framework itself reads, and which move under
+# `.aw/system/workflows` in the aw layout), a skill package exists to be DISCOVERED by a
+# host tool, which scans a fixed host-facing directory. So - exactly like the command shim
+# dirs (`.opencode/commands` / `.claude/commands`) - the skills directory is a
+# host-consumption location that is the SAME for both layouts, not a framework-internal
+# path that gets relocated under `.aw/system/`. This mirrors `SHARED_SKILLS_DIR` in
+# host_adapters.py (the Order-10 shared skills target for the v1 live hosts) and the
+# `.agents/skills` choice migration_compact already uses for both layouts. Centralizing it
+# here gives the write/prune/namespace/uninstall paths one authoritative prefix and one
+# place to change should a future decision relocate skills.
+SKILLS_DIR = ".agents/skills"
+
+
+def resolve_skills_dir(target_layout: str) -> str:
+    """Return the repo-relative generated-skill-package directory for the layout.
+
+    Returns the shared host-consumption skills directory for BOTH the ``aw`` and legacy
+    layouts (see the ``SKILLS_DIR`` rationale): a skill package is discovered by host
+    tools that scan a fixed directory, so - like the command shims - it is not relocated
+    under ``.aw/system/`` in the aw layout. ``target_layout`` is accepted so the resolver
+    is a single, layout-aware seam a future host-native-dir policy can extend.
+    """
+    return SKILLS_DIR
 
 
 def _member_to_source_relative(member: str) -> str:
@@ -1636,6 +1669,12 @@ def in_framework_namespace(relative_posix: str) -> bool:
         return True
     if relative_posix.startswith(".aw/system/"):
         return True
+    # Generated skill packages live under the shared host-consumption skills dir (the same
+    # dir for both layouts); admit it so a skill file is stageable, adoptable, prune-safe
+    # (defense-in-depth guard, engine.py:2072), and manifest-uninstallable, mirroring the
+    # shim-dir handling below.
+    if relative_posix.startswith(SKILLS_DIR + "/"):
+        return True
     return any(
         relative_posix.startswith(shim_dir + "/") for shim_dir in COMMAND_SHIM_DIRS
     )
@@ -2043,6 +2082,18 @@ def collect_target_framework_files(
         if d.is_dir():
             for path in d.glob("*.md"):
                 present.add(path.relative_to(repo_root).as_posix())
+
+    # Generated skill packages (SKILL.md + resources) under the resolved skills dir, so an
+    # orphaned skill file (from a removed workflow) is discoverable by prune. Recurse: a
+    # package is `<skills_dir>/<name>/SKILL.md` plus `<name>/reference/...`, `scripts/...`.
+    skills_dir = repo_root / resolve_skills_dir(target_layout)
+    if skills_dir.is_dir():
+        for path in skills_dir.rglob("*"):
+            if not path.is_file():
+                continue
+            if is_ignored_source_path(path):
+                continue
+            present.add(path.relative_to(repo_root).as_posix())
 
     return present
 
@@ -4989,6 +5040,37 @@ def read_installed_version(repo_root: Path) -> Optional[str]:
     return None
 
 
+def _build_skill_members(
+    workflows: "list[Workflow]", source_root: Path, target_layout: str
+) -> dict[str, str]:
+    """Build the generated skill-package member map (repo-relative path -> content).
+
+    Reuses the canonical `host_adapters.generate_adapter_bundle` generator (no forked
+    generator, per the installerskill Set constraint) and returns ONLY its writable
+    `skill_files()` output - the `SKILL.md` router plus package resources for each workflow
+    the bundle classifies as a skill entry point. The `host_adapters` metadata half of the
+    bundle is `to_dict`-only and is deliberately NOT emitted as files (OQ-02 Option A).
+
+    The skills land under `resolve_skills_dir(target_layout)` (the shared host-consumption
+    dir), threaded through as the generators' `skill_dir` argument (OQ-03). Imported lazily
+    because `host_adapters` imports `engine` at module load, so a top-level import here would
+    be circular.
+    """
+
+    from agent_workflows import host_adapters as _host_adapters
+    from agent_workflows.host_capability_registry import HostCapabilityRegistry
+
+    skill_dir = resolve_skills_dir(target_layout)
+    bundle = _host_adapters.generate_adapter_bundle(
+        workflows,
+        source_root,
+        HostCapabilityRegistry(),
+        target_layout=target_layout,
+        skill_dir=skill_dir,
+    )
+    return bundle.skill_files()
+
+
 def install_into_repo(
     repo_root: Path,
     source_root: Path,
@@ -5051,10 +5133,24 @@ def install_into_repo(
         workflows, plan.source_root, target_layout=target_layout
     )
 
+    # Emit the generated skill PACKAGES alongside body + shim members (backlog bplplj /
+    # installerskill Set). `AdapterBundle.skill_files()` is the ONLY writable-file output of
+    # the adapter bundle (the `host_adapters` field is `to_dict`-only metadata with no file
+    # renderer, so no adapter-metadata files are written here - OQ-02 Option A). The bundle
+    # REUSES engine.generate_shim_members internally, so its `.shims` duplicate `shim_members`
+    # above; we take ONLY `.skill_files()` from it and keep the existing shim map as the
+    # authoritative shim source. The skills land under `resolve_skills_dir(...)` - the shared
+    # host-consumption dir, threaded into the generators as `skill_dir` (OQ-03). Imported
+    # lazily to avoid the engine<->host_adapters import cycle.
+    skill_members = _build_skill_members(workflows, plan.source_root, target_layout)
+    # Generated non-body members written the same idempotent skip-unchanged way (shim +
+    # skill), so each path is recorded in the ownership manifest by write_file.
+    generated_members = {**shim_members, **skill_members}
+
     migrated = migrate_legacy_layout(plan, use_git)
-    installed, skipped, _ = install_all(plan, body_members, shim_members, use_git)
+    installed, skipped, _ = install_all(plan, body_members, generated_members, use_git)
     pruned = prune_stale(
-        plan, body_members, shim_members, use_git, target_layout=target_layout
+        plan, body_members, generated_members, use_git, target_layout=target_layout
     )
     timestamp = plan.backup_timestamp or allocate_backup_timestamp(plan.repo_root)
     agents_status = update_agents_pointer(
