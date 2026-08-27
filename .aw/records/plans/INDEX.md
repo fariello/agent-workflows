@@ -2,7 +2,14 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 139 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 140 Sets; the full manifest is INDEX.json.
+
+## ipddeps
+
+- `r7xku3` [pending] 00 pending/20260827-ipddeps-00-r7xku3-cross-ipd-dependency-tracking-mandatory-id6-grounded-item-de.ipd.md
+- `g69y23` [pending] 01 pending/20260827-ipddeps-01-g69y23-item-dependencies-schema-field-grammar-and-aw-ipd-dependenci.ipd.md
+- `ovbnyq` [pending] 02 pending/20260827-ipddeps-02-ovbnyq-shared-dependency-graph-predicate-and-check-ipd-dependency-r.ipd.md
+- `mp88bl` [pending] 03 pending/20260827-ipddeps-03-mp88bl-opt-in-commit-scoped-ipd-dependency-statement-gate-hook-dele.ipd.md
 
 ## specid6
 
@@ -239,10 +246,6 @@ Showing the 40 most-recent of 139 Sets; the full manifest is INDEX.json.
 ## awgitignore
 
 - `65t5sk` [executed] 01 executed/20260819-awgitignore-01-65t5sk-consolidate-untracked-lane-gitignore-to-a-single-framework-o.ipd.md
-
-## awuntrackedfix
-
-- `njfyjt` [executed] 01 executed/20260819-awuntrackedfix-01-njfyjt-actually-rename-local-lanes-to-untracked-on-both-layouts-ret.ipd.md
 
 ## (singletons: no Set)
 

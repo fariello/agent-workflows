@@ -5,7 +5,7 @@
 - Concern: Findings bu9yij section 7.1/8 (Phase 0): before implementing any control you must classify each invariant and define what evidence is observable, or you risk describing local hooks/hashes/files as stronger than they are and building controls with no precise target. There is no catalog today of the toolkit's process invariants, their assurance class, or their observable evidence.
 - Scope: Author the Phase-0 foundation as a durable spec/record (under `.aw/records/specs/` or a docs artifact): (1) a threat model (an agent with broad local shell access can use raw tools, edit files, bypass local hooks, fabricate local records; remote acceptance is the authority boundary); (2) three assurance classes - Guidance (cooperative agents follow), Repository-invariant (noncompliant artifacts must fail checks/merge), Authority-invariant (even a locally-privileged agent must not forge/authorize); (3) an invariant catalog enumerating the toolkit's key process rules (path-scoped commits/no `add -A`, no push without authorization, no hand-edited lifecycle status, test evidence bound to the tree, IPD finalize requires validation, backlog release-gate preservation, etc.), each tagged with its assurance class and its observable evidence (what artifact/event proves compliance) or an honest "unverifiable/probabilistic" label. One catalog entry MUST be the authoring-lifecycle invariant "a finished draft IPD is advanced to `to-review`" (assurance class: Guidance; observable evidence: a `draft` plan with no authoring placeholders is deterministically detectable, so it is nudged, not left silently `draft`) - this closes the recurring miss where agents finish drafting but never advance the status, and phase-1 child 02 implements the `check.ipd-draft-ready-to-review` detect-and-nudge rule from it. This child produces NO enforcement code; it is the classification that phases 1-5 target. Deliverable is a reviewed spec/record that the phase-1 policy schema is built from.
 - Scope-Paths: .aw/records/specs/, docs/, tests/
-- Status: draft
+- Status: reviewed
 - Set: agentadhere
 - Order: 1
 - Highest E allocated: 01
@@ -13,6 +13,7 @@
 - Id: gfokao
 
 ## Workflow history
+- 2026-08-27 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 gate execution contract added, PR-002 V-01 concrete evidence, PR-003 right-sizing assessed (single-spec pass, no split), OQ-01 resolved
 
 - 2026-08-25 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.
 
@@ -71,22 +72,31 @@ The catalog is analysis, not code; its value is preventing later phases from ove
 ### OQ-01: One spec, or a catalog data file the engine can load?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: none
-- Resolution or deferral rationale: Start with a human-reviewed spec; if phase 1 benefits from a machine-readable catalog, derive a data file from it then. Decide at phase-1 boundary.
+- Resolution or deferral rationale: RESOLVED - deliver the Phase-0 catalog as ONE human-reviewed spec under `.aw/records/specs/` (the reviewable, citable source of truth phase 1 is built from). Do NOT author a machine-readable data file in this child; if phase 1 (child 02's versioned policy schema) benefits from a derived data file, it derives one FROM this spec at that boundary. Keeping the authored artifact a single spec avoids a premature parallel source of truth. Not a blocker; recorded in the gate.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: (a) a spec file exists under `.aw/records/specs/` (paste its path) containing the threat model, the three assurance-class definitions (Guidance / Repository-invariant / Authority-invariant), and the invariant catalog; (b) EVERY catalog entry carries an assurance class AND an observable-evidence entry OR an explicit "unverifiable/probabilistic" label - none left blank (paste the catalog table); (c) the catalog INCLUDES the mandated authoring-lifecycle entry "a finished draft IPD is advanced to `to-review`" (class Guidance; evidence: placeholder-free `draft` is deterministically detectable) that phase-1 child 02's `check.ipd-draft-ready-to-review` rule is built from; (d) the catalog enumerates the invariants named in Scope (path-scoped commits/no `add -A`, no push without authorization, no hand-edited lifecycle status, tree-bound test evidence, IPD finalize requires validation, backlog release-gate preservation) - confirm each appears; (e) `aw specs check <path>` passes (paste the actual command output); (f) traceability: pick one phase-1 policy rule and show it traces back to a named cataloged invariant.
   - Observed evidence:
   - Result: pending
 
 ## Approval and execution gate
 
 - Size assessment: standard
-- Cohesion rationale: not required
+- Cohesion rationale: E-01 names three parts (threat model, three assurance classes, invariant catalog), but they are ONE cohesive analytical artifact - a single spec document - authored in one focused pass, with a single verification surface (`aw specs check` + one traceability trace) and no independent code test-surfaces. Splitting one spec across child IPDs would fragment a single coherent analysis and add lifecycle overhead with no independent-verification gain, so this stays a single right-sized E-item. The executor MUST treat it as one authoring pass and MUST NOT expand it into enforcement code (that is phases 1-5).
 
-TODO: approval + execution gate prose (execution contract, post-gate lifecycle move).
+### Open questions resolved
+
+- OQ-01 (one spec vs a machine-readable catalog data file): RESOLVED - deliver ONE human-reviewed spec under `.aw/records/specs/`; a derived machine-readable data file, if ever needed, is phase-1 child 02's to derive FROM this spec. No blocker.
+
+### Execution contract
+
+- Scope fence: touch ONLY `.aw/records/specs/` (the new catalog spec), `docs/` (optional cross-links), and this plan's own lifecycle artifact; optionally add a `tests/` traceability check if one is warranted. Author NO enforcement code (no schema, engine, hooks, or CI - those are phases 1-5). If the work seems to require code or to edit another child, STOP and report; do not expand scope.
+- Honesty rule (hard MUST): when V-01 reports `aw specs check` passed or any check passed, paste the ACTUAL command output; never claim a pass you did not run.
+- Commit rule: commit ONLY this child's own changed files, path-scoped (`git commit -m <msg> -- <paths>`); never `git add -A`/bare/`-a`; never push. Manage the new spec's status/history with `aw spec set`/`aw specs note` (do NOT hand-edit spec status).
+- Lifecycle move: on completion, finalize via `aw ipd finalize <this plan> --actor <agent/model> --message <summary> --apply` (runs the pre/post-transition gates, verifies changed paths stayed within `Scope-Paths`, writes the attributed history line, `git mv`s to `.aw/records/plans/executed/`, sets `Status: executed`, and makes the path-scoped lifecycle commit atomically).

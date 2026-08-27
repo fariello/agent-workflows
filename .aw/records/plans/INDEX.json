@@ -3237,7 +3237,7 @@
     "path": "pending/20260825-agentadhere-01-gfokao-phase-0-threat-model-assurance-classes-invariant-catalog-and.ipd.md",
     "plan_id": "gfokao",
     "set_id": "agentadhere",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-25",
@@ -3378,6 +3378,46 @@
     "plan_id": "ha55fi",
     "set_id": "specid6",
     "status": "to-review"
+  },
+  {
+    "date": "2026-08-27",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260827-ipddeps-00-r7xku3-cross-ipd-dependency-tracking-mandatory-id6-grounded-item-de.ipd.md",
+    "plan_id": "r7xku3",
+    "set_id": "ipddeps",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-27",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260827-ipddeps-01-g69y23-item-dependencies-schema-field-grammar-and-aw-ipd-dependenci.ipd.md",
+    "plan_id": "g69y23",
+    "set_id": "ipddeps",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-27",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260827-ipddeps-02-ovbnyq-shared-dependency-graph-predicate-and-check-ipd-dependency-r.ipd.md",
+    "plan_id": "ovbnyq",
+    "set_id": "ipddeps",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-27",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260827-ipddeps-03-mp88bl-opt-in-commit-scoped-ipd-dependency-statement-gate-hook-dele.ipd.md",
+    "plan_id": "mp88bl",
+    "set_id": "ipddeps",
+    "status": "draft"
   },
   {
     "date": "2026-08-07",
