@@ -1276,6 +1276,29 @@
   },
   {
     "consumed_by": [],
+    "created": "20260827",
+    "date": "20260827",
+    "id6": "ud28vy",
+    "kind": "findings",
+    "model": "",
+    "order": "00",
+    "outcome": "none-yet",
+    "path": "20260827-activework-00-ud28vy-active-work-lifecycle-and-toolset-redirect.findings.md",
+    "set_id": "activework",
+    "status": "intake",
+    "summary": "Design: active-work lifecycle (drafting/reviewing/executing) via tool-owned liveness markers, dual-layer toolset-redirect nudge, staleness/takeover/recovery, and report-default/config-toggle repair (REVISABLE pre-implementation)",
+    "topic": [
+      "lifecycle",
+      "multi-agent",
+      "liveness",
+      "claims",
+      "process-adherence",
+      "config",
+      "recovery"
+    ]
+  },
+  {
+    "consumed_by": [],
     "created": "20260802",
     "date": "20260726",
     "id6": "uec14r",

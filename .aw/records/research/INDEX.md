@@ -2,10 +2,11 @@
 
 # Research index
 
-Showing the most-recent 40 of 62 hot docs (archive excluded).
+Showing the most-recent 40 of 63 hot docs (archive excluded).
 
 ## Needs addressing (intake)
 
+- `ud28vy` 20260827-activework-00-ud28vy-active-work-lifecycle-and-toolset-redirect.findings.md - Design: active-work lifecycle (drafting/reviewing/executing) via tool-owned liveness markers, dual-layer toolset-redirect nudge, staleness/takeover/recovery, and report-default/config-toggle repair (REVISABLE pre-implementation)
 - `8it88r` 20260823-actorenv-00-8it88r-deriving-actor-identity-host-and-model-from-coding-agent-environments.research-prompt.md - How to auto-derive a trustworthy actor (host + model) from the environment across coding hosts so aw attribution does not depend on the agent remembering --actor
 - `sk94i0` 20260826-aw-cli-surface-inventory-00-sk94i0-aw-cli-surface-inventory.survey.md - Exhaustive named inventory of the full aw CLI surface (all ~44 verbs + subcommands, read/write + operates-on + naming smells) - ground truth for the naming/IA redesign
 - `40g511` 20260826-aw-run-spec-build-order-00-40g511-aw-run-spec-build-order.findings.md - What exists vs net-new for the aw run deterministic run-and-verify spec (25kzda): build-order dependency map
@@ -18,6 +19,7 @@ Showing the most-recent 40 of 62 hot docs (archive excluded).
 
 ## Most recent
 
+- `ud28vy` [intake] 20260827-activework-00-ud28vy-active-work-lifecycle-and-toolset-redirect.findings.md - Design: active-work lifecycle (drafting/reviewing/executing) via tool-owned liveness markers, dual-layer toolset-redirect nudge, staleness/takeover/recovery, and report-default/config-toggle repair (REVISABLE pre-implementation)
 - `sk94i0` [intake] 20260826-aw-cli-surface-inventory-00-sk94i0-aw-cli-surface-inventory.survey.md - Exhaustive named inventory of the full aw CLI surface (all ~44 verbs + subcommands, read/write + operates-on + naming smells) - ground truth for the naming/IA redesign
 - `40g511` [intake] 20260826-aw-run-spec-build-order-00-40g511-aw-run-spec-build-order.findings.md - What exists vs net-new for the aw run deterministic run-and-verify spec (25kzda): build-order dependency map
 - `0my8eb` [intake] 20260826-awclia-02-0my8eb-aw-cli-naming-ia.sonnet5.research-report.md - sonnet5 report.
@@ -57,4 +59,3 @@ Showing the most-recent 40 of 62 hot docs (archive excluded).
 - `fpt0dg` [reference] 20260731-chkplace-06-fpt0dg-ipd-structure-and-linting-change-rationale.research-report.md - Migrated from 20260731-chkplace-06-fpt0dg-ipd-structure-and-linting-change-rationale.research-report.md.
 - `kdr9kv` [reference] 20260731-chkplace-05-kdr9kv-ipd-structure-and-linting.reference-research.md - Migrated from 20260731-chkplace-05-kdr9kv-ipd-structure-and-linting.reference-research.md.
 - `rzfaon` [reference] 20260731-chkplace-00-rzfaon-multi-agent-research-results-synthesis.research-prompt.md - Migrated from 20260731-chkplace-00-rzfaon-multi-agent-research-results-synthesis.research-prompt.md.
-- `wusyd6` [reference] 20260802-durable-record-discretion-and-non-amplification-00-wusyd6-durable-record-discretion-and-non-amplification.requirements.md - Migrated from 20260802-durable-record-discretion-and-non-amplification-00-wusyd6-durable-record-discretion-and-non-amplification.requirements.md.
