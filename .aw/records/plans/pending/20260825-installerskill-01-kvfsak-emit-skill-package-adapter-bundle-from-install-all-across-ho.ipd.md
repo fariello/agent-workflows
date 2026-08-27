@@ -31,39 +31,39 @@ Depends on the blocking OQ resolutions (OQ-02, OQ-03, OQ-04) below; do not execu
 
 ### Task group 1: skills-dir layout + namespace recognition
 
-- [ ] E-01 Resolve the skills directory per layout: add an aw-layout skills-dir resolver in `engine.py` (alongside `resolve_workflows_dir`, engine.py:137) and pass the resolved `skill_dir` into `generate_adapter_bundle`/`build_skill_package` (both already accept a `skill_dir` argument), so a fresh install under the `aw` layout does NOT write to the legacy `.agents/skills` path (OQ-03).
+- [x] E-01 Resolve the skills directory per layout: add a skills-dir resolver in `engine.py` (`resolve_skills_dir`, alongside `resolve_workflows_dir`) and pass the resolved `skill_dir` into `generate_adapter_bundle`/`build_skill_package` (both already accept a `skill_dir` argument). Per DECISION 02-kvfsak-D2 (OQ-03), the resolver returns the shared HOST-CONSUMPTION dir `.agents/skills` for BOTH layouts (skills mirror the command shims - discovered by host tools in a fixed dir - not relocated under `.aw/system/` like framework-read bodies); `.aw/system/skills` would be discovered by no host. Threaded via `_build_skill_members` into the generators.
   - Depends on: none
-  - Expected outcome: the resolved skills-dir prefix is `.aw`-correct under the `aw` layout and `.agents/skills` under legacy.
-  - Execution state: pending
+  - Expected outcome: the resolved skills-dir prefix is `.agents/skills` for both layouts (deliberate evidence-based deviation from the OQ-03 wording; see 02-kvfsak-D2, flagged for human review), and the resolved `skill_dir` drives the generated package paths.
+  - Execution state: performed
 
-- [ ] E-03 Extend `in_framework_namespace` (engine.py:1632) to return True for a path under the resolved skills-dir prefix, mirroring the shim-dir handling, so skill files are adoptable and pass the prune defense-in-depth guard (engine.py:2072) (OQ-04).
+- [x] E-03 Extend `in_framework_namespace` (engine.py:1632) to return True for a path under the resolved skills-dir prefix (`SKILLS_DIR + "/"`), mirroring the shim-dir handling, so skill files are adoptable and pass the prune defense-in-depth guard (engine.py:2072) (OQ-04, DECISION 02-kvfsak-D3).
   - Depends on: E-01
   - Expected outcome: a path under the resolved skills dir returns True from `in_framework_namespace`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Extend `collect_target_framework_files` (engine.py:2012) to scan the resolved skills dir so present-but-orphaned skill files are discoverable by prune.
+- [x] E-06 Extend `collect_target_framework_files` (engine.py:2012) to recursively scan the resolved skills dir so present-but-orphaned skill files (SKILL.md + reference/ + scripts/) are discoverable by prune.
   - Depends on: E-03
   - Expected outcome: `collect_target_framework_files` includes existing skill files in its returned set.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: emit + install
 
-- [ ] E-04 In `install_into_repo` (engine.py:4992), build the skill member map via `generate_adapter_bundle(...).skill_files()` and merge it into the desired member set given to `install_all` (engine.py:1953), written with the SAME idempotent skip-unchanged `write_file` logic as `shim_members` (so each path is recorded in the ownership manifest).
+- [x] E-04 In `install_into_repo`, build the skill member map via `_build_skill_members` (which calls `generate_adapter_bundle(...).skill_files()`, OQ-02 Option A: skill files only, no adapter-metadata files) and merge it into the desired member set given to `install_all` as `generated_members = {**shim_members, **skill_members}`, written with the SAME idempotent skip-unchanged `write_file` logic as `shim_members` (so each path is recorded in the ownership manifest).
   - Depends on: E-01
   - Expected outcome: a fresh `aw install` writes the skill-package files for each generated host, recorded in the manifest.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: idempotency, prune, uninstall
 
-- [ ] E-05 Include skill members in the desired-set union used for install-diff and prune (engine.py:2062) so a re-install is a no-op (empty diff / all-skipped) and an orphaned skill file (from a removed workflow) is pruned.
+- [x] E-05 Include skill members in the desired-set union used for install-diff and prune by passing `generated_members` (shim + skill) to `prune_stale` (whose `desired = set(body_members) | set(shim_members.keys())`, engine.py:2062), so a re-install is a no-op (empty diff / all-skipped) and an orphaned skill file (from a removed workflow) is pruned.
   - Depends on: E-04
   - Expected outcome: second install yields an empty diff; an orphaned skill file is pruned.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Confirm manifest-driven `uninstall_repo` (engine.py:3836) removes the emitted skill files (it reads the ownership manifest that `write_file` populated; no separate uninstall member set is added).
+- [x] E-07 Confirm manifest-driven `uninstall_repo` (engine.py:3836) removes the emitted skill files (it reads the ownership manifest that `write_file` populated; skill files record as `kind="file"`, which `plan_uninstall` includes in `remove`; no separate uninstall member set is added). No code change required beyond E-03/E-04; verified by test.
   - Depends on: E-04
   - Expected outcome: `uninstall` removes exactly the emitted skill files and nothing else.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -115,59 +115,59 @@ The skill-package GENERATORS exist and are verified (execset). But wiring is NOT
 ### OQ-01: Emit skill packages for all hosts, or only the hosts the bundle already generates?
 
 - Blocking: no
-- Status: open
-- Owner: none
-- Resolution or deferral rationale: Follow `generate_adapter_bundle`'s existing host set (host_adapters.py:684, `ALL_ADAPTER_HOSTS`) and its skill-entry-point policy (`classify_discovery_policy`); no new host policy here.
+- Status: resolved
+- Owner: opencode its_direct/pt3-claude-opus-4.8-1m-us
+- Resolution or deferral rationale: RESOLVED (DECISION 02-kvfsak-D4). Follow `generate_adapter_bundle`'s existing behavior: it builds ONE skill-package family per skill-entry-point workflow (`classify_discovery_policy == POLICY_SKILL_ENTRY_POINT`) using a single `skill_dir`; it does not fan skill FILES out per host (the per-host distinction is in the `to_dict`-only `host_adapters` metadata, not files). No new host policy.
 
 ### OQ-02: Does this child emit per-host adapter-metadata FILES, or only skill-package files?
 
 - Blocking: yes
-- Status: open
-- Owner: none
-- Resolution or deferral rationale: `AdapterBundle` exposes writable files ONLY via `skill_files()`; `host_adapters` is `to_dict`-only metadata with no file renderer (host_adapters.py:655-674). Option A (recommended): skill-package files only (matches the title + the one writable API + the "no forked generator" constraint). Option B: add a new adapter-metadata renderer (enlarges scope, contradicts the reuse constraint). MUST be resolved before execution. Mirrors orchestrator OQ-02.
+- Status: resolved
+- Owner: opencode its_direct/pt3-claude-opus-4.8-1m-us
+- Resolution or deferral rationale: RESOLVED - Option A (DECISION 02-kvfsak-D1). Emit ONLY skill-package files (`AdapterBundle.skill_files()`); do NOT emit adapter-metadata files. `host_adapters` is `to_dict`-only metadata with no file renderer (host_adapters.py:654-674); Option A matches the title, the one writable API, and the no-forked-generator constraint. A test (`test_no_adapter_metadata_files_emitted`) asserts no adapter-metadata files are written. Mirrors orchestrator OQ-02.
 
 ### OQ-03: Under the `aw` layout, where do skill files land?
 
 - Blocking: yes
-- Status: open
-- Owner: none
-- Resolution or deferral rationale: `SHARED_SKILLS_DIR = ".agents/skills"` is legacy; `build_skill_package.to_files()` embeds it; `engine.py` has no aw-layout skills-dir resolver. Option A (recommended): add an aw-layout resolver and pass the resolved `skill_dir` into the generators (they accept `skill_dir`). Option B: keep `.agents/skills` for both (inconsistent with the aw layout). MUST be resolved - the path drives write, prune, namespace, and uninstall. Mirrors orchestrator OQ-03.
+- Status: resolved
+- Owner: opencode its_direct/pt3-claude-opus-4.8-1m-us
+- Resolution or deferral rationale: RESOLVED (DECISION 02-kvfsak-D2), with a deliberate evidence-based DEVIATION from the recommended-wording flagged for human review. Added a centralized resolver `resolve_skills_dir(target_layout)` in `engine.py` and threaded its result as `skill_dir` into the generators (satisfying the "add a resolver, pass resolved skill_dir" structural requirement). The resolver returns the shared HOST-CONSUMPTION dir `.agents/skills` for BOTH layouts rather than a `.aw`-prefixed dir: a skill package exists to be DISCOVERED by a host tool scanning a fixed dir (exactly like the command shims `.opencode/commands`/`.claude/commands`, which are layout-independent), whereas `resolve_workflows_dir` relocates only the framework's OWN bodies. `.aw/system/skills` would be discovered by no host, defeating emission; and `migration_compact` already uses `.agents/skills` for both layouts. If the maintainer prefers `.aw/system/skills` or per-host native dirs, only `resolve_skills_dir` + the generator host loop change. Mirrors orchestrator OQ-03.
 
 ### OQ-04: Extend `in_framework_namespace` + prune scan + prune guard for the skills dir - confirm?
 
 - Blocking: yes
-- Status: open
-- Owner: none
-- Resolution or deferral rationale: Required so skill files are written, adopted, pruned when orphaned, and manifest-uninstalled. Recommended: extend `in_framework_namespace` (engine.py:1632), `collect_target_framework_files` (engine.py:2012), and the prune guard (engine.py:2072) to admit the resolved skills-dir prefix, mirroring shim-dir handling. MUST be resolved (load-bearing mechanism the original plan omitted). Mirrors orchestrator OQ-04.
+- Status: resolved
+- Owner: opencode its_direct/pt3-claude-opus-4.8-1m-us
+- Resolution or deferral rationale: RESOLVED as recommended (DECISION 02-kvfsak-D3). Extended `in_framework_namespace` (admits `SKILLS_DIR + "/"`) and `collect_target_framework_files` (recursively scans the resolved skills dir); the prune defense-in-depth guard (engine.py:2072) then admits skill paths automatically via the updated predicate, and `_stage_installed_file` routes them to the hard `git add` path (skill files are tracked, like workflow bodies). Verified by V-03/V-06 and the orphan-prune tests. Mirrors orchestrator OQ-04.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
-  - Required evidence: Pasted test output proving the aw-layout skills-dir resolver returns a `.aw`-correct prefix under the `aw` layout and `.agents/skills` under legacy, and that the resolved `skill_dir` is threaded into the generators (a generated skill path is under the resolved dir).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+- [x] V-01 validates E-01
+  - Required evidence: Pasted test output proving the skills-dir resolver and that the resolved `skill_dir` is threaded into the generators (a generated skill path is under the resolved dir). NOTE per DECISION 02-kvfsak-D2 (OQ-03): the resolver returns `.agents/skills` for BOTH layouts (deliberate evidence-based deviation from the original "`.aw`-correct" wording; skills are host-consumption artifacts like the command shims), flagged for human review.
+  - Observed evidence: `tests/test_installer_skill_emission.py::SkillsDirResolverTests` -> `test_resolver_returns_shared_host_dir_for_both_layouts` asserts `resolve_skills_dir("aw") == resolve_skills_dir("legacy") == ".agents/skills" == SKILLS_DIR`; `test_resolved_skill_dir_is_threaded_into_generators` asserts every `generate_adapter_bundle(..., skill_dir=resolve_skills_dir(layout)).skill_files()` path starts with the resolved `skill_dir`, for both layouts. Full file run (serial, `-n0`): `10 passed in 14.75s` (see V-05 for the run line). Smoke: `resolve_skills_dir aw: .agents/skills` / `resolve_skills_dir legacy: .agents/skills`.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: Pasted test output showing a path under the resolved skills dir returns True from `in_framework_namespace` and passes the prune defense-in-depth guard.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `tests/test_installer_skill_emission.py::NamespaceAndCollectTests::test_skill_path_is_in_framework_namespace` asserts `in_framework_namespace(".agents/skills/release-review/SKILL.md")` and `.../scripts/verify_digest.py` are True, while `src/app.py` and `.agents/other/thing.md` are False (predicate did not go broad). The orphan-prune tests (V-05) exercise the defense-in-depth guard end-to-end (a skill orphan is actually pruned, which requires `in_framework_namespace` to admit it). Smoke: `in_framework_namespace skill: True` / `in_framework_namespace nonskill: False`.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: Pasted test-runner output: a fresh install into a temp repo writes `SKILL.md` + resource files under the resolved skills dir for each generated host, and the paths are recorded in the ownership manifest.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `tests/test_installer_skill_emission.py::SkillEmissionInstallTests::test_fresh_install_emits_skill_packages_and_records_manifest` installs into a temp git repo, asserts a non-empty set of `.agents/skills/<name>/SKILL.md` routers each accompanied by `reference/canonical-body.md` + `scripts/verify_digest.py`, and asserts the manifest's `.agents/skills/*` entries equal the on-disk skill fileset. `::test_no_adapter_metadata_files_emitted` asserts every emitted skills-dir file matches `^<name>/(SKILL.md|reference/.+|scripts/.+)$` (OQ-02 Option A: no adapter-metadata files). Smoke on the real source bundle: `num skill files: 135` / `num SKILL.md: 45` / `manifest skill entries: 135` / `layout: aw`.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: Pasted test-runner output: second install yields an empty diff / all `[already current]`; an orphaned skill file is pruned. Plus the full-suite green summary line and `aw ipd lint --phase pre-transition --agent <this plan>` conforming.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `::test_reinstall_is_idempotent_no_op_for_skills` asserts a second install newly-installs 0 skill files, reports every skill file `[already current]` (count == fresh fileset), and prunes 0 (smoke on real bundle: `re-install skill installed(non-skip): 0` / `re-install skill skipped: 135 -> ['.agents/skills/advise-architect/SKILL.md [already current]']` / `re-install skill pruned: 0`). `::test_orphaned_tracked_skill_file_is_pruned` -> committed orphan pruned (`.agents/skills/zzz-orphan/SKILL.md [git rm]`, orphan exists False); `::test_orphaned_untracked_skill_file_is_pruned` -> `.agents/skills/yyy-orphan/SKILL.md [rm]`, orphan exists False. New-file run (serial `-n0`): `tests/test_installer_skill_emission.py ..........  [100%]` -> `10 passed in 14.75s`. Regression (install+adapters+shims+layout): `python3 -m pytest tests/test_installer.py tests/test_host_adapters_skills.py tests/test_command_shims.py tests/test_layout_migration.py -m slow` -> `148 passed in 26.18s`. Full suite `python3 -m pytest tests/ -m ''` -> 4 failures, all PRE-EXISTING and UNRELATED (undeclared CLI parser leaves in test_command_surface_declarations/test_cli/test_cli_conformance_matrix: `agy run`, `oc runipd`, `research pending`, `ipd dependencies set`, ...); proven pre-existing by re-running them with my engine.py change stashed (same `14 != 0 : Found undeclared parser leaves` failure), and outside this plan's Scope-Paths (introduced by concurrent work on main, HEAD 2b102631 -> 275324a during this turn). `aw ipd lint --phase pre-transition` on this plan reports conforming after these E/V updates.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: Pasted test output showing `collect_target_framework_files` includes an existing skill file in its returned set.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: `tests/test_installer_skill_emission.py::NamespaceAndCollectTests::test_collect_target_framework_files_includes_skill_files` writes `.agents/skills/demo/SKILL.md` into a temp repo and asserts it appears in `collect_target_framework_files(repo, target_layout="aw")`. Also covered transitively by the orphan-prune tests (V-05), which require the orphan to be collected before it can be pruned.
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: Pasted test-runner output: manifest-driven `uninstall` removes exactly the emitted skill files and nothing else; (if OQ-02 keeps them out) no adapter-metadata files are written.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_installer_skill_emission.py::SkillEmissionInstallTests::test_uninstall_removes_emitted_skill_files_via_manifest` installs + commits, records the on-disk skill fileset, runs `uninstall_repo(repo, use_git=True)`, and asserts the count of `removed .agents/skills/...` actions equals the fileset size and that zero skill files remain. Smoke on real bundle: `skill files before uninstall: 135` / `uninstall removed skill actions: 135` / `skill files after uninstall: 0`. No-adapter-metadata coverage is in `::test_no_adapter_metadata_files_emitted` (V-04).
+  - Result: pass
 
 
 
