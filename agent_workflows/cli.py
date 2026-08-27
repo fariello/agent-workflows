@@ -826,8 +826,6 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ipd_lint.add_argument(
         "--detail",
         "--long",
-        "-d",
-        "-l",
         action="store_true",
         dest="detail",
         help="Show detailed diagnostic and advisory findings underneath items.",
