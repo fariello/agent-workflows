@@ -739,12 +739,14 @@ class DensityAdvisoryLintTests(unittest.TestCase):
             plan_file = Path(td) / "20260822-test-01-abc123-dense.ipd.md"
             plan_file.write_text(self._dense_child(), encoding="utf-8")
 
+            # Default: displays "advisory" on the item row without detailed sub-lines
             ns = argparse.Namespace(
                 phase="author",
                 all=False,
                 legacy=False,
                 agent=False,
                 no_color=True,
+                detail=False,
                 path=str(plan_file),
             )
             buf = io.StringIO()
@@ -753,9 +755,27 @@ class DensityAdvisoryLintTests(unittest.TestCase):
 
             self.assertEqual(rc, 0)
             out = buf.getvalue()
-            self.assertIn("advisory:", out)
-            self.assertIn("IPD-Z602", out)
-            self.assertIn("conforming", out)
+            self.assertIn("advisory", out)
+            self.assertNotIn("IPD-Z602", out)
+
+            # With --detail / --long: displays indented finding details
+            ns_detail = argparse.Namespace(
+                phase="author",
+                all=False,
+                legacy=False,
+                agent=False,
+                no_color=True,
+                detail=True,
+                path=str(plan_file),
+            )
+            buf_detail = io.StringIO()
+            with redirect_stdout(buf_detail):
+                rc_detail = L.run_lint(ns_detail)
+
+            self.assertEqual(rc_detail, 0)
+            out_detail = buf_detail.getvalue()
+            self.assertIn("advisory", out_detail)
+            self.assertIn("IPD-Z602", out_detail)
 
 
 def _with_scope_paths(text: str, value) -> str:

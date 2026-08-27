@@ -138,6 +138,7 @@ STATUS_COLOR_256 = {
     "info": 39,
     "warning": 226,
     "warn": 226,
+    "advisory": 214,
     "action": 214,
     "preview": 214,
     "failure": 196,

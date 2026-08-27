@@ -1009,9 +1009,10 @@ def run_lint(args: argparse.Namespace) -> int:
         return 2
 
     legacy = getattr(args, "legacy", False)
+    detail = getattr(args, "detail", False) or getattr(args, "long", False)
     term = Term(color=False if getattr(args, "no_color", False) else None)
 
-    def _format_lint_line(path: Path, disp: str) -> str:
+    def _format_lint_line(path: Path, disp: str, has_advisories: bool = False) -> str:
         from agent_workflows import attention as _att
 
         raw_text = ""
@@ -1060,7 +1061,14 @@ def run_lint(args: argparse.Namespace) -> int:
         )
         type_prefix = type_txt + (" " * max(0, 10 - len(type_word))) + "  "
         stem = _att._identity_stem(str(path))
-        disp_styled = term.status_256(disp) if getattr(term, "color", False) else disp
+        disp_word = (
+            "advisory"
+            if (disp == S.DISPOSITION_CONFORMING and has_advisories)
+            else disp
+        )
+        disp_styled = (
+            term.status_256(disp_word) if getattr(term, "color", False) else disp_word
+        )
 
         return f"- {lead}{status_padded} {type_prefix}{stem}{prio_txt}{blocking_txt}  {disp_styled}"
 
@@ -1100,7 +1108,8 @@ def run_lint(args: argparse.Namespace) -> int:
                         )
                     )
                 if not (ctx.is_agent or ctx.is_json):
-                    term.line(_format_lint_line(f, disp))
+                    has_adv = bool(getattr(res, "advisories", []))
+                    term.line(_format_lint_line(f, disp, has_advisories=has_adv))
                     if diags:
                         for d in diags:
                             loc_str = f"line {d.line}" if d.line else ""
@@ -1111,7 +1120,7 @@ def run_lint(args: argparse.Namespace) -> int:
                                 else f"     ! {rule_str}: {d.message}"
                             )
                             term.line(diag_txt)
-                    if getattr(res, "advisories", []):
+                    if has_adv and detail:
                         for a in res.advisories:
                             loc_str = f"line {a.line}" if a.line else ""
                             rule_str = f"{a.code} ({loc_str})" if loc_str else a.code
@@ -1205,7 +1214,8 @@ def run_lint(args: argparse.Namespace) -> int:
                     )
                 )
             if not (ctx.is_agent or ctx.is_json):
-                term.line(_format_lint_line(path, disp))
+                has_adv = bool(getattr(res, "advisories", []))
+                term.line(_format_lint_line(path, disp, has_advisories=has_adv))
                 if diags:
                     for d in diags:
                         loc_str = f"line {d.line}" if d.line else ""
@@ -1216,7 +1226,7 @@ def run_lint(args: argparse.Namespace) -> int:
                             else f"     ! {rule_str}: {d.message}"
                         )
                         term.line(diag_txt)
-                if getattr(res, "advisories", []):
+                if has_adv and detail:
                     for a in res.advisories:
                         loc_str = f"line {a.line}" if a.line else ""
                         rule_str = f"{a.code} ({loc_str})" if loc_str else a.code

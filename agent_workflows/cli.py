@@ -823,6 +823,15 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Run the reduced legacy checks against a grandfathered terminal file.",
     )
+    p_ipd_lint.add_argument(
+        "--detail",
+        "--long",
+        "-d",
+        "-l",
+        action="store_true",
+        dest="detail",
+        help="Show detailed diagnostic and advisory findings underneath items.",
+    )
 
     p_ipd_scaffold = ipd_sub.add_parser(
         "scaffold",
