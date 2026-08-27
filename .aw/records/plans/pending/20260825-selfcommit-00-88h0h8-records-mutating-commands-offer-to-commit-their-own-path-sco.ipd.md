@@ -40,7 +40,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 | Order | File (id6) | What it does | Depends on |
 |---|---|---|---|
-| 01 | shared helper (cv1rfd) | `git_commit_helper.offer_commit`: path-scoped, TTY-gated (NO-OP on non-TTY unless `--commit`, unlike `_confirm`), explicit path-set, `on_unrelated_staged` scope-vs-refuse (serves both selfcommit and agentadhere), never `add -A`/push/`--no-verify` | none |
+| 01 | shared helper (cv1rfd) | `git_commit_helper.offer_commit`: path-scoped, TTY-gated (NO-OP on non-TTY unless `--commit`; matches `_confirm`'s real decline-on-non-TTY behavior, cli.py:2694), explicit path-set, `on_unrelated_staged` scope-vs-refuse (serves both selfcommit and agentadhere), never `add -A`/push/`--no-verify` | none |
 | 02 | adopt across verbs (jgcm68) | wire the helper into `aw archive` (2 backends), the TYPE-PARAMETERIZED `group`/`rename` dispatch (covering plans/research/artifact_rename types), `research set-assign`-`mv`, and the SHARED `status_set` engine (`set`/`ipd set`/`spec set`/...) plus the `specs.py` dual path; shared `--commit`/`--no-commit` flags; tests incl. coverage + exactly-once | 01 |
 
 Sequence: 01 -> 02; orchestrator integration check runs last.
