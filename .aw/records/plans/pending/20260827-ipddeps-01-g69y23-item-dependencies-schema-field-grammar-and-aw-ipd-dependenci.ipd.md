@@ -5,7 +5,7 @@
 - Concern: An IPD cannot state its cross-IPD prerequisites in any machine-readable form. `ipd_schema.META_RECOGNIZED` has no whole-plan dependency field; the only `Depends on:` is the intra-plan E-item field (`parse_depends_on`, ipd_schema.py:504). The `Item-Dependencies` field designed in spec 25kzda (2.7) must exist before any predicate (child 02) or hook (child 03) can consume it. `From-Backlog` (ipd_schema.py, releases.set_blocks_release_line-style primitive, status_set hoisted write at ~449-461, cli `aw ipd set --from-backlog`) is the exact, tested precedent to clone.
 - Scope: Add the `Item-Dependencies` metadata field and its setter. (1) Schema: add `META_ITEM_DEPENDENCIES = "Item-Dependencies"` to `ipd_schema.META_RECOGNIZED` (NOT `META_REQUIRED` - mandatoriness is phase/provenance-conditional and lives in child 02's checks + grandfathering, mirroring how `Scope-Paths`/`Blocks-Release` are recognized-but-optional at the schema layer). Field position: immediately after `Scope-Paths`. (2) Grammar + parser: `none` | comma-separated edges, each `executed:<id6>` | `exists:<type>:<id6>` | `state:<type>:<status>:<id6>` (type in ipd|spec|backlog; `executed:` targets only IPDs; `state:ipd:executed:` illegal - use `executed:`); reject self-edge, duplicate edge, `none` mixed with edges; canonical sort order by kind/type/status/id6; `unresolved` is the reserved scaffold sentinel (parses as not-ready, outside the execution grammar). A pure `parse_item_dependencies(value) -> (edges, error)` returning structured edges. (3) Write primitive: `set_item_dependencies_line(text, value)` (idempotent insert/replace/remove) in the releases-style location, but anchored IMMEDIATELY AFTER `- Scope-Paths:` (fallback after `- Id:`, then top-of-block) to honor spec 2.7's mandated position - NOT after `- Status:` the way `set_blocks_release_line`/`set_from_backlog_line` anchor (see E-02). (4) Setter: `aw ipd dependencies set <ipd-selector> <none|edge...>` in cli.py + status_set.py, using the SAME hoisted, status-branch-independent write as `--from-backlog` so it persists on a no-op transition; canonicalizes + validates tokens before writing; appends a workflow-history receipt; commits only the IPD + tool-owned index/history. (5) Scaffold: `aw ipd scaffold` emits `- Item-Dependencies: unresolved` in position (never blank, never `none`). This child delivers ONLY field + grammar + setter + scaffold emission; the graph predicate/rules/grandfathering are child 02; the hook is child 03.
 - Scope-Paths: agent_workflows/ipd_schema.py, agent_workflows/status_set.py, agent_workflows/cli.py, agent_workflows/releases.py, agent_workflows/ipd_authoring.py, tests/
-- Status: draft
+- Status: reviewed
 - Set: ipddeps
 - Order: 1
 - Highest E allocated: 04
@@ -13,6 +13,7 @@
 - Id: g69y23
 
 ## Workflow history
+- 2026-08-27 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-101/102/103/104 fixed
 
 - 2026-08-27 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.
 
