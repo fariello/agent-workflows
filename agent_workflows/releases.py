@@ -153,6 +153,44 @@ def set_from_backlog_line(text: str, value: Optional[str]) -> str:
     return text
 
 
+_ITEM_DEPENDENCIES_LINE_RE = re.compile(r"(?m)^- Item-Dependencies:[^\n]*\n?")
+
+
+def set_item_dependencies_line(text: str, value: Optional[str]) -> str:
+    """Return `text` with the `- Item-Dependencies:` metadata line set to `value`, or removed when
+    `value` is '-' or None. Idempotent: replaces an existing line or inserts one.
+
+    ANCHOR (ipddeps Order g69y23 E-02): spec 25kzda 2.7 mandates this field live IMMEDIATELY AFTER
+    `- Scope-Paths:` (and before `Blocks-Release`/`From-Backlog`). This is DELIBERATELY DIFFERENT
+    from `set_blocks_release_line`/`set_from_backlog_line`, which anchor after `- Status:` - in the
+    real block order (`... Scope-Paths, Status, Set, Order ...`) that would be the WRONG position
+    for this field. So anchor after `- Scope-Paths:`; when absent, fall back to inserting BEFORE
+    `- Status:` (keeping the field ahead of Status/Set/Order), then after `- Id:`, then top of the
+    bullet block. Unlike the release/backlog line regex (which requires a `\\S+` value), this regex
+    tolerates any value so an existing malformed line is still replaced idempotently."""
+    # Always strip any existing line first (idempotent replace).
+    text = _ITEM_DEPENDENCIES_LINE_RE.sub("", text)
+    if value in (None, "-"):
+        return text
+    new_line = f"- Item-Dependencies: {value}\n"
+    # Preferred anchor: immediately AFTER `- Scope-Paths:` (spec 2.7 position).
+    m = re.search(r"(?m)^- Scope-Paths:[^\n]*\n", text)
+    if m:
+        i = m.end()
+        return text[:i] + new_line + text[i:]
+    # No Scope-Paths line: insert BEFORE `- Status:` so the field stays ahead of Status/Set/Order.
+    m = re.search(r"(?m)^- Status:[^\n]*\n", text)
+    if m:
+        i = m.start()
+        return text[:i] + new_line + text[i:]
+    # Fallbacks: after `- Id:`, else top of the bullet block (before the first blank/heading).
+    m = re.search(r"(?m)^- Id:[^\n]*\n", text)
+    if m:
+        i = m.end()
+        return text[:i] + new_line + text[i:]
+    return text
+
+
 _ITEM_BLOCKS_RELEASE_RE = re.compile(r"(?m)^- Blocks-Release:\s*(\S+)\s*$")
 _ITEM_FROM_BACKLOG_RE = re.compile(r"(?m)^- From-Backlog:\s*(\S+)\s*$")
 

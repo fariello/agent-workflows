@@ -561,6 +561,20 @@ def apply_status_change(
         tmp_text = _releases.set_from_backlog_line(tmp_text, fb)
         new_lines = tmp_text.splitlines()
 
+    # Item-Dependencies write (ipddeps g69y23): the SAME hoisted, status-branch-independent shape as
+    # the Blocks-Release / From-Backlog writes above, so `aw ipd dependencies set` persists even on a
+    # no-op (same-status) transition. Funnels through the single shared
+    # `releases.set_item_dependencies_line` primitive (spec-2.7 position, no duplicate write path).
+    # The value is already canonicalized + validated by the `dependencies set` handler before it
+    # reaches here; `-`/None clears.
+    idep = getattr(args, "item_dependencies", None)
+    if idep is not None:
+        from agent_workflows import releases as _releases
+
+        tmp_text = "\n".join(new_lines)
+        tmp_text = _releases.set_item_dependencies_line(tmp_text, idep)
+        new_lines = tmp_text.splitlines()
+
     if rec.record_type == "plans" and norm_status != "approved":
         new_lines = [
             line_item
@@ -1200,3 +1214,93 @@ def run_set_command(
         )
 
     return 0
+
+
+def run_dependencies_set_command(
+    args: argparse.Namespace,
+    repo_root: Path | None = None,
+    term: Term | None = None,
+) -> int:
+    """`aw ipd dependencies set <selector> <edge...>` (ipddeps Order g69y23 E-03).
+
+    Sets a plan's machine-readable, id6-grounded cross-IPD ``Item-Dependencies`` field. Reuses the
+    SAME hoisted, status-branch-independent write as ``aw ipd set --from-backlog`` by driving a
+    same-status (no-op) transition through ``run_set_command`` while carrying the canonicalized
+    value in ``args.item_dependencies``; persistence-on-no-op is thus inherited, not reimplemented.
+    Validates + canonicalizes the edges via ``ipd_schema.canonical_item_dependencies`` BEFORE any
+    write, so a malformed statement is rejected non-zero and nothing is written. A history receipt
+    is appended by ``apply_status_change`` (like every other setter). This is a DIFFERENT field
+    from the intra-plan ``Depends on:`` E-item ordering; the two namespaces never collide.
+    """
+    from agent_workflows import ipd_schema as _schema
+    from agent_workflows.project_context import resolve_verb_repo_root
+
+    if term is None:
+        term = Term()
+    if repo_root is None:
+        repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+
+    selector = getattr(args, "selector", None)
+    if not selector:
+        term.status("fail", "aw ipd dependencies set: a plan selector is required.")
+        return 2
+
+    # Assemble the raw value from the positional edges: allow space- AND comma-separated tokens.
+    raw_edges = list(getattr(args, "edges", None) or [])
+    joined = ",".join(tok for tok in raw_edges if tok is not None)
+    raw_value = joined.strip()
+
+    # `-` / empty / `none` clears to the explicit `none`; `unresolved` is preserved as the sentinel.
+    if raw_value in ("", "-", _schema.ITEM_DEPENDENCIES_NONE):
+        canonical_value: str = _schema.ITEM_DEPENDENCIES_NONE
+    else:
+        canonical_value_opt, err = _schema.canonical_item_dependencies(raw_value)
+        if err is not None or canonical_value_opt is None:
+            term.status(
+                "fail",
+                f"aw ipd dependencies set: invalid Item-Dependencies value: {err}. "
+                "Refusing before making changes.",
+            )
+            return 2
+        canonical_value = canonical_value_opt
+
+    # Resolve the plan(s) to read each one's CURRENT status (the setter performs a no-op transition).
+    all_records = inventory_all_artifacts(repo_root)
+    matches = match_selector(selector, all_records, repo_root, scoped_type="plans")
+    if not matches:
+        term.status("fail", f"No plans artifact matched '{selector}'.")
+        return 2
+    plan_matches = [m for m in matches if m.record_type == "plans"]
+    if not plan_matches:
+        term.status(
+            "fail",
+            f"Selector '{selector}' did not resolve to a plan; "
+            "`aw ipd dependencies set` only applies to IPDs.",
+        )
+        return 2
+
+    # A single Set selector may legitimately match several plans; drive each at its own current
+    # status so no plan is force-transitioned. Group by current status for a single no-op each.
+    rc_final = 0
+    for rec in plan_matches:
+        current = (rec.status or "draft").strip()
+        deps_args = argparse.Namespace(
+            args=[current, str(rec.path)],
+            dir=str(repo_root),
+            message=getattr(args, "message", None)
+            or f"set Item-Dependencies to {canonical_value}",
+            item_dependencies=canonical_value,
+            dry_run=getattr(args, "dry_run", False),
+            yes=True,
+            actor=getattr(args, "actor", None),
+        )
+        rc = run_set_command(
+            [current, str(rec.path)],
+            scoped_type="plans",
+            repo_root=repo_root,
+            args=deps_args,
+            term=term,
+        )
+        if rc != 0:
+            rc_final = rc
+    return rc_final

@@ -128,6 +128,15 @@ def build_skeleton(
     lines.append(
         "- Scope-Paths: TODO (comma-separated repo-relative paths or pathspecs)"
     )
+    # Item-Dependencies (ipddeps Order g69y23; spec 25kzda 2.7): the machine-readable, id6-grounded
+    # cross-IPD prerequisite statement. Scaffold emits the reserved `unresolved` sentinel (NEVER
+    # blank, NEVER `none`) so a freshly scaffolded plan is an HONEST not-ready draft: `unresolved`
+    # is a declared-but-not-triaged marker distinct from `none` (an explicit assertion of zero
+    # cross-IPD dependencies). Replace it with `none` or a comma-separated edge list
+    # (`executed:<id6>` | `exists:<type>:<id6>` | `state:<type>:<status>:<id6>`) via
+    # `aw ipd dependencies set`. Positioned immediately after `Scope-Paths` (spec 2.7). DIFFERENT
+    # from the intra-plan `Depends on:` E-item ordering.
+    lines.append("- Item-Dependencies: unresolved")
     lines.append("- Status: draft")
     lines.append(f"- Set: {set_name}")
     lines.append(f"- Order: {order}")

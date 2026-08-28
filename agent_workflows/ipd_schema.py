@@ -154,6 +154,25 @@ META_SCOPE_PATHS = "Scope-Paths"
 # `Scope-Paths: grandfathered` is advisory-satisfied at the gate (non-blocking) instead of
 # declaring a real allowlist. It is stored IN the plan's metadata block so it travels with the plan.
 SCOPE_PATHS_GRANDFATHERED = "grandfathered"
+# Item-Dependencies (Order g69y23, ipddeps Set; spec 25kzda 2.7): the machine-readable, id6-grounded
+# statement of a plan's CROSS-IPD prerequisites - a DIFFERENT layer from the intra-plan `Depends on:`
+# E-item field (`parse_depends_on`), which orders steps WITHIN one plan. Recognized-but-OPTIONAL at
+# the schema layer (NOT in META_REQUIRED, mirroring META_SCOPE_PATHS / META_BLOCKS_RELEASE /
+# META_FROM_BACKLOG): recognition here only stops the IPD-M103 "unknown field" lint error so existing
+# plans are not mass-failed (the grandfather guarantee). Its CONDITIONAL mandatoriness, edge-target
+# resolution, and the DAG (dangling / cycle / ambiguity) live in child 02's shared predicate + the
+# phased `aw ipd lint` / `aw check` rules, NOT here. Positioned immediately after `Scope-Paths`
+# (spec 2.7). The canonical field position for the write primitive is enforced in
+# `releases.set_item_dependencies_line` (Order g69y23 E-02).
+META_ITEM_DEPENDENCIES = "Item-Dependencies"
+# The reserved scaffold sentinel: a freshly scaffolded plan carries `Item-Dependencies: unresolved`
+# (never blank, never `none`) so a not-yet-triaged plan is an HONEST not-ready draft. `unresolved`
+# parses as "declared-but-not-ready" (outside the execution edge grammar): it is a legal, recognized
+# value that child 02's ready-to-execute gate treats as unsatisfied, distinct from `none` (an
+# explicit assertion of zero dependencies).
+ITEM_DEPENDENCIES_UNRESOLVED = "unresolved"
+# The explicit "no cross-IPD prerequisites" value (distinct from the `unresolved` scaffold sentinel).
+ITEM_DEPENDENCIES_NONE = "none"
 # Blocks-Release (Order si3mmt): an optional, single-valued release-gate field (a release id6 or the
 # sentinel `next`) declaring that this plan must be done before that release ships, matching the
 # semantics the field already has on backlog items and specs (AGENTS.md "Release gates"). Recognized
@@ -178,6 +197,7 @@ META_RECOGNIZED: FrozenSet[str] = frozenset(
         META_WATERMARK,
         META_APPROVAL,
         META_SCOPE_PATHS,
+        META_ITEM_DEPENDENCIES,
         META_BLOCKS_RELEASE,
         META_FROM_BACKLOG,
     )
@@ -453,6 +473,224 @@ def parse_scope_paths(value: str) -> Tuple[List[str], bool, List[str]]:
         if err:
             errors.append(err)
     return paths, False, errors
+
+
+# --------------------------------------------------------------------------------------
+# Item-Dependencies grammar (Order g69y23, ipddeps Set; spec 25kzda 2.7-2.8)
+# --------------------------------------------------------------------------------------
+#
+# A whole-plan, id6-grounded statement of CROSS-IPD prerequisites. The value is one of:
+#   * `none`        - an explicit assertion of zero cross-IPD dependencies (parses to []).
+#   * `unresolved`  - the reserved scaffold sentinel: declared-but-not-ready (parses to [] with
+#                     ``ready=False``; a legal recognized value, NOT an execution edge).
+#   * a comma-separated list of typed edges, each one of:
+#         executed:<id6>              (target is an IPD that must be in the executed state)
+#         exists:<type>:<id6>         (target of <type> must simply exist)
+#         state:<type>:<status>:<id6> (target of <type> must be in <status>)
+#     where <type> in {ipd, spec, backlog}. `state:ipd:executed:<id6>` is ILLEGAL and must be
+#     written as `executed:<id6>` (so the "must be executed" edge has ONE canonical spelling).
+#
+# This parser validates SYNTAX only (Order g69y23 scope). Edge-target RESOLUTION (does the id6
+# name a real artifact) and the DAG (dangling / cycle / ambiguity) live in child 02's shared
+# predicate. Kept deliberately disjoint from the intra-plan `parse_depends_on` (E-ids): an E-id is
+# never a legal Item-Dependencies token, and an id6 is never a legal `Depends on:` token.
+
+ITEM_DEP_TYPES: Tuple[str, ...] = ("ipd", "spec", "backlog")
+# Valid target statuses per type (used only to reject an obviously wrong pairing at the syntax
+# layer; the authoritative status vocabulary lives in the plans/specs/backlog modules and is
+# re-checked at resolution time by child 02). `ipd` deliberately omits `executed` here because
+# `state:ipd:executed:` is redirected to the canonical `executed:` edge.
+_ITEM_DEP_STATE_STATUSES: Dict[str, FrozenSet[str]] = {
+    "ipd": frozenset(
+        ("draft", "to-review", "reviewed", "approved", "auto-approved", "reusable")
+    ),
+    "spec": frozenset(
+        (
+            "draft",
+            "to-review",
+            "reviewed",
+            "approved",
+            "implementing",
+            "implemented",
+            "deferred",
+            "parked",
+            "superseded",
+        )
+    ),
+    "backlog": frozenset(("open", "blocked", "done", "parked")),
+}
+# Kind rank for canonical ordering: executed < exists < state, then type, then status, then id6.
+_ITEM_DEP_KIND_RANK: Dict[str, int] = {"executed": 0, "exists": 1, "state": 2}
+
+
+class ItemDependency(NamedTuple):
+    """One parsed cross-IPD dependency edge.
+
+    ``kind`` is ``executed`` | ``exists`` | ``state``. ``target_type`` is the artifact type
+    (``ipd``/``spec``/``backlog``; always ``ipd`` for an ``executed`` edge). ``status`` is the
+    required status for a ``state`` edge (else None). ``id6`` is the target's stable handle.
+    """
+
+    kind: str
+    target_type: str
+    status: Optional[str]
+    id6: str
+
+    def canonical(self) -> str:
+        """Render this edge back to its canonical token form."""
+        if self.kind == "executed":
+            return "executed:{0}".format(self.id6)
+        if self.kind == "exists":
+            return "exists:{0}:{1}".format(self.target_type, self.id6)
+        return "state:{0}:{1}:{2}".format(self.target_type, self.status, self.id6)
+
+    def _sort_key(self) -> Tuple[int, str, str, str]:
+        return (
+            _ITEM_DEP_KIND_RANK.get(self.kind, 99),
+            self.target_type,
+            self.status or "",
+            self.id6,
+        )
+
+
+def _parse_item_dependency_edge(
+    tok: str,
+) -> Tuple[Optional[ItemDependency], Optional[str]]:
+    """Parse ONE edge token. Returns (edge, error). Pure."""
+    parts = tok.split(":")
+    kind = parts[0]
+    if kind == "executed":
+        if len(parts) != 2:
+            return None, "executed edge must be 'executed:<id6>' in {0!r}".format(tok)
+        id6 = parts[1]
+        if not _core.is_valid_id6(id6):
+            return None, "executed target {0!r} is not a 6-char base36 id6".format(id6)
+        return ItemDependency("executed", "ipd", None, id6), None
+    if kind == "exists":
+        if len(parts) != 3:
+            return None, "exists edge must be 'exists:<type>:<id6>' in {0!r}".format(
+                tok
+            )
+        target_type, id6 = parts[1], parts[2]
+        if target_type not in ITEM_DEP_TYPES:
+            return None, "exists edge type {0!r} must be one of {1} in {2!r}".format(
+                target_type, list(ITEM_DEP_TYPES), tok
+            )
+        if not _core.is_valid_id6(id6):
+            return None, "exists target {0!r} is not a 6-char base36 id6".format(id6)
+        return ItemDependency("exists", target_type, None, id6), None
+    if kind == "state":
+        if len(parts) != 4:
+            return (
+                None,
+                "state edge must be 'state:<type>:<status>:<id6>' in {0!r}".format(tok),
+            )
+        target_type, status, id6 = parts[1], parts[2], parts[3]
+        if target_type not in ITEM_DEP_TYPES:
+            return None, "state edge type {0!r} must be one of {1} in {2!r}".format(
+                target_type, list(ITEM_DEP_TYPES), tok
+            )
+        if target_type == "ipd" and status == "executed":
+            return (
+                None,
+                "state:ipd:executed:<id6> is illegal; use the canonical 'executed:<id6>' "
+                "edge in {0!r}".format(tok),
+            )
+        if status not in _ITEM_DEP_STATE_STATUSES.get(target_type, frozenset()):
+            return (
+                None,
+                "state edge status {0!r} is not valid for type {1!r} in {2!r}".format(
+                    status, target_type, tok
+                ),
+            )
+        if not _core.is_valid_id6(id6):
+            return None, "state target {0!r} is not a 6-char base36 id6".format(id6)
+        return ItemDependency("state", target_type, status, id6), None
+    if E_ID_STRICT.match(tok):
+        return (
+            None,
+            "{0!r} is an E-* id (intra-plan 'Depends on:'), not a cross-IPD "
+            "Item-Dependencies edge".format(tok),
+        )
+    return (
+        None,
+        "unrecognized Item-Dependencies edge {0!r} (expected "
+        "executed:/exists:/state:)".format(tok),
+    )
+
+
+def parse_item_dependencies(
+    value: str,
+) -> Tuple[List[ItemDependency], bool, Optional[str]]:
+    """Parse an `Item-Dependencies` metadata value (spec 25kzda 2.7).
+
+    Returns ``(edges, ready, error)``:
+      * ``edges``  - the parsed edges in CANONICAL order (empty for `none`/`unresolved`/empty).
+      * ``ready``  - False iff the value is the `unresolved` scaffold sentinel (or an error);
+                     True for `none` and for any well-formed edge list.
+      * ``error``  - a specific message for the FIRST violation, else None.
+
+    Rejects: a self-edge is NOT detectable here (the parser does not know the plan's own id6 -
+    that check lives in child 02's resolver, which has the owning plan). This function rejects
+    duplicate edges, `none`/`unresolved` mixed with edges, malformed tokens, bad type/status
+    pairings, E-ids, and `state:ipd:executed:`. Pure.
+    """
+    v = value.strip()
+    if v == "":
+        # An empty value is treated as an explicit `none` for tolerance, but is NOT ready-blocking.
+        return [], True, None
+    if v == ITEM_DEPENDENCIES_UNRESOLVED:
+        return [], False, None
+    if v == ITEM_DEPENDENCIES_NONE:
+        return [], True, None
+    tokens = [tok.strip() for tok in v.split(",")]
+    # A sentinel may not be mixed with real edges.
+    if any(tok == ITEM_DEPENDENCIES_NONE for tok in tokens):
+        return (
+            [],
+            True,
+            "'none' must be the whole Item-Dependencies value, not one edge",
+        )
+    if any(tok == ITEM_DEPENDENCIES_UNRESOLVED for tok in tokens):
+        return (
+            [],
+            False,
+            "'unresolved' must be the whole Item-Dependencies value, not one edge",
+        )
+    edges: List[ItemDependency] = []
+    seen: set = set()
+    for tok in tokens:
+        if not tok:
+            return [], True, "empty Item-Dependencies edge (stray comma)"
+        edge, err = _parse_item_dependency_edge(tok)
+        if err:
+            return [], True, err
+        assert edge is not None
+        canon = edge.canonical()
+        if canon in seen:
+            return [], True, "duplicate Item-Dependencies edge {0!r}".format(canon)
+        seen.add(canon)
+        edges.append(edge)
+    edges.sort(key=lambda e: e._sort_key())
+    return edges, True, None
+
+
+def canonical_item_dependencies(value: str) -> Tuple[Optional[str], Optional[str]]:
+    """Return (canonical_value, error) for an `Item-Dependencies` input.
+
+    The canonical value is `none`, `unresolved`, or the canonically-ordered comma+space-joined
+    edge list. On error, returns (None, error). Used by the `aw ipd dependencies set` setter to
+    normalize before writing. Pure.
+    """
+    edges, ready, err = parse_item_dependencies(value)
+    if err:
+        return None, err
+    v = value.strip()
+    if v == ITEM_DEPENDENCIES_UNRESOLVED:
+        return ITEM_DEPENDENCIES_UNRESOLVED, None
+    if not edges:
+        return ITEM_DEPENDENCIES_NONE, None
+    return ", ".join(e.canonical() for e in edges), None
 
 
 # --------------------------------------------------------------------------------------
