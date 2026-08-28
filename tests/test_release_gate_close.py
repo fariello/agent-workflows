@@ -419,6 +419,15 @@ class WarnSurfaceTests(unittest.TestCase):
         warns = CE.release_gate_warnings(self.root)
         self.assertTrue(any(d.rule == "check.orphaned-live-blocker" for d in warns))
 
+    def test_orphaned_live_blocker_carries_cut_and_paste_fix(self):
+        # The warning must include a runnable Fix command naming the item's id6, so the
+        # attention view can surface a cut-and-paste remedy rather than only prose.
+        _write_item(self.root, "aaa111", status="open", blocks_release="next")
+        _write_plan(self.root, "pl0001", from_backlog="aaa111", blocks_release="next")
+        warns = CE.release_gate_warnings(self.root)
+        w = next(d for d in warns if d.rule == "check.orphaned-live-blocker")
+        self.assertIn("Fix: aw backlog set done aaa111", w.detail)
+
 
 if __name__ == "__main__":
     unittest.main()

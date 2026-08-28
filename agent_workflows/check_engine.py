@@ -1563,13 +1563,15 @@ def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
             continue
         for _p, plan_br in find_from_backlog_plans(repo_root, mid.group(1)):
             if plan_br == mbr.group(1):
+                _id6 = mid.group(1)
                 warnings.append(
                     _core.Drift(
                         str(f),
                         "check.orphaned-live-blocker",
                         (
                             "an open release-blocking item is already graduated to a From-Backlog "
-                            "plan; consider closing it `done` (the gate is preserved via handoff)"
+                            "plan; close it `done` (the gate is preserved via handoff).\n"
+                            f"    Fix: aw backlog set done {_id6}"
                         ),
                     )
                 )

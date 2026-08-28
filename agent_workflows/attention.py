@@ -627,6 +627,55 @@ def _age_marker(last_history_at: Optional[str], tree: str = "") -> str:
         return "?"
 
 
+def _render_item_row(
+    it: Item,
+    cls: str,
+    term: T.Term,
+    colored: bool,
+    long: bool,
+) -> str:
+    """Render ONE board row for an item, in the compact columnar human form (colored) or the
+    stable machine form (uncolored). Extracted so the release-blockers section renders items
+    identically to the active/ready/blocked sections, not as raw paths."""
+    status_word = it.native_status
+    if colored:
+        code = _STATUS_COLOR_256.get(it.native_status, _CLASS_COLOR_256.get(cls, 244))
+        status_txt = term.color256(status_word, code, bold=True)
+        status_padded = status_txt + (" " * max(0, 12 - len(status_word)))
+        age = _age_marker(it.last_history_at, it.tree)
+        gate_glyph = "#" if it.gate else ""
+        rb_glyph = ">" if it.blocks_release else ""
+        blk = (age + gate_glyph + rb_glyph).strip()
+        lead = f"{blk:<3}" if blk else "   "
+        if long:
+            path_txt = _colorize_tree_segment(term, it.path, it.tree)
+            type_prefix = ""
+        else:
+            path_txt = _identity_stem(it.path)
+            type_word = _SINGULAR_TYPE.get(it.tree, it.tree)
+            type_txt = term.color256(type_word, _TREE_COLOR_256, bold=True)
+            type_prefix = type_txt + (" " * max(0, 10 - len(type_word))) + "  "
+        inline_gate = ""
+        if it.gate and cls != A.BLOCKED:
+            g = it.gate
+            inline_gate = (
+                f"  [gate {g.get('kind')}: {A.escape_detail(g.get('ref', ''))}]"
+            )
+        prio = ""
+        if it.priority:
+            pcode = {"high": 196, "medium": 214, "low": 244}.get(it.priority, 244)
+            prio = "  " + term.color256(f"[{it.priority}]", pcode, bold=True)
+        blocking = ""
+        if it.blocks_release:
+            blocking = "  " + term.color256("[blocking]", 196, bold=True)
+        return f"- {lead}{status_padded}  {type_prefix}{path_txt}{prio}{blocking}{inline_gate}"
+    suffix = ""
+    if it.gate:
+        g = it.gate
+        suffix = f"  [gate {g.get('kind')}: {A.escape_detail(g.get('ref', ''))}]"
+    return f"- [{it.tree}] {it.path} ({status_word}){suffix}"
+
+
 def render_board(
     items: List[Item],
     drift: List[core.Drift],
@@ -691,57 +740,7 @@ def render_board(
         lines.append(f"## {cls} ({len(group)}){header_extra}")
 
         for it in group:
-            status_word = it.native_status
-            if colored:
-                code = _STATUS_COLOR_256.get(
-                    it.native_status, _CLASS_COLOR_256.get(cls, 244)
-                )
-                status_txt = term.color256(status_word, code, bold=True)
-                status_padded = status_txt + (" " * max(0, 12 - len(status_word)))
-                # awdoctor Order 01 + awdoctorfix Order 01: compact leading markers from Item fields:
-                #   age ('!' >30d / '?' unknown) + gate ('#') + release-blocker ('>').
-                age = _age_marker(it.last_history_at, it.tree)
-                gate_glyph = "#" if it.gate else ""
-                rb_glyph = ">" if it.blocks_release else ""
-                blk = (age + gate_glyph + rb_glyph).strip()
-                lead = f"{blk:<3}" if blk else "   "
-                # awdoctorfix Order 02: compact identity stem by default; --long -> full tree-colored
-                # path.
-                if long:
-                    path_txt = _colorize_tree_segment(term, it.path, it.tree)
-                    type_prefix = ""
-                else:
-                    path_txt = _identity_stem(it.path)
-                    type_word = _SINGULAR_TYPE.get(it.tree, it.tree)
-                    type_txt = term.color256(type_word, _TREE_COLOR_256, bold=True)
-                    type_prefix = type_txt + (" " * max(0, 10 - len(type_word))) + "  "
-                inline_gate = ""
-                if it.gate and cls != A.BLOCKED:
-                    g = it.gate
-                    inline_gate = (
-                        f"  [gate {g.get('kind')}: {A.escape_detail(g.get('ref', ''))}]"
-                    )
-                # Priority bracket, colored by level, without "P:" prefix
-                prio = ""
-                if it.priority:
-                    pcode = {"high": 196, "medium": 214, "low": 244}.get(
-                        it.priority, 244
-                    )
-                    prio = "  " + term.color256(f"[{it.priority}]", pcode, bold=True)
-                blocking = ""
-                if it.blocks_release:
-                    blocking = "  " + term.color256("[blocking]", 196, bold=True)
-                lines.append(
-                    f"- {lead}{status_padded}  {type_prefix}{path_txt}{prio}{blocking}{inline_gate}"
-                )
-            else:
-                suffix = ""
-                if it.gate:
-                    g = it.gate
-                    suffix = (
-                        f"  [gate {g.get('kind')}: {A.escape_detail(g.get('ref', ''))}]"
-                    )
-                lines.append(f"- [{it.tree}] {it.path} ({status_word}){suffix}")
+            lines.append(_render_item_row(it, cls, term, colored, long))
         lines.append("")
     return "\n".join(lines).rstrip("\n") + "\n"
 
@@ -930,6 +929,8 @@ def run(args) -> int:
             term=term,
             long=getattr(args, "long", False),
         )
+        colored = bool(getattr(term, "color", False))
+        long = getattr(args, "long", False)
         blockers = release_blockers(items, repo_root)
         if blockers:
             # Name the release the blockers gate (id6 + version), not just a count, so the
@@ -942,8 +943,12 @@ def run(args) -> int:
                 _rel = None
             _rel_label = f" for {_rel[1]} ({_rel[0]})" if _rel else ""
             board += f"\n## release-blockers{_rel_label} ({len(blockers)})\n"
+            # Render each blocker in the SAME compact columnar form as active/ready/blocked
+            # (not a raw absolute path), so the section reads consistently with the board.
             for it in blockers:
-                board += f"- {it.path} ({it.native_status})\n"
+                board += (
+                    _render_item_row(it, it.attention_class, term, colored, long) + "\n"
+                )
         # bklggrad orb9zb E-06: advisory release-gate warnings (human view only; NEVER affect the
         # exit code). Surfaces orphaned-live-blocker (an open blocking item already handed off to a
         # plan) with a de-gate/close hint.
@@ -955,8 +960,16 @@ def run(args) -> int:
             gate_warnings = []
         if gate_warnings:
             board += f"\n## release-gate-warnings ({len(gate_warnings)})\n"
+            # Consistent identity-stem form + an indented, cut-and-paste Fix: line (the detail
+            # carries a '\n    Fix: <cmd>' suffix). Uncolored/agent view keeps the full path.
             for w in gate_warnings:
-                board += f"- {w.location}: {w.rule}: {w.detail}\n"
+                detail, _, fix = w.detail.partition("\n    Fix:")
+                ident = (
+                    _identity_stem(w.location) if colored and not long else w.location
+                )
+                board += f"- {ident}: {w.rule}: {detail}\n"
+                if fix.strip():
+                    board += f"    Fix: {fix.strip()}\n"
         sys.stdout.write(board)
     # a plain view still fails closed if invalid, so consumers cannot treat an invalid view as authoritative
     return core.drift_exit_code(drift)
