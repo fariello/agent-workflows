@@ -1691,5 +1691,85 @@ class VerifierPromptTests(unittest.TestCase):
             self.assertEqual(found_executed, plan_e.resolve())
 
 
+class OrchestratorNotAgentExecutedTests(unittest.TestCase):
+    """The runner must not agent-execute a Kind: orchestrator IPD; it finalizes the
+    orchestrator iff every child in its set reached `executed`, else leaves it blocked."""
+
+    def _make_set(self, repo: Path) -> None:
+        pending = repo / ".aw" / "records" / "plans" / "pending"
+        pending.mkdir(parents=True, exist_ok=True)
+        (pending / "20260827-oset-00-orc001-orchestrator.ipd.md").write_text(
+            "- Id: orc001\n- Set: oset\n- Order: 0\n- Kind: orchestrator\n- Status: approved\n# Orch\n",
+            encoding="utf-8",
+        )
+        (pending / "20260827-oset-01-chi001-child-one.ipd.md").write_text(
+            "- Id: chi001\n- Set: oset\n- Order: 1\n- Kind: child\n- Status: approved\n# Child1\n",
+            encoding="utf-8",
+        )
+        (pending / "20260827-oset-02-chi002-child-two.ipd.md").write_text(
+            "- Id: chi002\n- Set: oset\n- Order: 2\n- Kind: child\n- Status: approved\n# Child2\n",
+            encoding="utf-8",
+        )
+
+    def test_kind_is_parsed_into_record_and_manifest(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            self._make_set(repo)
+            discovered = driver.discover_plans(repo)
+            self.assertEqual(discovered["orc001"].kind, "orchestrator")
+            self.assertEqual(discovered["chi001"].kind, "child")
+            manifest = driver.build_dynamic_manifest(repo, discovered)
+            self.assertEqual(manifest["plans"]["orc001"]["kind"], "orchestrator")
+
+    def test_children_all_executed_gate(self):
+        # Orchestrator is finalizable ONLY when every child is `executed`.
+        state = {
+            "queue": [
+                {
+                    "id6": "orc001",
+                    "setid": "oset",
+                    "action": "orchestrate",
+                    "status": "queued",
+                },
+                {
+                    "id6": "chi001",
+                    "setid": "oset",
+                    "action": "execute",
+                    "status": "executed",
+                },
+                {
+                    "id6": "chi002",
+                    "setid": "oset",
+                    "action": "execute",
+                    "status": "substantially-complete",
+                },
+            ]
+        }
+        ok, unfinished = driver._set_children_all_executed(state, "oset", "orc001")
+        self.assertFalse(ok)
+        self.assertEqual(unfinished, ["chi002"])
+        # Now mark the last child executed.
+        state["queue"][2]["status"] = "executed"
+        ok, unfinished = driver._set_children_all_executed(state, "oset", "orc001")
+        self.assertTrue(ok)
+        self.assertEqual(unfinished, [])
+
+    def test_children_gate_false_when_no_children(self):
+        state = {
+            "queue": [
+                {
+                    "id6": "orc001",
+                    "setid": "oset",
+                    "action": "orchestrate",
+                    "status": "queued",
+                },
+            ]
+        }
+        ok, _ = driver._set_children_all_executed(state, "oset", "orc001")
+        self.assertFalse(ok)
+
+
 if __name__ == "__main__":
     unittest.main()

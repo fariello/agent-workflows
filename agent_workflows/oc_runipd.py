@@ -84,6 +84,7 @@ _ID_RE = re.compile(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$")
 _STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
 _SET_RE = re.compile(r"(?m)^-\s*Set:\s*(.+?)\s*$")
 _ORDER_RE = re.compile(r"(?m)^-\s*Order:\s*(\d+)\s*$")
+_KIND_RE = re.compile(r"(?m)^-\s*Kind:\s*(\S+)\s*$")
 _DEPS_RE = re.compile(r"(?m)^-\s*(?:Dependencies|Depends-on):\s*(.+?)\s*$")
 _PLAN_FILENAME_RE = re.compile(
     r"^\d{8}-([a-z0-9_-]+)-(\d{1,3})-([a-z0-9]{6})-(.+)\.(ipd|draft|plan)\.md$"
@@ -257,6 +258,54 @@ def set_plan_approved(
         )
 
 
+def _set_children_all_executed(
+    state: dict[str, Any], setid: str, orchestrator_id6: str
+) -> tuple[bool, list[str]]:
+    """Return (all_executed, unfinished) for the NON-orchestrator members of `setid`
+    within this run's queue. A child counts as done ONLY if it reached `executed`
+    (substantially-complete / partial / blocked / reviewed / queued all count as NOT
+    done). Used to decide whether the runner may administratively finalize the set's
+    orchestrator."""
+    unfinished: list[str] = []
+    saw_child = False
+    for item in state["queue"]:
+        if item["setid"] != setid:
+            continue
+        if item["id6"] == orchestrator_id6 or item.get("action") == "orchestrate":
+            continue
+        saw_child = True
+        if item.get("status") != "executed":
+            unfinished.append(item["id6"])
+    # No children in-queue means nothing to gate on; treat as not-all-done (safe).
+    return (saw_child and not unfinished), unfinished
+
+
+def finalize_orchestrator(repo: Path, id6: str, message: str) -> bool:
+    """Administratively transition an orchestrator to executed via `aw ipd set executed`
+    (no agent turn). Returns True on success, False if the gated transition refused
+    (in which case the caller leaves it for a human). The runner NEVER forces it."""
+    cmd = [
+        sys.executable,
+        "-m",
+        "agent_workflows",
+        "ipd",
+        "set",
+        "executed",
+        id6,
+        "--actor",
+        "aw oc run (orchestrator rollup)",
+        "--dir",
+        str(repo),
+        "-m",
+        message,
+    ]
+    try:
+        run_checked(cmd, cwd=repo)
+        return True
+    except (DriverError, FileNotFoundError, OSError):
+        return False
+
+
 def git_common_dir(repo: Path) -> Path:
     raw = run_checked(["git", "rev-parse", "--git-common-dir"], cwd=repo)
     path = Path(raw)
@@ -376,6 +425,14 @@ def _read_order(text: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
+def _read_kind(text: str) -> str | None:
+    """Read the IPD's `- Kind:` metadata (orchestrator|child). This is the RELIABLE
+    signal for 'is this an orchestrator' - NOT the Order number - matching
+    ipd_schema.KIND_ORCHESTRATOR/KIND_CHILD."""
+    m = _KIND_RE.search(text)
+    return m.group(1).lower() if m else None
+
+
 def _read_deps(text: str) -> list[str]:
     m = _DEPS_RE.search(text)
     if not m:
@@ -397,6 +454,7 @@ class PlanRecord(NamedTuple):
     path: Path
     rel_path: str
     dependencies: list[str]
+    kind: str | None = None
 
 
 def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
@@ -409,6 +467,7 @@ def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
     status = _read_status(text)
     order = _read_order(text)
     deps = _read_deps(text)
+    kind = _read_kind(text)
     m = _PLAN_FILENAME_RE.match(path.name)
     if m:
         if not setid:
@@ -447,6 +506,7 @@ def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
         path=path.resolve(),
         rel_path=rel,
         dependencies=deps,
+        kind=kind,
     )
 
 
@@ -487,6 +547,7 @@ def build_dynamic_manifest(
             "status": rec.status,
             "order": rec.order,
             "dependencies": rec.dependencies,
+            "kind": rec.kind,
         }
         sets_dict.setdefault(rec.setid, []).append(rec)
     sorted_sets: dict[str, Any] = {}
@@ -825,7 +886,18 @@ def initialize_run(args: argparse.Namespace) -> Path:
             except Exception:
                 pass
 
-        action = determine_action(status or "approved")
+        # Orchestrators are NOT agent-executed by the runner: an orchestrator IPD
+        # (Kind: orchestrator) authors no code and only coordinates/verifies its set.
+        # In runner mode the runner IS the coordinator and each child is already
+        # verified twice (its own V-items + the fresh-session validation turn), so
+        # running the orchestrator as an agent turn is redundant and produces spurious
+        # blocked/partial. Instead the runner administratively finalizes it iff every
+        # child in its set reached `executed` (see run_queue). Detected by the reliable
+        # `- Kind:` field, not the Order number.
+        if (plan.get("kind") or "").lower() == "orchestrator":
+            action = "orchestrate"
+        else:
+            action = determine_action(status or "approved")
         queue.append(
             {
                 "position": position,
@@ -1772,6 +1844,47 @@ def run_queue(
             save_state(run_dir, state)
             break
         recovery = bool(runnable.pop("recovery_next", False))
+        # Orchestrators are not agent-executed: finalize iff every child in the set
+        # reached `executed`, else leave blocked (no agent turn). See queue-builder note.
+        if runnable.get("action") == "orchestrate":
+            repo = Path(state["repo"])
+            all_done, unfinished = _set_children_all_executed(
+                state, runnable["setid"], runnable["id6"]
+            )
+            if all_done and finalize_orchestrator(
+                repo,
+                runnable["id6"],
+                f"Orchestrator rollup: all children of set {runnable['setid']} executed "
+                f"(aw oc run, no agent turn).",
+            ):
+                runnable["status"] = "executed"
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "orchestrator-finalized",
+                        "id6": runnable["id6"],
+                        "setid": runnable["setid"],
+                    },
+                )
+            else:
+                runnable["status"] = "dependency-blocked"
+                runnable["unsatisfied_dependencies"] = unfinished
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "orchestrator-deferred",
+                        "id6": runnable["id6"],
+                        "setid": runnable["setid"],
+                        "reason": "not-all-children-executed"
+                        if not all_done
+                        else "finalize-refused",
+                        "unfinished_children": unfinished,
+                    },
+                )
+            save_state(run_dir, state)
+            continue
         try:
             execute_item(run_dir, state, runnable, recovery=recovery)
         except DriverError as exc:
