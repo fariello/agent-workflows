@@ -666,11 +666,21 @@ def expand_selectors(
 
 
 def resolve_plan_path(repo: Path, configured: str, id6: str) -> Path:
+    from agent_workflows import selectors
+
+    if id6:
+        try:
+            matched = selectors.resolve_selectors(repo, "plans", [id6])
+            if len(matched) == 1 and matched[0].is_file():
+                return matched[0].resolve()
+        except Exception:
+            pass
+
     if configured:
         direct = (repo / configured).resolve()
         if direct.is_file():
             return direct
-    roots = [repo / ".aw" / "records" / "plans", repo]
+    roots = [repo / ".aw" / "records" / "plans", repo / ".agents" / "plans", repo]
     matches: list[Path] = []
     for root in roots:
         if root.exists():
@@ -1089,9 +1099,9 @@ def build_verifier_prompt(
     return f"""# Independent Rigorous Verification of Executed IPD
 
 Plan: `{plan_path}`
-Id: `{item['id6']}`
-Set: `{item['setid']}`
-Run ID: `{state['run_id']}`
+Id: `{item["id6"]}`
+Set: `{item["setid"]}`
+Run ID: `{state["run_id"]}`
 Execution Outcome JSON: `{outcome}`
 Verification Outcome JSON to write: `{verify_outcome}`
 
@@ -1131,7 +1141,7 @@ and documentation satisfy every requirement before this plan can be considered e
    Before exiting, write valid JSON to `{verify_outcome}`:
    {{
      "schema_version": 1,
-     "id6": "{item['id6']}",
+     "id6": "{item["id6"]}",
      "verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED",
      "summary": "...",
      "evidence": [],
@@ -1517,7 +1527,14 @@ def execute_item(
         and disposition in ("executed", "substantially-complete")
         and not no_verify
     ):
-        v_prompt_text = build_verifier_prompt(item, state, run_dir, plan_path)
+        try:
+            current_plan_path = resolve_plan_path(
+                repo, item.get("configured_file", ""), item["id6"]
+            )
+        except DriverError:
+            current_plan_path = plan_path
+
+        v_prompt_text = build_verifier_prompt(item, state, run_dir, current_plan_path)
         v_prompt_file = write_prompt(
             run_dir, item, v_prompt_text, attempt_no, suffix="verify"
         )
@@ -1534,7 +1551,7 @@ def execute_item(
                 state,
                 run_dir,
                 item,
-                plan_path,
+                current_plan_path,
                 v_prompt_file,
                 attempt_no,
                 fresh_session=True,

@@ -1661,6 +1661,35 @@ class VerifierPromptTests(unittest.TestCase):
         self.assertIn(expected, exec_prompt)
         self.assertIn(expected, verify_prompt)
 
+    def test_resolve_plan_path_handles_transition_to_executed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            pending_dir = repo / ".aw" / "records" / "plans" / "pending"
+            executed_dir = repo / ".aw" / "records" / "plans" / "executed"
+            pending_dir.mkdir(parents=True)
+            executed_dir.mkdir(parents=True)
+
+            plan_p = pending_dir / "20260827-testset-01-xyz999-test-plan.ipd.md"
+            plan_p.write_text(
+                "- Id: xyz999\n- Set: testset\n- Status: approved\n# Test Plan\n",
+                encoding="utf-8",
+            )
+
+            # Resolves from pending
+            configured = (
+                ".aw/records/plans/pending/20260827-testset-01-xyz999-test-plan.ipd.md"
+            )
+            found_pending = driver.resolve_plan_path(repo, configured, "xyz999")
+            self.assertEqual(found_pending, plan_p.resolve())
+
+            # Move to executed
+            plan_e = executed_dir / "20260827-testset-01-xyz999-test-plan.ipd.md"
+            plan_p.rename(plan_e)
+
+            # Even with stale configured path, resolves to executed path via id6 selector
+            found_executed = driver.resolve_plan_path(repo, configured, "xyz999")
+            self.assertEqual(found_executed, plan_e.resolve())
+
 
 if __name__ == "__main__":
     unittest.main()
