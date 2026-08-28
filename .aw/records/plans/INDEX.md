@@ -7,6 +7,7 @@ Showing the 40 most-recent of 144 Sets; the full manifest is INDEX.json.
 ## tabcomp
 
 - `bja8og` [pending] 01 pending/20260828-tabcomp-01-bja8og-tab-completion-for-the-aw-cli-across-bash-zsh-fish-with-dyna.ipd.md
+- `4f1j25` [pending] 02 pending/20260828-tabcomp-02-4f1j25-integrate-tab-completion-into-aw-install-wizard-and-cli-setu.ipd.md
 
 ## driverfin
 

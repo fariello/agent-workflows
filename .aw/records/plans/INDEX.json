@@ -3540,6 +3540,16 @@
     "status": "to-review"
   },
   {
+    "date": "2026-08-28",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260828-tabcomp-02-4f1j25-integrate-tab-completion-into-aw-install-wizard-and-cli-setu.ipd.md",
+    "plan_id": "4f1j25",
+    "set_id": "tabcomp",
+    "status": "to-review"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",
