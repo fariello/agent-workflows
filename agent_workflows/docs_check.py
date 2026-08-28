@@ -156,9 +156,14 @@ def check_docs_dir(
     docs_dir: Path, subcommands: Optional[Sequence[str]] = None
 ) -> List[DocFinding]:
     """Run all checks over every ``*.md`` file under a docs directory."""
+    from agent_workflows import artifact_core as _core
+
     subs = list(subcommands) if subcommands is not None else known_subcommands()
     findings: List[DocFinding] = []
+    ignored_dirs = _core.get_ignored_dirs(docs_dir)
     for md in sorted(docs_dir.rglob("*.md")):
+        if _core.is_ignored_path(md, docs_dir, ignored_dirs):
+            continue
         findings.extend(check_doc(md, subs))
     return findings
 

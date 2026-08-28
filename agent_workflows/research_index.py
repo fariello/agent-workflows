@@ -1,7 +1,7 @@
 """Research tiered index generator + query + drift check (Set research-org, Order 03).
 
 ``aw research index [--check]`` regenerates ``INDEX.json`` (every doc) and ``INDEX.md`` (the
-most-recent-N hot glance: intake band + most-recent-N by set last-touched, reference INCLUDED,
+most-recent-N hot glance: todo band + most-recent-N by set last-touched, reference INCLUDED,
 archive EXCLUDED) purely from frontmatter. ``aw research find`` answers queries over the JSON
 cheaply. ``--check`` fails on drift (the spec 5.2 four classes: missing/invalid frontmatter,
 name-vs-frontmatter mismatch, stale generated view via in-memory byte-compare, AND a dangling
@@ -64,8 +64,13 @@ def _scan_docs(
     drift: List[Drift] = []
     if not research_root.is_dir():
         return entries, drift
+    ignored_dirs = _core.get_ignored_dirs(research_root)
     for p in sorted(research_root.rglob("*.md")):
-        if p.name in (INDEX_MD,) or p.name == "README.md":
+        if (
+            p.name in (INDEX_MD,)
+            or p.name == "README.md"
+            or _core.is_ignored_path(p, research_root, ignored_dirs)
+        ):
             continue
         parsed, name_err = R.parse_name(p.name)
         if parsed is None:
@@ -160,14 +165,14 @@ def build_index_json(entries: List[DocEntry]) -> str:
 
 
 def build_index_md(entries: List[DocEntry], limit: int = DEFAULT_INDEX_LIMIT) -> str:
-    """Render the bounded hot glance: intake band + most-recent-N, reference IN, archive OUT.
+    """Render the bounded hot glance: todo band + most-recent-N, reference IN, archive OUT.
 
     Deterministic total order: set last-touched desc, then set-id asc, then id6 asc.
     """
 
     last_touched = _set_last_touched(entries)
 
-    # Archive is excluded from the hot glance; intake/active/reference are eligible.
+    # Archive is excluded from the hot glance; todo/active/reference are eligible.
     glance = [e for e in entries if e.status != "archive"]
 
     # Total deterministic order: set last-touched DESC, then set-id ASC, then id6 ASC. We invert
@@ -182,17 +187,20 @@ def build_index_md(entries: List[DocEntry], limit: int = DEFAULT_INDEX_LIMIT) ->
     )
     top = glance_sorted[:limit]
 
-    intake = [e for e in entries if e.status == "intake"]
+    # rstodo p3o9je: the hot not-yet-worked band was renamed `intake` -> `todo`. Normalize the RAW
+    # scanned status so a legacy (unmigrated) `intake` doc still lands in the band during the
+    # migration window (behavior-preserving).
+    todo = [e for e in entries if R.normalize_status(e.status).value == "todo"]
 
     lines = [_MD_HEADER, "", "# Research index", ""]
     lines.append(
         f"Showing the most-recent {min(limit, len(glance_sorted))} of {len(glance_sorted)} hot docs (archive excluded)."
     )
     lines.append("")
-    if intake:
-        lines.append("## Needs addressing (intake)")
+    if todo:
+        lines.append("## Needs addressing (todo)")
         lines.append("")
-        for e in sorted(intake, key=lambda e: (e.set_id, e.order)):
+        for e in sorted(todo, key=lambda e: (e.set_id, e.order)):
             lines.append(f"- `{e.id6}` {e.path} - {e.summary}")
         lines.append("")
     lines.append("## Most recent")
@@ -226,7 +234,12 @@ def query(
     if topic:
         out = [e for e in out if topic in e.topic]
     if status:
-        out = [e for e in out if e.status == status]
+        # rstodo p3o9je: normalize both sides so `--status todo` matches a legacy `intake` doc (and
+        # `--status intake` still matches) during the migration window.
+        want = R.normalize_status(status).value or status
+        out = [
+            e for e in out if (R.normalize_status(e.status).value or e.status) == want
+        ]
     return sorted(out, key=lambda e: (e.set_id, e.order, e.id6))
 
 
@@ -275,7 +288,7 @@ def unrun_set_ids(entries: List[DocEntry]) -> set:
 def run_prompt_set_ids(entries: List[DocEntry]) -> set:
     """The set-ids that are RUN PROMPT sets: a set with a ``NN=00 research-prompt`` AND at least
     one ``NN>=01`` sibling. Sets with no prompt at all are NOT part of the prompt run/unrun
-    taxonomy (so an ordinary lone intake doc's set is neither run nor unrun here)."""
+    taxonomy (so an ordinary lone todo doc's set is neither run nor unrun here)."""
 
     by_set: Dict[str, List[DocEntry]] = {}
     for e in entries:
@@ -457,10 +470,12 @@ def check_drift(
     # Dangling citations via Order 04's imported detector primitive.
     for d in RF.find_dangling_citations(repo_root, research_root):
         drift.append(Drift(f"{d.file}:{d.line}", "dangling-citation", f"id6 {d.id6}"))
-    # Stale-state-to-promote (IPD m383qb E-02): an intake/active doc whose SET is RUN
+    # Stale-state-to-promote (IPD m383qb E-02): a todo/active doc whose SET is RUN
     # (structural, E-01) OR that is cited by an EXECUTED artifact is stale hot state and must be
     # promoted. Keeps state honest without trusting the hand-typed status.
-    hot = [e for e in entries if e.status in R.HOT_STATUSES]
+    # rstodo p3o9je: normalize the raw status so a legacy (unmigrated) `intake` doc is still treated
+    # as a hot `todo` doc by the stale-state check during the migration window.
+    hot = [e for e in entries if R.normalize_status(e.status).value in R.HOT_STATUSES]
     if hot:
         run_sets = run_prompt_set_ids(entries)
         cited_exec = cited_by_executed_ids(repo_root, research_root)

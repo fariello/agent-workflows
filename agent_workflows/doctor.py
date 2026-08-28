@@ -422,7 +422,11 @@ def probe_artifacts(
         from agent_workflows import artifact_types as at
 
         for t in at.ARTIFACT_TYPES:
-            all_files = list(check_engine._iter_type_files(repo_root, t))
+            all_files = list(
+                check_engine._iter_type_files(
+                    repo_root, t, include_untracked=include_untracked
+                )
+            )
             if not include_untracked:
                 filtered_files = [p for p in all_files if "untracked" not in p.parts]
                 res.untracked_skipped += len(all_files) - len(filtered_files)
@@ -431,7 +435,9 @@ def probe_artifacts(
 
             res.type_counts[t] = len(filtered_files)
             if t in check_engine.SUPPORTED:
-                tdrift = check_engine.check_type(repo_root, t)
+                tdrift = check_engine.check_type(
+                    repo_root, t, include_untracked=include_untracked
+                )
                 if tdrift:
                     for d in tdrift:
                         loc = d.location
@@ -457,7 +463,11 @@ def probe_artifacts(
         # Global setid collisions across types, PLUS the proclint 79li67 COMMIT-SCOPED untooled-status
         # detector (a fast no-op unless a plan `- Status:` change is staged). Both are cross-tree /
         # commit-wide rules keyed off git state rather than a single record file.
-        collisions = list(check_engine.check_collisions(repo_root))
+        collisions = list(
+            check_engine.check_collisions(
+                repo_root, include_untracked=include_untracked
+            )
+        )
         try:
             collisions.extend(check_engine.check_status_untooled(repo_root))
         except Exception:
@@ -998,7 +1008,11 @@ def _categorize_drift(d: core.Drift, repo_root: Path) -> Tuple[str, str, str, st
     else:
         fname = loc
         found = (
-            list(repo_root.rglob(fname))
+            [
+                cand
+                for cand in repo_root.rglob(fname)
+                if not core.is_ignored_path(cand, repo_root)
+            ]
             if fname
             not in (
                 "<git>",

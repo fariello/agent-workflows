@@ -233,6 +233,49 @@ class LegacyNamesTests(unittest.TestCase):
         )
         self.assertEqual(ce.check_names(self.root, "plans"), [])
 
+    def test_ignored_directories_not_checked(self) -> None:
+        # Create invalid files in tmp/ and subdirs of tmp/
+        tmp_dir = self.root / "tmp"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        (tmp_dir / "bad-nonconformant.ipd.md").write_text(
+            "# IPD\n\n- Id: aaa111\n- Status: draft\n\n## Goal\n\nx\n",
+            encoding="utf-8",
+        )
+        (tmp_dir / "bad-spec.spec.md").write_text(
+            "# Spec: bad\n\nno frontmatter\n",
+            encoding="utf-8",
+        )
+
+        # Create invalid file in an ignored subdirectory under .aw/records/plans/tmp/
+        sub_tmp = self.root / ".aw" / "records" / "plans" / "tmp"
+        sub_tmp.mkdir(parents=True, exist_ok=True)
+        (sub_tmp / "bad-sub-tmp.ipd.md").write_text(
+            "# IPD\n\n- Id: ccc333\n- Status: invalid-status\n",
+            encoding="utf-8",
+        )
+
+        # Create valid conformant plan in pending
+        (self.plans / "20260101-demo-02-bbb222-valid.ipd.md").write_text(
+            "# IPD: valid\n\n- Id: bbb222\n- Status: approved\n- Set: demo\n\n## Goal\n\nx\n",
+            encoding="utf-8",
+        )
+
+        # Names check should not see files in tmp/ or plans/tmp/
+        drift_names = ce.check_names(self.root, "plans")
+        self.assertFalse(any("tmp" in d.location for d in drift_names))
+
+        # Content check should not see files in tmp/ or plans/tmp/
+        drift_content = ce.check_content(self.root, "plans")
+        self.assertFalse(any("tmp" in d.location for d in drift_content))
+
+        # Collision check should not see files in tmp/ or plans/tmp/
+        drift_collisions = ce.check_collisions(self.root)
+        self.assertFalse(any("tmp" in d.location for d in drift_collisions))
+
+        # check_types with ['all'] should not flag files in tmp/
+        drift_all = ce.check_types(self.root, ["all"])
+        self.assertFalse(any("tmp" in d.location for d in drift_all))
+
 
 if __name__ == "__main__":
     unittest.main()

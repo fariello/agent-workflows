@@ -100,7 +100,10 @@ def _current_id6s(research_root: Path) -> set:
 
     ids = set()
     if research_root.is_dir():
+        ignored_dirs = _core.get_ignored_dirs(research_root)
         for p in research_root.rglob("*.md"):
+            if _core.is_ignored_path(p, research_root, ignored_dirs):
+                continue
             parsed, _err = R.parse_name(p.name)
             if parsed is not None:
                 ids.add(parsed.id6)

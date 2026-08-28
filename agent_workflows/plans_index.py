@@ -89,8 +89,11 @@ def scan_plans(plans_dir: Path) -> Tuple[List[PlanEntry], List[_core.Drift]]:
     drift: List[_core.Drift] = []
     if not plans_dir.is_dir():
         return entries, drift
+    ignored_dirs = _core.get_ignored_dirs(plans_dir)
     for p in sorted(plans_dir.rglob("*.md")):
-        if p.name in _EXCLUDE_NAMES:
+        if p.name in _EXCLUDE_NAMES or _core.is_ignored_path(
+            p, plans_dir, ignored_dirs
+        ):
             continue
         rel = p.relative_to(plans_dir).as_posix()
         disposition = rel.split("/", 1)[0]

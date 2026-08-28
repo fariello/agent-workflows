@@ -203,13 +203,20 @@ def check_blocks_release(repo_root: Path) -> List[_core.Drift]:
     disposition subdirs (pending/executed/...). This runs in the full cross-tree sweep (`aw check
     all`), not a type-scoped `aw check plans`."""
     repo_root = Path(repo_root)
+    ignored_dirs = _core.get_ignored_dirs(repo_root)
     drift: List[_core.Drift] = []
     for sub in ("backlog", "specs", "plans"):
         for base in (repo_root / ".aw" / "records" / sub, repo_root / ".agents" / sub):
-            if not base.is_dir():
+            if not base.is_dir() or _core.is_ignored_path(
+                base, repo_root, ignored_dirs
+            ):
                 continue
             for p in base.rglob("*.md"):
-                if p.name in ("README.md", "INDEX.md", "STATUS.md"):
+                if p.name in (
+                    "README.md",
+                    "INDEX.md",
+                    "STATUS.md",
+                ) or _core.is_ignored_path(p, repo_root, ignored_dirs):
                     continue
                 try:
                     text = p.read_text(encoding="utf-8")
@@ -238,14 +245,21 @@ def check_from_backlog(repo_root: Path) -> List[_core.Drift]:
     )  # local import avoids an import cycle
 
     repo_root = Path(repo_root)
+    ignored_dirs = _core.get_ignored_dirs(repo_root)
     drift: List[_core.Drift] = []
     known = _backlog.existing_backlog_ids(repo_root)
     for sub in ("plans", "specs", "backlog"):
         for base in (repo_root / ".aw" / "records" / sub, repo_root / ".agents" / sub):
-            if not base.is_dir():
+            if not base.is_dir() or _core.is_ignored_path(
+                base, repo_root, ignored_dirs
+            ):
                 continue
             for p in base.rglob("*.md"):
-                if p.name in ("README.md", "INDEX.md", "STATUS.md"):
+                if p.name in (
+                    "README.md",
+                    "INDEX.md",
+                    "STATUS.md",
+                ) or _core.is_ignored_path(p, repo_root, ignored_dirs):
                     continue
                 try:
                     text = p.read_text(encoding="utf-8")

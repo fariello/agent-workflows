@@ -56,8 +56,11 @@ def _read_id(text: str) -> Optional[str]:
 
 
 def _find_plan_by_id(plans_dir: Path, id6: str) -> Optional[Path]:
+    ignored_dirs = _core.get_ignored_dirs(plans_dir)
     for p in plans_dir.rglob("*.md"):
-        if p.name in _idx._EXCLUDE_NAMES:
+        if p.name in _idx._EXCLUDE_NAMES or _core.is_ignored_path(
+            p, plans_dir, ignored_dirs
+        ):
             continue
         if _read_id(p.read_text(encoding="utf-8")) == id6:
             return p

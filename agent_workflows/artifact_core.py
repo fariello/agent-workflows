@@ -172,17 +172,120 @@ SCAN_ROOTS = (
 
 _TEXT_SUFFIXES = (".md", ".txt")
 
+DEFAULT_IGNORED_DIR_NAMES = frozenset(
+    {
+        "tmp",
+        ".tmp",
+        ".git",
+        "__pycache__",
+        ".pytest_cache",
+        ".ruff_cache",
+        "node_modules",
+        ".venv",
+        "venv",
+        ".aw/records/runs",
+        ".aw/state",
+        ".aw/workflow-artifacts",
+        ".agent-workflows-installer-backups",
+    }
+)
+
+
+def get_ignored_dirs(repo_root: Path) -> set[str]:
+    """Return repo-relative POSIX paths of gitignored DIRECTORIES + default ignore sets."""
+    repo_root = Path(repo_root)
+    ignored: set[str] = set(DEFAULT_IGNORED_DIR_NAMES)
+    try:
+        res = subprocess.run(
+            [
+                "git",
+                "ls-files",
+                "--others",
+                "--ignored",
+                "--exclude-standard",
+                "--directory",
+                "-z",
+            ],
+            cwd=str(repo_root),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=False,
+            check=False,
+        )
+        if res.returncode == 0:
+            for item in res.stdout.decode("utf-8", errors="replace").split("\0"):
+                clean = item.strip().rstrip("/")
+                if clean:
+                    ignored.add(clean)
+    except Exception:
+        pass
+    return ignored
+
+
+def is_ignored_path(
+    path: Path,
+    repo_root: Path,
+    ignored_dirs: Optional[set[str]] = None,
+    include_untracked: bool = False,
+) -> bool:
+    """Return True if path is within an ignored directory or matches ignore rules."""
+    try:
+        rel_path = path.resolve().relative_to(repo_root.resolve())
+    except (ValueError, OSError):
+        try:
+            rel_path = path.relative_to(repo_root)
+        except ValueError:
+            rel_path = Path(path.as_posix())
+
+    rel_parts = rel_path.parts
+    if any(
+        p
+        in (
+            "tmp",
+            ".tmp",
+            "__pycache__",
+            ".pytest_cache",
+            ".ruff_cache",
+            "node_modules",
+            ".venv",
+            "venv",
+            ".git",
+        )
+        for p in rel_parts
+    ):
+        return True
+
+    if not include_untracked and "untracked" in rel_parts:
+        return True
+
+    rel = rel_path.as_posix()
+    if ignored_dirs is None:
+        ignored_dirs = get_ignored_dirs(repo_root)
+    parts_list = rel.split("/")
+    for i in range(1, len(parts_list) + 1):
+        sub = "/".join(parts_list[:i])
+        if sub in ignored_dirs:
+            if include_untracked and "untracked" in sub.split("/"):
+                continue
+            return True
+    return False
+
 
 def iter_scan_files(repo_root: Path, scan_roots=SCAN_ROOTS) -> List[Path]:
-    """Return every tracked-text file under the given scan roots (deterministic, sorted)."""
+    """Return every tracked-text file under the given scan roots (deterministic, sorted), skipping ignored dirs."""
 
+    ignored_dirs = get_ignored_dirs(repo_root)
     files: List[Path] = []
     for rel in scan_roots:
         p = repo_root / rel
+        if is_ignored_path(p, repo_root, ignored_dirs):
+            continue
         if p.is_file():
             files.append(p)
         elif p.is_dir():
             for f in sorted(p.rglob("*")):
+                if is_ignored_path(f, repo_root, ignored_dirs):
+                    continue
                 if f.is_file() and f.suffix in _TEXT_SUFFIXES:
                     files.append(f)
     return sorted(set(files))

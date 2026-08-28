@@ -86,14 +86,26 @@ def _type_dirs(repo_root: Path, record_type: str) -> List[Path]:
     return out
 
 
-def _iter_type_files(repo_root: Path, record_type: str):
-    """Yield each non-index *.md path for the type, de-duplicated by resolved path."""
+def _iter_type_files(
+    repo_root: Path, record_type: str, include_untracked: bool = False
+):
+    """Yield each non-index *.md path for the type, de-duplicated by resolved path and skipping ignored dirs."""
+    ignored_dirs = _core.get_ignored_dirs(repo_root)
     seen: set = set()
     for d in _type_dirs(repo_root, record_type):
+        if _core.is_ignored_path(
+            d, repo_root, ignored_dirs, include_untracked=include_untracked
+        ):
+            continue
         for p in d.rglob("*.md"):
-            if p.name in _SKIP_NAMES:
+            if p.name in _SKIP_NAMES or _core.is_ignored_path(
+                p, repo_root, ignored_dirs, include_untracked=include_untracked
+            ):
                 continue
-            key = str(p.resolve())
+            try:
+                key = str(p.resolve())
+            except OSError:
+                continue
             if key in seen:
                 continue
             seen.add(key)
@@ -119,7 +131,10 @@ def _load_normalizer():
 
 
 def check_names(
-    repo_root: Path, record_type: str, legacy: bool = False
+    repo_root: Path,
+    record_type: str,
+    legacy: bool = False,
+    include_untracked: bool = False,
 ) -> List[_core.Drift]:
     """Filename-grammar conformity for a type's files. Research is skipped (own grammar). If the
     normalizer cannot be located, returns [] (names simply not checked)."""
@@ -130,7 +145,9 @@ def check_names(
     if npn is None:
         return []
     drift: List[_core.Drift] = []
-    for p in _iter_type_files(repo_root, record_type):
+    for p in _iter_type_files(
+        repo_root, record_type, include_untracked=include_untracked
+    ):
         if npn.is_conformant(p.name, expected_type=facet):
             continue
         # legacy=True allows a name that FAILS is_conformant but is a RECOGNIZED legacy shape
@@ -149,7 +166,10 @@ def check_names(
 
 
 def check_content(
-    repo_root: Path, record_type: str, legacy: bool = False
+    repo_root: Path,
+    record_type: str,
+    legacy: bool = False,
+    include_untracked: bool = False,
 ) -> List[_core.Drift]:
     """Front-matter/status/contract validation, delegated to the existing per-type validators."""
     repo_root = Path(repo_root)
@@ -158,7 +178,9 @@ def check_content(
         from agent_workflows import specs as _specs
 
         # Discover files via _type_dirs (robust for a bare repo), validate each with validate_spec.
-        for p in _iter_type_files(repo_root, "specs"):
+        for p in _iter_type_files(
+            repo_root, "specs", include_untracked=include_untracked
+        ):
             try:
                 drift.extend(_specs.validate_spec(p, p.read_text(encoding="utf-8")))
             except OSError:
@@ -166,7 +188,9 @@ def check_content(
     elif record_type == "backlog":
         from agent_workflows import backlog as _backlog
 
-        for p in _iter_type_files(repo_root, "backlog"):
+        for p in _iter_type_files(
+            repo_root, "backlog", include_untracked=include_untracked
+        ):
             try:
                 drift.extend(_backlog.validate_item(p, p.read_text(encoding="utf-8")))
             except OSError:
@@ -261,7 +285,9 @@ def _parse_setid(text: str):
     return setid, desc
 
 
-def check_collisions(repo_root: Path) -> List[_core.Drift]:
+def check_collisions(
+    repo_root: Path, include_untracked: bool = False
+) -> List[_core.Drift]:
     """Cross-tree id6 AND setid uniqueness, PLUS the filename identity-slot invariant (D140).
 
     Runs ONCE over every SUPPORTED type (collisions are global, not per-type):
@@ -292,7 +318,7 @@ def check_collisions(repo_root: Path) -> List[_core.Drift]:
     records: List[tuple] = []
     for record_type in SUPPORTED:
         for p in _iter_type_files(
-            repo_root, record_type
+            repo_root, record_type, include_untracked=include_untracked
         ):  # already deduped by resolved path
             try:
                 text = p.read_text(encoding="utf-8")
@@ -558,6 +584,7 @@ def check_type(
     names_only: bool = False,
     legacy: bool = False,
     _from_all: bool = False,
+    include_untracked: bool = False,
 ) -> List[_core.Drift]:
     """Compose the supported sub-checks for one type into a single Drift list."""
     kinds = SUPPORTED.get(record_type)
@@ -572,12 +599,33 @@ def check_type(
     drift: List[_core.Drift] = []
     if names_only:
         if "names" in kinds:
-            drift.extend(check_names(repo_root, record_type, legacy=legacy))
+            drift.extend(
+                check_names(
+                    repo_root,
+                    record_type,
+                    legacy=legacy,
+                    include_untracked=include_untracked,
+                )
+            )
         return drift
     if "names" in kinds:
-        drift.extend(check_names(repo_root, record_type, legacy=legacy))
+        drift.extend(
+            check_names(
+                repo_root,
+                record_type,
+                legacy=legacy,
+                include_untracked=include_untracked,
+            )
+        )
     if "content" in kinds:
-        drift.extend(check_content(repo_root, record_type, legacy=legacy))
+        drift.extend(
+            check_content(
+                repo_root,
+                record_type,
+                legacy=legacy,
+                include_untracked=include_untracked,
+            )
+        )
     if "refs" in kinds:
         drift.extend(check_refs(repo_root, record_type))
     return drift
@@ -589,6 +637,7 @@ def check_types(
     names_only: bool = False,
     legacy: bool = False,
     collisions: bool = False,
+    include_untracked: bool = False,
 ) -> List[_core.Drift]:
     """Fan out check_type over the given types (or every SUPPORTED type for the ['all'] sentinel),
     concatenating Drift; unsupported types are skipped. The ['all'] sentinel implies
@@ -602,11 +651,16 @@ def check_types(
     for t in target:
         drift.extend(
             check_type(
-                repo_root, t, names_only=names_only, legacy=legacy, _from_all=True
+                repo_root,
+                t,
+                names_only=names_only,
+                legacy=legacy,
+                _from_all=True,
+                include_untracked=include_untracked,
             )
         )
     if collisions:
-        drift.extend(check_collisions(repo_root))
+        drift.extend(check_collisions(repo_root, include_untracked=include_untracked))
         # awrelease Order 02: dangling Blocks-Release references are a cross-tree ref check, run once
         # alongside collisions in the full sweep.
         try:
@@ -688,15 +742,18 @@ def resolve_evidence_artifact(repo_root: Path, evidence: str) -> bool:
 
 
 def _iter_plan_ipds(repo_root: Path):
-    """Yield (path, text) for every plan IPD under either layout's plans tree."""
+    """Yield (path, text) for every plan IPD under either layout's plans tree, skipping ignored dirs."""
+    ignored_dirs = _core.get_ignored_dirs(repo_root)
     for base in (
         Path(repo_root) / ".aw" / "records" / "plans",
         Path(repo_root) / ".agents" / "plans",
     ):
-        if not base.is_dir():
+        if not base.is_dir() or _core.is_ignored_path(base, repo_root, ignored_dirs):
             continue
         for p in sorted(base.rglob("*.ipd.md")):
-            if p.name in _SKIP_NAMES:
+            if p.name in _SKIP_NAMES or _core.is_ignored_path(
+                p, repo_root, ignored_dirs
+            ):
                 continue
             try:
                 yield p, p.read_text(encoding="utf-8")
