@@ -3457,7 +3457,7 @@
     "path": "pending/20260827-driverfin-00-yt93ir-aw-oc-agy-run-self-finalize-each-verified-ipd-and-isolate-ea.ipd.md",
     "plan_id": "yt93ir",
     "set_id": "driverfin",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-27",
@@ -3467,7 +3467,7 @@
     "path": "pending/20260827-driverfin-01-p7peqf-driver-self-finalizes-run-aw-ipd-begin-before-and-aw-ipd-fin.ipd.md",
     "plan_id": "p7peqf",
     "set_id": "driverfin",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-27",
@@ -3477,7 +3477,7 @@
     "path": "pending/20260827-driverfin-02-emus4n-per-run-worktree-isolation-execute-each-ipd-in-its-own-git-w.ipd.md",
     "plan_id": "emus4n",
     "set_id": "driverfin",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-27",
@@ -3487,7 +3487,7 @@
     "path": "pending/20260827-driverfin-03-7kbtkw-fail-closed-dirty-tree-integration-guard-and-merge-back-conf.ipd.md",
     "plan_id": "7kbtkw",
     "set_id": "driverfin",
-    "status": "draft"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-27",

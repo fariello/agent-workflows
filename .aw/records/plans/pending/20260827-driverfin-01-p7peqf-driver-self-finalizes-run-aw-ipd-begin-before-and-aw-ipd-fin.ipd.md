@@ -5,8 +5,8 @@
 - Concern: The driver executes a child IPD and the agent commits its work, but NOTHING runs `aw ipd begin` or `aw ipd finalize`, so verified children stay `Status: approved` in pending/ and sets never finish (this session's "nothing moved to executed"; we finalized 3 by hand). The gated lifecycle (`aw ipd begin` writes an execution-authority receipt; `aw ipd finalize` validates it, runs pre/post-transition lint, reconciles changed-paths vs Scope-Paths, moves the plan to executed/, path-scoped-commits) already exists (ipd_lifecycle / cli `ipd begin`/`finalize`) - the driver just doesn't call it. This child wires it in. (ctt412 core.)
 - Scope: In `oc_runipd.py` (and `agy_runipd.py`), make the driver drive the FULL lifecycle for an execute-action child: (1) run `aw ipd begin <id6> --actor <agent/model>` BEFORE the agent turn (fail-closed: no receipt = no execution authority), so scope + base HEAD are frozen; (2) after the agent turn completes AND the deterministic/verification checks pass, run `aw ipd finalize <id6> --actor ... [--scope-reason/--scope-ack ...]`, performing the two-way scope reconciliation programmatically (the driver knows the plan's Scope-Paths and the actual changed paths, so it can supply the acks/reasons that we did by hand); (3) on finalize success the child's runner status becomes `executed`; on finalize refusal (unresolved scope, failing lint, missing evidence) the child is recorded NOT-executed (substantially-complete/failed-safely) and the set stays unfinished - never fake executed. Do NOT isolate in a worktree yet (child 02) and do NOT change orchestrator handling (already done, 801dd28). Reuse the existing begin/finalize surface; do not fork a second finalize path.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/ipd_lifecycle.py, tests/
-- Item-Dependencies: unresolved
-- Status: draft
+- Item-Dependencies: none
+- Status: reviewed
 - Set: driverfin
 - Order: 1
 - Highest E allocated: 02
@@ -15,6 +15,7 @@
 
 ## Workflow history
 
+- 2026-08-28 reviewed (Antigravity): /plan-review passed with revisions; resolved Item-Dependencies to none, populated concrete V evidence, resolved OQ-01, and completed execution gate.
 - 2026-08-27 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.
 
 ## Goal
@@ -49,7 +50,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Findings
 
-The transition machinery all exists; the only new logic is (a) calling begin/finalize at the right points in the driver loop and (b) computing the scope reconciliation the driver already has the data for. No forked finalize path.
+- The transition machinery all exists; the only new logic is (a) calling begin/finalize at the right points in the driver loop and (b) computing the scope reconciliation the driver already has the data for. No forked finalize path.
 
 ## Proposed changes (ordered, validatable)
 
@@ -84,27 +85,27 @@ The transition machinery all exists; the only new logic is (a) calling begin/fin
 ### OQ-01: When does the driver commit the agent's work vs. let finalize do the lifecycle commit?
 
 - Blocking: no
-- Status: open
-- Owner: none
-- Resolution or deferral rationale: The agent commits its own product changes path-scoped during the turn; `aw ipd finalize` makes the lifecycle commit (status/move/index). Confirm no double-commit and that finalize's path-scoped commit covers only the plan-lifecycle files. Reconcile with the selfcommit git_commit_helper if the driver later commits on the agent's behalf.
+- Status: resolved
+- Owner: Antigravity
+- Resolution or deferral rationale: Resolved. The agent commits its product code changes path-scoped during its execution turn. `aw ipd finalize` separately performs the lifecycle commit covering only the plan movement, plan status metadata, and index manifest.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: TODO falsifiable evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: Test in `tests/test_oc_runipd.py` demonstrating `aw ipd begin` is invoked prior to agent execution, generating a valid `.aw/state/receipts/<id6>.receipt.json` begin receipt, and that a simulated begin refusal blocks the child cleanly without executing.
   - Observed evidence:
   - Result: pending
 
+- [ ] V-02 validates E-02
+  - Required evidence: Test in `tests/test_oc_runipd.py` demonstrating that after a verified child turn, `aw ipd finalize` is executed with programmatic `--scope-ack` arguments, the plan is moved to `.aw/records/plans/executed/`, and its status is updated to `executed`.
+  - Observed evidence:
+  - Result: pending
 
 ## Approval and execution gate
 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-TODO: approval + execution gate prose (execution contract, post-gate lifecycle move).
+Execution contract: execution requires explicit human approval. Upon approval, implement according to the checklist, verify all V items with test outputs, run `aw ipd lint --phase pre-transition`, and finalize via the IPD lifecycle workflow.

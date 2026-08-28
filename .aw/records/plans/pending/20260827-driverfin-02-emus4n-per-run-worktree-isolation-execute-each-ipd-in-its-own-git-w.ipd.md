@@ -5,8 +5,8 @@
 - Concern: The driver runs every IPD's agent in the ONE main working tree, so concurrent runs (and even a serial run inheriting a prior run's uncommitted leftovers) clobber each other's files and finalize refuses on foreign dirty paths - the root of this session's contamination. The `worktree_lease` module already provides `allocate_worktree`/`teardown_worktree`/`allocate_session`/`LeaseTable`/`assert_worker_scope` (an earlier vwios6ipd run DID use `/tmp/opencode/aw-*-wt` worktrees), but the current driver ignores it. This child makes the driver execute each IPD in its own isolated worktree/branch and integrate the verified result back to main.
 - Scope: Wrap the child-01 begin/execute/finalize pipeline in per-IPD worktree isolation: (1) before the agent turn, `allocate_worktree` a fresh worktree on a run/<id6> branch (via worktree_lease) and point the agent at it (`--dir <worktree>`); (2) begin/execute/verify/finalize all happen IN that worktree, so the main tree is untouched during the turn; (3) after finalize succeeds in the worktree, INTEGRATE the verified branch back to main (fast-forward if possible; else a controlled merge of only that IPD's commits); (4) `teardown_worktree` on success. Run-ledger + begin receipts remain anchored to the main repo's gitignored `.aw/` keyed by run-id (OQ from orchestrator) so finalize/state is findable regardless of worktree. This child delivers isolation + happy-path integration; the fail-closed guard + merge-CONFLICT handling is child 03. Reuse worktree_lease; do not fork worktree logic.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/worktree_lease.py, tests/
-- Item-Dependencies: unresolved
-- Status: draft
+- Item-Dependencies: executed:p7peqf
+- Status: reviewed
 - Set: driverfin
 - Order: 2
 - Highest E allocated: 02
@@ -15,6 +15,7 @@
 
 ## Workflow history
 
+- 2026-08-28 reviewed (Antigravity): /plan-review passed with revisions; resolved Item-Dependencies to executed:p7peqf, populated concrete V evidence, resolved OQ-01, and completed execution gate.
 - 2026-08-27 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.
 
 ## Goal
@@ -49,7 +50,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Findings
 
-Isolation is the structural fix for contamination (impossible to clobber across worktrees). The genuinely new risk is integration (E-NEW task 2) and, next child, conflicts; the allocate/execute half is a direct reuse of worktree_lease.
+- Isolation is the structural fix for contamination (impossible to clobber across worktrees). The genuinely new risk is integration (E-NEW task 2) and, next child, conflicts; the allocate/execute half is a direct reuse of worktree_lease.
 
 ## Proposed changes (ordered, validatable)
 
@@ -82,27 +83,27 @@ Isolation is the structural fix for contamination (impossible to clobber across 
 ### OQ-01: Isolation per-IPD or per-set (one worktree reused across a set's children)?
 
 - Blocking: no
-- Status: open
-- Owner: none
-- Resolution or deferral rationale: Per-IPD is simplest + maximally isolated but re-creates a worktree per child; per-set reuses one worktree across a set's children (they share context, and the set integrates once). Lean per-IPD for isolation clarity; revisit if worktree churn is costly. Decide in implementation.
+- Status: resolved
+- Owner: Antigravity
+- Resolution or deferral rationale: Resolved. Per-IPD worktree allocation is selected for maximum cleanliness, isolation determinism, and parallel safety. Each IPD executes in its own isolated worktree and merges back to main upon successful verification and finalization.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: TODO falsifiable evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: Unit test in `tests/test_oc_runipd.py` asserting that during a simulated child execution, the main git repository working tree has an empty diff/status while mutations occur only within the allocated worktree path.
   - Observed evidence:
   - Result: pending
 
+- [ ] V-02 validates E-02
+  - Required evidence: Test in `tests/test_oc_runipd.py` demonstrating that upon completion of the verification and finalization turn, commits are integrated back to the main branch via fast-forward or squash/merge, and `teardown_worktree` removes the temporary worktree directory.
+  - Observed evidence:
+  - Result: pending
 
 ## Approval and execution gate
 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-TODO: approval + execution gate prose (execution contract, post-gate lifecycle move).
+Execution contract: execution requires explicit human approval. Upon approval, implement according to the checklist, verify all V items with test outputs, run `aw ipd lint --phase pre-transition`, and finalize via the IPD lifecycle workflow.

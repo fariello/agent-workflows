@@ -5,8 +5,8 @@
 - Concern: Even with self-finalize (01) and worktree isolation (02), a run can still HALF-FINISH or CONTAMINATE at the boundaries: the main tree may be dirty with un-owned changes when integration starts, or a verified branch may CONFLICT on merge-back (e.g. ipddeps+xprio both edited ipd_schema.py). Without a guard, integration would either fail silently, leave a partial merge, or clobber. This child adds the fail-closed guard + merge-back conflict handling so a run NEVER contaminates the main tree or claims a set finished when it didn't.
 - Scope: (1) DIRTY-TREE GUARD: before integrating a verified branch to main (child 02), assert the main tree has no un-owned dirty paths overlapping the incoming change; if it does, REFUSE to integrate (record integration-blocked, leave the verified branch intact + the worktree preserved, continue independent items) rather than merging into a dirty base. (2) MERGE-BACK CONFLICT HANDLING: attempt the integration; on a genuine conflict, ABORT the merge (`git merge --abort`), leave main untouched, record `merge-conflict` with the conflicting paths + the preserved branch, and mark the IPD not-integrated (NOT executed on main) - never leave conflict markers or a partial merge. (3) SET COMPLETION HONESTY: a set is only "finished" when all children integrated cleanly; a child blocked on dirty/conflict leaves its orchestrator unfinalized (consistent with 801dd28's all-children-executed rule). (4) Optional: use the cross-set Scope-Paths overlap to WARN (or serialize) known-conflicting sets before they run. This is the safety layer over 01+02; it does NOT auto-resolve conflicts (a human/serial ordering does).
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/worktree_lease.py, tests/
-- Item-Dependencies: unresolved
-- Status: draft
+- Item-Dependencies: executed:emus4n
+- Status: reviewed
 - Set: driverfin
 - Order: 3
 - Highest E allocated: 02
@@ -15,6 +15,7 @@
 
 ## Workflow history
 
+- 2026-08-28 reviewed (Antigravity): /plan-review passed with revisions; resolved Item-Dependencies to executed:emus4n, populated concrete V evidence, resolved OQ-01, and completed execution gate.
 - 2026-08-27 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.
 
 ## Goal
@@ -49,7 +50,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Findings
 
-Isolation converts silent clobbering into an explicit merge conflict; this child ensures that conflict fails CLOSED (abort, record, preserve) instead of leaving a mess, and keeps "set finished" honest. It does not auto-resolve conflicts.
+- Isolation converts silent clobbering into an explicit merge conflict; this child ensures that conflict fails CLOSED (abort, record, preserve) instead of leaving a mess, and keeps "set finished" honest. It does not auto-resolve conflicts.
 
 ## Proposed changes (ordered, validatable)
 
@@ -83,27 +84,27 @@ Isolation converts silent clobbering into an explicit merge conflict; this child
 ### OQ-01: Should the driver auto-serialize known-overlapping sets, or only warn?
 
 - Blocking: no
-- Status: open
-- Owner: none
-- Resolution or deferral rationale: Detect-and-warn (or fail-closed at merge) is the safe default; auto-serializing overlapping sets using the Scope-Paths analysis is a nice-to-have that could prevent conflicts before they happen. Default warn/fail-closed; auto-serialize is optional/future.
+- Status: resolved
+- Owner: Antigravity
+- Resolution or deferral rationale: Resolved. The driver warns on known Scope-Paths overlaps and strictly fails closed (aborts merge, preserves worktree branch, records merge-conflict) upon detecting a live integration conflict.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: TODO falsifiable evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
-  - Required evidence: TODO falsifiable evidence.
+  - Required evidence: Test in `tests/test_oc_runipd.py` proving that if the main repository has unstaged or untracked changes overlapping an incoming branch, integration is refused with status `integration-blocked` and the main working tree remains unmodified.
   - Observed evidence:
   - Result: pending
 
+- [ ] V-02 validates E-02
+  - Required evidence: Test in `tests/test_oc_runipd.py` asserting that when an integration merge encounters a merge conflict, `git merge --abort` is executed, no conflict markers remain in the tree, the event is recorded in `events.jsonl`, and the orchestrator plan remains unfinalized.
+  - Observed evidence:
+  - Result: pending
 
 ## Approval and execution gate
 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-TODO: approval + execution gate prose (execution contract, post-gate lifecycle move).
+Execution contract: execution requires explicit human approval. Upon approval, implement according to the checklist, verify all V items with test outputs, run `aw ipd lint --phase pre-transition`, and finalize via the IPD lifecycle workflow.
