@@ -131,6 +131,27 @@ def resolve_release(repo_root: Path, value: str) -> Optional[Path]:
     return None
 
 
+_PRIORITY_LINE_RE = re.compile(r"(?m)^- Priority:[ \t]*[^\n]*$\n?")
+
+
+def set_priority_line(text: str, value: Optional[str]) -> str:
+    """Return `text` with the `- Priority:` metadata line set to `value`, or removed when `value` is
+    '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:` (falling back
+    to after `- Id:`, or leaving unchanged). xprio Order 1b45el; mirrors `set_from_backlog_line`. The
+    ENUM check (value in backlog.PRIORITIES) is enforced by `aw check`, not here (this is a pure
+    idempotent line writer). Tolerates any value so an existing malformed line is still replaced."""
+    text = _PRIORITY_LINE_RE.sub("", text)
+    if value in (None, "-"):
+        return text
+    new_line = f"- Priority: {value}\n"
+    for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
+        m = re.search(anchor, text)
+        if m:
+            i = m.end()
+            return text[:i] + new_line + text[i:]
+    return text
+
+
 _FROM_BACKLOG_LINE_RE = re.compile(r"(?m)^- From-Backlog:[ \t]*\S+[ \t]*$\n?")
 
 

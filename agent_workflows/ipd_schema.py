@@ -188,6 +188,12 @@ META_BLOCKS_RELEASE = "Blocks-Release"
 # lint error; value validation (does the target resolve to a backlog item id6) lives in the
 # `aw check` surface (check.from-backlog-dangling), not the schema layer.
 META_FROM_BACKLOG = "From-Backlog"
+# xprio Order 1b45el (graduated from backlog p9o1oo): a UNIFORM, recognized-but-OPTIONAL `Priority`
+# field (the shared low/medium/high vocab is backlog.PRIORITIES; do NOT fork it). Recognition here
+# only stops the IPD-M103 "unknown field" lint error; the ENUM value check lives in the `aw check`
+# surface (check.priority-invalid), NOT the schema layer, mirroring Scope-Paths/Blocks-Release/
+# From-Backlog. Absent = unprioritized (no forced default; existing plans are not mass-failed).
+META_PRIORITY = "Priority"
 # The full set of recognized field names (unknown fields are errors for new IPDs).
 META_RECOGNIZED: FrozenSet[str] = frozenset(
     META_REQUIRED
@@ -200,6 +206,7 @@ META_RECOGNIZED: FrozenSet[str] = frozenset(
         META_ITEM_DEPENDENCIES,
         META_BLOCKS_RELEASE,
         META_FROM_BACKLOG,
+        META_PRIORITY,
     )
 )
 

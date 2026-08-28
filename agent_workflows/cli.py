@@ -1001,6 +1001,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Link this plan to the backlog item it graduated from (a backlog id6); '-' clears it.",
     )
     p_ipd_set.add_argument(
+        "--priority",
+        dest="priority",
+        default=None,
+        choices=["low", "medium", "high", "-"],
+        help="Set the plan's Priority (low|medium|high); '-' clears it (xprio). Persists on a no-op "
+        "transition.",
+    )
+    p_ipd_set.add_argument(
         "--by-human", action="store_true", help="Attest human approval."
     )
     p_ipd_set.add_argument(

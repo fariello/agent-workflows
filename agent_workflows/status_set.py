@@ -575,6 +575,19 @@ def apply_status_change(
         tmp_text = _releases.set_item_dependencies_line(tmp_text, idep)
         new_lines = tmp_text.splitlines()
 
+    # Priority write (xprio 1b45el): the SAME hoisted, status-branch-independent shape so
+    # `aw ipd set --priority <low|medium|high|->` (and, once children 02/03 land, spec/research
+    # setters) persists even on a no-op (same-status) transition. Funnels through the single shared
+    # `releases.set_priority_line` primitive (no duplicate write path). `-`/None clears. The ENUM
+    # value is validated by `aw check`, not here.
+    prio = getattr(args, "priority", None)
+    if prio is not None:
+        from agent_workflows import releases as _releases
+
+        tmp_text = "\n".join(new_lines)
+        tmp_text = _releases.set_priority_line(tmp_text, prio)
+        new_lines = tmp_text.splitlines()
+
     if rec.record_type == "plans" and norm_status != "approved":
         new_lines = [
             line_item
