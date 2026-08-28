@@ -3322,6 +3322,16 @@
   {
     "date": "2026-08-27",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260827-ipddeps-00-r7xku3-cross-ipd-dependency-tracking-mandatory-id6-grounded-item-de.ipd.md",
+    "plan_id": "r7xku3",
+    "set_id": "ipddeps",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-27",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260827-ipddeps-01-g69y23-item-dependencies-schema-field-grammar-and-aw-ipd-dependenci.ipd.md",
@@ -3468,16 +3478,6 @@
     "plan_id": "7kbtkw",
     "set_id": "driverfin",
     "status": "draft"
-  },
-  {
-    "date": "2026-08-27",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260827-ipddeps-00-r7xku3-cross-ipd-dependency-tracking-mandatory-id6-grounded-item-de.ipd.md",
-    "plan_id": "r7xku3",
-    "set_id": "ipddeps",
-    "status": "approved"
   },
   {
     "date": "2026-08-27",
