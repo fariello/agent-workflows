@@ -736,11 +736,29 @@ class AgyExecutionLifecycleTests(unittest.TestCase):
                 "setA": "conv-setA-1111",
                 "setB": "conv-setB-2222",
             },
+            "queue": [{"status": "failed"}],
         }
         hint = driver.render_continuation_hint(state, Path("/tmp"))
         self.assertIn("conv-setA-1111", hint)
         self.assertIn("conv-setB-2222", hint)
-        self.assertIn("runagy resume --repo /my/repo run-test-12345", hint)
+        self.assertIn("aw agy run --session conv-setB-2222 <selector>", hint)
+        self.assertIn("aw agy run resume --repo /my/repo run-test-12345", hint)
+        self.assertNotIn("aw runs", hint)
+
+    def test_continuation_hint_rendering_success(self):
+        state = {
+            "repo": "/my/repo",
+            "run_id": "run-test-12345",
+            "set_sessions": {
+                "setA": "conv-setA-1111",
+            },
+            "queue": [{"status": "executed"}],
+        }
+        hint = driver.render_continuation_hint(state, Path("/tmp"))
+        self.assertIn("conv-setA-1111", hint)
+        self.assertIn("aw agy run --session conv-setA-1111 <selector>", hint)
+        self.assertIn("aw runs run-test-12345", hint)
+        self.assertNotIn("resume", hint)
 
     def test_concurrent_work_statement_in_prompts(self):
         item = {"position": 1, "id6": "a1b2c3", "setid": "testset"}

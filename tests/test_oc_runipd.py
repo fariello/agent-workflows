@@ -212,7 +212,9 @@ class DriverTests(unittest.TestCase):
             # stdout names the captured session id and the copy-ready reuse command.
             self.assertIn("Session Continuity", result.stdout)
             self.assertIn(sessions[0], result.stdout)
-            self.assertIn("runipd --session", result.stdout)
+            self.assertIn("aw oc run --session", result.stdout)
+            self.assertIn(f"aw runs {run_id}", result.stdout)
+            self.assertNotIn("resume", result.stdout)
 
 
 class ReviewPlanRoutingTests(unittest.TestCase):
@@ -1566,27 +1568,48 @@ class StatusJsonTests(unittest.TestCase):
 class ContinuationHintTests(unittest.TestCase):
     """#2: render_continuation_hint surfaces captured session(s) + reuse commands."""
 
-    def _state(self, set_sessions):
+    def _state(self, set_sessions, queue=None):
         return {
             "repo": "/repo",
             "run_id": "run-xyz",
             "set_sessions": set_sessions,
-            "queue": [],
+            "queue": queue if queue is not None else [],
         }
 
-    def test_no_sessions_captured(self):
+    def test_no_sessions_captured_success(self):
         hint = driver.render_continuation_hint(self._state({}), Path("/x"))
         self.assertIn("No OpenCode session was captured", hint)
         self.assertNotIn("ses_", hint)
-        self.assertIn("runipd resume", hint)
+        self.assertIn("aw runs run-xyz", hint)
+        self.assertNotIn("resume", hint)
 
-    def test_single_session(self):
+    def test_no_sessions_captured_incomplete(self):
         hint = driver.render_continuation_hint(
-            self._state({"demo": "ses_abc123"}), Path("/x")
+            self._state({}, queue=[{"status": "failed"}]), Path("/x")
+        )
+        self.assertIn("No OpenCode session was captured", hint)
+        self.assertIn("aw oc run resume --repo /repo run-xyz", hint)
+        self.assertNotIn("aw runs", hint)
+
+    def test_single_session_success(self):
+        hint = driver.render_continuation_hint(
+            self._state({"demo": "ses_abc123"}, queue=[{"status": "reviewed"}]),
+            Path("/x"),
         )
         self.assertIn("ses_abc123", hint)
-        self.assertIn("runipd --session ses_abc123 <selector>", hint)
-        self.assertIn("runipd resume --repo /repo run-xyz", hint)
+        self.assertIn("aw oc run --session ses_abc123 <selector>", hint)
+        self.assertIn("aw runs run-xyz", hint)
+        self.assertNotIn("resume", hint)
+
+    def test_single_session_incomplete(self):
+        hint = driver.render_continuation_hint(
+            self._state({"demo": "ses_abc123"}, queue=[{"status": "partial"}]),
+            Path("/x"),
+        )
+        self.assertIn("ses_abc123", hint)
+        self.assertIn("aw oc run --session ses_abc123 <selector>", hint)
+        self.assertIn("aw oc run resume --repo /repo run-xyz", hint)
+        self.assertNotIn("aw runs", hint)
 
     def test_multiple_sessions_lists_each_and_uses_last(self):
         hint = driver.render_continuation_hint(
@@ -1595,7 +1618,17 @@ class ContinuationHintTests(unittest.TestCase):
         self.assertIn("ses_aaa", hint)
         self.assertIn("ses_bbb", hint)
         # example command uses the most-recent (last) captured session
-        self.assertIn("runipd --session ses_bbb <selector>", hint)
+        self.assertIn("aw oc run --session ses_bbb <selector>", hint)
+        self.assertIn("aw runs run-xyz", hint)
+
+    def test_custom_driver_cmd(self):
+        hint = driver.render_continuation_hint(
+            self._state({"demo": "ses_abc123"}, queue=[{"status": "failed"}]),
+            Path("/x"),
+            driver_cmd="aw oc runipd",
+        )
+        self.assertIn("aw oc runipd --session ses_abc123 <selector>", hint)
+        self.assertIn("aw oc runipd resume --repo /repo run-xyz", hint)
 
 
 class VerifierPromptTests(unittest.TestCase):

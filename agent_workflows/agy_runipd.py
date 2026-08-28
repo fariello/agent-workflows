@@ -2025,8 +2025,26 @@ def run_queue(
     return 0 if all(item["status"] in SUCCESS_STATES for item in state["queue"]) else 1
 
 
-def render_continuation_hint(state: dict[str, Any], run_dir: Path) -> str:
+def _detect_driver_command() -> str:
+    """Detect the command prefix used to invoke the runner, defaulting to 'aw agy run'."""
+    argv = sys.argv
+    for i in range(len(argv) - 1):
+        if argv[i] in ("agy", "antigravity") and argv[i + 1] in (
+            "run",
+            "runipd",
+            "runagy",
+        ):
+            return f"aw {argv[i]} {argv[i + 1]}"
+    return "aw agy run"
+
+
+def render_continuation_hint(
+    state: dict[str, Any],
+    run_dir: Path,
+    driver_cmd: str | None = None,
+) -> str:
     pal = Palette(should_color(sys.stdout))
+    cmd = driver_cmd or _detect_driver_command()
     repo = state.get("repo", ".")
     run_id = state.get("run_id", "run-...")
     sessions = state.get("set_sessions", {})
@@ -2041,17 +2059,24 @@ def render_continuation_hint(state: dict[str, Any], run_dir: Path) -> str:
         setid, sid = captured[0]
         lines.append(f"Captured session: {pal(sid, 'cyan')} (Set: {setid})")
         lines.append("To run a new plan under the same session:")
-        lines.append(f"  runagy --session {sid} <selector>")
+        lines.append(f"  {cmd} --session {sid} <selector>")
     else:
         lines.append("Captured sessions by Set:")
         for setid, sid in captured:
             lines.append(f"  - {pal(setid, 'bold')}: {pal(sid, 'cyan')}")
         last_sid = captured[-1][1]
         lines.append("To run a new plan under the most recent session:")
-        lines.append(f"  runagy --session {last_sid} <selector>")
+        lines.append(f"  {cmd} --session {last_sid} <selector>")
 
-    lines.append("To resume this run:")
-    lines.append(f"  runagy resume --repo {repo} {run_id}")
+    queue = state.get("queue", [])
+    all_success = all(item.get("status") in SUCCESS_STATES for item in queue)
+
+    if all_success:
+        lines.append("To inspect run summary:")
+        lines.append(f"  aw runs {run_id}")
+    else:
+        lines.append("To resume this run:")
+        lines.append(f"  {cmd} resume --repo {repo} {run_id}")
     lines.append("")
     return "\n".join(lines)
 
