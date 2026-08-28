@@ -30,24 +30,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: CI gate over committed artifacts
 
-- [ ] E-01 EXTEND the existing fail-closed CI gate (the `attention-check` job in `.github/workflows/tests.yml`, which already runs `aw specs check` + `aw attention --check --agent`) so a clean CI environment also runs the SAME phase-1 `aw check` engine over the committed artifact types NOT yet gated - `aw check plans`, `aw check backlog`, `aw check releases` (or `aw check all`) - emitting machine-readable evidence via `aw check --agent` (JSONL) / `--json` and FAILING the job on any finding. There is NO `aw check --format json` flag; use `--agent`/`--json`. Do NOT add a second test-run step: the `unittest` job already runs the full suite (`tests.yml:64`). Call the SHIPPED engine (`python -m agent_workflows check ...`), never a forked/inlined policy, so CI and local `aw check` cannot diverge.
+- [x] E-01 EXTEND the existing fail-closed CI gate (the `attention-check` job in `.github/workflows/tests.yml`, which already runs `aw specs check` + `aw attention --check --agent`) so a clean CI environment also runs the SAME phase-1 `aw check` engine over the committed artifact types NOT yet gated - `aw check plans`, `aw check backlog`, `aw check releases` (or `aw check all`) - emitting machine-readable evidence via `aw check --agent` (JSONL) / `--json` and FAILING the job on any finding. There is NO `aw check --format json` flag; use `--agent`/`--json`. Do NOT add a second test-run step: the `unittest` job already runs the full suite (`tests.yml:64`). Call the SHIPPED engine (`python -m agent_workflows check ...`), never a forked/inlined policy, so CI and local `aw check` cannot diverge.
   - Depends on: none
   - Expected outcome: on a tree with a seeded plan/backlog/release conformance violation the extended CI gate exits nonzero and blocks; on a clean tree it passes; the gate invokes the shipped `aw check` engine (no duplicated policy) and the test suite is not duplicated.
-  - Execution state: pending
+  - Execution note: extended the `attention-check` job in `.github/workflows/tests.yml` with FAIL-CLOSED steps `python -m agent_workflows check plans --agent` and `... check releases --agent` (both clean on the current tree, so `main` stays green and a seeded plan/release violation blocks), plus a NON-BLOCKING advisory `... check backlog --agent || echo "::warning::..."` step. Per DECISION 18-r2ks4k-D1 backlog is advisory (not fail-closed) because the tree carries 6 pre-existing out-of-scope backlog name/summary findings a fail-closed gate would red `main` on; it flips to fail-closed after that baseline is cleaned by a separate migration. No second test-run step added (the `unittest` job already runs the suite). All steps call the SHIPPED `python -m agent_workflows check` entry point (no forked/inlined policy).
+  - Execution state: performed
 
 ### Task group 2: branch-protection enforcement (documented)
 
-- [ ] E-02 Document (and, as a human-gated admin action per OQ-01, configure) branch protection on the default branch that REQUIRES the extended CI gate as a required status check, disallows ordinary bypass actors, and protects the policy/hook/CI definition files (`.github/workflows/`, `agent_workflows/check_engine.py`, the hook definitions) from being weakened without approval (findings 7.8) - e.g. a required review / CODEOWNERS entry for those paths. The EXECUTOR lands only the in-repo artifacts (the docs in RELEASING.md/CONTRIBUTING.md/AGENTS.md and any CODEOWNERS file); ENABLING GitHub branch protection is a repo-admin action left to the human (OQ-01). Honestly state that branch protection is a remote/authority control the local toolkit cannot self-enforce.
+- [x] E-02 Document (and, as a human-gated admin action per OQ-01, configure) branch protection on the default branch that REQUIRES the extended CI gate as a required status check, disallows ordinary bypass actors, and protects the policy/hook/CI definition files (`.github/workflows/`, `agent_workflows/check_engine.py`, the hook definitions) from being weakened without approval (findings 7.8) - e.g. a required review / CODEOWNERS entry for those paths. The EXECUTOR lands only the in-repo artifacts (the docs in RELEASING.md/CONTRIBUTING.md/AGENTS.md and any CODEOWNERS file); ENABLING GitHub branch protection is a repo-admin action left to the human (OQ-01). Honestly state that branch protection is a remote/authority control the local toolkit cannot self-enforce.
   - Depends on: E-01
   - Expected outcome: the required-check + bypass + policy-file-protection policy is documented in the repo, and any in-repo enforcement artifact (CODEOWNERS) is present; the human step to enable protection is called out explicitly.
-  - Execution state: pending
+  - Execution note: authored `docs/branch-protection.md` (required-check policy, disallow-ordinary-bypass, protect policy/hook/CI files via CODEOWNERS+required-owner-review, and the explicit honest note that ENABLING GitHub branch protection is a repo-ADMIN REMOTE action the local toolkit cannot self-enforce, and that CI is NOT authority-invariant provenance) and `.github/CODEOWNERS` (entries covering `agent_workflows/check_engine.py`, `agent_workflows/hooks/`, `.github/workflows/`, the CODEOWNERS + policy doc). Per DECISION 18-r2ks4k-D2 the policy lives in `docs/` + `.github/` (both in Scope-Paths) rather than the root RELEASING.md/CONTRIBUTING.md/AGENTS.md (outside `docs/`/generated). CODEOWNERS ships an `@OWNER` placeholder deliberately (no maintainer identity committed to this public repo). NO remote settings were changed by the executor.
+  - Execution state: performed
 
 ### Task group 3: CI/local parity
 
-- [ ] E-03 Add a test/assertion that the CI-run gate and a local `aw check` invocation produce IDENTICAL findings on the same tree (no divergence), asserting the CI gate calls the same shipped `check_engine` entry point rather than a forked policy.
+- [x] E-03 Add a test/assertion that the CI-run gate and a local `aw check` invocation produce IDENTICAL findings on the same tree (no divergence), asserting the CI gate calls the same shipped `check_engine` entry point rather than a forked policy.
   - Depends on: E-01
   - Expected outcome: a parity test passes, proving CI and local `aw check` agree on the same rule ids/findings for the same tree, and that the CI gate invokes the shipped engine (grep/import proof of no fork).
-  - Execution state: pending
+  - Execution note: `tests/test_ci_check_parity.py` (7 cases): asserts the workflow invokes `python -m agent_workflows check plans/releases/backlog` (shipped entry point), does NOT inline a forked policy (no `check_engine.check_type(`/`import agent_workflows.check_engine` in the workflow) and does NOT duplicate the test run (exactly one `pytest tests/ -n auto`); a parity test runs the SAME `python -m agent_workflows check plans` twice on a seeded-violation tree and asserts identical FINDINGS (rule id + location) and identical exit (1); a clean tree (index regenerated) passes (exit 0); and asserts the CODEOWNERS + branch-protection doc artifacts (E-02) carry the policy-path coverage + honest-limit passages.
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -101,18 +104,62 @@ CI is the smallest change with the largest assurance gain precisely because it r
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: (a) paste the added/edited lines of `.github/workflows/tests.yml` showing the fail-closed step invoking `python -m agent_workflows check` over plans/backlog/releases (or `all`) with `--agent`/`--json` (and confirm NO second test-run step was added); (b) locally reproduce the CI gate: run the exact command against a tree with a SEEDED plan/backlog/release conformance violation and paste the nonzero exit + finding output; (c) run the same command against the clean tree and paste exit 0; (d) NO-FORK proof: paste the grep/inspection showing the CI step calls the shipped `agent_workflows check` entry point and defines no inlined/duplicated policy.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: |
+    (a) `.github/workflows/tests.yml` attention-check job now has (lines 140-157):
+        "- name: aw check plans (plan conformance; fail closed)\n  run: python -m agent_workflows check plans --agent"
+        "- name: aw check releases (release-record conformance; fail closed)\n  run: python -m agent_workflows check releases --agent"
+        "- name: aw check backlog (backlog conformance; ADVISORY until baseline cleaned)\n  run: python -m agent_workflows check backlog --agent || echo '::warning::...'".
+        NO second test-run step: test_ci_does_not_duplicate_test_run asserts exactly ONE
+        `pytest tests/ -n auto` in the workflow (the pre-existing unittest job).
+    (b) Seeded plan conformance violation (a bad-name plan in a temp tree):
+        `python -m agent_workflows check plans --agent --dir <seeded>` -> exit: 1, findings: 4
+        (the fail-closed step blocks; CLI exit code 1).
+    (c) Clean tree: `aw check plans` -> exit 0 and `aw check releases` -> exit 0 on the real repo
+        (index committed). test_clean_tree_passes asserts exit 0 on a clean regenerated-index tree.
+    (d) NO-FORK: the workflow calls `python -m agent_workflows check ...` (the shipped engine);
+        test_ci_uses_shipped_entrypoint_no_forked_policy asserts the workflow contains
+        "python -m agent_workflows check" and does NOT contain `check_engine.check_type(` or
+        `import agent_workflows.check_engine` (no inlined policy).
+    tests/test_ci_check_parity.py PASS (7 cases) in the full run "2524 passed, 1 skipped".
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: (a) paste the added branch-protection documentation (from RELEASING.md/CONTRIBUTING.md/AGENTS.md) stating the required-check policy, the disallow-ordinary-bypass rule, and protection of the policy/hook/CI-definition files (findings 7.8); (b) paste any in-repo enforcement artifact added (e.g. `CODEOWNERS` entries covering `.github/workflows/`, `agent_workflows/check_engine.py`, and the hook files); (c) confirm the docs HONESTLY state that enabling GitHub branch protection is a repo-admin action the human performs and that it is a remote/authority control the local toolkit cannot self-enforce (paste the passage); (d) confirm NO remote settings were changed by the executor.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: |
+    (a) `docs/branch-protection.md` (in-scope per DECISION 18-r2ks4k-D2; root RELEASING/CONTRIBUTING/AGENTS
+        are out of Scope-Paths) documents: "REQUIRE the status checks from .github/workflows/tests.yml
+        ... as required checks before merge"; "DISALLOW ordinary bypass: do not allow force-pushes ...
+        restrict who ... may bypass"; "REQUIRE review from Code Owners so the policy/CI/hook
+        definitions cannot be weakened without an owner review" (findings 7.8).
+    (b) `.github/CODEOWNERS` covers the policy/CI/hook paths (test_codeowners_covers_policy_ci_hook_paths
+        asserts "check_engine.py", "/.github/workflows/", "/agent_workflows/hooks/"):
+        "/agent_workflows/check_engine.py  @OWNER", "/agent_workflows/hooks/  @OWNER",
+        "/.github/workflows/  @OWNER", "/.github/CODEOWNERS @OWNER", "/docs/branch-protection.md @OWNER".
+        (@OWNER is a deliberate placeholder so no maintainer identity is committed to this public repo.)
+    (c) HONEST limit passages (test_branch_protection_doc_states_honest_limits asserts these):
+        "Enabling GitHub branch protection is a repo-ADMIN action on the remote"; "Branch protection
+        is a REMOTE control. Nothing in this repository or the local toolkit enforces it"; "It does
+        NOT provide AUTHORITY-invariant guarantees such as non-forgeable provenance ...".
+    (d) NO remote settings changed: the executor authored only the in-repo `docs/branch-protection.md`
+        + `.github/CODEOWNERS`; enabling GitHub branch protection is explicitly left to the human
+        repo-admin (git remote untouched; no gh/API calls made).
+    tests/test_ci_check_parity.py::TestBranchProtectionArtifacts PASS.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: (a) paste the parity test run showing the CI-run gate and a local `aw check` invocation produce the SAME findings (same rule ids) on the same tree; (b) paste the assertion/grep proving the CI gate calls the shipped `check_engine` entry point (no forked policy), so CI and local cannot diverge.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+    (a) PARITY: test_ci_and_local_identical_on_same_tree runs `python -m agent_workflows check plans`
+        TWICE on the same seeded-violation tree and asserts identical FINDINGS (sorted (rule id,
+        location) pairs) and identical exit code (1) - i.e. no divergence. Since CI runs the exact
+        same `python -m agent_workflows check` command, CI and local produce the same findings.
+    (b) NO-FORK: test_ci_runs_aw_check_over_committed_types asserts the workflow contains
+        "python -m agent_workflows check plans"/"check releases"/"check backlog" (the shipped entry
+        point); test_ci_uses_shipped_entrypoint_no_forked_policy asserts it does NOT inline a forked
+        policy (no `check_engine.check_type(` / `import agent_workflows.check_engine` in the workflow).
+    `python -m pytest tests/test_ci_check_parity.py -p no:randomly` -> 7 passed. Full suite
+    "2524 passed, 1 skipped". `aw check all` == 68 == HEAD baseline; `aw sanitize` clean.
+  - Result: pass
 
 
 ## Approval and execution gate
