@@ -29,10 +29,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the helper
 
-- [ ] E-01 Add `agent_workflows/git_commit_helper.py` with `offer_commit(repo_root, paths, *, message, assume_yes=False, no_commit=False, interactive=None, on_unrelated_staged="scope") -> CommitOutcome`: stage ONLY `paths` via `git add -- <paths>`, commit with `message` (no `--no-verify`, no push), interactive-gated (prompt on TTY unless `assume_yes`/`no_commit`; non-interactive is a NO-OP unless `assume_yes` - this MATCHES `_confirm`'s actual non-TTY behavior of declining (cli.py:2694), so `_confirm` may be reused directly or its gate reimplemented; key off the code, not `_confirm`'s stale "auto-yes" docstring), honor `on_unrelated_staged` (`"scope"` default vs `"refuse"`) when the index holds unrelated staged paths, return a structured outcome. Reuse or factor a single shared `_git` subprocess runner (from ipd_lifecycle.py:557).
+- [x] E-01 Add `agent_workflows/git_commit_helper.py` with `offer_commit(repo_root, paths, *, message, assume_yes=False, no_commit=False, interactive=None, on_unrelated_staged="scope") -> CommitOutcome`: stage ONLY `paths` via `git add -- <paths>`, commit with `message` (no `--no-verify`, no push), interactive-gated (prompt on TTY unless `assume_yes`/`no_commit`; non-interactive is a NO-OP unless `assume_yes` - this MATCHES `_confirm`'s actual non-TTY behavior of declining (cli.py:2694), so `_confirm` may be reused directly or its gate reimplemented; key off the code, not `_confirm`'s stale "auto-yes" docstring), honor `on_unrelated_staged` (`"scope"` default vs `"refuse"`) when the index holds unrelated staged paths, return a structured outcome. Reuse or factor a single shared `_git` subprocess runner (from ipd_lifecycle.py:557).
   - Depends on: none
   - Expected outcome: importable helper with the documented signature and contract.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -86,10 +86,10 @@ The only missing primitive is a reusable path-scoped committer with explicit pat
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: The new `tests/` module for `git_commit_helper.offer_commit` passes, and its captured pytest output shows assertions for: (a) only `paths` committed while an unrelated dirty file stays uncommitted; (b) the non-TTY-without-`assume_yes` NO-OP branch (returns `skipped`, no commit created - asserting the safe decline, matching `_confirm`'s real non-TTY behavior) AND the `assume_yes` commit branch AND the `no_commit` short-circuit AND interactive yes/no branches; (c) both `on_unrelated_staged="scope"` and `"refuse"` behaviors; (d) a captured-git-argv assertion proving no `add -A`/`-a`, no `push`, no `--no-verify` on any branch. Paste the actual `run_checks.py` (or pytest) command and its output.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python -m pytest tests/test_git_commit_helper.py -p no:randomly` -> `16 passed in 1.48s` (post-hoc verification 2026-08-27 during killed-run salvage; the selfcommit run was interrupted before recording this evidence). The module imports cleanly (`from agent_workflows.git_commit_helper import offer_commit, CommitOutcome`). Source audit `grep -nE 'add -A|add \.|-a\b|--no-verify|push' agent_workflows/git_commit_helper.py` shows those tokens appear ONLY in docstrings/comments describing what the helper does NOT do (lines 1,8,9,152-153,222,245) - no such git invocation in code. `ipd_lifecycle._git` now delegates to the single shared `git_commit_helper._git` (one git wrapper); lifecycle/finalize test slice `pytest -k 'lifecycle or finalize or ipd_begin'` green.
+  - Result: pass
 
 ## Approval and execution gate
 

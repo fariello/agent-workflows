@@ -555,17 +555,14 @@ class FinalizeResult(NamedTuple):
 
 
 def _git(repo_root: Path, args: List[str]) -> Tuple[int, str, str]:
-    """Run a git command in ``repo_root``; return (returncode, stdout, stderr)."""
-    import subprocess
+    """Run a git command in ``repo_root``; return (returncode, stdout, stderr).
 
-    proc = subprocess.run(
-        ["git", *args],
-        cwd=str(repo_root),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    return proc.returncode, proc.stdout, proc.stderr
+    Delegates to the single canonical git-subprocess runner in ``git_commit_helper`` (the shared
+    "commit-what-I-changed" leaf) so there is exactly one git wrapper across the codebase.
+    """
+    from .git_commit_helper import _git as _shared_git
+
+    return _shared_git(repo_root, args)
 
 
 def _paths_changed_by_this_execution(repo_root: Path, base_head: str) -> List[str]:
