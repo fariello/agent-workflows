@@ -62,7 +62,7 @@ There is no separate "update" command.
 Fresh installations create the canonical `.aw/` directory structure with four dedicated roots:
 
 1. **System (`.aw/system/`)**: The CLI-owned framework bundle. Invokable workflow bodies and `index.md` live nested at `.aw/system/workflows/`, with sibling framework metadata (`VERSION`, `managed-sections.json`, `templates/`) at `.aw/system/`.
-2. **Records (`.aw/records/`)**: Durable project records created during development, including plans/IPDs (`.aw/records/plans/`), reference docs and specs (`.aw/records/docs/`), backlog items (`.aw/records/backlog/`), inter-agent comms (`.aw/records/comms/`), and prompt templates (`.aw/records/prompts/`).
+2. **Records (`.aw/records/`)**: Durable project records created during development, including plans/IPDs (`.aw/records/plans/`), specs (`.aw/records/specs/`), research (`.aw/records/research/`), walkthroughs (`.aw/records/walkthroughs/`), roadmaps (`.aw/records/roadmaps/`), backlog items (`.aw/records/backlog/`), inter-agent comms (`.aw/records/comms/`), and prompt templates (`.aw/records/prompts/`, `.aw/records/prompt-library/`).
 3. **Config (`.aw/config/`)**: Project policy and configuration. `config.json` and `local-leaks-allowlist.toml` are tracked; local overrides (`local.json`) are gitignored.
 4. **State (`.aw/state/`)**: Runtime scratch, cache, and migration transaction logs. Files here are strictly gitignored and never committed.
 
@@ -75,8 +75,8 @@ During installation or setup (`aw install --preset <name>` or `aw setup`), choos
 | Preset | System Root | Records Backend | Target Repo Git Tracking | Best For |
 |---|---|---|---|---|
 | `private-target` (default) | `.aw/system/` | `repository` (`.aw/records/`) | Tracked in target git repo | Private repositories where all plans and records can be committed directly. |
-| `public-private-companion` | `.aw/system/` | `companion` (`<companion>/.aw/records/`) | System tracked in public repo; records tracked in private companion repo | Public open-source repositories requiring private internal planning and security audits. |
-| `clean-target` | `.aw/system/` | `home` (`~/.aw/projects/<id>/records/`) | System tracked; records stored locally in user home | Public repositories where no companion repo is desired and records stay local to the machine. |
+| `public-target-private-companion` | `.aw/system/` | `companion` (`<companion>/.aw/records/`) | System tracked in public repo; records tracked in private companion repo | Public open-source repositories requiring private internal planning and security audits. |
+| `completely-clean-target` | `.aw/system/` | `home` (`~/.aw/projects/<id>/records/`) | System tracked; records stored locally in user home | Public repositories where no companion repo is desired and records stay local to the machine. |
 | `local-only` | `.aw/system/` | `repository` | Entire `.aw/` tree is gitignored | Testing, evaluation, or personal use without committing any workflow files. |
 
 Inspect your active project layout and resolved roots anytime:
@@ -238,7 +238,7 @@ If you have an existing repository using the legacy `.agents/` layout, use `aw m
 
 To support gradual adoption, `agent-workflows` maintains a bounded compatibility window for repositories with legacy `.agents/` layouts:
 
-1. **Automatic Detection**: When `aw install`, `aw setup`, or `aw update` runs against a repository with only `.agents/workflows/` present, it detects the legacy structure and interactively offers migration to `.aw/`.
+1. **Automatic Detection**: When `aw install` or `aw setup` runs against a repository with only `.agents/workflows/` present, it detects the legacy structure and interactively offers migration to `.aw/`.
 2. **Compatibility Window**: If migration is declined (or when running non-interactively with `--keep-legacy`), the tool updates the legacy `.agents/workflows/` directory in place and prints a one-time deprecation notice.
 3. **No Dual-Writer Operation**: The framework will never operate in a mixed state where both `.agents/workflows/` and `.aw/system/workflows/` are written simultaneously. If `.aw/system/` is present, it is strictly authoritative.
 4. **Removal Gate**: Legacy `.agents/` support is deprecated and will be removed in major version `3.0.0`. All users are encouraged to run `aw migrate-layout` during the 2.x lifecycle.
@@ -253,7 +253,7 @@ To support gradual adoption, `agent-workflows` maintains a bounded compatibility
   - `templates/` - initial templates for plans, prompts, and runbooks.
 - `.aw/records/` - project records and durable knowledge:
   - `plans/` - IPDs organized by lifecycle state (`pending/`, `executed/`, `reusable/`, `superseded/`, `not-executed/`).
-  - `docs/` - durable research reports (`docs/research/`), walkthroughs (`docs/walkthroughs/`), and specifications (`docs/specs/`).
+  - `specs/` - specifications; `research/` - durable research reports (with `INDEX.json`/`INDEX.md`); `walkthroughs/` - narrative walkthroughs; `roadmaps/` - roadmaps.
   - `backlog/` - lightweight committed backlog items (`open/`, `done/`, `parked/`).
   - `comms/` - inter-agent messaging inbox and archives (`shared/`, `local/`).
   - `prompts/` - prompt templates and execution records.

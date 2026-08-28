@@ -58,7 +58,10 @@ agent-workflows/
         getting-started/    Guided in-agent tour and router for newcomers
     records/                Durable project records (tracked or companion-routed)
       plans/                IPD documents (pending/, executed/, reusable/, superseded/, not-executed/)
-      docs/                 Durable reference docs (research/, walkthroughs/, specs/)
+      specs/                Specifications
+      research/             Durable research reports (INDEX.json, INDEX.md)
+      walkthroughs/         Narrative walkthroughs
+      roadmaps/             Roadmaps
       backlog/              Committed lightweight backlog work (open/, done/, parked/)
       comms/                Inter-agent messaging lanes (shared/, local/)
       prompts/              Prompt templates and execution logs
@@ -84,8 +87,8 @@ Host adapters (`.claude/commands/`, `.opencode/commands/`, `AGENTS.md`) remain a
 Different development environments have distinct visibility requirements. The framework supports four placement presets:
 
 - `private-target` (default): All four roots live inside the target repository and are tracked in git. Ideal for private projects where planning artifacts and code share the same repository.
-- `public-private-companion`: System, config, and state live in the target repository (tracked publicly), while `.aw/records/` routes to a separate private companion git repository. Ideal for public open-source projects where internal planning, security assessments, and research must remain private.
-- `clean-target`: System and config live in the target repository, while `.aw/records/` routes to `~/.aw/projects/<project-id>/records/` in the user home directory. Keeps the target git repository free of workflow records.
+- `public-target-private-companion`: System, config, and state live in the target repository (tracked publicly), while `.aw/records/` routes to a separate private companion git repository. Ideal for public open-source projects where internal planning, security assessments, and research must remain private.
+- `completely-clean-target`: System and config live in the target repository, while `.aw/records/` routes to `~/.aw/projects/<project-id>/records/` in the user home directory. Keeps the target git repository free of workflow records.
 - `local-only`: All roots reside in the target repository but the entire `.aw/` hierarchy is gitignored. Ideal for evaluation or personal use without committing any workflow files.
 
 ### Router APIs and Project Context

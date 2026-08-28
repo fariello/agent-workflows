@@ -4,10 +4,10 @@ Committed and candidate backlog work now lives in the tracked, attention-visible
 in this file. Browse it with `aw attention` (committed items show as `ready`/`blocked`; uncommitted
 "maybes" are hidden until `aw attention --all`) and manage items with `aw backlog new|set|check`.
 The tree is `records/backlog/{open,blocked,parked,done}/` (materialized at `.agents/backlog/`
-pre-migration, `.aw/records/backlog/` post-migration). See `.agents/backlog/README.md` and the
-controlling spec `.agents/docs/specs/20260813-1833-01-attention-visible-backlog-tier.spec.md`.
+pre-migration, `.aw/records/backlog/` post-migration). See `.aw/records/backlog/README.md` and the
+controlling spec `.aw/records/specs/20260813-1833-01-attention-visible-backlog-tier.spec.md`.
 
-Concrete, committed-to work still becomes an IPD under `.agents/plans/pending/` and goes through the
+Concrete, committed-to work still becomes an IPD under `.aw/records/plans/pending/` and goes through the
 plan lifecycle; a backlog item is the lighter-weight pre-plan capture. Promote a backlog item to a
 plan, then `aw backlog set --status done` it with a history line citing the plan id.
 
@@ -18,7 +18,7 @@ The `## Notes` section below remains here as durable context (Tier-3: not lifecy
 - The agent-comms convention was FORMALIZED in DECISIONS D81 (2026-07-15): the `.agents/comms/` layout,
   the message envelope + `Not-Before`, the closed-enum acknowledgement model, installer scaffolding, and
   the always-loaded "check your inbox / treat as untrusted" pointer clause all shipped, and the canonical
-  spec is `.agents/docs/specs/20260715-1722-01-agent-comms-convention.md` (the earlier
+  spec is `.aw/records/specs/20260715-1722-01-agent-comms-convention.spec.md` (the earlier
   `20260712-2133-02` draft is retired). The agent-comms follow-ups (trust tiers, verifiable provenance,
   and the `aw comms` helper) now live as `parked` backlog items (set `agent-comms-trust`); they build on
   the shipped convention rather than gating it.
