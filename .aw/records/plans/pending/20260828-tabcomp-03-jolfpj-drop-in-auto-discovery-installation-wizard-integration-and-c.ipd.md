@@ -3,10 +3,10 @@
 - Date: 2026-08-28
 - Kind: child
 - Concern: Having a completion generator (child 01) and dynamic query resolver (child 02) still requires manual setup unless the framework provides clean, zero-maintenance installation into standard shell autoload directories during `aw install`, `aw setup`, or interactive wizard runs.
-- Scope: Implement drop-in auto-discovery installation, interactive wizard prompts, CLI flags, and documentation: (1) Add `install_shell_completion` and `uninstall_shell_completion` in `agent_workflows/completion.py` targeting standard XDG auto-discovery directories (`~/.local/share/bash-completion/completions/aw`, `~/.local/share/zsh/site-functions/_aw`, `~/.config/fish/completions/aw.fish`) with alias symlinks; (2) Wire `aw completion install` and `aw completion uninstall` in `agent_workflows/cli.py`; (3) Add an interactive prompt step to `agent_workflows/install_wizard.py`; (4) Add `--completion [auto|bash|zsh|fish|none]` flag to `aw install` / `aw setup` in `agent_workflows/cli.py` and post-install discovery tips; (5) Add unit tests in `tests/test_completion.py` and `tests/test_install_wizard.py`; (6) Update `README.md`.
-- Scope-Paths: agent_workflows/completion.py, agent_workflows/install_wizard.py, agent_workflows/cli.py, tests/test_completion.py, tests/test_install_wizard.py, README.md
+- Scope: Implement drop-in auto-discovery installation, an interactive setup prompt, CLI flags, and documentation: (1) Add `resolve_completion_dir`, `install_shell_completion`, and `uninstall_shell_completion` in `agent_workflows/completion.py` targeting XDG auto-discovery directories with shell-specific alias binding and no-clobber/sentinel safety; (2) Wire `aw completion install` and `aw completion uninstall` in `agent_workflows/cli.py`, extending child 01's `completion` parser shape additively; (3) Add an interactive completion prompt to the host-level `_run_setup` flow in `agent_workflows/cli.py` (NOT the per-repo `install_wizard.py`); (4) Add `--completion [auto|bash|zsh|fish|none]` flag to `aw install` / `aw setup` in `agent_workflows/cli.py` (default `none` non-interactively) and post-install discovery tips; (5) Add unit tests in `tests/test_completion.py` (and `tests/test_cli_*`/setup coverage as needed); (6) Update `README.md`.
+- Scope-Paths: agent_workflows/completion.py, agent_workflows/cli.py, tests/test_completion.py, README.md
 - Item-Dependencies: executed:4f1j25
-- Status: to-review
+- Status: reviewed
 - Set: tabcomp
 - Order: 3
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 
 ## Workflow history
 
+- 2026-08-28 reviewed (OpenCode/its_direct/pt3-claude-opus-4.8): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Moved the completion prompt out of the per-repo `install_wizard.py` into the host-level `_run_setup` (verified module roles); made E-02 depend explicitly on child 01's extensible `completion` parser shape; corrected the blanket-symlink assumption to shell-specific alias binding (bash command-name files, single zsh `_aw`, fish multi-`complete -c`); added no-clobber/sentinel + symlink-safe + uninstall-only-ours semantics; added XDG env-var precedence consistent with `config._config_dir`; and added the dotfile-untouched and no-clobber test assertions. Dropped `install_wizard.py`/`test_install_wizard.py` from Scope-Paths.
 - 2026-08-28 to-review (Antigravity): authored detailed atomic implementation plan for drop-in installation, wizard integration, and documentation.
 - 2026-08-28 draft (Antigravity): scaffolded skeleton.
 
@@ -28,21 +29,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Drop-In Directory Auto-Discovery Manager (`agent_workflows/completion.py`)
 
-- [ ] E-01 Implement `resolve_completion_dir(shell, custom_dir)` and `install_shell_completion(shell, target_dir, dry_run)` / `uninstall_shell_completion(shell, target_dir, dry_run)` in `agent_workflows/completion.py` targeting standard user auto-discovery paths (`~/.local/share/bash-completion/completions/aw`, `~/.local/share/zsh/site-functions/_aw`, `~/.config/fish/completions/aw.fish`) and creating alias symlinks for `agentwf` and `agent-workflows`.
+- [ ] E-01 Implement `resolve_completion_dir(shell, custom_dir)` and `install_shell_completion(shell, target_dir, dry_run)` / `uninstall_shell_completion(shell, target_dir, dry_run)` in `agent_workflows/completion.py` targeting standard user auto-discovery paths, honoring `XDG_DATA_HOME`/`XDG_CONFIG_HOME` before falling back to `~/.local/share`/`~/.config` (matching `agent_workflows/config._config_dir`, verified at `config.py:58-64`): bash `${XDG_DATA_HOME:-~/.local/share}/bash-completion/completions/aw`, zsh `${XDG_DATA_HOME:-~/.local/share}/zsh/site-functions/_aw`, fish `${XDG_CONFIG_HOME:-~/.config}/fish/completions/aw.fish`. ALIAS BINDING IS SHELL-SPECIFIC (verified correctness constraint), do NOT blanket-symlink all three: for BASH create command-name files/symlinks (`agentwf`, `agent-workflows` -> the `aw` file) since bash-completion loads by command name; for ZSH a SINGLE `_aw` file whose `#compdef aw agentwf agent-workflows` line already binds all three aliases (do not create `_agentwf`/`_agent-workflows` symlinks unless the generated script requires them); for FISH write `aw.fish` containing `complete -c aw`/`-c agentwf`/`-c agent-workflows` (the generator from child 01 already binds all three via `complete -c`), so no per-alias fish files are needed. SAFETY: writes MUST be idempotent and no-clobber-unless-ours (detect a pre-existing foreign `aw` completion and refuse/replace only a file this tool wrote, e.g. via a sentinel marker line); never write or delete THROUGH a symlink to an unexpected target; `uninstall_shell_completion` MUST remove only files/symlinks this tool created (identified by the sentinel), never a user's or another tool's file. NEVER edit `~/.bashrc`/`~/.zshrc`/`config.fish` (the core promise).
   - Depends on: none
-  - Expected outcome: `install_shell_completion` creates parent directories, writes the completion script, and links aliases cleanly; `uninstall_shell_completion` cleanly removes the files and symlinks.
+  - Expected outcome: `install_shell_completion` creates parent directories, writes the completion script with a self-identifying sentinel, and binds aliases per the shell-specific rules above; re-running is idempotent; `uninstall_shell_completion` removes only the files/symlinks this tool created; no user rc/dotfile is ever modified.
   - Execution state: pending
 
-### Task group 2: CLI Commands, Installer Flags, and Wizard Prompt (`agent_workflows/cli.py`, `agent_workflows/install_wizard.py`)
+### Task group 2: CLI Commands, Installer Flags, and Setup Prompt (`agent_workflows/cli.py`)
 
-- [ ] E-02 Register `aw completion install` and `aw completion uninstall` subcommands in `agent_workflows/cli.py` accepting `--shell`, `--dir`, and `--dry-run` arguments with descriptive status feedback.
+- [ ] E-02 Register `aw completion install` and `aw completion uninstall` subcommands in `agent_workflows/cli.py` accepting `--shell`, `--dir`, and `--dry-run` arguments with descriptive status feedback, and wire their dispatch alongside the existing `args.command`/`completion` branches. CROSS-PLAN CONTRACT (verified prerequisite): child 01 (`tabcomp-01` E-03, now reviewed) was required to shape the `completion` parser so `install`/`uninstall` sub-actions can be added additively WITHOUT reshaping it. This E-item MUST extend that existing shape (add `install`/`uninstall` as sub-actions of `completion` next to the shell-name output behavior); it MUST NOT redesign `aw completion` or break `aw completion <shell>` output. If child 01's shipped shape does not admit these sub-actions, that is a child-01 defect to fix there, not a redesign here - verify the shape first.
   - Depends on: E-01
-  - Expected outcome: `aw completion install` detects active shell via `$SHELL`, writes completion files to the user autoload directory, and reports installed paths.
+  - Expected outcome: `aw completion install` detects active shell via `$SHELL` (bash fallback, consistent with child 01), writes completion files to the user autoload directory, and reports installed paths; `aw completion <shell>` output (child 01) still works unchanged.
   - Execution state: pending
 
-- [ ] E-03 Add a shell completion installation prompt step in `agent_workflows/install_wizard.py` that checks if completion is installed, prompts interactive users to install drop-in tab-completion for their detected shell, and writes the files upon confirmation.
+- [ ] E-03 Add a shell-completion installation prompt to the HOST-LEVEL, once-per-user setup flow (`_run_setup` in `agent_workflows/cli.py`, verified at `cli.py:4771`), NOT to `agent_workflows/install_wizard.py`. RATIONALE (verified): `install_wizard.py` is the PER-TARGET-REPO project-policy wizard (private/public presets, physical `.aw/` placement; module docstring `install_wizard.py:1-18`); shell completion is a per-user/per-machine concern, so prompting inside the repo-policy wizard would fire on every repo install and be intrusive/repetitive. `_run_setup` is the host-level, once-per-user configuration (search roots, XDG config) and is the correct home. The prompt checks whether completion is already installed for the detected shell, offers a single confirm to install drop-in completion, and on acceptance calls `install_shell_completion` (E-01); it only fires interactively (TTY) and is skipped non-interactively.
   - Depends on: E-01, E-02
-  - Expected outcome: The interactive wizard offers a clean 1-click prompt to enable shell completion without modifying any configuration dotfiles.
+  - Expected outcome: The interactive `aw setup` flow offers a clean one-confirm prompt to enable shell completion, calls `install_shell_completion` on acceptance, modifies no rc/dotfile, and is skipped in non-interactive runs; `install_wizard.py` (repo-policy) is untouched by this feature.
   - Execution state: pending
 
 - [ ] E-04 Add `--completion [auto|bash|zsh|fish|none]` flag to `aw install` and `aw setup` in `agent_workflows/cli.py` (defaulting to safe `none` in non-interactive/`--yes` mode) and append a completion discovery tip to the post-installation summary if completion is not configured.
@@ -50,51 +51,56 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: Running `aw install --completion auto` configures shell completion alongside target repo installation; post-install summary shows `Tip: Enable tab-completion with 'aw completion install'` when unconfigured.
   - Execution state: pending
 
-### Task group 3: Testing and Documentation (`tests/test_completion.py`, `tests/test_install_wizard.py`, `README.md`)
+### Task group 3: Testing and Documentation (`tests/test_completion.py`, `README.md`)
 
-- [ ] E-05 Implement unit tests in `tests/test_completion.py` and `tests/test_install_wizard.py` covering directory resolution, drop-in file creation, symlink creation, uninstallation, wizard prompt acceptance/rejection, `--completion` installer flag, and update `README.md` with usage instructions.
+- [ ] E-05 Implement unit tests in `tests/test_completion.py` (using a real `tmp_path`-style temp HOME/XDG, not a mock, so symlink and `mkdir(parents=True)` behavior is exercised) covering: `resolve_completion_dir` honoring `XDG_DATA_HOME`/`XDG_CONFIG_HOME` and the `~/.local/share`/`~/.config` fallbacks for bash/zsh/fish; drop-in file creation with the self-identifying sentinel; the shell-specific alias binding (bash command-name files/symlinks; a single zsh `_aw`; fish `aw.fish` with multi-`complete -c`); idempotent re-install; no-clobber refusal when a FOREIGN `aw` completion pre-exists; `uninstall_shell_completion` removing ONLY tool-created files; an explicit assertion that NO user rc/dotfile (`.bashrc`/`.zshrc`/`config.fish`) is created or modified; the `aw completion install`/`uninstall`/`--dry-run` CLI; the host-level setup prompt (E-03) honoring accept/reject and being skipped non-interactively; and the `aw install/setup --completion <shell>` flag. Update `README.md` with a "Shell Tab Completion" section. Keep any subprocess-spawning CLI test marked `slow` per `pyproject.toml:108-109`.
   - Depends on: E-01, E-02, E-03, E-04
-  - Expected outcome: All installer and wizard completion tests pass under `pytest` with 100% assertions satisfied, and `README.md` documents `aw completion install`.
+  - Expected outcome: All installer and setup-prompt completion tests pass under `pytest` with 100% assertions satisfied, including the dotfile-untouched and no-clobber assertions, and `README.md` documents `aw completion install`.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
 
-- Zero Configuration File Pollution: Never modify `~/.bashrc` or `~/.zshrc` automatically; rely on standard XDG auto-discovery directories (`~/.local/share/bash-completion/completions/` for Bash, `~/.config/fish/completions/` for Fish).
-- Non-destructive Defaults: In automated batch or non-interactive installs (`-y` / `--yes`), modifications to user completion directories default to opt-in (`none`) unless explicitly requested via `--completion <shell>` or `--completion auto`.
-- Shell Detection: Detect shell reliably by consulting `os.environ.get("SHELL")`, falling back safely to `bash`.
+- Zero Configuration File Pollution: Never modify `~/.bashrc`/`~/.zshrc`/`config.fish` automatically; rely on standard XDG auto-discovery directories. Honor `XDG_DATA_HOME`/`XDG_CONFIG_HOME` before the `~/.local/share`/`~/.config` fallbacks, consistent with `config._config_dir` (`config.py:58-64`). Writing under XDG subdirs is sanctioned by the project's existing config convention (R-5/D46 forbid writing directly under bare `~/` and forbid sensitive data in config, not XDG-subdir writes); completion scripts contain no sensitive data.
+- Non-destructive Defaults: In automated batch or non-interactive installs (`-y`/`--yes`), modifications to user completion directories default to opt-in (`none`) unless explicitly requested via `--completion <shell>`/`--completion auto`. Installs are idempotent and no-clobber-unless-ours (sentinel-identified); uninstall removes only tool-created files.
+- Shell Detection: Detect shell reliably by consulting `os.environ.get("SHELL")`, falling back safely to `bash` (consistent with child 01's `aw completion` default).
+- Correct integration point: the interactive completion prompt belongs in the HOST-LEVEL once-per-user `_run_setup` (`cli.py:4771`), NOT the per-target-repo `install_wizard.py` (project-policy placement wizard, `install_wizard.py:1-18`).
 
 ## Findings
 
-- Modern Linux and macOS shells auto-discover completion files in `~/.local/share/bash-completion/completions/` without requiring any shell restarts or rc file edits.
-- Creating symlinks `agentwf -> aw` and `agent-workflows -> aw` ensures that completions trigger regardless of which CLI alias the developer executes.
+- Modern Linux and macOS shells auto-discover completion files in `${XDG_DATA_HOME:-~/.local/share}/bash-completion/completions/` (and the fish/zsh equivalents) without requiring any shell restarts or rc file edits.
+- Alias binding is SHELL-SPECIFIC (verified correctness caveat), not a uniform symlink: bash loads by command-name file (so `agentwf`/`agent-workflows` command-name files/symlinks make sense); zsh binds all aliases via the ONE `_aw` file's `#compdef aw agentwf agent-workflows` line (extra `_agentwf` symlinks are usually wrong/unneeded); fish binds via `complete -c aw`/`-c agentwf`/`-c agent-workflows` inside one `aw.fish`. E-01 encodes these per-shell rules.
+- CROSS-PLAN: `aw completion install`/`uninstall` (E-02) rely on the extensible `completion` parser shape that child 01 (`tabcomp-01` E-03) was required to ship; E-02 extends it additively and must verify it rather than assume it.
+- SAFETY: writing to a shared user directory risks clobbering a foreign `aw` completion or following a symlink to an unexpected target; E-01 uses a self-identifying sentinel + no-clobber-unless-ours + symlink-safe writes, and uninstall removes only tool-created files. The dotfile-untouched promise is asserted by an explicit test (E-05).
 
 ## Proposed changes (ordered, validatable)
 
-1. `agent_workflows/completion.py`: Implement `resolve_completion_dir`, `install_shell_completion`, and `uninstall_shell_completion`.
-2. `agent_workflows/cli.py`: Register `aw completion install|uninstall`, add `--completion` flag on `install`/`setup`, and post-install hint.
-3. `agent_workflows/install_wizard.py`: Add shell completion step in interactive wizard.
-4. `tests/test_completion.py` & `tests/test_install_wizard.py`: Unit tests for drop-in files, symlinks, uninstallation, wizard prompt, and CLI flags.
-5. `README.md`: Update documentation with `aw completion install` and manual activation examples.
+1. `agent_workflows/completion.py`: Implement `resolve_completion_dir`, `install_shell_completion`, and `uninstall_shell_completion` with sentinel/no-clobber/symlink safety and shell-specific alias binding.
+2. `agent_workflows/cli.py`: Register `aw completion install|uninstall` (extending child 01's `completion` parser), add `--completion` flag on `install`/`setup`, add the host-level `_run_setup` completion prompt, and post-install hint.
+3. `tests/test_completion.py`: Unit tests for dir resolution (XDG), drop-in files, per-shell alias binding, idempotency, no-clobber, uninstall-only-ours, dotfile-untouched, the setup prompt, and CLI flags.
+4. `README.md`: Update documentation with `aw completion install` and manual activation examples.
 
 ## Deferred / out of scope (with reason)
 
-- System-wide completion installation (e.g. writing to `/etc/bash_completion.d` requiring root/sudo): Deferred (user-level auto-discovery in `~/.local/share/bash-completion/completions/` is standard, portable, and non-privileged).
+- System-wide completion installation (e.g. writing to `/etc/bash_completion.d` requiring root/sudo): Deferred (user-level auto-discovery in `${XDG_DATA_HOME:-~/.local/share}/bash-completion/completions/` is standard, portable, and non-privileged).
+- Wiring the completion prompt into `agent_workflows/install_wizard.py`: Removed from scope (plan-review). That module is the per-target-repo project-policy wizard; a per-user/per-machine completion prompt belongs in the host-level `_run_setup` (E-03), not fired on every repo install.
 
 ## Scope check
 
-- Over-scope: none.
-- Under-scope: none (covers drop-in installation, symlink management, wizard prompt, installer flag, post-install tips, unit tests, and documentation).
+- Over-scope (removed in this review): the original plan touched `agent_workflows/install_wizard.py` (the per-repo project-policy wizard) for the completion prompt; that integration point was wrong, so the prompt moved to the host-level `_run_setup`, and `install_wizard.py` + `tests/test_install_wizard.py` were dropped from Scope-Paths.
+- Under-scope (addressed in this review): the original E-items omitted no-clobber/sentinel safety, symlink-safety, the dotfile-untouched assertion, the shell-specific alias-binding correctness, XDG env-var precedence, and the explicit cross-plan dependency on child 01's extensible `completion` parser. All now specified.
+- Right-sizing (reviewer): E-05 bundles tests + README across two concerns but maps to one test-surface file plus a doc update (one V-item, V-05), consistent with the sibling children's convention; not split. E-01 carries the most weight (dir resolution + install + uninstall + safety) but is one cohesive filesystem-manager concern.
 
 ## Required tests / validation
 
-- `tests/test_completion.py` & `tests/test_install_wizard.py`:
-  - Test `resolve_completion_dir` returns correct user paths for bash, zsh, and fish.
-  - Test `install_shell_completion` writes script file and creates alias symlinks in a mock directory.
-  - Test `install_shell_completion` is idempotent when run repeatedly.
-  - Test `uninstall_shell_completion` removes script and symlinks cleanly.
-  - Test `aw completion install --dry-run` previews paths without creating files.
-  - Test wizard prompt respects user confirmation and rejection.
-  - Test `aw install --completion bash` installs completion files during repo installation.
+- `tests/test_completion.py` (real temp HOME/XDG via `tmp_path`, not a mock):
+  - Test `resolve_completion_dir` honors `XDG_DATA_HOME`/`XDG_CONFIG_HOME` and the `~/.local/share`/`~/.config` fallbacks for bash, zsh, and fish.
+  - Test `install_shell_completion` writes the script file with the sentinel and binds aliases per the shell-specific rules (bash command-name files/symlinks; single zsh `_aw`; fish `aw.fish` with multi-`complete -c`).
+  - Test `install_shell_completion` is idempotent on repeat, and REFUSES to clobber a pre-existing FOREIGN `aw` completion (no sentinel).
+  - Test `uninstall_shell_completion` removes only tool-created files/symlinks and leaves foreign files intact.
+  - Test that NO user rc/dotfile (`.bashrc`/`.zshrc`/`config.fish`) is created or modified by install or uninstall.
+  - Test `aw completion install --dry-run` previews paths without creating files, and `aw completion <shell>` output still works (child-01 regression guard).
+  - Test the host-level `aw setup` completion prompt respects confirmation and rejection and is skipped non-interactively.
+  - Test `aw install --completion bash` installs completion files, and `--yes` without `--completion` installs nothing (safe default).
 
 ## Spec / documentation sync
 
@@ -114,17 +120,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Unit tests proving `install_shell_completion` and `uninstall_shell_completion` create and remove drop-in completion files and alias symlinks.
+  - Required evidence: Paste passing unit-test output over a real temp HOME/XDG proving `install_shell_completion`/`uninstall_shell_completion` create/remove drop-in files with the correct per-shell alias binding, honor XDG env vars, are idempotent, REFUSE to clobber a foreign `aw` completion, remove only tool-created files on uninstall, and MODIFY NO rc/dotfile.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: CLI test executing `aw completion install` and `aw completion uninstall` with exit code 0.
+  - Required evidence: Paste CLI test output executing `aw completion install`, `aw completion uninstall`, and `aw completion install --dry-run` with exit 0, PLUS a regression assertion that `aw completion <shell>` output (child 01) still works after the `install`/`uninstall` sub-actions are added (proves the parser shape was extended, not redesigned).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: Wizard test demonstrating completion prompt renders in interactive mode and respects user response.
+  - Required evidence: Test demonstrating the host-level `aw setup` completion prompt renders interactively, respects accept/reject, calls `install_shell_completion` only on accept, is skipped non-interactively, and does NOT touch `install_wizard.py`'s repo-policy flow. Paste the test output.
   - Observed evidence:
   - Result: pending
 
@@ -134,7 +140,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: `pytest tests/test_completion.py tests/test_install_wizard.py` runs with all tests passing, and `README.md` contains tab-completion documentation.
+  - Required evidence: `pytest tests/test_completion.py` (plus any added setup-flow test module) runs with all tests passing - paste the runner output - and `README.md` contains the "Shell Tab Completion" section documenting `aw completion install`.
   - Observed evidence:
   - Result: pending
 
