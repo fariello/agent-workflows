@@ -136,6 +136,13 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.ipd-missing-dependency-statement": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-08"
     ),
+    # Recognized-but-optional Priority enum on a plan's own metadata (xprio 1b45el). An out-of-vocab
+    # `- Priority:` value is an error; an absent Priority is silent (optional). The shared vocab is
+    # backlog.PRIORITIES (not forked). This is a plain metadata-enum check (precedent: backlog's own
+    # priority-invalid guard), NOT a cross-tree dangling/reference check.
+    "check.priority-invalid": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
     # Authoring-lifecycle nudge (catalog I-12): a finished draft should advance to to-review. This
     # is GUIDANCE and only detectable (placeholder-free draft), so info-severity + heuristic.
     "check.ipd-draft-ready-to-review": RuleSpec(
@@ -432,6 +439,15 @@ def check_content(
         # (deliberately NOT also added to the collisions-only cross-tree sweep).
         try:
             drift.extend(check_ipd_dependencies(repo_root))
+        except Exception:
+            pass
+        # xprio 1b45el E-02: validate the recognized-but-optional `- Priority:` enum on each plan
+        # against the shared backlog.PRIORITIES (out-of-vocab -> error; absent -> silent). Runs in the
+        # plans-type content path so BOTH `aw check plans` and `aw check all` surface it exactly once.
+        try:
+            drift.extend(
+                check_plan_priority(repo_root, include_untracked=include_untracked)
+            )
         except Exception:
             pass
         # agentadhere Phase 1 (IPD uisjns E-03; catalog invariant I-12): nudge a finished draft to
@@ -1828,3 +1844,50 @@ def check_ipd_dependencies(repo_root: Path) -> List[_core.Drift]:
     `check_from_backlog` scan shape; wired into the plans-type content path so BOTH `aw check plans`
     and `aw check all` surface it exactly once (never double-reported)."""
     return evaluate_ipd_dependencies(repo_root, phase="check")
+
+
+_PRIORITY_INVALID_RULE = "check.priority-invalid"
+
+
+def check_plan_priority(
+    repo_root: Path, include_untracked: bool = False
+) -> List[_core.Drift]:
+    """Validate the recognized-but-optional `- Priority:` enum on each plan (xprio 1b45el E-02).
+
+    Priority is OPTIONAL on an IPD (schema RECOGNIZES it; the enum value check lives HERE, in
+    `aw check`, per the documented convention). A plan carrying an out-of-vocab `- Priority:` value
+    is flagged `check.priority-invalid`; a plan with a valid value (or NO Priority at all) is silent.
+    The vocabulary is the SHARED `backlog.PRIORITIES` (imported, never forked). This is a plain
+    metadata-enum check on the plan's OWN field (precedent: backlog.validate_item's priority guard),
+    NOT a cross-tree dangling/reference check, so it runs in the plans-type content path (reached by
+    both `aw check plans` and the `aw check all` fan-out, exactly once).
+    """
+    from agent_workflows import backlog as _backlog
+
+    drift: List[_core.Drift] = []
+    for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        m = _ITEM_PRIORITY_RE.search(text)
+        if not m:
+            continue  # absent Priority is fine (optional)
+        value = m.group(1).strip()
+        if value in _backlog.PRIORITIES:
+            continue
+        mid = _ITEM_ID_RE.search(text)
+        id6 = mid.group(1) if mid else p.stem
+        drift.append(
+            enrich_drift(
+                _core.Drift(
+                    str(p),
+                    _PRIORITY_INVALID_RULE,
+                    f"priority not in {sorted(_backlog.PRIORITIES)}: {value!r}",
+                ),
+                observed=f"Priority: {value}",
+                required=f"one of {sorted(_backlog.PRIORITIES)} (or omit Priority)",
+                recovery=f"aw ipd set {id6} --priority <low|medium|high>  (or --priority - to clear)",
+            )
+        )
+    return drift

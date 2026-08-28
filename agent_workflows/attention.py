@@ -359,6 +359,11 @@ def _plans_record(
     # already re-reads the file, so set-membership does not depend on this; display parity does).
     br_m = re.search(r"(?m)^- Blocks-Release:\s*(\S+)\s*$", text)
     br = br_m.group(1) if br_m else None
+    # xprio 1b45el E-03: populate Item.priority from the plan's `- Priority:` line so the board LABELS
+    # a plan's priority via the existing type-agnostic renderer (absent = None = no label). This does
+    # NOT alter the shared attention sort key (core), which excludes priority for all trees today.
+    pr_m = re.search(r"(?m)^- Priority:[ \t]*(\S+)[ \t]*$", text)
+    pr = pr_m.group(1) if pr_m else None
     return Item(
         pid or "",
         rel,
@@ -368,6 +373,7 @@ def _plans_record(
         None,
         lha,
         blocks_release=br,
+        priority=pr,
     ), drift
 
 
