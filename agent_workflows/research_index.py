@@ -49,6 +49,10 @@ class DocEntry(NamedTuple):
     outcome: str
     summary: str
     consumed_by: List[str]
+    # xprio Order 6vgd0k: the recognized-but-optional research `priority` (shared low/medium/high
+    # vocab). Empty string when the doc carries no `priority:` key. Defaulted so positional
+    # construction elsewhere stays valid; carried into INDEX.json via `_asdict()`.
+    priority: str = ""
 
 
 # The generic drift record is the shared core's (plans-adopter Order 01); re-export it.
@@ -140,6 +144,7 @@ def _scan_docs(
                 outcome=str(fm.get("outcome", "")),
                 summary=str(fm.get("summary", "")),
                 consumed_by=consumed_list,
+                priority=str(fm.get("priority", "") or ""),
             )
         )
     return entries, drift

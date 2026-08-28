@@ -488,6 +488,21 @@ def validate_frontmatter(data: Dict[str, object]) -> List[FrontmatterError]:
     # consumed-by
     if "consumed-by" in data and not isinstance(data["consumed-by"], list):
         errors.append(FrontmatterError("consumed-by", "consumed-by must be a list"))
+    # priority (xprio Order 6vgd0k): a recognized-but-OPTIONAL frontmatter key (NOT in
+    # FRONTMATTER_FIELDS, so absence is fine and existing docs are not mass-failed). WHEN PRESENT it
+    # must be in the shared backlog.PRIORITIES vocab (imported, not forked), mirroring the status/
+    # outcome value checks above. `aw research index --check` and `aw check` both call this.
+    if "priority" in data:
+        from agent_workflows import backlog as _backlog
+
+        val = data["priority"]
+        if val not in _backlog.PRIORITIES:
+            errors.append(
+                FrontmatterError(
+                    "priority",
+                    f"priority must be one of {sorted(_backlog.PRIORITIES)}",
+                )
+            )
 
     return errors
 

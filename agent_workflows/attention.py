@@ -411,8 +411,20 @@ def _research_record(
     status = norm.value or raw_status
     rid = str(data.get("id", "")) if data.get("id") else ""
     lha = A.last_history_at(_history_section_lines(text))
+    # xprio 6vgd0k E-04: populate Item.priority from the doc's `priority:` frontmatter key so the
+    # board LABELS a research doc's priority via the existing renderer (absent = None = no label).
+    # Shared sort key unchanged.
+    pr_val = data.get("priority")
+    pr = str(pr_val) if pr_val not in (None, "") else None
     return Item(
-        rid, rel, "research", status, A.class_of("research", status), None, lha
+        rid,
+        rel,
+        "research",
+        status,
+        A.class_of("research", status),
+        None,
+        lha,
+        priority=pr,
     ), drift
 
 

@@ -62,8 +62,13 @@ def build_frontmatter(
     outcome: str,
     summary: str,
     consumed_by: Optional[List[str]] = None,
+    priority: Optional[str] = None,
 ) -> str:
-    """Render a full spec-5.8 frontmatter block (all 11 fields, canonical order)."""
+    """Render a full spec-5.8 frontmatter block (the 11 required fields, canonical order).
+
+    xprio Order 6vgd0k: an OPTIONAL `priority:` line is appended ONLY when a non-empty `priority`
+    is given (the shared low/medium/high vocab). Omitted priority emits NO line, so a doc created
+    without it stays contract-clean (priority is recognized-but-optional, not a required field)."""
 
     topic_str = "[" + ", ".join(topic) + "]" if topic else "[]"
     consumed = consumed_by or []
@@ -82,9 +87,10 @@ def build_frontmatter(
         f"outcome: {outcome}",
         f"summary: {summary}",
         f"consumed-by: {consumed_str}",
-        "---",
-        "",
     ]
+    if priority:
+        lines.append(f"priority: {priority}")
+    lines += ["---", ""]
     return "\n".join(lines)
 
 
@@ -141,6 +147,7 @@ def plan_new(
     topic: Optional[List[str]] = None,
     date_str: Optional[str] = None,
     existing_ids: Optional[set] = None,
+    priority: Optional[str] = None,
 ) -> Tuple[Optional[List[PlannedFile]], Optional[str]]:
     """Plan a single ``new`` document (no writing). Returns (files, None) or (None, error)."""
 
@@ -148,6 +155,13 @@ def plan_new(
     if not kind_res.ok:
         return None, kind_res.message
     kind = kind_res.value or kind
+
+    # xprio 6vgd0k: an optional --priority must be in the shared vocab when given (reuse, no fork).
+    if priority is not None:
+        from agent_workflows import backlog as _backlog
+
+        if priority not in _backlog.PRIORITIES:
+            return None, f"priority must be one of {sorted(_backlog.PRIORITIES)}"
 
     if model is not None:
         model_res = R.normalize_model(model)
@@ -189,6 +203,7 @@ def plan_new(
         status="todo",
         outcome="none-yet",
         summary=summary,
+        priority=priority,
     )
     return [PlannedFile(research_root / filename, content)], None
 
@@ -499,6 +514,106 @@ def run_set_outcome(args: argparse.Namespace) -> int:
     return 0
 
 
+def _set_priority_line(text: str, value: Optional[str]) -> str:
+    """Return ``text`` with an optional `priority:` frontmatter line set to ``value`` or removed.
+
+    xprio 6vgd0k: `priority` is OPTIONAL, so unlike `update_frontmatter_fields` (which only rewrites
+    lines already present) this INSERTS the line when absent and REMOVES it on clear. Operates ONLY
+    inside the FIRST `--- ... ---` block; inserts after the `summary:`/`consumed-by:` line (or before
+    the closing fence). `value` None/'-' clears. Preserves every other line + the body byte-for-byte.
+    """
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
+        return text
+    fm_end = None
+    prio_idx = None
+    last_content_idx = 0
+    for i in range(1, len(lines)):
+        stripped = lines[i].strip()
+        if stripped == "---":
+            fm_end = i
+            break
+        if stripped.startswith("priority:"):
+            prio_idx = i
+        if stripped:
+            last_content_idx = i
+    if fm_end is None:
+        return text  # malformed block; leave untouched
+    clearing = value in (None, "-")
+    if clearing:
+        if prio_idx is not None:
+            del lines[prio_idx]
+        return "".join(lines)
+    new_line = f"priority: {value}\n"
+    if prio_idx is not None:
+        newline = "\n" if lines[prio_idx].endswith("\n") else ""
+        lines[prio_idx] = f"priority: {value}{newline}"
+    else:
+        # insert right after the last content line inside the block (before the closing fence)
+        lines.insert(last_content_idx + 1, new_line)
+    return "".join(lines)
+
+
+def plan_set_priority(
+    research_root: Path, id6: str, to: Optional[str]
+) -> Tuple[Optional[Path], Optional[str], Optional[str]]:
+    """Plan a priority set/clear for one doc; returns (path, new_text, error). Mirrors
+    ``plan_set_outcome``. ``to`` must be in the shared vocab (or '-'/None to clear)."""
+    from agent_workflows import backlog as _backlog
+
+    clearing = to in (None, "-")
+    if not clearing and to not in _backlog.PRIORITIES:
+        return None, None, f"priority must be one of {sorted(_backlog.PRIORITIES)}"
+    target: Optional[Path] = None
+    for p in sorted(research_root.rglob("*.md")):
+        parsed, _err = R.parse_name(p.name)
+        if parsed is not None and parsed.id6 == id6:
+            target = p
+            break
+    if target is None:
+        return None, None, f"no research file has id6 '{id6}'"
+    text = target.read_text(encoding="utf-8")
+    return target, _set_priority_line(text, to), None
+
+
+def run_set_priority(args: argparse.Namespace) -> int:
+    """`aw research set-priority <id6> --to <low|medium|high|-> ` (preview/--apply); mirrors
+    set-outcome's shape (xprio 6vgd0k)."""
+
+    root = _research_root(args)
+    id6 = (getattr(args, "id", "") or "").strip()
+    if not id6:
+        print("error: an <id6> is required")
+        return 2
+    to = getattr(args, "to", None)
+    target, new_text, err = plan_set_priority(root, id6, to)
+    if err or target is None or new_text is None:
+        print(f"error: {err or 'could not plan update'}")
+        return 2
+    rel = target.relative_to(root).as_posix()
+    if not getattr(args, "apply", False):
+        label = "priority=[] (cleared)" if to in (None, "-") else f"priority={to}"
+        print(f"--- would update {rel}: {label} ---")
+        return 0
+    _atomic_write(target, new_text)
+    print(f"updated {rel}")
+    try:
+        from agent_workflows import research_index as _ridx
+
+        _ridx.run_index(
+            argparse.Namespace(
+                dir=getattr(args, "dir", None),
+                check=False,
+                agent=False,
+                limit=None,
+                quiet=True,
+            )
+        )
+    except Exception:
+        pass
+    return 0
+
+
 def run_new(args: argparse.Namespace) -> int:
     root = _research_root(args)
     topic = [
@@ -513,6 +628,7 @@ def run_new(args: argparse.Namespace) -> int:
         model=getattr(args, "model", None),
         topic=topic,
         date_str=getattr(args, "date", None),
+        priority=getattr(args, "priority", None),
     )
     if err:
         from agent_workflows.renderers import get_renderer

@@ -1670,6 +1670,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_research_new.add_argument("--topic", default=None, help="Comma-separated topics.")
     p_research_new.add_argument(
+        "--priority",
+        dest="priority",
+        default=None,
+        choices=["low", "medium", "high"],
+        help="Optional research Priority (low|medium|high); emits a `priority:` frontmatter line (xprio).",
+    )
+    p_research_new.add_argument(
         "--date", default=None, help="Override the set date (YYYYMMDD)."
     )
     p_research_new.add_argument(
@@ -1861,6 +1868,27 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dir", default=None, help="Repo root (default: current directory)."
     )
     p_research_set_outcome.add_argument(
+        "--apply",
+        action="store_true",
+        help="Perform the update (default is preview only).",
+    )
+
+    p_research_set_priority = research_sub.add_parser(
+        "set-priority",
+        parents=[common],
+        help="Set/clear a research doc's optional Priority (preview unless --apply); xprio.",
+    )
+    p_research_set_priority.add_argument("id", help="The <id6> of the doc.")
+    p_research_set_priority.add_argument(
+        "--to",
+        default=None,
+        choices=["low", "medium", "high", "-"],
+        help="Set the priority value (low|medium|high); '-' clears it.",
+    )
+    p_research_set_priority.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_research_set_priority.add_argument(
         "--apply",
         action="store_true",
         help="Perform the update (default is preview only).",
@@ -7877,6 +7905,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import research_cmd as rc
 
             return rc.run_set_outcome(args)
+        if research_cmd == "set-priority":
+            from agent_workflows import research_cmd as rc
+
+            return rc.run_set_priority(args)
         if research_cmd == "pending":
             from agent_workflows import research_index as ri
 
