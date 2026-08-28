@@ -152,6 +152,13 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.scope-drift": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-01"
     ),
+    # Pre-push authorization feedback (agentadhere Phase 4, IPD diundn E-02; catalog I-02). This is
+    # an AUTHORITY invariant: a LOCAL pre-push hook can only give feedback, NEVER enforce it (the
+    # authoritative boundary is a protected branch / required CI / brokered credential). The
+    # assurance class is `authority` precisely to make that honest limit explicit in the finding.
+    "check.push-unauthorized": RuleSpec(
+        "error", ASSURANCE_AUTHORITY, DET_HEURISTIC, "I-02"
+    ),
 }
 
 # Conservative default for an unregistered rule id: treat it as an error-severity, repository-class,
@@ -1001,6 +1008,83 @@ def check_scope_drift(
                 )
             )
     return drift
+
+
+def check_commit_invariants(repo_root: Path) -> List[_core.Drift]:
+    """Aggregate the SHARED commit-scoped invariant rules for a pre-commit gate (agentadhere Phase 4,
+    IPD diundn E-01; DECISION 17-diundn-D1).
+
+    This COMPOSES the already-shared, commit/receipt-scoped rules - it introduces NO new policy
+    logic, so the pre-commit hook that delegates here and ``aw check`` can never diverge (each
+    finding still originates from its existing shared rule):
+
+    * ``check.status-untooled`` (``check_status_untooled``) - a staged hand-edited intermediate
+      plan status change;
+    * ``check.blocking-item-closed-without-gate`` (``check_release_gate_consistency``) - a staged
+      release-blocking backlog item closed without a preserved gate;
+    * ``check.scope-drift`` (``check_scope_drift``) - for a plan with an ACTIVE begin receipt, a
+      changed path outside its declared ``Scope-Paths`` (findings 5.3: enforce the staged-paths-
+      within-declared-scope INVARIANT, not the command syntax).
+
+    Each rule is commit/receipt-scoped, so on an ordinary clean commit this is a fast no-op. The
+    per-drift ``recovery`` field (from the versioned finding shape) is what the hook TEACHES. HONEST
+    LIMIT: this is a LOCAL best-effort gate (``--no-verify`` bypasses it, not cloned by default); the
+    portable authority is ``aw check`` + CI.
+    """
+    drift: List[_core.Drift] = []
+    for fn in (
+        check_status_untooled,
+        check_release_gate_consistency,
+        check_scope_drift,
+    ):
+        try:
+            drift.extend(fn(repo_root))
+        except Exception:
+            # A single rule's failure must not take down the whole pre-commit gate.
+            continue
+    # Enrich each drift with its registry metadata + recovery so the hook can teach the fix.
+    return [enrich_drift(d) if not d.recovery else d for d in drift]
+
+
+_PUSH_UNAUTHORIZED_RULE = "check.push-unauthorized"
+
+# The env var an operator may set to acknowledge they are performing an authorized push. This is a
+# LOCAL convenience acknowledgement ONLY - it is visible to and settable by the agent, so it is NOT
+# independent authorization (findings 5.5). The pre-push hook uses it purely to distinguish an
+# intended push from an accidental one; the AUTHORITATIVE control is a protected remote branch /
+# required CI / brokered credential (the deferred external-authority set).
+PUSH_ACK_ENV = "AW_PUSH_AUTHORIZED"
+
+
+def check_push_authorization(repo_root: Path, ack: bool = False) -> List[_core.Drift]:
+    """Pre-push authorization FEEDBACK (agentadhere Phase 4, IPD diundn E-02; catalog I-02).
+
+    Returns a single ``check.push-unauthorized`` drift when ``ack`` is falsey (no local
+    acknowledgement of an intended push), so the pre-push hook can PREVENT an accidental push and
+    EXPLAIN what real authorization requires. HONEST (findings 5.5): this is LOCAL feedback only - a
+    local env acknowledgement is NOT independent authorization (the agent can set it), and the hook
+    is bypassable with ``--no-verify`` and not cloned by default. The AUTHORITATIVE boundary is a
+    protected remote branch / required CI / brokered credential (the deferred external-authority
+    set); this rule NEVER claims to be that boundary.
+    """
+    if ack:
+        return []
+    return [
+        enrich_drift(
+            _core.Drift(
+                "<push>",
+                _PUSH_UNAUTHORIZED_RULE,
+                "a push was attempted with no local authorization acknowledgement; this LOCAL hook "
+                "prevents an accidental push. It is NOT an authority boundary (it is bypassable and "
+                "not cloned by default); real push authorization is a protected branch / required CI "
+                "/ brokered credential",
+            ),
+            observed="push attempted without acknowledgement",
+            required="an intended, externally-authorized push",
+            recovery=f"if this push is intended and authorized, set {PUSH_ACK_ENV}=1 to acknowledge "
+            "(local convenience only), or push through the authorized path (protected branch / CI)",
+        )
+    ]
 
 
 def check_type(

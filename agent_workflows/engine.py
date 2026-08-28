@@ -4664,6 +4664,125 @@ def create_dependency_gate_hook(
     return {"created": created, "skipped": skipped, "notes": notes}
 
 
+# agentadhere diundn: the OPT-IN Phase-4 pre-commit + pre-push hooks. Each wires an idempotent,
+# no-clobber block mirroring create_backlog_close_gate_hook. NOT installed by the default setup path
+# (opt-in only). Each hook's `entry` delegates to a shared check_engine surface, so the hook and
+# `aw check` never diverge; HONEST: local, not cloned by default, bypassable with --no-verify.
+_PRECOMMIT_SCOPE_GATE_HOOK_ID = "aw-precommit-scope-gate"
+_PRECOMMIT_SCOPE_GATE_BLOCK = """\
+  - repo: local
+    hooks:
+      - id: aw-precommit-scope-gate
+        name: no staged commit violating a repository invariant or a plan's declared Scope-Paths
+        entry: python3 -m agent_workflows precommit-scope-gate
+        language: system
+        pass_filenames: false
+        always_run: true
+"""
+_PRECOMMIT_SCOPE_GATE_TEMPLATE = (
+    "# Pre-commit hooks (created by agent-workflows). If you already use pre-commit, MERGE the\n"
+    "# hook below into your existing .pre-commit-config.yaml instead of this file.\n"
+    "repos:\n"
+    "  # OPT-IN local guard (agentadhere diundn): run the shared commit-invariant checker over the\n"
+    "  # staged commit (status-untooled + release-gate + scope-drift) and TEACH the fix. LOCAL\n"
+    "  # best-effort only (--no-verify bypasses it); the authoritative gate is `aw check` in CI.\n"
+    + _PRECOMMIT_SCOPE_GATE_BLOCK
+)
+
+_PREPUSH_GATE_HOOK_ID = "aw-prepush-authorization-gate"
+_PREPUSH_GATE_BLOCK = """\
+  - repo: local
+    hooks:
+      - id: aw-prepush-authorization-gate
+        name: prevent an accidental push and explain real authorization (FEEDBACK ONLY, not authority)
+        entry: python3 -m agent_workflows prepush-authorization-gate
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
+"""
+_PREPUSH_GATE_TEMPLATE = (
+    "# Pre-commit hooks (created by agent-workflows). If you already use pre-commit, MERGE the\n"
+    "# hook below into your existing .pre-commit-config.yaml instead of this file.\n"
+    "repos:\n"
+    "  # OPT-IN local guard (agentadhere diundn): a pre-PUSH accidental-push guard. FEEDBACK ONLY -\n"
+    "  # NOT an authority boundary (local, bypassable, an env ack is agent-settable); real push\n"
+    "  # authorization is a protected branch / required CI / brokered credential.\n"
+    + _PREPUSH_GATE_BLOCK
+)
+
+
+def _wire_optin_precommit_hook(
+    repo_root: Path,
+    use_git: bool,
+    *,
+    install: bool,
+    dry_run: bool,
+    hook_id: str,
+    template: str,
+    block: str,
+) -> dict[str, list[str]]:
+    """Shared idempotent, no-clobber wiring for an OPT-IN pre-commit/pre-push hook (agentadhere
+    diundn). Mirrors ``create_backlog_close_gate_hook``: writes a standalone config when none exists,
+    else appends the block if not already wired; ``install=False`` writes nothing; dry-run aware."""
+    created: list[str] = []
+    skipped: list[str] = []
+    notes: list[str] = []
+    if not install:
+        return {"created": created, "skipped": skipped, "notes": notes}
+    pc_path = repo_root / PRE_COMMIT_CONFIG
+    if not pc_path.exists():
+        if dry_run:
+            notes.append(f"would create {PRE_COMMIT_CONFIG} with the {hook_id} hook")
+        else:
+            _create_if_absent(repo_root, PRE_COMMIT_CONFIG, template, use_git, created)
+        return {"created": created, "skipped": skipped, "notes": notes}
+    existing = pc_path.read_text(encoding="utf-8")
+    if hook_id in existing:
+        skipped.append(f"{PRE_COMMIT_CONFIG} [{hook_id} already wired]")
+        return {"created": created, "skipped": skipped, "notes": notes}
+    if dry_run:
+        notes.append(f"would append the {hook_id} hook block to {PRE_COMMIT_CONFIG}")
+        return {"created": created, "skipped": skipped, "notes": notes}
+    pc_path.write_text(existing.rstrip("\n") + "\n" + block, encoding="utf-8")
+    if use_git:
+        git_add_optional(repo_root, PRE_COMMIT_CONFIG)
+    notes.append(f"appended the {hook_id} hook block to {PRE_COMMIT_CONFIG}")
+    return {"created": created, "skipped": skipped, "notes": notes}
+
+
+def create_precommit_scope_gate_hook(
+    repo_root: Path, use_git: bool, *, install: bool, dry_run: bool = False
+) -> dict[str, list[str]]:
+    """OPT-IN wire the Phase-4 pre-commit scope/invariant gate (agentadhere diundn E-01). Idempotent,
+    no-clobber, opt-in-only (never default-installed)."""
+    return _wire_optin_precommit_hook(
+        repo_root,
+        use_git,
+        install=install,
+        dry_run=dry_run,
+        hook_id=_PRECOMMIT_SCOPE_GATE_HOOK_ID,
+        template=_PRECOMMIT_SCOPE_GATE_TEMPLATE,
+        block=_PRECOMMIT_SCOPE_GATE_BLOCK,
+    )
+
+
+def create_prepush_authorization_gate_hook(
+    repo_root: Path, use_git: bool, *, install: bool, dry_run: bool = False
+) -> dict[str, list[str]]:
+    """OPT-IN wire the Phase-4 pre-push authorization FEEDBACK gate (agentadhere diundn E-02).
+    Idempotent, no-clobber, opt-in-only. HONEST: feedback only, not an authority boundary."""
+    return _wire_optin_precommit_hook(
+        repo_root,
+        use_git,
+        install=install,
+        dry_run=dry_run,
+        hook_id=_PREPUSH_GATE_HOOK_ID,
+        template=_PREPUSH_GATE_TEMPLATE,
+        block=_PREPUSH_GATE_BLOCK,
+    )
+
+
 def _create_if_absent(
     repo_root: Path, rel: str, content: str, use_git: bool, created: list[str]
 ) -> None:

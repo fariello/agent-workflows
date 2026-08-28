@@ -3106,6 +3106,23 @@ EXAMPLES
         "Item-Dependencies statement (OPT-IN, LOCAL prevention, no CI; the aw check rule is the backstop).",
     )
 
+    # agentadhere diundn: OPT-IN local pre-commit gate running the shared commit-invariant checker
+    # (status-untooled + release-gate + scope-drift) over the staged commit with teaching errors.
+    sub.add_parser(
+        "precommit-scope-gate",
+        parents=[common],
+        help="Local pre-commit gate: refuse a staged commit that violates a repository invariant or "
+        "a plan's declared Scope-Paths, teaching the recovery command (OPT-IN, LOCAL; CI is the authority).",
+    )
+    # agentadhere diundn: OPT-IN local pre-push gate that prevents an accidental push and explains
+    # real authorization. FEEDBACK ONLY, honestly NOT an authority boundary.
+    sub.add_parser(
+        "prepush-authorization-gate",
+        parents=[common],
+        help="Local pre-push gate: prevent an accidental push and explain real authorization "
+        "(OPT-IN, LOCAL FEEDBACK ONLY, bypassable; NOT an authority boundary - CI/protected branch is).",
+    )
+
     _apply_descriptions(parser)
     return parser
 
@@ -7933,6 +7950,16 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         from agent_workflows.hooks import ipd_dependency_statement_gate as _dgate
 
         return _dgate.main([])
+
+    if args.command == "precommit-scope-gate":
+        from agent_workflows.hooks import precommit_scope_gate as _pcgate
+
+        return _pcgate.main([])
+
+    if args.command == "prepush-authorization-gate":
+        from agent_workflows.hooks import prepush_authorization_gate as _ppgate
+
+        return _ppgate.main([])
 
     parser.print_help()
     return 2
