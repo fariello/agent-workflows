@@ -61,6 +61,40 @@ class SelectorResolverTests(unittest.TestCase):
         self.assertEqual(selectors.resolve_selectors(self.root, "plans", []), [])
         self.assertEqual(selectors.resolve_selectors(self.root, "bogus", ["x"]), [])
 
+    def test_resolve_other_type(self) -> None:
+        notes = self.root / ".aw" / "records" / "notes"
+        notes.mkdir(parents=True)
+        note_file = notes / "20260101-notes-01-nt0001-meeting.md"
+        note_file.write_text(
+            "# Notes\n\n- Id: nt0001\n- Status: open\n- Set: notes\n\nContent\n",
+            encoding="utf-8",
+        )
+        loose_file = self.root / ".aw" / "records" / "20260101-top-01-tp0001-scratch.md"
+        loose_file.write_text(
+            "# Scratch\n\n- Id: tp0001\n- Status: active\n- Set: top\n\nContent\n",
+            encoding="utf-8",
+        )
+
+        # Other resolves both custom directory and loose records
+        self.assertEqual(
+            selectors.resolve_selectors(self.root, "other", ["nt0001"]),
+            [note_file],
+        )
+        self.assertEqual(
+            selectors.resolve_selectors(self.root, "other", ["scratch"]),
+            [loose_file],
+        )
+        # Does not match primary types (e.g. plans)
+        self.assertEqual(
+            selectors.resolve_selectors(self.root, "other", ["aaa111"]),
+            [],
+        )
+        # Primary types do not match other files
+        self.assertEqual(
+            selectors.resolve_selectors(self.root, "plans", ["nt0001"]),
+            [],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

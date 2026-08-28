@@ -565,6 +565,27 @@ class TestStatusSetCommands(StatusSetTestBase):
         text = spec.read_text(encoding="utf-8")
         self.assertIn("- Status: reviewed", text)
 
+    def test_other_artifact_status_transition(self):
+        other_dir = self.repo_root / ".aw" / "records" / "notes"
+        other_dir.mkdir(parents=True, exist_ok=True)
+        note = other_dir / "20260822-notes-01-nt0005-meeting.md"
+        note.write_text(
+            "# Meeting Note\n\n- Id: nt0005\n- Status: open\n- Set: notes\n\nNotes content.\n",
+            encoding="utf-8",
+        )
+
+        # Unscoped aw set
+        rc = cli.main(["set", "done", "nt0005", "--yes", "--dir", str(self.repo_root)])
+        self.assertEqual(rc, 0)
+        self.assertIn("- Status: done", note.read_text(encoding="utf-8"))
+
+        # Explicitly scoped aw set other
+        rc2 = cli.main(
+            ["set", "other", "active", "nt0005", "--yes", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc2, 0)
+        self.assertIn("- Status: active", note.read_text(encoding="utf-8"))
+
     def test_dry_run_mode(self):
         plan = self.create_plan(
             "20260822-dryrun-01-pl0011-plan.ipd.md", "pl0011", "dryrun", "draft"

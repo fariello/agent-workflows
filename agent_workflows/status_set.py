@@ -88,6 +88,21 @@ TYPE_STATUSES: dict[str, set[str]] = {
         "done",
         "parked",
     },
+    "other": {
+        "draft",
+        "to-review",
+        "reviewed",
+        "approved",
+        "auto-approved",
+        "open",
+        "active",
+        "done",
+        "parked",
+        "superseded",
+        "not-executed",
+        "executed",
+        "pending",
+    },
 }
 
 # Type aliases / singular mappings to canonical plural
@@ -108,6 +123,9 @@ TYPE_ALIASES: dict[str, str] = {
     "walkthroughs": "walkthroughs",
     "roadmap": "roadmaps",
     "roadmaps": "roadmaps",
+    "other": "other",
+    "others": "other",
+    "misc": "other",
 }
 
 # Regexes for front-matter inspection and manipulation
@@ -173,6 +191,23 @@ def detect_artifact_type(path: Path, repo_root: Path) -> str | None:
             return "plans"
     except OSError:
         pass
+
+    # Fallback for any other record in .aw/records or .agents
+    with contextlib.suppress(OSError):
+        resolved = path.resolve()
+        for base in (
+            (repo_root / ".aw" / "records").resolve(),
+            (repo_root / ".agents").resolve(),
+        ):
+            if base.is_dir() and (base == resolved or base in resolved.parents):
+                try:
+                    rel_parts = set(resolved.relative_to(base).parts)
+                    if any(ex in _sel.EXCLUDED_RECORD_DIRS for ex in rel_parts):
+                        return None
+                except ValueError:
+                    pass
+                return "other"
+
     return None
 
 
@@ -216,7 +251,17 @@ def inventory_all_artifacts(repo_root: Path) -> list[ArtifactRecord]:
     records: list[ArtifactRecord] = []
     seen: set[str] = set()
 
-    for rtype in ("plans", "specs", "prompts", "backlog", "releases", "research"):
+    for rtype in (
+        "plans",
+        "specs",
+        "prompts",
+        "backlog",
+        "releases",
+        "research",
+        "walkthroughs",
+        "roadmaps",
+        "other",
+    ):
         for d in _sel.record_dirs(repo_root, rtype):
             if not d.is_dir():
                 continue
@@ -271,6 +316,7 @@ def match_selector(
             "research",
             "walkthroughs",
             "roadmaps",
+            "other",
         )
     matched_paths: dict[str, Path] = {}
     for rt in record_types:

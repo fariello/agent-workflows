@@ -19,6 +19,7 @@ ARTIFACT_TYPES = (
     "roadmaps",
     "comms",
     "releases",
+    "other",
 )
 
 # Singular / short aliases -> canonical plural.
@@ -32,6 +33,9 @@ _ALIASES = {
     "research": "research",
     "backlog": "backlog",
     "release": "releases",
+    "other": "other",
+    "others": "other",
+    "misc": "other",
 }
 
 
@@ -111,6 +115,10 @@ TYPE_BACKENDS: Dict[str, Dict[str, str]] = {
     "releases": {
         "rename": "artifact_rename.run_rename_releases",
         "group": "artifact_rename.run_group_releases",
+    },
+    "other": {
+        "rename": "artifact_rename.run_rename_other",
+        "group": "artifact_rename.run_group_other",
     },
 }
 

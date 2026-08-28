@@ -65,6 +65,7 @@ ARTIFACT_TYPE_FACETS = (
     "backlog",
     "comms",
     "release",
+    "other",
 )
 _FACET_ALT = "|".join(ARTIFACT_TYPE_FACETS)
 
@@ -78,6 +79,7 @@ TYPE_FACET = {
     "roadmaps": "roadmap",
     "releases": "release",
     "comms": "comms",
+    "other": "other",
 }
 
 # --------------------------------------------------------------------------------------

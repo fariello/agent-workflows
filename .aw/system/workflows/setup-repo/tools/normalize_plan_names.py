@@ -111,7 +111,7 @@ _NEW_RE = re.compile(
 # is the current plan-name convention; the older HHMM-NN form above is accepted for compatibility.
 # The optional `.<type>` facet (spec 20260817-2147-01, uniform artifact-naming grammar) is a CLOSED
 # enum so a dotted slug is never mis-parsed as a facet; a bare `.md` remains conformant (dual-read).
-_ARTIFACT_TYPE_FACETS = ("ipd", "prompt", "spec", "walkthrough", "roadmap", "backlog", "comms", "release")
+_ARTIFACT_TYPE_FACETS = ("ipd", "prompt", "spec", "walkthrough", "roadmap", "backlog", "comms", "release", "other")
 _FACET_ALT = "|".join(_ARTIFACT_TYPE_FACETS)
 _CLUSTERED_RE = re.compile(
     r"^(?P<date>\d{8})-(?P<set>[a-z0-9]+(?:-[a-z0-9]+)*)-(?P<nn>\d{2})-(?P<id6>[0-9a-z]{6})-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)"

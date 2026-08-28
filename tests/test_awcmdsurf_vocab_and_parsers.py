@@ -16,6 +16,8 @@ class VocabTests(unittest.TestCase):
         self.assertEqual(at.normalize_type("plan"), "plans")
         self.assertEqual(at.normalize_type("specs"), "specs")
         self.assertEqual(at.normalize_type("all"), "all")
+        self.assertEqual(at.normalize_type("other"), "other")
+        self.assertEqual(at.normalize_type("misc"), "other")
 
     def test_normalize_unknown_raises(self) -> None:
         with self.assertRaises(ValueError) as ctx:

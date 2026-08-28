@@ -10,6 +10,7 @@ the Order 01 naming authority (for bare-stem parsing); the naming authority neve
 
 from __future__ import annotations
 
+import contextlib
 import re
 from pathlib import Path
 from typing import List, NamedTuple, Optional
@@ -88,6 +89,33 @@ _STATUS_RE = re.compile(r"(?m)^- Status:\s*(\S+)\s*$")
 _SET_RE = re.compile(r"(?m)^- Set:\s*(.+?)\s*$")
 
 
+KNOWN_PRIMARY_TYPES = frozenset(
+    {
+        "plans",
+        "specs",
+        "prompts",
+        "research",
+        "backlog",
+        "walkthroughs",
+        "roadmaps",
+        "comms",
+        "releases",
+    }
+)
+
+EXCLUDED_RECORD_DIRS = frozenset(
+    {
+        "runs",
+        "scratch",
+        "tmp",
+        "temp",
+        ".git",
+        ".system_generated",
+        "__pycache__",
+    }
+)
+
+
 def record_dirs(repo_root: Path, record_type: str) -> List[Path]:
     """Directories to search for a record type (primary + any legacy read path).
 
@@ -109,6 +137,27 @@ def record_dirs(repo_root: Path, record_type: str) -> List[Path]:
         if key not in seen and p.is_dir():
             seen.add(key)
             out.append(p)
+
+    if record_type == "other":
+        for base in (repo_root / ".aw" / "records", repo_root / ".agents"):
+            if not base.is_dir():
+                continue
+            for child in base.iterdir():
+                if (
+                    child.is_dir()
+                    and child.name not in KNOWN_PRIMARY_TYPES
+                    and child.name not in EXCLUDED_RECORD_DIRS
+                ):
+                    _add(child)
+            with contextlib.suppress(OSError):
+                if any(
+                    f.is_file() and f.suffix == ".md" and f.name not in _SKIP_NAMES
+                    for f in base.iterdir()
+                ):
+                    _add(base)
+        _add(repo_root / ".aw" / "records" / "other")
+        _add(repo_root / ".agents" / "other")
+        return out
 
     try:
         for p in _rp.resolve_record_read_paths(record_type, target_repo=str(repo_root)):
@@ -143,6 +192,41 @@ def _read_setid(text: str) -> str | None:
 def _iter_files(repo_root: Path, record_type: str):
     """Yield (path, text) for every non-index *.md record file of the type, de-duplicated by path."""
     seen: set = set()
+    if record_type == "other":
+        known_dirs = {
+            d.resolve()
+            for rt in KNOWN_PRIMARY_TYPES
+            for d in record_dirs(repo_root, rt)
+        }
+        for base in (repo_root / ".aw" / "records", repo_root / ".agents"):
+            if not base.is_dir():
+                continue
+            for p in base.rglob("*.md"):
+                if p.name in _SKIP_NAMES:
+                    continue
+                try:
+                    p_res = p.resolve()
+                except OSError:
+                    continue
+                if any(kd in p_res.parents or p_res == kd for kd in known_dirs):
+                    continue
+                try:
+                    rel_parts = set(p_res.relative_to(base.resolve()).parts)
+                    if any(ex in rel_parts for ex in EXCLUDED_RECORD_DIRS):
+                        continue
+                except ValueError:
+                    pass
+                rp = str(p_res)
+                if rp in seen:
+                    continue
+                seen.add(rp)
+                try:
+                    text = p.read_text(encoding="utf-8")
+                except OSError:
+                    continue
+                yield p, text
+        return
+
     for d in record_dirs(repo_root, record_type):
         for p in d.rglob("*.md"):
             if p.name in _SKIP_NAMES:

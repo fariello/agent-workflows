@@ -832,6 +832,10 @@ def run_rename_releases(args: argparse.Namespace) -> "MutationResult":
     return run_rename_generic(args, "releases")
 
 
+def run_rename_other(args: argparse.Namespace) -> "MutationResult":
+    return run_rename_generic(args, "other")
+
+
 def run_group_backlog(args: argparse.Namespace) -> "MutationResult":
     return run_group_generic(args, "backlog")
 
@@ -854,3 +858,7 @@ def run_group_roadmaps(args: argparse.Namespace) -> "MutationResult":
 
 def run_group_releases(args: argparse.Namespace) -> "MutationResult":
     return run_group_generic(args, "releases")
+
+
+def run_group_other(args: argparse.Namespace) -> "MutationResult":
+    return run_group_generic(args, "other")
