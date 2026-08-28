@@ -30,17 +30,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: event-derived state
 
-- [ ] E-01 Represent lifecycle transitions as validated versioned events built ON the existing `record_history` sidecar (`.aw/records/history.jsonl`, record_history.py:30,41 - do NOT introduce a parallel event log), with the visible status DERIVED from the versioned event stream. The transition function rejects missing predecessors, stale tree ids, invalid actors, malformed evidence, and unauthorized terminal transitions. Integrate transition validity as phase-1 `check_engine` rules (reuse the existing rule/finding shape from child uisjns; do not fork). Run derivation ALONGSIDE the existing `- Status:` read (backward-compatible; no big-bang migration) per OQ-01.
+- [x] E-01 Represent lifecycle transitions as validated versioned events built ON the existing `record_history` sidecar (`.aw/records/history.jsonl`, record_history.py:30,41 - do NOT introduce a parallel event log), with the visible status DERIVED from the versioned event stream. The transition function rejects missing predecessors, stale tree ids, invalid actors, malformed evidence, and unauthorized terminal transitions. Integrate transition validity as phase-1 `check_engine` rules (reuse the existing rule/finding shape from child uisjns; do not fork). Run derivation ALONGSIDE the existing `- Status:` read (backward-compatible; no big-bang migration) per OQ-01.
   - Depends on: none
   - Expected outcome: an invalid/out-of-order/unauthorized transition is rejected by the transition function (engine rule); a valid event sequence derives the expected visible status; existing `- Status:` reads still work unchanged.
-  - Execution state: pending
+  - Execution note: `ipd_lifecycle` gained `validate_transition` (rejects invalid actor, unauthorized terminal, stale tree, malformed evidence, and missing-predecessor [backwards or terminal-from-too-early]), `derive_status_from_events`, `derive_plan_status`, and `_plan_status_events`. Per DECISION 16-wqj1ne-D1 the event source is the EXISTING history (no parallel log): for a plan it is the inline `## Workflow history` parsed via record_history._inline_history_records/_parse_record_line (plans are excluded from the sidecar by record_history's own design), filtered to KNOWN status tokens (`_PLAN_STATUS_VOCAB`) so workflow notes like `/plan-review` are not mistaken for transitions. The engine rule `check.lifecycle-transition-invalid` (RULE_REGISTRY, reusing the uisjns finding shape) validates each recorded PENDING-plan transition; terminal-dir plans are grandfathered (their slimmed/annotated pre-rule histories are not retroactively re-litigated) to preserve the baseline. Derivation runs ALONGSIDE the authoritative `- Status:` read. HONEST: the events are locally forgeable (findings 5.4/7.3) - a validity/consistency check, not a tamper-proof boundary.
+  - Execution state: performed
 
 ### Task group 2: declared scope enforcement
 
-- [ ] E-02 Surface declared-file-scope drift as a phase-1 `check_engine` rule by REUSING the existing finalize scope-comparison helpers in `ipd_lifecycle.py` - `_paths_changed_by_this_execution` (ipd_lifecycle.py:571), `_scope_match` (:616), and `_frozen_scope_paths` (:307) - which already compare changed paths against a plan's frozen `Scope-Paths` (the module docstring names Order 04 as the enforcer, ipd_lifecycle.py:21). Do NOT fork a second scope-comparison path; lift/share the existing logic. Rely on isolated worktrees for concurrency; do NOT infer authorship from timestamps/narrative.
+- [x] E-02 Surface declared-file-scope drift as a phase-1 `check_engine` rule by REUSING the existing finalize scope-comparison helpers in `ipd_lifecycle.py` - `_paths_changed_by_this_execution` (ipd_lifecycle.py:571), `_scope_match` (:616), and `_frozen_scope_paths` (:307) - which already compare changed paths against a plan's frozen `Scope-Paths` (the module docstring names Order 04 as the enforcer, ipd_lifecycle.py:21). Do NOT fork a second scope-comparison path; lift/share the existing logic. Rely on isolated worktrees for concurrency; do NOT infer authorship from timestamps/narrative.
   - Depends on: E-01
   - Expected outcome: a change touching paths outside declared `Scope-Paths` is flagged by the engine rule (via the shared finalize helpers); an in-scope change is clean; no duplicated scope-comparison logic is introduced (grep/import proof).
-  - Execution state: pending
+  - Execution note: `check_engine.check_scope_drift` (rule `check.scope-drift`, RULE_REGISTRY) applies to a plan with an ACTIVE begin receipt (`ipd_lifecycle.read_receipt` -> base_head + frozen Scope-Paths) and REUSES the finalize helpers `_paths_changed_by_this_execution` + `_scope_match` + `_frozen_scope_paths` + `_is_implicitly_allowed` (no forked comparator). A grandfathered/absent Scope-Paths yields an empty frozen list -> advisory-satisfied (never hard-flagged), honoring the sentinel. Gitignored runtime scratch (`.aw/state/`, `.aw/worktrees/`) is excluded defensively. No authorship is inferred from timestamps/narrative; isolation is the concurrency mechanism.
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -93,14 +95,62 @@ The building blocks (Scope-Paths, history sidecar, finalize diff) exist; Phase 3
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: (a) EACH invalid transition is rejected with its specific reason - paste test output for: missing predecessor, stale tree id, invalid actor, malformed evidence, and unauthorized terminal transition (five distinct assertions, not one blanket "rejected"); (b) a VALID ordered event sequence derives the expected visible status (paste the derived status for a known sequence); (c) events are appended to the existing `.aw/records/history.jsonl` sidecar via `record_history.append` and NOT to a parallel log (paste the import/grep and a sample line); (d) BACKWARD COMPATIBILITY (anti-regression, rubric D): existing `- Status:` reads and the callers that depend on them (`aw set`/`aw ipd set`, `finalize`, the installed hooks) still work unchanged - a characterization test pins the pre-change status-read behavior and confirms it is preserved when derivation runs alongside (paste the test run).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: |
+    (a) Five DISTINCT rejections (validate_transition), asserted individually in
+        tests/test_event_derived_lifecycle.py::TestTransitionValidity:
+          - missing predecessor: validate_transition(None,'reviewed') -> ok=False "missing predecessor:
+            cannot start the lifecycle at 'reviewed'"; and ('approved','draft') -> "backwards transition";
+            and ('draft','executed', actor='aw ipd finalize') -> "terminal transition ... requires at
+            least 'reviewed'".
+          - stale tree id: (...,tree_id_current='aaa',tree_id_evidence='bbb') -> "stale tree id".
+          - invalid actor: (...,actor='   ') -> "invalid actor: empty actor string".
+          - malformed evidence: (...,require_evidence=True,evidence={}) -> "malformed evidence".
+          - unauthorized terminal: ('approved','executed',actor='aw set') -> "unauthorized terminal
+            transition ... only `aw ipd finalize` may perform it".
+        (test_missing_predecessor_*, test_stale_tree_id, test_invalid_actor, test_malformed_evidence,
+        test_unauthorized_terminal all PASS.)
+    (b) Derived status for a valid ordered sequence [draft, reviewed, approved] ->
+        derive_status_from_events == "approved" (test_derive_status_from_valid_sequence); an
+        off-sequence note (parked) does not advance it (test_derive_ignores_off_sequence_notes).
+    (c) NO PARALLEL LOG (DECISION 16-wqj1ne-D1): the event source is the EXISTING history.
+        `_plan_status_events` imports `record_history` and calls `_inline_history_records`
+        (test_events_from_inline_history_no_parallel_log asserts the source contains "record_history"
+        + "_inline_history_records"); plans are excluded from the sidecar by record_history's own
+        design (record_history.py:279-291), so a plan's events ARE its inline history; other trees use
+        the sidecar's record_history.append/read. No new event-log file is created.
+    (d) BACKWARD COMPAT: `ce._status_meta(text)` (the existing `- Status:` read) still returns
+        "approved" and `derive_plan_status(text)` agrees (test_backward_compat_status_read_unchanged);
+        derivation runs ALONGSIDE, not replacing, the field. All ipd_lifecycle/hook/finalize suites
+        pass (154 in the focused run; full suite "2505 passed, 1 skipped").
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: (a) a change touching a path OUTSIDE the plan's declared `Scope-Paths` is flagged by the phase-1 engine rule with the correct rule id + recovery command (paste the `aw check` finding); (b) an in-scope-only change is CLEAN (paste output showing zero scope-drift findings); (c) NO-FORK proof: the engine rule reuses the existing `ipd_lifecycle` helpers (`_paths_changed_by_this_execution`/`_scope_match`/`_frozen_scope_paths`) rather than defining a second scope-comparison implementation - paste the import/grep showing the shared call and the absence of a duplicated comparator; (d) the `grandfathered` sentinel is honored (a `Scope-Paths: grandfathered` plan is advisory-satisfied, not hard-flagged) - paste output.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+    (a) With an active begin receipt (base_head + Scope-Paths: src/) and a change to `other/`,
+        check_scope_drift emits a finding whose full shape is:
+        {"schema_version": "aw.policy/v1", "rule": "check.scope-drift", "severity": "error",
+         "assurance": "repository", "determinism": "deterministic", "invariant": "I-01",
+         "location": ".aw/records/plans/pending/20260828-t-01-aaa111-x.ipd.md",
+         "detail": "changed path 'other/' is outside the plan's declared Scope-Paths",
+         "observed": "changed: other/", "required": "a change within the declared Scope-Paths: src/",
+         "recovery": "restrict the change to Scope-Paths, or declare the path in the plan's Scope-Paths
+         (then re-`aw ipd begin`), or reconcile it at `aw ipd finalize`"}
+        (test_flags_out_of_scope_change PASS; git collapses the untracked dir to `other/`).
+    (b) An in-scope-only change (src/feat.py) -> ZERO check.scope-drift findings
+        (test_in_scope_change_clean). A plan with NO active receipt -> zero findings
+        (test_no_receipt_no_drift).
+    (c) NO-FORK: check_scope_drift's source contains `_paths_changed_by_this_execution`,
+        `_scope_match`, and `_frozen_scope_paths` (test_reuses_finalize_scope_helpers_no_fork asserts
+        all three); no second scope comparator is defined.
+    (d) GRANDFATHERED: a `Scope-Paths: grandfathered` plan (empty frozen allowlist) with an
+        out-of-scope change -> ZERO check.scope-drift findings (test_grandfathered_sentinel_not_flagged),
+        i.e. advisory-satisfied, not hard-flagged.
+    `aw check all --agent` == 68 findings == HEAD baseline (0 new from either Phase-3 rule; the
+    lifecycle rule is scoped to pending plans and the real pending plans are all clean).
+    Full suite "2505 passed, 1 skipped".
+  - Result: pass
 
 
 ## Approval and execution gate
