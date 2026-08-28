@@ -305,6 +305,9 @@ def _spec_record(
             gate["summary"] = summary
     lha = A.last_history_at(_history_section_lines(text))
     br = specs_mod._read_blocks_release(lines)
+    # xprio rp859c E-03: populate Item.priority from the spec's `- Priority:` line so the board LABELS
+    # a spec's priority via the existing renderer (absent = None = no label). Shared sort key unchanged.
+    pr = specs_mod._read_priority(lines)
     return Item(
         "",
         rel,
@@ -314,6 +317,7 @@ def _spec_record(
         gate,
         lha,
         blocks_release=br,
+        priority=pr,
     ), drift
 
 

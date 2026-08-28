@@ -2870,6 +2870,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Declare this spec gates a release: a release id6, 'next', or '-' to clear.",
     )
     p_specs_set.add_argument(
+        "--priority",
+        dest="priority",
+        default=None,
+        choices=["low", "medium", "high", "-"],
+        help="Set the spec's Priority (low|medium|high); '-' clears it (xprio). Written as a "
+        "side-effect of the status transition; an out-of-vocab value is refused.",
+    )
+    p_specs_set.add_argument(
         "--evidence",
         default=None,
         help="Resolvable implementation-evidence citation (for implemented).",

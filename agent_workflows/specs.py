@@ -108,6 +108,10 @@ def _read_gate(lines: List[str]) -> Tuple[Optional[str], Optional[str], Optional
 
 _BLOCKS_RELEASE_RE = re.compile(r"^- Blocks-Release:\s*(\S+)\s*$")
 _SPEC_ID_RE = re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
+# xprio Order rp859c: an optional `- Priority:` bullet on a spec (shared low/medium/high vocab is
+# backlog.PRIORITIES; do NOT fork it). Optional (existing specs carry none). The ENUM value is
+# enum-validated in validate_spec (not here); this is just the reader RE, mirroring _BLOCKS_RELEASE_RE.
+_PRIORITY_RE = re.compile(r"^- Priority:\s*(\S+)\s*$")
 
 
 def _repo_root_of(spec_path: Path) -> Path:
@@ -151,6 +155,17 @@ def _read_blocks_release(lines: List[str]) -> Optional[str]:
     end = _metadata_end(lines)
     for line in lines[:end]:
         m = _BLOCKS_RELEASE_RE.match(line)
+        if m:
+            return m.group(1)
+    return None
+
+
+def _read_priority(lines: List[str]) -> Optional[str]:
+    """Read a spec's optional `- Priority:` value (shared low/medium/high vocab), or None (absent =
+    unprioritized). xprio Order rp859c; mirrors `_read_blocks_release`. Enum-validated in validate_spec."""
+    end = _metadata_end(lines)
+    for line in lines[:end]:
+        m = _PRIORITY_RE.match(line)
         if m:
             return m.group(1)
     return None
@@ -254,6 +269,23 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
                 "no conformant `## Workflow history` record",
             )
         )
+
+    # xprio Order rp859c: an optional `- Priority:` bullet must, WHEN PRESENT, be in the shared
+    # backlog.PRIORITIES vocab (imported, not forked). Absent = unprioritized (no finding). Because
+    # `aw specs set` re-runs validate_spec and refuses a nonconforming result, this also makes the
+    # setter refuse an out-of-vocab `--priority bogus` (byte-identical refuse path).
+    priority = _read_priority(lines)
+    if priority is not None:
+        from agent_workflows import backlog as _backlog
+
+        if priority not in _backlog.PRIORITIES:
+            drift.append(
+                core.Drift(
+                    loc,
+                    "spec.priority-invalid",
+                    f"priority not in {sorted(_backlog.PRIORITIES)}: {priority!r}",
+                )
+            )
 
     return drift
 
@@ -533,6 +565,14 @@ def run_set(args) -> int:
         from agent_workflows import releases as _releases
 
         new_text = _releases.set_blocks_release_line(new_text, br)
+    # xprio Order rp859c: set/clear the optional `- Priority:` bullet when requested, via the shared
+    # idempotent `releases.set_priority_line` writer (no forked write path). `-`/None clears. The enum
+    # value is enforced by the validate_spec pass below (so `--priority bogus` is refused here).
+    prio = getattr(args, "priority", None)
+    if prio is not None:
+        from agent_workflows import releases as _releases
+
+        new_text = _releases.set_priority_line(new_text, prio)
     # validate the complete result in memory; refuse (byte-identical) if it would not conform
     residual = validate_spec(path, new_text)
     if residual:
