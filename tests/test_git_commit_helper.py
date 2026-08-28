@@ -175,6 +175,16 @@ def test_interactive_yes_commits(repo: Path, rec, monkeypatch):
     rec.assert_contract_clean()
 
 
+def test_interactive_empty_enter_defaults_to_yes(repo: Path, rec, monkeypatch):
+    mine = _write(repo, "mine.txt", "mine\n")
+    monkeypatch.setattr("builtins.input", lambda *_a, **_k: "")
+    before = _head(repo)
+    out = H.offer_commit(repo, [mine], message="msg", interactive=True)
+    assert out.status == H.STATUS_COMMITTED
+    assert _head(repo) != before
+    rec.assert_contract_clean()
+
+
 def test_interactive_no_declines(repo: Path, rec, monkeypatch):
     mine = _write(repo, "mine.txt", "mine\n")
     monkeypatch.setattr("builtins.input", lambda *_a, **_k: "n")

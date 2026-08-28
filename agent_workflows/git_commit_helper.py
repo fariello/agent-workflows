@@ -7,7 +7,7 @@ SINGLE reusable commit path enforcing the repository contract (AGENTS.md):
 
 * stage ONLY the explicit files the caller touched (``git add -- <paths>``); never ``-A``/``-a``;
 * commit with the caller's message; never ``--no-verify``; never ``push``;
-* INTERACTIVE-GATED - on a TTY prompt ``[y/N]`` unless ``assume_yes`` (the ``--commit`` flag);
+* INTERACTIVE-GATED - on a TTY prompt ``[Y/n]`` unless ``assume_yes`` (the ``--commit`` flag);
   NON-interactive without ``assume_yes`` is a NO-OP (skip), matching ``cli._confirm``'s ACTUAL
   decline-on-non-TTY behavior (cli.py:2696) - NOT auto-yes; ``no_commit`` short-circuits to skip;
 * NEVER folds in unrelated staged/unstaged changes. ``on_unrelated_staged`` selects the policy
@@ -85,19 +85,20 @@ def _is_interactive(interactive: Optional[bool]) -> bool:
 
 
 def _prompt(message: str, paths: Sequence[str]) -> bool:
-    """Tiny ``[y/N]`` yes/no render, equivalent to ``cli._confirm``'s interactive branch.
+    """Tiny ``[Y/n]`` yes/no render, equivalent to ``cli._confirm``'s interactive branch.
 
     Reimplemented locally (NOT imported from ``cli``) to keep this a leaf module. Only ever
-    called when already known-interactive; an EOF/empty answer is a safe NO.
+    called when already known-interactive; an empty answer defaults to YES, while an EOF or
+    explicit 'n'/'no' is a safe NO.
     """
 
     shown = ", ".join(paths)
-    prompt = f"{message}\n  {shown}\nCommit these path-scoped changes? [y/N] "
+    prompt = f"{message}\n  {shown}\nCommit these path-scoped changes? [Y/n] "
     try:
         answer = input(prompt).strip().lower()
     except EOFError:
         return False
-    return answer in ("y", "yes")
+    return answer in ("", "y", "yes")
 
 
 def _staged_paths(repo_root: Path) -> List[str]:
@@ -241,10 +242,12 @@ def offer_commit(
         )
 
     # --- Path-scoped commit (never --no-verify, never push). ---
-    rc, _out, err = _git(repo_root, ["commit", "-m", message, "--", *our_staged])
+    rc, out, err = _git(repo_root, ["commit", "-m", message, "--", *our_staged])
     if rc != 0:
+        _git(repo_root, ["reset", "--quiet", "HEAD", "--", *our_staged])
+        msg = err.strip() or out.strip() or "git commit exited non-zero"
         return CommitOutcome(
-            STATUS_ERROR, None, tuple(our_staged), f"git commit failed: {err.strip()}"
+            STATUS_ERROR, None, tuple(our_staged), f"git commit failed: {msg}"
         )
 
     rc, head, _err = _git(repo_root, ["rev-parse", "HEAD"])
