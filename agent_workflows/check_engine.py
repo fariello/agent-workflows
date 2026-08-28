@@ -41,6 +41,176 @@ SPEC_ID6_CUTOVER_DATE = (
     "20260828"  # compact YYYYMMDD; require_id6 iff filename date >= this
 )
 
+# --------------------------------------------------------------------------------------
+# Versioned policy schema (agentadhere Phase 1, IPD uisjns).
+#
+# The shared policy engine is the host-independent deterministic core every later layer (atomic
+# commands, git hooks, CI) calls, so the finding shape and the rule -> {severity, assurance,
+# determinism} mapping must be STABLE and VERSIONED. This registry is that contract. Each rule id
+# maps to its Phase-0 assurance class (spec pqsx96: I-01..I-15) and its determinism tag; the
+# `enrich_drift` helper stamps those onto a `Drift` so the machine-readable `aw check` output carries
+# the full documented shape. The DATA output carries `policy_schema_version` so a hook/CI can assert
+# compatibility independently; it is reconciled with (not a replacement for) the agent envelope
+# `aw.agent/v1` (OQ-01). An unregistered rule id is enriched conservatively (error/repository/
+# deterministic) so a new rule is never SILENTLY unclassified.
+POLICY_SCHEMA_VERSION = "aw.policy/v1"
+
+# Assurance classes (Phase-0 catalog spec pqsx96 Section 2): the bare tokens used in the finding
+# shape. `guidance` = cooperative agents should follow; `repository` = a noncompliant artifact must
+# fail checks/merge (deterministic over the artifact; authoritative only when the same check gates
+# merge in CI); `authority` = must survive a fully privileged local agent (needs external authority).
+ASSURANCE_GUIDANCE = "guidance"
+ASSURANCE_REPOSITORY = "repository"
+ASSURANCE_AUTHORITY = "authority"
+
+# Determinism tags (findings 7.2 / catalog): how a finding's truth was reached.
+DET_DETERMINISTIC = "deterministic"
+DET_HEURISTIC = "heuristic"
+DET_ATTESTED = "attested"
+
+
+class RuleSpec(NamedTuple):
+    """One rule's stable policy metadata (agentadhere Phase 1)."""
+
+    severity: str  # "error" | "warning" | "info"
+    assurance: str  # ASSURANCE_*
+    determinism: str  # DET_*
+    invariant: (
+        str  # the Phase-0 catalog invariant id it enforces (e.g. "I-03"), or "" if none
+    )
+
+
+# The versioned rule registry: stable rule id -> RuleSpec. Assurance classes trace to the Phase-0
+# invariant catalog (spec pqsx96). Rules not listed here fall back to a conservative default.
+RULE_REGISTRY: Dict[str, RuleSpec] = {
+    # Naming grammar (catalog I-09).
+    "check.name-nonconformant": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-09"
+    ),
+    # Untooled lifecycle status change (catalog I-03).
+    "check.status-untooled": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-03"
+    ),
+    # Filename identity-slot / id6 uniqueness (catalog I-09 family).
+    "check.setid-collision": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-09"
+    ),
+    "check.id6-collision": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-09"
+    ),
+    "check.id6-identity-slot": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-09"
+    ),
+    # Release-gate preservation (catalog I-07).
+    "check.blocking-item-closed-without-gate": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
+    "check.from-backlog-gate-mismatch": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
+    "check.blocks-release-dangling": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
+    "check.from-backlog-dangling": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
+    "check.orphaned-live-blocker": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_HEURISTIC, "I-07"
+    ),
+    # Cross-IPD dependency statements (catalog I-08).
+    "check.ipd-dependency-malformed": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-08"
+    ),
+    "check.ipd-dependency-dangling": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-08"
+    ),
+    "check.ipd-dependency-ambiguous": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-08"
+    ),
+    "check.ipd-dependency-cycle": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-08"
+    ),
+    "check.ipd-dependency-unresolved": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-08"
+    ),
+    "check.ipd-missing-dependency-statement": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-08"
+    ),
+    # Authoring-lifecycle nudge (catalog I-12): a finished draft should advance to to-review. This
+    # is GUIDANCE and only detectable (placeholder-free draft), so info-severity + heuristic.
+    "check.ipd-draft-ready-to-review": RuleSpec(
+        "info", ASSURANCE_GUIDANCE, DET_HEURISTIC, "I-12"
+    ),
+}
+
+# Conservative default for an unregistered rule id: treat it as an error-severity, repository-class,
+# deterministic finding so a new rule is never SILENTLY unclassified (fail toward visible).
+_DEFAULT_RULESPEC = RuleSpec("error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "")
+
+
+def rule_spec(rule_id: str) -> RuleSpec:
+    """Return the registered RuleSpec for a rule id, or the conservative default."""
+    return RULE_REGISTRY.get(rule_id, _DEFAULT_RULESPEC)
+
+
+def enrich_drift(
+    drift: _core.Drift,
+    *,
+    observed: str = "",
+    required: str = "",
+    recovery: str = "",
+) -> _core.Drift:
+    """Stamp the versioned policy metadata (severity/assurance/determinism) onto a Drift.
+
+    Looks up the rule id in RULE_REGISTRY (conservative default for an unknown rule), and fills the
+    optional observed/required/recovery fields when the caller supplies them. Preserves the original
+    location/rule/detail exactly. Idempotent-safe: re-enriching overwrites only the metadata fields.
+    """
+    spec = rule_spec(drift.rule)
+    return drift._replace(
+        observed=observed or drift.observed,
+        required=required or drift.required,
+        recovery=recovery or drift.recovery,
+        assurance=drift.assurance or spec.assurance,
+        determinism=drift.determinism or spec.determinism,
+        severity=drift.severity or spec.severity,
+    )
+
+
+def finding_dict(
+    drift: _core.Drift, repo_root: Optional[Path] = None
+) -> Dict[str, object]:
+    """Serialize a (possibly enriched) Drift into the full documented, JSON-safe finding shape.
+
+    This is the machine-readable finding record the versioned policy engine emits (agentadhere
+    Phase 1): a stable rule id, severity, assurance class, observed-vs-required, the exact recovery
+    command, and the determinism tag, under a `schema_version`. Un-enriched fields are filled from
+    the registry here so a raw Drift still serializes to the full shape.
+    """
+    spec = rule_spec(drift.rule)
+    loc = drift.location
+    if repo_root is not None:
+        try:
+            loc = str(
+                Path(drift.location).resolve().relative_to(Path(repo_root).resolve())
+            )
+        except (ValueError, OSError):
+            loc = drift.location
+    return {
+        "schema_version": POLICY_SCHEMA_VERSION,
+        "rule": drift.rule,
+        "severity": drift.severity or spec.severity,
+        "assurance": drift.assurance or spec.assurance,
+        "determinism": drift.determinism or spec.determinism,
+        "invariant": spec.invariant,
+        "location": loc,
+        "detail": drift.detail,
+        "observed": drift.observed,
+        "required": drift.required,
+        "recovery": drift.recovery,
+    }
+
+
 _SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}
 # The type->facet map is defined ONCE in the naming authority (IPD o6b8l3). check_names only checks
 # clustered-facet types, so `comms` (no clustered check today) is intentionally omitted here.
@@ -244,6 +414,14 @@ def check_content(
         # (deliberately NOT also added to the collisions-only cross-tree sweep).
         try:
             drift.extend(check_ipd_dependencies(repo_root))
+        except Exception:
+            pass
+        # agentadhere Phase 1 (IPD uisjns E-03; catalog invariant I-12): nudge a finished draft to
+        # advance to `to-review`. Detect-and-nudge only (never auto-flips status).
+        try:
+            drift.extend(
+                check_ipd_draft_ready(repo_root, include_untracked=include_untracked)
+            )
         except Exception:
             pass
     elif record_type == "research":
@@ -612,6 +790,57 @@ def check_status_untooled(repo_root: Path) -> List[_core.Drift]:
                     ),
                 )
             )
+    return drift
+
+
+_DRAFT_READY_RULE = "check.ipd-draft-ready-to-review"
+
+
+def check_ipd_draft_ready(
+    repo_root: Path, include_untracked: bool = False
+) -> List[_core.Drift]:
+    """Detect-and-nudge (agentadhere Phase 1 E-03; catalog invariant I-12, assurance Guidance).
+
+    Flag each plan at ``- Status: draft`` whose scaffold authoring placeholders are ALL resolved
+    (via ``ipd_authoring.authoring_placeholders_resolved``) with an info-severity
+    ``check.ipd-draft-ready-to-review`` finding whose recovery command is
+    ``aw ipd set to-review <id6>``. A draft that still contains a scaffold placeholder is SILENT
+    (correctly still a stub). This never changes any status: it is a NUDGE, closing the recurring
+    miss where a finished draft is never advanced to ``to-review``. Only pending-dir plans are
+    considered (a terminal-dir file is not a draft awaiting advance).
+    """
+    from agent_workflows import ipd_authoring as _authoring
+
+    drift: List[_core.Drift] = []
+    for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
+        # Only nudge a plan that is actually in a pending lane (not executed/superseded/etc.).
+        if "pending" not in p.parts:
+            continue
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        m = _PLAN_STATUS_RE.search(text)
+        if not m or m.group(1).strip().lower() != "draft":
+            continue
+        if not _authoring.authoring_placeholders_resolved(text):
+            continue  # still a stub: stay silent
+        mid = _ITEM_ID_RE.search(text)
+        id6 = mid.group(1) if mid else p.stem
+        recovery = f"aw ipd set to-review {id6}"
+        drift.append(
+            enrich_drift(
+                _core.Drift(
+                    str(p),
+                    _DRAFT_READY_RULE,
+                    "draft IPD has no remaining authoring placeholders; advance it to "
+                    "to-review so it enters the review pipeline",
+                ),
+                observed="Status: draft (authoring complete)",
+                required="Status: to-review",
+                recovery=recovery,
+            )
+        )
     return drift
 
 

@@ -80,7 +80,14 @@ def _spec(repo: Path, *, id6: str, status: str = "draft") -> Path:
 
 
 def _rules(drift, prefix="check.ipd-") -> list:
-    return [d.rule for d in drift if d.rule.startswith(prefix)]
+    # This helper targets the cross-IPD DEPENDENCY rules. The agentadhere Phase 1 (IPD uisjns)
+    # advisory `check.ipd-draft-ready-to-review` shares the `check.ipd-` prefix but is a separate
+    # (draft-readiness) concern, so it is excluded here to keep these dependency assertions focused.
+    return [
+        d.rule
+        for d in drift
+        if d.rule.startswith(prefix) and d.rule != "check.ipd-draft-ready-to-review"
+    ]
 
 
 # --------------------------------------------------------------------------------------

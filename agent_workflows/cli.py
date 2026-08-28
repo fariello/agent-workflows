@@ -6678,21 +6678,30 @@ def _run_check(
     diagnostics = []
     from agent_workflows import doctor as _doctor
 
+    # agentadhere Phase 1 (IPD uisjns): build the versioned, JSON-safe finding shape alongside the
+    # compact Diagnostic. Each finding carries the stable rule id, severity, assurance class (from
+    # the Phase-0 catalog via the rule registry), observed-vs-required, the exact recovery command,
+    # and the determinism tag under a policy schema_version. This rides in `data["findings"]` so the
+    # existing Diagnostic/compact-agent shape stays byte-compatible for current consumers.
+    findings: list = []
     seen_fixes = set()
     for d in drift:
         try:
             title, dir_str, fname, extra, fix = _doctor._categorize_drift(d, repo_root)
         except Exception:
             fix = None
+        # Prefer any determinism/assurance/severity already stamped on the Drift, else the registry.
+        enriched = ce.enrich_drift(d, recovery=fix or "")
         diagnostics.append(
             Diagnostic(
                 location=d.location,
                 rule=d.rule,
                 detail=d.detail,
-                severity="error",
+                severity=enriched.severity or "error",
                 fix=fix or None,
             )
         )
+        findings.append(ce.finding_dict(enriched, repo_root))
         if fix and fix not in seen_fixes:
             seen_fixes.add(fix)
 
@@ -6788,8 +6797,17 @@ def _run_check(
         data={
             "target": target_label,
             "elapsed_ms": elapsed_ms,
-            "repo_root": repo_root,
-            "drift": drift,
+            # str(), not the raw PosixPath: `data` is serialized verbatim by CommandResult.to_dict
+            # (the `--json` renderer), and a PosixPath is not JSON-serializable. Passing a str keeps
+            # to_agent_record's path-normalization working AND fixes the pre-existing
+            # `aw check --json` crash. (agentadhere Phase 1, IPD uisjns.)
+            "repo_root": str(repo_root),
+            # agentadhere Phase 1: the versioned, JSON-safe finding shape and the policy schema
+            # version. Replaces the raw (non-JSON-serializable) Drift list in the serialized output.
+            # Keyed `policy_findings` (NOT `findings`) because `to_agent_record` reserves the
+            # `findings` data key for an integer count.
+            "policy_schema_version": ce.POLICY_SCHEMA_VERSION,
+            "policy_findings": findings,
             "type_counts": type_counts,
         },
         verified=True,

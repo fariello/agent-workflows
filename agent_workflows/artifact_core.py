@@ -346,11 +346,34 @@ def find_dangling_citations(
 
 
 class Drift(NamedTuple):
-    """A drift finding for a ``--check`` gate (location + rule + detail)."""
+    """A drift finding for a ``--check`` gate.
+
+    The first three fields (``location``/``rule``/``detail``) are the original, load-bearing shape:
+    every existing producer constructs ``Drift(location, rule, detail)`` positionally and every
+    existing consumer reads those three attributes, so they are UNCHANGED.
+
+    The trailing fields (agentadhere Phase 1, IPD uisjns) enrich a finding with the versioned
+    policy-schema metadata WITHOUT breaking any existing caller: they are all OPTIONAL with
+    defaults, so a 3-argument ``Drift(loc, rule, detail)`` still works and the tuple's first three
+    positions are identical. They are populated by ``check_engine.enrich_drift`` from the rule
+    registry (they default empty, so an un-enriched Drift behaves exactly as before):
+
+    * ``observed`` / ``required`` - the observed-vs-required state (findings 7.2);
+    * ``recovery`` - the exact recovery command, when one exists;
+    * ``assurance`` - the Phase-0 assurance class (``guidance`` / ``repository`` / ``authority``);
+    * ``determinism`` - ``deterministic`` / ``heuristic`` / ``attested`` (how the result was reached);
+    * ``severity`` - ``error`` / ``warning`` / ``info``.
+    """
 
     location: str
     rule: str
     detail: str
+    observed: str = ""
+    required: str = ""
+    recovery: str = ""
+    assurance: str = ""
+    determinism: str = ""
+    severity: str = ""
 
 
 def render_agent_drift(drift: List[Drift]) -> str:
@@ -362,6 +385,12 @@ def render_agent_drift(drift: List[Drift]) -> str:
 
 def drift_exit_code(drift: List[Drift]) -> int:
     """The standard ``--check`` exit convention: 0 clean, 1 drift present. (2 = could-not-run is
-    the caller's to return on an invocation/parse failure.)"""
+    the caller's to return on an invocation/parse failure.)
 
-    return 1 if drift else 0
+    agentadhere Phase 1 (IPD uisjns): an ``info``-severity finding is ADVISORY (a detect-and-nudge,
+    e.g. ``check.ipd-draft-ready-to-review``) and does NOT fail the gate; only error/warning-class
+    findings drive the nonzero exit. A legacy 3-field ``Drift`` carries an empty ``severity`` and is
+    therefore still treated as failing, so existing callers are unchanged.
+    """
+
+    return 1 if any(getattr(d, "severity", "") != "info" for d in drift) else 0

@@ -972,7 +972,39 @@ def lint_text(
     diags += dep_blocking
     disposition = S.DISPOSITION_CONFORMING if not diags else S.DISPOSITION_ERROR
     advisories = check_density(doc) + scope_advisory + dep_advisory
+    advisories += _draft_ready_advisory(doc, text, checkpoint)
     return LintResult(disposition, diags, advisories)
+
+
+# agentadhere Phase 1 (IPD uisjns E-03; catalog invariant I-12): the same draft-ready nudge the
+# check engine emits, surfaced as a PASSING advisory from `aw ipd lint --phase author` on a
+# placeholder-free draft. Detect-and-nudge only (never flips status).
+C_DRAFT_READY = "check.ipd-draft-ready-to-review"
+
+
+def _draft_ready_advisory(doc, text: str, checkpoint: str) -> List[Diagnostic]:
+    if checkpoint != "author":
+        return []
+    status = (doc.meta_fields.get("Status") or "").strip().lower()
+    if status != "draft":
+        return []
+    try:
+        from agent_workflows import ipd_authoring as _authoring
+
+        if not _authoring.authoring_placeholders_resolved(text):
+            return []
+    except Exception:
+        return []
+    id6 = (doc.meta_fields.get("Id") or "").strip() or "<id6>"
+    return [
+        Diagnostic(
+            0,
+            0,
+            C_DRAFT_READY,
+            "draft has no remaining authoring placeholders; advance it with "
+            f"`aw ipd set to-review {id6}`",
+        )
+    ]
 
 
 def lint_file(

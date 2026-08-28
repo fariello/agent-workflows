@@ -93,6 +93,46 @@ def _gate_body() -> str:
     )
 
 
+# --------------------------------------------------------------------------------------
+# Authoring-placeholder predicate (agentadhere Phase 1, IPD uisjns E-03; catalog invariant I-12).
+# --------------------------------------------------------------------------------------
+
+# The ANCHORED scaffold placeholder markers emitted by `scaffold_text` above (OQ-02: match the
+# LITERAL scaffold tokens, NOT a bare `TODO` substring, so legitimate prose containing the word
+# "TODO" never false-positives). Each entry is a substring that appears in the scaffold output and
+# is meant to be REPLACED by the author. Kept in lock-step with the scaffold helpers above; if a
+# scaffold placeholder string changes, update it here (and the E-03 test pins this coupling).
+_AUTHORING_PLACEHOLDERS = (
+    "- Concern: TODO.",
+    "- Scope: TODO.",
+    "- Scope-Paths: TODO",
+    "- Item-Dependencies: unresolved",
+    _SECTION_BODY[
+        S.H_GOAL
+    ],  # "TODO: one or two sentences on what this plan achieves and why."
+    "- [ ] E-01 TODO one observable action.",
+    "  - Expected outcome: TODO observable result.",
+    "  - Required evidence: TODO falsifiable evidence.",
+    "### OQ-01: TODO a question",
+    "TODO: approval + execution gate prose",
+    UNASSIGNED_MARKER,  # any remaining unassigned `E-NEW` leaf means still authoring
+)
+
+
+def authoring_placeholders_resolved(plan_text: str) -> bool:
+    """True iff a plan's text contains NONE of the anchored scaffold authoring placeholders.
+
+    A freshly scaffolded IPD is peppered with literal `TODO.`/`unresolved`/`E-NEW`/placeholder-body
+    markers (see `scaffold_text`). While ANY of them remains, the plan is still a stub and MUST NOT
+    be nudged toward `to-review`. When ALL are replaced by real authored content, the draft is
+    "ready" and the `check.ipd-draft-ready-to-review` rule may nudge the author to advance it.
+
+    Conservative and anchored (OQ-02): it matches the exact scaffold marker strings, so narrative
+    prose that merely contains the word "TODO" does not count as an unresolved placeholder.
+    """
+    return not any(marker in plan_text for marker in _AUTHORING_PLACEHOLDERS)
+
+
 def build_skeleton(
     *,
     kind: str,
